@@ -60,6 +60,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.loonext.android.core.auth.AuthManager
+import com.loonext.android.ui.common.loonextWordmark
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -325,18 +326,18 @@ fun AuthFlow(viewModel: AuthViewModel) {
     }
 }
 
-/** Text wordmark: 'Loonext' with the 'ext' half in olive (no logo glyph). */
+/** Text wordmark (#206): 'Loonext' with the second o in the accent. */
 @Composable
 private fun Wordmark() {
-    Row {
-        val style = MaterialTheme.typography.titleLarge.copy(
+    Text(
+        loonextWordmark(),
+        style = MaterialTheme.typography.titleLarge.copy(
             fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
             letterSpacing = (-0.02).em,
-        )
-        Text("Loon", style = style, color = MaterialTheme.colorScheme.onBackground)
-        Text("ext", style = style, color = MaterialTheme.colorScheme.secondary)
-    }
+        ),
+        color = MaterialTheme.colorScheme.onBackground,
+    )
 }
 
 /** The Bricolage front-door headline + one muted supporting line. */

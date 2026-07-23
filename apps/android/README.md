@@ -1,8 +1,9 @@
 # Loonext Android
 
 Native Android client — Kotlin, Jetpack Compose, Material 3 Expressive
-(`MaterialExpressiveTheme`, material3 1.5.0-alpha24), calm-petrol G11 identity,
-Golos Text (OFL). Full parity surface: inbox/thread/composer, tasks, contacts,
+(`MaterialExpressiveTheme`, material3 1.5.0-alpha24), Paper & Olive identity
+with the double-o brand mark (#206, see `brand/README.md`), Golos Text (OFL).
+Full parity surface: inbox/thread/composer, tasks, contacts,
 calls (Telnyx softphone + self-managed ConnectionService), notifications
 (feed + FCM), settings, auth.
 

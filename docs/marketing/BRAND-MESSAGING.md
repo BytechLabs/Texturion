@@ -10,6 +10,24 @@ changes, update here and the source it came from.
 
 ---
 
+## Visual identity (#206)
+
+Source of truth: `brand/README.md` and the SVGs in `brand/`.
+
+- The mark is the double-o: the "oo" of Loonext drawn as two thick rings, with
+  the second ring in the accent color. Bare mark: `brand/loonext-mark.svg`.
+- Tiles: the mark on a paper `#FDFDF9` tile with a hairline `#E8E8E0` border
+  (`loonext-tile.svg`), an ink `#191B14` tile for dark contexts
+  (`loonext-tile-dark.svg`), and an unread variant with a coral `#D96C47` dot.
+- The wordmark is "Loonext" set in Golos Text SemiBold with only the second o
+  in the accent: olive `#66801F` on light surfaces, lime `#B9CF57` on dark.
+  Always the second o, never the first, never both. It is implemented as styled
+  text in code (CSS/Compose/SwiftUI spans), never as an image.
+- Palette (Paper and Olive): ink `#191B14`, olive `#66801F`, lime `#B9CF57`,
+  paper `#FDFDF9`, coral `#D96C47`.
+- The previous mark (a loon silhouette on a petrol `#0F766E` tile) is retired
+  and must not appear in any new material.
+
 ## Tagline
 
 **Primary:** Your number. One inbox. The whole crew.

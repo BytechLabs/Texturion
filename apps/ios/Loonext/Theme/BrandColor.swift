@@ -7,9 +7,8 @@ import UIKit
 /// family, coral attention dot. Values are verbatim from the canvas; light and
 /// dark are both pinned there — do not eyeball-adjust.
 ///
-/// The old petrol/stone names remain as ALIASES onto the new tokens so the 41
-/// pre-redesign files keep compiling; surface passes migrate them to the
-/// semantic names and the aliases then retire.
+/// The pre-redesign petrol/stone aliases are retired (#206) — every call site
+/// speaks the semantic Paper & Olive names.
 enum BrandColor {
     // MARK: Core surfaces
 
@@ -78,31 +77,6 @@ enum BrandColor {
     /// Overdue/notice amber, kept warm for paper.
     static let overdueAmber = adaptive(light: 0x9A6B15, dark: 0xD9A441)
     static let amberBg = adaptive(light: 0xF4E8CD, dark: 0x2E2712)
-
-    // MARK: Legacy aliases (pre-redesign call sites; migrate then delete)
-
-    /// Old app tint → the olive accent.
-    static let petrol = olive
-
-    /// Text/icons ON the accent fill.
-    static let onPetrol = adaptive(light: 0xFDFDF9, dark: 0x191B14)
-
-    /// Quiet container (avatars, selected chips) → avatar tint.
-    static let petrolContainer = avatarTint
-    static let onPetrolContainer = muted900
-
-    // Old stone ramp → nearest paper/olive neutrals.
-    static let stone50 = paper
-    static let stone100 = inset
-    static let stone200 = insetDeep
-    static let stone300 = muted250
-    static let stone400 = muted300
-    static let stone500 = muted500
-    static let stone600 = muted700
-    static let stone700 = muted900
-    static let stone800 = adaptive(light: 0x2C2F22, dark: 0xE7E9DC)
-    static let stone900 = ink
-    static let stone950 = adaptive(light: 0x141610, dark: 0xF3F3EE)
 
     private static func adaptive(light: UInt32, dark: UInt32) -> Color {
         Color(UIColor { traits in

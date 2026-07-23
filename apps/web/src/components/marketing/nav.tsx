@@ -11,6 +11,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { golosText } from "@/lib/app/fonts";
 import { body, display, mono } from "@/lib/marketing/fonts";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +24,8 @@ import { NavCss } from "./nav/nav-css";
 
 /**
  * Marketing header, v4 "FIRST RESPONSE" (DESIGN-DIRECTION §4 "Nav"): Signal
- * White, NO border (Law 10). Wordmark Bricolage 800 ink; links Hanken 500;
+ * White, NO border (Law 10). Wordmark per the brand rule (#206): Golos Text
+ * SemiBold ink with the second o in olive; links Hanken 500;
  * the one cobalt `Get your number` pill (deck §Global). On scroll past 24px
  * the bar ground clears and the nav row condenses into a floating frosted
  * pill (white at 88% + backdrop blur, the one card shadow). The header keeps
@@ -62,8 +64,9 @@ export function Nav() {
             condensed && "frn-pill h-12",
           )}
         >
+          {/* The wordmark rule (#206): the SECOND o carries the accent. */}
           <Link href="/" aria-label="Loonext home" className="frn-wordmark frn-focus rounded-[6px] text-xl leading-none">
-            Loonext
+            Lo<span className="frn-o">o</span>next
           </Link>
 
           {/* Desktop mega-menu nav, deck order. */}
@@ -113,6 +116,7 @@ export function Nav() {
                     display.variable,
                     body.variable,
                     mono.variable,
+                    golosText.variable,
                     "font-body-mkt",
                   )}
                 >
@@ -123,7 +127,7 @@ export function Nav() {
                       className="frn-wordmark frn-focus rounded-[6px] text-xl leading-none"
                       onClick={() => setMobileOpen(false)}
                     >
-                      Loonext
+                      Lo<span className="frn-o">o</span>next
                     </Link>
                   </SheetTitle>
                   <SheetDescription className="sr-only">

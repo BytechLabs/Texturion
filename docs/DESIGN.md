@@ -5,6 +5,12 @@ re-litigate. The buyer is a plumber, landscaper, cleaner, or salon owner — oft
 in a truck, between jobs. Every screen must feel calm, obvious, and fast. The emotional
 target: "this thing respects my time."
 
+**Brand (#206):** the identity everywhere — logo, favicons, app icons, OG, wordmark — is the
+double-o mark; `brand/README.md` is the source of truth. The wordmark is "Loonext" in Golos
+Text SemiBold with only the second o in the accent (olive `#66801F` light / lime `#B9CF57`
+dark), rendered as text spans in code, never an image. "Petrol" below is this doc's historical
+in-app accent token, not the brand mark; the old loon-on-petrol tile is retired.
+
 ---
 
 ## G1. Design principles

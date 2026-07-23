@@ -15,6 +15,9 @@ const GROUND = "#FBFCFE";
 const INK = "#10173B";
 const COBALT = "#2740DE";
 const WHITE = "#FFFFFF";
+// Brand identity on light grounds (#206, brand/README.md): ink + olive.
+const BRAND_INK = "#191B14"; // first ring
+const BRAND_OLIVE = "#66801F"; // second ring + the wordmark's second o
 
 export default function PricingOpengraphImage() {
   return new ImageResponse(
@@ -75,17 +78,32 @@ export default function PricingOpengraphImage() {
               justifyContent: "space-between",
             }}
           >
+            {/* The double-o mark + wordmark (#206, brand/README.md): ink +
+                olive rings on this light ground; the wordmark's SECOND o
+                takes the olive accent — spans, never an image. */}
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <svg width={56} height={56} viewBox="0 0 512 512">
-                <rect width="512" height="512" rx="128" ry="128" fill={INK} />
-                <path
-                  fill={WHITE}
-                  d="M 196 396 C 178 330 186 256 236 222 C 228 178 262 150 302 152 C 330 154 346 168 348 180 L 436 170 L 350 202 C 352 216 346 246 324 264 C 302 308 298 352 302 396 Z"
+                <circle
+                  cx="136"
+                  cy="256"
+                  r="86"
+                  fill="none"
+                  stroke={BRAND_INK}
+                  strokeWidth={52}
                 />
-                <circle cx="300" cy="198" r="15" fill={INK} />
+                <circle
+                  cx="376"
+                  cy="256"
+                  r="86"
+                  fill="none"
+                  stroke={BRAND_OLIVE}
+                  strokeWidth={52}
+                />
               </svg>
-              <div style={{ display: "flex", fontSize: 34, fontWeight: 700 }}>
-                <span style={{ color: INK }}>Loonext</span>
+              <div style={{ display: "flex", fontSize: 34, fontWeight: 600 }}>
+                <span style={{ color: INK }}>Lo</span>
+                <span style={{ color: BRAND_OLIVE }}>o</span>
+                <span style={{ color: INK }}>next</span>
               </div>
             </div>
 

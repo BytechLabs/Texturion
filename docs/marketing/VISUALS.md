@@ -128,9 +128,10 @@ icon }` (a lucide icon + a one-line plain-English description per item). Group w
   — this is the personality moment that makes the menu feel like a brand site.
 - The Compare menu rows may show a tiny "vs" motif; the Trades menu rows use per-trade icons.
 
-**Top-level bar:** keep it calm but give it life — the wordmark is a real petrol mark (not
-plain text), active/hover underline or pill in petrol, the primary CTA is the solid petrol
-button, "Log in" is quiet. Sticky with the blur + on-scroll border is good; keep it.
+**Top-level bar:** keep it calm but give it life — the wordmark is the real brand treatment
+(#206: the double-o mark + "Loonext" in Golos Text SemiBold, second o in the accent — see
+`brand/README.md`), active/hover underline or pill in petrol, the primary CTA is the solid
+petrol button, "Log in" is quiet. Sticky with the blur + on-scroll border is good; keep it.
 
 **Mobile sheet:** not a flat text list — grouped sections with the same icons + descriptions,
 comfortable spacing, section headers, the pinned petrol CTA at the bottom. Feels like the app.

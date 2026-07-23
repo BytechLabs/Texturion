@@ -74,6 +74,7 @@ import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
+import com.loonext.android.ui.common.loonextWordmark
 import com.loonext.android.ui.common.rememberHaptics
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
@@ -400,10 +401,10 @@ fun AccountSheet(
             }
 
             Text(
-                listOfNotNull(
-                    "Loonext v${BuildConfig.VERSION_NAME}",
-                    workspaceName?.let { "$it workspace" },
-                ).joinToString(" · "),
+                loonextWordmark(
+                    suffix = " v${BuildConfig.VERSION_NAME}" +
+                        (workspaceName?.let { " · $it workspace" } ?: ""),
+                ),
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
                 color = MaterialTheme.colorScheme.outline,
                 textAlign = TextAlign.Center,

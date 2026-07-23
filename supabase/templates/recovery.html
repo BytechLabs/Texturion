@@ -13,19 +13,19 @@
     <td align="center" style="padding:32px 16px;">
       <table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="width:480px;max-width:100%;">
         <tr>
-          <td style="padding:0 0 28px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;font-weight:700;color:#10173B;">Loonext</td>
+          <td style="padding:0 0 28px 0;font-family:'Golos Text',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:18px;font-weight:600;color:#191B14;">Lo<span style="color:#66801F;">o</span>next</td>
         </tr>
         <tr>
-          <td style="padding:0 0 12px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:22px;line-height:30px;font-weight:700;color:#10173B;">Reset your password</td>
+          <td style="padding:0 0 12px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:22px;line-height:30px;font-weight:700;color:#191B14;">Reset your password</td>
         </tr>
         <tr>
-          <td style="padding:0 0 24px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#10173B;">We received a request to reset the password for {{ .Email }}. Use the button below to choose a new password. The link can only be used once.</td>
+          <td style="padding:0 0 24px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;color:#191B14;">We received a request to reset the password for {{ .Email }}. Use the button below to choose a new password. The link can only be used once.</td>
         </tr>
         <tr>
           <td style="padding:0 0 28px 0;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td bgcolor="#2740DE" style="border-radius:6px;">
+                <td bgcolor="#66801F" style="border-radius:6px;">
                   <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block;padding:12px 24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:20px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:6px;">Reset password</a>
                 </td>
               </tr>
@@ -33,15 +33,15 @@
           </td>
         </tr>
         <tr>
-          <td style="padding:0 0 28px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#5A6472;">
+          <td style="padding:0 0 28px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;color:#6E7163;">
             If the button does not work, copy and paste this link into your browser:<br>
-            <a href="{{ .ConfirmationURL }}" target="_blank" style="color:#2740DE;word-break:break-all;">{{ .ConfirmationURL }}</a>
+            <a href="{{ .ConfirmationURL }}" target="_blank" style="color:#66801F;word-break:break-all;">{{ .ConfirmationURL }}</a>
           </td>
         </tr>
         <tr>
-          <td style="border-top:1px solid #E6E8F0;padding:16px 0 0 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#5A6472;">
+          <td style="border-top:1px solid #E8E8E0;padding:16px 0 0 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;color:#6E7163;">
             This email was sent to {{ .Email }}. If you did not request a password reset, you can ignore this email. Your password will not change until you set a new one.<br>
-            Loonext, <a href="https://loonext.com" target="_blank" style="color:#5A6472;">loonext.com</a>
+            Loonext, <a href="https://loonext.com" target="_blank" style="color:#6E7163;">loonext.com</a>
           </td>
         </tr>
       </table>

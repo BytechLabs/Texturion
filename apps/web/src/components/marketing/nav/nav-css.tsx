@@ -3,8 +3,8 @@
  * <style> block, class prefix "frn-", mounted by <Nav>. The bar is Signal
  * White with NO border (Law 10); past 24px of scroll it condenses to a
  * floating frosted pill (white at 88% + backdrop blur, the one card shadow).
- * Wordmark Bricolage 800 ink; links Hanken 500; the one cobalt
- * "Get your number" pill.
+ * Wordmark per the brand rule (#206): Golos Text SemiBold ink, second o
+ * olive; links Hanken 500; the one cobalt "Get your number" pill.
  *
  * Only what Tailwind utilities cannot express reliably lives here:
  *  - the frosted pill ground (solid fallback paints first for engines
@@ -65,12 +65,17 @@ const CSS = `
   outline-offset: 2px;
 }
 
-/* Wordmark: Bricolage 800, Dispatch Ink (§4). */
+/* Wordmark (#206, brand/README.md): Golos Text SemiBold, Dispatch Ink, with
+   the SECOND o in the brand olive (the .frn-o span — always text spans,
+   never an image). <Nav> mounts the --font-golos variable. */
 .frn-wordmark {
-  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
-  font-weight: 800;
+  font-family: var(--font-golos), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--fr-ink);
+}
+.frn-wordmark .frn-o {
+  color: #66801f;
 }
 
 /* Shared chrome focus state: 2px cobalt outline, 2px offset (§7; yellow is

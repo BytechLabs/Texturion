@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    Unread favicon variant (#206): the tile + the coral presence dot.
+    use-unread-title.ts swaps favicon.svg for this when unread > 0 (G9).
+  -->
+  <rect x="0" y="0" width="512" height="512" rx="116" ry="116" fill="#FDFDF9"/>
+  <rect x="0" y="0" width="512" height="512" rx="116" ry="116" fill="none" stroke="#E8E8E0" stroke-width="4"/>
+  <circle cx="172" cy="256" r="60" fill="none" stroke="#191B14" stroke-width="36"/>
+  <circle cx="340" cy="256" r="60" fill="none" stroke="#66801F" stroke-width="36"/>
+  <circle cx="420" cy="92" r="64" fill="#D96C47"/>
+</svg>

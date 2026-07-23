@@ -29,6 +29,15 @@ Android: `ui/theme/Color.kt` (`BrandColor`), mapped into Material roles in
 `Theme.kt` — **prefer `MaterialTheme.colorScheme.*`**; reach for `BrandColor`
 only for tokens with no Material role (Coral, Lime marks, Cream).
 
+## Brand (#206)
+
+The double-o is THE mark; `brand/README.md` is the source of truth. Anywhere
+either app shows the logo, it is the double-o (launcher icons, splash, empty
+states — never the old loon-on-petrol tile). The wordmark is "Loonext" in Golos
+Text SemiBold with **only the second o** in the accent (olive `#66801F` light,
+lime `#B9CF57` dark), built as styled text spans in Compose/SwiftUI, never an
+image.
+
 ## Type
 
 - **Golos Text** — everything functional (body, labels, titles).

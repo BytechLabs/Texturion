@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Loonext double-o splash mark (#206), dark: paper + lime rings per
+    brand/loonext-tile-dark.svg, on the dark canvas splash window.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:strokeColor="#FFF0F1E5"
+        android:strokeWidth="7"
+        android:pathData="M26.5,54 a11.5,11.5 0 1,1 23,0 a11.5,11.5 0 1,1 -23,0" />
+    <path
+        android:strokeColor="#FFB9CF57"
+        android:strokeWidth="7"
+        android:pathData="M58.5,54 a11.5,11.5 0 1,1 23,0 a11.5,11.5 0 1,1 -23,0" />
+</vector>

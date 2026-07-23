@@ -24,8 +24,9 @@ the bare-text version that was rejected. So the global nav is a left SIDEBAR. Re
 mockup (scratchpad/shell-mockup-sidebar.html, Artifact sidebar-v1).
 
 Sidebar (~230px, white, a single hairline right border, NO shadow):
-- Top: a company/workspace switcher tile (a small petrol logo tile + company name + plan, a
-  double-chevron); on hover a whisper-grey fill.
+- Top: a company/workspace switcher tile (a small Loonext tile — the double-o mark,
+  `brand/loonext-tile.svg` (#206) — + company name + plan, a double-chevron); on hover a
+  whisper-grey fill.
 - A prominent petrol "New message" compose button.
 - Primary nav as icon + label rows: For you, Inbox, Tasks, Contacts. Each has a calm line icon, a
   label, and a right-aligned count or unread dot where it earns it. Active = a soft petrol-tint fill

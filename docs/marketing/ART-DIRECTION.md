@@ -132,9 +132,11 @@ bands. It is Concept A's flow-line spine, executed in the ledger's vocabulary.
   item is the **signal-check** — a petrol dot that resolves into a check (Concept A's caught-
   signal shape, adopted as the universal "done" glyph). This is the same visual idea as the app's
   D14 done-mark (strikethrough + petrol check), so it's honest and on-brand.
-- **Favicon / wordmark:** unchanged — the existing app mark (rounded petrol speech-bubble tile,
-  white "J"). Reuse, never redesign (BLUEPRINT §10.3). The ticket motif is the *page* fingerprint;
-  the bubble mark stays the *logo*.
+- **Favicon / wordmark (#206):** the double-o mark — two thick rings, the second one colored —
+  from `brand/` (see `brand/README.md`); the wordmark is "Loonext" in Golos Text SemiBold with
+  only the second o in the accent, as text spans, never an image. Reuse the generated favicons,
+  never redesign (BLUEPRINT §10.3). The ticket motif is the *page* fingerprint; the double-o
+  stays the *logo*.
 
 **Anti-fatigue rule (binding):** the ticket frame on *everything* risks monotony. Reserve the
 **status-spine and the FILED stamp for genuine product moments only** — real conversations,

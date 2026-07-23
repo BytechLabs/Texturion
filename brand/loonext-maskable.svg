@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    Maskable PWA icon (#206): full-bleed paper, mark inside the 80% safe
+    zone so any platform mask (circle, squircle, rounded square) keeps it.
+  -->
+  <rect x="0" y="0" width="512" height="512" fill="#FDFDF9"/>
+  <circle cx="190" cy="256" r="47" fill="none" stroke="#191B14" stroke-width="28"/>
+  <circle cx="322" cy="256" r="47" fill="none" stroke="#66801F" stroke-width="28"/>
+</svg>

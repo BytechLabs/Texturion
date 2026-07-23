@@ -1,3 +1,5 @@
+<img src="brand/loonext-mark.svg" alt="The Loonext double-o mark" width="72">
+
 # Loonext
 
 Loonext is a shared SMS inbox for small service businesses. A company buys a
@@ -5,7 +7,9 @@ subscription, gets a local business phone number, and every incoming text become
 a conversation the whole team can see, reply to, assign, tag, note, and close.
 
 `SPEC.md` is the authoritative build specification. `docs/DECISIONS.md` records
-the binding product decisions (D1–D13).
+the binding product decisions (D1–D13). `brand/README.md` is the brand source of
+truth: the double-o mark, the tiles, and the wordmark rule ("Loonext" in Golos
+Text SemiBold with the second o in the accent color).
 
 ## Layout
 
@@ -15,6 +19,7 @@ apps/
   api/            Hono Worker: /v1 API, /webhooks, Cron Triggers
 packages/
   shared/         Code shared by web + api (error codes; schemas/constants land later)
+brand/            Brand source of truth: double-o mark SVGs + raster generator (brand/README.md)
 supabase/         config.toml + migrations/
 .github/workflows CI (typecheck, lint, test, build) and deploy (wrangler + supabase db push)
 ```

@@ -500,7 +500,8 @@
   --popover: #ffffff;
   --popover-foreground: #1a2420;
 
-  /* Petrol brand: #0F766E primary, deep #0B4F49 for text-on-tint accents. */
+  /* Petrol UI accent (not the brand — that's the double-o, #206): #0F766E
+     primary, deep #0B4F49 for text-on-tint accents. */
   --primary: #0f766e; /* --petrol */
   --primary-foreground: #ffffff; /* 5.47:1 on #0f766e — AA (#26) */
 

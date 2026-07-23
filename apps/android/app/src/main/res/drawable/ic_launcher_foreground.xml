@@ -1,26 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Speech bubble with a call dot — the Loonext mark (texts + calls). -->
+<!--
+    Loonext double-o notification mark (#206). White stroke-only rings on
+    transparent, sized for status-bar small icons (the system renders the
+    alpha channel only). Geometry mirrors brand/loonext-mark.svg
+    (r=86 stroke=52 gap=16 at 512) scaled to a 24dp canvas.
+    Name kept from the pre-#206 icon so setSmallIcon call sites don't change.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <group
-        android:scaleX="0.5"
-        android:scaleY="0.5"
-        android:pivotX="54"
-        android:pivotY="54">
-        <path
-            android:fillColor="#FFFFFFFF"
-            android:pathData="M54,22c-19.9,0 -36,13.4 -36,30 0,9.3 5.1,17.6 13.1,23.1L28,88l16.9,-7.4c2.9,0.6 6,0.9 9.1,0.9 19.9,0 36,-13.4 36,-30S73.9,22 54,22z" />
-        <path
-            android:fillColor="#FF0F766E"
-            android:pathData="M40,52m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
-        <path
-            android:fillColor="#FF0F766E"
-            android:pathData="M54,52m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
-        <path
-            android:fillColor="#FF0F766E"
-            android:pathData="M68,52m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
-    </group>
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.24"
+        android:pathData="M3.15,12 a3.7,3.7 0 1,1 7.4,0 a3.7,3.7 0 1,1 -7.4,0 M13.45,12 a3.7,3.7 0 1,1 7.4,0 a3.7,3.7 0 1,1 -7.4,0" />
 </vector>

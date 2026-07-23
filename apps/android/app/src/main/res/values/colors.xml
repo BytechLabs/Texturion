@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="loonext_petrol">#0F766E</color>
-    <color name="loonext_background">#FAFAF9</color>
-    <color name="loonext_ic_background">#0F766E</color>
+    <!-- Paper & Olive (#206): window/splash canvas + the paper icon tile. -->
+    <color name="loonext_background">#F3F3EE</color>
+    <color name="loonext_ic_background">#FDFDF9</color>
 </resources>

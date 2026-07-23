@@ -31,11 +31,13 @@ export const contentType = "image/png";
 const INK_11PM = "#041F1C"; // primary dark ground
 const INK_MIDNIGHT = "#02110F"; // vignette's darkest edge
 const CAB_PANEL = "#0A312C"; // raised surface: the inbound bubble
-const PETROL = "#0F766E"; // brand anchor: outbound bubble, wordmark tile
-const SIGNAL_AQUA = "#3FD5C0"; // live signal on dark: wordmark accent
+const PETROL = "#0F766E"; // the product's own outbound bubble color
+// (The outbound glow keeps signal-aqua #3FD5C0 as rgba literals below.)
 const MOONLIGHT = "#EAF4F0"; // text on dark grounds
+// Brand identity on dark grounds (#206, brand/README.md): paper + lime.
+const BRAND_PAPER = "#F0F1E5"; // first ring + wordmark letters
+const BRAND_LIME = "#B9CF57"; // second ring + the wordmark's second o
 const DUSK = "#8FB3AC"; // secondary text: the clock stamp
-const WHITE = "#FFFFFF";
 
 export default function OpengraphImage() {
   return new ImageResponse(
@@ -180,21 +182,32 @@ export default function OpengraphImage() {
             justifyContent: "space-between",
           }}
         >
-          {/* Wordmark with the loon mark; "ext" carries signal-aqua, the
-              interactive-light color on dark grounds (petrol is too dim
-              against ink-11pm for small type). */}
+          {/* The double-o mark + wordmark (#206, brand/README.md): dark
+              contexts carry paper + lime rings, and the wordmark's SECOND o
+              takes the lime accent — always the second o, spans not images. */}
           <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
             <svg width={60} height={60} viewBox="0 0 512 512">
-              <rect width="512" height="512" rx="128" ry="128" fill={PETROL} />
-              <path
-                fill={WHITE}
-                d="M 196 396 C 178 330 186 256 236 222 C 228 178 262 150 302 152 C 330 154 346 168 348 180 L 436 170 L 350 202 C 352 216 346 246 324 264 C 302 308 298 352 302 396 Z"
+              <circle
+                cx="136"
+                cy="256"
+                r="86"
+                fill="none"
+                stroke={BRAND_PAPER}
+                strokeWidth={52}
               />
-              <circle cx="300" cy="198" r="15" fill={PETROL} />
+              <circle
+                cx="376"
+                cy="256"
+                r="86"
+                fill="none"
+                stroke={BRAND_LIME}
+                strokeWidth={52}
+              />
             </svg>
-            <div style={{ display: "flex", fontSize: 38, fontWeight: 700 }}>
-              <span style={{ color: MOONLIGHT }}>Loon</span>
-              <span style={{ color: SIGNAL_AQUA }}>ext</span>
+            <div style={{ display: "flex", fontSize: 38, fontWeight: 600 }}>
+              <span style={{ color: BRAND_PAPER }}>Lo</span>
+              <span style={{ color: BRAND_LIME }}>o</span>
+              <span style={{ color: BRAND_PAPER }}>next</span>
             </div>
           </div>
 

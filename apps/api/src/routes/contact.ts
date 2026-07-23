@@ -248,7 +248,7 @@ function supportHtml(body: ContactBody, ip: string): string {
         ? `<strong>Company:</strong> ${escapeHtml(body.company)}<br>`
         : "") +
       `<strong>IP:</strong> ${escapeHtml(ip)}</p>` +
-      `<blockquote style="margin:0 0 16px;padding:8px 16px;border-left:3px solid #e6e8ec;color:#3b4252;">${toHtml(body.message)}</blockquote>` +
+      `<blockquote style="margin:0 0 16px;padding:8px 16px;border-left:3px solid #E8E8E0;color:#4A4D3C;">${toHtml(body.message)}</blockquote>` +
       `<p>Reply to this email to answer them directly.</p>`,
   );
 }

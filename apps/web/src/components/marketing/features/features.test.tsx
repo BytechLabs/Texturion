@@ -411,7 +411,7 @@ describe("v4 frame chrome", () => {
     expect(html).not.toMatch(/border-b|border-\[color:var\(--hairline\)\]/);
   });
 
-  it("PhoneFrame: Dispatch Ink bezel; the push banner mark keeps the app's petrol (Law 2)", () => {
+  it("PhoneFrame: Dispatch Ink bezel; the push banner mark is the double-o brand tile (#206)", () => {
     const html = renderToStaticMarkup(
       <PhoneFrame pushBanner={{ title: "Loonext", body: "New text from Karen M" }}>
         <div>screen</div>
@@ -419,7 +419,11 @@ describe("v4 frame chrome", () => {
     );
     expect(html).toContain("--fr-ink");
     expect(html).toContain("New text from Karen M");
-    expect(html).toContain("#0F766E"); // the product's own petrol, inside the frame
+    // The app's own icon inside the frame is the paper tile with the two
+    // rings (ink + olive) — the OLD petrol loon tile is gone for good.
+    expect(html).toContain("#FDFDF9"); // paper tile
+    expect(html).toContain("#66801F"); // the olive second ring
+    expect(html).not.toContain("#0F766E");
     expect(html).not.toContain("--fr-cobalt");
   });
 });

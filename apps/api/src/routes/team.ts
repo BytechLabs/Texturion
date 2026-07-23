@@ -363,8 +363,8 @@ async function sendExistingAccountInvite(
       html: emailLayout(
         `<p>You've been invited to join <strong>${escapeHtml(company)}</strong> on Loonext.</p>` +
           `<p>You already have a Loonext account — log in and accept here:</p>` +
-          `<p><a href="${link}" style="color:#2740de;text-decoration:underline;">Accept the invite</a></p>` +
-          `<p style="font-size:14px;color:#7a828c;">This invite expires in 7 days.</p>`,
+          `<p><a href="${link}" style="color:#66801F;text-decoration:underline;">Accept the invite</a></p>` +
+          `<p style="font-size:14px;color:#6E7163;">This invite expires in 7 days.</p>`,
       ),
     });
     return true;

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="loonext_background">#0C0A09</color>
+    <!-- Paper & Olive dark canvas (#206). -->
+    <color name="loonext_background">#141610</color>
 </resources>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    Loonext double-o mark (#206) - THE brand mark, source of truth.
+    The "oo" of Loonext: first ring ink, second ring olive (the colored O).
+    Light-context colors; dark contexts use paper #F0F1E5 + lime #B9CF57
+    (see loonext-tile-dark.svg). Geometry: r=86 stroke=52, 16px gap.
+  -->
+  <circle cx="136" cy="256" r="86" fill="none" stroke="#191B14" stroke-width="52"/>
+  <circle cx="376" cy="256" r="86" fill="none" stroke="#66801F" stroke-width="52"/>
+</svg>

@@ -23,6 +23,7 @@
 
 import { ChevronLeft, Info } from "lucide-react";
 
+import { BrandTile } from "@/components/brand/brand-mark";
 import { cn } from "@/lib/utils";
 
 import { AppSurface } from "./app-surface";
@@ -97,9 +98,9 @@ export function ThreadFrame({
       {framing === "phone" && pushBanner && (
         <div className="app-shadow-float absolute inset-x-2 top-2 z-10 rounded-app-card border border-app-line bg-app-white/95 px-3 py-2 backdrop-blur">
           <div className="flex items-center gap-2">
-            <span className="bg-primary flex size-6 shrink-0 items-center justify-center rounded-md text-[10px] font-semibold">
-              L
-            </span>
+            {/* The app's own launcher icon: the double-o brand tile (#206),
+                identical in both themes. */}
+            <BrandTile className="size-6 shrink-0" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[11px] font-semibold text-app-ink">
                 {pushBanner.title}

@@ -123,14 +123,17 @@ export function Footer() {
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="mx-auto w-full max-w-[72rem] px-6 py-16 md:px-8 md:py-20">
         <div className="grid gap-x-8 gap-y-12 lg:grid-cols-12">
-          {/* Brand block: wordmark in Bricolage 800 + the deck brand line. */}
+          {/* Brand block: the wordmark rule (#206, brand/README.md) — Golos
+              Text SemiBold (var mounted by the marketing layout), second o in
+              lime (the dark-surface accent on this ink band) — + the deck
+              brand line. */}
           <div className="lg:col-span-3">
             <Link
               href="/"
               aria-label="Loonext home"
-              className="frf-mark font-display text-2xl font-extrabold tracking-tight text-white"
+              className="frf-mark text-2xl font-semibold tracking-tight text-white [font-family:var(--font-golos),system-ui,sans-serif]"
             >
-              Loonext
+              Lo<span className="text-[#B9CF57]">o</span>next
             </Link>
             <p className="font-body-mkt mt-3 max-w-xs text-sm leading-relaxed text-white/70">
               The shared text inbox for your crew.

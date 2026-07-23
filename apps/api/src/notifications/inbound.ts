@@ -219,9 +219,9 @@ export async function notifyInboundMessage(
           text,
           html: emailLayout(
             `<p><strong>${escapeHtml(contactName)}</strong> sent a new text:</p>` +
-              `<blockquote style="margin:0 0 16px;padding:8px 16px;border-left:3px solid #e6e8ec;color:#3b4252;">${escapeHtml(snippet)}</blockquote>` +
-              `<p><a href="${link}" style="color:#2740de;text-decoration:underline;">Reply in Loonext</a></p>` +
-              `<p style="font-size:14px;color:#7a828c;"><a href="${settingsUrl}" style="color:#7a828c;">Turn these alerts off</a></p>`,
+              `<blockquote style="margin:0 0 16px;padding:8px 16px;border-left:3px solid #E8E8E0;color:#4A4D3C;">${escapeHtml(snippet)}</blockquote>` +
+              `<p><a href="${link}" style="color:#66801F;text-decoration:underline;">Reply in Loonext</a></p>` +
+              `<p style="font-size:14px;color:#6E7163;"><a href="${settingsUrl}" style="color:#6E7163;">Turn these alerts off</a></p>`,
           ),
           headers: { "List-Unsubscribe": `<${settingsUrl}>` },
         });

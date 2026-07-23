@@ -212,7 +212,7 @@ struct TagManageSheet: View {
     VStack(alignment: .leading, spacing: 12) {
         ThreadTagsRow(
             tags: [
-                Tag(id: "t1", name: "Estimate", color: "#0F766E", created_at: nil, updated_at: nil),
+                Tag(id: "t1", name: "Estimate", color: "#66801F", created_at: nil, updated_at: nil),
                 Tag(id: "t2", name: "Follow up", color: nil, created_at: nil, updated_at: nil),
             ],
             onManage: {},

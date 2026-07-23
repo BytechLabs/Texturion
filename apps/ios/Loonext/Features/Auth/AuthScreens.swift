@@ -248,19 +248,19 @@ struct AuthFlow: View {
     }
 }
 
-/// Text wordmark: 'Loonext' with the 'ext' half in olive (no logo glyph).
+/// The brand wordmark (#206, brand/README.md): 'Loonext' in Golos SemiBold
+/// with the SECOND o in the accent — olive on light, lime on dark (that's
+/// BrandColor.olive's adaptive pair). Always exactly the second o, always
+/// text spans, never an image.
 private struct Wordmark: View {
     var body: some View {
-        HStack(spacing: 0) {
-            Text("Loon")
-                .font(.golos(20, weight: .bold))
-                .kerning(-0.4)
-                .foregroundStyle(BrandColor.ink)
-            Text("ext")
-                .font(.golos(20, weight: .bold))
-                .kerning(-0.4)
-                .foregroundStyle(BrandColor.olive)
-        }
+        (
+            Text("Lo").foregroundStyle(BrandColor.ink)
+                + Text("o").foregroundStyle(BrandColor.olive)
+                + Text("next").foregroundStyle(BrandColor.ink)
+        )
+        .font(.golos(20, weight: .semibold))
+        .kerning(-0.4)
         .accessibilityLabel("Loonext")
     }
 }

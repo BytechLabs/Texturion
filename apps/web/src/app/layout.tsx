@@ -56,14 +56,15 @@ export const metadata: Metadata = {
   },
   description:
     "A local business number your whole team can text from. Every incoming text becomes a conversation you can reply to, assign, tag, and close.",
-  // Favicons + PWA icons (G9). The SVG favicon is the runtime default; the
-  // unread-title manager (lib/push/use-unread-title.ts) swaps its href to
-  // /favicon-unread.svg when unread conversations exist. The .ico is the
-  // legacy fallback; PNGs come from scripts/generate-icons.mjs.
+  // Favicons + PWA icons (G9): the double-o brand tile (#206). The SVG
+  // favicon is the runtime default; the unread-title manager
+  // (lib/push/use-unread-title.ts) swaps its href to /favicon-unread.svg when
+  // unread conversations exist. The .ico is the legacy fallback; every raster
+  // comes from brand/generate.mjs (brand/README.md).
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/favicon.ico", sizes: "48x48" },
+      { url: "/favicon.ico", sizes: "16x16 32x32 48x48" },
     ],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },

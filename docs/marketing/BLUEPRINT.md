@@ -829,10 +829,14 @@ build-time blur placeholders via static imports. Static tiles ≤40KB each. **No
 
 ### 10.3 Logo, favicon, OG
 
-- Wordmark: "Loonext" Inter 600, stone-900 (white on dark), with the app's mark — a rounded
-  speech-bubble tile in petrol containing a white "J". Favicon: bubble mark at 32/180/512 +
-  maskable (already the PWA icon; reuse, don't redesign).
-- OG images: 1200×630, stone-50 background, petrol left rule, Inter 600 title (≤2 lines),
+- Wordmark (#206): "Loonext" in Golos Text SemiBold, with **only the second o** in the accent
+  (olive `#66801F` on light, lime `#B9CF57` on dark), rendered as text spans in code, never an
+  image. The mark is the **double-o** (two thick rings, second one colored) — sources in
+  `brand/` (`loonext-mark.svg`, tiles, maskable); see `brand/README.md`. Favicon/PWA/OG rasters
+  are generated from `brand/` into `apps/web/public` (reuse, don't redesign). The old petrol
+  speech-bubble/loon tile is retired.
+- OG images: 1200×630; the static default card is brand-generated
+  (`apps/web/public/og/loonext-og-default.png`). Dynamic route cards: title (≤2 lines),
   bottom-left wordmark, bottom-right one truth chip ("$29/mo flat" on pricing/home; page-topic
   chip elsewhere). Built with `opengraph-image.tsx` (Satori: inline flexbox only, bundled Inter
   files) at build time for dynamic routes; one pre-rendered static PNG for home. Never

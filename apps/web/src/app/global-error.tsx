@@ -43,10 +43,16 @@ const styles = {
   },
   wordmark: {
     fontSize: "1.125rem",
-    fontWeight: 700,
+    fontWeight: 600,
     letterSpacing: "-0.02em",
     color: ink,
     textDecoration: "none",
+  },
+  /* The wordmark rule (#206): the SECOND o in brand olive. Inline style on
+     purpose — this boundary renders without the root layout, so no brand
+     font and no classes; the colored-o span is the rule that always holds. */
+  wordmarkO: {
+    color: "#66801F",
   },
   heading: {
     margin: 0,
@@ -114,7 +120,7 @@ export default function GlobalError({
               the root layout (and with it the router tree) just crashed; a
               plain full-document navigation is deliberate here. */}
           <a href="/" style={styles.wordmark} aria-label="Loonext home">
-            Loonext
+            Lo<span style={styles.wordmarkO}>o</span>next
           </a>
           <div>
             <h1 style={styles.heading}>Something broke on our side.</h1>

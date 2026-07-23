@@ -1,14 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <!--
-    Loonext favicon — unread state (G9 "unread favicon dot"). Same loon tile as
-    favicon.svg plus a petrol dot on a white badge in the top-right corner (the
-    white ring keeps the dot legible over the petrol tile and any tab-strip
-    color). Swapped in by src/lib/push/use-unread-title.ts when the inbox holds
-    unread conversations.
+    Loonext favicon — unread state (G9 "unread favicon dot"). The same
+    double-o tile as favicon.svg (brand/loonext-tile-unread.svg) plus the
+    coral presence dot in the top-right corner, legible over the paper tile
+    and any tab-strip color. Swapped in by src/lib/push/use-unread-title.ts
+    when the inbox holds unread conversations.
   -->
-  <rect x="0" y="0" width="512" height="512" rx="116" ry="116" fill="#0F766E"/>
-  <path fill="#FFFFFF" d="M 196 396 C 178 330 186 256 236 222 C 228 178 262 150 302 152 C 330 154 346 168 348 180 L 436 170 L 350 202 C 352 216 346 246 324 264 C 302 308 298 352 302 396 Z"/>
-  <circle cx="300" cy="198" r="15" fill="#0F766E"/>
-  <circle cx="384" cy="128" r="106" fill="#FFFFFF"/>
-  <circle cx="384" cy="128" r="66" fill="#0F766E"/>
+  <rect x="0" y="0" width="512" height="512" rx="116" ry="116" fill="#FDFDF9"/>
+  <rect x="0" y="0" width="512" height="512" rx="116" ry="116" fill="none" stroke="#E8E8E0" stroke-width="4"/>
+  <circle cx="172" cy="256" r="60" fill="none" stroke="#191B14" stroke-width="36"/>
+  <circle cx="340" cy="256" r="60" fill="none" stroke="#66801F" stroke-width="36"/>
+  <circle cx="420" cy="92" r="64" fill="#D96C47"/>
 </svg>

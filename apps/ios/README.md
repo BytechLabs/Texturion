@@ -1,7 +1,8 @@
 # Loonext iOS
 
 Native iOS client — Swift 6, SwiftUI, **iOS 26 deployment target** so Liquid
-Glass is native everywhere, calm-petrol G11 identity. Full parity surface:
+Glass is native everywhere, Paper & Olive identity with the double-o brand
+mark (#206, `brand/README.md`). Full parity surface:
 inbox/thread/composer, tasks, contacts, calls (Telnyx SDK + CallKit + PushKit),
 notifications (feed + APNs via FCM), settings, auth.
 

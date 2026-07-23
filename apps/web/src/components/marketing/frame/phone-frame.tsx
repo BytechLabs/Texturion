@@ -11,13 +11,14 @@
  *
  * Optional `pushBanner` draws a web-push notification card over the top of
  * the screen, the same banner grammar the app uses for incoming-message
- * toasts (the app's petrol mark + title + snippet). The mark keeps the
- * PRODUCT's petrol (#0F766E) because it depicts the app's own icon inside
- * the frame; marketing cobalt never crosses the bezel (Law 2).
+ * toasts (the app's icon + title + snippet). The mark is the double-o brand
+ * tile (#206, brand/README.md) because it depicts the app's own launcher
+ * icon inside the frame; marketing cobalt never crosses the bezel (Law 2).
  *
  * Server component, light-only, reduced-motion safe, zero-CLS.
  */
 
+import { BrandTile } from "@/components/brand/brand-mark";
 import { cn } from "@/lib/utils";
 
 export interface PhoneFrameProps {
@@ -56,11 +57,9 @@ export function PhoneFrame({
         {pushBanner && (
           <div className="absolute inset-x-2 top-4 z-10 rounded-xl bg-white/95 px-3 py-2 shadow-[var(--fr-shadow-card)] backdrop-blur">
             <div className="flex items-center gap-2">
-              {/* The app's own petrol mark: product color inside the frame
-                  (Law 2), never marketing cobalt. */}
-              <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[#0F766E] text-[10px] font-semibold text-white">
-                L
-              </span>
+              {/* The app's own icon: the double-o tile (#206) inside the
+                  frame, never marketing cobalt (Law 2). */}
+              <BrandTile className="size-6 shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[11px] font-semibold text-[color:var(--fr-ink)]">
                   {pushBanner.title}

@@ -35,10 +35,16 @@ const styles = {
   },
   wordmark: {
     fontSize: "1.125rem",
-    fontWeight: 700,
+    fontWeight: 600,
     letterSpacing: "-0.02em",
     color: ink,
     textDecoration: "none",
+  },
+  /* The wordmark rule (#206): the SECOND o in brand olive. Inline style on
+     purpose — this page is self-contained, so the brand face (Golos) can't
+     mount here; the colored-o span is the rule that always holds. */
+  wordmarkO: {
+    color: "#66801F",
   },
   eyebrow: {
     margin: 0,
@@ -92,7 +98,7 @@ export default function NotFound() {
   return (
     <main style={styles.main}>
       <Link href="/" style={styles.wordmark} aria-label="Loonext home">
-        Loonext
+        Lo<span style={styles.wordmarkO}>o</span>next
       </Link>
       <div>
         <p style={styles.eyebrow}>404</p>

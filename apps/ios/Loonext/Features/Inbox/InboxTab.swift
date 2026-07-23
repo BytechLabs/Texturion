@@ -1382,7 +1382,7 @@ private func previewListItem(
                 unread: true,
                 snippet: "Can you come by Tuesday morning to look at the fence?",
                 tags: [
-                    Tag(id: "t1", name: "Estimate", color: "#0F766E", created_at: nil, updated_at: nil),
+                    Tag(id: "t1", name: "Estimate", color: "#66801F", created_at: nil, updated_at: nil),
                 ]
             ),
             onTap: {}

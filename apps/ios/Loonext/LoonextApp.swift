@@ -23,7 +23,7 @@ struct LoonextApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(graph: graph)
-                .tint(BrandColor.petrol)
+                .tint(BrandColor.olive)
                 .preferredColorScheme(preferredScheme)
                 // Universal links: app.loonext.com/inbox/{id} and
                 // /calls?call=… — parsed exactly like a notification tap

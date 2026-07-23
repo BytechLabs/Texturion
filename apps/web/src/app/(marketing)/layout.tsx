@@ -6,6 +6,7 @@ import { LedgerStyles } from "@/components/marketing/ledger";
 import { Nav } from "@/components/marketing/nav";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { RevealActivator } from "@/components/marketing/ui/reveal-activator";
+import { golosText } from "@/lib/app/fonts";
 import { organizationJsonLd } from "@/lib/marketing/seo";
 import { body, display, mono } from "@/lib/marketing/fonts";
 
@@ -43,8 +44,10 @@ export default function MarketingLayout({
   return (
     // Mounts --font-display / --font-body / --font-mono on the (marketing)
     // subtree only (the two-surfaces rule); the app keeps its own faces.
+    // --font-golos joins them for exactly one thing: the brand wordmark
+    // (#206) in the nav and footer is Golos Text SemiBold by rule.
     <div
-      className={`mkt-scope ${display.variable} ${body.variable} ${mono.variable} font-body-mkt flex min-h-svh flex-col`}
+      className={`mkt-scope ${display.variable} ${body.variable} ${mono.variable} ${golosText.variable} font-body-mkt flex min-h-svh flex-col`}
     >
       {/* No-JS fail-safe: reveal every scroll-reveal element when JS is off, so
           content is never permanently hidden without the RevealActivator. */}

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Loonext double-o monochrome layer for Android 13+ themed icons (#206).
+    Both rings in one single-color path — the launcher supplies the tint.
+    Same geometry/safe-zone fit as ic_launcher_fg.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="7"
+        android:pathData="M26.5,54 a11.5,11.5 0 1,1 23,0 a11.5,11.5 0 1,1 -23,0 M58.5,54 a11.5,11.5 0 1,1 23,0 a11.5,11.5 0 1,1 -23,0" />
+</vector>

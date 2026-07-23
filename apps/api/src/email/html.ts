@@ -43,7 +43,9 @@ const EMAIL_FONT =
  * (#88): a centered, single-column, table-based container with the Loonext
  * wordmark, readable typography, and a quiet footer. Deliberately email-client
  * safe — tables + INLINE styles only (Gmail/Outlook strip <style>/<head> CSS),
- * a light background, system fonts, and brand ink (#10173b) / cobalt (#2740de).
+ * a light background, system fonts, and the Paper & Olive brand (#206): ink
+ * #191B14 text, olive #66801F links, and the wordmark rule — "Loonext" in
+ * SemiBold with ONLY the second o in olive, as a text span, never an image.
  * These are TRANSACTIONAL messages (account/billing/usage), so it stays clean
  * and trustworthy, with no marketing chrome and no unsubscribe (not required).
  * `bodyHtml` is already escaped/structured by its builder; this only frames it.
@@ -56,20 +58,20 @@ export function emailLayout(bodyHtml: string): string {
     `<meta name="viewport" content="width=device-width,initial-scale=1">` +
     `<meta name="color-scheme" content="light">` +
     `</head>` +
-    `<body style="margin:0;padding:0;background-color:#f2f4f8;">` +
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f2f4f8;width:100%;">` +
+    `<body style="margin:0;padding:0;background-color:#F3F3EE;">` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F3F3EE;width:100%;">` +
     `<tr><td align="center" style="padding:24px 12px;">` +
-    `<table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;background-color:#ffffff;border:1px solid #e6e8ec;border-radius:12px;">` +
-    // Wordmark header.
-    `<tr><td style="padding:28px 32px 4px 32px;font-family:${EMAIL_FONT};">` +
-    `<span style="font-size:20px;font-weight:700;letter-spacing:-0.02em;color:#2740de;">Loonext</span>` +
+    `<table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:560px;background-color:#FDFDF9;border:1px solid #E8E8E0;border-radius:12px;">` +
+    // Wordmark header: Golos Text SemiBold when available, second o olive (#206).
+    `<tr><td style="padding:28px 32px 4px 32px;font-family:'Golos Text',${EMAIL_FONT};">` +
+    `<span style="font-size:20px;font-weight:600;letter-spacing:-0.02em;color:#191B14;">Lo<span style="color:#66801F;">o</span>next</span>` +
     `</td></tr>` +
     // Body copy.
-    `<tr><td style="padding:4px 32px 8px 32px;font-family:${EMAIL_FONT};font-size:16px;line-height:1.6;color:#10173b;">` +
+    `<tr><td style="padding:4px 32px 8px 32px;font-family:${EMAIL_FONT};font-size:16px;line-height:1.6;color:#191B14;">` +
     bodyHtml +
     `</td></tr>` +
     // Quiet footer.
-    `<tr><td style="padding:20px 32px 28px 32px;border-top:1px solid #eef1f5;font-family:${EMAIL_FONT};font-size:13px;line-height:1.5;color:#7a828c;">` +
+    `<tr><td style="padding:20px 32px 28px 32px;border-top:1px solid #F0F0E8;font-family:${EMAIL_FONT};font-size:13px;line-height:1.5;color:#6E7163;">` +
     `This is a service message about your Loonext account.<br>` +
     `Loonext, flat-rate business texting.` +
     `</td></tr>` +
@@ -88,7 +90,7 @@ export function emailLayout(bodyHtml: string): string {
 export function linkifyUrls(escapedHtml: string): string {
   return escapedHtml.replace(
     /(https?:\/\/[^\s<]+)/g,
-    '<a href="$1" style="color:#2740de;text-decoration:underline;">$1</a>',
+    '<a href="$1" style="color:#66801F;text-decoration:underline;">$1</a>',
   );
 }
 

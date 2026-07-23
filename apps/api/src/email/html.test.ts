@@ -57,7 +57,8 @@ describe("emailLayout + renderEmailHtml (#88 branded transactional layout)", () 
   it("frames body html in the branded, email-client-safe container", () => {
     const html = emailLayout("<p>Hello</p>");
     expect(html).toContain("<!DOCTYPE html>");
-    expect(html).toContain("Loonext"); // the wordmark
+    // The wordmark rule (#206): a text span with ONLY the second o in olive.
+    expect(html).toContain('Lo<span style="color:#66801F;">o</span>next');
     expect(html).toContain("<p>Hello</p>"); // the body, untouched
     expect(html).toContain("service message about your Loonext account"); // footer
     // Email clients strip <style>/<head> CSS, so layout is tables + INLINE styles.
@@ -75,7 +76,7 @@ describe("emailLayout + renderEmailHtml (#88 branded transactional layout)", () 
 
   it("linkifies bare URLs so transactional CTAs are clickable", () => {
     expect(linkifyUrls("See usage: https://app.loonext.com/x")).toBe(
-      'See usage: <a href="https://app.loonext.com/x" style="color:#2740de;text-decoration:underline;">https://app.loonext.com/x</a>',
+      'See usage: <a href="https://app.loonext.com/x" style="color:#66801F;text-decoration:underline;">https://app.loonext.com/x</a>',
     );
   });
 

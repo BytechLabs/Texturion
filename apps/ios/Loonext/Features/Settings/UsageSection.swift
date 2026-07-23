@@ -145,7 +145,7 @@ private struct MessagesCard: View {
     }
 }
 
-/// Petrol meter that flips amber at the 80% warning threshold.
+/// Olive meter that flips amber at the 80% warning threshold.
 private struct UsageMeter: View {
     let ratio: Double
     let warning: Bool

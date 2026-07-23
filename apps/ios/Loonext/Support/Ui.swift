@@ -43,7 +43,7 @@ struct CenteredError: View {
     }
 }
 
-/// Flat single-tone avatar: petrol-tint fill, petrol-deep initials (G11).
+/// Flat single-tone avatar: avatar-tint fill, muted-ink initials (Paper & Olive).
 struct InitialsAvatar: View {
     let name: String?
     var size: CGFloat = 40
@@ -51,8 +51,8 @@ struct InitialsAvatar: View {
     var body: some View {
         Text(initialsOf(name))
             .font(.system(size: size * 0.38, weight: .semibold))
-            .foregroundStyle(BrandColor.onPetrolContainer)
+            .foregroundStyle(BrandColor.muted900)
             .frame(width: size, height: size)
-            .background(BrandColor.petrolContainer, in: Circle())
+            .background(BrandColor.avatarTint, in: Circle())
     }
 }
