@@ -763,11 +763,12 @@ liveCallsRoutes.post(
     }
 
     // #168 ORDERING: stamp the NEW owner BEFORE the bridge-steal. The steal
-    // unbridges the sender's answered ring leg, whose hangup handler
-    // (handleAnsweredMemberLegDeath) tears down "stranded" customers still
-    // owned by the dying leg's user — stamping first makes that handler see
-    // the hand-off and stand down, closing the race where a completed consult
-    // transfer was killed as a stranded call. A failed bridge restores the
+    // unbridges the sender's answered ring leg, whose death drives the
+    // CallSessionDO owner-death teardown (T7 / intent-expiry, #208), which
+    // tears down "stranded" customers still owned by the dying leg's user -
+    // stamping first makes that teardown see the hand-off and stand down,
+    // closing the race where a completed consult transfer was killed as a
+    // stranded call. A failed bridge restores the
     // sender (best-effort) before rethrowing.
     const { error: ownerError } = await db
       .from("calls")
