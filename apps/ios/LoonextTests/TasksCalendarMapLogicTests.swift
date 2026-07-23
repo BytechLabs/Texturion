@@ -100,9 +100,10 @@ final class TasksCalendarMapLogicTests: XCTestCase {
     func testGridDaysAreContiguousWholeWeeks() {
         let july = firstOfMonth(2026, 7)
         let days = calendarGridDays(july, calendar: utc)
-        // 2026-07-01 is a Wednesday, 2026-07-31 a Friday: the grid runs
-        // Mon Jun 29 .. Sun Aug 2 = six weeks = 42 cells.
-        XCTAssertEqual(days.count, 42)
+        // 2026-07-01 is a Wednesday, 2026-07-31 a Friday: the week-aligned grid
+        // runs Mon Jun 29 .. Sun Aug 2 = five weeks = 35 cells (the grid is
+        // variable per month, not a fixed six-week block).
+        XCTAssertEqual(days.count, 35)
         XCTAssertEqual(days.first, calendarGridStart(july, calendar: utc))
         XCTAssertEqual(days.last, calendarGridEnd(july, calendar: utc))
         // Each day is exactly one after the previous.
