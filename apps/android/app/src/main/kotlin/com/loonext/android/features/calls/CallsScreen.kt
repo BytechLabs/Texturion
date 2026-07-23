@@ -69,6 +69,7 @@ import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
+import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.NumberStatus
@@ -243,6 +244,16 @@ fun CallsScreen(
             runCatching { membersFlow.value = repo.members(companyId).data }
         }
     }
+
+    // #196: the missed-call text-back hint at the foot of the log must reflect
+    // the REAL setting, never claim it fires when it is off. Prefer the live
+    // settings-cache value (Settings writes it on every toggle, same process)
+    // and fall back to the hydrated me.company; both are cache reads, no fetch.
+    // Unknown (neither present yet) hides the hint - the honest default.
+    val settingsCompany by remember(companyId) {
+        graph.storeCache.flowOf<CompanyView>(CacheKeys.settingsHome(companyId))
+    }.collectAsStateWithLifecycle()
+    val textBackOn = (settingsCompany ?: me.company)?.mctb_enabled == true
 
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -460,27 +471,32 @@ fun CallsScreen(
                                     }
                                 }
                             }
-                            item(key = "auto-text-hint") {
-                                Box(
-                                    Modifier
-                                        .animateItem()
-                                        .fillMaxWidth()
-                                        .padding(top = 14.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            // #196: only shown when the missed-call text-back is
+                            // actually enabled - the hint must never claim an
+                            // automatic reply that a disabled setting will not send.
+                            if (textBackOn) {
+                                item(key = "auto-text-hint") {
+                                    Box(
+                                        Modifier
+                                            .animateItem()
+                                            .fillMaxWidth()
+                                            .padding(top = 14.dp),
+                                        contentAlignment = Alignment.Center,
                                     ) {
-                                        Text(
-                                            "Missed calls text the customer back automatically",
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(
-                                                horizontal = 14.dp,
-                                                vertical = 7.dp,
-                                            ),
-                                        )
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        ) {
+                                            Text(
+                                                "Missed calls text the customer back automatically",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(
+                                                    horizontal = 14.dp,
+                                                    vertical = 7.dp,
+                                                ),
+                                            )
+                                        }
                                     }
                                 }
                             }
