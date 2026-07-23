@@ -78,6 +78,7 @@ import com.loonext.android.core.model.UsageStatus
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.SkeletonList
@@ -203,6 +204,14 @@ fun SettingsHome(
             }
         }
     }
+    // #215: no reconnect subscriber here either — an in-foreground socket
+    // re-JOIN must refetch the hub (numbers + usage) too.
+    LaunchedEffect(companyId) {
+        graph.realtime.reconnected.collect { refreshKey++ }
+    }
+    // ...and a frame missed while backgrounded/blurred self-heals on return to
+    // the foreground.
+    ResyncOnResume(companyId) { refreshKey++ }
 
     Box(modifier.fillMaxSize()) {
         when (val current = companyState) {

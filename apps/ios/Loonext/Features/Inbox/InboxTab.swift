@@ -605,6 +605,9 @@ private struct InboxList: View {
                 controller?.refreshAfterReconnect()
             }
         }
+        // #215 Part A: re-sort/refetch page 1 on foreground so a row that moved
+        // (or an unread that landed) while backgrounded is never stale.
+        .resyncOnForeground { controller?.refreshAfterReconnect() }
     }
 
     @ViewBuilder

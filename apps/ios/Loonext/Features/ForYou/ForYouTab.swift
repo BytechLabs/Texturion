@@ -71,6 +71,9 @@ struct ForYouTab: View {
                 refreshKey += 1
             }
         }
+        // #215 Part A: rebuild the queue on foreground so movement missed while
+        // backgrounded (a new unread, a task change) shows on return.
+        .resyncOnForeground { refreshKey += 1 }
     }
 
     private func reload() async {

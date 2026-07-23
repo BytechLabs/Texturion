@@ -46,10 +46,18 @@ actor RealtimeClient {
     // MARK: - Streams (multicast: every call returns an independent stream)
 
     /// Broadcast events off the joined company channel.
+    ///
+    /// Buffering is `.unbounded` (#215): realtime payloads are ID-only routing
+    /// hints and every one MUST reach its consumer, because a screen refetches
+    /// the referenced resource per event. `.bufferingNewest` silently DROPS the
+    /// oldest frame under backpressure (a slow/suspended consumer), which is
+    /// exactly how an inbound message went missing until a full re-JOIN or
+    /// navigation. Unbounded keeps every frame; the payloads are tiny and each
+    /// consumer drains promptly, so the buffer never grows in practice.
     func events() -> AsyncStream<RealtimeEvent> {
         let id = UUID()
         let (stream, continuation) = AsyncStream<RealtimeEvent>.makeStream(
-            bufferingPolicy: .bufferingNewest(64)
+            bufferingPolicy: .unbounded
         )
         eventObservers[id] = continuation
         continuation.onTermination = { _ in
@@ -77,6 +85,13 @@ actor RealtimeClient {
 
     private func removeReconnectObserver(_ id: UUID) {
         reconnectObservers.removeValue(forKey: id)
+    }
+
+    /// Fan one event out to every live observer — the exact broadcast path the
+    /// socket drives through `handle`. Extracted (internal) so the losslessness
+    /// contract (#215) is unit-testable without standing up a websocket.
+    func deliver(_ event: RealtimeEvent) {
+        for continuation in eventObservers.values { continuation.yield(event) }
     }
 
     // MARK: - Lifecycle
@@ -211,8 +226,7 @@ actor RealtimeClient {
             } else {
                 inner = .object([:])
             }
-            let realtimeEvent = RealtimeEvent(event: name, payload: inner)
-            for continuation in eventObservers.values { continuation.yield(realtimeEvent) }
+            deliver(RealtimeEvent(event: name, payload: inner))
 
         default:
             // phx_close / phx_error: the receive loop notices the close.

@@ -62,6 +62,7 @@ import com.loonext.android.core.model.Page
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
@@ -172,6 +173,9 @@ fun NotificationsScreen(
     LaunchedEffect(companyId) {
         graph.realtime.reconnected.collect { refreshKey++ }
     }
+    // #215: heal a queue-moving frame missed while backgrounded/blurred by
+    // revalidating on return to the foreground.
+    ResyncOnResume(companyId) { refreshKey++ }
     // 60s badge poll — the backstop when realtime is quiet or degraded.
     LaunchedEffect(companyId) {
         while (true) {

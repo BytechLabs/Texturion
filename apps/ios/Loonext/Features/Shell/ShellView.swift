@@ -172,6 +172,14 @@ struct ShellView: View {
                 countsKey &+= 1
             }
         }
+        // #215: reload the nav counts + avatar dot on a socket re-JOIN and on
+        // foreground return, so a badge derived from a missed frame corrects.
+        .task(id: companyId) {
+            for await _ in await graph.realtime.reconnected() {
+                countsKey &+= 1
+            }
+        }
+        .resyncOnForeground { countsKey &+= 1 }
         .task(id: companyId) { await wireSessionDevice() }
     }
 

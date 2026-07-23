@@ -386,15 +386,33 @@ class ThreadController(
         }
     }
 
-    /** Reconnect: trim to page 1 and refetch everything active (SPEC §8). */
+    /**
+     * Reconnect / foreground resync: refetch everything active (SPEC §8) and
+     * MERGE page 1 into the timeline. This is the ON_RESUME target (#215) and
+     * foregrounding is frequent, so it must NOT replace — a user who scrolled
+     * back would lose every loaded page on each pause/resume (and on each socket
+     * re-JOIN). Merging keeps the loaded scrollback while still healing a
+     * page-1 message that a dropped/late frame missed.
+     */
     fun refreshAfterReconnect() {
         scope.launch {
             runCatching {
                 val detail = repo.detail(companyId, conversationId)
                 conversation = detail
-                messages = detail.messages.data
-                messagesCursor = detail.messages.next_cursor
-                allMessagesLoaded = detail.messages.next_cursor == null
+                messages = mergeFirstPage(
+                    messages,
+                    detail.messages.data,
+                    { it.id },
+                    { it.created_at },
+                )
+                // Only adopt the fresh cursor from a blank slate; when the user
+                // has already paged deeper, the existing cursor still points to
+                // the oldest UNloaded message and the merge kept the rest.
+                if (messagesCursor == null && detail.messages.next_cursor != null &&
+                    !allMessagesLoaded
+                ) {
+                    messagesCursor = detail.messages.next_cursor
+                }
             }
             runCatching {
                 val page = repo.events(companyId, conversationId)

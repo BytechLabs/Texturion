@@ -9,7 +9,6 @@ import {
   listApplyConversation,
   snippetFromMessage,
   threadPatchMessage,
-  threadUpsertMessages,
   type ThreadData,
 } from "@/lib/api/cache";
 import {
@@ -30,6 +29,7 @@ import { useActiveCompany } from "@/lib/company/provider";
 import { contactDisplayName } from "@/lib/format/phone";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
+import { applyLiveThreadAppend } from "./apply";
 import {
   messageStatusPatch,
   type ConversationUpdatedEvent,
@@ -124,8 +124,20 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       const { conversation_id, message_id, direction } = event;
 
       const cachedRow = findListRow(queryClient, companyId, conversation_id);
-      // Spam-thread appends stay silent outside the spam view (SPEC §6.3).
-      if (cachedRow?.is_spam) return;
+
+      // #215 efficiency: a spam conversation the user does NOT have open has
+      // nothing to update — the open-thread append below would no-op (no thread
+      // cache) and the inbox list stays spam-gated (SPEC §6.3). Skip the wasted
+      // message fetch. An OPEN spam thread still live-appends (its thread cache
+      // exists, so we fall through and patch it).
+      if (
+        cachedRow?.is_spam &&
+        !queryClient.getQueryData<ThreadData>(
+          keys.thread(companyId, conversation_id),
+        )
+      ) {
+        return;
+      }
 
       // Fetch the message via the API (ID-only payload, §8) — the newest
       // thread page carries it plus anything else we missed.
@@ -139,13 +151,16 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       if (disposed) return;
       const message = page.data.find((m) => m.id === message_id);
 
-      // Patch the thread cache when this thread has ever been opened.
-      const threadKey = keys.thread(companyId, conversation_id);
-      if (queryClient.getQueryData<ThreadData>(threadKey)) {
-        queryClient.setQueryData<ThreadData>(threadKey, (thread) =>
-          threadUpsertMessages(thread, page.data),
-        );
-      }
+      // Patch the thread cache when this thread has ever been opened — INCLUDING
+      // a spam thread the user has open (reachable from the spam filter): a live
+      // append into the OPEN thread must not depend on spam state (#215). Only the
+      // inbox LIST / unread surfacing stays spam-gated below (SPEC §6.3).
+      applyLiveThreadAppend(queryClient, companyId, conversation_id, page.data);
+
+      // Spam-thread appends stay silent OUTSIDE the open thread — no inbox-list
+      // row bump, no unread increment (SPEC §6.3). The open-thread patch above
+      // already ran, so the viewer sees the message live either way.
+      if (cachedRow?.is_spam) return;
 
       const unreadBump = direction === "inbound" && !isViewing(conversation_id);
       let contactName: string;
@@ -415,6 +430,35 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
+    // #215 Part A — the resync-on-focus safety net. A broadcast frame can be
+    // dropped/missed/late (a transient CHANNEL_ERROR, a token-reauth window, a
+    // backpressure drop on a client transport), and the only self-heal today is a
+    // full socket re-JOIN (refetchFirstPages above). So an inbound message to the
+    // OPEN conversation could sit unrendered until the user navigated away and
+    // back — the reported #215 symptom. Refetch whatever is actively rendered
+    // whenever the tab regains focus/visibility, so a lost frame self-heals within
+    // seconds. Unlike refetchFirstPages this does NOT trim to page 1 — a routine
+    // focus must never collapse a user's scrolled-back pagination — it just
+    // invalidates the ACTIVE company-scoped queries (React Query refetches every
+    // loaded page of each, picking up anything missed). Same primitive the
+    // conversation list/calls/tasks surfaces use, so the whole class is closed.
+    function resyncActive() {
+      queryClient.invalidateQueries({
+        queryKey: [companyId],
+        refetchType: "active",
+      });
+    }
+    const onVisible = () => {
+      if (
+        typeof document === "undefined" ||
+        document.visibilityState === "visible"
+      ) {
+        resyncActive();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+
     let hadDrop = false;
     let everSubscribed = false;
 
@@ -477,6 +521,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       disposed = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
       for (const timer of pendingUpdates.values()) clearTimeout(timer);
       pendingUpdates.clear();
       authSubscription.unsubscribe();

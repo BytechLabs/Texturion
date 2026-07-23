@@ -101,6 +101,7 @@ import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonBlock
@@ -208,6 +209,15 @@ internal fun TaskDetailScreen(
             }
         }
     }
+    // #215: this screen carried no reconnect subscriber at all — an in-
+    // foreground socket re-JOIN (which may have skipped frames while the
+    // channel was down) must also refetch the detail.
+    LaunchedEffect(taskId) {
+        graph.realtime.reconnected.collect { refreshKey++ }
+    }
+    // ...and a frame missed while backgrounded/blurred heals on return to the
+    // foreground.
+    ResyncOnResume(taskId) { refreshKey++ }
 
     // The cached value always wins the render; the ONLY failure that may
     // outrank shown data is the explicit not-found eviction above.

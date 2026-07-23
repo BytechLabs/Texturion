@@ -78,6 +78,7 @@ import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
+import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.imeHost
 import com.loonext.android.ui.theme.LoonextTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -417,6 +418,12 @@ private fun ReadyShell(
             }
         }
     }
+    // #215: the tab badges are the same drop-class as the 11 live screens — a
+    // missed message.created frame leaves an unread count stale until
+    // navigation. Refetch the counts on return to the foreground so the shell
+    // self-heals too. (The call.updated → softphone forward above stays purely
+    // event-driven; only the badge counter needs the resync.)
+    ResyncOnResume(companyId) { countsKey++ }
 
     Box(Modifier.fillMaxSize()) {
         MainShell(

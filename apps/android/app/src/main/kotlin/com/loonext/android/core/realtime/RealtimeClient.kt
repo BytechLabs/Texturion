@@ -3,6 +3,7 @@ package com.loonext.android.core.realtime
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,8 +57,22 @@ class RealtimeClient(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
+    // #215: extraBufferCapacity's default onBufferOverflow is SUSPEND, so a
+    // full buffer backpressures the emitter rather than dropping — the polar
+    // opposite of the old tryEmit path, which returned false (and silently lost
+    // the frame for EVERY subscriber) the instant one slow collector filled
+    // these 64 slots.
     private val _events = MutableSharedFlow<RealtimeEvent>(extraBufferCapacity = 64)
     val events: SharedFlow<RealtimeEvent> = _events
+
+    // #215 root-cause fix: broadcast frames arrive on the OkHttp WebSocket
+    // thread, which must never block, yet a frame must never be dropped either.
+    // They queue on this UNLIMITED channel (trySend always succeeds, never
+    // blocks the socket) and a single dispatch coroutine drains it, re-emitting
+    // with the SUSPENDING [MutableSharedFlow.emit]. A slow collector then
+    // backpressures the queue (which simply grows) instead of starving the
+    // other ~10 app-wide collectors of the same frame.
+    private val ingress = Channel<RealtimeEvent>(Channel.UNLIMITED)
 
     private val _state = MutableStateFlow<RealtimeState>(RealtimeState.Disconnected)
     val state: StateFlow<RealtimeState> = _state
@@ -66,6 +81,15 @@ class RealtimeClient(
 
     /** Fires on every re-JOIN after the first — refetch first pages. */
     val reconnected: SharedFlow<Unit> = _reconnected
+
+    init {
+        // The lossless dispatch pump (#215): lives for the client's lifetime,
+        // suspends on an empty queue, and suspends on emit when a collector is
+        // behind — so no frame is ever lost between the socket and the flow.
+        scope.launch {
+            for (event in ingress) _events.emit(event)
+        }
+    }
 
     private var socket: WebSocket? = null
     private var loop: Job? = null
@@ -200,7 +224,10 @@ class RealtimeClient(
                 val inner = payload ?: return
                 val name = inner["event"]?.jsonPrimitive?.content ?: return
                 val data = inner["payload"] as? JsonObject ?: buildJsonObject {}
-                _events.tryEmit(RealtimeEvent(name, data))
+                // trySend on an UNLIMITED channel never fails (never drops) and
+                // never blocks this WebSocket thread — the dispatch pump above
+                // does the (possibly suspending) hand-off to collectors.
+                ingress.trySend(RealtimeEvent(name, data))
             }
 
             "phx_close", "phx_error" -> {
@@ -247,4 +274,13 @@ class RealtimeClient(
             put("payload", payload)
             put("ref", ref.getAndIncrement().toString())
         }.toString()
+
+    /**
+     * #215 test seam: push an event through the real lossless dispatch path
+     * (ingress channel → dispatch pump → suspending emit), exactly as [handle]'s
+     * `broadcast` branch does for a live frame. Not used in production.
+     */
+    internal fun ingestForTest(event: RealtimeEvent) {
+        ingress.trySend(event)
+    }
 }

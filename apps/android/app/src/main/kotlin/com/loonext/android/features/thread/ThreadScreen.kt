@@ -108,6 +108,7 @@ import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
+import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
@@ -165,6 +166,10 @@ fun ThreadScreen(
     LaunchedEffect(controller) {
         graph.realtime.reconnected.collect { controller.refreshAfterReconnect() }
     }
+    // #215: a frame missed while this thread was backgrounded/blurred is lost
+    // until a re-JOIN — self-heal on return to the foreground via the same
+    // refetch the reconnect path uses.
+    ResyncOnResume(controller) { controller.refreshAfterReconnect() }
     // Mark read on open and again whenever the newest message id changes.
     LaunchedEffect(controller, controller.newestMessageId) { controller.markRead() }
 

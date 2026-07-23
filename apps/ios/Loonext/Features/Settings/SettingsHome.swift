@@ -134,6 +134,14 @@ struct SettingsHome: View {
                 refreshKey += 1
             }
         }
+        // #215: a socket re-JOIN (frames missed while offline) refetches the
+        // company view; Part A does the same on foreground return.
+        .task(id: companyId) {
+            for await _ in await graph.realtime.reconnected() {
+                refreshKey += 1
+            }
+        }
+        .resyncOnForeground { refreshKey += 1 }
     }
 
     // MARK: - Index

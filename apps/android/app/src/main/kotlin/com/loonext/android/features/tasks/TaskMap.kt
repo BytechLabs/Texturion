@@ -67,6 +67,7 @@ import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.Task
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
@@ -128,6 +129,9 @@ fun TaskMapView(
     LaunchedEffect(companyId) {
         graph.realtime.reconnected.collect { refreshKey++ }
     }
+    // #215: heal a task.changed/message.status frame missed while
+    // backgrounded/blurred by revalidating on return to the foreground.
+    ResyncOnResume(companyId) { refreshKey++ }
 
     val cacheKey = CacheKeys.tasks(companyId, taskMapFilterKey(assigneeUserId, unassigned))
     val state = rememberCacheFirst(

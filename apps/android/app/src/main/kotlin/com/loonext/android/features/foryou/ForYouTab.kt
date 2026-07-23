@@ -67,6 +67,7 @@ import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
@@ -165,6 +166,9 @@ fun ForYouTab(
     LaunchedEffect(companyId) {
         graph.realtime.reconnected.collect { refreshKey++ }
     }
+    // #215: heal a frame missed while backgrounded/blurred by revalidating on
+    // return to the foreground.
+    ResyncOnResume(companyId) { refreshKey++ }
 
     // Pull-to-refresh rides the same silent refreshKey revalidation the
     // realtime ticks use (cache-first: rows never blank underneath); the

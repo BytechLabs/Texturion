@@ -103,6 +103,7 @@ import com.loonext.android.ui.common.CenteredLoading
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
@@ -681,6 +682,9 @@ private fun InboxList(
     LaunchedEffect(controller) {
         graph.realtime.reconnected.collect { controller.refreshAfterReconnect() }
     }
+    // #215: self-heal a frame missed while backgrounded/blurred by rerunning
+    // the reconnect refetch on return to the foreground.
+    ResyncOnResume(controller) { controller.refreshAfterReconnect() }
     // Debounced search over the query field.
     LaunchedEffect(controller) {
         snapshotFlow { controller.query }

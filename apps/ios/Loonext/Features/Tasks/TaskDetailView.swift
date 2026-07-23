@@ -101,6 +101,14 @@ struct TaskDetailView: View {
                 }
             }
         }
+        // #215: a socket re-JOIN (missed frames while offline) refetches the
+        // task; Part A does the same on foreground return.
+        .task(id: taskId) {
+            for await _ in await graph.realtime.reconnected() {
+                refreshKey += 1
+            }
+        }
+        .resyncOnForeground { refreshKey += 1 }
         .sheet(isPresented: $pickerOpen) {
             if let detail {
                 MemberPickerSheet(

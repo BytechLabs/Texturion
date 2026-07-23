@@ -63,6 +63,10 @@ struct ThreadView: View {
                 controller?.refreshAfterReconnect()
             }
         }
+        // #215 Part A: a frame missed while this thread was backgrounded/blurred
+        // (the #215 repro) self-heals on return — the same page-1 refetch the
+        // socket re-JOIN runs.
+        .resyncOnForeground { controller?.refreshAfterReconnect() }
     }
 }
 

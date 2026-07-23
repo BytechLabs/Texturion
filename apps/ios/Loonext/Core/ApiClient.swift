@@ -1,5 +1,19 @@
 import Foundation
 
+/// The one HTTP round-trip `ApiClient` performs. Production is a thin wrapper
+/// over `URLSession.shared`; tests inject a canned-response stub so controller
+/// behavior is verifiable without a live backend (the conformance lives on our
+/// own `Sendable` type, never retroactively on Foundation's `URLSession`).
+protocol HTTPClient: Sendable {
+    func data(for request: URLRequest) async throws -> (Data, URLResponse)
+}
+
+struct URLSessionHTTPClient: HTTPClient {
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try await URLSession.shared.data(for: request)
+    }
+}
+
 /// The /v1 API client: bearer injection from `SessionStore`, X-Company-Id
 /// tenancy header, proactive token refresh, single-flight refresh on 401
 /// (with stale-token force-refresh), SPEC §7 envelope decoding, and
@@ -8,6 +22,7 @@ actor ApiClient {
     private let sessionStore: SessionStore
     private let auth: SupabaseAuth
     private let baseURL: URL
+    private let transport: HTTPClient
     private var refreshTask: Task<Session?, Error>?
 
     /// Set by the app shell; called when the refresh token itself is rejected.
@@ -16,10 +31,16 @@ actor ApiClient {
     /// Fires with every fresh access token — realtime re-auths from this.
     private var onTokenRefreshed: (@Sendable (String) -> Void)?
 
-    init(sessionStore: SessionStore, auth: SupabaseAuth, baseURL: URL = AppConfig.apiURL) {
+    init(
+        sessionStore: SessionStore,
+        auth: SupabaseAuth,
+        baseURL: URL = AppConfig.apiURL,
+        transport: HTTPClient = URLSessionHTTPClient()
+    ) {
         self.sessionStore = sessionStore
         self.auth = auth
         self.baseURL = baseURL
+        self.transport = transport
     }
 
     func setSignedOutHandler(_ handler: @escaping @Sendable () -> Void) {
@@ -216,7 +237,7 @@ actor ApiClient {
         request.httpBody = body
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await transport.data(for: request)
             return RawResponse(status: (response as? HTTPURLResponse)?.statusCode ?? 0, data: data)
         } catch {
             throw ApiError(

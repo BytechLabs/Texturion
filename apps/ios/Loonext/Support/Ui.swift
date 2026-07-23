@@ -15,6 +15,29 @@ extension Error {
     }
 }
 
+extension View {
+    /// #215 Part A — the resync-on-foreground safety net. When the scene
+    /// returns to `.active` (app foregrounded, or a system overlay dismissed),
+    /// run `resync` so any realtime frame missed while backgrounded/blurred
+    /// self-heals. This is the SAME refetch each live screen already runs on a
+    /// socket re-JOIN (`reconnected()`), wired to a second trigger — a dropped
+    /// or late broadcast is no longer lost until the user navigates away.
+    func resyncOnForeground(_ resync: @escaping @MainActor () -> Void) -> some View {
+        modifier(ResyncOnForegroundModifier(resync: resync))
+    }
+}
+
+private struct ResyncOnForegroundModifier: ViewModifier {
+    @Environment(\.scenePhase) private var scenePhase
+    let resync: @MainActor () -> Void
+
+    func body(content: Content) -> some View {
+        content.onChange(of: scenePhase) { _, phase in
+            if phase == .active { resync() }
+        }
+    }
+}
+
 /// Centered loading indicator — first load only, never spinners over data.
 struct CenteredLoading: View {
     var body: some View {

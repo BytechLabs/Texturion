@@ -67,6 +67,9 @@ struct NotificationsView: View {
                 refreshKey += 1
             }
         }
+        // #215 Part A: rebuild the feed on foreground so an item derived from a
+        // frame missed while backgrounded appears (and the badge corrects).
+        .resyncOnForeground { refreshKey += 1 }
         // 60s badge poll — the backstop when realtime is quiet or degraded.
         .task(id: companyId) {
             while !Task.isCancelled {

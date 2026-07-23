@@ -86,6 +86,7 @@ import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
@@ -208,6 +209,9 @@ fun CallsScreen(
     LaunchedEffect(companyId) {
         graph.realtime.reconnected.collect { refreshKey++ }
     }
+    // #215: heal a call.updated frame missed while backgrounded/blurred by
+    // revalidating on return to the foreground.
+    ResyncOnResume(companyId) { refreshKey++ }
 
     // #210: ongoing (outcome-null) rows always derive from the All-filter
     // payload — an outcome= filter can never return them — so the pinned card

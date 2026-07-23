@@ -290,7 +290,13 @@ final class ThreadController {
         }
     }
 
-    /// Reconnect: trim to page 1 and refetch everything active (SPEC §8).
+    /// Reconnect / foreground resync (SPEC §8). MERGE a fresh page 1 — healing a
+    /// message a missed/dropped broadcast never delivered — while KEEPING the
+    /// pages the user scrolled back to. `.resyncOnForeground` makes this frequent
+    /// (an incoming call, the camera, the app switcher), so a page-1 *replace*
+    /// would drop loaded history on every foreground; this is the SAME merge the
+    /// realtime message path uses (`refreshMessagesFirstPage`). Events/pinned/
+    /// contact still refetch as before.
     func refreshAfterReconnect() {
         Task {
             if let detail = try? await repo.detail(
@@ -298,9 +304,17 @@ final class ThreadController {
                 conversationId: conversationId
             ) {
                 conversation = detail
-                messages = detail.messages.data
-                messagesCursor = detail.messages.next_cursor
-                allMessagesLoaded = detail.messages.next_cursor == nil
+                messages = mergeFirstPage(
+                    messages,
+                    detail.messages.data,
+                    idOf: { $0.id },
+                    sortKey: { $0.created_at }
+                )
+                // Only re-open pagination if we hadn't scrolled yet; a
+                // scrolled-back thread keeps its deeper cursor + loaded flag.
+                if messagesCursor == nil, detail.messages.next_cursor != nil, !allMessagesLoaded {
+                    messagesCursor = detail.messages.next_cursor
+                }
             }
             if let page = try? await repo.events(
                 companyId: companyId,

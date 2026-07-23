@@ -159,6 +159,9 @@ struct TasksTab: View {
                 refreshKey += 1
             }
         }
+        // #215 Part A: refresh the current view on foreground so a task
+        // create/assign/done missed while backgrounded lands on return.
+        .resyncOnForeground { refreshKey += 1 }
         .onChange(of: view) { _, newView in
             // Board organizes by status, so the Open/Done dimension is a
             // no-op there (#113): entering the board coerces to Mine. Calendar

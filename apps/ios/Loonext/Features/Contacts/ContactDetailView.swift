@@ -833,6 +833,9 @@ private struct ContactCallsSection: View {
                 refreshKey += 1
             }
         }
+        // #215 Part A: refetch this contact's calls on foreground so a
+        // call.updated missed while backgrounded self-heals.
+        .resyncOnForeground { refreshKey += 1 }
     }
 
     @ViewBuilder

@@ -56,6 +56,7 @@ import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonListRow
@@ -134,6 +135,9 @@ internal fun ContactCallsSection(
     LaunchedEffect(contactId) {
         graph.realtime.reconnected.collect { refreshKey++ }
     }
+    // #215: heal a call.updated frame missed while backgrounded/blurred by
+    // revalidating on return to the foreground.
+    ResyncOnResume(contactId) { refreshKey++ }
 
     ContactSection("Calls", modifier) {
         when (val current = state) {

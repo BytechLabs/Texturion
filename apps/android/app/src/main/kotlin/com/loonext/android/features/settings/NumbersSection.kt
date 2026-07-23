@@ -51,6 +51,7 @@ import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberCacheFirst
@@ -106,6 +107,15 @@ fun NumbersSection(
             }
         }
     }
+    // #215: this section had no reconnect subscriber — an in-foreground socket
+    // re-JOIN must also refetch (a provisioning/10DLC frame may have been
+    // skipped while the channel was down).
+    LaunchedEffect(scope.companyId) {
+        scope.graph.realtime.reconnected.collect { refreshKey++ }
+    }
+    // ...and a frame missed while backgrounded/blurred heals on return to the
+    // foreground.
+    ResyncOnResume(scope.companyId) { refreshKey++ }
 
     when (val current = state) {
         is LoadState.Loading -> SettingsSectionSkeleton(cards = 3)

@@ -82,6 +82,9 @@ struct CallsView: View {
                 refreshKey += 1
             }
         }
+        // #215 Part A: a call.updated missed while backgrounded self-heals on
+        // foreground — the same first-page refetch the re-JOIN runs.
+        .resyncOnForeground { refreshKey += 1 }
         .sheet(isPresented: $dialerOpen) {
             DialerSheet(
                 manager: manager,

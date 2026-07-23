@@ -84,6 +84,14 @@ struct NumbersSectionView: View {
                 refreshKey += 1
             }
         }
+        // #215: a socket re-JOIN (missed provisioning/registration/port frames
+        // while offline) refetches; Part A does the same on foreground return.
+        .task(id: scope.companyId) {
+            for await _ in await scope.graph.realtime.reconnected() {
+                refreshKey += 1
+            }
+        }
+        .resyncOnForeground { refreshKey += 1 }
     }
 }
 

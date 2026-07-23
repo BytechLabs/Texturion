@@ -79,6 +79,7 @@ import com.loonext.android.core.model.Task
 import com.loonext.android.features.shell.LocalShellPagerBlocker
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
@@ -205,6 +206,9 @@ private fun TaskListScreen(
     LaunchedEffect(companyId) {
         graph.realtime.reconnected.collect { refreshKey++ }
     }
+    // #215: heal a task.changed/message.status frame missed while
+    // backgrounded/blurred by revalidating on return to the foreground.
+    ResyncOnResume(companyId) { refreshKey++ }
 
     // Pull-to-refresh rides the same silent revalidate as everything else, so
     // the indicator holds a short honest beat instead of pretending to track
