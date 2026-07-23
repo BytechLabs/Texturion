@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 import UIKit
 
@@ -227,7 +228,14 @@ struct ContactDetailView: View {
                 }
                 consentCard(contact)
                 detailsCard(contact)
+                attributionCaption(contact)
                 conversationSection
+                ContactCallsSection(
+                    graph: graph,
+                    companyId: companyId,
+                    contactId: contact.id,
+                    onOpenConversation: onOpenConversation
+                )
                 manageCard(contact)
             }
             .padding(.horizontal, 18)
@@ -487,6 +495,36 @@ struct ContactDetailView: View {
         }
     }
 
+    /// #191 quiet record-attribution caption — who added this contact, and who
+    /// last edited it when that was someone else. Ported 1:1 from the Android
+    /// ContactDetailScreen attribution block + the web RecordAttribution. Shows
+    /// NOTHING for contacts that predate attribution (null actors, no backfill
+    /// lie); renders in the muted-caption style.
+    @ViewBuilder
+    private func attributionCaption(_ contact: Contact) -> some View {
+        let attribution = contactAttribution(
+            createdByName: contact.created_by_name,
+            createdAt: contact.created_at,
+            updatedByName: contact.updated_by_name
+        )
+        if attribution.added != nil || attribution.edited != nil {
+            VStack(alignment: .leading, spacing: 1) {
+                if let added = attribution.added {
+                    Text(added)
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.muted500)
+                }
+                if let edited = attribution.edited {
+                    Text(edited)
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.muted500)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 6)
+        }
+    }
+
     /// §3.3: routine, reversible actions stay quiet — the confirm dialogs
     /// carry the weight. Opt out wears the spec's warm-brick label; delete
     /// stays muted.
@@ -633,6 +671,517 @@ private struct AutosaveField: View {
     }
 }
 
+// MARK: - #191 record attribution (pure, testable)
+
+/// The two attribution caption lines. `nil` means "render nothing" — the
+/// load-bearing honesty rule for contacts that predate attribution.
+struct ContactAttribution: Equatable {
+    let added: String?
+    let edited: String?
+}
+
+/// #191 record attribution, ported 1:1 from the Android `contactAttribution`
+/// and the web RecordAttribution so the clients never phrase it differently:
+///  - "Added by {name} on Jul 8, 2026" (the date dropped if unparseable),
+///  - "Edited by {name}" only when a DIFFERENT member last edited it.
+/// Both lines are nil when the actor name doesn't resolve — a blank or missing
+/// name renders nothing rather than a faked "Added by unknown".
+func contactAttribution(
+    createdByName: String?,
+    createdAt: String?,
+    updatedByName: String?,
+    calendar: Calendar = .current
+) -> ContactAttribution {
+    let added = createdByName
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .flatMap { $0.isEmpty ? nil : $0 }
+    let edited = updatedByName
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .flatMap { $0.isEmpty ? nil : $0 }
+    let addedLine: String? = added.map { name in
+        guard let parsed = parseWireTimestamp(createdAt) else { return "Added by \(name)" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "MMM d, yyyy"
+        return "Added by \(name) on \(formatter.string(from: parsed))"
+    }
+    let editedLine: String?
+    if let edited, edited != added {
+        editedLine = "Edited by \(edited)"
+    } else {
+        editedLine = nil
+    }
+    return ContactAttribution(added: addedLine, edited: editedLine)
+}
+
+// MARK: - #205 per-contact call history (pure, testable)
+
+/// One day bucket in the contact's Calls section.
+struct CallDayGroup: Identifiable {
+    let label: String
+    let calls: [Call]
+    var id: String { label }
+}
+
+/// Newest-first day bucket label, ported from the Android `contactCallDayLabel`
+/// (itself the call log's groupByDay/dayLabel): "Today" / "Yesterday" /
+/// "MMM d" (this year) / "MMM d yyyy" (older). Unparseable input buckets under
+/// "Earlier" rather than crashing.
+func contactCallDayLabel(
+    _ iso: String,
+    now: Date = Date(),
+    calendar: Calendar = .current
+) -> String {
+    guard let date = parseWireTimestamp(iso) else { return "Earlier" }
+    if calendar.isDate(date, inSameDayAs: now) { return "Today" }
+    if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+       calendar.isDate(date, inSameDayAs: yesterday) {
+        return "Yesterday"
+    }
+    let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.calendar = calendar
+    formatter.timeZone = calendar.timeZone
+    formatter.dateFormat = sameYear ? "MMM d" : "MMM d yyyy"
+    return formatter.string(from: date)
+}
+
+/// Newest-first list → ordered day buckets, preserving the API's order within
+/// each bucket. Ported from the Android `groupContactCallsByDay`.
+func groupContactCallsByDay(
+    _ calls: [Call],
+    now: Date = Date(),
+    calendar: Calendar = .current
+) -> [CallDayGroup] {
+    var order: [String] = []
+    var buckets: [String: [Call]] = [:]
+    for call in calls {
+        let label = contactCallDayLabel(call.started_at, now: now, calendar: calendar)
+        if buckets[label] == nil {
+            order.append(label)
+            buckets[label] = [call]
+        } else {
+            buckets[label]?.append(call)
+        }
+    }
+    return order.map { CallDayGroup(label: $0, calls: buckets[$0] ?? []) }
+}
+
+// MARK: - #205 Calls section (view)
+
+/// The contact-detail's generic section scaffold (#205, mirrors the Android
+/// ContactCallsSection.kt `ContactSection`): a section header over slotted
+/// content. Calls is the first tenant; per-contact tasks and activity slot in
+/// later with the same shape — build against this, not the calls instance.
+private struct ContactSection<Content: View>: View {
+    let title: String
+    var count: Int? = nil
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeader(label: title, count: count)
+            content
+        }
+    }
+}
+
+/// The contact's call history (#205): GET /v1/calls?contact_id=<id>
+/// newest-first, day-grouped in the call log's grammar, missed calls in the
+/// amber treatment (the iOS call log's actionable-miss color — CallsView uses
+/// overdueAmber, not coral), voicemail playable inline, tap-through to the
+/// conversation. iOS has no StoreCache, so this is a load-on-appear with a
+/// loading state (the current iOS calls pattern); call.updated realtime +
+/// reconnect revalidate the first page, mirroring CallsView.
+///
+/// The row grammar and the voicemail player are REPLICATED from CallsView
+/// (its CallRow / VoicemailPlayerRow are `private`, so not importable): until a
+/// shared component is extracted, any copy change must land in both.
+@MainActor
+private struct ContactCallsSection: View {
+    let graph: AppGraph
+    let companyId: String
+    let contactId: String
+    let onOpenConversation: ((_ conversationId: String) -> Void)?
+
+    @State private var state: LoadState<[Call]> = .loading
+    @State private var nextCursor: String?
+    @State private var loadingMore = false
+    @State private var refreshKey = 0
+
+    private var service: CallsService { CallsService(api: graph.api) }
+
+    var body: some View {
+        ContactSection(title: "Calls") {
+            content
+        }
+        .task(id: "\(contactId)|\(refreshKey)") { await reload() }
+        // Realtime: the calls table's DB trigger broadcasts call.updated
+        // (ID-only) on every session change — refetch the first page; ditto
+        // after a socket re-join. Same pattern as CallsView.
+        .task(id: contactId) {
+            for await event in await graph.realtime.events()
+                where event.event == "call.updated" {
+                refreshKey += 1
+            }
+        }
+        .task(id: contactId) {
+            for await _ in await graph.realtime.reconnected() {
+                refreshKey += 1
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch state {
+        case .loading:
+            HStack {
+                Spacer()
+                ProgressView().controlSize(.small)
+                Spacer()
+            }
+            .padding(.vertical, 12)
+        case .failed(let message):
+            VStack(alignment: .leading, spacing: 4) {
+                Text(message)
+                    .font(.golos(12))
+                    .foregroundStyle(BrandColor.muted500)
+                Button("Try again") { refreshKey += 1 }
+                    .font(.golos(12, weight: .semibold))
+                    .foregroundStyle(BrandColor.olive)
+                    .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 6)
+        case .ready(let calls):
+            if calls.isEmpty {
+                // The quiet one-line empty state.
+                Text("No calls with this contact yet.")
+                    .font(.golos(12.5))
+                    .foregroundStyle(BrandColor.muted500)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 6)
+            } else {
+                readyList(groupContactCallsByDay(calls))
+            }
+        }
+    }
+
+    private func readyList(_ groups: [CallDayGroup]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(groups) { group in
+                SectionHeader(label: group.label, count: group.calls.count)
+                    .padding(.top, group.id == groups.first?.id ? 4 : 10)
+                PaperCard {
+                    ForEach(group.calls, id: \.id) { call in
+                        ContactCallRow(
+                            call: call,
+                            service: service,
+                            companyId: companyId,
+                            onOpen: openAction(for: call)
+                        )
+                        if call.id != group.calls.last?.id {
+                            RowDivider().padding(.leading, 42)
+                        }
+                    }
+                }
+            }
+            if nextCursor != nil {
+                HStack {
+                    Spacer()
+                    if loadingMore {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Button("Show more") { loadMore() }
+                            .font(.golos(12, weight: .semibold))
+                            .foregroundStyle(BrandColor.olive)
+                            .buttonStyle(.plain)
+                    }
+                    Spacer()
+                }
+                .padding(.top, 8)
+            }
+        }
+    }
+
+    /// Extracted with an explicit type — the same swiftc type-checker guard the
+    /// call log's CallsView.openAction(for:) documents.
+    private func openAction(for call: Call) -> (@MainActor () -> Void)? {
+        guard let id = call.conversation_id, let onOpenConversation else { return nil }
+        return { onOpenConversation(id) }
+    }
+
+    /// Reuse the shipped GET /v1/calls?contact_id= filter directly. The calls
+    /// backend's typed `CallsService.calls()` doesn't thread contact_id and its
+    /// file is owned elsewhere, so issue the read here rather than change it —
+    /// same envelope (Page<Call>), same #106 SQL access filtering server-side.
+    private func fetchCalls(cursor: String?) async throws -> Page<Call> {
+        try await graph.api.get(
+            "/v1/calls",
+            query: [
+                "contact_id": contactId,
+                "cursor": cursor,
+                "limit": "25",
+            ],
+            companyId: companyId
+        )
+    }
+
+    private func reload() async {
+        do {
+            let page = try await fetchCalls(cursor: nil)
+            nextCursor = page.next_cursor
+            state = .ready(page.data)
+        } catch {
+            if case .ready = state {
+                // Keep the stale list on a quiet refetch failure.
+            } else {
+                state = .failed(error.userMessage)
+            }
+        }
+    }
+
+    private func loadMore() {
+        guard let cursor = nextCursor, !loadingMore else { return }
+        loadingMore = true
+        Task {
+            defer { loadingMore = false }
+            do {
+                let page = try await fetchCalls(cursor: cursor)
+                nextCursor = page.next_cursor
+                if case .ready(let existing) = state {
+                    let seen = Set(existing.map(\.id))
+                    state = .ready(existing + page.data.filter { !seen.contains($0.id) })
+                }
+            } catch {
+                // Keep what's loaded; the button stays.
+            }
+        }
+    }
+}
+
+/// One call row in the detail's Calls section. Grammar REPLICATED from the call
+/// log's row (CallsView.CallRow) minus the avatar and caller name — the whole
+/// screen is this contact, so the outcome line leads. The reused pure helpers
+/// (`callOutcomeLabel`, `isActionableMiss`, `relativeTime`) are the call log's
+/// own module-internal functions.
+@MainActor
+private struct ContactCallRow: View {
+    let call: Call
+    let service: CallsService
+    let companyId: String
+    let onOpen: (@MainActor () -> Void)?
+
+    private var directionIcon: String {
+        call.direction == "outbound" ? "phone.arrow.up.right" : "phone.arrow.down.left"
+    }
+
+    private var metaColor: Color {
+        isActionableMiss(call) ? BrandColor.overdueAmber : BrandColor.muted500
+    }
+
+    private var showsVoicemail: Bool {
+        call.outcome == CallOutcome.voicemail && (call.voicemail_seconds ?? 0) > 0
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: 11) {
+                Image(systemName: directionIcon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(metaColor)
+                    .frame(width: 20)
+                Text(callOutcomeLabel(call))
+                    .font(.golos(13, weight: isActionableMiss(call) ? .semibold : .regular))
+                    .foregroundStyle(isActionableMiss(call) ? BrandColor.overdueAmber : BrandColor.ink)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Text(relativeTime(call.started_at))
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted300)
+                    .monospacedDigit()
+            }
+            .padding(.horizontal, 15)
+            .padding(.top, 11)
+            .padding(.bottom, showsVoicemail ? 6 : 11)
+            if showsVoicemail {
+                ContactVoicemailPlayerRow(
+                    service: service,
+                    companyId: companyId,
+                    sessionId: call.call_session_id,
+                    seconds: call.voicemail_seconds ?? 0
+                )
+                .padding(.leading, 42)
+                .padding(.trailing, 15)
+                .padding(.bottom, 12)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { onOpen?() }
+    }
+}
+
+/// Inline voicemail playback. Grammar and data path REPLICATED from
+/// CallsView.VoicemailPlayerRow (a `private` struct there, so not importable):
+/// mint the 1h signed URL on demand via CallsService.voicemail (never cached),
+/// stream via AVPlayer with seek + live progress. Any change here must mirror
+/// the call log's player until a shared component is extracted.
+@MainActor
+private struct ContactVoicemailPlayerRow: View {
+    let service: CallsService
+    let companyId: String
+    let sessionId: String
+    let seconds: Int
+
+    @State private var player: AVPlayer?
+    @State private var preparing = false
+    @State private var playing = false
+    @State private var positionMs = 0
+    @State private var durationMs: Int
+    @State private var scrubbing = false
+    @State private var errorText: String?
+
+    init(service: CallsService, companyId: String, sessionId: String, seconds: Int) {
+        self.service = service
+        self.companyId = companyId
+        self.sessionId = sessionId
+        self.seconds = seconds
+        _durationMs = State(initialValue: max(1, seconds * 1000))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 9) {
+                Button(action: togglePlayback) {
+                    Group {
+                        if preparing {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(BrandColor.paper)
+                        } else {
+                            Image(systemName: playing ? "pause.fill" : "play.fill")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(BrandColor.paper)
+                        }
+                    }
+                    .frame(width: 28, height: 28)
+                    .background(BrandColor.ink, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(playing ? "Pause voicemail" : "Play voicemail")
+
+                Slider(
+                    value: Binding(
+                        get: { Double(min(positionMs, durationMs)) },
+                        set: { positionMs = Int($0) }
+                    ),
+                    in: 0 ... Double(durationMs)
+                ) { editing in
+                    scrubbing = editing
+                    if !editing, let player {
+                        player.seek(to: CMTime(
+                            value: CMTimeValue(positionMs),
+                            timescale: 1000
+                        ))
+                    }
+                }
+                .tint(BrandColor.olive)
+                .disabled(player == nil)
+
+                Text("\(formatTimer(elapsedMs: positionMs)) / \(formatVoicemailLength(seconds))")
+                    .font(.golos(10.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.muted600)
+                    .monospacedDigit()
+            }
+            .padding(.vertical, 6)
+            .padding(.leading, 6)
+            .padding(.trailing, 14)
+            .background(BrandColor.inset, in: Capsule())
+            if let errorText {
+                Text(errorText)
+                    .font(.golos(10.5))
+                    .foregroundStyle(BrandColor.muted500)
+            }
+        }
+        .task(id: playing) {
+            // Poll position while playing (the call log's player does the same).
+            while playing {
+                if !scrubbing, let player {
+                    let current = player.currentTime().seconds
+                    if current.isFinite { positionMs = Int(current * 1000) }
+                    if let item = player.currentItem {
+                        let total = item.duration.seconds
+                        if total.isFinite && total > 0 { durationMs = Int(total * 1000) }
+                        if item.error != nil {
+                            errorText = "Couldn't play this voicemail."
+                            playing = false
+                        }
+                    }
+                    if positionMs >= durationMs - 150 {
+                        // Finished — a replay restarts from the top.
+                        positionMs = durationMs
+                        playing = false
+                        player.pause()
+                    }
+                }
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+        }
+        .onDisappear {
+            player?.pause()
+            player = nil
+            playing = false
+        }
+    }
+
+    private func togglePlayback() {
+        if preparing { return }
+        if playing {
+            player?.pause()
+            playing = false
+            return
+        }
+        if let player {
+            if positionMs >= durationMs - 150 {
+                player.seek(to: .zero)
+                positionMs = 0
+            }
+            player.play()
+            playing = true
+            return
+        }
+        beginPlayback()
+    }
+
+    private func beginPlayback() {
+        errorText = nil
+        preparing = true
+        Task {
+            defer { preparing = false }
+            do {
+                // Signed URL minted per playback — NEVER cached (SPEC).
+                let playback = try await service.voicemail(
+                    companyId: companyId,
+                    sessionId: sessionId
+                )
+                guard let url = URL(string: playback.url) else {
+                    errorText = "Couldn't play this voicemail."
+                    return
+                }
+                let next = AVPlayer(url: url)
+                player = next
+                next.play()
+                playing = true
+            } catch {
+                errorText = error.userMessage
+            }
+        }
+    }
+}
+
 // MARK: - Previews
 
 private func previewDetailContact(optedOut: Bool) -> Contact {
@@ -649,7 +1198,11 @@ private func previewDetailContact(optedOut: Bool) -> Contact {
         created_at: "2026-07-08T14:00:00Z",
         updated_at: "2026-07-10T09:00:00Z",
         opted_out: optedOut,
-        last_activity_at: "2026-07-15T18:00:00Z"
+        last_activity_at: "2026-07-15T18:00:00Z",
+        created_by_user_id: "u1",
+        created_by_name: "Dana Fields",
+        updated_by_user_id: "u2",
+        updated_by_name: "Sam Rivera"
     )
 }
 

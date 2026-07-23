@@ -16,6 +16,21 @@ struct Contact: Codable, Sendable {
     let updated_at: String
     @Default<DefaultFalse> var opted_out: Bool
     let last_activity_at: String?
+    /// #191 record attribution — who created (or resurrected) and who last
+    /// edited this contact. The detail + list reads resolve each actor to a
+    /// company member's display name server-side; every field is nil for
+    /// contacts that predate attribution (older rows), so the UI shows the
+    /// line only when a name resolves — never "Added by unknown".
+    ///
+    /// Declared `var … = nil`, NOT `let`: a `let` with an initial value is
+    /// excluded from Swift's synthesized decoding (the compiler treats it as a
+    /// fixed constant), whereas a `var` with a default both decodes AND keeps
+    /// the memberwise initializer backward-compatible for the preview
+    /// constructors that predate these fields.
+    var created_by_user_id: String? = nil
+    var created_by_name: String? = nil
+    var updated_by_user_id: String? = nil
+    var updated_by_name: String? = nil
 }
 
 struct OptOut: Codable, Sendable {
