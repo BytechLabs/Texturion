@@ -52,6 +52,22 @@ export function isTerminalSdkState(state: string): boolean {
   return state === "hangup" || state === "destroy" || state === "purge";
 }
 
+/**
+ * #211 outbound parity: pick the session id to seed a placed call with. The
+ * server-minted, nonce-bound S (returned from POST /calls/browser and echoed in
+ * client_state part-4) IS the id the calls row, the DO, and every live-call op
+ * key on, so it wins. The SDK's telnyx session id (T, which is NOT S) is only
+ * a nil-safe fallback for an old server that returned no call_session_id (a
+ * pre-#211 worker, or a call left on the 3-part legacy tag). Null when neither
+ * is known yet.
+ */
+export function sessionIdForPlacedCall(
+  serverSessionId: string | null | undefined,
+  sdkSessionId: string | null | undefined,
+): string | null {
+  return serverSessionId ?? sdkSessionId ?? null;
+}
+
 export interface CallInfo {
   /** The SDK call's id — the provider's map key. */
   id: string;

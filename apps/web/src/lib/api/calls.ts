@@ -63,6 +63,12 @@ export interface BrowserCallAuth {
   from: string;
   to: string;
   client_state: string;
+  /** #211 outbound parity: the server-minted, nonce-bound call session id (S),
+   *  echoed verbatim inside client_state part-4 and returned here so the client
+   *  seeds sessionId at placement instead of waiting on the SDK's telnyx session
+   *  id. Nullable for old-server tolerance (a pre-#211 worker, or a call the
+   *  server left on the 3-part legacy tag); its absence is never an error. */
+  call_session_id?: string;
 }
 
 /**

@@ -267,10 +267,16 @@ function ActiveCard({ call }: { call: CallInfo }) {
   const live = useLiveCall(call.sessionId);
   const name = call.peer.name || formatPhone(call.peer.number);
   const number = call.peer.number ? formatPhone(call.peer.number) : "";
+  // #211 (C1): light transfer/consult on a serverAddressable signal (a
+  // SUCCESSFUL GET /v1/calls/live/:session read), not on mere sessionId
+  // presence. A 4-part outbound call that fell to the legacy webhook path
+  // (kill switch or a pre-#211 worker rollback) still carries a sessionId but
+  // has no DO to address, so /live 404s and no dead transfer button appears.
+  const serverAddressable = live.isSuccess;
 
   return (
     <div className="relative flex w-full max-w-lg items-center gap-2.5 rounded-app-card border border-primary/20 bg-app-white px-4 py-2.5 shadow-lg">
-      {transferOpen && call.sessionId && (
+      {transferOpen && call.sessionId && serverAddressable && (
         <TransferMenu
           sessionId={call.sessionId}
           onDone={() => setTransferOpen(false)}
@@ -315,7 +321,7 @@ function ActiveCard({ call }: { call: CallInfo }) {
           </Link>
         </Button>
       )}
-      {call.phase === "active" && call.sessionId && (
+      {call.phase === "active" && call.sessionId && serverAddressable && (
         <Button
           variant="ghost"
           size="icon-sm"

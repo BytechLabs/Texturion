@@ -39,6 +39,7 @@ import { ApiError } from "@/lib/api/error";
 import {
   INITIAL_SOFTPHONE_STATE,
   isTerminalSdkState,
+  sessionIdForPlacedCall,
   softphoneReducer,
   type CallInfo,
   type SoftphoneState,
@@ -537,7 +538,14 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         dispatch({
           type: "placing",
           id: call.id,
-          sessionId: call.telnyxIDs?.telnyxSessionId ?? null,
+          // #211 outbound parity: seed the server-minted session id (S) so
+          // transfer/consult can address the call the instant it's placed; the
+          // SDK's telnyx session id (T != S) is only a nil-safe fallback for an
+          // old server that returned no call_session_id (3-part legacy tag).
+          sessionId: sessionIdForPlacedCall(
+            auth.call_session_id,
+            call.telnyxIDs?.telnyxSessionId,
+          ),
           peer: { name: contactName, number: auth.to },
         });
       } catch (cause) {

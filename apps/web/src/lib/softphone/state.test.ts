@@ -11,6 +11,7 @@ import {
   INITIAL_SOFTPHONE_STATE,
   isTerminalSdkState,
   phaseFromSdkState,
+  sessionIdForPlacedCall,
   softphoneReducer,
   type SoftphoneAction,
   type SoftphoneState,
@@ -79,6 +80,23 @@ describe("isTerminalSdkState (#138 watchdog guard)", () => {
     ]) {
       expect(isTerminalSdkState(s)).toBe(phaseFromSdkState(s) === "ended");
     }
+  });
+});
+
+describe("sessionIdForPlacedCall (#211 outbound parity)", () => {
+  it("prefers the server-minted session id (S) over the SDK's telnyx id", () => {
+    // S is what the calls row + DO + every live-call op key on; T != S.
+    expect(sessionIdForPlacedCall("S-server", "T-sdk")).toBe("S-server");
+  });
+
+  it("falls back to the SDK id only when the server returned none (old server)", () => {
+    expect(sessionIdForPlacedCall(undefined, "T-sdk")).toBe("T-sdk");
+    expect(sessionIdForPlacedCall(null, "T-sdk")).toBe("T-sdk");
+  });
+
+  it("is null when neither id is known yet", () => {
+    expect(sessionIdForPlacedCall(undefined, undefined)).toBeNull();
+    expect(sessionIdForPlacedCall(null, null)).toBeNull();
   });
 });
 
