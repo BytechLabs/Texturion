@@ -12,6 +12,7 @@ import com.google.firebase.messaging.RemoteMessage
 import com.loonext.android.LoonextApp
 import com.loonext.android.MainActivity
 import com.loonext.android.R
+import com.loonext.android.core.diag.CallFlowLog
 import com.loonext.android.telephony.SoftphoneManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -76,6 +77,7 @@ class LoonextMessagingService : FirebaseMessagingService() {
         // the softphone (constructing it if a cold process must), then render
         // NOTHING (a call_end is a revocation, never a notification).
         if (content.isCallEnd) {
+            CallFlowLog.log("push", "kind:call_end received sess=${CallFlowLog.tail(content.callSessionId)}")
             // §9.2: a `call_end` is a revocation, never a notification. Cancel
             // the generic tray entry by tag (data-only FCM carries no collapse
             // key, so this client-side cancel is the ONLY dismissal). The
@@ -90,6 +92,7 @@ class LoonextMessagingService : FirebaseMessagingService() {
         }
 
         if (content.isCall) {
+            CallFlowLog.log("push", "kind:call received sess=${CallFlowLog.tail(content.callSessionId)}")
             // Cold-process wake (§10.2/§5): in an FCM-woken process with no UI,
             // nobody built the softphone yet — build it now so the wake handler
             // is installed. The handler (SoftphoneManager.onCallWakePush)

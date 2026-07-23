@@ -59,6 +59,7 @@ import com.loonext.android.features.auth.OAUTH_REDIRECT_SCHEME
 import com.loonext.android.features.calls.CallsOverlay
 import com.loonext.android.features.calls.CallsScreen
 import com.loonext.android.features.compose.NewConversationScreen
+import com.loonext.android.features.diagnostics.DiagnosticsScreen
 import com.loonext.android.features.inbox.InboundMessageToastHost
 import com.loonext.android.features.notifications.NotificationsScreen
 import com.loonext.android.features.settings.SettingsHome
@@ -264,6 +265,10 @@ private sealed interface Overlay {
     data object Calls : Overlay
     data object Notifications : Overlay
     data object Settings : Overlay
+
+    /** #198: the dev Diagnostics surface, reached from the settings hub's
+     *  easter-egg row only — never from primary navigation. */
+    data object Diagnostics : Overlay
 }
 
 @Composable
@@ -543,7 +548,15 @@ private fun ReadyShell(
                             me = hydratedMe,
                             modifier = it,
                             onSignOut = root::signOut,
+                            onOpenDiagnostics = { push(Overlay.Diagnostics) },
                         )
+                    }
+
+                    Overlay.Diagnostics -> OverlayScaffold(
+                        "Diagnostics",
+                        onBack = { pop() },
+                    ) {
+                        DiagnosticsScreen(graph = graph, modifier = it)
                     }
                 }
             }

@@ -1,6 +1,7 @@
 package com.loonext.android.core.auth
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -30,6 +31,7 @@ class AppPrefs(private val context: Context) {
     private object Keys {
         val ACTIVE_COMPANY = stringPreferencesKey("active_company_id")
         val THEME = stringPreferencesKey("theme") // system | light | dark
+        val DEV_MODE = booleanPreferencesKey("dev_mode")
         val OAUTH_STATE = stringPreferencesKey("pending_oauth_state")
         val OAUTH_VERIFIER = stringPreferencesKey("pending_oauth_verifier")
         val OAUTH_CREATED_AT = longPreferencesKey("pending_oauth_created_at")
@@ -40,6 +42,11 @@ class AppPrefs(private val context: Context) {
 
     val theme: Flow<String> =
         context.appPrefs.data.map { it[Keys.THEME] ?: "system" }
+
+    /** The Diagnostics easter egg (#198): seven quick taps on the settings
+     *  version line flips this; when true the hub shows a Diagnostics row. */
+    val devMode: Flow<Boolean> =
+        context.appPrefs.data.map { it[Keys.DEV_MODE] ?: false }
 
     suspend fun currentCompanyId(): String? = activeCompanyId.first()
 
@@ -52,6 +59,10 @@ class AppPrefs(private val context: Context) {
 
     suspend fun setTheme(theme: String) {
         context.appPrefs.edit { it[Keys.THEME] = theme }
+    }
+
+    suspend fun setDevMode(enabled: Boolean) {
+        context.appPrefs.edit { it[Keys.DEV_MODE] = enabled }
     }
 
     suspend fun savePendingOAuth(pending: PendingOAuth) {

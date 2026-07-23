@@ -24,8 +24,12 @@ import java.util.TimeZone
 
 /** Pure text format + rotation for the crash log — JVM-tested. */
 object CrashReportLog {
-    /** Keep the last N crashes; older entries rotate out. */
-    const val MAX_ENTRIES = 5
+    /**
+     * Keep the last N crashes; older entries rotate out. Raised 5 → 20 for
+     * #197: the founder declined the post-crash prompt and the report was
+     * effectively gone — now the Diagnostics screen lists a real history.
+     */
+    const val MAX_ENTRIES = 20
 
     /** Every entry starts with this marker line prefix (the split key). */
     const val ENTRY_MARKER = "=== CRASH "
@@ -73,12 +77,61 @@ object CrashReportLog {
         ?.trim()
         ?.toLongOrNull()
 
+    /**
+     * Listing metadata parsed from ONE entry block (#197 — the Diagnostics
+     * screen's crash list): time, thread, version, and the first line of the
+     * stack itself (the headline exception). Garbled input parses to nulls,
+     * never throws. Metadata parsing stops at the first stack line so a stack
+     * that happens to contain `thread=` text is never misread.
+     */
+    fun entryMeta(entry: String): CrashEntryMeta {
+        var timeMs: Long? = null
+        var thread: String? = null
+        var version: String? = null
+        var firstStackLine: String? = null
+        for (line in entry.lineSequence()) {
+            if (firstStackLine != null) break
+            when {
+                line.startsWith(ENTRY_MARKER) -> Unit
+                timeMs == null && line.startsWith(TIME_KEY) ->
+                    timeMs = line.removePrefix(TIME_KEY).trim().toLongOrNull()
+
+                thread == null && line.startsWith(THREAD_KEY) ->
+                    thread = line.removePrefix(THREAD_KEY).trim().takeIf { it.isNotEmpty() }
+
+                version == null && line.startsWith(VERSION_KEY) ->
+                    version = line.removePrefix(VERSION_KEY).trim().takeIf { it.isNotEmpty() }
+
+                line.isNotBlank() -> firstStackLine = line.trim()
+            }
+        }
+        return CrashEntryMeta(timeMs, thread, version, firstStackLine)
+    }
+
+    /**
+     * The log text with [entry] removed (exact block match). An unknown block
+     * leaves the text unchanged; removing the last entry yields "".
+     */
+    fun removeEntry(text: String, entry: String): String {
+        val kept = entries(text).filter { it != entry.trimEnd() }
+        return if (kept.isEmpty()) "" else kept.joinToString(separator = "\n\n", postfix = "\n")
+    }
+
     private fun isoUtc(timeMs: Long): String {
         val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
         format.timeZone = TimeZone.getTimeZone("UTC")
         return format.format(Date(timeMs))
     }
 }
+
+/** What [CrashReportLog.entryMeta] could read out of one entry block. */
+data class CrashEntryMeta(
+    val timeMs: Long?,
+    val threadName: String?,
+    val appVersion: String?,
+    /** The stack's own first line — usually `SomeException: message`. */
+    val firstStackLine: String?,
+)
 
 /**
  * The default-uncaught-exception chain link: record first (best-effort,
@@ -161,6 +214,17 @@ class CrashReportStore(
             val latest = lastCrashAtMs() ?: return
             dir.mkdirs()
             surfacedFile.writeText(latest.toString())
+        }
+    }
+
+    /**
+     * Delete ONE entry block (#198 Diagnostics screen — explicit user action
+     * only; nothing in the app deletes reports on its own). Never throws.
+     */
+    fun delete(entry: String) {
+        runCatching {
+            val next = CrashReportLog.removeEntry(logFile.readText(), entry)
+            if (next.isEmpty()) logFile.delete() else logFile.writeText(next)
         }
     }
 }

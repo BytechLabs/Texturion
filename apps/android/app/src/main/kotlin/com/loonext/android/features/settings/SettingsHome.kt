@@ -32,6 +32,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.CreditCard
@@ -50,7 +51,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -61,11 +65,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
+import com.loonext.android.BuildConfig
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Me
@@ -81,6 +87,7 @@ import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
+import com.loonext.android.ui.common.loonextWordmark
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
@@ -126,6 +133,7 @@ fun SettingsHome(
     me: Me,
     modifier: Modifier = Modifier,
     onSignOut: () -> Unit,
+    onOpenDiagnostics: () -> Unit = {},
 ) {
     val repo = remember(graph) { SettingsRepository(graph.api) }
     val role = me.memberships.firstOrNull { it.company_id == companyId }?.role
@@ -143,6 +151,26 @@ fun SettingsHome(
             role = role,
             showMessage = { message -> scope.launch { snackbar.showSnackbar(message) } },
         )
+    }
+
+    // #198 easter egg: seven quick taps on the version footer (2s between
+    // taps) flips the persisted devMode pref. Silent while counting — no
+    // haptics, no ripple, nothing for stray taps; only the 7th speaks.
+    val devMode by graph.prefs.devMode.collectAsState(initial = false)
+    var versionTaps by remember { mutableIntStateOf(0) }
+    var lastVersionTapMs by remember { mutableLongStateOf(0L) }
+    val onVersionTap: () -> Unit = {
+        val nowMs = System.currentTimeMillis()
+        versionTaps = if (nowMs - lastVersionTapMs <= 2_000L) versionTaps + 1 else 1
+        lastVersionTapMs = nowMs
+        if (versionTaps >= 7) {
+            versionTaps = 0
+            val next = !devMode
+            scope.launch {
+                graph.prefs.setDevMode(next)
+                snackbar.showSnackbar(if (next) "Diagnostics unlocked" else "Diagnostics hidden")
+            }
+        }
     }
 
     // #176 cache-first: the company view paints instantly from StoreCache on
@@ -199,11 +227,14 @@ fun SettingsHome(
                         me = me,
                         role = role,
                         usage = usage,
+                        devMode = devMode,
                         onOpen = { section = it },
                         onCopyNumber = { number ->
                             copyToClipboard(context, number)
                             settingsScope.showMessage("Number copied.")
                         },
+                        onOpenDiagnostics = onOpenDiagnostics,
+                        onVersionTap = onVersionTap,
                     )
 
                     else -> SectionScreen(title = active.title, onBack = { section = null }) {
@@ -257,8 +288,11 @@ private fun SettingsIndex(
     me: Me,
     role: String?,
     usage: Usage?,
+    devMode: Boolean,
     onOpen: (SettingsSection) -> Unit,
     onCopyNumber: (String) -> Unit,
+    onOpenDiagnostics: () -> Unit,
+    onVersionTap: () -> Unit,
 ) {
     Column(
         Modifier
@@ -277,7 +311,87 @@ private fun SettingsIndex(
                 SettingsIndexRow(section, onOpen)
             }
         }
+        // #198: the unlocked Diagnostics row — quiet, last, its own card so
+        // the everyday section list never changes shape.
+        if (devMode) {
+            PaperCard(Modifier.fillMaxWidth()) {
+                DiagnosticsIndexRow(onOpenDiagnostics)
+            }
+        }
+        VersionFooter(onVersionTap)
     }
+}
+
+/** The dev-mode Diagnostics entry (#198) — same row grammar, muted voice. */
+@Composable
+private fun DiagnosticsIndexRow(onOpen: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onOpen() }
+            .padding(horizontal = 15.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(36.dp)
+                .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Outlined.BugReport,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                "Diagnostics",
+                style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp),
+            )
+            Text(
+                "Call flow, crash reports, device",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                color = MaterialTheme.colorScheme.outline,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 1.dp),
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Icon(
+            Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+/**
+ * The quiet version line at the hub's foot — also the #198 easter-egg target
+ * (seven quick taps). Deliberately no ripple and no haptic: a stray tap must
+ * look and feel like nothing at all.
+ */
+@Composable
+private fun VersionFooter(onTap: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    Text(
+        loonextWordmark(suffix = " ${BuildConfig.VERSION_NAME}"),
+        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+        color = MaterialTheme.colorScheme.outline,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onTap,
+            ),
+    )
 }
 
 /** First-fetch stand-in for the hub: identity block + index rows, no avatars. */
