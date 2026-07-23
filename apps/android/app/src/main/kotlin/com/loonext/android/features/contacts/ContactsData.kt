@@ -145,7 +145,7 @@ fun consentLine(
 ): String {
     if (consentSource == null) {
         return "No consent recorded yet. It's recorded when they text you first, " +
-            "or when you confirm they asked for texts while composing."
+            "or when you send them their first text, which attests they asked for it."
     }
     val date = com.loonext.android.features.tasks.parseInstant(consentAt)
         ?.atZone(clock.zone)

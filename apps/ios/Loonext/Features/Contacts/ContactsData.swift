@@ -173,7 +173,7 @@ func consentLine(
 ) -> String {
     guard let consentSource else {
         return "No consent recorded yet. It's recorded when they text you first, "
-            + "or when you confirm they asked for texts while composing."
+            + "or when you send them their first text, which attests they asked for it."
     }
     let date: String? = parseWireTimestamp(consentAt).map { parsed in
         let formatter = DateFormatter()

@@ -102,7 +102,7 @@ function ConsentLine({ contact }: { contact: ContactDetail }) {
     return (
       <p className="text-sm text-muted-foreground">
         No consent recorded yet. It&apos;s recorded when they text you first,
-        or when you confirm they asked for texts while composing.
+        or when you send them their first text, which attests they asked for it.
       </p>
     );
   }

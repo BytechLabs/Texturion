@@ -25,7 +25,7 @@ final class ContactsDataTests: XCTestCase {
                 memberName: memberName, calendar: utc
             ),
             "No consent recorded yet. It's recorded when they text you first, "
-                + "or when you confirm they asked for texts while composing."
+                + "or when you send them their first text, which attests they asked for it."
         )
     }
 
