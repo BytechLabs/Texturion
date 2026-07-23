@@ -3,7 +3,6 @@ package com.loonext.android.features.settings
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -30,7 +29,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.Call
@@ -58,7 +56,6 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,7 +79,6 @@ import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
-import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
@@ -121,10 +117,17 @@ class SettingsScope(
 )
 
 /**
- * Settings entry (#157): the workspace hub (screen 28) navigating
- * (state-based, no nav graph) into the nine sections. The company view loads
- * once here and refreshes on `number.updated` / `registration.updated`
- * realtime events; sections patch it back via [onCompanyUpdated]-style merges.
+ * Settings entry (#157): the workspace hub (screen 28) and its nine sections.
+ * The company view loads once here and refreshes on `number.updated` /
+ * `registration.updated` realtime events; sections patch it back via
+ * [onCompanyUpdated]-style merges.
+ *
+ * #200 header contract: the [section] state is HOSTED (MainActivity's
+ * Overlay.Settings branch), because the host owns the route's ONE header
+ * slot: its title tracks the active section and its single back affordance
+ * returns a section to the hub before popping the route. This composable
+ * therefore renders content only: no title, no back button, no top bar
+ * (HostHeaderLintTest pins that).
  */
 @Composable
 fun SettingsHome(
@@ -132,12 +135,13 @@ fun SettingsHome(
     companyId: String,
     me: Me,
     modifier: Modifier = Modifier,
+    section: SettingsSection?,
+    onOpenSection: (SettingsSection) -> Unit,
     onSignOut: () -> Unit,
     onOpenDiagnostics: () -> Unit = {},
 ) {
     val repo = remember(graph) { SettingsRepository(graph.api) }
     val role = me.memberships.firstOrNull { it.company_id == companyId }?.role
-    var section by rememberSaveable(companyId) { mutableStateOf<SettingsSection?>(null) }
     var refreshKey by remember(companyId) { mutableStateOf(0) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -200,8 +204,6 @@ fun SettingsHome(
         }
     }
 
-    BackHandler(enabled = section != null) { section = null }
-
     Box(modifier.fillMaxSize()) {
         when (val current = companyState) {
             is LoadState.Loading -> SettingsHubSkeleton()
@@ -228,7 +230,7 @@ fun SettingsHome(
                         role = role,
                         usage = usage,
                         devMode = devMode,
-                        onOpen = { section = it },
+                        onOpen = onOpenSection,
                         onCopyNumber = { number ->
                             copyToClipboard(context, number)
                             settingsScope.showMessage("Number copied.")
@@ -237,7 +239,10 @@ fun SettingsHome(
                         onVersionTap = onVersionTap,
                     )
 
-                    else -> SectionScreen(title = active.title, onBack = { section = null }) {
+                    // The host header already carries the section title and
+                    // the one back affordance (#200); a section is only its
+                    // scrolling content.
+                    else -> SectionContainer {
                         when (active) {
                             SettingsSection.Workspace -> WorkspaceSection(
                                 settingsScope, company, onCompanyUpdated,
@@ -299,10 +304,11 @@ private fun SettingsIndex(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 18.dp)
-            .padding(bottom = 24.dp),
+            // The route title lives in the host's header slot (#200); the hub
+            // opens straight onto the identity card.
+            .padding(top = 6.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(13.dp),
     ) {
-        ScreenTitle("Settings")
         IdentityCard(company, me, role, onCopyNumber)
         usage?.let { UsageStatusCard(it, onOpen = { onOpen(SettingsSection.Usage) }) }
         PaperCard(Modifier.fillMaxWidth()) {
@@ -401,10 +407,9 @@ private fun SettingsHubSkeleton() {
         Modifier
             .fillMaxSize()
             .padding(horizontal = 18.dp)
-            .padding(bottom = 24.dp),
+            .padding(top = 6.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(13.dp),
     ) {
-        ScreenTitle("Settings")
         Box(
             Modifier
                 .fillMaxWidth()
@@ -704,53 +709,20 @@ private fun iconFor(section: SettingsSection): ImageVector = when (section) {
     SettingsSection.Profile -> Icons.Outlined.Person
 }
 
+/**
+ * A section's scrolling body, with deliberately NO title and NO back button
+ * (#200): both live in the host's one header slot. This container is layout
+ * only, so a settings section physically has nowhere to grow a second bar.
+ */
 @Composable
-private fun SectionScreen(
-    title: String,
-    onBack: () -> Unit,
-    content: @Composable () -> Unit,
-) {
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val backInteraction = remember { MutableInteractionSource() }
-            Surface(
-                onClick = onBack,
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 1.dp,
-                interactionSource = backInteraction,
-                modifier = Modifier
-                    .size(44.dp)
-                    .pressScale(backInteraction),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.AutoMirrored.Outlined.ArrowBack,
-                        contentDescription = "Back to settings",
-                        modifier = Modifier.size(17.dp),
-                    )
-                }
-            }
-            Spacer(Modifier.width(14.dp))
-            Text(
-                title,
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-        }
-        Column(
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(vertical = 10.dp),
-        ) {
-            content()
-        }
+private fun SectionContainer(content: @Composable () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(vertical = 10.dp),
+    ) {
+        content()
     }
 }
 

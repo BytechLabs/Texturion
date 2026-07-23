@@ -57,6 +57,7 @@ import com.loonext.android.features.auth.AuthCallbacks
 import com.loonext.android.features.auth.AuthFlow
 import com.loonext.android.features.auth.AuthViewModel
 import com.loonext.android.features.auth.OAUTH_REDIRECT_SCHEME
+import com.loonext.android.features.calls.CallsHeaderStatus
 import com.loonext.android.features.calls.CallsOverlay
 import com.loonext.android.features.calls.CallsScreen
 import com.loonext.android.features.compose.NewConversationScreen
@@ -64,6 +65,7 @@ import com.loonext.android.features.diagnostics.DiagnosticsScreen
 import com.loonext.android.features.inbox.InboundMessageToastHost
 import com.loonext.android.features.notifications.NotificationsScreen
 import com.loonext.android.features.settings.SettingsHome
+import com.loonext.android.features.settings.SettingsSection
 import com.loonext.android.features.shell.AccountSheet
 import com.loonext.android.features.shell.MainShell
 import com.loonext.android.features.shell.RootState
@@ -531,15 +533,22 @@ private fun ReadyShell(
                         onBack = { pop() },
                     )
 
-                    Overlay.Calls -> OverlayScaffold("Calls", onBack = { pop() }) {
+                    Overlay.Calls -> OverlayScaffold(
+                        "Calls",
+                        onBack = { pop() },
+                        actions = { CallsHeaderStatus(graph) },
+                    ) { contentModifier ->
                         CallsScreen(
                             graph = graph,
                             companyId = companyId,
                             me = hydratedMe,
-                            modifier = it,
+                            modifier = contentModifier,
                             openConversation = { conversationId ->
                                 push(Overlay.Thread(conversationId))
                             },
+                            // The host header above carries the title + status
+                            // line; the screen renders no chrome (#200).
+                            hosted = true,
                         )
                     }
 
@@ -557,18 +566,33 @@ private fun ReadyShell(
                         )
                     }
 
-                    Overlay.Settings -> OverlayScaffold(
-                        "Settings",
-                        onBack = { pop() },
-                    ) {
-                        SettingsHome(
-                            graph = graph,
-                            companyId = companyId,
-                            me = hydratedMe,
-                            modifier = it,
-                            onSignOut = root::signOut,
-                            onOpenDiagnostics = { push(Overlay.Diagnostics) },
-                        )
+                    Overlay.Settings -> {
+                        // #200: the section state lives HERE so the host's ONE
+                        // header slot can carry the section title. SettingsHome
+                        // renders zero chrome, so the second stacked header
+                        // (hub back + section back) is not constructible.
+                        var section by rememberSaveable(companyId) {
+                            mutableStateOf<SettingsSection?>(null)
+                        }
+                        // Composed AFTER the host's pop BackHandler, so system
+                        // back returns a section to the hub before popping the
+                        // Settings route (the pre-hoist ordering, preserved).
+                        BackHandler(enabled = section != null) { section = null }
+                        OverlayScaffold(
+                            title = section?.title ?: "Settings",
+                            onBack = { if (section != null) section = null else pop() },
+                        ) { contentModifier ->
+                            SettingsHome(
+                                graph = graph,
+                                companyId = companyId,
+                                me = hydratedMe,
+                                modifier = contentModifier,
+                                section = section,
+                                onOpenSection = { section = it },
+                                onSignOut = root::signOut,
+                                onOpenDiagnostics = { push(Overlay.Diagnostics) },
+                            )
+                        }
                     }
 
                     Overlay.Diagnostics -> OverlayScaffold(
@@ -599,14 +623,23 @@ private fun ReadyShell(
 }
 
 /**
- * Back header around overlay surfaces that don't own navigation — spec-06
- * grammar: 44dp paper-circle back w/ outlined arrow, centered muted 13sp
- * label, on the canvas background.
+ * THE header slot for hosted overlay routes (#200): the route host owns
+ * exactly one top bar. A pushed screen DECLARES {title, optional actions}
+ * at the host's `when (active)` and renders zero chrome of its own (no
+ * title, no back affordance), so a second stacked header is not
+ * constructible: this composable is private to the host file, and
+ * HostHeaderLintTest pins the hosted feature sources header-free.
+ *
+ * Spec-06 grammar: 44dp paper-circle back w/ outlined arrow, centered muted
+ * 13sp label, optional trailing actions, on the canvas background. Back is
+ * the ONE back affordance for the route; screens with internal sub-navigation
+ * hoist that state to the host so this button and system back agree.
  */
 @Composable
 private fun OverlayScaffold(
     title: String,
     onBack: () -> Unit,
+    actions: (@Composable () -> Unit)? = null,
     content: @Composable (Modifier) -> Unit,
 ) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -621,7 +654,9 @@ private fun OverlayScaffold(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.surface,
                     shadowElevation = 1.dp,
-                    modifier = Modifier.size(44.dp),
+                    modifier = Modifier
+                        .size(44.dp)
+                        .align(Alignment.CenterStart),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -640,6 +675,9 @@ private fun OverlayScaffold(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.align(Alignment.Center),
                 )
+                actions?.let { slot ->
+                    Box(Modifier.align(Alignment.CenterEnd)) { slot() }
+                }
             }
             content(Modifier.fillMaxSize())
         }
