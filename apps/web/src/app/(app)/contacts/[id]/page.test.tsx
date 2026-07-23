@@ -93,6 +93,10 @@ function contact(overrides: Partial<ContactDetail> = {}): ContactDetail {
     consent_at: null,
     consent_attested_by: null,
     created_at: "2026-07-01T00:00:00Z",
+    created_by_user_id: null,
+    created_by_name: null,
+    updated_by_user_id: null,
+    updated_by_name: null,
     ...overrides,
   } as unknown as ContactDetail;
 }
@@ -138,6 +142,44 @@ describe("/contacts/[id] Message action (#73)", () => {
     expect(html).toContain('href="/inbox/conv-9"');
     expect(html).toContain("Open conversation");
     expect(html).not.toContain("/inbox/new?contact=c-1");
+  });
+});
+
+describe("/contacts/[id] record attribution (#191)", () => {
+  it("shows who added the contact when the name resolves", () => {
+    state.contact = contact({
+      created_by_name: "Sam Cortez",
+      created_at: "2026-07-01T00:00:00Z",
+    });
+    const html = render("c-1");
+    expect(html).toContain("Added by Sam Cortez on");
+  });
+
+  it("shows nothing when the actor name is null (older contact)", () => {
+    state.contact = contact({ created_by_name: null, updated_by_name: null });
+    const html = render("c-1");
+    expect(html).not.toContain("Added by");
+    expect(html).not.toContain("Edited by");
+  });
+
+  it("adds an edited line only when a different member last edited it", () => {
+    state.contact = contact({
+      created_by_name: "Sam Cortez",
+      updated_by_name: "Dana Rivera",
+    });
+    const html = render("c-1");
+    expect(html).toContain("Added by Sam Cortez on");
+    expect(html).toContain("Edited by Dana Rivera");
+  });
+
+  it("omits the edited line when the same member added and last edited it", () => {
+    state.contact = contact({
+      created_by_name: "Sam Cortez",
+      updated_by_name: "Sam Cortez",
+    });
+    const html = render("c-1");
+    expect(html).toContain("Added by Sam Cortez on");
+    expect(html).not.toContain("Edited by");
   });
 });
 

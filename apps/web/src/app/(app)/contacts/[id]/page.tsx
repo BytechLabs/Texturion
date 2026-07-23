@@ -131,6 +131,33 @@ function ConsentLine({ contact }: { contact: ContactDetail }) {
   );
 }
 
+/**
+ * #191: a quiet record-attribution caption — who added the contact, and who
+ * last edited it if that was someone else. The API resolves the actor to a
+ * company-member display name and returns null for contacts that predate
+ * attribution, so this renders nothing rather than "Added by unknown".
+ */
+function RecordAttribution({ contact }: { contact: ContactDetail }) {
+  const addedBy = contact.created_by_name?.trim();
+  const editedBy = contact.updated_by_name?.trim();
+  if (!addedBy && !editedBy) return null;
+  const addedOn = new Date(contact.created_at).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+  return (
+    <div className="space-y-0.5 text-xs text-muted-foreground">
+      {addedBy && (
+        <p>
+          Added by {addedBy} on {addedOn}
+        </p>
+      )}
+      {editedBy && editedBy !== addedBy && <p>Edited by {editedBy}</p>}
+    </div>
+  );
+}
+
 function ContactBody({ contact }: { contact: ContactDetail }) {
   const router = useRouter();
   const optOut = useOptOutContact();
@@ -274,6 +301,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
             />
             <SaveStatus state={notes.state} />
           </div>
+          <RecordAttribution contact={contact} />
         </div>
       </SettingsCard>
 

@@ -591,6 +591,17 @@ export interface Contact {
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
+  /**
+   * #191: who created / last edited this contact record, resolved to a
+   * company-member display name server-side (the same actor join used for
+   * message senders and assignment actors). Both are null for contacts that
+   * predate attribution — no backfill lie — and the UI shows the attribution
+   * line only when the name resolves.
+   */
+  created_by_user_id: string | null;
+  created_by_name: string | null;
+  updated_by_user_id: string | null;
+  updated_by_name: string | null;
 }
 
 /**
