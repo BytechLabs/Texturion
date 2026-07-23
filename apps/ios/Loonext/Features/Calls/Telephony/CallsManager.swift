@@ -145,12 +145,33 @@ final class CallsManager {
     /// `performAnswer`, which lets the SDK also settle the VoIP-wake answer
     /// race); direct SDK answer when the system refuses.
     func answer(_ id: String) {
+        // #195 F5: only arm the failsafe for a genuine answer of a ringing call.
+        let ringing = core.state.calls.first { $0.id == id }?.phase == .ringing
         guard reportedToCallKit.contains(id), let uuid = UUID(uuidString: id) else {
             core.answer(id)
+            if ringing { scheduleAnswerFailsafe(id) }
             return
         }
         callKit.requestAnswer(uuid: uuid) { [weak self] in
             self?.core.answer(id)
+        }
+        if ringing { scheduleAnswerFailsafe(id) }
+    }
+
+    /// #195 F5 — a failed answer never materializes a live leg: the SDK claims
+    /// READY but the answered ring stays stuck at `.ringing` (never goes active)
+    /// past the bind deadline. After that window, hand the stuck leg to the core
+    /// to drop and — only if nothing else is engaged — rebuild the zombie socket
+    /// once, so at most ONE call is lost to it. A call that went active/held, or
+    /// vanished (ended / answered elsewhere), is left alone; the core never hangs
+    /// up a leg here (state hygiene only).
+    private func scheduleAnswerFailsafe(_ id: String) {
+        Task { [weak self] in
+            try? await Task.sleep(for: CallWakePolicy.answerFailsafe)
+            guard let self else { return }
+            guard self.core.state.calls.first(where: { $0.id == id })?.phase == .ringing
+            else { return }
+            self.core.forceRecoverAfterAnswerFailure(stuckId: id)
         }
     }
 

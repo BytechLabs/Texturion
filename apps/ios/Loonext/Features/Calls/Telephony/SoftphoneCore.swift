@@ -60,8 +60,18 @@ final class SoftphoneCore {
     /// Handles whose by-leg resolution is running or done (resolve once).
     @ObservationIgnored private var resolvingLegs: Set<String> = []
 
+    /// #195 F2 — when each RINGING inbound leg was FIRST seen, keyed by call id.
+    /// A side map on purpose: `CallSnapshot` is a published shape and must not
+    /// grow a field for a private TTL. Entries die with the leg (ended / reap).
+    /// Mirrors the Android `ringFirstSeenMs`.
+    @ObservationIgnored private var ringFirstSeen: [String: Date] = [:]
+
     @ObservationIgnored private var connectTask: Task<Void, Error>?
     @ObservationIgnored private var recoverTask: Task<Void, Never>?
+
+    /// #195 F2 — the single self-terminating ring-TTL sweep task (nil when no
+    /// inbound ring is tracked).
+    @ObservationIgnored private var ringTtlTask: Task<Void, Never>?
 
     @ObservationIgnored private(set) var companyId: String?
     @ObservationIgnored private var callerIdName = ""
@@ -109,7 +119,9 @@ final class SoftphoneCore {
         guard token != pushDeviceToken else { return }
         pushDeviceToken = token
         guard token != nil, companyId != nil else { return }
-        if state.status == .ready && state.liveCalls.isEmpty {
+        // #195 F3: only a genuinely engaged leg defers the rebuild — a
+        // silenced/stale ring must never wedge a token-driven reconnect.
+        if state.status == .ready && !state.anyEngaged {
             retryNow()
         }
         // Mid-connect: the in-flight connect reads the fresh token itself.
@@ -175,14 +187,39 @@ final class SoftphoneCore {
             guard let self else { return }
             self.recoverTask = nil
             if self.state.status == .ready { return }
-            if !self.state.liveCalls.isEmpty { return }
+            // #195 F3 honest gate: only a GENUINELY ENGAGED leg defers recovery
+            // (#138's "never rebuild while a call is live"). A silenced/stale
+            // RINGING zombie is presentation debris, not a call — letting it
+            // wedge recovery is how a dead socket stayed dead for good. The
+            // reap (F1) and TTL sweep (F2) clear such debris so this passes.
+            if self.state.anyEngaged { return }
             try? await self.ensureConnected()
         }
     }
 
     /// Status-pill tap: force a rebuild now (still refuses during a call).
     func retryNow() {
-        if !state.liveCalls.isEmpty { return }
+        // #195 F3: same honest gate as scheduleRecover — an engaged leg refuses
+        // the rebuild; a zombie ring must never block the user's own retry.
+        if state.anyEngaged { return }
+        sdk.disconnect()
+        state = CallStateMachine.disconnected(state)
+        Task { try? await self.ensureConnected() }
+    }
+
+    /// #195 F5 — the socket reset after a FAILED answer: an ANSWERED ring never
+    /// materialized as a live leg within the bind deadline (the zombie-socket
+    /// signature — the SDK claims READY but its leg never binds). Drop the
+    /// stuck ring's presentation (state hygiene, never a BYE — same path as the
+    /// F1/F2 reap), then, if nothing else is genuinely engaged, rebuild the
+    /// socket outright (mint-on-connect is the designed recovery) so at most
+    /// ONE call is ever lost to a zombie socket. No leg is hung up here.
+    func forceRecoverAfterAnswerFailure(stuckId: String) {
+        if let call = state.calls.first(where: { $0.id == stuckId }),
+           call.phase == .ringing {
+            dropRingingPresentation(stuckId)
+        }
+        if state.anyEngaged { return }
         sdk.disconnect()
         state = CallStateMachine.disconnected(state)
         Task { try? await self.ensureConnected() }
@@ -211,6 +248,11 @@ final class SoftphoneCore {
 
         case .disconnected:
             state = CallStateMachine.disconnected(state)
+            // #195 F1: a dead client's RINGING legs are ZOMBIES — their phase
+            // callbacks can never fire again after a rebuild, so nothing else
+            // will ever clear them and they wedge every gate that counts them.
+            // Reap the presentation now (never a BYE — the server owns legs).
+            reapOnClientDeath()
             scheduleRecover()
 
         case .error:
@@ -254,8 +296,11 @@ final class SoftphoneCore {
         )
         handles[handle.id] = handle
         sdkPhases[handle.id] = .ringing
+        // #195 F2: start this ring's TTL clock and ensure the sweep is running.
+        ringFirstSeen[handle.id] = now()
         state = CallStateMachine.incoming(state, snapshot)
         watch(handle)
+        ensureRingTtlSweep()
         onEvent?(.incomingRinging(snapshot))
     }
 
@@ -275,6 +320,9 @@ final class SoftphoneCore {
         state = CallStateMachine.sdkPhase(state, id: id, phase: phase, now: now())
 
         if phase == .active {
+            // #195 F2: an answered leg is no longer a ring — stop its TTL clock
+            // (a live call must never be swept).
+            ringFirstSeen.removeValue(forKey: id)
             // One active audio path: SDK-hold whichever call was active before
             // this one connected (the reducer already demoted it in state).
             if let previousActive = before.activeId, previousActive != id {
@@ -292,9 +340,10 @@ final class SoftphoneCore {
             handles.removeValue(forKey: id)
             sdkPhases.removeValue(forKey: id)
             resolvingLegs.remove(id)
+            ringFirstSeen.removeValue(forKey: id) // #195 F2: clock dies with leg
             // A recovery may have been deferred while this call held the
-            // client (#138) — re-arm once the line is idle.
-            if state.status != .ready && state.liveCalls.isEmpty {
+            // client (#138) — re-arm once the line is genuinely idle (#195 F3).
+            if state.status != .ready && !state.anyEngaged {
                 scheduleRecover()
             }
         }
@@ -340,6 +389,77 @@ final class SoftphoneCore {
             // Allow a fresh attempt if the caller retries a live-call op.
             self?.resolvingLegs.remove(id)
         }
+    }
+
+    // MARK: - Zombie hygiene (#195)
+
+    /// #195 F1 — the SDK client died (`.disconnected`): every still-RINGING call
+    /// belonged to that client and its per-call phase callback can NEVER fire
+    /// again after a rebuild, so nothing else will ever clear it. Drop the
+    /// ringing presentation now so no immortal zombie wedges the recovery/wake
+    /// gates. State hygiene, not teardown: no BYE, no decline — the server owns
+    /// the legs. (iOS has no held-INVITE concept, so the Android held-invite
+    /// reap has no counterpart here.)
+    private func reapOnClientDeath() {
+        for call in state.calls where call.phase == .ringing {
+            dropRingingPresentation(call.id)
+        }
+    }
+
+    /// #195 F2 — one self-terminating sweep while any inbound ring is tracked;
+    /// exits on its own once nothing is left, so it can never leak. Each pass
+    /// drops rings older than `CallWakePolicy.ringTtlSeconds` (the server ring
+    /// window plus grace, so the real leg is already dead). Presentation state
+    /// only; never a BYE.
+    private func ensureRingTtlSweep() {
+        guard ringTtlTask == nil else { return }
+        ringTtlTask = Task { [weak self] in
+            while true {
+                try? await Task.sleep(for: CallWakePolicy.ringTtlSweep)
+                guard let self, !self.ringFirstSeen.isEmpty else { break }
+                self.reapExpiredRings()
+                if self.ringFirstSeen.isEmpty { break }
+            }
+            self?.ringTtlTask = nil
+        }
+    }
+
+    private func reapExpiredRings() {
+        let current = now()
+        let expiredIds: [String] = state.calls.compactMap { call -> String? in
+            guard call.direction == .inbound, call.phase == .ringing else { return nil }
+            guard let firstSeen = ringFirstSeen[call.id] else { return nil }
+            return CallWakePolicy.ringExpired(firstSeen: firstSeen, now: current)
+                ? call.id
+                : nil
+        }
+        for id in expiredIds {
+            dropRingingPresentation(id)
+        }
+        // Prune stray timestamps for ids no longer ringing so the sweep's own
+        // liveness check can reach empty.
+        let tracked = Set(state.calls.filter { $0.phase == .ringing }.map(\.id))
+        ringFirstSeen = ringFirstSeen.filter { tracked.contains($0.key) }
+        // A recovery may have been deferred behind the stale ring — re-arm once
+        // the line is genuinely idle (#195 F3).
+        if state.status != .ready && !state.anyEngaged {
+            scheduleRecover()
+        }
+    }
+
+    /// Drop ONE still-RINGING call's local presentation (F1/F2/F5): forget its
+    /// handle and side-map entries, then remove it from `calls` through the same
+    /// silent-removal path a server-reaped ring takes (the ENDED reducer filters
+    /// a ringing call out). The state change drives the CallKit teardown
+    /// (`syncCallKit` reports ended) exactly like a real ring death. NEVER ends
+    /// the leg — the server owns it (no `handle.end`, no BYE).
+    private func dropRingingPresentation(_ id: String) {
+        handles.removeValue(forKey: id)
+        sdkPhases.removeValue(forKey: id)
+        resolvingLegs.remove(id)
+        pendingHold.remove(id)
+        ringFirstSeen.removeValue(forKey: id)
+        state = CallStateMachine.sdkPhase(state, id: id, phase: .ended, now: now())
     }
 
     // MARK: - Ops
@@ -535,5 +655,59 @@ final class SoftphoneCore {
             )
         }
         return companyId
+    }
+}
+
+/// #212 caller-id — the trusted custom SIP headers the ring server stamps on the
+/// INVITE. The Telnyx-rewritten INVITE `from` is a connection-owned number (the
+/// business number) for WebRTC legs, NOT the caller, so these headers carry the
+/// real caller. A Swift port of the Android `TelecomCallReducer` header
+/// discipline; read case-insensitively and forward-compatibly (the name header
+/// is absent until the server stamps it, per #211).
+///
+/// The iOS Telnyx SDK exposes them as `Call.inviteCustomHeaders: [String:String]?`
+/// (a name-keyed dictionary), so the resolution runs at the SDK boundary
+/// (`TelnyxSdkClient.trackIncoming`) before the `SdkEvent.incoming` fires — the
+/// core then presents the already-preferred caller.
+enum CallerHeaders {
+    static let callerHeader = "X-Loonext-Caller"
+    static let callerNameHeader = "X-Loonext-Caller-Name"
+
+    /// The real caller's E.164 off `X-Loonext-Caller`, or nil when absent/blank.
+    static func caller(from headers: [String: String]?) -> String? {
+        value(headers, named: callerHeader)
+    }
+
+    /// The caller display name off `X-Loonext-Caller-Name`, or nil.
+    static func callerName(from headers: [String: String]?) -> String? {
+        value(headers, named: callerNameHeader)
+    }
+
+    /// #212 caller-id precedence — prefer the trusted headers over the
+    /// Telnyx-rewritten INVITE `from`/CNAM, matching the Android `onIncoming`
+    /// resolution. When the caller header is present the INVITE name is the
+    /// business number's CNAM and is deliberately dropped; the INVITE values are
+    /// used only for a header-less leg (older server, or an anonymous/CLIR
+    /// caller the server sends no header for).
+    static func resolve(
+        headers: [String: String]?,
+        inviteNumber: String?,
+        inviteName: String?
+    ) -> (number: String?, name: String?) {
+        let headerCaller = caller(from: headers)
+        let headerName = callerName(from: headers)
+        let number = headerCaller ?? inviteNumber
+        let name = headerName ?? (headerCaller == nil ? inviteName : nil)
+        return (number, name)
+    }
+
+    /// Case-insensitive header lookup returning the first non-blank value (the
+    /// raw value, untrimmed — mirrors Android's `takeIf { isNotBlank() }`).
+    private static func value(_ headers: [String: String]?, named: String) -> String? {
+        guard let headers else { return nil }
+        for (key, raw) in headers where key.caseInsensitiveCompare(named) == .orderedSame {
+            if !raw.trimmingCharacters(in: .whitespaces).isEmpty { return raw }
+        }
+        return nil
     }
 }

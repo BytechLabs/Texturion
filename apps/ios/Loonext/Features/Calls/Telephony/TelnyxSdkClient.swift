@@ -145,10 +145,20 @@ final class TelnyxSdkClient: NSObject, SoftphoneSdk {
         if handles[callId] != nil { return }
         let handle = TelnyxCallHandle(call: call, uuid: callId)
         handles[callId] = handle
+        // #212 caller-id: the INVITE `from` (info.callerNumber) is Telnyx-
+        // rewritten to the business number for WebRTC legs, so prefer the
+        // trusted `X-Loonext-Caller` custom SIP headers the ring server stamps
+        // (Call.inviteCustomHeaders); the INVITE value is the fallback only for
+        // a header-less leg (older server, or an anonymous/CLIR caller).
+        let resolved = CallerHeaders.resolve(
+            headers: call.inviteCustomHeaders,
+            inviteNumber: info.callerNumber,
+            inviteName: info.callerName
+        )
         onEvent?(.incoming(
             call: handle,
-            callerName: info.callerName,
-            callerNumber: info.callerNumber
+            callerName: resolved.name,
+            callerNumber: resolved.number
         ))
     }
 

@@ -227,3 +227,66 @@ enum CallStateMachine {
         return next
     }
 }
+
+// MARK: - #195 engaged-leg gate + ring TTL (Android CallWakePolicy port)
+
+extension CallSnapshot {
+    /// #195 F3 — is the user GENUINELY ENGAGED with this leg? The honest gate
+    /// for the recovery/wake bail sites: audio flows or could flow at the
+    /// user's word (ACTIVE / HELD / CONNECTING, or a RINGING the user can
+    /// answer). An ENDED leg is debris.
+    ///
+    /// A Swift port of the Android `CallWakePolicy.engagedLeg`. Android also
+    /// excludes a SILENCED duplicate-per-session ring; iOS never silences a
+    /// ring (it has no held-INVITE dedup), so every live RINGING here is a real
+    /// one the user can see. A STALE ring is removed by the F1 client-death reap
+    /// and the F2 TTL sweep, never left to wedge a gate — so this predicate need
+    /// not (and must not) time-expire a ring itself.
+    var isEngaged: Bool {
+        switch phase {
+        case .active, .held, .connecting, .ringing:
+            return true
+        case .ended:
+            return false
+        }
+    }
+}
+
+extension SoftphoneSnapshot {
+    /// #195 F3 — any genuinely engaged leg (see `CallSnapshot.isEngaged`). The
+    /// recovery/wake gates use THIS, never `!liveCalls.isEmpty`: once the reap
+    /// and TTL sweep clear a zombie ring, a dead socket can recover instead of
+    /// staying wedged behind presentation debris.
+    var anyEngaged: Bool { calls.contains { $0.isEngaged } }
+}
+
+/// #195 client-side ring hygiene policy — the tunables and the pure sweep math,
+/// ported from the Android `telephony/CallWakePolicy.kt`. Kept free of the SDK
+/// and of any live state so it unit-tests as plain arithmetic.
+enum CallWakePolicy {
+    /// The client-side ring TTL. The server ring window is 45s, so any inbound
+    /// leg still RINGING locally this long after it was first seen is a ZOMBIE
+    /// (its real leg is already dead server-side; its phase callback may never
+    /// fire again after a client rebuild). 55s = the window + grace. The TTL
+    /// only drops LOCAL presentation state — never a BYE.
+    static let ringTtlSeconds: TimeInterval = 55
+
+    /// How often the TTL sweep looks while any inbound ring is tracked.
+    static let ringTtlSweep: Duration = .seconds(15)
+
+    /// After a CallKit answer, the leg must materialize (bind media) within
+    /// this budget; past it, an answered ring that never went active is the
+    /// zombie-socket signature (#195 F5). ~10s bind deadline + grace.
+    static let answerFailsafe: Duration = .seconds(12)
+
+    /// #195 F2 — has a tracked ring outlived `ringTtlSeconds`? Pure sweep math;
+    /// a clock that moved backwards never expires anything.
+    static func ringExpired(
+        firstSeen: Date,
+        now: Date,
+        ttlSeconds: TimeInterval = ringTtlSeconds
+    ) -> Bool {
+        let elapsed = now.timeIntervalSince(firstSeen)
+        return elapsed >= 0 && elapsed >= ttlSeconds
+    }
+}

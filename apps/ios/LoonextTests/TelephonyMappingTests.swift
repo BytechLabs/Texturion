@@ -713,4 +713,189 @@ final class TelephonyMappingTests: XCTestCase {
         }
         XCTAssertEqual(2, sdk.connects)
     }
+
+    // MARK: #195 zombie hygiene (F1 reap on client death, F5 answer failure)
+
+    func testClientDeathReapsRingingZombiesSoRecoveryProceeds() async throws {
+        // #195 F1: a socket drop while a leg is RINGING must drop that ring
+        // (its phase callback can never fire again after the rebuild) so the
+        // recovery gate isn't wedged behind an immortal zombie.
+        let (core, sdk, _) = makeCore()
+        try await startReady(core)
+
+        sdk.ring(FakeHandle(id: "in-1"), name: "Dana")
+        XCTAssertEqual(.ringing, core.state.calls.first?.phase)
+
+        sdk.emit(.disconnected)
+        // The ring is reaped immediately (state hygiene, never a hangup).
+        XCTAssertTrue(core.state.calls.isEmpty, "the ringing zombie was reaped")
+
+        // With no engaged leg wedging it, recovery rebuilds the socket.
+        try await waitFor("recovery after client death") {
+            core.state.status == .ready
+        }
+        XCTAssertEqual(2, sdk.connects)
+    }
+
+    func testAFailedAnswerRebuildsTheZombieSocketExactlyOnce() async throws {
+        // #195 F5: an ANSWERED ring that never goes active is the zombie-socket
+        // signature — drop the stuck presentation and rebuild the socket once.
+        let (core, sdk, backend) = makeCore()
+        try await startReady(core)
+
+        let ringLeg = FakeHandle(id: "in-1", callControlId: "ccid-1")
+        sdk.ring(ringLeg)
+        core.answer("in-1")
+        XCTAssertTrue(ringLeg.answered)
+        // No active report ever lands — the leg is stuck ringing.
+        XCTAssertEqual(.ringing, core.state.calls.first?.phase)
+
+        core.forceRecoverAfterAnswerFailure(stuckId: "in-1")
+        XCTAssertTrue(core.state.calls.isEmpty, "the stuck answered ring was dropped")
+
+        try await waitFor("socket rebuild after answer failure") {
+            core.state.status == .ready && backend.tokenMints == 2
+        }
+        XCTAssertEqual(2, sdk.connects)
+    }
+
+    func testAnswerFailureNeverRebuildsWhileAnotherCallIsEngaged() async throws {
+        // #195 F5 gate: a genuinely engaged second call vetoes the rebuild.
+        let (core, sdk, backend) = makeCore()
+        try await startReady(core)
+
+        let live = FakeHandle(id: "in-1", callControlId: "ccid-1")
+        sdk.ring(live, name: "First")
+        core.answer("in-1")
+        live.report(.active)
+
+        let stuck = FakeHandle(id: "in-2", callControlId: "ccid-2")
+        sdk.ring(stuck, name: "Second")
+        core.answer("in-2") // stays ringing — never binds
+
+        core.forceRecoverAfterAnswerFailure(stuckId: "in-2")
+
+        // The stuck ring is dropped, but the live call vetoes the rebuild.
+        XCTAssertNil(core.state.calls.first { $0.id == "in-2" })
+        XCTAssertEqual(.active, core.state.calls.first { $0.id == "in-1" }?.phase)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(1, sdk.connects, "an engaged leg vetoed the socket rebuild")
+        XCTAssertEqual(1, backend.tokenMints)
+    }
+}
+
+// MARK: - #195 engaged-leg gate (pure predicate — Android CallWakePolicy port)
+
+final class EngagedGateTests: XCTestCase {
+    private func call(_ phase: CallPhase, id: String = "c") -> CallSnapshot {
+        CallSnapshot(
+            id: id,
+            direction: .inbound,
+            peerName: "Dana",
+            peerNumber: "+15551230000",
+            phase: phase
+        )
+    }
+
+    func testOnlyLiveOrRingablePhasesAreEngaged() {
+        XCTAssertTrue(call(.active).isEngaged)
+        XCTAssertTrue(call(.held).isEngaged)
+        XCTAssertTrue(call(.connecting).isEngaged)
+        XCTAssertTrue(call(.ringing).isEngaged)
+        XCTAssertFalse(call(.ended).isEngaged)
+    }
+
+    func testAnyEngagedIgnoresEndedDebris() {
+        var state = SoftphoneSnapshot()
+        state.calls = [call(.ended, id: "a")]
+        XCTAssertFalse(state.anyEngaged, "an ended chip is not an engaged call")
+
+        state.calls = [call(.ended, id: "a"), call(.ringing, id: "b")]
+        XCTAssertTrue(state.anyEngaged)
+
+        XCTAssertFalse(SoftphoneSnapshot().anyEngaged, "no calls -> nothing engaged")
+    }
+}
+
+// MARK: - #195 ring TTL (pure sweep math)
+
+final class RingTtlTests: XCTestCase {
+    private func at(_ seconds: TimeInterval) -> Date {
+        Date(timeIntervalSince1970: seconds)
+    }
+
+    func testARingExpiresOnlyPastTheTtlWindow() {
+        let seen = at(1_000)
+        XCTAssertFalse(CallWakePolicy.ringExpired(firstSeen: seen, now: at(1_000)))
+        XCTAssertFalse(CallWakePolicy.ringExpired(firstSeen: seen, now: at(1_054)))
+        XCTAssertTrue(CallWakePolicy.ringExpired(firstSeen: seen, now: at(1_055)))
+        XCTAssertTrue(CallWakePolicy.ringExpired(firstSeen: seen, now: at(1_100)))
+    }
+
+    func testAClockThatMovedBackwardsNeverExpiresARing() {
+        let seen = at(1_000)
+        XCTAssertFalse(CallWakePolicy.ringExpired(firstSeen: seen, now: at(900)))
+    }
+}
+
+// MARK: - #212 caller-id header preference (pure)
+
+final class CallerHeaderTests: XCTestCase {
+    func testTheTrustedCallerHeaderWinsOverTheRewrittenInviteFrom() {
+        // The INVITE `from` is the business number; the header is the caller.
+        let resolved = CallerHeaders.resolve(
+            headers: ["X-Loonext-Caller": "+15551234567"],
+            inviteNumber: "+15559990000", // Telnyx-rewritten business number
+            inviteName: "Loonext Business"
+        )
+        XCTAssertEqual("+15551234567", resolved.number)
+        // No caller-name header: the INVITE name is the business CNAM, dropped.
+        XCTAssertNil(resolved.name)
+    }
+
+    func testTheCallerNameHeaderIsPreferredWhenPresent() {
+        let resolved = CallerHeaders.resolve(
+            headers: [
+                "X-Loonext-Caller": "+15551234567",
+                "X-Loonext-Caller-Name": "Jane Doe",
+            ],
+            inviteNumber: "+15559990000",
+            inviteName: "Loonext Business"
+        )
+        XCTAssertEqual("+15551234567", resolved.number)
+        XCTAssertEqual("Jane Doe", resolved.name)
+    }
+
+    func testHeaderLookupIsCaseInsensitive() {
+        XCTAssertEqual(
+            "+15551234567",
+            CallerHeaders.caller(from: ["x-loonext-caller": "+15551234567"])
+        )
+        XCTAssertEqual(
+            "Jane",
+            CallerHeaders.callerName(from: ["X-LOONEXT-CALLER-NAME": "Jane"])
+        )
+    }
+
+    func testNoHeaderFallsBackToTheInviteValues() {
+        // Older server / anonymous caller sends no header -> the INVITE stands.
+        let resolved = CallerHeaders.resolve(
+            headers: nil,
+            inviteNumber: "+15557778888",
+            inviteName: "DANA F"
+        )
+        XCTAssertEqual("+15557778888", resolved.number)
+        XCTAssertEqual("DANA F", resolved.name)
+    }
+
+    func testABlankHeaderValueIsTreatedAsAbsent() {
+        let resolved = CallerHeaders.resolve(
+            headers: ["X-Loonext-Caller": "   "],
+            inviteNumber: "+15557778888",
+            inviteName: "DANA F"
+        )
+        XCTAssertEqual("+15557778888", resolved.number)
+        XCTAssertEqual("DANA F", resolved.name)
+        XCTAssertNil(CallerHeaders.caller(from: nil))
+    }
 }
