@@ -50,6 +50,7 @@ import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -75,6 +76,7 @@ import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Task
+import com.loonext.android.features.shell.LocalShellPagerBlocker
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
@@ -168,6 +170,17 @@ private fun TaskListScreen(
     LaunchedEffect(search) {
         if (search.isNotEmpty()) delay(250)
         debouncedQ = search.trim().take(TASK_SEARCH_MAX)
+    }
+
+    // #203 gesture coexistence: the map's pan lives inside an osmdroid
+    // AndroidView, the one horizontal surface that cannot win over the shell
+    // pager child-first, so shell paging is OFF while (and only while) the
+    // Map view is showing. Keyed on the setter+view so a view switch (or this
+    // page leaving the pager's composed window) always releases the flag.
+    val setPagerBlocked = LocalShellPagerBlocker.current
+    DisposableEffect(setPagerBlocked, view) {
+        setPagerBlocked(view == TaskViewKind.Map)
+        onDispose { setPagerBlocked(false) }
     }
 
     // Board organizes by status, so the Open/Done dimension is a no-op there

@@ -1,13 +1,14 @@
 package com.loonext.android.features.shell
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -25,6 +26,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bolt
@@ -35,9 +38,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -46,6 +55,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
@@ -79,6 +90,13 @@ enum class ShellTab(val label: String) {
  * paper circle; a coral dot on the avatar means unread notifications. A canvas
  * gradient fades content out behind the pill. No labels, no numeral badges —
  * the design keeps the nav silent.
+ *
+ * #203: the four slot tabs are pages of ONE HorizontalPager — holding and
+ * dragging slides the neighboring tab into view continuously, a settle
+ * switches tabs through the SAME path a pill tap takes, and the paper circle
+ * tracks the pager's scroll fraction under the finger (taps keep the spring).
+ * Contacts stays OUTSIDE the pager (a You-sheet surface, not a slot): the
+ * pager parks where it was and Contacts renders above it on its own canvas.
  */
 @Composable
 fun MainShell(
@@ -99,6 +117,52 @@ fun MainShell(
     // #174's root cause).
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
+            val haptics = rememberHaptics()
+            val pagerState = rememberPagerState(
+                initialPage = shellPageForTab(tab) ?: 0,
+            ) { SHELL_PAGE_TABS.size }
+
+            // Pages whose own horizontal surface asked shell paging off while
+            // active (LocalShellPagerBlocker — today only the Tasks map).
+            // Keyed by page so a stale flag can never lock another tab.
+            val pagerBlocks = remember { mutableStateMapOf<Int, Boolean>() }
+
+            // The caller's tab state stays the ONE source of truth. Pill taps
+            // and sheet jumps set it and this effect walks the pager there
+            // (animateScrollToPage, so taps glide exactly like drags settle);
+            // Contacts has no page, so the pager parks where it was.
+            LaunchedEffect(tab) {
+                val page = shellPageForTab(tab) ?: return@LaunchedEffect
+                if (pagerState.currentPage != page ||
+                    pagerState.currentPageOffsetFraction != 0f
+                ) {
+                    pagerState.animateScrollToPage(page)
+                }
+            }
+
+            // Tab changes used to DISPOSE the outgoing tab, which dropped its
+            // focus (and the keyboard with it). Pages stay composed under the
+            // pager, so drop focus explicitly on every tab change to keep
+            // that behavior; no-op when nothing is focused.
+            val focusManager = LocalFocusManager.current
+            LaunchedEffect(tab) { focusManager.clearFocus() }
+
+            // The reverse path: a settle that CHANGES tab fires the exact
+            // side effects a pill tap fires today (tap haptic + onTabChange —
+            // selectTab below does nothing else), so swipe and tap can never
+            // drift apart.
+            val currentTab by rememberUpdatedState(tab)
+            val currentOnTabChange by rememberUpdatedState(onTabChange)
+            LaunchedEffect(pagerState) {
+                snapshotFlow { pagerState.settledPage }.collect { page ->
+                    val settled = shellTabForPage(page)
+                    if (currentTab != ShellTab.Contacts && settled != currentTab) {
+                        haptics.tap()
+                        currentOnTabChange(settled)
+                    }
+                }
+            }
+
             // ONE inset policy for every tab (#172): status bar at the top;
             // at the bottom whichever is TALLER — nav-bar + pill clearance
             // (14dp inset + 66dp pill = 80dp) or the keyboard (#187) — so a
@@ -106,18 +170,69 @@ fun MainShell(
             // clearance on top of it. The old fixed 96dp ignored the system
             // nav inset, leaving list tails under the pill on 3-button nav.
             // Screens must NOT add their own statusBarsPadding or imePadding
-            // on top of this; inset consumption makes leftovers no-ops.
-            content(
-                tab,
-                Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .windowInsetsPadding(
-                        WindowInsets.navigationBars
-                            .add(WindowInsets(bottom = 80.dp))
-                            .union(WindowInsets.ime),
-                    ),
-            )
+            // on top of this; inset consumption makes leftovers no-ops. The
+            // PAGER carries the insets now, so every page inherits them.
+            val contentInsets = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .windowInsetsPadding(
+                    WindowInsets.navigationBars
+                        .add(WindowInsets(bottom = 80.dp))
+                        .union(WindowInsets.ime),
+                )
+
+            HorizontalPager(
+                state = pagerState,
+                key = { it },
+                // Neighbors stay composed so a drag reveals a PAINTED page:
+                // every tab is cache-first (#176) and seeds synchronously from
+                // StoreCache, so the revealed page renders rows in its first
+                // frame after any prior visit (or the shell warmer's pass).
+                // 1 — not all 3 — keeps the cold-start fetch fan-out at two
+                // tabs (For you + Inbox) instead of four.
+                beyondViewportPageCount = 1,
+                // Two deliberate gesture cutouts: Contacts overlays the pager
+                // without occluding pointer input (Compose hit-tests through
+                // painted-but-inert siblings), and a page may block paging
+                // while a child-first resolution is impossible (Tasks map).
+                userScrollEnabled = tab != ShellTab.Contacts &&
+                    pagerBlocks[pagerState.settledPage] != true,
+                modifier = contentInsets.then(
+                    // While Contacts covers the pager, keep the hidden pages
+                    // out of the accessibility tree.
+                    if (tab == ShellTab.Contacts) {
+                        Modifier.clearAndSetSemantics {}
+                    } else {
+                        Modifier
+                    },
+                ),
+            ) { page ->
+                // Remembered so the provided value is STABLE: a fresh lambda
+                // per recomposition would invalidate the static local's whole
+                // subtree every frame.
+                val blocker = remember(page) {
+                    { blocked: Boolean -> pagerBlocks[page] = blocked }
+                }
+                CompositionLocalProvider(
+                    LocalShellPagerBlocker provides blocker,
+                    LocalShellPageActive provides (pagerState.settledPage == page),
+                ) {
+                    content(shellTabForPage(page), Modifier.fillMaxSize())
+                }
+            }
+
+            // Contacts (no nav slot) rides ABOVE the parked pager on its own
+            // opaque canvas; leaving it returns to the pager exactly where it
+            // parked, pages and their state intact.
+            if (tab == ShellTab.Contacts) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background),
+                ) {
+                    content(ShellTab.Contacts, contentInsets)
+                }
+            }
 
             // Fade the content out underneath the pill (canvas → transparent).
             // Decoration over SCROLLING content only — interactive elements ride
@@ -135,7 +250,6 @@ fun MainShell(
                     ),
             )
 
-            val haptics = rememberHaptics()
             val slotCenters = remember { mutableStateMapOf<ShellTab, Float>() }
             val selectTab: (ShellTab) -> Unit = { next ->
                 if (next != tab) haptics.tap()
@@ -156,17 +270,57 @@ fun MainShell(
                 // jumping (#194): every slot reports its center and the
                 // indicator springs to the selected one. It hides entirely
                 // when the active surface has no slot (Contacts rides the
-                // You sheet, not the pill).
+                // You sheet, not the pill). #203: while the user DRAGS the
+                // pager (through its fling settle) the circle abandons the
+                // spring and tracks the scroll fraction, so the paper circle
+                // rides the finger; pill taps and programmatic tab changes
+                // keep the spring.
                 slotCenters[tab]?.let { centerX ->
-                    val indicatorX by animateFloatAsState(
-                        targetValue = centerX,
-                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                        label = "navIndicatorX",
-                    )
+                    val dragged by pagerState.interactionSource.collectIsDraggedAsState()
+                    var followPager by remember { mutableStateOf(false) }
+                    LaunchedEffect(dragged, pagerState.isScrollInProgress) {
+                        if (dragged) {
+                            followPager = true
+                        } else if (!pagerState.isScrollInProgress) {
+                            followPager = false
+                        }
+                    }
+                    val indicatorX = remember { Animatable(centerX) }
+                    LaunchedEffect(followPager) {
+                        if (followPager) {
+                            snapshotFlow {
+                                val blend = shellIndicatorBlend(
+                                    pagerState.currentPage,
+                                    pagerState.currentPageOffsetFraction,
+                                    pagerState.pageCount,
+                                )
+                                val from = slotCenters[shellTabForPage(blend.fromPage)]
+                                val to = slotCenters[shellTabForPage(blend.toPage)]
+                                if (from == null || to == null) {
+                                    null
+                                } else {
+                                    shellIndicatorCenter(from, to, blend.fraction)
+                                }
+                            }.collect { x -> if (x != null) indicatorX.snapTo(x) }
+                        }
+                    }
+                    // On release the settle lands the circle ON the target
+                    // slot, so this spring starts from rest and moves only
+                    // when the target actually differs (taps, relayouts).
+                    LaunchedEffect(centerX, followPager) {
+                        if (!followPager) {
+                            indicatorX.animateTo(
+                                targetValue = centerX,
+                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                            )
+                        }
+                    }
                     Box(
                         Modifier
                             .align(Alignment.CenterStart)
-                            .offset { IntOffset((indicatorX - 23.dp.toPx()).roundToInt(), 0) }
+                            .offset {
+                                IntOffset((indicatorX.value - 23.dp.toPx()).roundToInt(), 0)
+                            }
                             .size(46.dp)
                             .background(BrandColor.Paper, CircleShape),
                     )

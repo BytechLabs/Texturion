@@ -91,6 +91,7 @@ import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.SearchResult
 import com.loonext.android.core.model.Tag
 import com.loonext.android.core.net.ApiClient
+import com.loonext.android.features.shell.LocalShellPageActive
 import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.features.thread.appendPage
@@ -1563,7 +1564,10 @@ private fun SearchSurface(
     var scope by rememberSaveable { mutableStateOf(SearchScope.All) }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
-    BackHandler(onBack = onCancel)
+    // #203: the shell keeps this page composed while a NEIGHBOR shows, so an
+    // always-enabled handler would intercept the back button from other tabs;
+    // it may only claim back while Inbox is the settled page.
+    BackHandler(enabled = LocalShellPageActive.current, onBack = onCancel)
 
     Column(
         Modifier
