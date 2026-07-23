@@ -33,7 +33,6 @@ class HostHeaderLintTest {
             }
         }
         for (relative in listOf(
-            "features/calls/CallsScreen.kt",
             "features/notifications/NotificationsScreen.kt",
             "features/diagnostics/DiagnosticsScreen.kt",
         )) {
@@ -45,10 +44,6 @@ class HostHeaderLintTest {
     @Test
     fun `hosted screens compose no screen title - the host header slot carries it`() {
         for ((path, src) in hostedSources()) {
-            // CallsScreen is DUAL-context (shell tab root per #203 AND hosted
-            // route): its tab title is legal but must be gated off in the
-            // hosted context, pinned by the dedicated test below.
-            if (path.endsWith("CallsScreen.kt")) continue
             assertFalse(
                 "$path composes ScreenTitle - a hosted route's title lives in the " +
                     "host's one header slot (declare it at MainActivity's when(active))",
@@ -58,24 +53,19 @@ class HostHeaderLintTest {
     }
 
     @Test
-    fun `the dual-context calls screen shows its tab title ONLY when not hosted`() {
-        // As a shell TAB root (#203 pager) CallsScreen owns its single title
-        // row like every tab; pushed as Overlay.Calls the HOST header carries
-        // the title + status action, so the screen's chrome must be gated
-        // behind !hosted and the host must actually declare both sides.
-        val calls = readMainSource("features/calls/CallsScreen.kt")
-        assertTrue(
-            "CallsScreen must gate its tab-root chrome behind the hosted flag",
-            calls.contains("if (!hosted)"),
-        )
+    fun `calls is a single surface - the pager tab, never a pushed route`() {
+        // #203 made Calls a pager tab; a pushed Overlay.Calls duplicate would
+        // mean two live CallsScreens (double fetch, double realtime). Deep
+        // links and For You's header select the tab instead.
         val host = readMainSource("MainActivity.kt")
-        assertTrue(
-            "the Overlay.Calls branch must suppress the screen's chrome (hosted = true)",
-            host.contains("hosted = true"),
+        assertFalse(
+            "MainActivity must not regrow a pushed Calls route",
+            host.contains("Overlay.Calls"),
         )
-        assertTrue(
-            "the Overlay.Calls branch must declare the status line into the host's actions slot",
-            host.contains("actions = { CallsHeaderStatus(graph) }"),
+        val calls = readMainSource("features/calls/CallsScreen.kt")
+        assertFalse(
+            "CallsScreen must not regrow a hosted variant",
+            calls.contains("hosted"),
         )
     }
 

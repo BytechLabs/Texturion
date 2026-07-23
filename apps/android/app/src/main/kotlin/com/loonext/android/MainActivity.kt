@@ -57,9 +57,7 @@ import com.loonext.android.features.auth.AuthCallbacks
 import com.loonext.android.features.auth.AuthFlow
 import com.loonext.android.features.auth.AuthViewModel
 import com.loonext.android.features.auth.OAUTH_REDIRECT_SCHEME
-import com.loonext.android.features.calls.CallsHeaderStatus
 import com.loonext.android.features.calls.CallsOverlay
-import com.loonext.android.features.calls.CallsScreen
 import com.loonext.android.features.compose.NewConversationScreen
 import com.loonext.android.features.diagnostics.DiagnosticsScreen
 import com.loonext.android.features.inbox.InboundMessageToastHost
@@ -265,7 +263,6 @@ private sealed interface Overlay {
     data class Task(val taskId: String) : Overlay
     data class Contact(val contactId: String) : Overlay
     data class Compose(val prefillContactId: String?) : Overlay
-    data object Calls : Overlay
     data object Notifications : Overlay
     data object Settings : Overlay
 
@@ -331,7 +328,11 @@ private fun ReadyShell(
             when (link) {
                 is DeepLink.Thread -> push(Overlay.Thread(link.conversationId))
                 is DeepLink.Calls -> {
-                    push(Overlay.Calls)
+                    // Calls is a single surface: the pager tab (#203). A
+                    // pushed duplicate would mean two live CallsScreens, so
+                    // the link clears any overlays and lands on the tab.
+                    routeStack.clear()
+                    tab = ShellTab.Calls
                     // §10.2/§10.3: a tap that carries the session runs the
                     // wake sequence (register → /state → ring-me), same as a
                     // `kind:'call'` push — the tray-fallback / cold-start join.
@@ -438,7 +439,10 @@ private fun ReadyShell(
                 onOpenContact = { push(Overlay.Contact(it)) },
                 onOpenNotifications = { push(Overlay.Notifications) },
                 onComposeNew = { push(Overlay.Compose(it)) },
-                onOpenCalls = { push(Overlay.Calls) },
+                // Single surface: For You's "Recent calls" header switches to
+                // the Calls tab (the pager animates) instead of pushing a
+                // duplicate route.
+                onOpenCalls = { tab = ShellTab.Calls },
                 onViewedConversationChanged = { tabViewedConversation = it },
             )
         }
@@ -532,25 +536,6 @@ private fun ReadyShell(
                         },
                         onBack = { pop() },
                     )
-
-                    Overlay.Calls -> OverlayScaffold(
-                        "Calls",
-                        onBack = { pop() },
-                        actions = { CallsHeaderStatus(graph) },
-                    ) { contentModifier ->
-                        CallsScreen(
-                            graph = graph,
-                            companyId = companyId,
-                            me = hydratedMe,
-                            modifier = contentModifier,
-                            openConversation = { conversationId ->
-                                push(Overlay.Thread(conversationId))
-                            },
-                            // The host header above carries the title + status
-                            // line; the screen renders no chrome (#200).
-                            hosted = true,
-                        )
-                    }
 
                     Overlay.Notifications -> OverlayScaffold(
                         "Notifications",

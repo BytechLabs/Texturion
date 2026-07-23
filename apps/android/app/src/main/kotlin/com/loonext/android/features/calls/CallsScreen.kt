@@ -155,14 +155,6 @@ fun CallsScreen(
     me: Me,
     modifier: Modifier = Modifier,
     openConversation: (String) -> Unit = {},
-    /**
-     * #200: true when pushed as a ROUTE (Overlay.Calls), where the host owns
-     * the one header slot (title + [CallsHeaderStatus] action) and this
-     * screen must render no chrome. False in the shell TAB context (#203
-     * pager), where no host header exists and the screen owns its single
-     * title row like every tab root.
-     */
-    hosted: Boolean = false,
 ) {
     val context = LocalContext.current
     val manager = remember(graph) { SoftphoneManager.get(context, graph.api) }
@@ -213,9 +205,9 @@ fun CallsScreen(
 
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            if (!hosted) {
-                // Tab-root chrome only: when hosted, the route title and this
-                // status line live in the host's ONE header slot (#200).
+            run {
+                // The tab's single title row (#203: Calls is ONE surface, the
+                // pager tab - no hosted route variant exists anymore).
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -499,28 +491,6 @@ fun CallsScreen(
             prefillPhone = prefill,
         )
     }
-}
-
-/**
- * The Calls route's declared header action (#200): the softphone status line,
- * composed by the HOST inside its one header slot's trailing position. Reads
- * the same process-wide [SoftphoneManager] the screen registers with, so the
- * line and the log can never disagree.
- */
-@Composable
-fun CallsHeaderStatus(graph: AppGraph) {
-    val context = LocalContext.current
-    val manager = remember(graph) { SoftphoneManager.get(context, graph.api) }
-    val softphone by manager.state.collectAsStateWithLifecycle()
-    SoftphoneStatusLine(
-        status = softphone.status,
-        // #195 F7: a ring is on screen but the socket is down — the line must
-        // say so instead of pretending all is well.
-        ringPresented = softphone.calls.any {
-            it.phase == CallPhase.RINGING && !it.silenced
-        },
-        onRetry = manager::retryNow,
-    )
 }
 
 /** "Ready to ring" beside the title — one calm line, tap retries when down. */
