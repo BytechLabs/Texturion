@@ -87,6 +87,16 @@ struct MessagingRepository: Sendable {
         )
     }
 
+    /// Drop the caller's read watermark so the unread dot returns and survives
+    /// revalidation (the inbox read/unread swipe's mark-UNREAD leg). The Android
+    /// MessagingData.markUnread twin: DELETE /v1/conversations/:id/read.
+    func markUnread(companyId: String, conversationId: String) async throws {
+        try await api.delete(
+            "/v1/conversations/\(conversationId)/read",
+            companyId: companyId
+        )
+    }
+
     // MARK: - Conversation mutations
 
     private func patchConversation(

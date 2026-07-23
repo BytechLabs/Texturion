@@ -113,6 +113,26 @@ struct InboxTab: View {
     }
 }
 
+// MARK: - Read/unread swipe target
+
+/// The leading read/unread swipe's target for a row's current unread state,
+/// pinned pure so the controller and the row label read one source and the
+/// Android InboxTab.toggleRead semantics stay in lockstep: an unread row marks
+/// read (POST /read), a read row marks unread (DELETE /read).
+enum InboxReadSwipe {
+    /// True when the swipe should mark the row read (it is currently unread);
+    /// false when it should mark the row unread.
+    static func marksRead(unread: Bool) -> Bool { unread }
+
+    /// The swipe button title for the row's current state.
+    static func title(unread: Bool) -> String { unread ? "Read" : "Unread" }
+
+    /// The SF Symbol for the row's current state.
+    static func symbol(unread: Bool) -> String {
+        unread ? "envelope.open" : "envelope.badge"
+    }
+}
+
 // MARK: - List state
 
 private enum InboxStatusTab: String, CaseIterable, Identifiable, Sendable {
@@ -394,6 +414,43 @@ private final class InboxController {
             var updated = row
             if row.id == conversationId { updated.unread = false }
             return updated
+        }
+    }
+
+    /// Set the unread dot locally on both the main and pinned windows — the
+    /// read/unread swipe's optimistic flip (and its revert on failure).
+    private func setLocalUnread(_ conversationId: String, unread: Bool) {
+        rows = rows.map { row in
+            var updated = row
+            if row.id == conversationId { updated.unread = unread }
+            return updated
+        }
+        pinnedRows = pinnedRows.map { row in
+            var updated = row
+            if row.id == conversationId { updated.unread = unread }
+            return updated
+        }
+    }
+
+    /// Leading-swipe read/unread toggle, server-backed both ways: an unread row
+    /// gets the SAME read receipt the thread posts on open (POST /read); a read
+    /// row drops the caller's watermark (DELETE /read) so the dot survives
+    /// revalidation and syncs everywhere. The local flip paints first; a failure
+    /// reverts it and toasts. The Android InboxTab.toggleRead twin.
+    func toggleRead(_ row: ConversationListItem) {
+        let wasUnread = row.unread
+        setLocalUnread(row.id, unread: !wasUnread)
+        Task {
+            do {
+                if InboxReadSwipe.marksRead(unread: wasUnread) {
+                    try await repo.markRead(companyId: companyId, conversationId: row.id)
+                } else {
+                    try await repo.markUnread(companyId: companyId, conversationId: row.id)
+                }
+            } catch {
+                setLocalUnread(row.id, unread: wasUnread)
+                notify(error.userMessage)
+            }
         }
     }
 
@@ -888,6 +945,20 @@ private struct ConversationListPane: View {
             // Pinned rows sit on the warm cream well (design-system grammar).
             .listRowBackground(pinned ? BrandColor.cream : BrandColor.paper)
             .listRowSeparatorTint(BrandColor.inset)
+            // Leading read/unread toggle (#185/#186 parity): mark read when
+            // unread, mark unread when read. A shortcut only — the row tap and
+            // the thread still mark read the ordinary way.
+            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                Button {
+                    controller.toggleRead(row)
+                } label: {
+                    Label(
+                        InboxReadSwipe.title(unread: row.unread),
+                        systemImage: InboxReadSwipe.symbol(unread: row.unread)
+                    )
+                }
+                .tint(Color(.systemGray))
+            }
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                 Button {
                     controller.setRowStatus(
