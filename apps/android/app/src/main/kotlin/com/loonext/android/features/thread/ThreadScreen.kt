@@ -973,7 +973,9 @@ private fun AssigneePickerSheet(
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth()) {
+        // #180 contract: sheet roots scroll so rows are reachable at ANY
+        // viewport height (inert on tall screens).
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             Text(
                 "Assign to",
                 style = MaterialTheme.typography.titleMedium,

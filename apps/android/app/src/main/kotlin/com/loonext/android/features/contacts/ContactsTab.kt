@@ -876,9 +876,12 @@ internal fun CreateContactSheet(
 private fun ImportReportSheet(report: ImportReport, onDismiss: () -> Unit) {
     val result = report.result
     ModalBottomSheet(onDismissRequest = onDismiss) {
+        // #180 contract: sheet roots scroll so the Done row stays reachable
+        // on square viewports (inert on tall screens).
         Column(
             Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp),
         ) {
             Text("Import finished", style = MaterialTheme.typography.titleMedium)

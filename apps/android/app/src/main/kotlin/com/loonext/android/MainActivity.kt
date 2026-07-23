@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
@@ -447,8 +448,15 @@ private fun ReadyShell(
             BackHandler { pop() }
             // Canvas + status inset once for every routed surface (#172). Only
             // the TOP of the stack renders; back pops one route at a time.
+            // imePadding here is the ONE keyboard policy for pushed routes
+            // (#187): with enableEdgeToEdge the manifest's adjustResize does
+            // nothing by itself, so any input on any route (task notes, thread
+            // composer, compose) stays above the keyboard because the HOST
+            // pads — a screen cannot forget. Inset consumption makes any
+            // leftover imePadding inside a routed screen a no-op, so locals
+            // cannot double-pad.
             Surface(
-                Modifier.fillMaxSize().statusBarsPadding(),
+                Modifier.fillMaxSize().statusBarsPadding().imePadding(),
                 color = MaterialTheme.colorScheme.background,
             ) {
                 when (active) {

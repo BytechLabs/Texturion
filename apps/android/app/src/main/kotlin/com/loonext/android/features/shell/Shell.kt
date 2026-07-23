@@ -5,13 +5,19 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bolt
@@ -76,18 +82,24 @@ fun MainShell(
     // #174's root cause).
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize()) {
-            // ONE inset policy for every tab (#172): status bar at the top, and
-            // nav-bar + pill clearance (14dp inset + 66dp pill) at the bottom.
-            // The old fixed 96dp ignored the system nav inset, leaving list
-            // tails under the pill on 3-button nav. Screens must NOT add their
-            // own statusBarsPadding on top of this.
+            // ONE inset policy for every tab (#172): status bar at the top;
+            // at the bottom whichever is TALLER — nav-bar + pill clearance
+            // (14dp inset + 66dp pill = 80dp) or the keyboard (#187) — so a
+            // focused tab input rides above the ime without stacking the pill
+            // clearance on top of it. The old fixed 96dp ignored the system
+            // nav inset, leaving list tails under the pill on 3-button nav.
+            // Screens must NOT add their own statusBarsPadding or imePadding
+            // on top of this; inset consumption makes leftovers no-ops.
             content(
                 tab,
                 Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
-                    .navigationBarsPadding()
-                    .padding(bottom = 80.dp),
+                    .windowInsetsPadding(
+                        WindowInsets.navigationBars
+                            .add(WindowInsets(bottom = 80.dp))
+                            .union(WindowInsets.ime),
+                    ),
             )
 
             // Fade the content out underneath the pill (canvas → transparent).

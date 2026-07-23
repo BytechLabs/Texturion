@@ -145,6 +145,7 @@ fun InCallScreen(
                 featured.peerName,
                 size = 96.dp,
                 badge = featured.phase != CallPhase.RINGING,
+                ringing = featured.phase == CallPhase.RINGING,
             )
             Text(
                 featured.peerName,

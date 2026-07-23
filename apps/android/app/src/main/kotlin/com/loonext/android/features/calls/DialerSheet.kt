@@ -5,9 +5,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -55,6 +58,16 @@ private val KEYPAD_ROWS = listOf(
     listOf("7" to "PQRS", "8" to "TUV", "9" to "WXYZ"),
     listOf("*" to "", "0" to "+", "#" to ""),
 )
+
+/**
+ * Height the full-size dialer layout needs (#180). Viewports at or above it
+ * render the spec exactly; shorter ones scale keys, spacing, the readout, and
+ * the call disc down proportionally so everything stays reachable.
+ */
+private val DIALER_DESIGN_HEIGHT = 620.dp
+
+/** Floor for the proportional scale; below it the backstop scroll takes over. */
+private const val MIN_DIALER_SCALE = 0.55f
 
 /**
  * The dialer (spec 03) — call ANY US/CA number: Bricolage number readout,
@@ -135,162 +148,176 @@ fun DialerSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = MaterialTheme.colorScheme.background,
     ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 26.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            if (numbers.size > 1) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(
-                        8.dp,
-                        Alignment.CenterHorizontally,
-                    ),
-                ) {
-                    numbers.forEach { number ->
-                        FromNumberPill(
-                            label = "From ${formatPhone(number.number_e164)}",
-                            selected = fromId == number.id,
-                            onClick = { fromId = number.id },
-                        )
-                    }
-                }
-            } else {
-                numbers.firstOrNull()?.let { number ->
-                    LineStatusRow(
-                        text = "Line ready · ${formatPhone(number.number_e164)}",
-                        dot = BrandColor.LimeBright,
-                        textColor = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.padding(bottom = 6.dp),
-                    )
-                }
-            }
-
-            Text(
-                if (digits.isEmpty()) "Enter a number" else formatAsYouDial(digits),
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontSize = 31.sp,
-                    letterSpacing = 0.01.em,
-                ),
-                color = if (digits.isEmpty()) {
-                    MaterialTheme.colorScheme.outline
-                } else {
-                    MaterialTheme.colorScheme.onBackground
-                },
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 14.dp, bottom = 4.dp),
-            )
-
-            // Live contact correlation: the matched name while dialing, or an
-            // Add-contact affordance once the number is dialable and unknown.
-            val addTarget = if (matchedName == null && onAddContact != null) dialable else null
-            Box(Modifier.height(26.dp), contentAlignment = Alignment.Center) {
-                when {
-                    matchedName != null -> Text(
-                        matchedName!!,
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        ),
-                        color = MaterialTheme.colorScheme.secondary,
-                        maxLines = 1,
-                    )
-
-                    addTarget != null -> Text(
-                        "Add contact",
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        ),
-                        color = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .clickable { onAddContact!!.invoke(addTarget) }
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                    )
-                }
-            }
-
-            KEYPAD_ROWS.forEach { row ->
-                Row(
-                    Modifier.padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(26.dp),
-                ) {
-                    row.forEach { (key, letters) ->
-                        KeypadKey(
-                            digit = key,
-                            letters = letters,
-                            onClick = { if (digits.length < 15) digits += key },
-                        )
-                    }
-                }
-            }
-
-            Row(
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            // #180: the keypad derives from available space. At or above the
+            // design height scale == 1f and the sheet is pixel-identical to
+            // today; on short/square viewports keys, spacing, the readout, and
+            // the call disc shrink together. The scroll is a backstop for
+            // viewports shorter than the scale floor allows.
+            val scale = (maxHeight / DIALER_DESIGN_HEIGHT).coerceIn(MIN_DIALER_SCALE, 1f)
+            val keySpacing = 26.dp * scale
+            val keySize = (72.dp * scale)
+                .coerceAtMost((maxWidth - 52.dp - keySpacing * 2) / 3)
+            Column(
                 Modifier
                     .fillMaxWidth()
-                    .padding(top = 6.dp, bottom = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 26.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Box(Modifier.weight(1f)) {}
-                // The lime call disc (spec 03) — disabled until dialable.
-                Surface(
-                    onClick = {
-                        if (manager.hasMicPermission()) {
-                            placeCall()
-                        } else {
-                            micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                if (numbers.size > 1) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(
+                            8.dp,
+                            Alignment.CenterHorizontally,
+                        ),
+                    ) {
+                        numbers.forEach { number ->
+                            FromNumberPill(
+                                label = "From ${formatPhone(number.number_e164)}",
+                                selected = fromId == number.id,
+                                onClick = { fromId = number.id },
+                            )
                         }
+                    }
+                } else {
+                    numbers.firstOrNull()?.let { number ->
+                        LineStatusRow(
+                            text = "Line ready · ${formatPhone(number.number_e164)}",
+                            dot = BrandColor.LimeBright,
+                            textColor = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(bottom = 6.dp),
+                        )
+                    }
+                }
+
+                Text(
+                    if (digits.isEmpty()) "Enter a number" else formatAsYouDial(digits),
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontSize = 31.sp * scale,
+                        letterSpacing = 0.01.em,
+                    ),
+                    color = if (digits.isEmpty()) {
+                        MaterialTheme.colorScheme.outline
+                    } else {
+                        MaterialTheme.colorScheme.onBackground
                     },
-                    enabled = dialable != null && !calling,
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.tertiary,
-                    contentColor = MaterialTheme.colorScheme.onTertiary,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
                     modifier = Modifier
-                        .size(68.dp)
-                        .alpha(if (dialable != null && !calling) 1f else 0.45f),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        if (calling) {
-                            LoadingIndicator(Modifier.size(24.dp))
-                        } else {
-                            Icon(
-                                Icons.Outlined.Call,
-                                contentDescription = "Call",
-                                modifier = Modifier.size(26.dp),
+                        .fillMaxWidth()
+                        .padding(top = 14.dp * scale, bottom = 4.dp),
+                )
+
+                // Live contact correlation: the matched name while dialing, or an
+                // Add-contact affordance once the number is dialable and unknown.
+                val addTarget = if (matchedName == null && onAddContact != null) dialable else null
+                Box(Modifier.height(26.dp), contentAlignment = Alignment.Center) {
+                    when {
+                        matchedName != null -> Text(
+                            matchedName!!,
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = MaterialTheme.colorScheme.secondary,
+                            maxLines = 1,
+                        )
+
+                        addTarget != null -> Text(
+                            "Add contact",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable { onAddContact!!.invoke(addTarget) }
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+
+                KEYPAD_ROWS.forEach { row ->
+                    Row(
+                        Modifier.padding(bottom = 12.dp * scale),
+                        horizontalArrangement = Arrangement.spacedBy(keySpacing),
+                    ) {
+                        row.forEach { (key, letters) ->
+                            KeypadKey(
+                                digit = key,
+                                letters = letters,
+                                onClick = { if (digits.length < 15) digits += key },
+                                size = keySize,
+                                textScale = scale,
                             )
                         }
                     }
                 }
-                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    IconButton(
-                        onClick = { digits = digits.dropLast(1) },
-                        enabled = digits.isNotEmpty(),
+
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp * scale, bottom = 16.dp * scale),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.weight(1f)) {}
+                    // The lime call disc (spec 03) — disabled until dialable.
+                    Surface(
+                        onClick = {
+                            if (manager.hasMicPermission()) {
+                                placeCall()
+                            } else {
+                                micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
+                        enabled = dialable != null && !calling,
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        contentColor = MaterialTheme.colorScheme.onTertiary,
+                        modifier = Modifier
+                            .size(68.dp * scale)
+                            .alpha(if (dialable != null && !calling) 1f else 0.45f),
                     ) {
-                        Icon(
-                            Icons.AutoMirrored.Outlined.Backspace,
-                            contentDescription = "Delete last digit",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            if (calling) {
+                                LoadingIndicator(Modifier.size(24.dp * scale))
+                            } else {
+                                Icon(
+                                    Icons.Outlined.Call,
+                                    contentDescription = "Call",
+                                    modifier = Modifier.size(26.dp * scale),
+                                )
+                            }
+                        }
+                    }
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        IconButton(
+                            onClick = { digits = digits.dropLast(1) },
+                            enabled = digits.isNotEmpty(),
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Outlined.Backspace,
+                                contentDescription = "Delete last digit",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
-            }
 
-            error?.let {
-                Text(
-                    it,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(bottom = 16.dp),
-                )
+                error?.let {
+                    Text(
+                        it,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(bottom = 16.dp),
+                    )
+                }
             }
         }
     }

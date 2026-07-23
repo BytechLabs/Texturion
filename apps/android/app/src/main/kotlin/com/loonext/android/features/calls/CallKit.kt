@@ -19,7 +19,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -27,6 +35,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -57,7 +66,9 @@ fun callScreenColor(): Color =
 /**
  * The identity circle from the ring/in-call specs: paper disc with Golos
  * initials, a lime ring at +9dp and a dotted ink halo at +19dp; the in-call
- * variant adds the small lime phone badge (spec 26/32).
+ * variant adds the small lime phone badge (spec 26/32). The halo drifts
+ * slowly whenever a call surface is up, and while [ringing] the lime ring
+ * breathes outward so an incoming ring never reads as a frozen frame.
  */
 @Composable
 fun CallerAvatar(
@@ -65,10 +76,30 @@ fun CallerAvatar(
     modifier: Modifier = Modifier,
     size: Dp = 112.dp,
     badge: Boolean = false,
+    ringing: Boolean = false,
     badgeBorder: Color = callScreenColor(),
 ) {
     val ring = MaterialTheme.colorScheme.tertiary
     val halo = MaterialTheme.colorScheme.onBackground
+    val motion = rememberInfiniteTransition(label = "callerRing")
+    val spin by motion.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            tween(durationMillis = 24_000, easing = LinearEasing),
+        ),
+        label = "haloSpin",
+    )
+    val breath by motion.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            tween(durationMillis = 1_500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "ringBreath",
+    )
+    val pulse = if (ringing) breath else 0f
     Box(modifier.size(size + 42.dp), contentAlignment = Alignment.Center) {
         Box(
             Modifier
@@ -77,20 +108,22 @@ fun CallerAvatar(
                     val stroke = 2.dp.toPx()
                     val radius = this.size.minDimension / 2f
                     drawCircle(
-                        color = ring.copy(alpha = 0.5f),
-                        radius = radius + 9.dp.toPx(),
+                        color = ring.copy(alpha = 0.5f - 0.22f * pulse),
+                        radius = radius + 9.dp.toPx() + 5.dp.toPx() * pulse,
                         style = Stroke(stroke),
                     )
-                    drawCircle(
-                        color = halo.copy(alpha = 0.2f),
-                        radius = radius + 19.dp.toPx(),
-                        style = Stroke(
-                            stroke,
-                            pathEffect = PathEffect.dashPathEffect(
-                                floatArrayOf(2.dp.toPx(), 6.dp.toPx()),
+                    rotate(spin) {
+                        drawCircle(
+                            color = halo.copy(alpha = 0.2f),
+                            radius = radius + 19.dp.toPx() + 2.dp.toPx() * pulse,
+                            style = Stroke(
+                                stroke,
+                                pathEffect = PathEffect.dashPathEffect(
+                                    floatArrayOf(2.dp.toPx(), 6.dp.toPx()),
+                                ),
                             ),
-                        ),
-                    )
+                        )
+                    }
                 }
                 .background(MaterialTheme.colorScheme.surface, CircleShape),
             contentAlignment = Alignment.Center,
@@ -231,6 +264,8 @@ fun KeypadKey(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     size: Dp = 72.dp,
+    /** Shrinks the digit/letter type with the key on short viewports (#180). */
+    textScale: Float = 1f,
 ) {
     val symbol = digit == "*" || digit == "#"
     Surface(
@@ -247,7 +282,7 @@ fun KeypadKey(
         ) {
             Text(
                 digit,
-                fontSize = if (symbol) 22.sp else 24.sp,
+                fontSize = (if (symbol) 22.sp else 24.sp) * textScale,
                 fontWeight = FontWeight.SemiBold,
                 color = if (symbol) {
                     MaterialTheme.colorScheme.onSurfaceVariant
@@ -258,7 +293,7 @@ fun KeypadKey(
             if (letters.isNotEmpty()) {
                 Text(
                     letters,
-                    fontSize = 8.5.sp,
+                    fontSize = 8.5.sp * textScale,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.14.em,
                     color = MaterialTheme.colorScheme.outline,

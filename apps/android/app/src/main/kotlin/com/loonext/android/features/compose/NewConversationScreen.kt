@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,6 +27,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowUpward
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Schedule
@@ -308,11 +308,12 @@ private fun NewConversationLoaded(
             .background(MaterialTheme.colorScheme.background),
     ) {
         Column(Modifier.fillMaxSize()) {
-            // Header: paper close circle · centered muted title.
+            // Header (canvas 3a): paper close circle · centered muted title.
+            // No bottom padding — the content column's 18dp top is the gap.
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 8.dp),
+                    .padding(start = 18.dp, end = 18.dp, top = 8.dp),
             ) {
                 PaperCircleButton(
                     icon = Icons.Outlined.Close,
@@ -358,11 +359,12 @@ private fun NewConversationLoaded(
                 return@Column
             }
 
+            // Canvas 3a: content 20dp sides / 18dp top, 13dp group rhythm.
             Column(
                 Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
-                    .padding(start = 20.dp, end = 20.dp, top = 10.dp),
+                    .padding(start = 20.dp, end = 20.dp, top = 18.dp),
                 verticalArrangement = Arrangement.spacedBy(13.dp),
             ) {
                 // --- To. ---
@@ -428,27 +430,11 @@ private fun NewConversationLoaded(
                     }
                 }
 
-                // Destination local time: cream quiet-hours notice, else a
-                // quiet muted hint.
-                if (localTime != null) {
-                    val inQuietHours =
-                        localTime.hour >= QUIET_HOURS_START || localTime.hour < QUIET_HOURS_END
-                    if (inQuietHours) {
-                        QuietHoursNotice(
-                            text = "It's ${localTime.format(localTimeFormat)} for this " +
-                                "customer. We'll ask before sending this late.",
-                        )
-                    } else {
-                        Text(
-                            "It's ${localTime.format(localTimeFormat)} for them.",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 10.5.sp,
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                .copy(alpha = 0.75f),
-                            modifier = Modifier.padding(start = 4.dp),
-                        )
-                    }
+                // Consent attestation (canvas 3a, D4): the send itself records
+                // consent with the sender's name — shown as a statement of
+                // fact whenever this compose would start a brand-new contact.
+                if (selectedContact == null && rawE164 != null && validDestination) {
+                    ConsentCard()
                 }
 
                 // From-number picker (only when there's a real choice).
@@ -490,18 +476,22 @@ private fun NewConversationLoaded(
                         value = composer.text,
                         onValueChange = { composer.onTextChange(it.take(4096)) },
                     )
+                    // Canvas meta row: parts + character count left, olive
+                    // Templates link right.
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 4.dp, vertical = 6.dp),
+                            .padding(start = 4.dp, end = 4.dp, top = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         val meter = segmentMeter(composer.text, composer.photos.isNotEmpty())
+                        val chars = composer.text.length
                         val meta = when {
-                            meter.visible -> meter.label
-                            composer.text.isNotEmpty() ->
-                                "${composer.text.length} characters"
+                            meter.visible && chars > 0 ->
+                                "${meter.label} · $chars characters"
 
+                            meter.visible -> meter.label
+                            chars > 0 -> "$chars characters"
                             else -> null
                         }
                         if (meta != null) {
@@ -556,19 +546,41 @@ private fun NewConversationLoaded(
                         },
                     )
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    PaperCircleButton(
-                        icon = Icons.Outlined.Image,
-                        contentDescription = "Attach a photo",
-                        onClick = {
-                            photoPicker.launch(
-                                PickVisualMediaRequest(
-                                    ActivityResultContracts.PickVisualMedia.ImageOnly,
-                                ),
-                            )
-                        },
-                        enabled = composer.photos.size < MAX_PHOTOS,
-                    )
+                PaperCircleButton(
+                    icon = Icons.Outlined.Image,
+                    contentDescription = "Attach a photo",
+                    onClick = {
+                        photoPicker.launch(
+                            PickVisualMediaRequest(
+                                ActivityResultContracts.PickVisualMedia.ImageOnly,
+                            ),
+                        )
+                    },
+                    enabled = composer.photos.size < MAX_PHOTOS,
+                )
+
+                // Destination local time (canvas order: after the message,
+                // before the send pill): cream quiet-hours notice, else a
+                // quiet muted hint.
+                if (localTime != null) {
+                    val inQuietHours =
+                        localTime.hour >= QUIET_HOURS_START || localTime.hour < QUIET_HOURS_END
+                    if (inQuietHours) {
+                        QuietHoursNotice(
+                            text = "It's ${localTime.format(localTimeFormat)} for this " +
+                                "customer. We'll ask before sending this late.",
+                        )
+                    } else {
+                        Text(
+                            "It's ${localTime.format(localTimeFormat)} for them.",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.5.sp,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                .copy(alpha = 0.75f),
+                            modifier = Modifier.padding(start = 4.dp),
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(4.dp))
@@ -579,10 +591,12 @@ private fun NewConversationLoaded(
                 label = if (sending) "Sending…" else "Send text",
                 enabled = canSend,
                 onClick = { send() },
+                // Keyboard clearance comes from the route host's central
+                // imePadding (#187) — no local ime handling here. Canvas
+                // clearance: 20dp sides, 16dp off the bottom edge.
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp)
-                    .imePadding(),
+                    .padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 16.dp),
             )
         }
         SnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter))
@@ -646,6 +660,61 @@ private fun MicroLabel(text: String) {
     )
 }
 
+/**
+ * Consent attestation card (canvas 3a). Not a control: D4 records the
+ * attestation implicitly on every gate-passing compose, so the card states
+ * what sending does — a lime check mark and the recorded-with-your-name copy.
+ */
+@Composable
+private fun ConsentCard(modifier: Modifier = Modifier) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Surface(
+                shape = RoundedCornerShape(7.dp),
+                color = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier
+                    .padding(top = 1.dp)
+                    .size(21.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Outlined.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onTertiary,
+                        modifier = Modifier.size(12.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text(
+                    "This customer asked us to text them.",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 12.5.sp,
+                        lineHeight = 19.sp,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                )
+                Text(
+                    "Required for new contacts. Consent is recorded with your name.",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 10.5.sp,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+    }
+}
+
 /** 44dp paper circle icon button — the design's header/action affordance. */
 @Composable
 private fun PaperCircleButton(
@@ -670,7 +739,7 @@ private fun PaperCircleButton(
                 tint = MaterialTheme.colorScheme.onSurface.copy(
                     alpha = if (enabled) 1f else 0.4f,
                 ),
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(17.dp),
             )
         }
     }
@@ -889,6 +958,9 @@ private fun SendPill(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Disabled = the whole pill washes together (container AND lime mark),
+    // so the resting state reads as one quiet object, not a lit button on a
+    // faded bar.
     val alpha = if (enabled) 1f else 0.5f
     Surface(
         onClick = onClick,
@@ -912,14 +984,14 @@ private fun SendPill(
             )
             Surface(
                 shape = CircleShape,
-                color = MaterialTheme.colorScheme.tertiary,
+                color = MaterialTheme.colorScheme.tertiary.copy(alpha = alpha),
                 modifier = Modifier.size(42.dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Outlined.ArrowUpward,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onTertiary,
+                        tint = MaterialTheme.colorScheme.onTertiary.copy(alpha = alpha),
                         modifier = Modifier.size(17.dp),
                     )
                 }

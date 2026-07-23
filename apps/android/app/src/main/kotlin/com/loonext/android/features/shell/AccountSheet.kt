@@ -6,6 +6,8 @@ import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -87,7 +89,12 @@ fun AccountSheet(
         containerColor = MaterialTheme.colorScheme.background,
     ) {
         Column(
-            Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            // #180: rows must stay reachable at ANY viewport height. When the
+            // sheet is taller than the screen allows, the content scrolls; on
+            // tall screens the scroll never engages and nothing moves.
+            Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             // --- Ink identity tile: workspace + who you are + numbers -----

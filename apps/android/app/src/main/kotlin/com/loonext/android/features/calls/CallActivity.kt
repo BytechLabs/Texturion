@@ -331,7 +331,7 @@ private fun RingingSurface(
             )
         }
         Spacer(Modifier.height(24.dp))
-        CallerAvatar(display, size = 112.dp)
+        CallerAvatar(display, size = 112.dp, ringing = true)
         Text(
             display,
             style = MaterialTheme.typography.headlineSmall.copy(fontSize = 27.sp),

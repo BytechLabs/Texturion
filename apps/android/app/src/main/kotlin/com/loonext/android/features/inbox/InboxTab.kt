@@ -79,7 +79,6 @@ import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.SearchResult
 import com.loonext.android.core.model.Tag
 import com.loonext.android.core.net.ApiClient
-import com.loonext.android.features.compose.NewConversationScreen
 import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.features.thread.appendPage
