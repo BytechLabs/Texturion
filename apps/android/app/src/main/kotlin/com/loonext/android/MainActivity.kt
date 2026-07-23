@@ -51,6 +51,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.Me
 import com.loonext.android.features.auth.AuthCallbacks
 import com.loonext.android.features.auth.AuthFlow
@@ -289,6 +290,15 @@ private fun ReadyShell(
     var countsKey by remember { mutableIntStateOf(0) }
     var hydratedMe by remember(companyId) { mutableStateOf(me) }
 
+    // #201: the avatar dot and the account sheet badge collect the SAME
+    // cached predicate the notifications screen maintains
+    // (CacheKeys.unreadNotifications), so an optimistic mark-read clears
+    // every surface in the same frame. Mark endpoints broadcast no realtime
+    // event, so a shell-local count could never learn about reads.
+    val unreadNotifications by remember(companyId) {
+        graph.storeCache.flowOf<Int>(CacheKeys.unreadNotifications(companyId))
+    }.collectAsStateWithLifecycle()
+
     // The thread the user is LOOKING at right now (tab-internal or overlay) —
     // suppresses the global inbound toast for that conversation (#165).
     var tabViewedConversation by remember { mutableStateOf<String?>(null) }
@@ -347,17 +357,25 @@ private fun ReadyShell(
         val openTasks = runCatching {
             graph.tasksRepo.tasks(companyId, limit = 100).data.size
         }.getOrDefault(0)
-        val unreadNotifications = runCatching {
-            graph.notificationsRepo.unreadCount(companyId).count
-        }.getOrDefault(0)
         counts = ShellCounts(
             forYou = forYou?.let {
                 it.waiting_on_you.size + it.my_tasks.size + it.unread.size
             } ?: 0,
             unreadConversations = unread,
             openTasks = openTasks,
-            unreadNotifications = unreadNotifications,
         )
+        // #201: the notifications badge refreshes on the same ticks but lives
+        // in StoreCache (the ONE predicate every dot reads), and the write is
+        // gated on no mark POST being in flight: an unrelated event landing
+        // mid-mark used to refetch the pre-mark count and re-light the avatar.
+        val readState = graph.notificationsReadState.forCompany(companyId)
+        runCatching { graph.notificationsRepo.unreadCount(companyId).count }
+            .onSuccess { count ->
+                readState.offerServerCount(
+                    graph.storeCache.flowOf<Int>(CacheKeys.unreadNotifications(companyId)),
+                    count,
+                )
+            }
     }
     LaunchedEffect(companyId) {
         graph.realtime.events.collect { event ->
@@ -379,6 +397,7 @@ private fun ReadyShell(
         MainShell(
             me = hydratedMe,
             counts = counts,
+            unreadNotifications = unreadNotifications ?: 0,
             tab = tab,
             onTabChange = { tab = it },
             onCompose = { push(Overlay.Compose(null)) },
@@ -568,7 +587,7 @@ private fun ReadyShell(
             graph = graph,
             me = hydratedMe,
             companyId = companyId,
-            unreadNotifications = counts.unreadNotifications,
+            unreadNotifications = unreadNotifications ?: 0,
             onOpenContacts = { tab = ShellTab.Contacts },
             onOpenNotifications = { push(Overlay.Notifications) },
             onOpenSettings = { push(Overlay.Settings) },

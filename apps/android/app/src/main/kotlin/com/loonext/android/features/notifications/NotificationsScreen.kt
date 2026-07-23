@@ -38,6 +38,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -81,9 +82,10 @@ import kotlinx.coroutines.launch
  * channel plus a 60s poll.
  *
  * #176 cache-first: the accumulated feed (CacheKeys.notifications) and the
- * badge (CacheKeys.unreadNotifications, shared with the For You bell) render
- * instantly from StoreCache on every return visit and revalidate silently;
- * the only spinner is the true first in-process fetch.
+ * badge (CacheKeys.unreadNotifications, shared with the For You bell, the
+ * shell avatar dot, and the account sheet, #201) render instantly from
+ * StoreCache on every return visit and revalidate silently; the only spinner
+ * is the true first in-process fetch.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -103,23 +105,18 @@ fun NotificationsScreen(
     var refreshing by remember(companyId) { mutableStateOf(false) }
     val pullState = rememberPullToRefreshState()
 
-    // The furthest watermark this session has advanced to (forward-only, the
-    // server RPC's semantics). Re-applied to every fetched page so a refetch
-    // racing an in-flight mark-read POST can't resurrect stale unread dots.
-    var localWatermark by remember(companyId) { mutableStateOf<String?>(null) }
-    // Server unread counts are ignored while a mark POST is in flight (they'd
-    // briefly resurrect the pre-mark badge); reconciled on settle.
-    var pendingMarks by remember(companyId) { mutableStateOf(0) }
-    // Per-item reads this session (#188): applied over every refetch so a
-    // revalidate racing the POST can't resurrect a tapped row's dot.
-    val localReadIds = remember(companyId) { mutableSetOf<String>() }
-    fun withLocalReads(fetched: List<NotificationItem>): List<NotificationItem> {
-        val marked = localWatermark?.let { applyWatermark(fetched, it) } ?: fetched
-        if (localReadIds.isEmpty()) return marked
-        return marked.map {
-            if (it.unread && it.id in localReadIds) it.copy(unread = false) else it
-        }
-    }
+    // #201: the mark bookkeeping (in-flight POSTs, per-item reads, watermark)
+    // lives on the graph, not in composition. Tapping a row navigates away
+    // and unmounts this screen while its POST survives on appScope; guards
+    // that died with the composition let the fresh instance's first refetch
+    // repaint pre-mark server state.
+    val readState = remember(companyId) { graph.notificationsReadState.forCompany(companyId) }
+    // A failed POST can settle after navigation disposes this screen; the
+    // rollback writes are safe (StoreCache flows, not composition state) but
+    // the snackbar is not, so late failures skip it instead of suspending on
+    // a host nothing renders.
+    var mounted by remember { mutableStateOf(true) }
+    DisposableEffect(Unit) { onDispose { mounted = false } }
 
     // #176 cache-first: the ACCUMULATED feed (first page + any loaded older
     // pages) is the cached value, so a return visit paints everything it had
@@ -127,8 +124,9 @@ fun NotificationsScreen(
     val feedFlow = remember(companyId) {
         graph.storeCache.flowOf<Page<NotificationItem>>(CacheKeys.notifications(companyId))
     }
-    // The badge shares the For You bell's key: mark-read emits no realtime
-    // event, so writing the count here is what keeps the bell dot honest.
+    // The badge shares its key with the For You bell, the shell avatar dot,
+    // and the account sheet (#201): mark-read emits no realtime event, so
+    // writing the count here is what keeps every dot honest.
     val unreadFlow = remember(companyId) {
         graph.storeCache.flowOf<Int>(CacheKeys.unreadNotifications(companyId))
     }
@@ -145,13 +143,17 @@ fun NotificationsScreen(
         cache = graph.storeCache,
         key = CacheKeys.notifications(companyId),
         refreshKey = refreshKey,
-    ) { repo.feed(companyId).let { page -> page.copy(data = withLocalReads(page.data)) } }
+    ) {
+        repo.feed(companyId).let { page ->
+            page.copy(data = readState.withLocalReads(page.data))
+        }
+    }
 
     // Badge refresh on first show and every realtime tick (same cadence the
     // old feed effect carried); ignored while a mark POST is in flight.
     LaunchedEffect(companyId, refreshKey) {
         runCatching { repo.unreadCount(companyId) }
-            .onSuccess { if (pendingMarks == 0) unreadFlow.value = it.count }
+            .onSuccess { readState.offerServerCount(unreadFlow, it.count) }
     }
 
     // The feed is derived from messages/conversations/tasks/calls — any of
@@ -175,7 +177,7 @@ fun NotificationsScreen(
         while (true) {
             delay(60_000)
             runCatching { repo.unreadCount(companyId) }
-                .onSuccess { if (pendingMarks == 0) unreadFlow.value = it.count }
+                .onSuccess { readState.offerServerCount(unreadFlow, it.count) }
         }
     }
 
@@ -184,7 +186,7 @@ fun NotificationsScreen(
         val previousCount = unreadCount
         // #188: truly per-item now — flip ONLY the tapped row, never advance
         // the watermark (that marked everything older read too).
-        localReadIds += item.id
+        readState.localReadIds += item.id
         feedFlow.value?.let { f ->
             feedFlow.value = f.copy(
                 data = f.data.map {
@@ -193,7 +195,7 @@ fun NotificationsScreen(
             )
         }
         unreadFlow.value = (previousCount - 1).coerceAtLeast(0)
-        pendingMarks++
+        readState.beginMark()
         // appScope, not the composable scope: the tap navigates away
         // immediately, and a composition-scoped launch would cancel the POST
         // mid-flight — the other half of the "tapping never marks it read" bug.
@@ -201,7 +203,7 @@ fun NotificationsScreen(
             try {
                 repo.markReadItem(companyId, item.id, item.created_at)
             } catch (_: Exception) {
-                localReadIds -= item.id
+                readState.localReadIds -= item.id
                 feedFlow.value?.let { f ->
                     feedFlow.value = f.copy(
                         data = f.data.map {
@@ -210,9 +212,15 @@ fun NotificationsScreen(
                     )
                 }
                 unreadFlow.value = previousCount
-                snackbar.showSnackbar("Couldn't mark that read.")
+                if (mounted) snackbar.showSnackbar("Couldn't mark that read.")
             } finally {
-                pendingMarks--
+                // When the LAST in-flight mark settles, run one guarded
+                // reconcile: mark endpoints emit no realtime event, so no
+                // later tick would correct any drift.
+                if (readState.settleMark()) {
+                    runCatching { repo.unreadCount(companyId) }
+                        .onSuccess { readState.offerServerCount(unreadFlow, it.count) }
+                }
             }
         }
     }
@@ -222,28 +230,36 @@ fun NotificationsScreen(
         if (unreadCount == 0 && previousFeed?.data.orEmpty().none { it.unread }) return
         haptics.confirm()
         val previousCount = unreadCount
-        val previousWatermark = localWatermark
+        val previousWatermark = readState.localWatermark
         if (previousFeed != null) {
             feedFlow.value = previousFeed.copy(
                 data = previousFeed.data.map { if (it.unread) it.copy(unread = false) else it },
             )
         }
         unreadFlow.value = 0
-        pendingMarks++
-        scope.launch {
+        readState.beginMark()
+        // appScope for the same reason markItemRead uses it: backing out of
+        // the overlay cancels a composition-scoped launch mid-POST, and the
+        // catch rollback would resurrect every dot while the server watermark
+        // never advanced.
+        graph.appScope.launch {
             try {
                 val result = repo.markAllRead(companyId)
-                localWatermark = advanceWatermark(localWatermark, result.last_seen_at)
+                readState.localWatermark =
+                    advanceWatermark(readState.localWatermark, result.last_seen_at)
                 // Silent revalidate so the cached feed reconciles with the
                 // server; withLocalReads keeps the advance applied meanwhile.
                 refreshKey++
             } catch (_: Exception) {
                 if (previousFeed != null) feedFlow.value = previousFeed
                 unreadFlow.value = previousCount
-                localWatermark = previousWatermark
-                snackbar.showSnackbar("Couldn't mark all read.")
+                readState.localWatermark = previousWatermark
+                if (mounted) snackbar.showSnackbar("Couldn't mark all read.")
             } finally {
-                pendingMarks--
+                if (readState.settleMark()) {
+                    runCatching { repo.unreadCount(companyId) }
+                        .onSuccess { readState.offerServerCount(unreadFlow, it.count) }
+                }
             }
         }
     }
@@ -257,9 +273,9 @@ fun NotificationsScreen(
         scope.launch {
             try {
                 val page = repo.feed(companyId)
-                feedFlow.value = page.copy(data = withLocalReads(page.data))
+                feedFlow.value = page.copy(data = readState.withLocalReads(page.data))
                 runCatching { repo.unreadCount(companyId) }
-                    .onSuccess { if (pendingMarks == 0) unreadFlow.value = it.count }
+                    .onSuccess { readState.offerServerCount(unreadFlow, it.count) }
             } catch (_: Exception) {
                 snackbar.showSnackbar("Couldn't refresh.")
             } finally {
@@ -281,7 +297,7 @@ fun NotificationsScreen(
                 // visit repaints.
                 val base = feedFlow.value ?: startFeed
                 feedFlow.value = base.copy(
-                    data = (base.data + withLocalReads(page.data))
+                    data = (base.data + readState.withLocalReads(page.data))
                         .distinctBy { "${it.type}:${it.id}" },
                     next_cursor = page.next_cursor,
                 )

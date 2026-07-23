@@ -1,6 +1,5 @@
 package com.loonext.android.features.foryou
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -19,12 +18,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -64,7 +61,6 @@ import com.loonext.android.features.calls.CallsRepository
 import com.loonext.android.features.calls.callOutcomeLabel
 import com.loonext.android.features.calls.callerDisplayName
 import com.loonext.android.features.calls.isActionableMiss
-import com.loonext.android.features.notifications.NotificationsScreen
 import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.CenteredError
@@ -94,7 +90,7 @@ import kotlinx.coroutines.delay
  *
  * Paper & Olive pass (screens 19/29 + the screen-18 activation grammar):
  * identity avatar top-left, a 44dp paper-circle bell (coral dot when unread —
- * opens the notifications feed in place), Bricolage "For you" heading with a
+ * opens the notifications route above the shell), Bricolage "For you" heading with a
  * one-line summary, then each queue section as a radius-22 paper card of rows.
  *
  * [onOpenCalls] is the shell's navigation to the full Calls surface — the
@@ -135,11 +131,24 @@ fun ForYouTab(
     ) { callsRepo.calls(companyId, limit = 3).data }
     // Coral dot on the bell — refreshed on the same ticks (the feed derives
     // from message/task/call activity). A miss keeps the last known count.
+    // #201: the refetch goes through the shared mark guards, so a tick that
+    // lands during an in-flight mark POST can't write the pre-mark server
+    // count back into the key every badge surface reads.
     val unreadState = rememberCacheFirst(
         cache = graph.storeCache,
         key = CacheKeys.unreadNotifications(companyId),
         refreshKey = refreshKey,
-    ) { graph.notificationsRepo.unreadCount(companyId).count }
+    ) {
+        val readState = graph.notificationsReadState.forCompany(companyId)
+        val fetched = graph.notificationsRepo.unreadCount(companyId).count
+        // Cache read AFTER the fetch: a mark can start mid-request, and its
+        // optimistic write is the value that must win.
+        readState.reconcileFetched(
+            cached = graph.storeCache
+                .flowOf<Int>(CacheKeys.unreadNotifications(companyId)).value,
+            fetched = fetched,
+        )
+    }
     val unreadNotifications = (unreadState as? LoadState.Ready)?.value ?: 0
     // Any conversation/task/call movement can change the queue — refetch quietly.
     LaunchedEffect(companyId) {
@@ -194,40 +203,6 @@ fun ForYouTab(
                 modifier = Modifier.fillMaxSize(),
             )
         }
-    }
-}
-
-/** The notifications feed hosted in place (paper-circle back + display title). */
-@Composable
-private fun NotificationsHost(
-    graph: AppGraph,
-    companyId: String,
-    onBack: () -> Unit,
-    onOpenConversation: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    BackHandler(onBack = onBack)
-    Column(modifier.fillMaxSize()) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            CircleIconButton(
-                icon = Icons.AutoMirrored.Outlined.ArrowBack,
-                contentDescription = "Back",
-                onClick = onBack,
-            )
-            Spacer(Modifier.width(12.dp))
-            ScreenTitle("Notifications")
-        }
-        NotificationsScreen(
-            graph = graph,
-            companyId = companyId,
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            onOpenConversation = onOpenConversation,
-        )
     }
 }
 

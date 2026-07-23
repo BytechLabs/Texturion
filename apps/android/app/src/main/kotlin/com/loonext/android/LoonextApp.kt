@@ -86,6 +86,15 @@ class AppGraph(private val app: Application) {
      */
     val storeCache = com.loonext.android.core.data.StoreCache()
 
+    /**
+     * #201: process-lifetime mark-read guards for the notifications badge.
+     * They must outlive NotificationsScreen's composition (the tap that marks
+     * a row read also navigates away), so they live here beside the cache
+     * whose CacheKeys.unreadNotifications writes they gate.
+     */
+    val notificationsReadState =
+        com.loonext.android.features.notifications.NotificationsReadState()
+
     val meRepo = MeRepository(api)
     val forYouRepo = ForYouRepository(api)
     val inboxRepo = InboxRepository(api)
@@ -95,7 +104,10 @@ class AppGraph(private val app: Application) {
     val searchRepo = SearchRepository(api)
 
     init {
-        authManager.onSignedOut = { storeCache.clear() }
+        authManager.onSignedOut = {
+            storeCache.clear()
+            notificationsReadState.clear()
+        }
         // #176 warmer: the moment a company is active, prime every tab's
         // default query so even the first tap after launch paints instantly.
         appScope.launch {

@@ -84,6 +84,7 @@ enum class ShellTab(val label: String) {
 fun MainShell(
     me: Me,
     counts: ShellCounts,
+    unreadNotifications: Int,
     tab: ShellTab,
     onTabChange: (ShellTab) -> Unit,
     onCompose: () -> Unit,
@@ -220,7 +221,7 @@ fun MainShell(
                         ) {
                             InitialsAvatar(me.display_name.ifBlank { null }, size = 34.dp)
                         }
-                        if (counts.unreadNotifications > 0) {
+                        if (unreadNotifications > 0) {
                             AttentionDot(
                                 Modifier.align(Alignment.TopEnd),
                                 size = 9.dp,
@@ -277,13 +278,14 @@ private fun NavSlot(
     }
 }
 
-/** Live nav counts. The pill nav shows only the avatar's coral dot; the
- *  numeric counts feed screen headers ("5 things need you"). */
+/** Live nav counts feeding screen headers ("5 things need you"). The avatar's
+ *  coral dot is NOT here: it reads the shared CacheKeys.unreadNotifications
+ *  predicate the notifications screen maintains (#201), never a parallel
+ *  count that read mutations can't reach. */
 data class ShellCounts(
     val forYou: Int = 0,
     val unreadConversations: Int = 0,
     val openTasks: Int = 0,
-    val unreadNotifications: Int = 0,
 )
 
 /** Routes the active tab to its feature entry. */
