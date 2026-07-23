@@ -48,7 +48,9 @@ import com.loonext.android.MainActivity
 import com.loonext.android.push.APP_ORIGIN
 import com.loonext.android.telephony.CallNotifier
 import com.loonext.android.telephony.CallPhase
+import com.loonext.android.telephony.CallSnapshot
 import com.loonext.android.telephony.SoftphoneManager
+import com.loonext.android.telephony.SoftphoneSnapshot
 import com.loonext.android.telephony.SoftphoneStatus
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.theme.LoonextTheme
@@ -334,70 +336,122 @@ private fun CallSurface(
 
     val companyId = manager.currentCompanyId()
     Surface(modifier = Modifier.fillMaxSize(), color = callScreenColor()) {
-        when {
-            // Only hand over to InCallScreen once a live call EXISTS — it closes
-            // itself when liveCalls is empty, which would kill this screen mid-answer.
-            live != null && companyId != null -> InCallScreen(
+        Box(Modifier.fillMaxSize()) {
+            // #204: the living Paper & Olive backdrop under EVERY branch of this
+            // surface (ring - including the lock-screen ring - connecting, live,
+            // failed). Presentation only: drawn behind, touches no call flow.
+            CallBackdrop(
+                phase = activityBackdropPhase(
+                    livePhase = live?.phase,
+                    answerFailed = answerFailed,
+                    answering = answering,
+                    ringing = ringing != null || target != null,
+                ),
+            )
+            CallSurfaceContent(
+                live = live,
+                companyId = companyId,
                 manager = manager,
                 repo = repo,
-                companyId = companyId,
-                // #202: a REAL deep link into the shell task (the notification
-                // tap's own mechanism) - never an empty lambda that makes the
-                // Note button a silent no-op on lock-screen answers.
-                openConversation = onOpenConversation,
+                answerFailed = answerFailed,
+                answering = answering,
+                ringing = ringing,
+                target = target,
+                callerName = callerName,
+                callerNumber = callerNumber,
+                snapshot = snapshot,
+                onOpenConversation = onOpenConversation,
                 onClose = onClose,
+                onAnswerWithMic = { answerWithMic() },
+                onDecline = { declineNow() },
             )
+        }
+    }
+}
 
-            // #195 F4: the answered call never connected — the honest terminal
-            // state (auto-closes shortly; the error is cleared so it does not
-            // linger on other surfaces).
-            answerFailed && live == null -> {
-                LaunchedEffect(Unit) {
-                    kotlinx.coroutines.delay(3_000)
-                    manager.clearError()
-                    onClose()
-                }
-                CallStatus(
-                    title = callerName.ifBlank { callerNumber },
-                    status = SoftphoneManager.ANSWER_FAILED_MESSAGE,
-                    actionLabel = "Close",
-                    onAction = {
-                        manager.clearError()
-                        onClose()
-                    },
-                )
+/** The per-state content of [CallSurface], unchanged in behavior - split out
+ *  so the #204 backdrop can sit behind every branch in one place. */
+@Composable
+private fun CallSurfaceContent(
+    live: CallSnapshot?,
+    companyId: String?,
+    manager: SoftphoneManager,
+    repo: CallsRepository,
+    answerFailed: Boolean,
+    answering: Boolean,
+    ringing: CallSnapshot?,
+    target: String?,
+    callerName: String,
+    callerNumber: String,
+    snapshot: SoftphoneSnapshot,
+    onOpenConversation: (String) -> Unit,
+    onClose: () -> Unit,
+    onAnswerWithMic: () -> Unit,
+    onDecline: () -> Unit,
+) {
+    when {
+        // Only hand over to InCallScreen once a live call EXISTS — it closes
+        // itself when liveCalls is empty, which would kill this screen mid-answer.
+        live != null && companyId != null -> InCallScreen(
+            manager = manager,
+            repo = repo,
+            companyId = companyId,
+            // #202: a REAL deep link into the shell task (the notification
+            // tap's own mechanism) - never an empty lambda that makes the
+            // Note button a silent no-op on lock-screen answers.
+            openConversation = onOpenConversation,
+            onClose = onClose,
+        )
+
+        // #195 F4: the answered call never connected — the honest terminal
+        // state (auto-closes shortly; the error is cleared so it does not
+        // linger on other surfaces).
+        answerFailed && live == null -> {
+            LaunchedEffect(Unit) {
+                kotlinx.coroutines.delay(3_000)
+                manager.clearError()
+                onClose()
             }
-
-            // Answered (or live but no companyId yet): a status surface that always
-            // offers a way OUT, so a cold answer is never a controls-free dead end.
-            live != null || answering -> CallStatus(
-                title = (live?.peerName ?: callerName).ifBlank { callerNumber },
-                status = if (live != null) "Connected" else "Connecting…",
-                actionLabel = "Hang up",
+            CallStatus(
+                title = callerName.ifBlank { callerNumber },
+                status = SoftphoneManager.ANSWER_FAILED_MESSAGE,
+                actionLabel = "Close",
                 onAction = {
-                    val id = live?.id
-                    if (id != null) manager.hangup(id) else target?.let { manager.declineIncoming(it) }
+                    manager.clearError()
                     onClose()
                 },
             )
-
-            ringing != null || target != null -> RingingSurface(
-                title = (ringing?.peerName ?: callerName).ifBlank { callerNumber },
-                subtitle = (ringing?.peerNumber ?: callerNumber),
-                // #195 F7: honest ring surface — the line is not READY, so an
-                // answer may take a beat (or fail); say so quietly.
-                reconnecting = snapshot.status != SoftphoneStatus.READY,
-                onAnswer = { answerWithMic() },
-                onDecline = { declineNow() },
-            )
-
-            else -> CallStatus(
-                title = callerName.ifBlank { callerNumber },
-                status = "Connecting…",
-                actionLabel = null,
-                onAction = {},
-            )
         }
+
+        // Answered (or live but no companyId yet): a status surface that always
+        // offers a way OUT, so a cold answer is never a controls-free dead end.
+        live != null || answering -> CallStatus(
+            title = (live?.peerName ?: callerName).ifBlank { callerNumber },
+            status = if (live != null) "Connected" else "Connecting…",
+            actionLabel = "Hang up",
+            onAction = {
+                val id = live?.id
+                if (id != null) manager.hangup(id) else target?.let { manager.declineIncoming(it) }
+                onClose()
+            },
+        )
+
+        ringing != null || target != null -> RingingSurface(
+            title = (ringing?.peerName ?: callerName).ifBlank { callerNumber },
+            subtitle = (ringing?.peerNumber ?: callerNumber),
+            // #195 F7: honest ring surface — the line is not READY, so an
+            // answer may take a beat (or fail); say so quietly.
+            reconnecting = snapshot.status != SoftphoneStatus.READY,
+            onAnswer = onAnswerWithMic,
+            onDecline = onDecline,
+        )
+
+        else -> CallStatus(
+            title = callerName.ifBlank { callerNumber },
+            status = "Connecting…",
+            actionLabel = null,
+            onAction = {},
+        )
     }
 }
 

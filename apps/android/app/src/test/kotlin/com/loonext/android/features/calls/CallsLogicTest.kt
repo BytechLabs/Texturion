@@ -2,6 +2,7 @@ package com.loonext.android.features.calls
 
 import com.loonext.android.core.model.Call
 import com.loonext.android.telephony.AudioRoute
+import com.loonext.android.telephony.CallPhase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -187,5 +188,111 @@ class CallsLogicTest {
         assertEquals("Note", noteControlLabel(linked = false, resolving = false))
         // A linked note is never pending, whatever the resolver flag says.
         assertEquals("Note", noteControlLabel(linked = true, resolving = true))
+    }
+
+    // -------------------------------------------- #204 living backdrop
+
+    @Test
+    fun `backdrop drifts calm at full glow while ringing or dialing`() {
+        assertEquals(BackdropSpec(drift = 1f, glow = 1f), backdropSpec(CallPhase.RINGING))
+        assertEquals(BackdropSpec(drift = 1f, glow = 1f), backdropSpec(CallPhase.CONNECTING))
+    }
+
+    @Test
+    fun `backdrop nearly stills during the call and cools at the end`() {
+        val ringing = backdropSpec(CallPhase.RINGING)
+        val active = backdropSpec(CallPhase.ACTIVE)
+        val held = backdropSpec(CallPhase.HELD)
+        val ended = backdropSpec(CallPhase.ENDED)
+        // The conversation owns the screen: motion drops hard but never to zero.
+        assertTrue(active.drift < ringing.drift * 0.4f)
+        assertTrue(active.drift > 0f)
+        // Hold sits quieter than active; the end is the quietest and dimmest.
+        assertTrue(held.drift <= active.drift)
+        assertTrue(held.glow < active.glow)
+        assertTrue(ended.drift <= held.drift)
+        assertTrue(ended.glow < held.glow)
+        assertTrue(ended.glow > 0f)
+        // No call at all reads exactly like an ended one (cooling, not dead).
+        assertEquals(ended, backdropSpec(null))
+    }
+
+    @Test
+    fun `connect pulse fires exactly on ring-or-dial to active`() {
+        assertTrue(connectPulseFires(CallPhase.RINGING, CallPhase.ACTIVE))
+        assertTrue(connectPulseFires(CallPhase.CONNECTING, CallPhase.ACTIVE))
+        // Resume from hold is not a connect.
+        assertFalse(connectPulseFires(CallPhase.HELD, CallPhase.ACTIVE))
+        // Composing onto an already-active call must not flash.
+        assertFalse(connectPulseFires(null, CallPhase.ACTIVE))
+        assertFalse(connectPulseFires(CallPhase.ACTIVE, CallPhase.ACTIVE))
+        // Leaving active never pulses.
+        assertFalse(connectPulseFires(CallPhase.ACTIVE, CallPhase.HELD))
+        assertFalse(connectPulseFires(CallPhase.ACTIVE, CallPhase.ENDED))
+        assertFalse(connectPulseFires(CallPhase.RINGING, CallPhase.ENDED))
+        assertFalse(connectPulseFires(CallPhase.RINGING, null))
+    }
+
+    @Test
+    fun `activity backdrop phase mirrors the surface branch order`() {
+        // A live call always wins, whatever else is set.
+        assertEquals(
+            CallPhase.ACTIVE,
+            activityBackdropPhase(
+                livePhase = CallPhase.ACTIVE,
+                answerFailed = true,
+                answering = true,
+                ringing = true,
+            ),
+        )
+        assertEquals(
+            CallPhase.HELD,
+            activityBackdropPhase(
+                livePhase = CallPhase.HELD,
+                answerFailed = false,
+                answering = false,
+                ringing = false,
+            ),
+        )
+        // A failed answer cools like an ended call.
+        assertEquals(
+            CallPhase.ENDED,
+            activityBackdropPhase(
+                livePhase = null,
+                answerFailed = true,
+                answering = true,
+                ringing = true,
+            ),
+        )
+        // Mid-answer with nothing live yet: connecting drift.
+        assertEquals(
+            CallPhase.CONNECTING,
+            activityBackdropPhase(
+                livePhase = null,
+                answerFailed = false,
+                answering = true,
+                ringing = true,
+            ),
+        )
+        // The ring surface (including the lock-screen ring).
+        assertEquals(
+            CallPhase.RINGING,
+            activityBackdropPhase(
+                livePhase = null,
+                answerFailed = false,
+                answering = false,
+                ringing = true,
+            ),
+        )
+        // The cold "Connecting…" fallback.
+        assertEquals(
+            CallPhase.CONNECTING,
+            activityBackdropPhase(
+                livePhase = null,
+                answerFailed = false,
+                answering = false,
+                ringing = false,
+            ),
+        )
     }
 }

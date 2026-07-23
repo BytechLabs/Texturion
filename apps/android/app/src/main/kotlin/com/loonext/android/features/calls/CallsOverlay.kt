@@ -116,16 +116,30 @@ fun CallsOverlay(
                 Modifier.fillMaxSize(),
                 color = callScreenColor(),
             ) {
-                InCallScreen(
-                    manager = manager,
-                    repo = repo,
-                    companyId = companyId,
-                    openConversation = { id ->
-                        expanded = false
-                        openConversation(id)
-                    },
-                    onClose = { expanded = false },
-                )
+                Box(Modifier.fillMaxSize()) {
+                    // #204: the same living backdrop as the standalone call
+                    // surface, behind the expanded in-call screen. This dialog
+                    // is also the outbound dialing surface (placing a call sets
+                    // the active id while CONNECTING), so the calm dial drift
+                    // and the connect pulse both happen right here.
+                    CallBackdrop(
+                        phase = (
+                            snapshot.activeCall
+                                ?: snapshot.liveCalls.firstOrNull { it.phase != CallPhase.RINGING }
+                                ?: snapshot.liveCalls.firstOrNull()
+                            )?.phase,
+                    )
+                    InCallScreen(
+                        manager = manager,
+                        repo = repo,
+                        companyId = companyId,
+                        openConversation = { id ->
+                            expanded = false
+                            openConversation(id)
+                        },
+                        onClose = { expanded = false },
+                    )
+                }
             }
         }
     }

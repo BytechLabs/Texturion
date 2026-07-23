@@ -3,6 +3,7 @@ package com.loonext.android.features.calls
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
 import com.loonext.android.telephony.AudioRoute
+import com.loonext.android.telephony.CallPhase
 import com.loonext.android.ui.common.formatPhone
 
 /**
@@ -132,6 +133,52 @@ fun routeTapTarget(toggle: AudioRoute, lit: Boolean): AudioRoute =
  */
 fun noteControlLabel(linked: Boolean, resolving: Boolean): String =
     if (!linked && resolving) "Linking…" else "Note"
+
+// ------------------------------------------------------ #204 living backdrop
+
+/**
+ * How the call backdrop carries the moment (#204). [drift] scales blob travel:
+ * 1 while a call rings or dials (calm drift), near 0 during the call (the
+ * backdrop nearly stills so the conversation owns the screen). [glow] scales
+ * blob alpha: full while the line is alive, cooling toward quiet as the call
+ * ends. Pure so the phase-to-mood mapping unit-tests on the JVM.
+ */
+data class BackdropSpec(val drift: Float, val glow: Float)
+
+/** Call phase -> backdrop mood. A null phase reads as an ended/cooling line. */
+fun backdropSpec(phase: CallPhase?): BackdropSpec = when (phase) {
+    CallPhase.RINGING, CallPhase.CONNECTING -> BackdropSpec(drift = 1f, glow = 1f)
+    CallPhase.ACTIVE -> BackdropSpec(drift = 0.28f, glow = 0.85f)
+    CallPhase.HELD -> BackdropSpec(drift = 0.2f, glow = 0.6f)
+    CallPhase.ENDED, null -> BackdropSpec(drift = 0.1f, glow = 0.25f)
+}
+
+/**
+ * The one soft brightening pulse fires exactly when a ringing or dialing call
+ * CONNECTS. Never on resume from hold, and never when a surface composes onto
+ * an already-active call (arriving late must not flash).
+ */
+fun connectPulseFires(previous: CallPhase?, current: CallPhase?): Boolean =
+    current == CallPhase.ACTIVE &&
+        (previous == CallPhase.RINGING || previous == CallPhase.CONNECTING)
+
+/**
+ * The standalone call surface's backdrop phase - mirrors CallActivity's branch
+ * order exactly (live call > failed answer > answering > ring > cold connect)
+ * so the backdrop always matches the surface actually shown.
+ */
+fun activityBackdropPhase(
+    livePhase: CallPhase?,
+    answerFailed: Boolean,
+    answering: Boolean,
+    ringing: Boolean,
+): CallPhase = when {
+    livePhase != null -> livePhase
+    answerFailed -> CallPhase.ENDED
+    answering -> CallPhase.CONNECTING
+    ringing -> CallPhase.RINGING
+    else -> CallPhase.CONNECTING
+}
 
 /** "(415) 555-01…" progressive format while typing (NANP-shaped input). */
 fun formatAsYouDial(raw: String): String {
