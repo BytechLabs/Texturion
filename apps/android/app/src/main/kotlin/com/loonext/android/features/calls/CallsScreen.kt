@@ -56,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -69,7 +70,9 @@ import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
 import com.loonext.android.core.model.Me
+import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.NumberStatus
+import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.features.contacts.ContactMutations
 import com.loonext.android.features.contacts.CreateContactSheet
@@ -77,6 +80,7 @@ import com.loonext.android.BuildConfig
 import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.telephony.SoftphoneStatus
+import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
@@ -143,10 +147,11 @@ internal suspend fun fetchCallsLog(
 }
 
 /**
- * /calls — softphone status line, All|Missed|Voicemail log (cursor-paged,
- * grouped by day), outcome rows, voicemail playback, realtime call.updated
- * refresh, and the dialer (spec 25). Registering the softphone here (and in
- * [CallsOverlay]) is what makes this member ring-eligible.
+ * /calls — softphone status line, the #210 Ongoing card (who holds which
+ * line right now, pinned above the rail), All|Missed|Voicemail log
+ * (cursor-paged, grouped by day), outcome rows, voicemail playback, realtime
+ * call.updated refresh, and the dialer (spec 25). Registering the softphone
+ * here (and in [CallsOverlay]) is what makes this member ring-eligible.
  */
 @Composable
 fun CallsScreen(
@@ -203,6 +208,42 @@ fun CallsScreen(
         graph.realtime.reconnected.collect { refreshKey++ }
     }
 
+    // #210: ongoing (outcome-null) rows always derive from the All-filter
+    // payload — an outcome= filter can never return them — so the pinned card
+    // stays truthful whatever filter pill is active.
+    val defaultCallsKey = CacheKeys.calls(companyId)
+    val defaultLog by remember(companyId) {
+        graph.storeCache.flowOf<CallsLog>(defaultCallsKey)
+    }.collectAsStateWithLifecycle()
+    val ongoing = remember(defaultLog) { ongoingCalls(defaultLog?.calls ?: emptyList()) }
+
+    // While a narrower filter is active, realtime/reconnect/pull bumps of
+    // refreshKey only revalidate that filter's key above — replay the All
+    // fetch too so the card clears the moment a call resolves.
+    LaunchedEffect(companyId, refreshKey, filter) {
+        if (filter != CallsFilter.All) {
+            runCatching {
+                graph.storeCache.put(
+                    defaultCallsKey,
+                    fetchCallsLog(graph.storeCache, repo, companyId, null, defaultCallsKey),
+                )
+            }
+        }
+    }
+
+    // Roster for "who answered" (#210): the same member list the inbox tab
+    // already caches under inboxMembers — filled here from the existing
+    // GET /v1/members read only if an ongoing call needs a name first.
+    val membersFlow = remember(companyId) {
+        graph.storeCache.flowOf<List<Member>>(CacheKeys.inboxMembers(companyId))
+    }
+    val members by membersFlow.collectAsStateWithLifecycle()
+    LaunchedEffect(companyId, ongoing.isNotEmpty()) {
+        if (ongoing.isNotEmpty() && membersFlow.value == null) {
+            runCatching { membersFlow.value = repo.members(companyId).data }
+        }
+    }
+
     Box(modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             run {
@@ -227,6 +268,21 @@ fun CallsScreen(
                         modifier = Modifier.padding(bottom = 7.dp),
                     )
                 }
+            }
+
+            // #210: who is holding which line RIGHT NOW — pinned above the
+            // filter rail whenever the company has in-flight call rows;
+            // absent entirely when it has none.
+            if (ongoing.isNotEmpty()) {
+                OngoingCallsCard(
+                    calls = ongoing,
+                    members = members ?: emptyList(),
+                    numbers = me.company?.numbers ?: emptyList(),
+                    openConversation = openConversation,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 18.dp, end = 18.dp, top = 12.dp),
+                )
             }
 
             Row(
@@ -270,28 +326,37 @@ fun CallsScreen(
                 is LoadState.Loading -> CallLogSkeleton()
                 is LoadState.Failed -> CenteredError(current.message, onRetry = { refreshKey++ })
                 is LoadState.Ready -> {
-                    if (current.value.calls.isEmpty()) {
+                    // #210: in-flight rows live in the pinned Ongoing card,
+                    // not the log; each drops back in here the moment its
+                    // outcome is stamped.
+                    val resolved =
+                        remember(current.value.calls) { resolvedCalls(current.value.calls) }
+                    if (resolved.isEmpty()) {
                         Box(
                             Modifier
                                 .fillMaxSize()
                                 .verticalScroll(rememberScrollState()),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(
-                                when (filter) {
-                                    CallsFilter.Missed -> "No missed calls."
-                                    CallsFilter.Voicemail -> "No voicemails."
-                                    CallsFilter.All ->
-                                        "No calls yet. When customers call your number, they land here."
-                                },
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 32.dp),
-                            )
+                            // With an ongoing call pinned above, "No calls
+                            // yet" would contradict the screen — stay quiet.
+                            if (ongoing.isEmpty()) {
+                                Text(
+                                    when (filter) {
+                                        CallsFilter.Missed -> "No missed calls."
+                                        CallsFilter.Voicemail -> "No voicemails."
+                                        CallsFilter.All ->
+                                            "No calls yet. When customers call your number, they land here."
+                                    },
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 32.dp),
+                                )
+                            }
                         }
                     } else {
                         val groups =
-                            remember(current.value.calls) { groupByDay(current.value.calls) }
+                            remember(resolved) { groupByDay(resolved) }
                         LazyColumn(
                             Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(
@@ -541,6 +606,149 @@ private fun SoftphoneStatusLine(
                 onRetry()
             },
         ),
+    )
+}
+
+/**
+ * #210: the Ongoing card — the founder's "who is on my line?" answer. Rows
+ * stack when several calls run at once (each business line can hold one);
+ * the whole section is absent when nothing is in flight.
+ */
+@Composable
+private fun OngoingCallsCard(
+    calls: List<Call>,
+    members: List<Member>,
+    numbers: List<PhoneNumberSummary>,
+    openConversation: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier) {
+        SectionHeader("Ongoing", count = calls.size.takeIf { it > 1 })
+        PaperCard(Modifier.fillMaxWidth()) {
+            calls.forEachIndexed { index, call ->
+                key(call.id) {
+                    OngoingCallRow(
+                        call = call,
+                        members = members,
+                        numbers = numbers,
+                        openConversation = openConversation,
+                    )
+                    if (index < calls.lastIndex) RowDivider()
+                }
+            }
+        }
+    }
+}
+
+/**
+ * One live line: caller identity, the member holding it (or "Ringing…"
+ * before anyone does), the business number when the company owns more than
+ * one, and — for answered calls — the live talk timer. Tapping opens the
+ * caller's conversation when one exists.
+ */
+@Composable
+private fun OngoingCallRow(
+    call: Call,
+    members: List<Member>,
+    numbers: List<PhoneNumberSummary>,
+    openConversation: (String) -> Unit,
+) {
+    val haptics = rememberHaptics()
+    val coral = if (isSystemInDarkTheme()) BrandColor.DarkCoral else BrandColor.Coral
+    val name = callerDisplayName(call)
+    val phase = ongoingPhase(call)
+    val status = ongoingStatusLabel(phase, memberDisplayName(call.answered_by_user_id, members))
+    val numberLabel = ongoingNumberLabel(call.phone_number_id, numbers)
+    val conversationId = call.conversation_id
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .then(
+                if (conversationId != null) {
+                    Modifier.clickable {
+                        haptics.tap()
+                        openConversation(conversationId)
+                    }
+                } else {
+                    Modifier
+                },
+            )
+            .padding(start = 15.dp, end = 15.dp, top = 11.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(11.dp),
+    ) {
+        InitialsAvatar(name, size = 38.dp)
+        Column(Modifier.weight(1f)) {
+            Text(
+                name,
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(
+                Modifier.padding(top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                // The card's one tinted element — the same coral the log
+                // reserves for its live/urgent accents.
+                Text(
+                    status,
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = coral,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                numberLabel?.let { label ->
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                    ) {
+                        Text(
+                            label,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
+        }
+        if (ongoingShowsTimer(phase)) {
+            OngoingTicker(anchorIso = ongoingAnchorIso(call), color = coral)
+        } else {
+            AttentionDot()
+        }
+    }
+}
+
+/**
+ * The one thing that moves every second — isolated so the tick recomposes
+ * exactly this Text, never the card or the list behind it (#210).
+ */
+@Composable
+private fun OngoingTicker(anchorIso: String, color: Color, modifier: Modifier = Modifier) {
+    val anchorMs = remember(anchorIso) {
+        runCatching { Instant.parse(anchorIso).toEpochMilli() }.getOrNull()
+    } ?: return
+    var elapsedMs by remember(anchorIso) {
+        mutableStateOf((System.currentTimeMillis() - anchorMs).coerceAtLeast(0L))
+    }
+    LaunchedEffect(anchorMs) {
+        while (true) {
+            elapsedMs = (System.currentTimeMillis() - anchorMs).coerceAtLeast(0L)
+            delay(1_000)
+        }
+    }
+    Text(
+        formatTimer(elapsedMs),
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = color,
+        modifier = modifier,
     )
 }
 

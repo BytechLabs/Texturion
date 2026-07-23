@@ -22,7 +22,9 @@ import { formatPhone } from "@/lib/format/phone";
 import { formatRelativeTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
-function callerName(call: Call): string {
+/** The one caller-identity resolution (#210 reuses it on the Ongoing card):
+ *  linked contact name, else the CNAM dip, else the formatted number. */
+export function callerName(call: Call): string {
   if (call.contact_name) return call.contact_name;
   // D43: the CNAM-dipped carrier name, when the owner enabled the lookup.
   if (call.caller_name) return call.caller_name;

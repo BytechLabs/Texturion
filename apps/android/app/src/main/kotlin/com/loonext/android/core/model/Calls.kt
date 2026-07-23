@@ -20,6 +20,9 @@ data class Call(
     val phone_number_id: String? = null,
     val conversation_id: String? = null,
     val outcome: String? = null,
+    /** #208 live-state mirror: ringing/answered/voicemail_greeting/
+     *  voicemail_recording/ended_* — nullable (outbound + pre-v3 rows). */
+    val state: String? = null,
     val direction: String,
     /** Talk time — 0 for misses, never ring time. */
     val forward_seconds: Int = 0,
@@ -27,6 +30,8 @@ data class Call(
     val stir_attestation: String? = null,
     val voicemail_seconds: Int? = null,
     val answered_by_user_id: String? = null,
+    /** When the line was picked up — the #210 live-duration anchor. */
+    val answered_at: String? = null,
     val started_at: String,
 ) {
     /** Display resolution order: contact > CNAM dip > raw number. */

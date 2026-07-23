@@ -36,10 +36,16 @@ vi.mock("@/lib/api/calls", () => ({
 }));
 
 // The Dialer (in the Calls header) reaches for the company's numbers and the
-// softphone; the push-to-wake effect reads the URL. Stub them all so this
-// render test needs no live env/client/router.
+// softphone; the push-to-wake effect reads the URL; the #210 Ongoing card
+// reads the member roster. Stub them all so this render test needs no live
+// env/client/router.
 vi.mock("@/lib/api/numbers", () => ({
   useNumbers: () => ({ data: { data: [] } }),
+}));
+vi.mock("@/lib/api/team", () => ({
+  useMembers: () => ({
+    data: { data: [{ user_id: "u-sam", display_name: "Sam Mason" }] },
+  }),
 }));
 vi.mock("@/lib/softphone/provider", () => ({
   useSoftphone: () => null,
@@ -190,6 +196,52 @@ describe("CallsView (#129)", () => {
     state.rows = [call()];
     html = render();
     expect(html).not.toContain("Not linked to a conversation");
+  });
+});
+
+/**
+ * #210: the Ongoing card — a live (outcome-null) row pins above the log with
+ * the caller and whoever holds the line; it leaves the log below (never
+ * rendered twice) and the card is absent when nothing is live.
+ */
+describe("CallsView Ongoing card (#210)", () => {
+  it("pins a ringing live call above the log and out of it", () => {
+    state.rows = [
+      call({
+        id: "call-live",
+        outcome: null,
+        state: "ringing",
+        answered_at: null,
+      }),
+      call({ id: "call-done", contact_name: "Old Caller", contact_id: "ct-2" }),
+    ];
+    const html = render();
+    expect(html).toContain("Ongoing");
+    expect(html).toContain("Ringing…");
+    expect(html).toContain("Old Caller");
+    // The live row left the log: CallRow's null-outcome label never renders.
+    expect(html).not.toContain("In progress");
+  });
+
+  it("names the member on an answered live call", () => {
+    state.rows = [
+      call({
+        id: "call-live",
+        outcome: null,
+        state: "answered",
+        answered_by_user_id: "u-sam",
+        answered_at: new Date(Date.now() - 30_500).toISOString(),
+      }),
+    ];
+    const html = render();
+    expect(html).toContain("With Sam Mason");
+    expect(html).not.toContain("Ringing…");
+  });
+
+  it("renders no Ongoing section when every row is resolved", () => {
+    state.rows = [call()];
+    const html = render();
+    expect(html).not.toContain("Ongoing");
   });
 });
 

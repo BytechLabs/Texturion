@@ -18,6 +18,10 @@ import { useEffect, useRef, useState } from "react";
 
 import { CallRow } from "@/components/calls/call-row";
 import { Dialer } from "@/components/calls/dialer";
+import {
+  isOngoingCall,
+  OngoingCalls,
+} from "@/components/calls/ongoing-call-card";
 import { SoftphoneStatus } from "@/components/calls/softphone-status";
 import { CalmEmptyState } from "@/components/settings/empty-state";
 import { Button } from "@/components/ui/button";
@@ -36,6 +40,13 @@ export function CallsView() {
     undefined,
   );
   const calls = useCalls(outcome);
+  // #210: the Ongoing card derives from the UNFILTERED query — the same cache
+  // entry as the All filter — so a live call stays pinned above the log even
+  // while Missed is selected (the missed query can't see outcome-null rows).
+  // Live rows are the newest rows, so page 1 always carries them; the
+  // call.updated realtime invalidation of the [companyId, "calls"] prefix
+  // clears the card the moment a row resolves.
+  const allCalls = useCalls(undefined);
 
   // Push-to-wake (#135 pt.2): opened from an incoming-call push at
   // /calls?call=<session>. Once the softphone is registered, ask the server to
@@ -70,7 +81,12 @@ export function CallsView() {
     rungRef.current = pendingCall;
     ringMe.mutate(pendingCall);
   }, [pendingCall, ready, presentingLeg, ringMe]);
-  const rows = calls.data?.pages.flatMap((page) => page.data) ?? [];
+  const ongoing = (allCalls.data?.pages[0]?.data ?? []).filter(isOngoingCall);
+  // Ongoing rows live in the card above — the log below shows resolved calls
+  // only, so a live call never renders twice.
+  const rows = (calls.data?.pages.flatMap((page) => page.data) ?? []).filter(
+    (call) => !isOngoingCall(call),
+  );
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6">
@@ -120,6 +136,9 @@ export function CallsView() {
           })}
         </div>
       </div>
+
+      {/* #210: who is holding the line, pinned above the log. */}
+      <OngoingCalls calls={ongoing} />
 
       <section>
         <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">

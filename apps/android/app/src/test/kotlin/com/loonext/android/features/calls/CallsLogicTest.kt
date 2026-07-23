@@ -1,6 +1,8 @@
 package com.loonext.android.features.calls
 
 import com.loonext.android.core.model.Call
+import com.loonext.android.core.model.Member
+import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.telephony.AudioRoute
 import com.loonext.android.telephony.CallPhase
 import org.junit.Assert.assertEquals
@@ -11,23 +13,48 @@ import org.junit.Test
 
 private fun call(
     outcome: String? = null,
+    state: String? = null,
     direction: String = "inbound",
     forwardSeconds: Int = 0,
     contactName: String? = null,
     callerName: String? = null,
     callerE164: String? = null,
     screening: String? = null,
+    id: String = "c1",
+    answeredBy: String? = null,
+    answeredAt: String? = null,
+    phoneNumberId: String? = null,
 ) = Call(
-    id = "c1",
+    id = id,
     call_session_id = "sess-1",
     caller_e164 = callerE164,
     contact_name = contactName,
     caller_name = callerName,
+    phone_number_id = phoneNumberId,
     outcome = outcome,
+    state = state,
     direction = direction,
     forward_seconds = forwardSeconds,
     screening_result = screening,
+    answered_by_user_id = answeredBy,
+    answered_at = answeredAt,
     started_at = "2026-07-15T12:00:00Z",
+)
+
+private fun member(id: String, userId: String, name: String) = Member(
+    id = id,
+    user_id = userId,
+    role = "member",
+    created_at = "2026-07-01T00:00:00Z",
+    display_name = name,
+)
+
+private fun number(id: String, e164: String?) = PhoneNumberSummary(
+    id = id,
+    status = "active",
+    country = "US",
+    number_e164 = e164,
+    created_at = "2026-07-01T00:00:00Z",
 )
 
 class CallsLogicTest {
@@ -188,6 +215,112 @@ class CallsLogicTest {
         assertEquals("Note", noteControlLabel(linked = false, resolving = false))
         // A linked note is never pending, whatever the resolver flag says.
         assertEquals("Note", noteControlLabel(linked = true, resolving = true))
+    }
+
+    // -------------------------------------------- #210 ongoing call card
+
+    @Test
+    fun `ongoing means outcome unstamped and state not already ended`() {
+        assertTrue(isOngoingCall(call(outcome = null, state = null)))
+        assertTrue(isOngoingCall(call(outcome = null, state = "ringing")))
+        assertTrue(isOngoingCall(call(outcome = null, state = "answered")))
+        assertTrue(isOngoingCall(call(outcome = null, state = "voicemail_greeting")))
+        assertTrue(isOngoingCall(call(outcome = null, state = "voicemail_recording")))
+        // Mirror lag: the state already says terminal — never pin a ghost.
+        assertFalse(isOngoingCall(call(outcome = null, state = "ended_missed")))
+        assertFalse(isOngoingCall(call(outcome = null, state = "ended_answered")))
+        assertFalse(isOngoingCall(call(outcome = null, state = "ended_rejected")))
+        // A stamped outcome resolves the row whatever the mirror still says.
+        assertFalse(isOngoingCall(call(outcome = "answered", state = "answered")))
+        assertFalse(isOngoingCall(call(outcome = "missed")))
+        assertFalse(isOngoingCall(call(outcome = "voicemail")))
+    }
+
+    @Test
+    fun `ongoing-resolved partition preserves the log's order and loses nothing`() {
+        val list = listOf(
+            call(id = "a", outcome = null, state = "ringing"),
+            call(id = "b", outcome = "missed"),
+            call(id = "c", outcome = null, state = "answered"),
+            call(id = "d", outcome = "answered"),
+        )
+        assertEquals(listOf("a", "c"), ongoingCalls(list).map { it.id })
+        assertEquals(listOf("b", "d"), resolvedCalls(list).map { it.id })
+        assertTrue(ongoingCalls(emptyList()).isEmpty())
+    }
+
+    @Test
+    fun `phase follows state first, then the answer stamps, then direction`() {
+        assertEquals(OngoingPhase.RINGING, ongoingPhase(call(state = "ringing")))
+        assertEquals(OngoingPhase.ANSWERED, ongoingPhase(call(state = "answered")))
+        assertEquals(OngoingPhase.VOICEMAIL, ongoingPhase(call(state = "voicemail_greeting")))
+        assertEquals(OngoingPhase.VOICEMAIL, ongoingPhase(call(state = "voicemail_recording")))
+        // No state (outbound rows and pre-backfill rows): stamps speak next.
+        assertEquals(OngoingPhase.ANSWERED, ongoingPhase(call(answeredBy = "u1")))
+        assertEquals(
+            OngoingPhase.ANSWERED,
+            ongoingPhase(call(direction = "outbound", answeredAt = "2026-07-15T12:00:30Z")),
+        )
+        assertEquals(OngoingPhase.DIALING, ongoingPhase(call(direction = "outbound")))
+        assertEquals(OngoingPhase.RINGING, ongoingPhase(call()))
+    }
+
+    @Test
+    fun `status line - ringing names no one, answered names who has the line`() {
+        assertEquals("Ringing…", ongoingStatusLabel(OngoingPhase.RINGING, memberName = null))
+        // A ringing call never shows a member, even if a stale name is passed.
+        assertEquals("Ringing…", ongoingStatusLabel(OngoingPhase.RINGING, memberName = "Dana"))
+        assertEquals("With Dana", ongoingStatusLabel(OngoingPhase.ANSWERED, "Dana"))
+        // Answered but the roster can't name the member: the line is still
+        // honestly taken, not blank.
+        assertEquals("On the line", ongoingStatusLabel(OngoingPhase.ANSWERED, null))
+        assertEquals("On the line", ongoingStatusLabel(OngoingPhase.ANSWERED, "  "))
+        assertEquals("Calling…", ongoingStatusLabel(OngoingPhase.DIALING, null))
+        assertEquals("Leaving a voicemail", ongoingStatusLabel(OngoingPhase.VOICEMAIL, null))
+    }
+
+    @Test
+    fun `only the answered phase ticks a timer`() {
+        assertTrue(ongoingShowsTimer(OngoingPhase.ANSWERED))
+        assertFalse(ongoingShowsTimer(OngoingPhase.RINGING))
+        assertFalse(ongoingShowsTimer(OngoingPhase.DIALING))
+        assertFalse(ongoingShowsTimer(OngoingPhase.VOICEMAIL))
+    }
+
+    @Test
+    fun `timer anchors on answered_at and falls back to started_at`() {
+        assertEquals(
+            "2026-07-15T12:00:30Z",
+            ongoingAnchorIso(call(answeredAt = "2026-07-15T12:00:30Z")),
+        )
+        assertEquals("2026-07-15T12:00:00Z", ongoingAnchorIso(call()))
+    }
+
+    @Test
+    fun `member names resolve from the roster by user id`() {
+        val roster = listOf(
+            member("m1", "u1", "Dana"),
+            member("m2", "u2", ""),
+        )
+        assertEquals("Dana", memberDisplayName("u1", roster))
+        // A blank display name is no name at all.
+        assertNull(memberDisplayName("u2", roster))
+        assertNull(memberDisplayName("u9", roster))
+        assertNull(memberDisplayName(null, roster))
+        assertNull(memberDisplayName("u1", emptyList()))
+    }
+
+    @Test
+    fun `number chip appears only when the company owns more than one number`() {
+        val one = listOf(number("n1", "+14155550100"))
+        val two = one + number("n2", "+14155550101")
+        // One number: zero ambiguity, no chip.
+        assertNull(ongoingNumberLabel("n1", one))
+        assertEquals("(415) 555-0101", ongoingNumberLabel("n2", two))
+        // Unresolvable or absent ids stay quiet instead of guessing.
+        assertNull(ongoingNumberLabel("n9", two))
+        assertNull(ongoingNumberLabel(null, two))
+        assertNull(ongoingNumberLabel("n3", two + number("n3", null)))
     }
 
     // -------------------------------------------- #204 living backdrop

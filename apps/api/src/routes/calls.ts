@@ -70,6 +70,10 @@ export interface CallRow {
   stir_attestation: string | null;
   voicemail_seconds: number | null;
   answered_by_user_id: string | null;
+  /** #208: the DO's state mirror (ended_% = terminal even while outcome lags). */
+  state: string | null;
+  /** #210: when the call was answered — the live-duration anchor. */
+  answered_at: string | null;
   started_at: string;
 }
 

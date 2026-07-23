@@ -812,6 +812,28 @@ export interface Call {
   voicemail_seconds: number | null;
   answered_by_user_id: string | null;
   started_at: string;
+  /**
+   * #170/#208 CALLS-V3 §3/§8.4: the DO-mirrored live phase. NULLABLE by
+   * design — legacy rows and every outbound row are null; readers derive
+   * from `outcome` when absent. Optional so cached pre-v3 shapes stay
+   * assignable (same posture as PhoneNumberSummary.source).
+   */
+  state?:
+    | "ringing"
+    | "answered"
+    | "voicemail_greeting"
+    | "voicemail_recording"
+    | "ended_answered"
+    | "ended_voicemail"
+    | "ended_missed"
+    | "ended_rejected"
+    | null;
+  /**
+   * #210: when a member picked up — the Ongoing card's live-duration anchor.
+   * Optional until the api_list_calls projection ships it; readers fall back
+   * to started_at.
+   */
+  answered_at?: string | null;
 }
 
 /** GET /v1/search conversation hit (api_search_v2 RPC). */

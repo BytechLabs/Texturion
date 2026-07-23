@@ -2,6 +2,8 @@ package com.loonext.android.features.calls
 
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
+import com.loonext.android.core.model.Member
+import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.telephony.AudioRoute
 import com.loonext.android.telephony.CallPhase
 import com.loonext.android.ui.common.formatPhone
@@ -178,6 +180,90 @@ fun activityBackdropPhase(
     answering -> CallPhase.CONNECTING
     ringing -> CallPhase.RINGING
     else -> CallPhase.CONNECTING
+}
+
+// ---------------------------------------------------- #210 ongoing call card
+
+private const val STATE_RINGING = "ringing"
+private const val STATE_ANSWERED = "answered"
+private const val STATE_VOICEMAIL_GREETING = "voicemail_greeting"
+private const val STATE_VOICEMAIL_RECORDING = "voicemail_recording"
+private const val STATE_ENDED_PREFIX = "ended"
+
+/**
+ * A row still holding the line: outcome unstamped AND the #208 state mirror
+ * does not already say ended_*. An outcome-null row whose state is terminal
+ * is mirror lag (the outcome stamp is seconds behind) — pinning it as
+ * "ongoing" would show a ghost call, so it counts as resolved.
+ */
+fun isOngoingCall(call: Call): Boolean =
+    call.outcome == null && call.state?.startsWith(STATE_ENDED_PREFIX) != true
+
+/** The rows the Ongoing card pins, kept in the log's newest-first order. */
+fun ongoingCalls(calls: List<Call>): List<Call> = calls.filter(::isOngoingCall)
+
+/** The log below the card — everything that has actually resolved. */
+fun resolvedCalls(calls: List<Call>): List<Call> = calls.filterNot(::isOngoingCall)
+
+/** What an ongoing row is doing right now. */
+enum class OngoingPhase { RINGING, DIALING, ANSWERED, VOICEMAIL }
+
+/**
+ * Phase resolution: the #208 state is the truth when present; a null state
+ * (outbound rows, pre-backfill rows) falls back to the answer stamps, then
+ * direction — an unstamped outbound row is the crew dialing out.
+ */
+fun ongoingPhase(call: Call): OngoingPhase = when (call.state) {
+    STATE_ANSWERED -> OngoingPhase.ANSWERED
+    STATE_VOICEMAIL_GREETING, STATE_VOICEMAIL_RECORDING -> OngoingPhase.VOICEMAIL
+    STATE_RINGING -> OngoingPhase.RINGING
+    else -> when {
+        call.answered_at != null || call.answered_by_user_id != null -> OngoingPhase.ANSWERED
+        call.direction == "outbound" -> OngoingPhase.DIALING
+        else -> OngoingPhase.RINGING
+    }
+}
+
+/**
+ * The card's status line. Ringing shows no member (nobody has the line yet);
+ * an answered call names who does; an answered call whose member cannot be
+ * resolved still says the line is taken instead of naming no one.
+ */
+fun ongoingStatusLabel(phase: OngoingPhase, memberName: String?): String = when (phase) {
+    OngoingPhase.RINGING -> "Ringing…"
+    OngoingPhase.DIALING -> "Calling…"
+    OngoingPhase.VOICEMAIL -> "Leaving a voicemail"
+    OngoingPhase.ANSWERED ->
+        memberName?.takeIf { it.isNotBlank() }?.let { "With $it" } ?: "On the line"
+}
+
+/** Only an answered call has talk time to tick. */
+fun ongoingShowsTimer(phase: OngoingPhase): Boolean = phase == OngoingPhase.ANSWERED
+
+/**
+ * The live timer's anchor: answered_at (true talk time). A row the API has
+ * not stamped yet falls back to started_at — a few seconds of ring time is
+ * a smaller lie than a frozen timer.
+ */
+fun ongoingAnchorIso(call: Call): String = call.answered_at ?: call.started_at
+
+/** answered_by user id → roster display name; null when unresolvable. */
+fun memberDisplayName(userId: String?, members: List<Member>): String? {
+    if (userId == null) return null
+    return members.firstOrNull { it.user_id == userId }
+        ?.display_name?.takeIf { it.isNotBlank() }
+}
+
+/**
+ * The business-line chip label: only when the company owns MORE than one
+ * number (one number = zero ambiguity, the chip is noise) and the row's
+ * number resolves to a listable E.164.
+ */
+fun ongoingNumberLabel(phoneNumberId: String?, numbers: List<PhoneNumberSummary>): String? {
+    if (numbers.size <= 1 || phoneNumberId == null) return null
+    return numbers.firstOrNull { it.id == phoneNumberId }
+        ?.number_e164?.takeIf { it.isNotBlank() }
+        ?.let(::formatPhone)
 }
 
 /** "(415) 555-01…" progressive format while typing (NANP-shaped input). */
