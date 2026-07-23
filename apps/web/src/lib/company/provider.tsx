@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 
+import { GateSignOut } from "@/components/shell/gate-escape";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMe } from "@/lib/api/me";
@@ -108,6 +109,10 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   }, [needsCheckout, router]);
 
   if (me.isError) {
+    // The last retry-only dead end from the #207 gate-escape audit: with /me
+    // failed, memberships are unknowable, so no workspace switcher is possible
+    // here - but sign-out must still be reachable (shared GateSignOut, the
+    // same escape the gate layouts mount).
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="text-sm text-muted-foreground">
@@ -117,6 +122,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
         <Button onClick={() => me.refetch()} variant="outline" size="sm">
           Try again
         </Button>
+        <GateSignOut />
       </div>
     );
   }

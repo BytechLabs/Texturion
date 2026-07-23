@@ -1,9 +1,14 @@
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 // The (auth) group layout pulls in the app shell providers (TanStack Query,
-// the wordmark). We only assert its static `metadata`, so stub those imports
-// to keep this a node-only unit test — the default component is never rendered.
+// the wordmark), and the invite segment layout mounts the shared gate escape
+// cluster. We only assert static `metadata` and layout shape, so stub those
+// imports to keep this a node-only unit test.
 vi.mock("@/components/shell/wordmark", () => ({ Wordmark: () => null }));
+vi.mock("@/components/shell/gate-header", () => ({
+  GateEscape: () => <div data-testid="gate-escape" />,
+}));
 vi.mock("../app-providers", () => ({
   AppProviders: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -55,6 +60,15 @@ describe("per-route auth tab titles (wrapped by the root '%s · Loonext')", () =
     expect(SignupTitleLayout({ children: child })).toBe(child);
     expect(ResetTitleLayout({ children: child })).toBe(child);
     expect(UpdateTitleLayout({ children: child })).toBe(child);
-    expect(InviteTitleLayout({ children: child })).toBe(child);
+  });
+
+  it("invite layout renders children plus the shared gate escape (#207)", () => {
+    const markup = renderToStaticMarkup(
+      <InviteTitleLayout>
+        <div data-testid="invite-child" />
+      </InviteTitleLayout>,
+    );
+    expect(markup).toContain('data-testid="invite-child"');
+    expect(markup).toContain('data-testid="gate-escape"');
   });
 });

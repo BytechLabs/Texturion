@@ -1,10 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-// The onboarding group layout pulls in the app shell providers and the sign-out
-// control; we only assert its static `metadata`, so stub those imports to keep
-// this a node-only unit test (the default component is never rendered).
-vi.mock("@/components/shell/wordmark", () => ({ Wordmark: () => null }));
-vi.mock("./sign-out", () => ({ OnboardingSignOut: () => null }));
+// The onboarding group layout pulls in the app shell providers and the shared
+// gate header; we only assert its static `metadata`, so stub those imports to
+// keep this a node-only unit test (the default component is never rendered).
+vi.mock("@/components/shell/gate-header", () => ({ GateHeader: () => null }));
 vi.mock("../app-providers", () => ({
   AppProviders: ({ children }: { children: React.ReactNode }) => children,
 }));
