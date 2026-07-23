@@ -2,6 +2,7 @@ package com.loonext.android.features.calls
 
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
+import com.loonext.android.telephony.AudioRoute
 import com.loonext.android.ui.common.formatPhone
 
 /**
@@ -100,6 +101,37 @@ fun dialableE164(raw: String): String? {
         else -> null
     }
 }
+
+// -------------------------------------------- #202 in-call controls honesty
+
+/**
+ * A route toggle (Speaker / Bluetooth) is LIT exactly when the route it
+ * represents is the one the audio actually follows: the OS-confirmed route,
+ * overridden briefly by the user's optimistic pending choice until the OS
+ * confirms or reverts it. One route value drives every toggle, so Speaker and
+ * Bluetooth can never both read lit.
+ */
+fun routeToggleLit(toggle: AudioRoute, pending: AudioRoute?, confirmed: AudioRoute?): Boolean =
+    (pending ?: confirmed) == toggle
+
+/** The Bluetooth toggle exists only while the OS reports a BT endpoint - a
+ *  button no endpoint backs is a lie, not a control. */
+fun bluetoothToggleAvailable(available: Set<AudioRoute>): Boolean =
+    AudioRoute.BLUETOOTH in available
+
+/** Tapping a lit toggle returns to the earpiece; tapping an unlit one requests
+ *  that route. The OS owning a single route is what keeps the pair mutually
+ *  exclusive. */
+fun routeTapTarget(toggle: AudioRoute, lit: Boolean): AudioRoute =
+    if (lit) AudioRoute.EARPIECE else toggle
+
+/**
+ * The Note control's caption: an honest "Linking…" while the conversation
+ * link is still resolving after answer (a plain greyed Note read as broken),
+ * "Note" once linked or once resolution has genuinely given up.
+ */
+fun noteControlLabel(linked: Boolean, resolving: Boolean): String =
+    if (!linked && resolving) "Linking…" else "Note"
 
 /** "(415) 555-01…" progressive format while typing (NANP-shaped input). */
 fun formatAsYouDial(raw: String): String {

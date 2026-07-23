@@ -99,6 +99,12 @@ class SoftphoneManager private constructor(
     /** Discrete ring/place moments (the overlay uses state; kept for parity). */
     val events: SharedFlow<CoreEvent> = core.events
 
+    /** #202 read-side: the OS audio-route truth (confirmed endpoint + which
+     *  endpoint kinds exist) the in-call route toggles render from. A getter
+     *  because [registry] is declared later in construction order. */
+    val audioRouteFacts: StateFlow<AudioRouteFacts>
+        get() = registry.audioRouteFacts
+
     /**
      * The single owner of every OS-visible call (§3). Its [TelecomCallRegistry.Bridge]
      * performs the Telnyx-media ops on this bridge's leg state.

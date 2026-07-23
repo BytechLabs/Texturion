@@ -13,10 +13,27 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * #202: the honest audio-route facts the in-call controls render from - the
+ * endpoint the OS is ACTUALLY routing to and which endpoint kinds exist right
+ * now. Observation only: route decisions still flow user tap ->
+ * [TelecomCallRegistry.requestRoute] -> OS -> [TelecomCallRegistry] endpoint
+ * observer -> Telnyx follower mirror. Defaults (null current, empty available)
+ * while no call is live.
+ */
+data class AudioRouteFacts(
+    val current: AudioRoute? = null,
+    val available: Set<AudioRoute> = emptySet(),
+)
 
 /**
  * The single owner of every call the OS sees (#171, docs/CALLS-CLIENT-V2.md
@@ -194,6 +211,13 @@ class TelecomCallRegistry(
     }
 
     private val entries = ConcurrentHashMap<String, CallEntry>()
+
+    private val routeFacts = MutableStateFlow(AudioRouteFacts())
+
+    /** #202 read-side: the OS audio-route truth (current endpoint + available
+     *  endpoint kinds) every call surface renders from. Observation only -
+     *  never a control path. */
+    val audioRouteFacts: StateFlow<AudioRouteFacts> = routeFacts.asStateFlow()
 
     /** §9.1: register the self-managed PhoneAccount once. Idempotent, silent on
      *  failure — a call is never blocked by a registration blip (the watchdog
@@ -841,8 +865,23 @@ class TelecomCallRegistry(
                 control.currentCallEndpoint.collectLatest { endpoint ->
                     endpointToRoute(endpoint)?.let { route ->
                         CallFlowLog.log("audio", "route changed -> $route")
+                        // #202: publish the CONFIRMED route so the in-call
+                        // toggles light from the OS truth - including routes
+                        // the OS or a headset switched on its own.
+                        routeFacts.update { it.copy(current = route) }
                         runCatching { bridge.mirrorRouteToTelnyx(route) }
                     }
+                }
+            }
+        }
+        // #202: mirror the AVAILABLE endpoint kinds too, so the UI can hide a
+        // Bluetooth control no endpoint backs. Same lifetime as the call scope.
+        control.launch {
+            runCatching {
+                control.availableEndpoints.collectLatest { endpoints ->
+                    val routes = endpoints.mapNotNull(::endpointToRoute).toSet()
+                    CallFlowLog.log("audio", "endpoints available $routes")
+                    routeFacts.update { it.copy(available = routes) }
                 }
             }
         }
@@ -1043,7 +1082,13 @@ class TelecomCallRegistry(
         }
         // Release the process/mic hold once the LAST call is gone (never while
         // another call is still live).
-        if (entries.isEmpty()) CallForegroundService.stop(appContext)
+        if (entries.isEmpty()) {
+            CallForegroundService.stop(appContext)
+            // #202: no call left means no OS route to report - reset so a stale
+            // "Bluetooth" can't light the next call's controls before its own
+            // endpoint flows emit.
+            routeFacts.value = AudioRouteFacts()
+        }
     }
 
     /** A non-Success [CallControlResult] surfaced as a Throwable for [onFailure]

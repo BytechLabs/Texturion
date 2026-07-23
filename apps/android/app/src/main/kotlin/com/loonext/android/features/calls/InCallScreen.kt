@@ -111,15 +111,55 @@ fun InCallScreen(
     val haptics = rememberHaptics()
     var dtmfOpen by remember { mutableStateOf(false) }
     var transferOpen by remember { mutableStateOf(false) }
-    var speakerOn by remember { mutableStateOf(false) }
-    var bluetoothOn by remember { mutableStateOf(false) }
+
+    // #202: route toggles render from the OS truth, not local booleans. The
+    // registry publishes the confirmed endpoint + which endpoint kinds exist;
+    // a tap holds an OPTIMISTIC choice only until the OS confirms or reverts.
+    val routeFacts by manager.audioRouteFacts.collectAsStateWithLifecycle()
+    var pendingRoute by remember { mutableStateOf<AudioRoute?>(null) }
+    LaunchedEffect(routeFacts.current) {
+        // The OS spoke (confirm OR revert, including headset-initiated
+        // switches) - the confirmed route is the truth from here.
+        pendingRoute = null
+    }
+    LaunchedEffect(pendingRoute) {
+        if (pendingRoute != null) {
+            // The OS never confirmed the request - drop the optimism and fall
+            // back to the actual route rather than keep a lying lit button.
+            delay(4_000)
+            pendingRoute = null
+        }
+    }
 
     // The notes deep-link: resolve live facts once the session id is known.
+    // #202: brief retries (the ledger row can land a beat after answer) plus
+    // an honest give-up flag - the Note button shows a pending caption while
+    // this runs instead of an instantly-grey button that reads as broken.
     var conversationId by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(featured?.sessionId) {
+    var noteLinkGaveUp by remember { mutableStateOf(false) }
+    LaunchedEffect(featured?.id, featured?.sessionId) {
         conversationId = null
-        val session = featured?.sessionId ?: return@LaunchedEffect
-        conversationId = runCatching { manager.liveFacts(session).conversation_id }.getOrNull()
+        noteLinkGaveUp = false
+        if (featured == null) return@LaunchedEffect
+        val session = featured.sessionId
+        if (session == null) {
+            // An inbound answer's customer session resolves post-answer
+            // (by-leg, with the core's own retries) - give it its window
+            // before declaring the note link dead; this effect re-runs the
+            // moment the session lands.
+            delay(12_000)
+            noteLinkGaveUp = true
+            return@LaunchedEffect
+        }
+        repeat(4) { attempt ->
+            val resolved = runCatching { manager.liveFacts(session).conversation_id }.getOrNull()
+            if (resolved != null) {
+                conversationId = resolved
+                return@LaunchedEffect
+            }
+            if (attempt < 3) delay(1_200)
+        }
+        noteLinkGaveUp = true
     }
 
     Column(
@@ -270,11 +310,17 @@ fun InCallScreen(
                     },
                     modifier = Modifier.weight(1f),
                 )
+                // #202: pending caption while the conversation link resolves -
+                // a plain greyed Note read as broken to the founder.
+                val noteResolving = conversationId == null && !noteLinkGaveUp
                 ControlCircle(
                     icon = Icons.AutoMirrored.Outlined.Message,
-                    label = "Note",
+                    label = noteControlLabel(
+                        linked = conversationId != null,
+                        resolving = noteResolving,
+                    ),
                     contentDescription = "Add a note in the conversation",
-                    active = true,
+                    active = conversationId != null,
                     enabled = conversationId != null,
                     onClick = {
                         haptics.tap()
@@ -282,40 +328,44 @@ fun InCallScreen(
                     },
                     modifier = Modifier.weight(1f),
                 )
+                // #202: lit exactly when the ACTUAL route is the speaker (the
+                // OS-confirmed endpoint, optimistic only until it answers).
+                val speakerLit =
+                    routeToggleLit(AudioRoute.SPEAKER, pendingRoute, routeFacts.current)
                 ControlCircle(
                     icon = Icons.Outlined.VolumeUp,
                     label = "Speaker",
                     contentDescription = "Speaker",
-                    active = speakerOn,
+                    active = speakerLit,
                     onClick = {
                         haptics.tap()
-                        val on = !speakerOn
-                        speakerOn = on
-                        if (on) bluetoothOn = false
-                        manager.setAudioRoute(
-                            if (on) AudioRoute.SPEAKER else AudioRoute.EARPIECE,
-                        )
+                        val target = routeTapTarget(AudioRoute.SPEAKER, speakerLit)
+                        pendingRoute = target
+                        manager.setAudioRoute(target)
                     },
                     modifier = Modifier.weight(1f),
                 )
             }
-            Spacer(Modifier.height(10.dp))
-            ControlCircle(
-                icon = Icons.Outlined.Bluetooth,
-                label = "Bluetooth",
-                contentDescription = "Bluetooth",
-                active = bluetoothOn,
-                size = 44.dp,
-                onClick = {
-                    haptics.tap()
-                    val on = !bluetoothOn
-                    bluetoothOn = on
-                    if (on) speakerOn = false
-                    manager.setAudioRoute(
-                        if (on) AudioRoute.BLUETOOTH else AudioRoute.EARPIECE,
-                    )
-                },
-            )
+            // #202: no Bluetooth endpoint means no Bluetooth button - a control
+            // the OS cannot honor is a lie, not an affordance.
+            if (bluetoothToggleAvailable(routeFacts.available)) {
+                Spacer(Modifier.height(10.dp))
+                val bluetoothLit =
+                    routeToggleLit(AudioRoute.BLUETOOTH, pendingRoute, routeFacts.current)
+                ControlCircle(
+                    icon = Icons.Outlined.Bluetooth,
+                    label = "Bluetooth",
+                    contentDescription = "Bluetooth",
+                    active = bluetoothLit,
+                    size = 44.dp,
+                    onClick = {
+                        haptics.tap()
+                        val target = routeTapTarget(AudioRoute.BLUETOOTH, bluetoothLit)
+                        pendingRoute = target
+                        manager.setAudioRoute(target)
+                    },
+                )
+            }
         }
 
         Spacer(Modifier.height(18.dp))

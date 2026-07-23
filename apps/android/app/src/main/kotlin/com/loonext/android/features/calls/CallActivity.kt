@@ -41,8 +41,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.LoonextApp
+import com.loonext.android.MainActivity
+import com.loonext.android.push.APP_ORIGIN
 import com.loonext.android.telephony.CallNotifier
 import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.SoftphoneManager
@@ -119,6 +122,32 @@ class CallActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * #202: the Note escape from THIS standalone surface. A lock-screen or
+     * notification-answered call renders here with no shell underneath, so the
+     * old empty lambda made Note a silent dead end. Open the conversation via
+     * the EXACT mechanism a notification tap uses (LoonextMessagingService's
+     * postPushNotification): ACTION_VIEW into [MainActivity] with the
+     * app-origin /inbox/{id} url its parseDeepLink already routes - no new
+     * scheme. The call itself lives on the call foreground service, so it
+     * survives the handoff; finishing mirrors the Hide escape, and the
+     * ongoing-call notification leads straight back to the call.
+     */
+    private fun openConversationInShell(conversationId: String) {
+        val open = Intent(this, MainActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            data = "$APP_ORIGIN/inbox/$conversationId".toUri()
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP,
+            )
+        }
+        // Finish only when the shell actually launched - a failed launch must
+        // not strand the user with no call surface at all.
+        if (runCatching { startActivity(open) }.isSuccess) finish()
+    }
+
     private fun render() {
         val session = intent.getStringExtra(EXTRA_SESSION)
         val callerName = intent.getStringExtra(EXTRA_CALLER_NAME).orEmpty()
@@ -147,6 +176,7 @@ class CallActivity : ComponentActivity() {
                     callerNumber = callerNumber,
                     answerOnOpen = answerOnOpen,
                     onDismissKeyguard = ::dismissKeyguard,
+                    onOpenConversation = ::openConversationInShell,
                     onClose = { finish() },
                 )
             }
@@ -163,6 +193,7 @@ private fun CallSurface(
     callerNumber: String,
     answerOnOpen: Boolean,
     onDismissKeyguard: () -> Unit,
+    onOpenConversation: (String) -> Unit,
     onClose: () -> Unit,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -310,7 +341,10 @@ private fun CallSurface(
                 manager = manager,
                 repo = repo,
                 companyId = companyId,
-                openConversation = { /* notes deep-link belongs to the shell */ },
+                // #202: a REAL deep link into the shell task (the notification
+                // tap's own mechanism) - never an empty lambda that makes the
+                // Note button a silent no-op on lock-screen answers.
+                openConversation = onOpenConversation,
                 onClose = onClose,
             )
 
