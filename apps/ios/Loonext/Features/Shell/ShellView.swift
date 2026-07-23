@@ -12,14 +12,15 @@ enum ShellTab: Hashable {
     case contacts
 }
 
-/// Live nav counts. The pill nav shows only the avatar's coral dot (unread
-/// notifications); the numeric counts feed screen headers and the app-icon
-/// badge — no numeral badges in the nav (docs/MOBILE-DESIGN.md).
+/// Live nav counts. The numeric counts feed screen headers and the app-icon
+/// badge — no numeral badges in the nav (docs/MOBILE-DESIGN.md). The avatar's
+/// coral dot is NOT here (#201): it reads the shared `CompanyReadState` the
+/// notifications screen maintains, never a parallel count that a mark-read in
+/// the feed can't reach.
 struct ShellCounts: Equatable, Sendable {
     var forYou = 0
     var unreadConversations = 0
     var openTasks = 0
-    var unreadNotifications = 0
 }
 
 /// Surfaces the shell presents over the tabs — the Android ReadyShell
@@ -66,10 +67,16 @@ struct ShellView: View {
     @State private var counts = ShellCounts()
     @State private var countsKey = 0
 
+    /// The shared unread state (#201) — the SAME instance the notifications
+    /// screen and the account sheet read, so the avatar dot clears the frame a
+    /// mark-read lands, and an in-flight server count can't resurrect it.
+    private let notifReadState: CompanyReadState
+
     init(graph: AppGraph, me: Me, companyId: String, root: RootViewModel) {
         self.graph = graph
         self.companyId = companyId
         self.root = root
+        self.notifReadState = NotificationsReadState.shared.forCompany(companyId)
         _hydratedMe = State(initialValue: me)
     }
 
@@ -254,7 +261,7 @@ struct ShellView: View {
                 size: 34
             )
             .overlay(alignment: .topTrailing) {
-                if counts.unreadNotifications > 0 {
+                if notifReadState.unreadCount > 0 {
                     Circle()
                         .fill(BrandColor.coral)
                         .overlay(Circle().stroke(BrandColor.inkFixed, lineWidth: 2))
@@ -318,7 +325,7 @@ struct ShellView: View {
                 prefs: graph.prefs,
                 me: hydratedMe,
                 companyId: companyId,
-                unreadNotifications: counts.unreadNotifications,
+                readState: notifReadState,
                 onOpenContacts: {
                     activeSheet = nil
                     tab = .contacts
@@ -383,10 +390,10 @@ struct ShellView: View {
         await PushCoordinator.shared.ensureRegistrar(api: graph.api).register()
     }
 
-    /// Hydrate the company view (numbers etc.) + live nav counts. The counts
-    /// feed screen headers and the avatar dot (the pill nav shows no
-    /// numerals). Each read is quiet — a failure leaves the previous value
-    /// rather than an error state.
+    /// Hydrate the company view (numbers etc.) + live nav counts. The numeric
+    /// counts feed screen headers; the avatar dot reads the shared
+    /// `CompanyReadState` (#201), primed here through its guard. Each read is
+    /// quiet — a failure leaves the previous value rather than an error state.
     private func reloadCounts() async {
         if let me = try? await graph.meApi.me(companyId: companyId) {
             hydratedMe = me
@@ -398,13 +405,16 @@ struct ShellView: View {
         let openTasks = (try? await graph.tasksApi.list(
             companyId: companyId, limit: 100
         ).data.count) ?? 0
-        let unreadNotifications =
-            (try? await graph.notificationsApi.unreadCount(companyId: companyId).count) ?? 0
+        // The avatar dot reads the shared CompanyReadState, not `counts`: route
+        // the server count through the guard so a fetch landing mid-mark can't
+        // resurrect a just-cleared dot (#201).
+        if let notifCount = try? await graph.notificationsApi.unreadCount(companyId: companyId).count {
+            notifReadState.offerServerCount(notifCount)
+        }
         counts = ShellCounts(
             forYou: forYou.map { $0.waiting_on_you.count + $0.my_tasks.count + $0.unread.count } ?? 0,
             unreadConversations: unread,
-            openTasks: openTasks,
-            unreadNotifications: unreadNotifications
+            openTasks: openTasks
         )
         // App icon badge = unread conversations (the web's document-title
         // unread prefix equivalent).

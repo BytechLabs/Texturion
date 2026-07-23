@@ -22,21 +22,29 @@ final class NotificationsFeedModel {
     private(set) var items: [NotificationItem] = []
     private(set) var nextCursor: String?
     private(set) var loadingMore = false
-    private(set) var unreadCount = 0
     /// Transient bottom notice (the Android snackbar equivalent).
     private(set) var toast: String?
 
-    private var localWatermark: String?
-    private var pendingMarks = 0
+    /// The shared, app-lifetime unread state (#201) — the SAME instance the
+    /// shell avatar dot and the account sheet read, so a mark-read here clears
+    /// every surface in the same frame. The unread count, the forward-only
+    /// watermark, and the in-flight-mark guard all live here now, not on this
+    /// screen-scoped model.
+    let readState: CompanyReadState
+
     private var toastTask: Task<Void, Never>?
 
     init(api: NotificationsFeedApi, companyId: String) {
         self.api = api
         self.companyId = companyId
+        self.readState = NotificationsReadState.shared.forCompany(companyId)
     }
 
+    /// Passthrough to the shared count (kept for the screen's own reads).
+    var unreadCount: Int { readState.unreadCount }
+
     var hasUnread: Bool {
-        unreadCount > 0 || items.contains { $0.unread }
+        readState.unreadCount > 0 || items.contains { $0.unread }
     }
 
     /// The failed screen's retry: show the spinner again before refetching.
@@ -49,7 +57,7 @@ final class NotificationsFeedModel {
     func refresh() async {
         do {
             let page = try await api.feed(companyId: companyId)
-            items = withLocalReads(page.data)
+            items = readState.withLocalReads(page.data)
             nextCursor = page.next_cursor
             state = .ready(())
         } catch {
@@ -59,42 +67,52 @@ final class NotificationsFeedModel {
         await pollUnread()
     }
 
-    /// Badge refresh (also the 60s poll body). Ignored mid-mark.
+    /// Badge refresh (also the 60s poll body). The shared guard drops the
+    /// server count while a mark POST is in flight (it would resurrect the
+    /// pre-mark badge).
     func pollUnread() async {
         guard let count = (try? await api.unreadCount(companyId: companyId))?.count else {
             return
         }
-        if pendingMarks == 0 {
-            unreadCount = count
-        }
+        readState.offerServerCount(count)
     }
 
     func markItemRead(_ item: NotificationItem) {
         guard item.unread else { return }
         let previousItems = items
-        let previousCount = unreadCount
-        let previousWatermark = localWatermark
-        localWatermark = advanceWatermark(current: localWatermark, candidate: item.created_at)
+        let previousCount = readState.unreadCount
+        let previousWatermark = readState.localWatermark
+        readState.localWatermark = advanceWatermark(
+            current: readState.localWatermark, candidate: item.created_at
+        )
+        // The watermark advance marks the tapped item AND everything older
+        // read; decrement the shared server total by however many loaded rows
+        // it actually flipped (the reconcile refetch on settle corrects any
+        // drift from unloaded older rows).
+        let before = items.filter { $0.unread }.count
         items = applyWatermark(items: items, lastSeenAt: item.created_at)
-        // Everything newer than a loaded item is also loaded (contiguous DESC
-        // feed), so counting loaded unread rows is exact after the advance.
-        unreadCount = items.filter { $0.unread }.count
-        pendingMarks += 1
+        let flipped = before - items.filter { $0.unread }.count
+        readState.setUnreadCount(previousCount - flipped)
+        readState.beginMark()
         Task {
-            defer { pendingMarks -= 1 }
             do {
                 let result = try await api.markRead(companyId: companyId, before: item.created_at)
                 // The server may be further ahead (another device read more).
-                localWatermark = advanceWatermark(
-                    current: localWatermark, candidate: result.last_seen_at
+                readState.localWatermark = advanceWatermark(
+                    current: readState.localWatermark, candidate: result.last_seen_at
                 )
                 items = applyWatermark(items: items, lastSeenAt: result.last_seen_at)
-                unreadCount = items.filter { $0.unread }.count
             } catch {
                 items = previousItems
-                unreadCount = previousCount
-                localWatermark = previousWatermark
+                readState.setUnreadCount(previousCount)
+                readState.localWatermark = previousWatermark
                 showToast("Couldn't mark that read.")
+            }
+            // The last mark to settle runs one guarded reconcile — no realtime
+            // event follows a mark, so this is the only thing that corrects the
+            // shared count back to server truth.
+            if readState.settleMark() {
+                await pollUnread()
             }
         }
     }
@@ -102,28 +120,30 @@ final class NotificationsFeedModel {
     func markAllRead() {
         guard hasUnread else { return }
         let previousItems = items
-        let previousCount = unreadCount
-        let previousWatermark = localWatermark
+        let previousCount = readState.unreadCount
+        let previousWatermark = readState.localWatermark
         items = items.map { item in
             guard item.unread else { return item }
             var read = item
             read.unread = false
             return read
         }
-        unreadCount = 0
-        pendingMarks += 1
+        readState.setUnreadCount(0)
+        readState.beginMark()
         Task {
-            defer { pendingMarks -= 1 }
             do {
                 let result = try await api.markAllRead(companyId: companyId)
-                localWatermark = advanceWatermark(
-                    current: localWatermark, candidate: result.last_seen_at
+                readState.localWatermark = advanceWatermark(
+                    current: readState.localWatermark, candidate: result.last_seen_at
                 )
             } catch {
                 items = previousItems
-                unreadCount = previousCount
-                localWatermark = previousWatermark
+                readState.setUnreadCount(previousCount)
+                readState.localWatermark = previousWatermark
                 showToast("Couldn't mark all read.")
+            }
+            if readState.settleMark() {
+                await pollUnread()
             }
         }
     }
@@ -137,7 +157,7 @@ final class NotificationsFeedModel {
                 let page = try await api.feed(companyId: companyId, cursor: cursor)
                 var seen = Set<String>()
                 var merged: [NotificationItem] = []
-                for row in items + withLocalReads(page.data) {
+                for row in items + readState.withLocalReads(page.data) {
                     if seen.insert(row.feedKey).inserted {
                         merged.append(row)
                     }
@@ -148,11 +168,6 @@ final class NotificationsFeedModel {
                 showToast("Couldn't load older notifications.")
             }
         }
-    }
-
-    private func withLocalReads(_ fetched: [NotificationItem]) -> [NotificationItem] {
-        guard let localWatermark else { return fetched }
-        return applyWatermark(items: fetched, lastSeenAt: localWatermark)
     }
 
     private func showToast(_ message: String) {

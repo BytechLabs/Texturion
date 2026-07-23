@@ -11,7 +11,10 @@ struct AccountSheet: View {
     @Bindable var prefs: AppPrefs
     let me: Me
     let companyId: String
-    let unreadNotifications: Int
+    /// The shared unread state (#201) — the same instance the shell avatar dot
+    /// and the notifications screen read, so this row's dot and count stay in
+    /// lockstep with every other surface.
+    let readState: CompanyReadState
     let onOpenContacts: @MainActor () -> Void
     let onOpenNotifications: @MainActor () -> Void
     let onOpenSettings: @MainActor () -> Void
@@ -19,6 +22,12 @@ struct AccountSheet: View {
     let onSignOut: @MainActor () -> Void
 
     @Environment(\.dismiss) private var dismiss
+
+    /// Live unread count from the shared state — reading it here makes this
+    /// sheet re-render the instant a mark-read clears the badge.
+    private var unreadNotifications: Int {
+        readState.unreadCount
+    }
 
     private var membership: Membership? {
         me.memberships.first { $0.company_id == companyId }
