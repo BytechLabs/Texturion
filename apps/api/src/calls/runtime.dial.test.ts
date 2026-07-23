@@ -1,8 +1,8 @@
 /**
  * CALLS-CLIENT-V2 §3.2 — the DO (CALLS-V3 T1d/T4) dial path stamps the
  * X-Loonext-Session custom SIP header on the member ring `POST /v2/calls` body,
- * so the header is present whether or not CALLS_V3_LEGACY is set. Drives the
- * REAL runtime (createSessionRuntime) with only the network edge (global fetch)
+ * so the Android client can correlate the INVITE to its server session. Drives
+ * the REAL runtime (createSessionRuntime) with only the network edge (global fetch)
  * stubbed, and asserts the exact header name/value the Android client reads.
  * #212 also pins X-Loonext-Caller (the real caller, so the member's ring shows
  * who is calling and not our own business `from`) on this same live v3 path.

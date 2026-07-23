@@ -204,26 +204,6 @@ const envSchema = z.object({
    * presence and fails loudly in production (§2.1).
    */
   CALL_SESSIONS: callSessionsSchema.optional(),
-  /**
-   * Calls v3 kill switch (#170 §12.4): "1"/"true" restores the legacy inbound
-   * handlers for emergencies — the webhook router routes inbound events to the
-   * legacy path and never calls the DO, /state serves row derivation, and the
-   * DO alarm no-ops (re-arming a coarse re-check). OPTIONAL: unset = the v3
-   * path is live (the default posture once the binding is present).
-   */
-  CALLS_V3_LEGACY: z.string().optional(),
-  /**
-   * #211 outbound-sessions flag: set to "1"/"true" to let POST /v1/calls/browser
-   * mint the server session id S, store it bound to the nonce, embed it as the
-   * 4-part client_state `oc_customer|<customer>|<nonce>|<S>`, and return it — so
-   * the outbound leg becomes a first-class CallSessionDO session with transfer/
-   * consult parity. OPTIONAL and defaulted OFF (unset = today's exact 3-part
-   * legacy outbound flow, no call_session_id in the response), so the whole
-   * feature stays DARK until the founder enables it. Gated in tandem with
-   * callsV3Active(env): a global v3 kill (CALLS_V3_LEGACY) also suppresses
-   * 4-part minting, so a global kill never hands the client a dead affordance.
-   */
-  CALLS_OUTBOUND_V3: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

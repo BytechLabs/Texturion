@@ -1,29 +1,28 @@
 /**
- * Call-Control webhook handler, dispatched from /webhooks/telnyx on `call.*`
- * event types (same verified, ledgered, ack-then-waitUntil path the
- * messaging webhooks use).
+ * Call-Control webhook glue for the calls-v3 world. Every inbound and outbound
+ * CALL is a CallSessionDO session (calls/session-do.ts); this module is NOT the
+ * call dispatcher. It provides two things:
  *
- * D43 (#135): the browser is the phone. An INBOUND call to a company number
- * rings every eligible member's WebRTC leg (the ring engine —
- * ./inbound-ring); unanswered calls take a voicemail; the missed text-back
- * fires for every unanswered path. Cell forwarding and the D38 cell bridge
- * are DELETED — no call ever dials a personal cell.
+ *   1. handleCallEvent — the webhook entry (dispatched from /webhooks/telnyx)
+ *      for the events that are NOT full DO sessions: the consult/transfer
+ *      (brc/brt) legs, which attach to a live DO session and run the D43
+ *      live-call handlers (messaging/live-call.ts).
+ *   2. The SHARED delegates the DO invokes through runtime.ts: the terminal
+ *      merge (handleTerminalCallEvent), the voicemail pipeline
+ *      (handleVoicemailSaved), threading (threadCallSession), the voice
+ *      metering (recordCallDuration), and the outbound tag helpers
+ *      (buildOutboundState / parseOutboundNonce / parseOutboundSessionId).
  *
- * Leg classification is purely from the echoed client_state tag (the routing
- * decision captured at call time): 'brm' member ring legs, 'bri' the inbound
- * leg once a browser answered it (the tag carries the answer timestamp — the
- * talk-time/billing anchor), 'vmi' the inbound leg in voicemail, 'oc_agent'/
- * 'oc_customer' outbound legs, and NO tag = the raw inbound customer leg
- * (its hangup with nobody answered IS the miss). The legacy 'mctb_forward'/
- * 'mctb_inbound_fwd' tags remain classifiable so any call in flight across
- * the D43 deploy still terminates correctly; nothing creates them anymore.
+ * Leg classification (classifyLeg) reads the echoed client_state tag. The D38
+ * cell-bridge tags ('oc_agent', 'mctb_forward', 'mctb_inbound_fwd') remain
+ * classifiable but INERT — nothing creates them (cell forwarding + the D38
+ * bridge were deleted at D43).
  *
- * "Missed" is COMPUTED per {@link computeMissedFromEvent} — never a bare
- * hangup on an answered call. Idempotency is per call_session_id at the
- * claim RPC, so a retried webhook never double-texts.
+ * "Missed" is COMPUTED per {@link computeMissedFromEvent} — never a bare hangup
+ * on an answered call. Idempotency is per call_session_id at the claim RPC, so
+ * a retried webhook never double-texts.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import * as Sentry from "@sentry/cloudflare";
 
 import { reportVoiceSeconds } from "../billing/meter";
 import {
@@ -33,24 +32,15 @@ import {
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { notifyMissedCall } from "../notifications/missed-call";
-import { normalizeNanpPhone } from "../routes/core/phone";
-import { TelnyxApiError, telnyxRequest } from "../telnyx/client";
+import { telnyxRequest } from "../telnyx/client";
 import {
   BROWSER_INBOUND_STATE,
   BROWSER_MEMBER_STATE,
   VOICEMAIL_INBOUND_STATE,
-  cancelRingingMemberLegs,
   deleteTelnyxRecording,
-  handleMemberRingAnswered,
-  handleMemberRingHangup,
-  handleVoicemailSpeakEnded,
   insertVoicemailEvent,
   parseBrowserAnsweredAtMs,
-  parseMemberRingState,
   recoverStoredVoicemail,
-  ringMembersOrVoicemail,
-  startVoicemail,
-  screeningFlagged,
   storeVoicemailRecording,
 } from "./inbound-ring";
 import {
@@ -79,21 +69,6 @@ export const OUTBOUND_AGENT_STATE = "oc_agent";
 
 /** D38 outbound bridge: the CUSTOMER leg (the transfer target). */
 export const OUTBOUND_CUSTOMER_STATE = "oc_customer";
-
-/** Ring window for the outbound agent leg (the member expects the call). */
-export const OUTBOUND_AGENT_TIMEOUT_SECS = 25;
-
-/** Telnyx dial ring window before we declare the forward unanswered. */
-export const FORWARD_TIMEOUT_SECS = 20;
-
-/**
- * #12 hard ceiling on a SINGLE forwarded call's billable duration. The
- * period voice cap (companyOverVoiceCap) is a pre-answer boundary check, so
- * a call that answers just under the cap could otherwise run unbounded and blow
- * past the spending cap on its own. Telnyx auto-ends the leg at this limit,
- * bounding any one call's cost. 1h is far above a real business call.
- */
-export const MAX_FORWARDED_CALL_SECS = 60 * 60;
 
 /** Hard ceiling on any single leg's BILLABLE seconds — a defense-in-depth
  *  sanity bound (4h, well above the 2h runaway-call hangup) so a garbage or
@@ -131,9 +106,6 @@ interface CallPayload {
   recording_started_at?: string;
   recording_ended_at?: string;
 }
-
-/** Cause we reject an over-spending-cap inbound call with (D36 cap). */
-const OVER_BUDGET_REJECT_CAUSE = "USER_BUSY";
 
 export interface CompanyVoiceState {
   plan: PlanId | null;
@@ -240,30 +212,25 @@ function decodeOutboundCustomer(raw: string | null | undefined): string | null {
     : null;
 }
 
-/** Build the tagged client_state for an outbound leg. A browser-originated
- *  oc_customer leg also carries the single-use authorization NONCE minted by
- *  POST /v1/calls/browser (`oc_customer|<customer>|<nonce>`) — the webhook
- *  requires it to authorize the call (D43 cross-tenant/forgery fix). #211 adds
- *  an optional 4th part, the server session id S
- *  (`oc_customer|<customer>|<nonce>|<S>`), when outbound v3 is live: S is the
- *  ONE id the DO, the calls-row PK, and the client all key on. S REQUIRES the
- *  nonce (an honest client always has both), so a sessionId with no nonce is
- *  ignored — a 3-part tag never grows a hole. */
+/** Build the 4-part tagged client_state for a browser-originated outbound leg:
+ *  `oc_customer|<customer>|<nonce>|<S>`. The nonce is the single-use
+ *  authorization POST /v1/calls/browser minted (the webhook consumes it to
+ *  authorize the call — D43 cross-tenant/forgery fix); S is the #211 server
+ *  session id, the ONE id the DO idFromName, the calls-row PK, and the client
+ *  all key on. Both are always present — v3 is the sole path, so there is no
+ *  shorter tag. */
 export function buildOutboundState(
   tag: typeof OUTBOUND_AGENT_STATE | typeof OUTBOUND_CUSTOMER_STATE,
   customerE164: string,
-  nonce?: string,
-  sessionId?: string,
+  nonce: string,
+  sessionId: string,
 ): string {
-  if (nonce && sessionId) {
-    return btoa(`${tag}|${customerE164}|${nonce}|${sessionId}`);
-  }
-  return btoa(nonce ? `${tag}|${customerE164}|${nonce}` : `${tag}|${customerE164}`);
+  return btoa(`${tag}|${customerE164}|${nonce}|${sessionId}`);
 }
 
 /** The authorization nonce a browser-originated oc_customer leg carries
- *  (`oc_customer|<customer>|<nonce>` or the #211 4-part `…|<nonce>|<S>`), or
- *  null when absent (a forged/omitted tag — the webhook then rejects the leg).
+ *  (part-3 of `oc_customer|<customer>|<nonce>|<S>`), or null when absent (a
+ *  forged/omitted tag — loadOutboundInitiatedContext then rejects the leg).
  *  Exported for the #211 DO path (runtime.loadOutboundInitiatedContext). */
 export function parseOutboundNonce(raw: string | null | undefined): string | null {
   const decoded = decodeClientState(raw ?? null);
@@ -279,17 +246,14 @@ const OUTBOUND_SESSION_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * #211: the server session id S a 4-part browser-originated oc_customer leg
- * carries (`oc_customer|<customer>|<nonce>|<S>`), IFF part-4 is a well-formed
- * UUID; null for a 3-part legacy tag, a non-oc tag, or a malformed part-4.
+ * #211: the server session id S a browser-originated oc_customer leg carries
+ * (`oc_customer|<customer>|<nonce>|<S>`), IFF part-4 is a well-formed UUID; null
+ * for a non-oc tag or a malformed/absent part-4.
  *
  * This is the ONE id the DO idFromName, the calls-row PK, and the client all key
- * on. It is AUTHORITATIVE for routing (the webhook-router routes a 4-part oc leg
- * to the DO keyed on it), and the legacy webhook handlers key the calls row on
- * it too when present (falling back to payload.call_session_id for 3-part), so a
- * 4-part call that falls to legacy — a global kill flipped mid-call, or an
- * in-flight leg — still stamps answered_at, bills, and stays client-addressable
- * under the SAME id (C1 fall-to-legacy consistency).
+ * on. It is AUTHORITATIVE for routing (the webhook-router routes an oc leg to the
+ * DO keyed on it), and the shared terminal-merge reads it (via runtime.ts) so the
+ * S-row is billed and client-addressable under the SAME id everywhere.
  */
 export function parseOutboundSessionId(
   raw: string | null | undefined,
@@ -300,17 +264,6 @@ export function parseOutboundSessionId(
   if (parts[0] !== OUTBOUND_CUSTOMER_STATE) return null;
   const s = parts[3];
   return s && OUTBOUND_SESSION_UUID_RE.test(s) ? s : null;
-}
-
-interface InboundCompany {
-  id: string;
-  name: string;
-  plan: PlanId | null;
-  current_period_start: string | null;
-  overage_cap_multiplier: number | string | null;
-  subscription_status: string;
-  call_screening: "off" | "flag" | "divert";
-  voicemail_greeting: string | null;
 }
 
 /** Call-Control entry point (dispatched from /webhooks/telnyx). */
@@ -325,80 +278,9 @@ export async function handleCallEvent(
 
   const db = getDb(env);
 
-  // #211 routing-bug tripwire: with the OUTBOUND flag live, a 4-part oc leg must
-  // be admitted to the CallSessionDO at the edge (webhook-router.shouldRouteToDO),
-  // so reaching this legacy handler means a routing bug. Warn (no behavior
-  // change: the legacy handlers below still key on part-4, so the call stays
-  // key-consistent and billable). This MUST require callsOutboundV3Active (the
-  // full outbound flag), NOT merely an active v3 path: the call-hijack fix
-  // routes a 4-part oc leg to the DO ONLY when CALLS_OUTBOUND_V3 is on, so with
-  // the flag dark (or under a global kill) a 4-part oc event LEGITIMATELY falls
-  // here; warning on that would be a false positive on every such call.
-  if (
-    Boolean(env.CALL_SESSIONS) &&
-    env.CALLS_V3_LEGACY !== "1" &&
-    env.CALLS_V3_LEGACY !== "true" &&
-    (env.CALLS_OUTBOUND_V3 === "1" || env.CALLS_OUTBOUND_V3 === "true") &&
-    parseOutboundSessionId(payload.client_state)
-  ) {
-    Sentry.captureMessage(
-      `#211 routing bug: 4-part oc ${eventType} reached legacy handleCallEvent ` +
-        `under an active outbound-v3 path (should have routed to the CallSessionDO)`,
-      "warning",
-    );
-  }
-
-  if (eventType === "call.initiated") {
-    if (payload.direction === "outgoing") {
-      // Distinguish our OWN server-issued legs from browser-originated ones by
-      // the DIAL TARGET, not the client_state tag — the browser controls the
-      // tag (it could forge a brm/brc/brt tag). Every leg WE place (member
-      // rings, consult, transfer targets) dials a Telnyx CREDENTIAL URI
-      // (sip:<username>@sip.telnyx.com, a WebRTC-registered username — never a
-      // phone number). Requiring the sip.telnyx.com host AND a non-numeric
-      // user part means a browser can't reach the PSTN by crafting
-      // `sip:+15551234567@sip.telnyx.com` — that is gated like any PSTN call.
-      const to = payload.to ?? "";
-      if (
-        to.startsWith("sip:") &&
-        to.includes("@sip.telnyx.com") &&
-        !/^sip:\+?\d/.test(to)
-      ) {
-        return;
-      }
-      // Any outgoing leg to a PSTN number is browser-originated and MUST pass
-      // the server-side gate (cap / subscription / number ownership) before it
-      // can bridge to the carrier — the softphone sets its own client_state,
-      // so the gate can never trust the tag. Only a properly oc_customer-tagged
-      // leg is trackable/billable; anything else is rejected outright.
-      return handleOutboundInitiated(
-        env,
-        db,
-        payload,
-        classifyLeg(payload) === "out_customer",
-      );
-    }
-    return handleInboundInitiated(env, db, payload);
-  }
-
   const leg = classifyLeg(payload);
 
-  // D43: member browser ring legs never reach the terminal handler — their
-  // whole lifecycle (answer race, last-leg voicemail) is the ring engine's,
-  // and they must never bill, thread, or text-back.
-  if (leg === "browser_member") {
-    const state = parseMemberRingState(payload.client_state);
-    if (!state || !payload.call_control_id) return;
-    if (eventType === "call.answered") {
-      return handleMemberRingAnswered(env, db, payload.call_control_id, state);
-    }
-    if (eventType === "call.hangup") {
-      return handleMemberRingHangup(env, db, payload.call_control_id, state);
-    }
-    return;
-  }
-
-  // D43 phase 3: transfer target legs — answer stamps the new owner +
+  // D43 phase 3: transfer target legs (brt) — answer stamps the new owner +
   // journey line; a MISSED transfer auto-recovers (snap back to the sender,
   // voicemail at the hop cap). These legs never bill or thread themselves.
   if (leg === "transfer_target") {
@@ -419,9 +301,9 @@ export async function handleCallEvent(
     return;
   }
 
-  // D43 phase 3: consult legs (the member-to-member announce call). Answer
-  // marks the ledger and bridges when both sides are up; hangup dismisses
-  // the sibling. Never bills, never threads.
+  // D43 phase 3: consult legs (brc — the member-to-member announce call).
+  // Answer marks the ledger and bridges when both sides are up; hangup
+  // dismisses the sibling. Never bills, never threads.
   if (leg === "consult") {
     const state = parseConsultState(payload.client_state);
     if (!state || !payload.call_control_id) return;
@@ -437,52 +319,41 @@ export async function handleCallEvent(
     return;
   }
 
-  // D43 voicemail pipeline: greeting finished → open the recorder; recording
-  // saved → copy into our storage, upgrade the outcome, thread the message.
-  if (
-    eventType === "call.speak.ended" &&
-    leg === "vm_inbound" &&
-    payload.call_control_id
-  ) {
-    return handleVoicemailSpeakEnded(env, payload.call_control_id);
-  }
-  if (eventType === "call.recording.saved" && leg === "vm_inbound") {
-    return handleVoicemailSaved(env, db, payload);
-  }
-
-  // D43: the outbound customer leg answered — stamp answered_at so the call
-  // is transferable (requireLiveCall needs it) AND so billing anchors on
-  // talk time, not the ring window (mirrors the inbound bri anchor). #211 C1
-  // fall-to-legacy: key on S (== tag part-4) when a 4-part call reaches this
-  // legacy handler (global kill / in-flight), else Telnyx's id for 3-part.
-  if (eventType === "call.answered" && leg === "out_customer") {
-    const outboundSession =
-      parseOutboundSessionId(payload.client_state) ?? payload.call_session_id;
-    if (outboundSession) return stampOutboundAnswered(db, outboundSession);
+  // Outbound-leg authorization gate (the D43 nonce gate's PSTN enforcement).
+  // A VALID 4-part oc customer leg routes to the CallSessionDO (which
+  // authorizes it via loadOutboundInitiatedContext and rejects a bad nonce),
+  // so it never reaches here. An outgoing call.initiated that DOES reach here
+  // is therefore either one of OUR own server-issued legs (member ring /
+  // consult / transfer — always dialed to a Telnyx CREDENTIAL URI, never a
+  // phone number) or a browser-originated PSTN leg whose client_state was NOT
+  // minted by POST /v1/calls/browser. The softphone controls its own tag, so
+  // the gate trusts the DIAL TARGET, not the tag: a credential URI is ours and
+  // is allowed; anything outgoing to a PSTN number bypassed the
+  // cap / subscription / number-ownership / NANP gate and MUST be hung up, or a
+  // member with a WebRTC credential could place uncapped, cross-tenant
+  // caller-ID, non-NANP calls by crafting client_state.
+  if (eventType === "call.initiated" && payload.direction === "outgoing") {
+    const to = payload.to ?? "";
+    const isCredentialUri =
+      to.startsWith("sip:") &&
+      to.includes("@sip.telnyx.com") &&
+      !/^sip:\+?\d/.test(to);
+    if (!isCredentialUri && payload.call_control_id) {
+      await telnyxRejectLeg(env, payload.call_control_id);
+    }
     return;
   }
 
-  // D38: the outbound AGENT leg's AMD verdict is a ROUTING decision, not a
-  // terminal one — human/undetermined bridges to the customer, a machine
-  // (the member's own voicemail) hangs up so voicemail can never be
-  // connected to a customer.
-  if (eventType === "call.machine.detection.ended" && leg === "out_agent") {
-    return handleOutboundAgentVerdict(env, db, payload);
-  }
+  // The shared terminal merge (billing, outcome, threading, text-back). Every
+  // inbound and outbound CALL is a CallSessionDO session, and the DO invokes
+  // this delegate itself (runtime.terminalMergeEvent); a call terminal reaches
+  // HERE only for a non-session-family leg — the inert D38 cell-bridge legs
+  // (forward / oc_agent), which nothing creates. The forgery gate inside
+  // requires a genuine server-created calls row, so a stray leg is dropped.
   if (
     eventType === "call.hangup" ||
     eventType === "call.machine.detection.ended"
   ) {
-    // The caller giving up mid-ring must stop every browser still ringing —
-    // BEFORE the terminal merge, so members' screens clear the instant the
-    // call dies, not after our bookkeeping.
-    if (
-      eventType === "call.hangup" &&
-      leg === "inbound_untagged" &&
-      payload.call_session_id
-    ) {
-      await cancelRingingMemberLegs(env, db, payload.call_session_id);
-    }
     return handleTerminalCallEvent(env, db, eventType, payload);
   }
   // call.answered and other lifecycle events are acked no-ops.
@@ -629,141 +500,6 @@ async function resolveNumber(
     : null;
 }
 
-/** In-flight window for the line-busy read: an outcome-less calls row older
- *  than this is a crashed session, not a live call — never wedge the line. */
-const LINE_BUSY_WINDOW_MS = 4 * 60 * 60 * 1000;
-
-/**
- * D43 phase 3: the outbound customer leg's call.initiated — create the
- * in-flight session row so the line reads busy for its whole life (the
- * browser endpoint's guard and the inbound busy check both scan outcome-null
- * rows). The customer leg's control id lands too (phase-3 hold/transfer act
- * on it). Idempotent: api_upsert_call merges per session.
- */
-async function handleOutboundInitiated(
-  env: Env,
-  db: SupabaseClient,
-  payload: CallPayload,
-  hasOutboundTag: boolean,
-): Promise<void> {
-  const sessionId = payload.call_session_id;
-  const callControlId = payload.call_control_id;
-  const businessNumberE164 = payload.from; // we present the business number
-  if (!sessionId || !callControlId || !businessNumberE164) return;
-
-  // SECURITY (D43): the browser ORIGINATES the outbound WebRTC leg itself, so
-  // the webhook cannot see WHO placed it — only the presented caller number.
-  // The AUTHORIZATION is a single-use nonce that POST /v1/calls/browser minted
-  // AFTER proving the authenticated member has 'text' access (#106) to THEIR
-  // OWN company's number, with a live subscription and under the voice cap.
-  // api_authorize_outbound_call consumes that nonce IFF it was minted for
-  // exactly this presented caller number (from) and is fresh, and binds the
-  // call to the AUTHORIZED company/number — never the browser-presented one.
-  // This closes ALL of: cross-tenant caller-ID billing (a member can only mint
-  // a nonce for their own company's numbers), the note-only #106 bypass (a
-  // note-only member can't mint one at all), and the forged/omitted tag (no
-  // valid nonce → rejected).
-  const nonce = parseOutboundNonce(payload.client_state);
-  if (!hasOutboundTag || !nonce) {
-    await telnyxRejectLeg(env, callControlId);
-    return;
-  }
-  // SECURITY (#136): the BROWSER chose the dialed number itself, so the app's
-  // US/CA-only invariant must be enforced on the TELNYX-REPORTED destination
-  // (`payload.to`, Telnyx-assigned + unforgeable) — NOT the browser-echoed
-  // client_state customer, which a member could keep benign while dialing a
-  // premium/Caribbean number. normalizeNanpPhone rejects Caribbean +1 (the
-  // toll-pumping target) and everything outside US/CA, independent of the Telnyx
-  // outbound profile. The validated number becomes the customer of record.
-  const customerE164 = normalizeNanpPhone(payload.to ?? "");
-  if (!customerE164) {
-    await telnyxRejectLeg(env, callControlId);
-    return;
-  }
-  // #211 C1 fall-to-legacy: when a 4-part call falls to THIS legacy handler (a
-  // global kill flipped, or an in-flight leg), key the calls row on S (== tag
-  // part-4), NOT Telnyx's id — the RPC already coalesces to the STORED S, so
-  // p_call_session_id must be S for the busy re-check (call_session_id <> it)
-  // to exclude the row correctly AND for the stamp below to hit it. A 3-part
-  // legacy tag has no part-4, so this falls back to Telnyx's id, unchanged.
-  const rowSessionId = parseOutboundSessionId(payload.client_state) ?? sessionId;
-  const { data: authData, error: authError } = await db.rpc(
-    "api_authorize_outbound_call",
-    {
-      p_nonce: nonce,
-      p_from: businessNumberE164,
-      p_customer: customerE164,
-      p_call_session_id: rowSessionId,
-      p_max_age_secs: OUTBOUND_AUTH_MAX_AGE_SECS,
-    },
-  );
-  if (authError) {
-    throw new Error(`outbound authorize failed: ${authError.message}`);
-  }
-  const auth = (authData ?? {}) as {
-    authorized?: boolean;
-    company_id?: string;
-    phone_number_id?: string;
-    replay?: boolean;
-  };
-  if (!auth.authorized || !auth.company_id || !auth.phone_number_id) {
-    // No valid authorization (forged/omitted/expired nonce, a mismatched
-    // caller number, or a leg that skipped /calls/browser) — refuse it.
-    await telnyxRejectLeg(env, callControlId);
-    return;
-  }
-
-  // Defense in depth: a subscription that LAPSED between authorize and dial
-  // must not connect (the authorize gate ran a beat ago, but state can move).
-  // Keyed on the AUTHORIZED company, never the presented number.
-  if (!auth.replay) {
-    const { data: companyRows, error: companyError } = await db
-      .from("companies")
-      .select("plan,current_period_start,overage_cap_multiplier,subscription_status")
-      .eq("id", auth.company_id)
-      .limit(1);
-    if (companyError) {
-      throw new Error(`outbound company lookup failed: ${companyError.message}`);
-    }
-    const company = (companyRows ?? [])[0] as
-      | (CompanyVoiceState & { subscription_status: string })
-      | undefined;
-    if (
-      !company ||
-      company.subscription_status !== "active" ||
-      (await companyOverVoiceCap(db, auth.company_id, company))
-    ) {
-      await telnyxRejectLeg(env, callControlId);
-      return;
-    }
-  }
-
-  // The session row was created by the RPC (bound to the authorized company/
-  // number) under S. Stamp the customer leg's control id keyed on the SAME id
-  // the RPC used (rowSessionId = S for 4-part, Telnyx's id for 3-part).
-  //
-  // #211 call-hijack fix: the customer-leg stamp is SET-ONCE - written only
-  // when customer_call_control_id IS NULL. This closes the forgery leg (a
-  // random nonce that falls to the RPC replay branch could, before this, stamp
-  // the caller's leg onto a row S resolved from the CALLER-SUPPLIED tag part-4:
-  // a LIVE call already has its ccid set, so the IS NULL filter refuses the
-  // overwrite - no hijack). It stays idempotent AND recovery-safe: a genuine
-  // replay after a fresh delivery whose stamp landed matches zero rows (no
-  // change), while a replay after a fresh delivery that consumed the nonce but
-  // whose stamp threw still fills the null (the fresh-only guard would have
-  // silently left it null forever). The RPC replay branch is additionally
-  // authorization-scoped (an outbound row matching the presented business
-  // number), so the branch cannot even reach here for a victim's row.
-  const { error } = await db
-    .from("calls")
-    .update({ customer_call_control_id: callControlId })
-    .eq("call_session_id", rowSessionId)
-    .is("customer_call_control_id", null);
-  if (error) {
-    throw new Error(`outbound metadata stamp failed: ${error.message}`);
-  }
-}
-
 /** How long a minted outbound authorization stays valid (the browser dials
  *  immediately; this is generous headroom for a slow client). Exported for the
  *  #211 DO path (runtime.loadOutboundInitiatedContext), which consumes the same
@@ -808,317 +544,11 @@ async function telnyxRejectLeg(
   }
 }
 
-/** D43: stamp the outbound customer answer time (transfer-eligibility +
- *  talk-time billing anchor). Guarded so a replay/duplicate never moves it.
- *  If call.answered arrives BEFORE call.initiated created the row (out-of-order
- *  webhook delivery), throw so the ledger replays this event AFTER the row
- *  exists — otherwise the guarded update no-ops and the call bills zero. */
-async function stampOutboundAnswered(
-  db: SupabaseClient,
-  sessionId: string,
-): Promise<void> {
-  const { data, error } = await db
-    .from("calls")
-    .update({ answered_at: new Date().toISOString() })
-    .eq("call_session_id", sessionId)
-    .is("answered_at", null)
-    .select("id");
-  if (error) {
-    throw new Error(`outbound answered stamp failed: ${error.message}`);
-  }
-  if ((data ?? []).length > 0) return; // freshly stamped
-
-  // 0 rows updated: distinguish already-stamped (row exists) from missing.
-  const { data: exists, error: existsError } = await db
-    .from("calls")
-    .select("id")
-    .eq("call_session_id", sessionId)
-    .limit(1);
-  if (existsError) {
-    throw new Error(`outbound answered existence check failed: ${existsError.message}`);
-  }
-  if ((exists ?? []).length > 0) return; // row exists, answered_at already set — idempotent.
-
-  // The row does NOT exist. Either (a) a genuine out-of-order delivery where
-  // initiated will still land, OR (b) an initiated the gate REJECTED (over-cap
-  // / dead subscription / unowned number) that will NEVER create a row — the
-  // customer answered in the ~300ms reject window. Do NOT throw: throwing
-  // would dead-letter case (b) and page Sentry on a call already being torn
-  // down (the anti-pattern the inbound over-cap reject already guards). A
-  // rejected call must not bill; a genuine out-of-order legit call
-  // self-corrects (its far-party hangup finalizes billing conservatively).
-  console.warn(
-    `outbound answered for ${sessionId} with no calls row (rejected leg or out-of-order) — not stamping`,
-  );
-}
-
-/**
- * On inbound `call.initiated` (D43 phase 2 — the browser is the phone):
- *
- *   1. Gates, unchanged in spirit: not our number / suspended / non-live
- *      subscription → the call rings out naturally (never answer into dead
- *      air); over the voice spending cap → reject (the untagged hangup still
- *      runs the missed text-back).
- *   2. The session row is created NOW (outcome null = a live call): it
- *      carries the carrier screening verdict, STIR/SHAKEN attestation, and
- *      dipped caller name for honest UI labels, and its presence is the
- *      LINE-BUSY signal — one live call per number, the founder's line model.
- *   3. Routing: line busy → voicemail. Screening 'divert' + flagged caller →
- *      voicemail. Otherwise ring every eligible member's browser
- *      simultaneously; no browsers to ring → voicemail.
- *
- * The inbound leg stays UNANSWERED while browsers ring (real carrier
- * ringback, no billable seconds until a human answers). Cell forwarding is
- * GONE — D43 deleted it; the browser softphone is how calls are taken.
- */
-async function handleInboundInitiated(
-  env: Env,
-  db: SupabaseClient,
-  payload: CallPayload,
-): Promise<void> {
-  // Legs WE placed (member rings, outbound dials, legacy forwards) are
-  // 'outgoing' and/or tagged — only the raw customer leg routes here.
-  if (
-    payload.direction !== "incoming" ||
-    classifyLeg(payload) !== "inbound_untagged"
-  ) {
-    return;
-  }
-
-  const callControlId = payload.call_control_id;
-  const sessionId = payload.call_session_id;
-  const toE164 = payload.to;
-  if (!callControlId || !sessionId || !toE164) return;
-
-  // Anonymous/CLIR callers arrive as a NON-E164 marker ('anonymous',
-  // 'Restricted', 'unavailable') — normalize to null so it is never dialed
-  // as a SIP `from` (Telnyx 422s an invalid from → no browser rings) and
-  // never text-backed.
-  const callerE164 = normalizeCaller(payload.from);
-
-  const resolved = await resolveNumber(db, toE164);
-  if (!resolved) return; // a number we do not own → no-op
-
-  // Replay guard: an `initiated` redelivered AFTER the call already ended
-  // (terminal outcome set) must never re-ring the team. The ring-ledger
-  // guard alone can't catch a first pass that threw before ledgering.
-  const { data: priorRows, error: priorError } = await db
-    .from("calls")
-    .select("outcome")
-    .eq("call_session_id", sessionId)
-    .limit(1);
-  if (priorError) {
-    throw new Error(`initiated replay read failed: ${priorError.message}`);
-  }
-  if (priorRows?.[0] && (priorRows[0] as { outcome: string | null }).outcome) {
-    return;
-  }
-
-  const { data: companyRows, error: companyError } = await db
-    .from("companies")
-    .select(
-      "id,name,plan,current_period_start,overage_cap_multiplier,subscription_status,call_screening,voicemail_greeting",
-    )
-    .eq("id", resolved.companyId)
-    .limit(1);
-  if (companyError) {
-    throw new Error(`company lookup failed: ${companyError.message}`);
-  }
-  const company = (companyRows ?? [])[0] as InboundCompany | undefined;
-  if (!company) return;
-
-  // Line model (D43, founder-binding): ONE live call per NUMBER, decided
-  // ATOMICALLY. api_claim_inbound_line takes a per-(company,number) advisory
-  // lock, checks for another in-flight session on the number, and inserts
-  // THIS call's row (outcome null → line occupied) under that same lock — so
-  // two calls to one number in the same instant can never both go live.
-  //
-  // Minted HERE, before the suspended and cap gates (#141): both of those are
-  // legitimate early returns, but their caller leg still hangs up untagged, and
-  // the D43 terminal handler drops any inbound-family hangup that has no genuine
-  // calls row (its forgery gate). Without a row first, a suspended or
-  // over-cap caller is lost with ZERO record — no threaded miss, no crew alert,
-  // no text-back — silent lead loss for a lead-capture product. With the row,
-  // that hangup resolves through the normal missed path (outcome='missed',
-  // line freed, alert + text-back where the subscription allows).
-  const lineBusy = unwrapBool(
-    await db.rpc("api_claim_inbound_line", {
-      p_company_id: resolved.companyId,
-      p_phone_number_id: resolved.phoneNumberId,
-      p_call_session_id: sessionId,
-      p_caller_e164: callerE164,
-      p_window_start: new Date(Date.now() - LINE_BUSY_WINDOW_MS).toISOString(),
-    }),
-  );
-
-  // #43 suspended-tenant gate: a suspended number (canceled → 30-day grace,
-  // D6) or a non-live subscription gets NO ring and NO voicemail — both run
-  // billable legs with zero revenue. The call rings out; its untagged hangup
-  // now threads a missed call (the row was minted above) + crew alert, and the
-  // text-back's own claim RPC applies the same subscription gate (so a
-  // suspended tenant still sees the miss, but no billable SMS goes out).
-  if (
-    resolved.status === "suspended" ||
-    company.subscription_status !== "active"
-  ) {
-    return;
-  }
-
-  // D36 voice spending cap: AT the cap (allowance × overage_cap_multiplier)
-  // inbound answering pauses entirely — reject; the reject's untagged-leg
-  // hangup still runs the missed text-back + crew alert (the row was minted
-  // above; idempotent per call). A dead-leg 4xx (caller hung up during the cap
-  // RPC; or a replay of an ended call's initiated) is tolerated — the cap
-  // condition is durable, so a raw throw here would burn all 5 ledger replays
-  // and page Sentry on a state that can never heal.
-  if (await companyOverVoiceCap(db, resolved.companyId, company)) {
-    try {
-      await telnyxRequest(env, {
-        method: "POST",
-        path: `/v2/calls/${callControlId}/actions/reject`,
-        body: { cause: OVER_BUDGET_REJECT_CAUSE },
-      });
-    } catch (cause) {
-      if (!(cause instanceof TelnyxApiError) || cause.status >= 500) throw cause;
-    }
-    return;
-  }
-
-  // The v2 metadata (screening verdict, attestation, dipped name, the
-  // customer leg's control id for phase-3 hold/transfer) rides on the row.
-  const { error: metaError } = await db
-    .from("calls")
-    .update({
-      screening_result: payload.call_screening_result ?? null,
-      stir_attestation: payload.shaken_stir_attestation ?? null,
-      caller_name: payload.caller_id_name ?? null,
-      customer_call_control_id: callControlId,
-    })
-    .eq("call_session_id", sessionId);
-  if (metaError) {
-    throw new Error(`call metadata stamp failed: ${metaError.message}`);
-  }
-
-  if (lineBusy) {
-    await startVoicemail(env, db, {
-      callControlId,
-      callSessionId: sessionId,
-      caller: callerE164,
-      companyName: company.name,
-      greeting: company.voicemail_greeting,
-    });
-    return;
-  }
-
-  // Screening 'divert': a carrier-flagged caller goes straight to voicemail —
-  // the team is never interrupted, but a misflagged human still gets to
-  // leave a message (and the raw verdict is on the row for honest UI).
-  if (
-    company.call_screening === "divert" &&
-    screeningFlagged(payload.call_screening_result)
-  ) {
-    await startVoicemail(env, db, {
-      callControlId,
-      callSessionId: sessionId,
-      caller: callerE164,
-      companyName: company.name,
-      greeting: company.voicemail_greeting,
-    });
-    return;
-  }
-
-  await ringMembersOrVoicemail(env, db, {
-    callControlId,
-    callSessionId: sessionId,
-    callerE164,
-    businessNumberE164: toE164,
-    companyId: resolved.companyId,
-    phoneNumberId: resolved.phoneNumberId,
-    companyName: company.name,
-    voicemailGreeting: company.voicemail_greeting,
-  });
-}
-
 /** A caller number is E.164 or nothing. Telnyx delivers a non-E164 marker
  *  ('anonymous', 'Restricted', 'unavailable') for CLIR/blocked callers —
  *  normalize those to null so they are never dialed or texted. */
 export function normalizeCaller(from: string | null | undefined): string | null {
   return from && /^\+[1-9]\d{6,14}$/.test(from) ? from : null;
-}
-
-/** Coerce a boolean-returning RPC result (PostgREST may serialize it loosely). */
-function unwrapBool(result: { data: unknown; error: unknown }): boolean {
-  if (result.error) {
-    const e = result.error as { message?: string };
-    throw new Error(`rpc failed: ${e.message ?? String(result.error)}`);
-  }
-  return result.data === true;
-}
-
-/**
- * D38: the outbound agent leg answered and AMD spoke. Human (or undetermined
- * — never strand a member who answered) → transfer to the customer,
- * presenting the business number, with the customer tag on the new leg.
- * Machine → the member's own voicemail picked up: hang up. The hangup that
- * follows flows through the terminal handler and marks the session 'missed'
- * (never connected).
- */
-async function handleOutboundAgentVerdict(
-  env: Env,
-  db: SupabaseClient,
-  payload: CallPayload,
-): Promise<void> {
-  const callControlId = payload.call_control_id;
-  const customer = decodeOutboundCustomer(payload.client_state);
-  const businessNumber = payload.from;
-  if (!callControlId || !customer || !businessNumber) return;
-
-  const machine = ["machine", "not_human", "fax", "fax_detected"].includes(
-    payload.result ?? "",
-  );
-  if (machine) {
-    // Mark the session never-connected BEFORE hanging up (the hangup that
-    // follows carries normal_clearing, which must not read as 'answered').
-    if (payload.call_session_id) {
-      const resolved = payload.from
-        ? await resolveNumber(db, payload.from)
-        : null;
-      if (resolved) {
-        await upsertCallSession(db, {
-          eventType: "call.machine.detection.ended",
-          payload,
-          leg: "out_agent",
-          companyId: resolved.companyId,
-          phoneNumberId: resolved.phoneNumberId,
-          callSessionId: payload.call_session_id,
-          caller: customer,
-          missed: true,
-        });
-      }
-    }
-    await telnyxRequest(env, {
-      method: "POST",
-      path: `/v2/calls/${callControlId}/actions/hangup`,
-      body: {},
-    });
-    return;
-  }
-
-  await telnyxRequest(env, {
-    method: "POST",
-    path: `/v2/calls/${callControlId}/actions/transfer`,
-    body: {
-      to: customer,
-      from: businessNumber, // the customer sees the business number
-      timeout_secs: OUTBOUND_AGENT_TIMEOUT_SECS,
-      time_limit_secs: MAX_FORWARDED_CALL_SECS,
-      client_state: buildOutboundState(OUTBOUND_AGENT_STATE, customer),
-      target_leg_client_state: buildOutboundState(
-        OUTBOUND_CUSTOMER_STATE,
-        customer,
-      ),
-    },
-  });
 }
 
 /**
@@ -1138,11 +568,12 @@ export async function handleTerminalCallEvent(
   db: SupabaseClient,
   eventType: string,
   payload: CallPayload,
-  // #211 M1/C1: for an outbound (oc) leg the calls row is keyed on S (== tag
-  // part-4), NOT Telnyx's call_session_id. The DO's terminal-merge passes S as
-  // outboundSessionId AND the DO-authoritative answered-at anchor; a legacy
-  // fall-to-legacy 4-part event reads S from the tag (below). Inbound + 3-part
-  // legacy pass no opts and fall through to call_session_id — byte-identical.
+  // #211 M1: for an outbound (oc) leg the calls row is keyed on S (== tag
+  // part-4), NOT Telnyx's call_session_id. The DO's terminal-merge (the only
+  // outbound caller) passes S as outboundSessionId AND the DO-authoritative
+  // answered-at anchor. Inbound passes no opts and falls through to
+  // call_session_id (inbound's S IS Telnyx's id). The middle parseOutbound read
+  // is defense in depth for a stray 4-part tag arriving without opts.
   opts?: { outboundSessionId?: string; outboundAnsweredAtIso?: string | null },
 ): Promise<void> {
   const callId =
@@ -1386,9 +817,8 @@ async function upsertCallSession(
       if (machine) outcome = "voicemail";
       else if (amd === "human") outcome = "answered";
     } else if (leg === "out_agent" && machine) {
-      // D38: the member's own voicemail answered the agent leg — the bridge
-      // is aborted (handleOutboundAgentVerdict hangs up) and the customer
-      // was never dialed.
+      // D38 (inert — nothing creates oc_agent legs anymore): the member's own
+      // voicemail answered the agent leg, so the customer was never dialed.
       outcome = "missed";
     }
   } else if (eventType === "call.hangup") {

@@ -325,14 +325,6 @@ export class CallSessionDO extends DurableObject<Env> {
 
   async alarm(): Promise<void> {
     await this.enqueue(async () => {
-      // Kill switch (§12.4): no-op the real alarms but RE-ARM a coarse re-check
-      // so the object never loses its pending alarm (no immortal storage). When
-      // the flag clears, the re-check re-arms the nearest real deadline.
-      if (this.rt.legacyKillSwitch()) {
-        await this.setAlarmSlot("janitor", Date.now() + 5 * 60_000);
-        await this.reconcileAlarm();
-        return;
-      }
       await this.resumeJournalIfAny();
       const now = Date.now();
       const alarms = await this.getAlarms();

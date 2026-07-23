@@ -26,7 +26,6 @@ import {
   resolveNumberAccess,
   type NumberAccessRule,
 } from "../auth/number-access";
-import { callsV3Active, callsV3LegacyMode } from "../calls/runtime";
 import type { CallSessionDO, SessionSnapshot } from "../calls/session-do";
 import type { CallState } from "../calls/transitions";
 import type { AppEnv } from "../context";
@@ -42,10 +41,7 @@ import {
   type LiveCallRow,
 } from "../messaging/live-call";
 import { insertJourneyEvent } from "../messaging/live-call";
-import {
-  LOONEXT_SESSION_HEADER,
-  ringMemberBrowser,
-} from "../messaging/inbound-ring";
+import { LOONEXT_SESSION_HEADER } from "../messaging/inbound-ring";
 import { telnyxRequest } from "../telnyx/client";
 import { parseJsonBody, unwrap } from "./core/http";
 
@@ -72,7 +68,7 @@ function callSessionStub(env: Env, sessionId: string): CallSessionDO | null {
 
 /** §8.1 row-derivation fallback (DEGRADED truth — cannot represent
  *  voicemail-in-progress; that is phase-1 defect 4). Used when the DO returns
- *  null (purged/legacy) or in kill-switch mode. */
+ *  null (a purged session whose machine is gone). */
 function deriveStateFromRow(row: {
   outcome: string | null;
   answered_at: string | null;
@@ -248,10 +244,9 @@ liveCallsRoutes.get("/calls/live/mine", requireRole("member"), async (c) => {
  * member can only decline a session they were genuinely rung for).
  *
  * Registered BEFORE the :sessionId routes so 'decline-mine' never parses as a
- * session id. ALWAYS 200 (never a 409 for state). Kill-switch / no-DO env →
- * {declined:false, sessions:[]} (legacy relies on the client SDK hangup).
- * Crash-safe fan-out: a per-session DO throw is logged and skipped, never
- * sinking the batch or the 200 (the DO journals its own state internally).
+ * session id. ALWAYS 200 (never a 409 for state). Crash-safe fan-out: a
+ * per-session DO throw is logged and skipped, never sinking the batch or the
+ * 200 (the DO journals its own state internally).
  */
 liveCallsRoutes.post(
   "/calls/live/decline-mine",
@@ -260,12 +255,6 @@ liveCallsRoutes.post(
     const env = getEnv(c.env);
     const companyId = c.get("companyId");
     const userId = c.get("userId");
-
-    // Kill-switch / no-binding: decline is a v3-only signal (no avenue ladder
-    // without the DO). Empty 200 — the legacy client owns its own SDK hangup.
-    if (!callsV3Active(env)) {
-      return c.json({ declined: false, sessions: [] });
-    }
 
     const db = getDb(env);
     // The company's currently-ringing sessions. The DO mirror keeps
@@ -367,10 +356,9 @@ liveCallsRoutes.get(
  * GET /v1/calls/live/:sessionId/state (#170 §8.1) — the ONE state read,
  * ALWAYS 200 for an authorized request (no client ever infers state from a 4xx
  * again). Authorizes from the calls row (company + #106), then reads the DO
- * snapshot; if the DO returns null (purged / legacy) OR the kill switch is
- * flipped, state is DERIVED from the row (§8.1 — degraded but strictly better
- * than 4xx inference). Kill-switch mode NEVER calls the DO (review X1: a DO
- * holding pre-flip state would serve a stale snapshot forever).
+ * snapshot; if the DO returns null (a purged session whose machine is gone),
+ * state is DERIVED from the row (§8.1 — degraded but strictly better than 4xx
+ * inference).
  */
 liveCallsRoutes.get(
   "/calls/live/:sessionId/state",
@@ -423,17 +411,14 @@ liveCallsRoutes.get(
     let state: CallState | null = null;
     let yourLeg: { call_control_id: string; status: string } | null = null;
 
-    // Kill-switch mode bypasses the DO entirely (§8.1 / §12.4).
-    if (!callsV3LegacyMode(env)) {
-      const stub = callSessionStub(env, sessionId);
-      if (stub) {
-        const snap: SessionSnapshot | null = await stub.snapshot(sessionId);
-        if (snap) {
-          state = snap.state;
-          const mine = snap.legs.find((leg) => leg.user_id === c.get("userId"));
-          if (mine) {
-            yourLeg = { call_control_id: mine.call_control_id, status: mine.status };
-          }
+    const stub = callSessionStub(env, sessionId);
+    if (stub) {
+      const snap: SessionSnapshot | null = await stub.snapshot(sessionId);
+      if (snap) {
+        state = snap.state;
+        const mine = snap.legs.find((leg) => leg.user_id === c.get("userId"));
+        if (mine) {
+          yourLeg = { call_control_id: mine.call_control_id, status: mine.status };
         }
       }
     }
@@ -542,13 +527,6 @@ liveCallsRoutes.post(
     const gate = await requireLiveCall(c, db, sessionId);
     if (gate instanceof Response) return gate;
 
-    // #211 D13 CLOSE: under the v3 kill switch (no DO adjudicating), REFUSE an
-    // outbound transfer — the legacy issueTransfer-on-outbound path is untested,
-    // and parity exists only under v3. (Inbound keeps its legacy fallback.)
-    if (gate.call.direction === "outbound" && !callsV3Active(env)) {
-      return errorResponse(c, "conflict", "This call can't be transferred right now.");
-    }
-
     const target = await eligibleTarget(
       db,
       c.get("companyId"),
@@ -568,7 +546,7 @@ liveCallsRoutes.post(
     // never miss an in-flight transfer. The DO returns the machine state; abort
     // (dial nothing) unless it is 'answered' (review R1-m3 — requireLiveCall
     // can pass and T5/T8 land before this call).
-    const transferStub = callsV3Active(env) ? callSessionStub(env, sessionId) : null;
+    const transferStub = callSessionStub(env, sessionId);
     if (transferStub) {
       const { state } = await transferStub.registerIntent({
         sessionId,
@@ -624,12 +602,6 @@ liveCallsRoutes.post(
     if (gate instanceof Response) return gate;
     const companyId = c.get("companyId");
 
-    // #211 D13 CLOSE: no outbound consult under the v3 kill switch (untested
-    // legacy path); parity exists only under v3.
-    if (gate.call.direction === "outbound" && !callsV3Active(env)) {
-      return errorResponse(c, "conflict", "This call can't be transferred right now.");
-    }
-
     const existing = await consultLegs(db, sessionId);
     if (existing.some((leg) => leg.state !== "failed")) {
       return errorResponse(
@@ -667,7 +639,7 @@ liveCallsRoutes.post(
     // #170 §7.4: intent BEFORE any Telnyx command (the consult route dials BOTH
     // legs; T7 must observe the intent already registered). Abort unless the
     // machine is still 'answered'.
-    const consultStub = callsV3Active(env) ? callSessionStub(env, sessionId) : null;
+    const consultStub = callSessionStub(env, sessionId);
     if (consultStub) {
       const { state } = await consultStub.registerIntent({
         sessionId,
@@ -765,11 +737,6 @@ liveCallsRoutes.post(
     const gate = await requireLiveCall(c, db, sessionId);
     if (gate instanceof Response) return gate;
 
-    // #211 D13 CLOSE: no outbound consult-complete under the v3 kill switch.
-    if (gate.call.direction === "outbound" && !callsV3Active(env)) {
-      return errorResponse(c, "conflict", "This call can't be transferred right now.");
-    }
-
     const legs = await consultLegs(db, sessionId);
     const targetLeg = legs.find(
       (leg) => leg.state === "answered" && leg.user_id !== c.get("userId"),
@@ -817,9 +784,7 @@ liveCallsRoutes.post(
     // re-armed intent expiry would then force-hang the transferred customer.
     // Clearing the intent re-runs T7's stood-down recovery check, a no-op
     // now that the owner changed.
-    const completeStub = callsV3Active(env)
-      ? callSessionStub(env, sessionId)
-      : null;
+    const completeStub = callSessionStub(env, sessionId);
     if (completeStub) {
       await completeStub.setOwner({ sessionId, userId: targetLeg.user_id });
       await completeStub.clearIntent();
@@ -910,10 +875,8 @@ liveCallsRoutes.post(
       }
     }
     // #170 §7.4: clear the consult intent (also re-runs T7's stood-down check).
-    if (callsV3Active(env)) {
-      const stub = callSessionStub(env, sessionId);
-      if (stub) await stub.clearIntent();
-    }
+    const stub = callSessionStub(env, sessionId);
+    if (stub) await stub.clearIntent();
     return c.json({ status: "cancelled" });
   },
 );
@@ -968,71 +931,32 @@ liveCallsRoutes.post(
       return errorResponse(c, "conflict", "Your device can't take calls yet.");
     }
 
-    // v3: the DO owns sequencing/state. The #168 ledger 409 gate is GONE — the
-    // DO's state guard replaces it with a truthful 200 body (§6). ring-me NEVER
-    // cancels a leg; the DO decides rang/reason.
-    if (callsV3Active(env)) {
-      const stub = callSessionStub(env, sessionId);
-      if (stub) {
-        const result = await stub.ringMe({
-          sessionId,
-          userId,
-          sipUsername: target.sipUsername,
-          noLocalLeg,
-        });
-        return c.json({
-          ok: true,
-          rang: result.rang,
-          state: result.state,
-          ...(result.reason ? { reason: result.reason } : {}),
-        });
-      }
+    // The DO owns sequencing/state. The #168 ledger 409 gate is GONE — the DO's
+    // state guard replaces it with a truthful 200 body (§6). ring-me NEVER
+    // cancels a leg; the DO decides rang/reason. The DO binding is a deployment
+    // invariant (§2.1); if it is somehow absent we cannot ring, so degrade to an
+    // honest row-derived no-op (there is no legacy ring-engine fallback).
+    const stub = callSessionStub(env, sessionId);
+    if (!stub) {
+      return c.json({
+        ok: true,
+        rang: false,
+        state: deriveStateFromRow(call) ?? "ringing",
+        reason: "not_ringing",
+      });
     }
-
-    // Kill-switch / no-binding fallback: the legacy ring engine. Preserve the
-    // #168 ledger gate ONLY on this path (the DO is not in play).
-    if (call.outcome !== null || call.answered_at) {
-      return c.json({ ok: true, rang: false, state: "answered", reason: "not_ringing" });
-    }
-    const legs = unwrap<{ state: string }[]>(
-      await db
-        .from("call_member_legs")
-        .select("state")
-        .eq("call_session_id", sessionId)
-        .eq("kind", "ring"),
-      "ring ledger read",
-    );
-    if (
-      legs.length > 0 &&
-      !legs.some((leg) => leg.state === "ringing" || leg.state === "answered")
-    ) {
-      return c.json({ ok: true, rang: false, state: "ringing", reason: "not_ringing" });
-    }
-    if (!call.customer_call_control_id) {
-      return errorResponse(c, "conflict", "This call can't be rung.");
-    }
-    const numbers = unwrap<{ number_e164: string }[]>(
-      await db
-        .from("phone_numbers")
-        .select("number_e164")
-        .eq("id", call.phone_number_id)
-        .limit(1),
-      "number lookup",
-    );
-    const businessNumber = numbers[0]?.number_e164;
-    if (!businessNumber) {
-      return errorResponse(c, "conflict", "This call can't be rung.");
-    }
-    await ringMemberBrowser(env, db, {
-      callSessionId: sessionId,
-      companyId,
+    const result = await stub.ringMe({
+      sessionId,
       userId,
       sipUsername: target.sipUsername,
-      caller: call.caller_e164,
-      businessNumberE164: businessNumber,
-      inboundCcid: call.customer_call_control_id,
+      noLocalLeg,
     });
-    return c.json({ ok: true, rang: true, state: "ringing" });
+    return c.json({
+      ok: true,
+      rang: result.rang,
+      state: result.state,
+      ...(result.reason ? { reason: result.reason } : {}),
+    });
   },
 );
 
@@ -1083,26 +1007,22 @@ liveCallsRoutes.post(
       need: "text",
     });
 
-    // v3: the DO owns the decline signal + the avenue ladder. Always-200 body.
-    if (callsV3Active(env)) {
-      const stub = callSessionStub(env, sessionId);
-      if (stub) {
-        const result = await stub.decline({ sessionId, userId });
-        return c.json({
-          declined: result.declined,
-          state: result.state,
-          ...(result.reason ? { reason: result.reason } : {}),
-        });
-      }
+    // The DO owns the decline signal + the avenue ladder. Always-200 body. The
+    // DO binding is a deployment invariant (§2.1); if it is somehow absent the
+    // request can't be adjudicated, so fall back to an honest row-derived no-op.
+    const stub = callSessionStub(env, sessionId);
+    if (!stub) {
+      return c.json({
+        declined: false,
+        state: deriveStateFromRow(call) ?? "ended_missed",
+        reason: "not_ringing",
+      });
     }
-
-    // Kill-switch / no-binding fallback: decline is a v3-only signal (there is
-    // no avenue ladder without the DO). Honestly 200 no-op — the legacy client
-    // relies on its own SDK hangup, unchanged.
+    const result = await stub.decline({ sessionId, userId });
     return c.json({
-      declined: false,
-      state: deriveStateFromRow(call) ?? "ended_missed",
-      reason: "not_ringing",
+      declined: result.declined,
+      state: result.state,
+      ...(result.reason ? { reason: result.reason } : {}),
     });
   },
 );

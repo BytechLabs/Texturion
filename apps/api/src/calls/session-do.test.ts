@@ -55,7 +55,6 @@ function makeStorage() {
 // ---- fake runtime ----------------------------------------------------------
 
 interface FakeConfig {
-  killSwitch?: boolean;
   initiated?: InitiatedContext | "drop" | "replay-ended";
   /** #211: what loadOutboundInitiatedContext returns for a 4-part oc initiated. */
   outboundInitiated?: OutboundInitiatedContext | "reject" | "drop";
@@ -97,7 +96,6 @@ function makeRuntime(config: FakeConfig = {}) {
   const runtime: SessionRuntime = {
     now: () => Date.now(),
     uuid: () => `uuid-${dialN++}`,
-    legacyKillSwitch: () => config.killSwitch === true,
     telnyx: {
       async dial(input) {
         const result = config.dialResult ? config.dialResult() : { ccid: `cc${calls.dials.length}` };
@@ -368,8 +366,7 @@ describe("CallSessionDO — admission + serialization (§4.1)", () => {
     expect(stamp).toBe(true);
     expect(calls.dials).toHaveLength(1);
     // CALLS-CLIENT-V2 §3.2: the DO (T1d/T4) dial receives the call_session_id so
-    // runtime.ts stamps it as the X-Loonext-Session custom SIP header — present
-    // whether or not CALLS_V3_LEGACY is set.
+    // runtime.ts stamps it as the X-Loonext-Session custom SIP header.
     expect(calls.dials[0].sessionId).toBe(SESSION);
     const snap = await snapshot(instance);
     expect(snap?.state).toBe("ringing");
@@ -563,16 +560,6 @@ describe("CallSessionDO (#208 F4): dead-customer-leg teardown", () => {
     const snap = await snapshot(instance);
     expect(snap?.state).toBe("answered"); // the bri hangup will run T8
     expect(calls.terminalMerges).toHaveLength(0);
-  });
-});
-
-describe("CallSessionDO — kill switch (§12.4)", () => {
-  it("alarm() no-ops under the flag but RE-ARMS a coarse re-check (no immortal storage)", async () => {
-    const { instance, store, calls } = makeDO({ initiated: ctx(), killSwitch: true });
-    await instance.alarm();
-    // The real alarms did not fire (no dial/answer), and a re-check alarm is set.
-    expect(calls.answersVm).toHaveLength(0);
-    expect(store.getAlarmAt()).not.toBeNull();
   });
 });
 

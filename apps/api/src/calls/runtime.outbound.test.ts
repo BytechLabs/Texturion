@@ -161,4 +161,47 @@ describe("loadOutboundInitiatedContext — #211 call-hijack fix", () => {
     expect(result).toBe("reject");
     expect(stamp.calls).toHaveLength(0);
   });
+
+  it("NO flag in the env: the crafted-tag hijack STILL fails (routing is unconditional; the defense is here)", async () => {
+    // The calls env flags are GONE, so the webhook-router routes this crafted
+    // 4-part tag straight to idFromName(S_victim) (pinned in webhook-router.test.ts:
+    // "a crafted 4-part tag DOES route to the DO"). The ONLY defense now is this
+    // context. The attack from the directive: a member crafts
+    //   client_state = oc_customer | <customer> | <random-nonce> | <victim-S>
+    // to stamp/hijack a victim's live call. The RANDOM nonce misses the DELETE and
+    // falls to the auth-scoped replay branch, which — because the attacker
+    // presents the victim's OWN business number as `from` — returns the victim
+    // tenant with replay:true. loadOutboundInitiatedContext DROPS that: no mint,
+    // no customer_call_control_id write, so the victim's live leg is never
+    // rebound to the attacker. (A `from` the attacker does NOT own would instead
+    // return authorized:false → reject; covered by the forged-nonce test above.)
+    expect((env as Record<string, unknown>).CALLS_OUTBOUND_V3).toBeUndefined();
+    const craftedTag = buildOutboundState(
+      OUTBOUND_CUSTOMER_STATE,
+      CUSTOMER,
+      "attacker-random-nonce",
+      S, // the victim's live session id, non-secret (rides the X-Loonext-Session header)
+    );
+    const rpc = stubRoute(rpcMatch(env, "api_authorize_outbound_call"), () => ({
+      authorized: true,
+      company_id: COMPANY, // the victim tenant the auth-scoped replay lookup returns
+      phone_number_id: NUMBER,
+      replay: true,
+      session_id: S, // == the crafted part-4 → the S1 gate passes, but replay DROPS
+      user_id: null,
+    }));
+    const stamp = stampStub();
+    stubFetch(rpc.route, stamp.route);
+
+    const result = await createSessionRuntime(env).loadOutboundInitiatedContext({
+      call_control_id: "attacker-leg-ccid",
+      call_session_id: "telnyx-T",
+      client_state: craftedTag,
+      to: CUSTOMER,
+      from: "+16135550100", // the victim's business number the attacker presents
+    });
+
+    expect(result).toBe("drop"); // dropped: the victim's live leg is untouched
+    expect(stamp.calls).toHaveLength(0); // NO customer_call_control_id overwrite
+  });
 });

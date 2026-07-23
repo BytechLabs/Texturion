@@ -29,17 +29,17 @@ export async function dispatchTelnyxEvent(
     return handleStatusEvent(env, event);
   }
   if (eventType.startsWith("call.")) {
-    // Calls v3 (#170 §7.2): under v3, inbound-family call.* events are owned by
-    // the CallSessionDO. This branch is the SWEEPER-replay path (the edge admits
-    // live events directly); a replay re-enters the DO and no-ops on dedup /
-    // guards or resumes an unfinished journal (§4.1). Outbound + consult/transfer
-    // (brc/brt) legs, and everything under the kill switch, keep the legacy path.
-    if (shouldRouteToDO(env, event)) {
+    // Calls v3 (#170 §7.2): every inbound and outbound CALL is a CallSessionDO
+    // session. This branch is the SWEEPER-replay path (the edge admits live
+    // events directly); a replay re-enters the DO and no-ops on dedup / guards or
+    // resumes an unfinished journal (§4.1). Only the consult/transfer legs
+    // (brc/brt) are not full DO sessions — they attach to a live one and run on
+    // the shared voice path below.
+    if (shouldRouteToDO(event)) {
       await dispatchInboundCallEvent(env, event);
       return;
     }
-    // FEATURE-GAPS voice wave: inbound Call-Control events for the missed-call
-    // text-back. Compute-missed → text-back through the shared auto-send guard.
+    // The consult/transfer (brc/brt) leg webhooks (§7.2, review R2-B3).
     return handleCallEvent(env, event);
   }
   if (eventType.startsWith("10dlc.")) {

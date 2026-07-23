@@ -586,115 +586,55 @@ describe("GET /v1/calls/live/mine (#168 part D — post-crash recovery)", () => 
 });
 
 describe("POST /v1/calls/live/:id/ring-me (#135 push-to-wake, #137 scoped cancel)", () => {
-  it("rings the requester's browser and cancels ONLY their own stale ring leg (scoped by user_id)", async () => {
-    // Still ringing (no one answered yet) — the whole point of ring-me.
-    const sb = liveWorld({
-      call: { answered_at: null, outcome: null },
-      // A stale suspended-tab leg belonging to the REQUESTER themselves.
-      consultLegs: [
-        { call_control_id: "stale-self", user_id: auth.subject, state: "ringing" },
-      ],
-    });
-    const telnyx = telnyxDialAndActions();
-    stubFetch(jwksRoute(auth), sb.route, telnyx.route);
-
-    const res = await apiRequest(
-      app,
-      env,
-      await auth.token(),
-      `/v1/calls/live/${SESSION}/ring-me`,
-      { companyId: COMPANY_ID, method: "POST", body: {} },
-    );
-    expect(res.status).toBe(200);
-
-    // Two ledger reads: the #168 ring-window gate (all ring-kind legs), then
-    // the #137 pre-dial cancel — which MUST be scoped to the requesting
-    // member (filters on user_id), so waking one member never silences the
-    // rest of the crew's still-ringing browsers.
-    const legReads = sb.find("GET", "/rest/v1/call_member_legs");
-    expect(legReads).toHaveLength(2);
-    expect(legReads[0].url.searchParams.get("kind")).toBe("eq.ring");
-    expect(legReads[0].url.searchParams.get("user_id")).toBeNull();
-    expect(legReads[1].url.searchParams.get("user_id")).toBe(
-      `eq.${auth.subject}`,
-    );
-    expect(legReads[1].url.searchParams.get("state")).toBe("eq.ringing");
-
-    // Exactly the requester's own stale leg is hung up — not a team-wide sweep.
-    const hangups = telnyx.calls.filter((c) =>
-      c.url.pathname.endsWith("/hangup"),
-    );
-    expect(hangups).toHaveLength(1);
-    expect(hangups[0].url.pathname).toBe("/v2/calls/stale-self/actions/hangup");
-
-    // A fresh dial to the requester's browser + a ledgered leg.
-    const dials = telnyx.calls.filter((c) => c.url.pathname === "/v2/calls");
-    expect(dials).toHaveLength(1);
-    expect((dials[0].body as { to: string }).to).toBe(
-      "sip:gencred_target@sip.telnyx.com",
-    );
-    // CALLS-CLIENT-V2 §3.2: the ring-me re-dial carries the session-correlation
-    // custom SIP header (X- prefix mandatory), value = the session id — exactly
-    // like the initial fan-out, so a push-woken client correlates the INVITE.
-    // #212: it ALSO carries X-Loonext-Caller (the real caller) exactly like the
-    // fan-out, since the INVITE `from` is the Telnyx-rewritten business number.
-    expect(
-      (dials[0].body as { custom_headers: { name: string; value: string }[] })
-        .custom_headers,
-    ).toEqual([
-      { name: "X-Loonext-Session", value: SESSION },
-      { name: "X-Loonext-Caller", value: "+16135551000" },
-    ]);
-    expect(sb.find("POST", "/rest/v1/call_member_legs")).toHaveLength(1);
-  });
-
-  it("ring-me v2 (#170 §8.3): an already-answered call is 200 {rang:false} not 409", async () => {
-    const sb = liveWorld({}); // default call has answered_at set
+  it("v3: routes to the DO's ringMe and returns its truthful body", async () => {
+    // Still ringing (no one answered yet) — the whole point of ring-me. The DO
+    // owns sequencing/state; the route just wires the requester's eligible
+    // credential into DO.ringMe and echoes its reply (§6). ring-me NEVER cancels
+    // a leg, so there are no ledger sweeps or dials on the route side anymore.
+    const sb = liveWorld({ call: { answered_at: null, outcome: null } });
+    const captured: {
+      sessionId: string;
+      userId: string;
+      sipUsername: string;
+      noLocalLeg: boolean;
+    }[] = [];
+    const doEnv: Env = {
+      ...env,
+      CALL_SESSIONS: {
+        idFromName: (name: string) => name,
+        get: () => ({
+          ringMe: async (input: {
+            sessionId: string;
+            userId: string;
+            sipUsername: string;
+            noLocalLeg: boolean;
+          }) => {
+            captured.push(input);
+            return { rang: true, state: "ringing" };
+          },
+        }),
+      } as unknown as Env["CALL_SESSIONS"],
+    };
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
       app,
-      env,
+      doEnv,
       await auth.token(),
       `/v1/calls/live/${SESSION}/ring-me`,
-      { companyId: COMPANY_ID, method: "POST", body: {} },
-    );
-    // §8.3: session-state cases move from 409 to a truthful 200 body (old
-    // clients swallow the body; the code shape degrades safely). No DO binding
-    // in this env → the legacy dial fallback owns the response.
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean; rang: boolean; reason?: string };
-    expect(body).toMatchObject({ ok: true, rang: false, reason: "not_ringing" });
-  });
-
-  it("#168 / #170 §8.3: ring window OVER → 200 {rang:false} and fires NO dial", async () => {
-    // The calls row still reads outcome-null + answered_at-null while the vmi
-    // leg records — the ledger is the truth: every ring leg is terminal.
-    const sb = liveWorld({
-      call: { answered_at: null, outcome: null },
-      consultLegs: [
-        { call_control_id: "leg-a", user_id: TARGET_ID, state: "failed" },
-        { call_control_id: "leg-b", user_id: MEMBER_ID, state: "failed" },
-      ],
-    });
-    const telnyx = telnyxDialAndActions();
-    stubFetch(jwksRoute(auth), sb.route, telnyx.route);
-
-    const res = await apiRequest(
-      app,
-      env,
-      await auth.token(),
-      `/v1/calls/live/${SESSION}/ring-me`,
-      { companyId: COMPANY_ID, method: "POST", body: {} },
+      { companyId: COMPANY_ID, method: "POST", body: { no_local_leg: true } },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean; rang: boolean };
-    expect(body).toMatchObject({ ok: true, rang: false });
-    // No stale re-ring onto a call voicemail owns: no dial, no ledger insert.
-    expect(
-      telnyx.calls.filter((c) => c.url.pathname === "/v2/calls"),
-    ).toHaveLength(0);
-    expect(sb.find("POST", "/rest/v1/call_member_legs")).toHaveLength(0);
+    expect(await res.json()).toMatchObject({ ok: true, rang: true, state: "ringing" });
+    // Routed into THIS member's DO leg with the v2 no_local_leg attestation.
+    expect(captured).toEqual([
+      {
+        sessionId: SESSION,
+        userId: auth.subject,
+        sipUsername: "gencred_target",
+        noLocalLeg: true,
+      },
+    ]);
   });
 
   it("409s a still-ringing OUTBOUND call and fires NO dial (#139 direction gate)", async () => {
@@ -981,31 +921,5 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
       { session_id: GOOD, state: "voicemail_greeting" },
     ]);
     expect(routed).toHaveLength(2); // both attempted
-  });
-
-  it("kill-switch (CALLS_V3_LEGACY) → 200 {declined:false, sessions:[]}, no ringing query, no DO", async () => {
-    const routed: { sessionId: string; userId: string }[] = [];
-    const doEnv: Env = {
-      ...env,
-      CALLS_V3_LEGACY: "1",
-      CALL_SESSIONS: fakeSessions({ [SESSION]: { declined: true, state: "x" } }, routed),
-    };
-    const sb = world([{ call_session_id: SESSION }]);
-    const res = await post(doEnv, sb);
-
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ declined: false, sessions: [] });
-    // Kill-switch short-circuits BEFORE any DB read or DO call.
-    expect(sb.find("GET", "/rest/v1/calls")).toHaveLength(0);
-    expect(routed).toHaveLength(0);
-  });
-
-  it("no-DO env (no binding) → 200 empty (legacy owns the SDK hangup)", async () => {
-    const sb = world([{ call_session_id: SESSION }]);
-    // `env` has no CALL_SESSIONS binding.
-    const res = await post(env, sb);
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ declined: false, sessions: [] });
-    expect(sb.find("GET", "/rest/v1/calls")).toHaveLength(0);
   });
 });

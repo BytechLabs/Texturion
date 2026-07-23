@@ -81,7 +81,6 @@ export interface AdoptionRow {
 export interface SessionRuntime {
   now(): number;
   uuid(): string;
-  legacyKillSwitch(): boolean;
   telnyx: {
     dial(input: {
       sipTarget: string;
@@ -224,29 +223,6 @@ export interface SessionRuntime {
   greetingText(machine: SessionMachine): string;
 }
 
-/** True when the §12.4 kill switch is flipped. */
-export function callsV3LegacyMode(env: Env): boolean {
-  const raw = env.CALLS_V3_LEGACY;
-  return raw === "1" || raw === "true";
-}
-
-/** True when the v3 path is live: DO binding present AND the kill switch is
- *  not flipped. The binding guard fails loudly via Sentry at the call sites. */
-export function callsV3Active(env: Env): boolean {
-  return Boolean(env.CALL_SESSIONS) && !callsV3LegacyMode(env);
-}
-
-/** #211: true when browser-originated outbound calls should mint the 4-part
- *  session id S at authorize (C1 gate). Requires BOTH the v3 path to be live
- *  (binding present AND no global kill) AND the CALLS_OUTBOUND_V3 flag, so a
- *  global kill or an absent binding reverts NEW outbound calls to the exact
- *  3-part legacy flow — never handing the client a session id the webhook path
- *  will not key on. Defaulted OFF: unset CALLS_OUTBOUND_V3 keeps it dark. */
-export function callsOutboundV3Active(env: Env): boolean {
-  const raw = env.CALLS_OUTBOUND_V3;
-  return callsV3Active(env) && (raw === "1" || raw === "true");
-}
-
 /** §4.1: is this Telnyx leg alive? GET /v2/calls/{ccid} — the DO-era
  *  re-creation of legacy's durable 'already' verdict. */
 async function legAlive(env: Env, ccid: string): Promise<boolean> {
@@ -319,7 +295,6 @@ export function createSessionRuntime(env: Env): SessionRuntime {
   return {
     now: () => Date.now(),
     uuid: () => crypto.randomUUID(),
-    legacyKillSwitch: () => callsV3LegacyMode(env),
 
     telnyx: {
       async dial(input): Promise<DialResult> {
@@ -336,8 +311,8 @@ export function createSessionRuntime(env: Env): SessionRuntime {
               timeout_secs: RING_TIMEOUT_SECS,
               client_state: input.clientState,
               // CALLS-CLIENT-V2 §3.2: session-correlation header on the DO
-              // (T1d/T4) dial path — present whether or not CALLS_V3_LEGACY is
-              // set. Name MUST start with X-; value = the same S as clientState.
+              // (T1d/T4) dial path. Name MUST start with X-; value = the same S
+              // as clientState.
               // #212: X-Loonext-Caller carries the REAL caller (from is the
               // owned business number, which Telnyx keeps for the WebRTC leg);
               // omitted entirely for an anonymous/CLIR caller so the client
@@ -516,7 +491,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
           });
 
       // v2 metadata stamp (screening verdict, attestation, dipped name, the
-      // customer leg's ccid) — same write handleInboundInitiated performed.
+      // customer leg's ccid) onto the inbound calls row.
       const { error: metaError } = await db
         .from("calls")
         .update({
@@ -665,13 +640,20 @@ export function createSessionRuntime(env: Env): SessionRuntime {
       //     S-row. Only a FRESH mint reaches here: the row the RPC just created
       //     from the CONSUMED nonce (never a caller-controlled id). Scoped by
       //     company AND number so even the fresh stamp cannot cross a tenant/
-      //     number boundary.
+      //     number boundary, AND SET-ONCE (`.is customer_call_control_id null`,
+      //     F2b): now that the legacy handleOutboundInitiated stamp is deleted
+      //     this is the SOLE outbound stamp path, so it carries the same
+      //     scoped+set-once guarantee — a fresh mint's row is null here, and a
+      //     replay never reaches this point (dropped at step 5), so the guard is
+      //     belt-and-suspenders against any future path that could reach it with
+      //     a live row.
       const { error: stampError } = await db
         .from("calls")
         .update({ customer_call_control_id: callControlId })
         .eq("call_session_id", auth.session_id)
         .eq("company_id", auth.company_id)
-        .eq("phone_number_id", auth.phone_number_id);
+        .eq("phone_number_id", auth.phone_number_id)
+        .is("customer_call_control_id", null);
       if (stampError) {
         throw new Error(`outbound metadata stamp failed: ${stampError.message}`);
       }

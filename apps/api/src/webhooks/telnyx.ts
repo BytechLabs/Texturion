@@ -73,7 +73,7 @@ telnyxWebhookRoute.post("/", async (c) => {
   // in the REQUEST PATH before the ACK — a lost event then rides Telnyx's own
   // fast retry ladder instead of our ≥2-min sweeper (an admitted call.answered
   // must never fall to the t+45 alarm).
-  const routeToDO = shouldRouteToDO(env, event as TelnyxEvent);
+  const routeToDO = shouldRouteToDO(event as TelnyxEvent);
   // #211: breadcrumb an un-attributable hangup (echo dropped its tag+direction).
   warnIfEchoDropped(event as TelnyxEvent);
 
@@ -109,7 +109,8 @@ telnyxWebhookRoute.post("/", async (c) => {
     return c.json({ received: true });
   }
 
-  // 3. ACK fast; 4. PROCESS in the background (non-call + outbound + legacy).
+  // 3. ACK fast; 4. PROCESS in the background (non-call events + the
+  // consult/transfer (brc/brt) legs, which are not full DO sessions).
   c.executionCtx.waitUntil(processAndStamp(env, event, eventId));
   return c.json({ received: true });
 });

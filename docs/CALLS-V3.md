@@ -13,6 +13,14 @@ survive — §11 maps each one to where it now lives. Outbound calling and the
 transfer/consult internals are NOT redesigned here; they are re-serialized
 (§7.4) but keep their D43 logic.
 
+> **STATUS (post-cleanup): v3 is the SOLE call path.** The `CALLS_V3_LEGACY`
+> kill switch and the `CALLS_OUTBOUND_V3` flag are DELETED, edge routing is
+> unconditional, and every inbound AND outbound call is a `CallSessionDO`
+> session. The kill-switch / 3-part / fall-to-legacy passages below are kept
+> as design history; where they described flag-gated behavior they no longer
+> describe live code. The call-hijack defense does NOT rest on any flag — it
+> is the RPC auth-scoping + set-once stamp + one-id gate of §18.1.
+
 Phase-1 evidence: the four-agent forensic audit archived on issue #170
 (comment of 2026-07-17). Every design choice below cites the defect it kills.
 This revision additionally folds in the two adversarial design reviews of
@@ -196,10 +204,10 @@ mapping above is enforced in one place (the transition mirror).
 `NULL` means **legacy** — a pre-v3 inbound row, OR a pre-#211 (pre-parity)
 outbound row. Every inbound row is minted by `api_claim_inbound_line` (kept
 verbatim) with `state NULL` and mirrored non-null only when T1 completes.
-**#211**: an outbound row minted under `CALLS_OUTBOUND_V3` is a first-class DO
-session and DOES carry `state` (`dialing` → `answered` → `ended_*`), mirrored by
-the same transition mirror; only the LEGACY outbound path (flag off, or a global
-kill) leaves an outbound row `state NULL`. Consequences the implementer must
+**#211**: every browser-originated outbound row is a first-class DO session and
+DOES carry `state` (`dialing` → `answered` → `ended_*`), mirrored by the same
+transition mirror. A `state NULL` outbound row can now only be a pre-#211 row
+left over from before parity shipped. Consequences the implementer must
 honor: the §12.1 CHECK constraint permits NULL (`state is null or state in (…)`)
 and now includes `dialing`; every consumer of `api_list_calls` / `/mine` treats
 `NULL` as "derive from outcome/answered_at" (the §8.1 derivation rule, extended
@@ -682,8 +690,7 @@ First event/RPC for a session with no `machine` in storage:
    tag alone) and continue with the triggering event.
 
 This one mechanism covers the deploy cutover (calls in flight when v3 ships),
-every kill-switch flip-back (§12.4), post-purge stragglers, and any storage
-loss — no special deploy choreography.
+post-purge stragglers, and any storage loss — no special deploy choreography.
 
 ### 7.6 The two non-DO writers, named
 
@@ -789,13 +796,9 @@ body says why" (transfer family, unchanged). The state read always 200s.
 | 401/403 | auth envelope | Standard auth/role failures only. |
 
 Implementation: route authorizes from the calls row (company + #106), then
-`stub.snapshot()`; if the DO returns null (purged/legacy), state is derived
+`stub.snapshot()`; if the DO returns null (a purged machine), state is derived
 from the row (`outcome` → `ended_*`; `answered_at` → `answered`; else
-`ringing`). **Kill-switch mode bypasses the DO entirely**: when
-`CALLS_V3_LEGACY=1` the route goes STRAIGHT to row derivation and never
-calls `snapshot()` — a DO still holding pre-flip state would otherwise serve
-a stale snapshot forever while the legacy handlers advance the call (review
-X1). Row derivation is explicitly DEGRADED truth (it cannot represent
+`ringing`). Row derivation is explicitly DEGRADED truth (it cannot represent
 voicemail-in-progress — that is phase-1 defect 4, unavoidable without the
 DO writing the state column): client authors must treat legacy-mode `/state`
 as "v2-grade", which is still strictly better than the 4xx inference it
@@ -1019,11 +1022,11 @@ extension must be revisited first.
    index excludes NULL rows and must never replace it, §3).
 2. **Worker deploy** with the DO (wrangler migration `calls-v3-1`, entry
    wiring per §2.1), the webhook router cutover, the new/changed routes,
-   ring-me v2, push TTL/kind changes. **The legacy inbound handlers — WITH
-   their `api_claim_ring_answer` / `api_ring_leg_failed` call sites — stay
-   in-tree**, reachable only behind the §12.4 kill switch. (They cannot be
-   deleted in this deploy: the kill switch restores them, and code cannot be
-   both gone and restorable.) The primary path no longer calls the RPCs.
+   ring-me v2, push TTL/kind changes. (Historically the legacy inbound handlers
+   stayed in-tree behind the §12.4 kill switch during the rollout window; the
+   kill switch is now DELETED, so those pre-DO ring handlers are unreachable
+   dead code and their `api_claim_ring_answer` / `api_ring_leg_failed` RPCs are
+   no longer called on any path.)
 3. **In-flight calls during the deploy**: nothing special — the next event
    for a pre-v3 session hits an empty DO and is adopted (§7.5, including
    in-flight voicemails and unledgered legs). A call that ends entirely on
@@ -1041,17 +1044,19 @@ extension must be revisited first.
    (the push-capable avenue holds the window), then voicemail. That is
    strictly better than legacy's ~1s voicemail, but it is NOT recovery; only
    this step's release makes the killed-app rungs of §15.5 passable.
-5. **Kill-switch retirement, then cleanup — strictly in this order, and
+5. **DONE (this change): kill-switch + flag retirement, then cleanup — strictly in this order, and
    strictly AFTER step 4** (review X5/I4 + R2-I2: flipping the switch after
    the RPCs are dropped would 500 every inbound ring — and the §15.5
    killed-app rungs this step is gated on CANNOT pass until step 4's
    Android release ships the cold-process wake handler; the draft's
-   original 4↔5 order was internally impossible): after the FULL founder
-   ladder (§15.5, both pre- and post-Android rungs) passes, ONE change
-   deletes the kill switch AND the legacy inbound handlers; the **cleanup
-   migration dropping `api_claim_ring_answer` + `api_ring_leg_failed` ships
-   in that same change, never before it**. Until that change lands, the
-   drop migration must not exist in the tree.
+   original 4↔5 order was internally impossible): this change deletes the
+   `CALLS_V3_LEGACY` kill switch, the `CALLS_OUTBOUND_V3` flag, and the legacy
+   pre-DO OUTBOUND handlers (`handleInboundInitiated`/`handleOutboundInitiated`/
+   `stampOutboundAnswered` are removed; routing is now unconditional).
+   **FOLLOW-UP (deliberately NOT in this change, to bound risk):** deleting the
+   now-unreachable pre-DO ring handlers in `messaging/inbound-ring.ts` and the
+   cleanup migration dropping `api_claim_ring_answer` + `api_ring_leg_failed`
+   (shipped migrations are not rewritten here).
 
 ### 12.2 Idempotency across the cutover
 
@@ -1060,43 +1065,34 @@ the DO: adoption + dedup + guards make that a no-op or a completion, never a
 double effect (the terminal merge delegates were already replay-idempotent —
 that property is retained and tested).
 
-### 12.3 What is deleted
+### 12.3 What is retired
 
-`ringMembersOrVoicemail` / `ringMemberBrowser` / `handleMemberRingAnswered` /
-`handleMemberRingHangup` / `cancelRingingMemberLegsForUser` and the
-cancel-first pattern; the ring RPCs; the #168 ring-me ledger gate; client:
-`StaleRing.kt`, the probe plumbing, MainActivity's wake-handler overwrite.
+The legacy ring engine — `ringMembersOrVoicemail` / `ringMemberBrowser` /
+`handleMemberRingAnswered` / `handleMemberRingHangup` /
+`cancelRingingMemberLegsForUser` and the cancel-first pattern; the ring RPCs;
+the #168 ring-me ledger gate; client: `StaleRing.kt`, the probe plumbing,
+MainActivity's wake-handler overwrite. After this change these are UNREACHABLE
+(no path dispatches to them), with physical deletion of the `inbound-ring.ts`
+functions + the ring-RPC drop migration as a follow-up.
 (The voicemail pipeline functions, terminal merge, threading, MCTB, transfer
-engine survive as DO delegates. Deletion of the legacy inbound handlers +
-ring RPCs happens ONLY at §12.1 step 5 — they are kill-switch collateral
-until then.)
+engine survive as DO delegates. The `CALLS_V3_LEGACY` kill switch and the
+`CALLS_OUTBOUND_V3` flag are now DELETED and routing is unconditional; the
+pre-DO ring handlers in `messaging/inbound-ring.ts` are unreachable dead code
+pending a follow-up deletion, and the `api_claim_ring_answer` /
+`api_ring_leg_failed` ring RPCs remain in the schema (shipped migrations are
+not rewritten).)
 
-### 12.4 Kill switch
+### 12.4 Kill switch — REMOVED
 
-`CALLS_V3_LEGACY=1` (env, checked in the webhook router) restores the legacy
-inbound handlers for emergencies. Three behaviors are binding under the flag
-(review X1):
-
-- The webhook router routes inbound events to the legacy handlers and never
-  calls the DO.
-- `/state` bypasses the DO entirely and serves row derivation (§8.1) — the
-  one contract new clients depend on never depends on the DO being in the
-  path, and never serves a stale pre-flip snapshot.
-- **`alarm()` no-ops under the flag — but RE-ARMS a coarse re-check alarm
-  (+5 min) before returning** (review R1-m4: a fired alarm that no-ops
-  without re-arming leaves the object with NO pending alarm — including the
-  T15 purge and T16 janitor, which ARE alarms — i.e. immortal DO storage,
-  contradicting §13's "no immortal objects", unless a later event happens to
-  re-adopt). When the flag clears, the re-check alarm finds the flag unset
-  and re-arms the nearest real deadline (ring/janitor/purge) from the
-  retained machine. A T9 firing against a call the legacy engine owns would
-  otherwise answer it into voicemail out from under the legacy handlers.
-  The machine state is retained (not purged) so a flip-BACK re-adopts
-  cleanly via §7.5 with the row as truth.
-
-Removed at §12.1 step 5 — strictly before the RPC drop migration.
-
----
+The `CALLS_V3_LEGACY` kill switch and the `CALLS_OUTBOUND_V3` flag are DELETED.
+v3 is the SOLE path: the webhook router unconditionally routes every
+session-family call event to the DO, `/state` always reads the DO snapshot
+(falling back to §8.1 row derivation only for a purged machine), and `alarm()`
+has no flag branch. There is no legacy inbound dispatch to fall back to — the
+pre-DO ring handlers in `messaging/inbound-ring.ts` are unreachable dead code
+(pending a follow-up deletion) and the `api_claim_ring_answer` /
+`api_ring_leg_failed` ring RPCs remain in the schema (shipped migrations are not
+rewritten).
 
 ## 13. Cost & limits (cap-and-drop, per the standing mandate)
 
@@ -1405,12 +1401,9 @@ proposed, or rejected; recorded here so the reasoning survives:
    no honesty gain (there is no voicemail product surface on a suspended
    line). The "no immortal ringing states" claim is held by the janitor
    alarm, which T1b explicitly arms (§4).
-4. **Kill-switch alarms: no-op, not purge** (review X1 offered either).
-   Purging a live DO's state under the flag would make a flip-BACK lossy
-   (re-adoption would run from the degraded row, losing leg records and
-   the intent). No-op preserves the machine for recovery; §7.5 handles the
-   divergence on flip-back with the row as truth. (Per review R1-m4 the
-   no-op now re-arms a coarse re-check alarm — §12.4.)
+4. **Kill-switch alarms (HISTORICAL).** The kill switch is deleted, so
+   `alarm()` no longer has a no-op/re-arm branch; it always runs the real
+   deadline. (Retained here as a record of the review that shaped it.)
 5. **T2 crash-window discrimination: NOT via reading `client_state` off the
    ended-call GET** (review R1-I2 proposed "the discrimination read the
    ended call's state/client_state from the GET"). Rejected as a MECHANISM:
@@ -1495,8 +1488,8 @@ Browser-originated outbound calls become first-class `CallSessionDO` sessions,
 reusing `answered` + the `ended_*` terminals with ONE new state `dialing`, so
 transfer/consult, T7 owner teardown, the #209 outcome-coalesce mirror, the
 sweeper tiers, and the ENTIRE transfer/consult route+webhook code work
-UNCHANGED. Everything ships behind **`CALLS_OUTBOUND_V3`, defaulted OFF in code
-and env**, so it is dark until the founder enables it.
+UNCHANGED. v3 is the SOLE path: a browser-originated outbound call is ALWAYS a
+DO session — there is no flag and no 3-part fallback.
 
 ### 18.1 The ONE-id invariant (S1 + M3 — load-bearing)
 
@@ -1535,9 +1528,8 @@ DO split, no stranded row.
 
 - **Authorize** (`POST /v1/calls/browser`) mints the IDENTITY (S) + the line
   reservation, stores S + the placing member on the reservation, returns
-  `call_session_id: S`, and embeds the 4-part tag. Gated on
-  `callsV3Active(env) && CALLS_OUTBOUND_V3` (C1): a global kill or the flag off
-  emits today's exact 3-part tag with NO `call_session_id`.
+  `call_session_id: S`, and embeds the 4-part tag. This is UNCONDITIONAL (v3 is
+  the sole path): S is ALWAYS minted and the tag is ALWAYS 4-part.
 - **call.initiated** mints the MACHINE (T-O1) via `loadOutboundInitiatedContext`
   (nonce consumption + the part-4==S check). Reservation semantics stay
   bit-identical: the auth row is the 30s reservation; the calls row lands only
@@ -1590,7 +1582,7 @@ byte-identical to today.
 | `deriveStateFromRow` | **LIFT** — derives outbound (`outcome → ended_*`; `answered_at → answered`; else `dialing`). |
 | ring-me | **KEEP inbound-only** (M2). The #139 route `direction!=='inbound' → 409` STAYS; `reduceRingMe`'s natural `not_ringing` covers any outbound state. NO answered-state ring-me is built. |
 | decline / decline-mine | **KEEP inbound-only.** decline-mine's `state='ringing'` query never matches `dialing`; the per-session decline keeps its 409. |
-| transfer / consult / consult-complete | **CLOSE** — an explicit `direction==='outbound' && !callsV3Active(env) → 409` refuses the untested legacy path; parity exists only under v3. |
+| transfer / consult / consult-complete | **Parity, unconditional.** Outbound reuses the shared `answered` contract + the consult-style dial+bridge-steal (§18.7). v3 is the sole path, so there is no flag to gate on and no legacy path to refuse. |
 
 ### 18.7 Transfer / consult mechanic (D11 — the proven consult-style path)
 
@@ -1627,20 +1619,16 @@ mechanic needs it (transfer, consult bridge-steal, and teardown all target
 `customerCcid`). Owner-browser death reaches the machine as the oc leg's
 `call.hangup` (Telnyx tears the bridged pair) → T-O3.
 
-### 18.9 Kill-switch / rollback matrix
+### 18.9 One id, no flags
 
-| Mode | New calls | In-flight 4-part calls |
-|---|---|---|
-| v3 active + `CALLS_OUTBOUND_V3` on | 4-part; DO owns initiated/answered/hangup keyed on S | DO-owned |
-| `CALLS_OUTBOUND_V3` off (v3 active) | today's 3-part, no `call_session_id` | untouched |
-| **Global kill** (`CALLS_V3_LEGACY`) | 3-part (authorize minting suppressed — no dead affordance) | **fall to legacy, key-consistent**: the current worker's legacy oc handlers (`handleOutboundInitiated` stamp, `stampOutboundAnswered`, `handleTerminalCallEvent`'s `callId` + `recordCallDuration`) key the row on tag **part-4 = S** when present (falling back to `payload.call_session_id` for 3-part), and `api_authorize_outbound_call` coalesces stored-S-else-caller-T, so answered_at stamps, billing runs, and the client stays addressable under the SAME id. |
-
-**Irreducible residual**: a rollback to a **PRE-#211 worker** (which never learned
-part-4 keying) mis-keys an in-flight 4-part call's terminal on Telnyx's T →
-under-bill + delayed line-free (sweeper backstop) + possibly a false `missed`.
-Bounded to calls in-flight across the rollback window; inbound does NOT share this
-(inbound's S IS Telnyx's id); the client's serverAddressable gate prevents dead
-affordances. Documented, accepted.
+There is no kill-switch/rollback matrix: v3 is the sole path, so EVERY
+browser-originated outbound call mints S and becomes a 4-part DO session
+(initiated/answered/hangup keyed on S). The ONE-id invariant (§18.1) makes S the
+DO id, the calls-row PK, and the client's id one value, so a call can never split
+between the DO and a legacy path — the legacy oc handlers (`handleOutboundInitiated`,
+`stampOutboundAnswered`) are DELETED. The hijack defense (§18.1) is entirely in
+`api_authorize_outbound_call` (auth-scoped replay) + the set-once stamp + the
+part-4==S gate; removing the flag does not weaken it.
 
 ### 18.10 M2 scope note (deferred)
 
@@ -1658,8 +1646,8 @@ Design v2 gated the transfer mechanic on a staging spike to CHOOSE between the
 direct Telnyx-transfer and the consult-style fallback. **The founder directive
 unblocks this**: the fallback is already proven (consult/complete's dial +
 bridge-steal against customer ccids is live in prod), so outbound transfer ships
-the consult-style mechanic FROM THE START (§18.7), gated behind
-`CALLS_OUTBOUND_V3` (dark until enabled). No spike gates shipping; the direct-
+the consult-style mechanic FROM THE START (§18.7), on the sole v3 path. No spike
+gates shipping; the direct-
 transfer optimization is not pursued. Placer-death teardown leans on the existing
 4h janitor (T16) as the correctness backstop, so the spike's latency finding
 tunes monitoring only, never the architecture.

@@ -27,7 +27,6 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { callsV3Active } from "../calls/runtime";
 import type { CallSessionDO } from "../calls/session-do";
 import type { Env } from "../env";
 import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
@@ -342,15 +341,13 @@ export async function handleTransferAnswered(
   // skipping both leaves the intent-expiry alarm to do the same. Same idiom
   // and failure posture as consult/complete (routes/live-calls.ts): errors
   // propagate into the webhook ledger for retry.
-  if (callsV3Active(env)) {
-    const stub = callSessionStub(env, state.sessionId);
-    if (stub) {
-      await stub.setOwner({
-        sessionId: state.sessionId,
-        userId: state.targetUserId,
-      });
-      await stub.clearIntent();
-    }
+  const stub = callSessionStub(env, state.sessionId);
+  if (stub) {
+    await stub.setOwner({
+      sessionId: state.sessionId,
+      userId: state.targetUserId,
+    });
+    await stub.clearIntent();
   }
 
   const call = await liveCallBySession(db, state.sessionId);

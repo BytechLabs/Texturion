@@ -376,7 +376,7 @@ describe("POST /v1/calls/browser (D43)", () => {
     return sb;
   }
 
-  it("authorizes: mints a single-use auth + returns from/to and the oc_customer tag WITH the nonce — no Telnyx dial", async () => {
+  it("authorizes: mints a single-use auth + returns from/to and the 4-part oc_customer|customer|nonce|S tag — no Telnyx dial", async () => {
     const sb = browserWorld();
     const dial: Stub = stubRoute(
       (url, request) =>
@@ -398,58 +398,35 @@ describe("POST /v1/calls/browser (D43)", () => {
       from: string;
       to: string;
       client_state: string;
+      call_session_id: string | null;
     };
     expect(bodyOut.from).toBe("+16135550100");
     expect(bodyOut.to).toBe("+16135551000");
-    // client_state = base64("oc_customer|<customer>|<nonce>") — the nonce is
-    // the webhook's single-use authorization.
+    // #211: v3 is the sole path, so the tag is ALWAYS the 4-part
+    // base64("oc_customer|<customer>|<nonce>|<S>"). The nonce is the webhook's
+    // single-use authorization; S (part-4) is the ONE id the DO, the calls-row
+    // PK, and the client all key on — echoed back as call_session_id.
     const decoded = atob(bodyOut.client_state).split("|");
+    expect(decoded).toHaveLength(4);
     expect(decoded[0]).toBe("oc_customer");
     expect(decoded[1]).toBe("+16135551000");
     expect(decoded[2]).toBeTruthy(); // a nonce is present
+    expect(bodyOut.call_session_id).toBeTruthy();
+    expect(decoded[3]).toBe(bodyOut.call_session_id); // part-4 == S
     // The atomic line-claim RPC was called with that exact nonce + caller ID
-    // (it reserves the line AND mints the authorization under one lock).
+    // (it reserves the line AND mints the authorization under one lock), AND
+    // stores S + the placing member so the webhook derives the row PK from S.
     const claim = sb.find("POST", "/rest/v1/rpc/api_claim_outbound_line");
     expect(claim).toHaveLength(1);
     expect(claim[0].body).toMatchObject({
       p_nonce: decoded[2],
       p_from: "+16135550100",
       p_customer: "+16135551000",
+      p_call_session_id: bodyOut.call_session_id,
     });
+    expect((claim[0].body as { p_user_id?: string }).p_user_id).toBeTruthy();
     // The server never dials — the browser does.
     expect(dial.calls).toHaveLength(0);
-  });
-
-  it("#211: CALLS_OUTBOUND_V3 on → returns call_session_id (S), a 4-part tag, and stores S+placer on the claim", async () => {
-    const sb = browserWorld();
-    stubFetch(jwksRoute(auth), sb.route);
-    // The gate is callsV3Active(env) && CALLS_OUTBOUND_V3 — both must hold.
-    const v3env = {
-      ...env,
-      CALL_SESSIONS: { idFromName: () => ({}) },
-      CALLS_OUTBOUND_V3: "1",
-    } as unknown as typeof env;
-
-    const res = await apiRequest(app, v3env, await auth.token(), "/v1/calls/browser", {
-      companyId: COMPANY_ID,
-      method: "POST",
-      body: { conversation_id: CONVERSATION },
-    });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as {
-      client_state: string;
-      call_session_id: string | null;
-    };
-    // The response carries S; the tag is 4-part with part-4 == S (the ONE id).
-    expect(body.call_session_id).toBeTruthy();
-    const parts = atob(body.client_state).split("|");
-    expect(parts).toHaveLength(4);
-    expect(parts[0]).toBe("oc_customer");
-    expect(parts[3]).toBe(body.call_session_id);
-    // The claim recorded S (=call_session_id) and the placing member.
-    const claim = sb.find("POST", "/rest/v1/rpc/api_claim_outbound_line");
-    expect(claim[0].body).toMatchObject({ p_call_session_id: body.call_session_id });
-    expect((claim[0].body as { p_user_id?: string }).p_user_id).toBeTruthy();
   });
 
   it("402s a non-active subscription", async () => {
