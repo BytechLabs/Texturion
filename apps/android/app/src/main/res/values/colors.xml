@@ -2,5 +2,5 @@
 <resources>
     <!-- Paper & Olive (#206): window/splash canvas + the paper icon tile. -->
     <color name="loonext_background">#F3F3EE</color>
-    <color name="loonext_ic_background">#FDFDF9</color>
+    <color name="loonext_ic_background">#191B14</color>
 </resources>

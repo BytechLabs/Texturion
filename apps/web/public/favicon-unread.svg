@@ -1,14 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <!--
-    Loonext favicon — unread state (G9 "unread favicon dot"). The same
-    double-o tile as favicon.svg (brand/loonext-tile-unread.svg) plus the
-    coral presence dot in the top-right corner, legible over the paper tile
-    and any tab-strip color. Swapped in by src/lib/push/use-unread-title.ts
-    when the inbox holds unread conversations.
+    Loonext favicon - unread state (G9 "unread favicon dot"). The same
+    double-o INK tile as favicon.svg (brand/loonext-tile-unread.svg) plus
+    the coral presence dot in the top-right corner, legible over the ink
+    tile and any tab-strip color. Swapped in by
+    src/lib/push/use-unread-title.ts when the inbox holds unread
+    conversations.
   -->
-  <rect x="0" y="0" width="512" height="512" rx="116" ry="116" fill="#FDFDF9"/>
-  <rect x="0" y="0" width="512" height="512" rx="116" ry="116" fill="none" stroke="#E8E8E0" stroke-width="4"/>
-  <circle cx="172" cy="256" r="60" fill="none" stroke="#191B14" stroke-width="36"/>
-  <circle cx="340" cy="256" r="60" fill="none" stroke="#66801F" stroke-width="36"/>
+  <rect x="0" y="0" width="512" height="512" rx="116" ry="116" fill="#191B14"/>
+  <circle cx="172" cy="256" r="60" fill="none" stroke="#F0F1E5" stroke-width="36"/>
+  <circle cx="340" cy="256" r="60" fill="none" stroke="#B9CF57" stroke-width="36"/>
   <circle cx="420" cy="92" r="64" fill="#D96C47"/>
 </svg>

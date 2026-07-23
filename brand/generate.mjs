@@ -39,8 +39,12 @@ const root = join(brandDir, "..");
 const sharp = loadSharp(root);
 const pub = join(root, "apps", "web", "public");
 
-const tile = readFileSync(join(brandDir, "loonext-tile.svg"));
-const maskable = readFileSync(join(brandDir, "loonext-maskable.svg"));
+// The DARK pair is the shipped icon everywhere (founder direction
+// 2026-07-22): ink tile, paper + lime rings. The paper variants
+// (loonext-tile.svg / loonext-maskable.svg) remain as sources for
+// light-context imagery only.
+const tile = readFileSync(join(brandDir, "loonext-tile-dark.svg"));
+const maskable = readFileSync(join(brandDir, "loonext-maskable-dark.svg"));
 
 /** Render an SVG buffer at a square size. */
 const png = (svg, size) => sharp(svg, { density: 300 }).resize(size, size).png().toBuffer();
@@ -126,7 +130,7 @@ async function main() {
   // iOS wants a flat, no-alpha 1024 source.
   writeFileSync(
     join(brandDir, "out", "icon-1024.png"),
-    await sharp(await png(tile, 1024)).flatten({ background: "#FDFDF9" }).png().toBuffer(),
+    await sharp(await png(tile, 1024)).flatten({ background: "#191B14" }).png().toBuffer(),
   );
 
   console.log("brand rasters written");
