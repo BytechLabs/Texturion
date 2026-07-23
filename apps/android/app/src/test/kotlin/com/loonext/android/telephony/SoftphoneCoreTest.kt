@@ -65,6 +65,9 @@ class SoftphoneCoreTest {
     private val tokenMints = AtomicInteger(0)
     private val byLegHits = AtomicInteger(0)
 
+    /** Every key the by-leg resolve was issued with (#208 C1: must be a ccid). */
+    private val byLegCcids = mutableListOf<String>()
+
     /** What the always-200 `/state` read (§8.1) answers per session. */
     private var sessionStateBehavior: (String) -> LiveSessionState = { session ->
         LiveSessionState(call_session_id = session, state = CallWakePolicy.STATE_RINGING)
@@ -86,6 +89,7 @@ class SoftphoneCoreTest {
     fun setUp() {
         tokenMints.set(0)
         byLegHits.set(0)
+        byLegCcids.clear()
         sessionStateBehavior = { session ->
             LiveSessionState(call_session_id = session, state = CallWakePolicy.STATE_RINGING)
         }
@@ -120,6 +124,7 @@ class SoftphoneCoreTest {
 
         override suspend fun resolveByLeg(companyId: String, legCcid: String): LegResolution {
             byLegHits.incrementAndGet()
+            byLegCcids += legCcid
             return LegResolution(call_session_id = "sess-real")
         }
 
@@ -392,6 +397,38 @@ class SoftphoneCoreTest {
         val resolved = h.core.state.first { it.calls.singleOrNull()?.sessionId != null }
         assertEquals("sess-real", resolved.calls.single().sessionId)
         assertEquals(1, byLegHits.get())
+        h.scope.cancel()
+    }
+
+    // ---------------------------------------------- #208 C1 by-leg resolve key
+
+    @Test
+    fun `the header-absent by-leg resolve passes the ccid through verbatim`() = runTest {
+        // GET /v1/calls/live/by-leg/:legId matches call_member_legs.call_control_id
+        // server-side. The resolve key handed in MUST reach the API untouched;
+        // the (dead) pre-fix behavior keyed it on the leg's Telnyx SESSION uuid,
+        // which can never match a ccid and 404'd unconditionally.
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        assertEquals("sess-real", h.core.resolveSessionByLeg("ccid-abc-123"))
+        assertEquals(listOf("ccid-abc-123"), byLegCcids)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a null or blank ccid skips the by-leg resolve outright - no HTTP call`() = runTest {
+        // #208 C1: with no ccid the resolve is a guaranteed 404, so it is
+        // skipped (null fast) instead of burning the caller's resolve deadline
+        // on a doomed HTTP round trip.
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        assertNull(h.core.resolveSessionByLeg(null))
+        assertNull(h.core.resolveSessionByLeg("  "))
+        assertEquals("no doomed resolve is ever issued", 0, byLegHits.get())
         h.scope.cancel()
     }
 

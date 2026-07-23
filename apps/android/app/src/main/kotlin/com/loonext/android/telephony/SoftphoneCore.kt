@@ -978,14 +978,31 @@ class SoftphoneCore(
      * session server-side (`GET /v1/calls/live/by-leg/:legId`). Null on any
      * failure within the caller's deadline → the leg is uncorrelatable →
      * honest teardown (never a caller guess).
+     *
+     * #208 C1: the path parameter matches call_member_legs.call_control_id
+     * server-side, so [legCcid] MUST be the leg's call_control_id, never its
+     * Telnyx session uuid (a session id can only ever 404). A null/blank ccid
+     * (the SDK often exposes none pre-answer) SKIPS the resolve outright and
+     * returns null fast: with no valid key the HTTP call is a guaranteed 404,
+     * so issuing it would only burn the caller's deadline.
      */
-    suspend fun resolveSessionByLeg(legId: String): String? {
+    suspend fun resolveSessionByLeg(legCcid: String?): String? {
+        if (legCcid.isNullOrBlank()) {
+            CallFlowLog.log("sip", "by-leg resolve skipped (no ccid)")
+            return null
+        }
         val company = companyId ?: return null
         return try {
-            api.resolveByLeg(company, legId).call_session_id
+            val session = api.resolveByLeg(company, legCcid).call_session_id
+            CallFlowLog.log(
+                "sip",
+                "by-leg resolved ccid=${CallFlowLog.tail(legCcid)} sess=${CallFlowLog.tail(session)}",
+            )
+            session
         } catch (cause: CancellationException) {
             throw cause
         } catch (_: Exception) {
+            CallFlowLog.log("sip", "by-leg resolve failed ccid=${CallFlowLog.tail(legCcid)}")
             null
         }
     }

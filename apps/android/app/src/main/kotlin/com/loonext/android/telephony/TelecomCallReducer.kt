@@ -232,6 +232,38 @@ object TelecomCallReducer {
     fun deadlineDisconnects(accepted: Boolean, terminated: Boolean): Boolean =
         !accepted && !terminated
 
+    // ------------------------------------- #208 C2 disconnect-delivery policy
+
+    /** How many delivery attempts the OS `disconnect()` scope op gets before
+     *  the entry is force-completed locally: one initial try plus ONE retry
+     *  (mirroring the answerOnScope failed-answer escalation, which never
+     *  leaves a failed critical transition report-only). */
+    const val DISCONNECT_DELIVERY_MAX_ATTEMPTS = 2
+
+    /** What the platform does after a FAILED OS-disconnect delivery attempt. */
+    enum class DisconnectDeliveryStep { RETRY, FORCE_COMPLETE }
+
+    /**
+     * #208 C2: a `disconnect()` scope op that returns Error or throws used to
+     * be report-only. By then `terminated` is already latched, so every drive /
+     * disconnect / setLiveLegs / timer stands down forever, while cleanup only
+     * runs when the suspend addCall returns, which it never does because the OS
+     * call never goes terminal: the entry and the OS call wedge for the process
+     * lifetime. The wedged ghost then poisons the NEXT inbound: a refused
+     * addCall's declineForTeardown counts zero other rings (terminated ghosts
+     * are excluded), scopes to MINE, and decline-mine instant-voicemails a
+     * brand-new call in a solo-reachable workspace. Policy: retry the delivery
+     * ONCE; a second failure force-completes the entry LOCALLY (Telecom and
+     * presentation bookkeeping only, NEVER a SIP/SDK leg teardown).
+     * [failedAttempts] is the count of failures so far, 1-based.
+     */
+    fun onDisconnectDeliveryFailed(failedAttempts: Int): DisconnectDeliveryStep =
+        if (failedAttempts < DISCONNECT_DELIVERY_MAX_ATTEMPTS) {
+            DisconnectDeliveryStep.RETRY
+        } else {
+            DisconnectDeliveryStep.FORCE_COMPLETE
+        }
+
     // ----------------------------------------------------- §3.4 ring-me retry
 
     enum class RingMeStep { DIAL, RETRY, STOP }

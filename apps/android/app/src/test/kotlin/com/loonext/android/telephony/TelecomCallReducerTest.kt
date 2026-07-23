@@ -246,6 +246,44 @@ class TelecomCallReducerTest {
         assertTrue(!TelecomCallReducer.deadlineDisconnects(accepted = false, terminated = true))
     }
 
+    // ------------------------------------- #208 C2 disconnect-delivery policy
+
+    @Test
+    fun `a failed OS disconnect delivery retries once, then force-completes locally`() {
+        // The pre-fix behavior was report-only: terminated was already latched,
+        // every backstop stood down, and cleanup (which only runs when the
+        // suspend addCall returns) never ran - the entry and its OS call leaked
+        // for the process lifetime. One retry, then the local force-complete.
+        assertEquals(
+            TelecomCallReducer.DisconnectDeliveryStep.RETRY,
+            TelecomCallReducer.onDisconnectDeliveryFailed(failedAttempts = 1),
+        )
+        assertEquals(
+            TelecomCallReducer.DisconnectDeliveryStep.FORCE_COMPLETE,
+            TelecomCallReducer.onDisconnectDeliveryFailed(failedAttempts = 2),
+        )
+        // Defensive: any later failure count also force-completes (never loops).
+        assertEquals(
+            TelecomCallReducer.DisconnectDeliveryStep.FORCE_COMPLETE,
+            TelecomCallReducer.onDisconnectDeliveryFailed(failedAttempts = 3),
+        )
+        // One initial try plus exactly one retry.
+        assertEquals(2, TelecomCallReducer.DISCONNECT_DELIVERY_MAX_ATTEMPTS)
+    }
+
+    @Test
+    fun `force-completing a wedged ghost re-opens its key - the next inbound proceeds`() {
+        // The C2 ghost: a terminated entry whose disconnect never delivered
+        // stayed in the registry map forever, so shouldAddCall refused any
+        // fresh presentation keyed on its session, and the leaked entry could
+        // poison a refused addCall's declineForTeardown into a device-global
+        // decline-mine (instant voicemail in a solo-reachable workspace).
+        // Force-complete REMOVES the entry, and removal is exactly what
+        // re-opens the key for the next call.
+        assertFalse(TelecomCallReducer.shouldAddCall(setOf("S-ghost"), "S-ghost"))
+        assertTrue(TelecomCallReducer.shouldAddCall(emptySet(), "S-ghost"))
+    }
+
     // ----------------------------------------------------- §3.4 ring-me retry
 
     @Test

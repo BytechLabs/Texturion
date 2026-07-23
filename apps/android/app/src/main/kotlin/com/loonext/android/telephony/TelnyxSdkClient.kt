@@ -129,14 +129,23 @@ class TelnyxSdkClient(
                 // verified against telnyx-webrtc-android v3.5.0). Hand the raw
                 // list up; [TelecomCallReducer.correlateInvite] reads the header
                 // — NEVER a caller/time guess. legId is the by-leg fallback key
-                // for an older server that hasn't shipped the header yet.
+                // for any header-absent leg (an older server, or a dial path
+                // that has not gained the header yet).
                 val headers = runCatching {
                     invite.customHeaders?.mapNotNull { header ->
                         val name = header.name ?: return@mapNotNull null
                         name to (header.value ?: "")
                     }.orEmpty()
                 }.getOrDefault(emptyList())
-                val legId = runCatching { call.getTelnyxSessionId()?.toString() }.getOrNull()
+                // #208 C1: the by-leg key MUST be the leg's call_control_id.
+                // GET /v1/calls/live/by-leg/:legId matches
+                // call_member_legs.call_control_id server-side, and a Telnyx
+                // SESSION uuid is never a ccid, so keying this on
+                // getTelnyxSessionId made the fallback a guaranteed 404 (dead
+                // code). Null is a real outcome (the SDK often exposes no ccid
+                // pre-answer); the core then SKIPS the doomed resolve outright
+                // instead of issuing it (see SoftphoneCore.resolveSessionByLeg).
+                val legId = runCatching { call.getTelnyxCallControlId() }.getOrNull()
                 _events.tryEmit(
                     SdkEvent.Incoming(
                         call = TelnyxCallHandle(source, call),

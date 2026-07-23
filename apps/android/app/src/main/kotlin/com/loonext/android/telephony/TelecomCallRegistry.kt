@@ -586,7 +586,9 @@ class TelecomCallRegistry(
                         // re-issuing would just Error on a dead call.
                         TelecomCallReducer.ScopeReconcile.DISCONNECT -> {
                             val cause = entry.pendingDisconnectCause
-                            if (cause != null) scopeOp(entry) { disconnect(cause) }
+                            // #208 C2: delivered via the escalating path, so a
+                            // refused disconnect can't wedge the entry here either.
+                            if (cause != null) disconnectOnScope(entry, cause)
                         }
                         // I3 catch-up: the user answered before the scope existed —
                         // issue the OS answer now (idempotent via entry.answered).
@@ -781,7 +783,8 @@ class TelecomCallRegistry(
             if (plan == TerminatePlan.STAND_DOWN) return@launch
             runCatching { bridge.endLeg(entry.key) }
             if (plan == TerminatePlan.DISCONNECT_NOW) {
-                scopeOp(entry) { disconnect(DisconnectCause(DisconnectCause.ERROR)) }
+                // #208 C2: escalating delivery, same reason as disconnectEntry.
+                disconnectOnScope(entry, DisconnectCause(DisconnectCause.ERROR))
             }
             // #195 F4/F5: the user ANSWERED this call and the ring window still
             // had to reap it (the leg never bound) — that failure must be
@@ -817,7 +820,8 @@ class TelecomCallRegistry(
             // ring is live (never collaterally decline a second ring).
             runCatching { bridge.endLeg(session) }
             if (plan == TerminatePlan.DISCONNECT_NOW) {
-                scopeOp(entry) { disconnect(DisconnectCause(DisconnectCause.ERROR)) }
+                // #208 C2: escalating delivery, same reason as disconnectEntry.
+                disconnectOnScope(entry, DisconnectCause(DisconnectCause.ERROR))
             }
             declineForTeardown(entry)
             // #195 F4/F5: the bind deadline only ever fires on an ANSWERED call
@@ -931,8 +935,72 @@ class TelecomCallRegistry(
         // No stand-down: server call_end and a leg that already ended (drive
         // DONE/ERROR) must tear the OS call down even if it had accepted.
         if (claimTerminate(entry, cause) { false } == TerminatePlan.DISCONNECT_NOW) {
-            scopeOp(entry) { disconnect(cause) }
+            disconnectOnScope(entry, cause)
         }
+    }
+
+    /**
+     * #208 C2: deliver the OS `disconnect(cause)`, the one scope op whose
+     * failure must ESCALATE, never merely report. By the time this runs,
+     * [claimTerminate] has latched `terminated`, so every drive / disconnect /
+     * setLiveLegs / timer stands down for good, while [cleanup] only runs when
+     * the suspend addCall returns, which it only does once the OS call actually
+     * goes terminal. A disconnect that silently fails (CallControlResult.Error
+     * or a throw) therefore wedged the entry AND the OS call for the process
+     * lifetime, and the ghost could poison the next inbound's
+     * [declineForTeardown] scoping into an instant-voicemail decline-mine.
+     * Mirror of [answerOnScope]'s failed-answer escalation: retry ONCE
+     * ([TelecomCallReducer.onDisconnectDeliveryFailed]); if the retry fails
+     * too, [forceCompleteEntry] finishes OUR side locally.
+     */
+    private fun disconnectOnScope(entry: CallEntry, cause: DisconnectCause) {
+        val control = entry.scope ?: return
+        control.launch {
+            var failedAttempts = 0
+            while (true) {
+                val result = runCatching { control.disconnect(cause) }
+                    .onFailure { onFailure("telecom-disconnect", it) }
+                    .getOrNull()
+                if (result != null && result !is CallControlResult.Error) return@launch // delivered
+                if (result is CallControlResult.Error) {
+                    onFailure("telecom-disconnect", TelecomOpException("disconnect", result.errorCode))
+                }
+                failedAttempts++
+                when (TelecomCallReducer.onDisconnectDeliveryFailed(failedAttempts)) {
+                    TelecomCallReducer.DisconnectDeliveryStep.RETRY -> {
+                        CallFlowLog.log(
+                            "reap",
+                            "disconnect delivery failed, retrying sess=${CallFlowLog.tail(entry.key.removePrefix("out:"))}",
+                        )
+                    }
+                    TelecomCallReducer.DisconnectDeliveryStep.FORCE_COMPLETE -> {
+                        forceCompleteEntry(entry)
+                        return@launch
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * #208 C2 last resort: the OS refused the disconnect twice. The framework
+     * call object is beyond our control and WILL leak until the process dies
+     * (the suspend addCall never returns, so `finally` never runs [cleanup]);
+     * that leak is recorded honestly below. Complete OUR side now so the ghost
+     * cannot wedge the registry: [cleanup] cancels the entry's timers, drops it
+     * from [entries], takes down its notification, and releases the FGS only
+     * when it was the LAST call (cleanup carries that exact last-call guard).
+     * LOCAL Telecom/presentation bookkeeping ONLY, never a SIP/SDK leg
+     * teardown from here (no endLeg, no handle.end(); the §10.1.2 client-never-
+     * hangs-up invariant stands).
+     */
+    private fun forceCompleteEntry(entry: CallEntry) {
+        CallFlowLog.log(
+            "reap",
+            "disconnect undeliverable after retry, force-completing locally " +
+                "(OS call leaks until process death) sess=${CallFlowLog.tail(entry.key.removePrefix("out:"))}",
+        )
+        cleanup(entry)
     }
 
     /**
@@ -940,9 +1008,12 @@ class TelecomCallRegistry(
      * (CallControlScope is a CoroutineScope), guarded — never throws. IMPORTANT-1:
      * the [CallControlResult] is NO LONGER swallowed — a transaction that returns
      * `Error` is reported (not a silent no-op). Critical transitions that must
-     * ESCALATE on failure (answer, bind-deadline disconnect) do so at their call
-     * site ([answerOnScope]); a failed setActive/setInactive is reported but not
-     * escalated (a redundant hold/resume Error must not tear a live call down).
+     * ESCALATE on failure have their own paths: a failed answer escalates in
+     * [answerOnScope], and EVERY disconnect delivery goes through
+     * [disconnectOnScope] (#208 C2: a report-only disconnect failure wedged the
+     * terminated entry forever). What remains here is setActive/setInactive,
+     * which is reported but not escalated (a redundant hold/resume Error must
+     * not tear a live call down).
      */
     private fun scopeOp(entry: CallEntry, op: suspend CallControlScope.() -> CallControlResult) {
         val control = entry.scope ?: return

@@ -527,18 +527,20 @@ class SoftphoneManager private constructor(
             return
         }
         // §3.2 header ABSENT. The header is the shipped steady state (the server
-        // stamps X-Loonext-Session on every ring dial), so this is a legacy/edge
-        // path — but a legitimate inbound call must NEVER be dropped (IMPORTANT-2).
-        // The by-leg resolve is BEST-EFFORT: the SDK exposes no call_control_id
-        // pre-answer, so GET /by-leg 404s until the customer session resolves
-        // AFTER answer (getTelnyxCallControlId works post-accept, via the core's
-        // resolveSession). Present regardless; never hang up a real call here.
+        // stamps X-Loonext-Session on every ring dial, and transfer/consult
+        // dials are gaining it too), so this is a legacy/edge path, but a
+        // legitimate inbound call must NEVER be dropped (IMPORTANT-2). The
+        // by-leg resolve is BEST-EFFORT, keyed on the leg's call_control_id
+        // (#208 C1: that is what GET /by-leg matches server-side; the old
+        // Telnyx-session-uuid key could only ever 404). The SDK often exposes
+        // no ccid pre-answer; the core then skips the doomed resolve outright
+        // (null fast, no HTTP) and the customer session lands AFTER answer via
+        // the core's resolveSession. Present regardless; never hang up a real
+        // call here.
         val legId = event.legId
         scope.launch {
-            val resolved = legId?.let {
-                withTimeoutOrNull(TelecomCallReducer.LEG_RESOLVE_DEADLINE_MS) {
-                    core.resolveSessionByLeg(it)
-                }
+            val resolved = withTimeoutOrNull(TelecomCallReducer.LEG_RESOLVE_DEADLINE_MS) {
+                core.resolveSessionByLeg(legId)
             }
             if (resolved != null) {
                 registry.ensureIncomingCall(resolved, call.peerName, call.peerNumber)
