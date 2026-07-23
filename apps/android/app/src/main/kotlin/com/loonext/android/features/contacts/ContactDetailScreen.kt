@@ -497,6 +497,38 @@ private fun ContactDetailBody(
             )
         }
 
+        // #191: a quiet record-attribution caption — who added this contact,
+        // and who last edited it when that was someone else. Renders nothing
+        // for contacts that predate attribution (null actors, no backfill lie).
+        val attribution = contactAttribution(
+            createdByName = contact.created_by_name,
+            createdAt = contact.created_at,
+            updatedByName = contact.updated_by_name,
+        )
+        if (attribution.added != null || attribution.edited != null) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(1.dp),
+            ) {
+                attribution.added?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                attribution.edited?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
         // The contact's live thread, when one exists and the shell wired it.
         val conversationRow = conversation
         if (conversationRow != null && onOpenConversation != null) {

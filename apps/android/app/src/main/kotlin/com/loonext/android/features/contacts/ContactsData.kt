@@ -172,6 +172,37 @@ object ConsentSource {
 }
 
 /**
+ * The record-attribution caption (#191): who added the contact, and who last
+ * edited it when that was someone else. Ported from the web contact page's
+ * RecordAttribution so the two clients never phrase it differently.
+ *
+ * The API resolves each actor to a company-member display name (the same join
+ * message-sender and task-actor names already use) and returns null for
+ * contacts that predate attribution — so a missing name renders NOTHING rather
+ * than "Added by unknown". Both lines are null when neither actor resolves; the
+ * edited line is null when it would only echo the added line.
+ */
+data class ContactAttribution(val added: String?, val edited: String?)
+
+fun contactAttribution(
+    createdByName: String?,
+    createdAt: String?,
+    updatedByName: String?,
+    clock: Clock = Clock.systemDefaultZone(),
+): ContactAttribution {
+    val added = createdByName?.trim()?.ifEmpty { null }
+    val edited = updatedByName?.trim()?.ifEmpty { null }
+    val addedLine = added?.let {
+        val date = com.loonext.android.features.tasks.parseInstant(createdAt)
+            ?.atZone(clock.zone)
+            ?.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))
+        if (date != null) "Added by $it on $date" else "Added by $it"
+    }
+    val editedLine = if (edited != null && edited != added) "Edited by $edited" else null
+    return ContactAttribution(added = addedLine, edited = editedLine)
+}
+
+/**
  * The consent card's one line, ported from the web contact page's
  * ConsentLine so the copy never drifts:
  *  - no consent recorded → the teaching sentence,

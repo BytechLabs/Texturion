@@ -5,6 +5,11 @@ import kotlinx.serialization.Serializable
 /**
  * Contact rows. Detail + list share the shape; `opted_out` rides every read,
  * `last_activity_at` only on list rows (conversation activity, never edits).
+ *
+ * #191 attribution: the actor ids plus their server-resolved company-member
+ * display names ride the detail read. Contacts that predate attribution carry
+ * null actors (no backfill lie) — the UI shows the line only when a name
+ * resolves. Nullable-with-default so older payloads still decode.
  */
 @Serializable
 data class Contact(
@@ -21,6 +26,10 @@ data class Contact(
     val updated_at: String,
     val opted_out: Boolean = false,
     val last_activity_at: String? = null,
+    val created_by_user_id: String? = null,
+    val created_by_name: String? = null,
+    val updated_by_user_id: String? = null,
+    val updated_by_name: String? = null,
 )
 
 @Serializable
