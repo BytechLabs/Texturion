@@ -60,8 +60,23 @@ vi.mock("@/lib/api/companies", () => ({
     data: { enabled_modules: [] },
   }),
 }));
+// #205: the page mounts ContactCallHistory — stub its data hooks (empty log)
+// so the render stays synchronous and env-free.
 vi.mock("@/lib/api/calls", () => ({
-  useStartCall: () => ({ isPending: false, mutate: vi.fn() }),
+  useContactCalls: () => ({
+    data: undefined,
+    isPending: false,
+    isError: false,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: vi.fn(),
+    refetch: vi.fn(),
+  }),
+  useVoicemailUrl: () => ({
+    data: undefined,
+    isFetching: false,
+    isError: false,
+  }),
 }));
 
 import ContactDetailPage from "./page";
@@ -123,5 +138,13 @@ describe("/contacts/[id] Message action (#73)", () => {
     expect(html).toContain('href="/inbox/conv-9"');
     expect(html).toContain("Open conversation");
     expect(html).not.toContain("/inbox/new?contact=c-1");
+  });
+});
+
+describe("/contacts/[id] call history (#205)", () => {
+  it("mounts the call history section with its quiet empty state", () => {
+    const html = render("c-1");
+    expect(html).toContain("Call history");
+    expect(html).toContain("No calls with this contact yet.");
   });
 });

@@ -1,5 +1,6 @@
 package com.loonext.android.features.contacts
 
+import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.ImportResult
@@ -7,6 +8,7 @@ import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.OptOut
 import com.loonext.android.core.model.Page
 import com.loonext.android.core.net.ApiClient
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -84,6 +86,35 @@ class ContactMutations(private val api: ApiClient, baseUrl: String) {
         return page.data.firstOrNull()
     }
 
+    /**
+     * The contact's slice of the company call log (#205): GET /v1/calls with
+     * the additive contact_id filter, newest first, keyset cursor-paged, with
+     * ALL of the log's existing semantics (#106 number-access filtering
+     * included) preserved server-side.
+     */
+    suspend fun calls(
+        companyId: String,
+        contactId: String,
+        cursor: String? = null,
+        limit: Int = 25,
+    ): Page<Call> = api.get(
+        "/v1/calls",
+        query = mapOf(
+            "contact_id" to contactId,
+            "cursor" to cursor,
+            "limit" to limit.toString(),
+        ),
+        companyId = companyId,
+    )
+
+    /**
+     * Mint a fresh signed voicemail playback URL — on demand, per view, NEVER
+     * cached (SPEC: signed attachment URLs are always fetched on view). Same
+     * data path as the call log's player (features/calls/CallsData.kt).
+     */
+    suspend fun voicemail(companyId: String, sessionId: String): ContactVoicemailPlayback =
+        api.get("/v1/calls/$sessionId/voicemail", companyId = companyId)
+
     /** Raw UTF-8-BOM CSV (respects the list's q filter; ≤50k rows). */
     suspend fun exportCsv(companyId: String, q: String?): String = api.raw(
         "GET",
@@ -121,6 +152,18 @@ class ContactMutations(private val api: ApiClient, baseUrl: String) {
         )
 
 }
+
+/**
+ * GET /v1/calls/:sessionId/voicemail — a short-lived (1h) signed URL. Local
+ * mirror of features/calls/CallsData.kt VoicemailPlayback so the parallel-
+ * owned calls feature stays untouched (#205); a later consolidation pass may
+ * merge them.
+ */
+@Serializable
+data class ContactVoicemailPlayback(
+    val url: String,
+    val seconds: Int = 0,
+)
 
 object ConsentSource {
     const val INBOUND_SMS = "inbound_sms"

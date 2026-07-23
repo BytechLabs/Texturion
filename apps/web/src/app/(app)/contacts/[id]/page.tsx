@@ -7,6 +7,7 @@ import { use, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { CallButton } from "@/components/calls/call-button";
+import { ContactCallHistory } from "@/components/contacts/contact-call-history";
 import { LoadError, SettingsCard } from "@/components/settings/section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -279,6 +280,11 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
       <SettingsCard title="Consent">
         <ConsentLine contact={contact} />
       </SettingsCard>
+
+      {/* #205: every call with this customer, in the /calls row grammar —
+          day-grouped, voicemail playable in place, threaded rows tap through
+          to the conversation. */}
+      <ContactCallHistory contactId={contact.id} />
 
       {/* §3.3: the danger zone stays genuinely quiet — these are routine,
           reversible actions, so the triggers are neutral until hovered, no red

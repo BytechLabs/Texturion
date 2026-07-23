@@ -36,6 +36,27 @@ export function useCalls(outcome?: CallOutcomeFilter) {
   });
 }
 
+/**
+ * #205: one contact's call history — GET /v1/calls?contact_id=<uuid>. The
+ * server composes the contact filter with the #106 number-access deny list
+ * and the same (started_at, id) keyset cursor, so this hook never filters
+ * client-side either. Keyed under the [companyId, "calls"] prefix so the
+ * realtime call-change invalidation refreshes it exactly like the /calls log.
+ */
+export function useContactCalls(contactId: string) {
+  const companyId = useCompanyId();
+  return useInfiniteQuery({
+    queryKey: [companyId, "calls", "contact", contactId] as const,
+    queryFn: ({ pageParam }) =>
+      apiFetch<Page<Call>>("/v1/calls", {
+        companyId,
+        searchParams: { cursor: pageParam, contact_id: contactId },
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: nextCursorParam,
+  });
+}
+
 /** D43 (#135): what the softphone needs to place a browser call — the number
  *  to present, the number to dial, and the leg tag Telnyx echoes on webhooks. */
 export interface BrowserCallAuth {

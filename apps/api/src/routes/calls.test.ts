@@ -89,6 +89,7 @@ describe("GET /v1/calls", () => {
       p_outcome: null,
       p_cursor_ts: null,
       p_cursor_id: null,
+      p_contact_id: null, // #205: absent param = unfiltered, unchanged shape
     });
   });
 
@@ -150,6 +151,128 @@ describe("GET /v1/calls", () => {
       { companyId: COMPANY_ID },
     );
     expect(bad.status).toBe(422);
+  });
+
+  it("narrows on ?contact_id= (#205) and rejects a non-uuid value", async () => {
+    const contactId = "dddddddd-0000-4000-8000-000000000004";
+    const sb = callsStub([callRow({ contact_id: contactId })]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const ok = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls?contact_id=${contactId}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(ok.status).toBe(200);
+    const body = (await ok.json()) as { data: { contact_id: string }[] };
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].contact_id).toBe(contactId);
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_list_calls")[0].body,
+    ).toMatchObject({ p_contact_id: contactId });
+
+    const bad = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/calls?contact_id=not-a-uuid",
+      { companyId: COMPANY_ID },
+    );
+    expect(bad.status).toBe(422);
+  });
+
+  it("composes ?contact_id= with ?outcome= (#205): both reach the SQL", async () => {
+    const contactId = "dddddddd-0000-4000-8000-000000000004";
+    const sb = callsStub([]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls?contact_id=${contactId}&outcome=missed`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_list_calls")[0].body,
+    ).toMatchObject({ p_contact_id: contactId, p_outcome: "missed" });
+  });
+
+  it("still passes the #106 deny list alongside ?contact_id= (#205)", async () => {
+    const contactId = "dddddddd-0000-4000-8000-000000000004";
+    const sb = callsStub([], {
+      accessRules: [
+        { user_id: MEMBER_ID, phone_number_id: HIDDEN_NUMBER, level: "none" },
+      ],
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls?contact_id=${contactId}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_list_calls")[0].body,
+    ).toMatchObject({
+      p_contact_id: contactId,
+      p_hidden_number_ids: [HIDDEN_NUMBER],
+    });
+  });
+
+  it("keeps keyset pagination with ?contact_id= (#205): the cursor round-trips", async () => {
+    const contactId = "dddddddd-0000-4000-8000-000000000004";
+    const rows = [
+      callRow({
+        id: "aaaaaaaa-0000-4000-8000-000000000001",
+        contact_id: contactId,
+      }),
+      callRow({
+        id: "aaaaaaaa-0000-4000-8000-000000000002",
+        contact_id: contactId,
+        started_at: "2026-07-10T14:00:00+00:00",
+      }),
+    ];
+    const sb = callsStub(rows);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const first = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls?contact_id=${contactId}&limit=1`,
+      { companyId: COMPANY_ID },
+    );
+    expect(first.status).toBe(200);
+    const page = (await first.json()) as {
+      data: unknown[];
+      next_cursor: string | null;
+    };
+    expect(page.data).toHaveLength(1);
+    expect(page.next_cursor).toEqual(expect.any(String));
+
+    const second = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls?contact_id=${contactId}&limit=1&cursor=${encodeURIComponent(
+        page.next_cursor as string,
+      )}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(second.status).toBe(200);
+    const rpc = sb.find("POST", "/rest/v1/rpc/api_list_calls")[1];
+    expect(rpc.body).toMatchObject({
+      p_contact_id: contactId,
+      p_cursor_ts: "2026-07-10T15:00:00+00:00",
+      p_cursor_id: "aaaaaaaa-0000-4000-8000-000000000001",
+    });
   });
 
   it("emits a next_cursor when the sentinel row overflows the page", async () => {

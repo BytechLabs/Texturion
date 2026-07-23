@@ -41,6 +41,7 @@ object CacheKeys {
     fun tasks(companyId: String, filterKey: String = "default") = "tasks/$companyId/$filterKey"
     fun contacts(companyId: String, query: String = "") = "contacts/$companyId/q=$query"
     fun contact(companyId: String, contactId: String) = "contact/$companyId/$contactId"
+    fun contactCalls(companyId: String, contactId: String) = "contactCalls/$companyId/$contactId"
     fun calls(companyId: String, filterKey: String = "default") = "calls/$companyId/$filterKey"
     fun voicemail(companyId: String) = "voicemail/$companyId"
     fun thread(companyId: String, conversationId: String) = "thread/$companyId/$conversationId"

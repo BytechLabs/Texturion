@@ -12,6 +12,11 @@
  *
  * `?outcome=missed|answered|voicemail` narrows the list (the surface's one
  * filter — "who called and do I need to act?").
+ *
+ * `?contact_id=<uuid>` (#205) narrows to one contact's calls (the per-contact
+ * history surface). It composes with `outcome`, keeps the same keyset cursor,
+ * and the #106 deny list still applies inside the SQL: a restricted member
+ * cannot see a hidden number's calls by asking for the contact directly.
  */
 import { Hono, type Context } from "hono";
 import { z } from "zod";
@@ -41,6 +46,8 @@ import { normalizeNanpPhone } from "./core/phone";
 
 const listQuerySchema = z.object({
   outcome: z.enum(["answered", "voicemail", "missed"]).optional(),
+  // #205: optional per-contact narrowing for the contact history surface.
+  contact_id: z.uuid().optional(),
 });
 
 /** One row of GET /v1/calls (mirrored by the web `Call` type). */
@@ -71,6 +78,7 @@ export const callsRoutes = new Hono<AppEnv>();
 callsRoutes.get("/calls", requireRole("member"), async (c) => {
   const query = parseWith(listQuerySchema, {
     outcome: c.req.query("outcome"),
+    contact_id: c.req.query("contact_id"),
   });
   const limit = parseLimit(c, 25, 100);
   const cursor = parseCursor(c);
@@ -89,6 +97,7 @@ callsRoutes.get("/calls", requireRole("member"), async (c) => {
       p_cursor_ts: cursor?.ts ?? null,
       p_cursor_id: cursor?.id ?? null,
       p_hidden_number_ids: access.hiddenNumberIds,
+      p_contact_id: query.contact_id ?? null,
     }),
     "calls list",
   );

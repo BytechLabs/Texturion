@@ -568,6 +568,25 @@ private fun ContactDetailBody(
             }
         }
 
+        // #205: the contact's call history in the call log's grammar —
+        // day-grouped, cache-first, voicemail playable inline, tap-through to
+        // the conversation. Call back reuses the same mic-preflight + softphone
+        // path as the header pill.
+        ContactCallsSection(
+            graph = graph,
+            mutations = mutations,
+            companyId = companyId,
+            contactId = contact.id,
+            onCallBack = {
+                if (softphone.hasMicPermission()) {
+                    placeCall()
+                } else {
+                    micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            },
+            onOpenConversation = onOpenConversation,
+        )
+
         // §3.3: routine, reversible actions stay quiet — the confirm dialogs
         // carry the weight, not red scare-styling on the triggers.
         Column(
