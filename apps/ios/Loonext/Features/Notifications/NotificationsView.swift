@@ -200,6 +200,9 @@ private struct NotificationRow: View {
         }
         .buttonStyle(.plain)
         .disabled(row.conversation_id == nil)
+        // Announce read/unread to VoiceOver — the visual AttentionDot + bold
+        // weight that convey it to sighted users aren't otherwise exposed.
+        .accessibilityValue(row.unread ? "Unread" : "")
     }
 }
 

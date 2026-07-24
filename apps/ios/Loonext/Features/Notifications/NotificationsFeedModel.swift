@@ -129,6 +129,15 @@ final class NotificationsFeedModel {
             return read
         }
         readState.setUnreadCount(0)
+        // Advance the watermark optimistically too: a racing reconcile re-applies
+        // localWatermark to freshly-fetched items (NotificationsReadState), so
+        // without this it would resurrect the dots we just cleared before the
+        // server ack lands. The catch below restores previousWatermark on failure.
+        if let newest = items.map(\.created_at).max() {
+            readState.localWatermark = advanceWatermark(
+                current: readState.localWatermark, candidate: newest
+            )
+        }
         readState.beginMark()
         Task {
             do {
