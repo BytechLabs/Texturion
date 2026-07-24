@@ -192,15 +192,23 @@ export async function notifyInboundMessage(
   // path as everywhere else); one email to all enabled recipients.
   if (emailUsers.length > 0) {
     try {
+      // Resolve every recipient's email in ONE parallel fan-out — a serial loop
+      // added a GoTrue round-trip per member to the inbound webhook's latency.
+      // Promise.all preserves order, so `to` stays deterministic.
+      const lookups = await Promise.all(
+        emailUsers.map(async (userId) => ({
+          userId,
+          result: await db.auth.admin.getUserById(userId),
+        })),
+      );
       const to: string[] = [];
-      for (const userId of emailUsers) {
-        const { data, error } = await db.auth.admin.getUserById(userId);
-        if (error) {
+      for (const { userId, result } of lookups) {
+        if (result.error) {
           throw new Error(
-            `auth admin lookup failed for member ${userId}: ${error.message}`,
+            `auth admin lookup failed for member ${userId}: ${result.error.message}`,
           );
         }
-        if (data.user?.email) to.push(data.user.email);
+        if (result.data.user?.email) to.push(result.data.user.email);
       }
       if (to.length > 0) {
         // Recurring notification email: carry an opt-out path (settings

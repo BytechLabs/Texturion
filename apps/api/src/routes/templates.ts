@@ -44,7 +44,11 @@ templatesRoutes.get("/templates", requireRole("member"), async (c) => {
       .from("templates")
       .select(TEMPLATE_COLUMNS)
       .eq("company_id", c.get("companyId"))
-      .order("name", { ascending: true }),
+      .order("name", { ascending: true })
+      // Defensive bound: this list is unpaginated (next_cursor is always null),
+      // so cap the rows well above any real company's saved-reply count rather
+      // than let a pathological table return an unbounded response.
+      .limit(500),
     "templates list",
   );
   return c.json({ data: rows, next_cursor: null });

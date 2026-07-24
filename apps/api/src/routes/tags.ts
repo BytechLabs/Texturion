@@ -39,7 +39,11 @@ tagsRoutes.get("/tags", requireRole("member"), async (c) => {
       .from("tags")
       .select(TAG_COLUMNS)
       .eq("company_id", c.get("companyId"))
-      .order("name", { ascending: true }),
+      .order("name", { ascending: true })
+      // Defensive bound: this list is unpaginated (next_cursor is always null),
+      // so cap the rows well above any real company's tag count rather than let
+      // a pathological table return an unbounded response.
+      .limit(500),
     "tags list",
   );
   return c.json({ data: rows, next_cursor: null });

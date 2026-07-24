@@ -48,6 +48,16 @@ const workersAiSchema = z.custom<WorkersAi>(
 );
 
 /**
+ * An origin URL with any trailing slash stripped. Browsers send the `Origin`
+ * request header WITHOUT a trailing slash, so origin-equality checks (CORS:
+ * `origin === APP_ORIGIN`, the contact-form allow-list) silently reject every
+ * request if a config value carries one — and `z.url()` happily accepts
+ * `https://app.loonext.com/`. Normalizing here, where every origin var flows
+ * through, makes a stray slash a non-issue instead of a total outage.
+ */
+const originUrl = () => z.url().transform((value) => value.replace(/\/+$/, ""));
+
+/**
  * Every binding the api Worker requires (SPEC §10). All of these are Worker
  * encrypted secrets in production (`wrangler secret put`) and `.dev.vars`
  * entries locally — see .dev.vars.example.
@@ -75,9 +85,9 @@ const envSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
   RESEND_API_KEY: z.string().min(1),
   SENTRY_DSN: z.url(),
-  APP_ORIGIN: z.url(),
+  APP_ORIGIN: originUrl(),
   /** Public origin of THIS Worker (webhook callback URLs, e.g. Telnyx profiles). */
-  API_ORIGIN: z.url(),
+  API_ORIGIN: originUrl(),
   /**
    * Canonical MARKETING origin (D27 host split), e.g. `https://loonext.com`.
    * The public /contact form is served from here, a DIFFERENT origin than the
@@ -85,7 +95,7 @@ const envSchema = z.object({
    * every real submission is blocked. Optional: unset (single-host dev/deploy,
    * where marketing is same-origin with APP_ORIGIN) falls back to APP_ORIGIN.
    */
-  SITE_ORIGIN: z.url().optional(),
+  SITE_ORIGIN: originUrl().optional(),
   /** Resend sender, e.g. `Loonext <notifications@loonext.com>` (SPEC §3). */
   RESEND_FROM: z.string().min(1),
   /** #121: ops recipient for abuse alerts (storage tiers). Optional — unset

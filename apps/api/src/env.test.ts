@@ -15,6 +15,28 @@ function bindings(overrides: Record<string, unknown> = {}): Bindings {
   return { ...completeEnv(), ...overrides };
 }
 
+describe("origin normalization (trailing slash)", () => {
+  it("strips a trailing slash from APP_ORIGIN / API_ORIGIN / SITE_ORIGIN so origin equality holds", () => {
+    const env = getEnv(
+      bindings({
+        APP_ORIGIN: "https://app.loonext.com/",
+        API_ORIGIN: "https://api.loonext.com/",
+        SITE_ORIGIN: "https://loonext.com/",
+      }),
+    );
+    // Browsers send the Origin header with no trailing slash; the stored value
+    // must match by === for CORS to pass.
+    expect(env.APP_ORIGIN).toBe("https://app.loonext.com");
+    expect(env.API_ORIGIN).toBe("https://api.loonext.com");
+    expect(env.SITE_ORIGIN).toBe("https://loonext.com");
+  });
+
+  it("leaves a slash-free origin untouched", () => {
+    const env = getEnv(bindings({ APP_ORIGIN: "https://app.loonext.com" }));
+    expect(env.APP_ORIGIN).toBe("https://app.loonext.com");
+  });
+});
+
 describe("RESEND_REPLY_TO (optional)", () => {
   it("parses when unset (no Reply-To sent — pre-hardening behavior)", () => {
     const env = getEnv(bindings());
