@@ -1,7 +1,6 @@
 "use client";
 
 import { FileUp } from "lucide-react";
-import Papa from "papaparse";
 import { useMemo, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -123,12 +122,15 @@ export function ImportWizard({
     onOpenChange(next);
   }
 
-  function handleFile(file: File) {
+  async function handleFile(file: File) {
     setUploadError(null);
     if (file.size > IMPORT_MAX_BYTES) {
       setUploadError("That file is over 2 MB. Split it and import in parts.");
       return;
     }
+    // Lazy-load papaparse (~45KB) only when a CSV is actually chosen — it stays
+    // out of the contacts route's initial bundle for everyone who never imports.
+    const Papa = (await import("papaparse")).default;
     Papa.parse<string[]>(file, {
       skipEmptyLines: "greedy",
       complete: (parsed) => {
