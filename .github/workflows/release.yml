@@ -1,32 +1,59 @@
 name: Release
 
-# Keeps a "chore: release" PR open against main, continuously restating what
-# would ship: per-package CHANGELOG entries and version bumps derived from the
-# Conventional Commits landed since the last tag. Merging it tags the release.
+# One button. Pick a bump (or leave it on "auto" and let the commits decide),
+# run it, and this bumps the single product version, writes CHANGELOG.md, tags
+# v<version>, and publishes a GitHub Release with the generated notes.
 #
-# This does NOT gate deployment. api/web still deploy on every green CI exactly
-# as before — the tag and changelog are the RECORD of what shipped, not a gate
-# in front of it. For android/ios the merged version is the one that goes to the
-# stores, and the generated notes are the "What's new" text.
+# It does NOT gate deployment: api/web already deployed when their commit went
+# green. The tag is the record of what shipped, not a gate in front of it. For
+# the store apps, the version this cuts is what you archive and upload, and the
+# release notes are the "What's new" text.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump (auto = infer from the commits)"
+        type: choice
+        default: auto
+        options: [auto, patch, minor, major]
+      dry_run:
+        description: "Print what would happen, change nothing"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
-  pull-requests: write
-
-# A release PR is a running summary, so an in-flight run is safe to cancel:
-# the next push recomputes it from scratch.
-concurrency:
-  group: release-please
-  cancel-in-progress: true
 
 jobs:
-  release-please:
+  release:
     runs-on: ubuntu-latest
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: actions/checkout@v4
         with:
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
+          # Full history: the version bump is inferred from every commit since
+          # the previous tag, and a shallow clone has neither the tags nor them.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cut the release
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          node scripts/release.mjs \
+            ${{ inputs.bump == 'auto' && ' ' || inputs.bump }} \
+            ${{ inputs.dry_run && '--dry-run' || ' ' }}
+
+      - name: Push and publish
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git push origin HEAD:main --follow-tags
+          VERSION="$(cat version.txt)"
+          # The notes are the section release.mjs just prepended: everything
+          # between this version's heading and the next one.
+          awk "/^## ${VERSION} /{f=1;next} /^## /{f=0} f" CHANGELOG.md > notes.md
+          gh release create "v${VERSION}" --title "v${VERSION}" --notes-file notes.md
