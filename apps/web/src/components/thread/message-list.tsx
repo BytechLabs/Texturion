@@ -199,16 +199,26 @@ export function MessageList({
         virtualizer.scrollToIndex(index, { align: "center" });
         return;
       }
-      if (allItems.some((item) => clusterHas(item, messageId))) {
+      // Not on the current filtered page: the target is either filtered out
+      // (present in allItems) or on an older, not-yet-loaded page. Either way,
+      // mark it pending + restore all categories; the effect below finishes the
+      // jump, pulling older pages until it appears (previously a silent no-op
+      // for a pin on an unloaded page).
+      if (
+        allItems.some((item) => clusterHas(item, messageId)) ||
+        messagesQuery.hasNextPage
+      ) {
         pendingJump.current = messageId;
         onFilterChange(ALL_CATEGORIES_ON);
       }
     },
-    [items, allItems, virtualizer, onFilterChange],
+    [items, allItems, virtualizer, onFilterChange, messagesQuery],
   );
 
-  // Finish a cross-filter jump: once the restored full stream includes the
-  // pending target, scroll to it and clear the pending marker.
+  // Finish a pending jump: once the (restored, possibly older) stream includes
+  // the target, scroll to it. While it's still absent, pull the next older page
+  // and re-check on the next render; give up cleanly when the whole thread is
+  // loaded and the target genuinely isn't there.
   useEffect(() => {
     const target = pendingJump.current;
     if (target === null) return;
@@ -216,8 +226,14 @@ export function MessageList({
     if (index >= 0) {
       pendingJump.current = null;
       virtualizer.scrollToIndex(index, { align: "center" });
+      return;
     }
-  }, [items, virtualizer]);
+    if (messagesQuery.hasNextPage) {
+      if (!messagesQuery.isFetchingNextPage) void messagesQuery.fetchNextPage();
+    } else {
+      pendingJump.current = null; // fully loaded, still absent — stop.
+    }
+  }, [items, virtualizer, messagesQuery]);
 
   // Anchored prepend: remember total size + scrollTop before older pages
   // land, restore the visual position after (G5 "anchored scroll on

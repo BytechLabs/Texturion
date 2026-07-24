@@ -515,7 +515,16 @@ function SettingUp() {
           ? "action"
           : "working";
   const registrationStatus: RowStatus =
-    !owes || campaignApproved ? "done" : confirming ? "waiting" : "working";
+    !owes || campaignApproved
+      ? "done"
+      : // A sole-prop's OTP verification is waiting on the USER (they must enter
+        // the code texted to their mobile) — show the honest "action" alert, not
+        // a "working" spinner that implies the system is busy.
+        otpPending
+        ? "action"
+        : confirming
+          ? "waiting"
+          : "working";
   const inboxStatus: RowStatus = activeNumber ? "done" : "waiting";
 
   // The §3.4 peak: once the number lands, the heading carries the app's ONE
@@ -534,7 +543,7 @@ function SettingUp() {
         <p className="text-sm text-muted-foreground">
           {numberReady
             ? "Everything below is live. Text your new number to see it land."
-            : numberActionNeeded || portItem?.actionNeeded
+            : numberActionNeeded || portItem?.actionNeeded || otpPending
               ? // "Updates itself" would be a lie while it waits on the user —
                 // say so instead.
                 "One step below needs you. The rest updates itself."
