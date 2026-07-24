@@ -316,6 +316,18 @@ final class TasksCalendarMapLogicTests: XCTestCase {
         XCTAssertEqual(Set(model.groups.flatMap { $0.tasks.map(\.id) }), ["toronto", "calgary"])
     }
 
+    func testMapsDirectionsURLBuildsNativeAppleMapsDrivingLink() {
+        // Assert the parts (not an exact string) so a comma the URL parser may
+        // percent-encode between lat,lng doesn't make this brittle.
+        let url = mapsDirectionsURL(lat: 43.6426, lng: -79.3871)
+        XCTAssertNotNil(url)
+        let s = url!.absoluteString
+        XCTAssertTrue(s.hasPrefix("http://maps.apple.com/?daddr="))
+        XCTAssertTrue(s.contains("43.6426"))
+        XCTAssertTrue(s.contains("-79.3871")) // western-hemisphere longitude, the market
+        XCTAssertTrue(s.contains("dirflg=d")) // driving directions
+    }
+
     func testBuildTaskMapModelBlankContactNameCollapsesToNil() {
         let rows = [located(id: "a", contactId: "c1", name: "   ", lat: 43.6, lng: -79.4)]
         let model = buildTaskMapModel(rows)

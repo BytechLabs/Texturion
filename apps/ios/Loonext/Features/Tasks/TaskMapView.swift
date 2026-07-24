@@ -95,6 +95,15 @@ func buildTaskMapModel(_ rows: [TaskItem]) -> TaskMapModel {
     return TaskMapModel(groups: groups, located: located.count, missing: rows.count - located.count)
 }
 
+/// Apple Maps driving-directions URL to the pin's exact coordinate — native,
+/// always-present, no API key and no per-request cost. Web/Android use Google
+/// Maps; iOS uses the platform-native Maps so the crew gets the app they
+/// already navigate with. Built from the geocoded coordinate (not the free-text
+/// address) so it lands on the job site.
+func mapsDirectionsURL(lat: Double, lng: Double) -> URL? {
+    URL(string: "http://maps.apple.com/?daddr=\(lat),\(lng)&dirflg=d")
+}
+
 // MARK: - Map view
 
 @MainActor
@@ -339,6 +348,8 @@ private struct PinPeekCard: View {
     let onOpenTask: @MainActor (String) -> Void
     let onDismiss: @MainActor () -> Void
 
+    @Environment(\.openURL) private var openURL
+
     private var single: TaskItem? { group.tasks.count == 1 ? group.tasks.first : nil }
 
     var body: some View {
@@ -370,14 +381,29 @@ private struct PinPeekCard: View {
             .padding(.top, 12)
 
             if let single {
-                Button {
-                    onOpenTask(single.id)
-                } label: {
-                    Text("Open task")
-                        .font(.golos(12.5, weight: .semibold))
-                        .foregroundStyle(BrandColor.olive)
+                HStack(spacing: 16) {
+                    Button {
+                        onOpenTask(single.id)
+                    } label: {
+                        Text("Open task")
+                            .font(.golos(12.5, weight: .semibold))
+                            .foregroundStyle(BrandColor.olive)
+                    }
+                    .buttonStyle(.plain)
+                    // Field-crew convenience: navigate straight to the job site
+                    // (native Apple Maps, web/Android parity). Uses the pin's
+                    // exact coordinate so it lands on the site, not an address guess.
+                    if let directions = mapsDirectionsURL(lat: group.lat, lng: group.lng) {
+                        Button {
+                            openURL(directions)
+                        } label: {
+                            Text("Directions")
+                                .font(.golos(12.5, weight: .semibold))
+                                .foregroundStyle(BrandColor.olive)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .buttonStyle(.plain)
                 .padding(.horizontal, 15)
                 .padding(.top, 8)
                 .padding(.bottom, 12)
