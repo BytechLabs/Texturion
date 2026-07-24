@@ -47,6 +47,8 @@ export const keys = {
   invites: (companyId: string) => [companyId, "invites"] as const,
   notificationPrefs: (companyId: string) =>
     [companyId, "notification-prefs"] as const,
+  /** #214 per-company AI enrichment opt-in (Settings → AI). */
+  aiSettings: (companyId: string) => [companyId, "ai-settings"] as const,
 
   conversations: {
     /** Root for every conversation list (all filter combinations). */

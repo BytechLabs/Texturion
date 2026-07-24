@@ -4,9 +4,12 @@ import { format } from "date-fns";
 import {
   ArrowUpRight,
   Check,
+  ChevronDown,
   Loader2,
+  MapPin,
   MoreHorizontal,
   Paperclip,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
@@ -53,13 +56,18 @@ import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { ApiError } from "@/lib/api/error";
 import { useMe } from "@/lib/api/me";
 import {
+  type TaskAddressInput,
   useCreateTaskNote,
   useDeleteTask,
   useTask,
   useUpdateTask,
 } from "@/lib/api/tasks";
 import { useMembers } from "@/lib/api/team";
-import type { TaskActivityItem, TaskDetail } from "@/lib/api/types";
+import type {
+  AddressProvenance,
+  TaskActivityItem,
+  TaskDetail,
+} from "@/lib/api/types";
 import { isFilePaste } from "@/lib/attachments/clipboard";
 import {
   ATTACHMENT_ACCEPT,
@@ -383,6 +391,17 @@ function TaskDetailLoaded({
           />
         </section>
 
+        {/* #214 job address — editable; enriched values carry a provenance badge. */}
+        <TaskAddressSection
+          task={task}
+          onSave={(address) =>
+            update.mutate(
+              { taskId: task.id, address },
+              { onError: () => toast.error("Couldn't save the address.") },
+            )
+          }
+        />
+
         {/* Attachments + activity + discussion are conversation-derived, so a
             no-access viewer never sees them (the server sent them empty). */}
         {!noAccess && (
@@ -690,5 +709,165 @@ function TaskDetailSkeleton() {
       </div>
       <Skeleton className="h-16 w-full" />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// #214 — the task's structured job address, editable inline. Enriched values
+// (address suggested by AI at create time) carry a provenance badge; any edit
+// marks the address user-authored ("manual"). Saves the whole block on blur out
+// of the group (never mid-tab), and the RPC no-ops an unchanged address.
+// ---------------------------------------------------------------------------
+interface AddrFields {
+  street: string;
+  unit: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+}
+
+const ADDR_FIELDS: { key: keyof AddrFields; label: string; full?: boolean }[] = [
+  { key: "street", label: "Street", full: true },
+  { key: "unit", label: "Unit / suite" },
+  { key: "city", label: "City" },
+  { key: "state", label: "State / province" },
+  { key: "postal_code", label: "Postal code" },
+  { key: "country", label: "Country", full: true },
+];
+
+function addrFromTask(task: TaskDetail): AddrFields {
+  return {
+    street: task.addr_street ?? "",
+    unit: task.addr_unit ?? "",
+    city: task.addr_city ?? "",
+    state: task.addr_state ?? "",
+    postal_code: task.addr_postal_code ?? "",
+    country: task.addr_country ?? "",
+  };
+}
+
+function addrProvenanceLabel(p: AddressProvenance | null): string | null {
+  switch (p) {
+    case "message":
+      return "From the message";
+    case "contact":
+      return "From the contact";
+    case "company":
+      return "Inferred from area code";
+    default:
+      return null;
+  }
+}
+
+function TaskAddressSection({
+  task,
+  onSave,
+}: {
+  task: TaskDetail;
+  onSave: (address: TaskAddressInput | null) => void;
+}) {
+  const [fields, setFields] = useState<AddrFields>(() => addrFromTask(task));
+  const [provenance, setProvenance] = useState<AddressProvenance | null>(
+    task.addr_provenance,
+  );
+  const [open, setOpen] = useState(() =>
+    Object.values(addrFromTask(task)).some((v) => v !== ""),
+  );
+
+  // Re-sync from the server row after a save settles (or an external change).
+  const signature = [
+    task.addr_street,
+    task.addr_unit,
+    task.addr_city,
+    task.addr_state,
+    task.addr_postal_code,
+    task.addr_country,
+    task.addr_provenance,
+  ].join("|");
+  useEffect(() => {
+    setFields(addrFromTask(task));
+    setProvenance(task.addr_provenance);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature]);
+
+  function edit(key: keyof AddrFields, value: string) {
+    setFields((f) => ({ ...f, [key]: value }));
+    setProvenance("manual");
+  }
+
+  function commit() {
+    const current = addrFromTask(task);
+    const unchanged = (Object.keys(fields) as (keyof AddrFields)[]).every(
+      (k) => fields[k].trim() === (current[k] ?? "").trim(),
+    );
+    if (unchanged) return;
+    const has = Object.values(fields).some((v) => v.trim() !== "");
+    onSave(
+      has
+        ? {
+            street: fields.street.trim() || null,
+            unit: fields.unit.trim() || null,
+            city: fields.city.trim() || null,
+            state: fields.state.trim() || null,
+            postal_code: fields.postal_code.trim() || null,
+            country: fields.country.trim() || null,
+            provenance: provenance ?? "manual",
+          }
+        : null,
+    );
+  }
+
+  const provLabel = addrProvenanceLabel(provenance);
+
+  return (
+    <section className="flex flex-col gap-1.5">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center justify-between rounded-md text-sm font-medium text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-2">
+          <MapPin className="size-4 text-app-muted-2" strokeWidth={1.75} />
+          Address
+          {provLabel && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-app-stone-1 px-2 py-0.5 text-[11px] font-normal text-app-muted">
+              <Sparkles className="size-3" aria-hidden />
+              {provLabel}
+            </span>
+          )}
+        </span>
+        <ChevronDown
+          className={cn(
+            "size-4 text-app-muted-2 transition-transform",
+            open && "rotate-180",
+          )}
+          aria-hidden
+        />
+      </button>
+      {open && (
+        <div
+          className="grid grid-cols-2 gap-2"
+          // Save only when focus leaves the whole address group (never mid-tab).
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+              commit();
+            }
+          }}
+        >
+          {ADDR_FIELDS.map((f) => (
+            <Input
+              key={f.key}
+              aria-label={f.label}
+              placeholder={f.label}
+              className={cn(f.full && "col-span-2")}
+              value={fields[f.key]}
+              onChange={(e) => edit(f.key, e.target.value)}
+            />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

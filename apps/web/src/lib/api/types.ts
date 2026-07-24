@@ -448,6 +448,38 @@ export type TaskStatus = "open" | "done";
  * task's done is `PATCH /v1/messages/:id {done}` on `message_id`, never a task
  * route.
  */
+/** #214 where a task's address came from — drives the provenance badge. */
+export type AddressProvenance = "message" | "contact" | "company" | "manual";
+
+/** #214 a structured task/job address (create/update body + enrichment result). */
+export interface TaskAddress {
+  street: string | null;
+  unit: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+  country: string | null;
+}
+
+/**
+ * #214 the POST /v1/tasks/enrich result — a pure SUGGESTION the user reviews
+ * before saving. Any field may be null (toggle off, nothing found, degraded).
+ */
+export interface TaskEnrichment {
+  address: TaskAddress | null;
+  /** The model's provenance; never "manual" (that's a user edit, client-side). */
+  address_provenance: Exclude<AddressProvenance, "manual"> | null;
+  due_at: string | null;
+  /** True when the endpoint short-circuited because every toggle is off. */
+  enrichment_disabled?: boolean;
+}
+
+/** #214 per-company enrichment opt-in (Settings → AI). */
+export interface CompanyAiSettings {
+  enrich_task_address: boolean;
+  enrich_task_due: boolean;
+}
+
 export interface Task {
   id: string;
   company_id: string;
@@ -476,6 +508,18 @@ export interface Task {
    * no client change.
    */
   contact?: TaskContactLocation | null;
+  /**
+   * #214 structured job address + provenance. Nullable — a task without an
+   * address has all-null fields (addr_provenance null). Returned by every task
+   * read (TASK_COLUMNS); forward-compatible with pre-#214 rows (all null).
+   */
+  addr_street: string | null;
+  addr_unit: string | null;
+  addr_city: string | null;
+  addr_state: string | null;
+  addr_postal_code: string | null;
+  addr_country: string | null;
+  addr_provenance: AddressProvenance | null;
 }
 
 /** The located-contact embed a `has_location=true` task row MAY carry (Map view, D25). */

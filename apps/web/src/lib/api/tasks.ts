@@ -22,15 +22,22 @@ import { nextCursorParam } from "./pagination";
 import type { TaskListFilters } from "./task-filters";
 import { taskSearchParams } from "./task-params";
 import type {
+  AddressProvenance,
   ChecklistTask,
   ConversationDetail,
   Me,
   Message,
   Page,
   Task,
+  TaskAddress,
   TaskDetail,
   TaskStatus,
 } from "./types";
+
+/** #214 a task address in a create/update body — the fields + their provenance. */
+export type TaskAddressInput = TaskAddress & {
+  provenance: AddressProvenance | null;
+};
 
 /**
  * Tasks API hooks (D17 / TASKS.md). A task is metadata over a real message;
@@ -214,6 +221,8 @@ export interface CreateTaskInput {
   description?: string;
   assigned_user_id?: string | null;
   due_at?: string | null;
+  /** #214 confirmed enriched / hand-entered job address (null = none). */
+  address?: TaskAddressInput | null;
 }
 
 /**
@@ -244,6 +253,7 @@ export function useCreateTaskFromMessage(conversationId: string) {
             ? { assigned_user_id: input.assigned_user_id }
             : {}),
           ...(input.due_at !== undefined ? { due_at: input.due_at } : {}),
+          ...(input.address !== undefined ? { address: input.address } : {}),
         },
       }),
     onSuccess: (task) => {
@@ -271,6 +281,8 @@ export interface UpdateTaskInput {
   description?: string;
   assigned_user_id?: string | null;
   due_at?: string | null;
+  /** #214 replace the whole address block (null clears it). */
+  address?: TaskAddressInput | null;
 }
 
 /**

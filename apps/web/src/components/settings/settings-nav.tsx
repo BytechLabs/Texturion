@@ -11,6 +11,7 @@ import {
   Phone,
   PhoneMissed,
   ShieldCheck,
+  Sparkles,
   UserRound,
   Users,
   type LucideIcon,
@@ -72,6 +73,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "Templates",
     description: "Saved replies your team can send in one tap",
     icon: MessageSquareText,
+  },
+  {
+    // #214 — opt-in AI enrichment (task address + due date from message text).
+    slug: "ai",
+    label: "AI",
+    description: "Pre-fill task address and due date from messages",
+    icon: Sparkles,
   },
   {
     // #178: the hub never frames usage as a quota — fair use plus the
