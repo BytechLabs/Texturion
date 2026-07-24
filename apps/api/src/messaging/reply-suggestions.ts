@@ -422,8 +422,25 @@ export function parseSuggestionOutput(raw: unknown): string[] {
 const LINK_LIKE =
   /(https?:\/\/|www\.|\S+@\S+\.\S+|\b[a-z0-9][a-z0-9-]*\.(?:com|net|org|io|co|ca|us|uk|info|biz|xyz|app|link|shop|site|online|dev)\b)/i;
 
-/** A North American phone number in any of the shapes people write it. */
+/**
+ * A phone number in any of the shapes people write it.
+ *
+ * Dates and clock times are made of the same characters — "2026-07-25 09:00" is
+ * a run of digits, dashes and spaces exactly like "416-555-0199" — so they are
+ * removed before the test. Without that, a perfectly good draft naming a date
+ * was thrown away as if it carried a phone number, and the composer said it had
+ * nothing to offer.
+ */
 const PHONE_LIKE = /(\+?\d[\d\s().-]{8,}\d)/;
+
+/** Date and clock shapes, which are never phone numbers. */
+const DATE_OR_TIME =
+  /\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[/.]\d{1,2}(?:[/.]\d{2,4})?\b|\b\d{1,2}:\d{2}\b/g;
+
+/** True when `text` contains something that is really a phone number. */
+function containsPhoneNumber(text: string): boolean {
+  return PHONE_LIKE.test(text.replace(DATE_OR_TIME, " "));
+}
 
 /** Money, in the shapes a model writes it. */
 const MONEY = /(\$\s?\d[\d,]*(?:\.\d{1,2})?|\b\d[\d,]*(?:\.\d{1,2})?\s?(?:dollars|bucks|usd|cad)\b)/gi;
@@ -502,7 +519,7 @@ export function sanitizeSuggestions(
     // broken, so an over-long draft is dropped instead.
     if (text.length > maxChars) continue;
     if (LINK_LIKE.test(text)) continue;
-    if (PHONE_LIKE.test(text)) continue;
+    if (containsPhoneNumber(text)) continue;
 
     const amounts = moneyAmounts(text);
     let inventedMoney = false;

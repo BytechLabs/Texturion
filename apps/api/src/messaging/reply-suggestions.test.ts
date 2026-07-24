@@ -337,6 +337,22 @@ describe("sanitizeSuggestions", () => {
     );
   });
 
+  it("keeps a draft that mentions a date or a time range", () => {
+    // The phone rule used to match any long run of digits, spaces and dashes,
+    // so a perfectly good draft naming a date was silently thrown away.
+    expect(clean(["Booked for 2026-07-25 09:00, see you then."])).toEqual([
+      "Booked for 2026-07-25 09:00, see you then.",
+    ]);
+    expect(clean(["We can do 10 - 12 or 2 - 4 tomorrow."])).toEqual([
+      "We can do 10 - 12 or 2 - 4 tomorrow.",
+    ]);
+  });
+
+  it("still drops a real phone number in any shape", () => {
+    expect(clean(["Reach us on 416-555-0199 any time"])).toEqual([]);
+    expect(clean(["Call +1 (416) 555 0199 today"])).toEqual([]);
+  });
+
   it("drops a price the conversation never mentioned", () => {
     expect(clean(["That job runs about $450 plus parts."])).toEqual([]);
   });
