@@ -79,6 +79,23 @@ async function finalize(
   const delivered =
     payload.to?.some((recipient) => recipient.status === "delivered") === true;
   const firstError = payload.errors?.[0];
+  // Classify the terminal status honestly. "delivered" is confirmed success; a
+  // non-delivered terminal is a real FAILURE only when Telnyx says so — a
+  // populated error, or a recipient in the explicit failure set. Benign
+  // terminals like "delivery_unconfirmed" (carrier returned no DLR — very
+  // common for US/toll-free) mean the message WAS sent, so record "sent", not
+  // a false-red "failed" the crew can't even retry (telnyx_message_id is set).
+  const FAILURE_STATUSES = new Set(["delivery_failed", "sending_failed"]);
+  const hasFailure =
+    firstError !== undefined ||
+    payload.to?.some((recipient) =>
+      FAILURE_STATUSES.has(recipient.status ?? ""),
+    ) === true;
+  const finalStatus: "delivered" | "sent" | "failed" = delivered
+    ? "delivered"
+    : hasFailure
+      ? "failed"
+      : "sent";
   const parts =
     typeof payload.parts === "number" && payload.parts > 0
       ? payload.parts
@@ -88,7 +105,7 @@ async function finalize(
   const { error: updateError } = await db
     .from("messages")
     .update({
-      status: delivered ? "delivered" : "failed",
+      status: finalStatus,
       ...(parts !== null ? { segments: parts } : {}),
       ...(typeof payload.encoding === "string"
         ? { encoding: payload.encoding }

@@ -337,6 +337,65 @@ describe("handleInboundMessage — #189 widened inbound media", () => {
   });
 });
 
+describe("handleInboundMessage — notify runs before media download", () => {
+  it("still fires the §8 notification when the media download fails (sweeper-replay safety)", async () => {
+    // A transient media-CDN failure makes downloadInboundMedia throw (so the
+    // §11 sweeper replays it). The notification pipeline now runs FIRST, so the
+    // one-shot alert is sent BEFORE that throw — otherwise the create-gated
+    // replay (created=false) would skip it forever and the customer's MMS would
+    // produce no alert at all.
+    const mediaDownload = stubRoute(
+      (url, request) =>
+        request.method === "GET" && url.href.startsWith(MEDIA_URL),
+      () => new Response("upstream boom", { status: 500 }),
+    );
+    const conversations = stubRoute(
+      restMatch(env, "GET", "conversations"),
+      () => [
+        {
+          id: CONVERSATION_ID,
+          assigned_user_id: null,
+          is_spam: false,
+          contacts: { name: "Dana Smith", phone_e164: "+16135551000" },
+        },
+      ],
+    );
+    // Prefs disable both channels so the fan-out is a no-op; the conversation
+    // read still proves the pipeline ran before the media throw.
+    const prefs = stubRoute(restMatch(env, "GET", "notification_prefs"), () => [
+      { user_id: OWNER_USER, email_enabled: false, push_enabled: false },
+    ]);
+    const attachmentLookup = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    serve(
+      numberStub(),
+      threadStub({ created: true, notify: true }),
+      awayDisabledStub(),
+      membersStub(),
+      conversations,
+      prefs,
+      attachmentLookup,
+      mediaDownload,
+    );
+
+    await expect(
+      handleInboundMessage(
+        env,
+        inboundEvent({
+          text: "here's the leak",
+          media: [{ url: MEDIA_URL, content_type: "image/jpeg", size: 4 }],
+        }),
+      ),
+    ).rejects.toThrow();
+
+    // The §8 pipeline read the conversation → it ran BEFORE the media failure.
+    expect(conversations.calls).toHaveLength(1);
+    expect(mediaDownload.calls).toHaveLength(1);
+  });
+});
+
 describe("handleInboundMessage — #39 notification budget", () => {
   it("sends the 100% owner alert and skips the member fan-out on a capped claim", async () => {
     const resend = resendStub();

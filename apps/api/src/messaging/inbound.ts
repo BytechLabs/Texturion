@@ -127,19 +127,12 @@ export async function handleInboundMessage(
     }
   }
 
-  // MMS media — always attempted (idempotent: existing attachment rows are
-  // skipped) so a sweeper replay after a download failure completes the set.
+  // MMS media list (needed for `mediaCount` in the notification below). The
+  // actual download runs LAST — see the note at the end of the handler.
   const media = (payload.media ?? []).filter(
     (item): item is { url: string; content_type?: string; size?: number } =>
       typeof item.url === "string" && item.url.length > 0,
   );
-  if (media.length > 0) {
-    await downloadInboundMedia(db, {
-      companyId: number.company_id,
-      messageId: threaded.message_id,
-      media,
-    });
-  }
 
   // #39 notification-budget owner alert: the threading RPC meters won §8
   // claims per (company, UTC day) in the inbound_notification_days ledger and
@@ -159,12 +152,15 @@ export async function handleInboundMessage(
     );
   }
 
-  // Notification pipeline (§8), last per the §7 dispatch order. The RPC
-  // decided the debounced trigger and stamped last_notified_at atomically;
-  // `notify` is true at most once per claim, so duplicates and sweeper
-  // replays never re-send. Past the #39 daily budget the RPC reports
-  // notify=false (cap-and-drop — the message row above is already durable;
-  // only the email/push fan-out is shed, never queued).
+  // Notification pipeline (§8). Runs BEFORE the MMS media download below: the
+  // download deliberately throws on a transient CDN failure to trigger a §11
+  // sweeper replay, and the replay hits the thread-dedup fast-path
+  // (created=false) — so if a media throw aborted the handler here, this
+  // create-gated notify would be skipped FOREVER and the customer's text would
+  // silently produce no alert. The RPC decided the debounced trigger and
+  // stamped last_notified_at atomically; `notify` is true at most once per
+  // claim, so duplicates and sweeper replays never re-send. Past the #39 daily
+  // budget the RPC reports notify=false (cap-and-drop).
   if (threaded.created && threaded.notify === true) {
     await notifyInboundMessage(
       env,
@@ -176,6 +172,18 @@ export async function handleInboundMessage(
       },
       db,
     );
+  }
+
+  // MMS media download runs LAST — idempotent (existing attachment rows are
+  // skipped) and it THROWS on a transient CDN failure so the §11 sweeper
+  // replays just this step. Because it's after the one-shot notification above,
+  // a media-CDN hiccup can no longer eat the new-message alert.
+  if (media.length > 0) {
+    await downloadInboundMedia(db, {
+      companyId: number.company_id,
+      messageId: threaded.message_id,
+      media,
+    });
   }
 }
 

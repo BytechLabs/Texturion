@@ -227,6 +227,31 @@ describe("message.finalized", () => {
     });
   });
 
+  it("records a non-delivered terminal status with no error as 'sent', not failed (delivery_unconfirmed)", async () => {
+    const stubs = baseStubs();
+    stubFetch(
+      stubs.lookup.route,
+      stubs.update.route,
+      stubs.usageInsert.route,
+      stubs.companyLookup.route,
+      stubs.usageStamp.route,
+      stubs.meter.route,
+    );
+
+    await handleStatusEvent(
+      env,
+      finalizedEvent({ toStatus: "delivery_unconfirmed" }),
+    );
+
+    // The message WAS sent (Telnyx just got no DLR) — recording "failed" would
+    // be a false-red bubble the crew can't retry (telnyx_message_id is set).
+    expect(stubs.update.calls[0].body).toMatchObject({
+      status: "sent",
+      error_code: null,
+      error_detail: null,
+    });
+  });
+
   it("meters exactly once under duplicate finalized delivery (unique conflict)", async () => {
     const stubs = baseStubs({ usageInsert: () => pgUniqueViolation() });
     stubFetch(
