@@ -178,11 +178,27 @@ export function MakeTaskForm({
     setAddrProvenance("manual");
   }
 
-  /** One-click dismissal of a suggested (or typed) address — wipes every field
-   *  and drops the provenance badge, so a wrong AI suggestion is gone in one tap. */
+  /**
+   * Dismiss a suggested (or typed) address whole. Clearing is UNDOABLE: the
+   * founder lost a typed address by hitting this while reaching for the
+   * collapse chevron, so the previous values are held in the undo action and
+   * restored exactly, provenance included. (The control also moved out of the
+   * header — see the expanded panel below — so the mis-tap itself is gone.)
+   */
   function clearAddress() {
+    const previousAddr = addr;
+    const previousProvenance = addrProvenance;
     setAddr(EMPTY_ADDRESS);
     setAddrProvenance(null);
+    toast("Address cleared", {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setAddr(previousAddr);
+          setAddrProvenance(previousProvenance);
+        },
+      },
+    });
   }
   const hasAddressContent = Object.values(addr).some((v) => v.trim() !== "");
 
@@ -318,17 +334,6 @@ export function MakeTaskForm({
               aria-hidden
             />
           </button>
-          {/* One-click clear — dismisses a wrong AI suggestion (or a typo) whole. */}
-          {hasAddressContent && (
-            <button
-              type="button"
-              onClick={clearAddress}
-              aria-label="Clear address"
-              className="shrink-0 rounded-md px-1.5 py-0.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              Clear
-            </button>
-          )}
         </div>
         {addrOpen && (
           <div className="grid grid-cols-2 gap-2">
@@ -373,6 +378,24 @@ export function MakeTaskForm({
               onChange={(e) => editAddr("country", e.target.value)}
             />
             <CountryDatalist id="make-task-countries" />
+            {/* Clear lives INSIDE the expanded panel, at the far end of the
+                fields. It used to sit in the header beside the collapse
+                chevron, where reaching to fold the section away wiped the
+                address instead (founder report). Reaching it now takes opening
+                the section and travelling past every field, and it is undoable
+                even then. */}
+            {hasAddressContent && (
+              <div className="col-span-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={clearAddress}
+                  aria-label="Clear address"
+                  className="rounded-md px-1.5 py-0.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                >
+                  Clear address
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
