@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { CapControl } from "@/components/settings/cap-control";
 import { CalmEmptyState } from "@/components/settings/empty-state";
+import { StorageBreakdown } from "@/components/settings/storage-breakdown";
 import {
   LoadError,
   SettingsCard,
@@ -421,19 +422,13 @@ function UsageDetails({ usage }: { usage: Usage }) {
               )}
             </div>
           )}
-          {/* #121: storage is free and capless, so these are plain figures,
-              never a budget or a bar (D30 lines, #178 details-only). */}
-          <p className="mt-4 text-sm text-muted-foreground">
-            Storage:{" "}
-            <span className="tabular-nums">
-              {formatBytes(usage.storage.attachments_bytes)}
-            </span>{" "}
-            of files on notes,{" "}
-            <span className="tabular-nums">
-              {formatBytes(usage.storage.mms_bytes)}
-            </span>{" "}
-            of picture messages. Free on every plan, no caps.
-          </p>
+          {/* #121: storage is free and capless, so this is a COMPOSITION (what
+              is in there), never a budget — the bar has no maximum and no
+              remaining. Voicemail recordings appear here from migration
+              20260724100000; before it they were stored but never shown. */}
+          <div className="mt-4">
+            <StorageBreakdown storage={usage.storage} />
+          </div>
         </SettingsCard>
 
         {usage.history.length > 0 && (

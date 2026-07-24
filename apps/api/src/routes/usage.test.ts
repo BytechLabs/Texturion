@@ -128,6 +128,14 @@ describe("GET /v1/usage", () => {
       storage: {
         attachments_bytes: 123_456,
         mms_bytes: 78_900,
+        // The per-kind breakdown arrives with migration 20260724100000; an RPC
+        // predating it reports only the two sums, so these default and
+        // total_bytes falls back to their sum (never smaller than its parts).
+        received_media_bytes: 0,
+        sent_media_bytes: 0,
+        voicemail_bytes: 0,
+        other_bytes: 0,
+        total_bytes: 202_356,
         // #121 one-release shim: storage is free — the budgets no longer
         // exist, and the fields are pinned to 0 so pre-#121 web bundles hide
         // their meters (nearLimit(x, 0) is false) instead of crashing.
@@ -310,6 +318,11 @@ describe("GET /v1/usage", () => {
       storage: {
         attachments_bytes: 0,
         mms_bytes: 0,
+        received_media_bytes: 0,
+        sent_media_bytes: 0,
+        voicemail_bytes: 0,
+        other_bytes: 0,
+        total_bytes: 0,
         attachment_budget_bytes: 0,
         mms_budget_bytes: 0,
       },

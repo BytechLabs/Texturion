@@ -780,8 +780,18 @@ export interface UsageMonth {
 export interface UsageStorage {
   /** Live note-borne attachments — the arm the plan budget gates on upload. */
   attachments_bytes: number;
-  /** Stored inbound MMS media (its own #12 pool). */
+  /** Stored MMS media of every kind — photos, audio, video, PDFs, cards. */
   mms_bytes: number;
+  /** Media a customer sent us. */
+  received_media_bytes: number;
+  /** Media we sent out. */
+  sent_media_bytes: number;
+  /** Voicemail recordings we keep in our own bucket. */
+  voicemail_bytes: number;
+  /** Anything stored that the named kinds do not account for. */
+  other_bytes: number;
+  /** Every byte this workspace holds, measured from the buckets themselves. */
+  total_bytes: number;
   /** Effective attachment budget (plan + extra_storage add-on). */
   attachment_budget_bytes: number;
   /** Effective MMS-media budget (plan + extra_storage add-on). */

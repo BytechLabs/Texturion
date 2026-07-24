@@ -46,6 +46,11 @@ function baseUsage(overrides: Partial<Usage> = {}): Usage {
     overage_projection: { trending_over: false, projected_overage_cents: 0 },
     history: [],
     storage: {
+      received_media_bytes: 0,
+      sent_media_bytes: 0,
+      voicemail_bytes: 0,
+      other_bytes: 0,
+      total_bytes: 0,
       attachments_bytes: 0,
       mms_bytes: 0,
       attachment_budget_bytes: 0,
@@ -323,21 +328,52 @@ describe("/settings/usage details content", () => {
     expect(html).not.toContain("never pauses");
   });
 
-  it("keeps storage as plain free-of-caps lines, never a budget (#121)", () => {
+  it("breaks storage down by kind and never reads as a budget (#121)", () => {
     const html = render(
       baseUsage({
         storage: {
           attachments_bytes: 1024 * 1024,
           mms_bytes: 5 * 1024 * 1024,
+          received_media_bytes: 3 * 1024 * 1024,
+          sent_media_bytes: 2 * 1024 * 1024,
+          voicemail_bytes: 512 * 1024,
+          other_bytes: 0,
+          total_bytes: 6.5 * 1024 * 1024,
           attachment_budget_bytes: 0,
           mms_budget_bytes: 0,
         },
       }),
     );
     expect(html).toContain("Free on every plan, no caps");
-    expect(html).toContain("1 MB");
-    expect(html).toContain("5 MB");
+    // Every kind is named, including the two that were invisible before.
+    expect(html).toContain("Attachments received");
+    expect(html).toContain("Attachments sent");
+    expect(html).toContain("Files on notes");
+    expect(html).toContain("Voicemail recordings");
+    // The old wording claimed every attachment was a picture.
+    expect(html).not.toContain("picture messages");
+    // A composition, never a budget: no remaining, no limit, no percentage.
     expect(html).not.toContain("of your storage");
+    expect(html).not.toContain("remaining");
+  });
+
+  it("hides the catch-all row when nothing is unaccounted for", () => {
+    const html = render(
+      baseUsage({
+        storage: {
+          attachments_bytes: 1024,
+          mms_bytes: 0,
+          received_media_bytes: 0,
+          sent_media_bytes: 0,
+          voicemail_bytes: 0,
+          other_bytes: 0,
+          total_bytes: 1024,
+          attachment_budget_bytes: 0,
+          mms_budget_bytes: 0,
+        },
+      }),
+    );
+    expect(html).not.toContain("Other files");
   });
 
   it("moves the 6-month history bars behind details", () => {

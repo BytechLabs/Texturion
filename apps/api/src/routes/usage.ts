@@ -5,7 +5,8 @@
  *   { status, period_start, period_end, included_segments, used_segments,
  *     overage_segments, cap_segments, projected_overage_cents,
  *     history: [{ month: 'YYYY-MM', segments }],
- *     storage: { attachments_bytes, mms_bytes },
+ *     storage: { attachments_bytes, mms_bytes, received_media_bytes,
+ *                sent_media_bytes, voicemail_bytes, other_bytes, total_bytes },
  *     voice: { used_minutes, included_minutes, cap_minutes, overage_minutes,
  *              projected_overage_cents } }
  *
@@ -103,6 +104,11 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
       storage: {
         attachments_bytes: 0,
         mms_bytes: 0,
+        received_media_bytes: 0,
+        sent_media_bytes: 0,
+        voicemail_bytes: 0,
+        other_bytes: 0,
+        total_bytes: 0,
         attachment_budget_bytes: 0,
         mms_budget_bytes: 0,
       },
@@ -183,6 +189,11 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
   const storage = unwrap<{
     attachments_bytes: number | string;
     mms_bytes: number | string;
+    received_media_bytes?: number | string;
+    sent_media_bytes?: number | string;
+    voicemail_bytes?: number | string;
+    other_bytes?: number | string;
+    total_bytes?: number | string;
   }>(storageRes, "storage usage");
   const voiceSeconds = Number(
     unwrap<number | string>(voiceRes, "voice usage sum"),
@@ -242,6 +253,18 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     storage: {
       attachments_bytes: Number(storage.attachments_bytes),
       mms_bytes: Number(storage.mms_bytes),
+      // The per-kind breakdown arrives with migration 20260724100000. Every
+      // field is defaulted so a Worker deployed ahead of it reports zero
+      // rather than NaN, and total_bytes falls back to the two sums it did
+      // have so the page never shows a total smaller than its parts.
+      received_media_bytes: Number(storage.received_media_bytes ?? 0),
+      sent_media_bytes: Number(storage.sent_media_bytes ?? 0),
+      voicemail_bytes: Number(storage.voicemail_bytes ?? 0),
+      other_bytes: Number(storage.other_bytes ?? 0),
+      total_bytes: Number(
+        storage.total_bytes ??
+          Number(storage.attachments_bytes) + Number(storage.mms_bytes),
+      ),
       // #121 one-release shim: storage is free (no budgets exist). Pre-#121
       // web bundles still loaded in a tab read the *_budget_bytes fields —
       // zeros hide their meters (nearLimit(x, 0) is false) without crashing.
