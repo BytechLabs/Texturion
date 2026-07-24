@@ -399,6 +399,39 @@ describe("sanitizeSuggestions", () => {
     ).toEqual(["We can come Thursday morning.", "What time works best for you?"]);
   });
 
+  it("reads every keyed shape a model reaches for", () => {
+    // Each of these was found by executing the real parser against outputs an
+    // 8B model genuinely produces for this prompt; every one used to yield
+    // nothing at all.
+    expect(
+      parseSuggestionOutput({
+        response: JSON.stringify({
+          direct_answer: "We can take a look this week.",
+          clarifying_question: "Is it draining slowly or stopped completely?",
+        }),
+      }),
+    ).toEqual([
+      "We can take a look this week.",
+      "Is it draining slowly or stopped completely?",
+    ]);
+
+    expect(
+      parseSuggestionOutput({
+        response: JSON.stringify({
+          replies: { "1": "We can come by this week.", "2": "What day works best?" },
+        }),
+      }),
+    ).toEqual(["We can come by this week.", "What day works best?"]);
+
+    // One draft under a key that names one is unambiguous: take it rather than
+    // lose the only answer we got.
+    expect(
+      parseSuggestionOutput({
+        response: JSON.stringify({ replies: "We can be there Thursday morning." }),
+      }),
+    ).toEqual(["We can be there Thursday morning."]);
+  });
+
   it("keeps a draft confirming a number the customer already sent", () => {
     // Repeating a fact the conversation already contains is a confirmation,
     // not an invention — dropping it left the crew with nothing to send.

@@ -51,7 +51,7 @@ import { buildPage, encodeCursor, type Cursor } from "../http/pagination";
 import {
   buildSuggestionMessages,
   parseSuggestionOutput,
-  sanitizeSuggestions,
+  sanitizeWithReport,
   shouldSuggest,
   SUGGEST_REPLY_ALERT_THRESHOLD,
   SUGGEST_REPLY_CONTEXT_MESSAGES,
@@ -793,19 +793,29 @@ conversationsRoutes.post(
     }
 
     const parsed = parseSuggestionOutput(raw);
-    const suggestions = sanitizeSuggestions(parsed, {
+    const report = sanitizeWithReport(parsed, {
       threadText: threadTextOf(messages),
       draft,
     });
+    const suggestions = report.kept;
     if (suggestions.length === 0) {
       // The model answered but nothing survived parsing or the safety rules
       // (every draft carried an invented link, price, or phone number). Worth
       // distinguishing: it means the model IS reachable and the prompt or the
       // filters are what need work.
       console.error(
-        `reply suggestions unusable: model returned ${parsed.length} candidate(s), 0 passed`,
+        `reply suggestions unusable: ${parsed.length} candidate(s), 0 passed ` +
+          `(${JSON.stringify(report.dropped)})`,
       );
-      return c.json({ suggestions: [], reason: "unusable_output" as const });
+      // The counts ride along so a workspace hitting this can say WHICH rule
+      // fired. They carry no message text — only how many drafts each rule
+      // removed — and they are what turns "nothing to suggest" from a shrug
+      // into something anyone can act on.
+      return c.json({
+        suggestions: [],
+        reason: "unusable_output" as const,
+        dropped: { candidates: parsed.length, ...report.dropped },
+      });
     }
     return c.json({ suggestions });
   },

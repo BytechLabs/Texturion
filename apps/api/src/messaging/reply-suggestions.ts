@@ -407,11 +407,20 @@ function stringArrayFrom(value: unknown): string[] | null {
       const found = stringArrayFrom(nested);
       if (found) return found;
     }
+    // A single draft under a key that names one ("replies": "…") is
+    // unambiguous, so take it rather than lose the only answer we got.
+    for (const field of [...DRAFT_FIELDS, "replies", "suggestions"]) {
+      const candidate = (value as Record<string, unknown>)[field];
+      if (typeof candidate === "string" && candidate.trim().length >= 15) {
+        return [candidate];
+      }
+    }
     // Last shape: the drafts keyed by name rather than put in an array
-    // ({"reply1": "...", "reply2": "..."}), which a model reaches for when it
-    // is asked for three drafts taking different approaches. Two or more
-    // message-length strings side by side are the drafts; one alone is more
-    // likely a label or a refusal, and is left to the caller to reject.
+    // ({"reply1": "...", "reply2": "..."} or the prompt's own vocabulary,
+    // {"direct_answer": "...", "clarifying_question": "..."}), which a model
+    // reaches for when asked for drafts taking different approaches. Two or
+    // more message-length strings side by side are the drafts; one alone is
+    // more likely a label, and is left to the caller to reject.
     const values = Object.values(value as Record<string, unknown>).filter(
       (item): item is string =>
         typeof item === "string" && item.trim().length >= 15,
@@ -572,10 +581,10 @@ function moneyAmounts(text: string): Set<string> {
  * Also enforced: non-empty, within the length ceiling, de-duplicated
  * case-insensitively, and capped at three.
  */
-export function sanitizeSuggestions(
+export function sanitizeWithReport(
   replies: string[],
   opts: { threadText: string; draft?: string | null },
-): string[] {
+): SanitationReport {
   const draft = collapse(opts.draft ?? "").slice(
     0,
     SUGGEST_REPLY_MAX_DRAFT_CHARS,
@@ -595,6 +604,14 @@ export function sanitizeSuggestions(
       : Math.max(SUGGEST_REPLY_MAX_CHARS, draft.length + SUGGEST_REPLY_MAX_CHARS);
   const out: string[] = [];
   const seen = new Set<string>();
+  const dropped: SanitationReport["dropped"] = {
+    empty: 0,
+    tooLong: 0,
+    link: 0,
+    phone: 0,
+    money: 0,
+    duplicate: 0,
+  };
 
   for (const reply of replies) {
     if (typeof reply !== "string") continue;
@@ -613,14 +630,26 @@ export function sanitizeSuggestions(
     // Same for a leading list marker ("1. ", "- ").
     text = text.replace(/^(?:\d+[.)]\s+|[-*]\s+)/, "").trim();
 
-    if (text === "") continue;
+    if (text === "") {
+      dropped.empty += 1;
+      continue;
+    }
     // Too long to be an SMS draft. Truncating would cut mid-sentence and read
     // broken, so an over-long draft is dropped instead.
-    if (text.length > maxChars) continue;
+    if (text.length > maxChars) {
+      dropped.tooLong += 1;
+      continue;
+    }
     // A link or a number the conversation already contains is a confirmation,
     // not an invention. Anything the thread has never seen is still dropped.
-    if (containsLink(text) && !containsLink(known)) continue;
-    if (containsPhoneNumber(text) && !containsPhoneNumber(known)) continue;
+    if (containsLink(text) && !containsLink(known)) {
+      dropped.link += 1;
+      continue;
+    }
+    if (containsPhoneNumber(text) && !containsPhoneNumber(known)) {
+      dropped.phone += 1;
+      continue;
+    }
 
     const amounts = moneyAmounts(text);
     let inventedMoney = false;
@@ -630,16 +659,51 @@ export function sanitizeSuggestions(
         break;
       }
     }
-    if (inventedMoney) continue;
+    if (inventedMoney) {
+      dropped.money += 1;
+      continue;
+    }
 
     const key = text.toLowerCase();
-    if (seen.has(key)) continue;
+    if (seen.has(key)) {
+      dropped.duplicate += 1;
+      continue;
+    }
     seen.add(key);
     out.push(text);
     if (out.length === SUGGEST_REPLY_MAX_SUGGESTIONS) break;
   }
 
-  return out;
+  return { kept: out, dropped };
+}
+
+/**
+ * The drafts that survived, plus a tally of why the others did not.
+ *
+ * The tally exists because this pipeline failed in production for a whole
+ * session and nothing could say which rule was firing — the endpoint returned
+ * an empty list and the reason "unusable_output" covered five different causes.
+ * Counts carry no message text, so they are safe to hand back to the workspace
+ * that asked.
+ */
+export interface SanitationReport {
+  kept: string[];
+  dropped: {
+    empty: number;
+    tooLong: number;
+    link: number;
+    phone: number;
+    money: number;
+    duplicate: number;
+  };
+}
+
+/** The drafts worth showing. See `sanitizeWithReport` for why each was dropped. */
+export function sanitizeSuggestions(
+  replies: string[],
+  opts: { threadText: string; draft?: string | null },
+): string[] {
+  return sanitizeWithReport(replies, opts).kept;
 }
 
 /** The thread text the money rule compares against (all customer-visible copy). */

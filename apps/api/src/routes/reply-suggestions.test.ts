@@ -329,6 +329,17 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     expect(await (await suggest(stubs(), { ...env, AI: ai })).json()).toEqual({
       suggestions: [],
       reason: "unusable_output",
+      // The tally says WHICH rule fired, which is what "unusable_output" alone
+      // could never do — it covered five different causes at once.
+      dropped: {
+        candidates: 0,
+        empty: 0,
+        tooLong: 0,
+        link: 0,
+        phone: 0,
+        money: 0,
+        duplicate: 0,
+      },
     });
   });
 
