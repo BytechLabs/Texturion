@@ -61,7 +61,11 @@ beforeEach(() => {
 describe("MobileAccountSheetBody (#100)", () => {
   it("carries the account, number strip, notifications, theme, Settings, and Sign out", () => {
     const html = renderToStaticMarkup(
-      <MobileAccountSheetBody onClose={noop} onFeedOpened={noop} />,
+      <MobileAccountSheetBody
+        onClose={noop}
+        onNavigateClose={noop}
+        onFeedOpened={noop}
+      />,
     );
     expect(html).toContain("Rehman");
     expect(html).toContain("Bytech Labs");
@@ -78,7 +82,11 @@ describe("MobileAccountSheetBody (#100)", () => {
   it("shows the unread count on the Notifications row", () => {
     state.unread = 12;
     const html = renderToStaticMarkup(
-      <MobileAccountSheetBody onClose={noop} onFeedOpened={noop} />,
+      <MobileAccountSheetBody
+        onClose={noop}
+        onNavigateClose={noop}
+        onFeedOpened={noop}
+      />,
     );
     // 12 caps to the calm 9+ numeral.
     expect(html).toContain("9+");
@@ -87,7 +95,11 @@ describe("MobileAccountSheetBody (#100)", () => {
 
   it("shows the workspace switcher only for multi-workspace accounts", () => {
     const single = renderToStaticMarkup(
-      <MobileAccountSheetBody onClose={noop} onFeedOpened={noop} />,
+      <MobileAccountSheetBody
+        onClose={noop}
+        onNavigateClose={noop}
+        onFeedOpened={noop}
+      />,
     );
     expect(single).not.toContain("Workspaces");
 
@@ -96,7 +108,11 @@ describe("MobileAccountSheetBody (#100)", () => {
       { company_id: "co-2", name: "Acme Plumbing" },
     ];
     const multi = renderToStaticMarkup(
-      <MobileAccountSheetBody onClose={noop} onFeedOpened={noop} />,
+      <MobileAccountSheetBody
+        onClose={noop}
+        onNavigateClose={noop}
+        onFeedOpened={noop}
+      />,
     );
     expect(multi).toContain("Workspaces");
     expect(multi).toContain("Acme Plumbing");

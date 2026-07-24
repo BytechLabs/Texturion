@@ -17,7 +17,10 @@ import {
   threadUpsertMessages,
   type ThreadData,
 } from "./cache";
+import { toast } from "sonner";
+
 import { apiFetch } from "./client";
+import { ApiError } from "./error";
 import { listApplyConversation } from "./cache";
 import { patchConversationLists } from "./conversations";
 import { keys } from "./keys";
@@ -337,6 +340,16 @@ export function useRetryMessage(conversationId: string) {
           threadUpsertMessages(thread, [
             { ...message, attachments: message.attachments ?? [] },
           ]),
+      );
+    },
+    onError: (error) => {
+      // The retry was fully silent before — surface the failure (e.g. a §7 409
+      // for a carrier-finalized row, or a network error) so the user knows the
+      // message still didn't send.
+      toast.error(
+        error instanceof ApiError
+          ? error.message
+          : "Couldn't retry that message. Try again.",
       );
     },
   });

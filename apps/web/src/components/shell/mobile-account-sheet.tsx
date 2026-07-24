@@ -58,10 +58,18 @@ const THEME_OPTIONS = [
  */
 export function MobileAccountSheetBody({
   onClose,
+  onNavigateClose,
   onFeedOpened,
 }: {
   /** Close the host sheet (navigation rows, workspace switch). */
   onClose: () => void;
+  /**
+   * Close the sheet WITHOUT the dismiss-marks-read gesture — used when opening
+   * ONE notification, whose own onSelect advances the read watermark to just
+   * that item. Routing this through onClose (mark-all-read) would wrongly mark
+   * newer notifications read too (mirrors the desktop bell's separate path).
+   */
+  onNavigateClose: () => void;
   /** The notifications feed was expanded — the host arms dismiss-marks-read. */
   onFeedOpened: () => void;
 }) {
@@ -205,7 +213,10 @@ export function MobileAccountSheetBody({
             </button>
             {feedOpen && (
               <div className="border-t border-app-line-soft">
-                <NotificationFeed active={feedOpen} onNavigate={onClose} />
+                <NotificationFeed
+                  active={feedOpen}
+                  onNavigate={onNavigateClose}
+                />
               </div>
             )}
           </section>
@@ -333,6 +344,12 @@ export function MobileAccountSheet({
         </SheetHeader>
         <MobileAccountSheetBody
           onClose={() => handleOpenChange(false)}
+          onNavigateClose={() => {
+            // Opening one notification already marked it (+ older) read; close
+            // WITHOUT the dismiss mark-all-read so newer ones stay unread.
+            viewedFeedRef.current = false;
+            onOpenChange(false);
+          }}
           onFeedOpened={() => {
             viewedFeedRef.current = true;
           }}
