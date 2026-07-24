@@ -99,6 +99,24 @@ export interface SessionRuntime {
        *  header and shows the caller instead of our own number. Null for an
        *  anonymous/CLIR caller: no header, client shows "Unknown caller". */
       caller?: string | null;
+      /**
+       * Telnyx's Dial dedup key — the leg's `pendingKey`, which is already
+       * minted once and frozen inside the journaled effect.
+       *
+       * §4.1 effect execution is deliberately at-least-once: the cursor
+       * advances only AFTER `execute` returns, so an isolate eviction between
+       * the dial and that write re-runs the dial. Every other command tolerates
+       * replay; `dial` was the one that creates a new BILLABLE leg, and because
+       * the pendingKey is frozen in the journal the duplicate could not even be
+       * adopted afterwards (reduceMemberAnswered only considers legs whose ccid
+       * is still null) — it just rang and billed to the 45s timeout.
+       *
+       * Verified against the live Telnyx API before shipping: a repeated
+       * command_id returns HTTP 202 with the SAME call_control_id, so no second
+       * leg is created and the 4xx -> `known-dead` mapping below is never
+       * reached by a replay.
+       */
+      commandId?: string;
     }): Promise<DialResult>;
     /** T2 step 2: answer the inbound leg (bri anchor). "ok" covers both a
      *  fresh 2xx and the replay case (4xx but the GET says alive/answered). */
@@ -316,6 +334,11 @@ export function createSessionRuntime(env: Env): SessionRuntime {
               connection_id: env.TELNYX_VOICE_CONNECTION_ID,
               to: input.sipTarget,
               from: input.fromE164,
+              // Makes the ONE non-idempotent command in the journal safe to
+              // replay: Telnyx returns 202 + the original call_control_id
+              // instead of ringing a second billable leg. Omitted only if a
+              // caller has no pendingKey to offer.
+              ...(input.commandId ? { command_id: input.commandId } : {}),
               // Load-bearing leg-level bound: it is the outer bound on
               // §7.7's ambiguous-dial orphans — must not be raised (§5).
               timeout_secs: RING_TIMEOUT_SECS,

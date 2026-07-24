@@ -54,6 +54,56 @@ describe("createSessionRuntime.telnyx.dial — X-Loonext-Session header (§3.2)"
     ]);
   });
 
+  it("sends command_id so a journaled replay cannot ring a second billable leg", async () => {
+    const captured: { body: unknown }[] = [];
+    stubFetch(async (url, request) => {
+      if (url.pathname !== "/v2/calls" || request.method !== "POST") {
+        return undefined;
+      }
+      captured.push({ body: await request.json() });
+      return Response.json({ data: { call_control_id: "member-ccid" } });
+    });
+
+    const rt = createSessionRuntime(env);
+    await rt.telnyx.dial({
+      sipTarget: "sip:gencred_a@sip.telnyx.com",
+      fromE164: "+16135550100",
+      clientState: "brm-state",
+      sessionId: "sess-do-9",
+      commandId: "leg:pending:abc-123",
+    });
+
+    // §4.1 effect execution is at-least-once, and `dial` is the only command
+    // that creates a new billable leg. The pendingKey is frozen in the journal,
+    // so a replay reuses it and Telnyx returns the original leg (verified live:
+    // HTTP 202 + the same call_control_id).
+    const body = captured[0].body as { command_id?: string };
+    expect(body.command_id).toBe("leg:pending:abc-123");
+  });
+
+  it("omits command_id entirely when the caller has no pendingKey", async () => {
+    const captured: { body: unknown }[] = [];
+    stubFetch(async (url, request) => {
+      if (url.pathname !== "/v2/calls" || request.method !== "POST") {
+        return undefined;
+      }
+      captured.push({ body: await request.json() });
+      return Response.json({ data: { call_control_id: "member-ccid" } });
+    });
+
+    const rt = createSessionRuntime(env);
+    await rt.telnyx.dial({
+      sipTarget: "sip:gencred_a@sip.telnyx.com",
+      fromE164: "+16135550100",
+      clientState: "brm-state",
+      sessionId: "sess-do-9",
+    });
+
+    // A null/absent key must not be sent as `command_id: undefined` — Telnyx
+    // would reject the field rather than treat it as absent.
+    expect(Object.hasOwn(captured[0].body as object, "command_id")).toBe(false);
+  });
+
   it("#212: stamps X-Loonext-Caller with the real caller when present", async () => {
     const captured: { body: unknown }[] = [];
     stubFetch(async (url, request) => {

@@ -539,6 +539,10 @@ export class CallSessionDO extends DurableObject<Env> {
             // #212: the real caller rides X-Loonext-Caller so the member's
             // ring shows who is calling, not our own business number (from).
             caller: machine.callerE164,
+            // The pendingKey is minted once and frozen in the journal, so a
+            // replayed dial reuses it and Telnyx returns the original leg
+            // instead of ringing (and billing) a second one.
+            commandId: leg.pendingKey,
           });
           if ("ccid" in result) {
             await this.rt.ledgerInsert({
@@ -579,6 +583,10 @@ export class CallSessionDO extends DurableObject<Env> {
           // The placer is calling the CUSTOMER (machine.callerE164 holds the
           // customer number for an outbound call), so show them the customer.
           caller: machine.callerE164,
+          // Same replay guard as the member-ring dial above. This is the path
+          // where a duplicate hurt most: a second op leg would ring the placer
+          // again mid-call.
+          commandId: effect.pendingKey,
         });
         if ("ccid" in result) {
           await this.rt.ledgerInsert({
