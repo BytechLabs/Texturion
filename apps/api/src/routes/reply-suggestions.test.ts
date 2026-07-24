@@ -166,7 +166,9 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     expect(sb.find("POST", "/rest/v1/rpc/ai_usage_reserve")).toHaveLength(0);
   });
 
-  it("spends nothing when the crew already replied and nothing is typed", async () => {
+  it("still drafts on a thread the crew already replied to (founder report)", async () => {
+    // Speaking last is not a reason to withhold a follow-up: the old gate
+    // refused here, which is most threads most of the time.
     const { ai, run } = mockAi(TWO_REPLIES);
     const sb = stubs({
       messages: [
@@ -174,6 +176,17 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
         { direction: "inbound", body: "How much?" },
       ],
     });
+    const res = await suggest(sb, { ...env, AI: ai });
+
+    expect(await res.json()).toEqual({
+      suggestions: ["We can come by Thursday.", "What time suits you?"],
+    });
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses only when the thread has no readable text at all", async () => {
+    const { ai, run } = mockAi(TWO_REPLIES);
+    const sb = stubs({ messages: [{ direction: "inbound", body: "   " }] });
     const res = await suggest(sb, { ...env, AI: ai });
 
     expect(await res.json()).toEqual({

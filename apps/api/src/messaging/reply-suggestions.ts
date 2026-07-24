@@ -68,8 +68,18 @@ export const SUGGEST_REPLY_FEATURE = "suggest_reply";
 export const SUGGEST_REPLY_TIMEOUT_MS = 8000;
 /** Three short SMS drafts plus JSON overhead. */
 export const SUGGEST_REPLY_MAX_OUTPUT_TOKENS = 320;
-/** How many customer-visible messages of history the model sees. */
+/** Hard ceiling on how many customer-visible messages the model can see. */
 export const SUGGEST_REPLY_CONTEXT_MESSAGES = 12;
+/**
+ * The gap that ENDS a conversation. Messages closer together than this belong
+ * to the same exchange and are read together; anything on the far side of a
+ * bigger gap is a different conversation that happens to share a thread, and
+ * paying to re-read it makes the draft worse, not better.
+ *
+ * A day: a customer who texts at 5pm and again at 8am the next morning is
+ * plainly continuing; one who texts a month later is starting over.
+ */
+export const SUGGEST_REPLY_CONTEXT_GAP_MS = 24 * 60 * 60 * 1000;
 /** Truncate any single message in the transcript to bound input cost. */
 export const SUGGEST_REPLY_MAX_MESSAGE_CHARS = 600;
 /** Longest draft we will offer: about two SMS segments. */
@@ -83,6 +93,41 @@ export const SUGGEST_REPLY_MAX_SUGGESTIONS = 3;
 export interface SuggestionMessage {
   direction: "inbound" | "outbound";
   body: string;
+  /** ISO timestamp, used to cut stale history off the context. */
+  created_at?: string;
+}
+
+/**
+ * The slice of a thread worth reading: the newest message, plus every earlier
+ * one that belongs to the same exchange.
+ *
+ * Walks backwards from the newest and stops at the first gap wider than
+ * `SUGGEST_REPLY_CONTEXT_GAP_MS`. Two messages seconds apart are both read; a
+ * message from a month before the latest is not, because it is a different
+ * conversation and every token of it is spent making the draft worse. The hard
+ * count ceiling still applies on top.
+ *
+ * Messages without a timestamp (older callers, tests) never break the chain —
+ * absent data should not silently truncate context.
+ */
+export function selectRecentContext(
+  messages: SuggestionMessage[],
+  limit: number = SUGGEST_REPLY_CONTEXT_MESSAGES,
+): SuggestionMessage[] {
+  if (messages.length === 0) return [];
+  const kept: SuggestionMessage[] = [];
+  let nextTime: number | null = null;
+
+  for (let i = messages.length - 1; i >= 0 && kept.length < limit; i -= 1) {
+    const message = messages[i];
+    const at = message.created_at ? Date.parse(message.created_at) : NaN;
+    if (kept.length > 0 && nextTime !== null && Number.isFinite(at)) {
+      if (nextTime - at > SUGGEST_REPLY_CONTEXT_GAP_MS) break;
+    }
+    kept.push(message);
+    if (Number.isFinite(at)) nextTime = at;
+  }
+  return kept.reverse();
 }
 
 export interface SuggestionContext {
@@ -176,11 +221,9 @@ const modelOutputSchema = z.object({
 });
 
 /**
- * Is there anything to reply to? Only when the newest customer-visible message
- * is INBOUND and has text: if the crew already answered, a draft is noise, and
- * a media-only message ("[photo]") gives the model nothing to work from. This
- * is the "only when needed" cost gate — it runs before any spend, and it is
- * also what the client uses to decide whether to offer the affordance at all.
+ * True when the newest customer-visible message is an INBOUND with text — an
+ * unanswered question, the strongest case for a draft. Used to shape the
+ * prompt, NOT to gate the request (see `shouldSuggest`).
  */
 export function hasReplyableInbound(messages: SuggestionMessage[]): boolean {
   const newest = messages[messages.length - 1];
@@ -188,16 +231,26 @@ export function hasReplyableInbound(messages: SuggestionMessage[]): boolean {
 }
 
 /**
- * Is this request worth spending a model call on? Either there is an unanswered
- * customer message, OR the person has started typing — someone half-way through
- * a sentence has asked for help by definition, even on a thread the crew
- * already replied to.
+ * Is this request worth spending a model call on?
+ *
+ * Almost always. This gate used to require the newest message to be inbound,
+ * which refused every thread the crew had already replied to — which is most
+ * of them, most of the time. Someone pressing the button has asked for help;
+ * answering "nothing to suggest" because they happened to speak last is the
+ * tool being clever at the user's expense (founder: "it should RARELY not
+ * suggest anything").
+ *
+ * So: any conversation with something in it, or anything typed, is enough. A
+ * thread with no readable text at all is the only refusal — there is genuinely
+ * nothing to write from. Cost stays bounded the way it always was: the button
+ * is a deliberate tap, and the burst limiter and monthly cap sit behind it.
  */
 export function shouldSuggest(
   messages: SuggestionMessage[],
   draft: string | null,
 ): boolean {
-  return hasReplyableInbound(messages) || (draft ?? "").trim() !== "";
+  if ((draft ?? "").trim() !== "") return true;
+  return messages.some((message) => message.body.trim() !== "");
 }
 
 /**
@@ -211,6 +264,7 @@ const SYSTEM_PROMPT = [
   'Output ONLY one JSON object, no prose and no code fence: {"replies": ["...", "..."]}.',
   "Give 2 or 3 drafts. Each must take a DIFFERENT approach — for example one that answers directly, one that asks the question you still need answered, one that proposes the next step. Never two drafts that say the same thing.",
   "IF a partly typed reply is given below, that person has already decided what to say. Every draft must be a FINISHED version of THAT reply: keep their words, their tone, and their intent, and carry the sentence on from where they stopped. Never discard it, never contradict it, never answer a different question. Each draft is the whole message, their opening included, ready to send.",
+  "ALWAYS RETURN DRAFTS. If the customer asked something, answer it. If we spoke last and they have not replied, write the natural next message instead: confirm what was agreed, check in, ask for the detail still missing, or close the loop politely. A conversation always has a sensible next message, so an empty list is never the right answer.",
   "",
   "Write as the business, in the first person plural (we). Plain, warm, direct. Match the tone of the business's own earlier messages in the thread. Under 300 characters each. No emoji, no greeting block, no signature, no subject line, no markdown, no em dashes.",
   "",
@@ -234,8 +288,7 @@ const SYSTEM_PROMPT = [
 export function buildSuggestionMessages(
   ctx: SuggestionContext,
 ): { role: "system" | "user"; content: string }[] {
-  const transcript = ctx.messages
-    .slice(-SUGGEST_REPLY_CONTEXT_MESSAGES)
+  const transcript = selectRecentContext(ctx.messages)
     .map((m) => {
       const speaker = m.direction === "inbound" ? "Customer" : "Us";
       const body = collapse(m.body).slice(0, SUGGEST_REPLY_MAX_MESSAGE_CHARS);
@@ -274,7 +327,9 @@ export function buildSuggestionMessages(
     transcript,
     "<<<",
     ...(draft === ""
-      ? ["Draft the replies the business should send next."]
+      ? [
+          "Draft the messages the business should send next. If the customer is waiting on an answer, answer them; if we spoke last, write the natural follow-up.",
+        ]
       : [
           "Partly typed reply >>>",
           draft,

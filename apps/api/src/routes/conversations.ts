@@ -648,7 +648,9 @@ conversationsRoutes.post(
     // Customer-visible history only, oldest-first. INTERNAL NOTES ARE EXCLUDED
     // BY THIS FILTER and that is load-bearing: a note is where a crew writes
     // things the customer must never read, so it never reaches the model.
-    const history = unwrap<{ direction: string; body: string | null }[]>(
+    const history = unwrap<
+      { direction: string; body: string | null; created_at: string }[]
+    >(
       await db
         .from("messages")
         .select("direction,body,created_at")
@@ -665,6 +667,10 @@ conversationsRoutes.post(
       .map((row) => ({
         direction: row.direction === "inbound" ? "inbound" : "outbound",
         body: row.body ?? "",
+        // Timing decides how much of the thread is worth reading: the prompt
+        // keeps the current exchange and drops history on the far side of a
+        // long silence (selectRecentContext).
+        created_at: row.created_at,
       }));
 
     // "Only when needed" (cost): with nothing typed and nothing unanswered,

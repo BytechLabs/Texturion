@@ -16,6 +16,8 @@ import {
   hasReplyableInbound,
   parseSuggestionOutput,
   sanitizeSuggestions,
+  selectRecentContext,
+  SUGGEST_REPLY_CONTEXT_MESSAGES,
   shouldSuggest,
   SUGGEST_REPLY_MAX_CHARS,
   SUGGEST_REPLY_MAX_SUGGESTIONS,
@@ -208,7 +210,7 @@ describe("buildSuggestionMessages", () => {
 
   it("asks for a reply from scratch when the composer is empty", () => {
     const user = buildSuggestionMessages(ctx)[1].content;
-    expect(user).toContain("Draft the replies the business should send next.");
+    expect(user).toContain("Draft the messages the business should send next.");
     expect(user).not.toContain("Partly typed reply");
   });
 
@@ -220,7 +222,7 @@ describe("buildSuggestionMessages", () => {
     expect(user).toContain("Partly typed reply >>>");
     expect(user).toContain("We can swing by Thursday but");
     expect(user).toContain("Finish that reply.");
-    expect(user).not.toContain("Draft the replies the business should send next.");
+    expect(user).not.toContain("Draft the messages the business should send next.");
   });
 
   it("truncates a pasted essay in the composer rather than paying for it", () => {
@@ -234,7 +236,7 @@ describe("buildSuggestionMessages", () => {
   it("treats a whitespace-only draft as an empty composer", () => {
     const user = buildSuggestionMessages({ ...ctx, draft: "   \n  " })[1]
       .content;
-    expect(user).toContain("Draft the replies the business should send next.");
+    expect(user).toContain("Draft the messages the business should send next.");
   });
 
   it("tells the model to keep the person's own words", () => {
@@ -436,20 +438,88 @@ describe("sanitizeSuggestions with a half-typed draft", () => {
   });
 });
 
+describe("selectRecentContext (timing decides what is worth reading)", () => {
+  const at = (iso: string, body: string): SuggestionMessage => ({
+    direction: "inbound",
+    body,
+    created_at: iso,
+  });
+
+  it("keeps messages sent minutes apart — one exchange", () => {
+    const kept = selectRecentContext([
+      at("2026-07-15T09:00:00Z", "first"),
+      at("2026-07-15T09:02:00Z", "second"),
+      at("2026-07-15T09:05:00Z", "third"),
+    ]);
+    expect(kept.map((m) => m.body)).toEqual(["first", "second", "third"]);
+  });
+
+  it("drops history on the far side of a long silence (founder report)", () => {
+    const kept = selectRecentContext([
+      at("2026-06-01T09:00:00Z", "a month ago"),
+      at("2026-07-15T09:00:00Z", "today"),
+    ]);
+    expect(kept.map((m) => m.body)).toEqual(["today"]);
+  });
+
+  it("keeps yesterday evening with this morning (still the same job)", () => {
+    const kept = selectRecentContext([
+      at("2026-07-14T21:00:00Z", "last night"),
+      at("2026-07-15T08:00:00Z", "this morning"),
+    ]);
+    expect(kept).toHaveLength(2);
+  });
+
+  it("cuts at the FIRST wide gap, keeping everything after it", () => {
+    const kept = selectRecentContext([
+      at("2026-05-01T09:00:00Z", "ancient"),
+      at("2026-07-15T09:00:00Z", "recent one"),
+      at("2026-07-15T09:10:00Z", "recent two"),
+    ]);
+    expect(kept.map((m) => m.body)).toEqual(["recent one", "recent two"]);
+  });
+
+  it("still honours the hard count ceiling inside one burst", () => {
+    const many = Array.from({ length: 30 }, (_, i) =>
+      at(new Date(Date.UTC(2026, 6, 15, 9, i)).toISOString(), `m${i}`),
+    );
+    expect(selectRecentContext(many)).toHaveLength(
+      SUGGEST_REPLY_CONTEXT_MESSAGES,
+    );
+  });
+
+  it("never truncates when timestamps are absent", () => {
+    const kept = selectRecentContext([inbound("one"), outbound("two")]);
+    expect(kept).toHaveLength(2);
+  });
+
+  it("is empty for an empty thread", () => {
+    expect(selectRecentContext([])).toEqual([]);
+  });
+});
+
 describe("shouldSuggest", () => {
   it("is true when a customer message is waiting", () => {
     expect(shouldSuggest([inbound("Are you free?")], null)).toBe(true);
   });
 
-  it("is true when the person has started typing, even on an answered thread", () => {
-    expect(
-      shouldSuggest([inbound("Are you free?"), outbound("Yes")], "We can also"),
-    ).toBe(true);
+  it("is true when the person has started typing", () => {
+    expect(shouldSuggest([], "We can also")).toBe(true);
   });
 
-  it("is false with nothing typed and nothing unanswered", () => {
-    expect(shouldSuggest([inbound("Hi"), outbound("Hello")], "   ")).toBe(false);
+  it("is TRUE on a thread the crew already replied to (founder report)", () => {
+    // The old gate required the newest message to be inbound, so any thread
+    // you had just answered refused to draft — which is most threads, most of
+    // the time. Speaking last is not a reason to withhold a follow-up.
+    expect(shouldSuggest([inbound("Hi"), outbound("Hello")], null)).toBe(true);
+    expect(shouldSuggest([outbound("On our way")], "")).toBe(true);
+  });
+
+  it("is false only when there is nothing to write from at all", () => {
     expect(shouldSuggest([], null)).toBe(false);
+    expect(shouldSuggest([], "   ")).toBe(false);
+    // Media-only messages carry no text for the model to read.
+    expect(shouldSuggest([inbound("  "), outbound("")], null)).toBe(false);
   });
 });
 
