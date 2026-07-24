@@ -846,19 +846,33 @@ async function handleInvoicePaymentFailed(
 ): Promise<void> {
   const db = getDb(env);
 
-  // §2: the one-time US-registration fee invoice failed to collect. Clear the
-  // start-marker so the CA owner can re-attempt enable-us — the marker only
-  // guarded against a concurrent double-invoice, never a declined one. Gated on
-  // registration_fee_paid_at IS NULL so a late failure event for a since-paid
-  // fee can't wrongly reopen it. (This invoice carries no subscription, so it
-  // must be handled before the subscription-dunning path returns below.)
+  // §2: the one-time US-registration fee invoice failed to collect. Undo the
+  // WHOLE enable-us write so the CA owner can re-attempt — exactly what the
+  // route's own synchronous catch block rolls back.
+  //
+  // Clearing only the start-marker was not enough: the route flips
+  // `us_texting_enabled` to true BEFORE invoicing, and once finalizeInvoice
+  // succeeds, collection is async — so a declined card lands here with the flag
+  // still true. The promised "re-attempt" was then impossible, because
+  // enable-us hard-409s on `us_texting_enabled` ("US texting is already
+  // enabled.") and /submit 409s too, with no other post-checkout writer of the
+  // flag to recover it: the company was wedged with US texting marked on and
+  // the $29 never collected.
+  //
+  // Gated on registration_fee_paid_at IS NULL so a late failure event for a
+  // since-paid fee can't wrongly reopen it — all-or-nothing, like the route's
+  // rollback. (This invoice carries no subscription, so it must be handled
+  // before the subscription-dunning path returns below.)
   if (
     invoice.metadata?.purpose === "us_registration" &&
     typeof invoice.metadata.company_id === "string"
   ) {
     const { error } = await db
       .from("companies")
-      .update({ registration_fee_charge_started_at: null })
+      .update({
+        registration_fee_charge_started_at: null,
+        us_texting_enabled: false,
+      })
       .eq("id", invoice.metadata.company_id)
       .is("registration_fee_paid_at", null);
     if (error) {

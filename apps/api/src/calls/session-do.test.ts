@@ -31,8 +31,24 @@ function makeStorage() {
       async get<T>(key: string): Promise<T | undefined> {
         return clone(map.get(key)) as T | undefined;
       },
-      async put(key: string, value: unknown): Promise<void> {
-        map.set(key, clone(value));
+      /**
+       * Mirrors the real DurableObjectStorage overloads: `put(key, value)` and
+       * the multi-key `put({k: v, …})`, which commits every entry in ONE durable
+       * transaction. §4.1 admission and the drain's reduce step both depend on
+       * the object form, so the double has to speak it or those atomicity fixes
+       * would be silently untested.
+       */
+      async put(
+        keyOrEntries: string | Record<string, unknown>,
+        value?: unknown,
+      ): Promise<void> {
+        if (typeof keyOrEntries === "string") {
+          map.set(keyOrEntries, clone(value));
+          return;
+        }
+        for (const [key, entry] of Object.entries(keyOrEntries)) {
+          map.set(key, clone(entry));
+        }
       },
       async delete(key: string): Promise<void> {
         map.delete(key);
@@ -411,6 +427,83 @@ describe("CallSessionDO — admission + serialization (§4.1)", () => {
     const dialsBefore = calls.dials.length;
     await instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0")); // replay
     expect(calls.dials.length).toBe(dialsBefore);
+  });
+});
+
+describe("CallSessionDO — §4.1 step-1 admission is ONE durable commit", () => {
+  /**
+   * `seen` and `journal` must land in a SINGLE storage transaction. As two
+   * sequential puts, a crash between them left the event marked seen with no
+   * journal — the provider retry then reads as a dedup, the edge stamps
+   * processed_at, and the §11 sweeper (unstamped rows only) never replays it.
+   * The webhook is swallowed for good.
+   */
+  it("commits `seen` and `journal` in the same put, never one without the other", async () => {
+    const { instance, store } = makeDO({ initiated: ctx() });
+    const puts: string[][] = [];
+    const realPut = store.storage.put.bind(store.storage);
+    store.storage.put = async (
+      keyOrEntries: string | Record<string, unknown>,
+      value?: unknown,
+    ) => {
+      puts.push(
+        typeof keyOrEntries === "string"
+          ? [keyOrEntries]
+          : Object.keys(keyOrEntries).sort(),
+      );
+      return realPut(keyOrEntries as never, value as never);
+    };
+
+    await instance.onTelnyxEvent(initiatedEvent("e1"));
+
+    // The admission write carries BOTH keys together; no put ever writes
+    // `seen` on its own (that is precisely the swallowing window).
+    expect(puts).toContainEqual(["journal", "seen"]);
+    expect(puts).not.toContainEqual(["seen"]);
+  });
+
+  it("the dedup mark survives an eviction, so a provider retry stays a no-op", async () => {
+    const { instance, store } = makeDO({ initiated: ctx() });
+    await instance.onTelnyxEvent(initiatedEvent("e1"));
+    await instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0"));
+
+    // `seen` is durable, not just in-memory: a fresh isolate on the same
+    // storage must still recognise the replay.
+    expect(store.map.get("seen")).toEqual(["e1", "e2"]);
+    const revived = reviveDO(store, { initiated: ctx() });
+    await revived.instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0"));
+    expect(revived.calls.dials.length).toBe(0);
+  });
+
+  it("records head.effects onto the journal in the same commit as the machine", async () => {
+    // The reduce step persists {machine, journal} together. Split, a resume
+    // would re-reduce the ALREADY-MUTATED machine and — the reducers not being
+    // idempotent — derive a different, usually empty, effect list, silently
+    // dropping the dial/answer/mirror the first reduction produced.
+    const { instance, store } = makeDO({ initiated: ctx() });
+    const puts: string[][] = [];
+    const realPut = store.storage.put.bind(store.storage);
+    store.storage.put = async (
+      keyOrEntries: string | Record<string, unknown>,
+      value?: unknown,
+    ) => {
+      puts.push(
+        typeof keyOrEntries === "string"
+          ? [keyOrEntries]
+          : Object.keys(keyOrEntries).sort(),
+      );
+      return realPut(keyOrEntries as never, value as never);
+    };
+
+    await instance.onTelnyxEvent(initiatedEvent("e1"));
+
+    // The FIRST write that carries the machine is the combined one: the reduce
+    // step never persists the mutated machine ahead of the journal that records
+    // what that reduction produced. (Later standalone `machine` puts are the
+    // effect-execution saves — e.g. stamping a dial's ccid — which are not part
+    // of the reduce step.)
+    const firstMachineWrite = puts.find((keys) => keys.includes("machine"));
+    expect(firstMachineWrite).toEqual(["journal", "machine"]);
   });
 });
 

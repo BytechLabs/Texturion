@@ -571,6 +571,52 @@ describe("POST /v1/registration/otp and /otp/resend", () => {
     expect(harness.telnyx.calls).toHaveLength(0);
   });
 
+  it("429s a rate-limited VERIFY keyed on the OTP target, guessing no PIN", async () => {
+    const harness = buildHarness();
+    seedSoleProp(harness);
+    const limiter: RateLimiter & { limit: ReturnType<typeof vi.fn> } = {
+      limit: vi.fn(async (_options: { key: string }) => ({ success: false })),
+    };
+    harness.env.VERIFY_RATE_LIMITER = limiter;
+
+    const res = await harness.request(
+      "/v1/registration/otp",
+      jsonInit("POST", { code: "000000" }),
+    );
+    expect(res.status).toBe(429);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe("rate_limited");
+    // Same TARGET key as resend, but a DISTINCT action prefix: a 6-digit PIN
+    // is 10^6 guesses, and the send/check budgets must not consume each other.
+    expect(limiter.limit).toHaveBeenCalledExactlyOnceWith({
+      key: "brand-otp-verify:+12125550111",
+    });
+    // A 429'd attempt never reaches Telnyx — no guess is spent.
+    expect(harness.telnyx.calls).toHaveLength(0);
+  });
+
+  it("an allowed verify passes the rate limiter through to Telnyx", async () => {
+    const harness = buildHarness();
+    seedSoleProp(harness);
+    harness.env.VERIFY_RATE_LIMITER = {
+      limit: async () => ({ success: true }),
+    };
+    harness.telnyx.on("PUT", /^\/v2\/10dlc\/brand\/brand-sp\/smsOtp$/, () => ({}));
+    harness.telnyx.on("GET", /^\/v2\/10dlc\/brand\/brand-sp$/, () => ({
+      data: { brandId: "brand-sp", identityStatus: "VERIFIED" },
+    }));
+    harness.telnyx.on("POST", /^\/v2\/10dlc\/campaignBuilder$/, () => ({
+      data: { campaignId: "camp-1" },
+    }));
+
+    const res = await harness.request(
+      "/v1/registration/otp",
+      jsonInit("POST", { code: "123456" }),
+    );
+    expect(res.status).toBe(200);
+    expect(harness.telnyx.callsTo("PUT", /smsOtp$/)).toHaveLength(1);
+  });
+
   it("#38: an allowed resend passes the rate limiter through to Telnyx", async () => {
     const harness = buildHarness();
     seedSoleProp(harness);

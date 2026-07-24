@@ -425,8 +425,21 @@ export class CallSessionDO extends DurableObject<Env> {
       head: { event, effects: null, cursor: 0 },
       rest: [],
     };
-    if (eventId) await this.markSeen(eventId);
-    await this.putJournal(journal);
+    // §4.1 step-1 is ONE durable commit: `seen` and `journal` must land
+    // together. Written as two sequential puts they were two transactions, so a
+    // crash/eviction between them (or a failing journal put) left the event
+    // marked seen with NO journal. The provider retry then reads
+    // `isSeen && !hasUnfinishedJournalFor` -> "dedup" -> the edge stamps
+    // processed_at, and the §11 sweeper only replays UNstamped rows: the webhook
+    // is swallowed permanently. Concretely, a swallowed `call.answered` leaves
+    // the machine in `ringing` while the member holds a live SIP leg, so the ring
+    // alarm sends the customer to voicemail mid-conversation.
+    //
+    // Ordering alone cannot fix this — journal-first would let a retry re-admit
+    // and DOUBLE-execute the event. The object form of storage.put commits every
+    // key in a single transaction, which is what step 1 always claimed to be.
+    const seen = eventId ? await this.nextSeen(eventId) : null;
+    await this.ctx.storage.put(seen ? { seen, journal } : { journal });
     await this.setAlarmSlot("journal-resume", Date.now() + JOURNAL_RESUME_MS);
     return this.drain(journal);
   }
@@ -448,16 +461,27 @@ export class CallSessionDO extends DurableObject<Env> {
       if (head.effects === null) {
         const machine = await this.load();
         const result = reduce(machine, head.event, Date.now(), () => this.rt.uuid());
-        if (result.machine) {
-          await this.save(result.machine);
-        } else if (machine) {
-          // reducer returned null machine (should not happen mid-session) —
-          // keep the prior machine.
-        }
         head.effects = result.effects;
         head.cursor = 0;
         if (first) headReply = result.reply;
-        await this.putJournal(journal);
+        // The reduced machine and the effects that reduction produced are ONE
+        // commit. Persisting the machine first and the journal second left a
+        // window where the machine was already mutated while `head.effects` was
+        // still null: the resume re-reduces the ALREADY-MUTATED machine, and the
+        // reducers are not idempotent — the second reduction sees the new state
+        // and yields a different (usually empty) effect list, silently dropping
+        // every effect the first reduction produced (the dial, the answer, the
+        // mirror). Recording the effects onto the journal BEFORE the shared put
+        // makes resume replay the original effect list instead of re-deriving it.
+        if (result.machine) {
+          this.cachedMachine = result.machine;
+          await this.ctx.storage.put({ machine: result.machine, journal });
+          await this.rememberSessionId(result.machine.callSessionId);
+        } else {
+          // reducer returned null machine (should not happen mid-session) —
+          // keep the prior machine, journal the effects.
+          await this.putJournal(journal);
+        }
       }
       while (head.cursor < head.effects.length) {
         const effect = head.effects[head.cursor];
@@ -804,6 +828,22 @@ export class CallSessionDO extends DurableObject<Env> {
       // ended_voicemail-style upgrades).
       if (pending.set.state && pending.set.state !== machine.state) {
         pending.set.state = machine.state;
+      }
+      // Same argument, same authority — for EVERY column the machine owns, not
+      // just `state`. A queued {state:'answered', answered_by_user_id:U1} that
+      // waits out a consult transfer would otherwise replay U1 over the U2 the
+      // transfer wrote, because mirror() is an unguarded UPDATE. That hands the
+      // live session to the wrong member (/calls/live/mine filters on this
+      // column) and hides it from the one actually on the call, while the
+      // transfer target reads as free in the busy set. The machine's
+      // answeredByUserId/answeredAtIso are monotonic once set, so pinning can
+      // only replace stale with current; the `in` guard leaves a set that never
+      // carried the column (the outbound mint mirror) byte-identical.
+      if ("answered_by_user_id" in pending.set) {
+        pending.set.answered_by_user_id = machine.answeredByUserId;
+      }
+      if ("answered_at" in pending.set) {
+        pending.set.answered_at = machine.answeredAtIso;
       }
       await this.rt.mirror(machine.callSessionId, pending.set);
       await this.clearPendingMirror();
@@ -1204,12 +1244,16 @@ export class CallSessionDO extends DurableObject<Env> {
     return seen.includes(eventId);
   }
 
-  private async markSeen(eventId: string): Promise<void> {
-    let seen = (await this.ctx.storage.get<string[]>("seen")) ?? [];
-    if (seen.includes(eventId)) return;
-    seen.push(eventId);
-    if (seen.length > SEEN_CAP) seen = seen.slice(seen.length - SEEN_CAP);
-    await this.ctx.storage.put("seen", seen);
+  /**
+   * The `seen` list with `eventId` appended (capped), or unchanged when it is
+   * already present. Returns the value instead of writing it so admission can
+   * commit it in the SAME durable transaction as the journal (§4.1 step 1).
+   */
+  private async nextSeen(eventId: string): Promise<string[]> {
+    const seen = (await this.ctx.storage.get<string[]>("seen")) ?? [];
+    if (seen.includes(eventId)) return seen;
+    const next = [...seen, eventId];
+    return next.length > SEEN_CAP ? next.slice(next.length - SEEN_CAP) : next;
   }
 
   private async getPendingMirror(): Promise<PendingMirror | null> {

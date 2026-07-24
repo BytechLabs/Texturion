@@ -906,7 +906,7 @@ describe("§9 event → state table", () => {
     expect(harness.callsTo("POST", /api\.resend\.com/)).toHaveLength(0);
   });
 
-  it("invoice.payment_failed with us_registration metadata clears the fee start-marker (retry unblocked, §2)", async () => {
+  it("invoice.payment_failed with us_registration metadata rolls back the WHOLE enable-us write (retry unblocked, §2)", async () => {
     const harness = makeHarness([
       ...ledgerEndpoints(),
       endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
@@ -927,8 +927,12 @@ describe("§9 event → state table", () => {
     expect(patches[0].url.searchParams.get("registration_fee_paid_at")).toBe(
       "is.null",
     );
+    // `us_texting_enabled` is flipped true BEFORE the invoice, and collection is
+    // async — so the decline must undo it too, or enable-us hard-409s ("US
+    // texting is already enabled.") forever and the $29 is never collected.
     expect(patches[0].json()).toEqual({
       registration_fee_charge_started_at: null,
+      us_texting_enabled: false,
     });
     // No subscription on the fee invoice → no dunning email, no status mirror.
     expect(harness.callsTo("POST", /api\.resend\.com/)).toHaveLength(0);

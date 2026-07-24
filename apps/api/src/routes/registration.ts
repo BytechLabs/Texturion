@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as Sentry from "@sentry/cloudflare";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
@@ -13,7 +13,7 @@ import { idempotencyKey } from "../billing/idempotency";
 import { getStripe } from "../billing/stripe";
 import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
-import { getEnv } from "../env";
+import { getEnv, type Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { parseJsonBody, parseWith } from "./core/http";
 import { TelnyxApiError } from "../telnyx/client";
@@ -262,6 +262,47 @@ async function requireSolePropBrand(
   return brand;
 }
 
+/**
+ * Per-target bound on BOTH sole-prop OTP endpoints (SPEC §10 DoS posture),
+ * mirroring the text-enablement verification posture.
+ *
+ * The mobile a PIN is sent to is a number the company has NOT proven it owns —
+ * wizard.ts validates it as a +1 mobile and nothing more, because the OTP *is*
+ * the ownership proof. So `resend` is an SMS-bombing primitive against an
+ * arbitrary victim mobile, and `otp` accepts unlimited 6-digit guesses against
+ * a PIN delivered to that victim. Both halves need the bound; only `resend`
+ * had one.
+ *
+ * Keyed on the TARGET mobile with a per-action prefix (never the brand id): a
+ * wizard edit that changes the number cannot reset the budget faster than the
+ * window, and the send and check budgets never consume each other. Absent
+ * binding (local dev/tests) → gate skipped, exactly like every other
+ * VERIFY_RATE_LIMITER call site. This bounds the RATE; the durable
+ * per-brand lifetime cap (MAX_OTP_RESENDS) bounds resend totals.
+ */
+async function otpRateLimit(
+  c: Context<AppEnv>,
+  env: Env,
+  action: "resend" | "verify",
+  brand: RegistrationRow,
+): Promise<Response | null> {
+  if (!env.VERIFY_RATE_LIMITER) return null;
+  const mobile = brand.data.mobilePhone;
+  const target =
+    typeof mobile === "string" && mobile.length > 0 ? mobile : brand.id;
+  const { success } = await env.VERIFY_RATE_LIMITER.limit({
+    key: `brand-otp-${action}:${target}`,
+  });
+  if (success) return null;
+  return errorResponse(
+    c,
+    "rate_limited",
+    action === "resend"
+      ? "Too many verification codes requested. Wait a minute and try again."
+      : "Too many code attempts. Wait a minute and try again.",
+  );
+}
+
 /** POST /v1/registration/otp { code } — owner/admin (§4.2, §7). */
 registrationRoutes.post("/otp", requireRole("admin"), async (c) => {
   const env = getEnv(c.env);
@@ -269,6 +310,11 @@ registrationRoutes.post("/otp", requireRole("admin"), async (c) => {
   const companyId = c.get("companyId");
   const { code } = await parseJsonBody(c, otpBodySchema);
   const brand = await requireSolePropBrand(db, companyId);
+
+  // A 6-digit PIN is 10^6 guesses; unbounded, that is a brute force against a
+  // code SMSed to a mobile the caller has not proven they own.
+  const limited = await otpRateLimit(c, env, "verify", brand);
+  if (limited) return limited;
 
   try {
     await verifyBrandOtp(env, brand.telnyx_id as string, code);
@@ -319,25 +365,10 @@ registrationRoutes.post("/otp/resend", requireRole("admin"), async (c) => {
   const companyId = c.get("companyId");
   const brand = await requireSolePropBrand(db, companyId);
 
-  // RATE: reuse the VERIFY_RATE_LIMITER binding (absent in local dev/tests →
-  // gate skipped, exactly like the text-enablement call sites). Keyed on the
-  // sole-prop mobile the PIN is delivered to; brand row id as the backstop
-  // key when the draft somehow lacks one.
-  if (env.VERIFY_RATE_LIMITER) {
-    const mobile = brand.data.mobilePhone;
-    const target =
-      typeof mobile === "string" && mobile.length > 0 ? mobile : brand.id;
-    const { success } = await env.VERIFY_RATE_LIMITER.limit({
-      key: `brand-otp-resend:${target}`,
-    });
-    if (!success) {
-      return errorResponse(
-        c,
-        "rate_limited",
-        "Too many verification codes requested. Wait a minute and try again.",
-      );
-    }
-  }
+  // RATE: keyed on the sole-prop mobile the PIN is delivered to (brand row id
+  // as the backstop when the draft somehow lacks one).
+  const limited = await otpRateLimit(c, env, "resend", brand);
+  if (limited) return limited;
 
   // LIFETIME: one unit of the brand row's durable resend budget, spent before
   // Telnyx is called.
