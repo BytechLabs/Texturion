@@ -105,6 +105,13 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # The one step in the pipeline that cannot be undone. A Worker rolls back
+      # in seconds; a migration does not — and the SQL/e2e jobs apply migrations
+      # to an EMPTY database, so a `drop column` passes every test and then runs
+      # against real rows. Runs before the slow jobs so it fails fast.
+      - name: Guard destructive migrations
+        run: node scripts/check-migrations.mjs
+
       # Reuse the TS incremental buildinfo across runs so `tsc --noEmit` only
       # re-checks what changed (apps/web/tsconfig.json sets incremental: true;
       # the api package has no incremental build, so only web has a file). A
