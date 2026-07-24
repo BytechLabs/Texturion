@@ -288,6 +288,53 @@ describe("handleInboundMessage — #189 widened inbound media", () => {
     expect(upload.calls).toHaveLength(0);
     expect(attachmentInsert.calls).toHaveLength(0);
   });
+
+  it("skips media whose Content-Length declares it over the cap, without storing", async () => {
+    const mediaDownload = stubRoute(
+      (url, request) =>
+        request.method === "GET" && url.href.startsWith(MEDIA_URL),
+      () =>
+        new Response(new Uint8Array([0x00]), {
+          headers: {
+            "content-type": "image/jpeg",
+            // Declares 10 MB — over the 5 MB inbound cap; must be rejected on
+            // the header alone, before the body is buffered.
+            "content-length": String(10 * 1024 * 1024),
+          },
+        }),
+    );
+    const attachmentLookup = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    const upload = stubRoute(storageUploadMatch(env), () => ({
+      Key: "mms-media/x",
+    }));
+    const attachmentInsert = stubRoute(
+      restMatch(env, "POST", "message_attachments"),
+      () => Response.json([], { status: 201 }),
+    );
+    serve(
+      numberStub(),
+      threadStub({}),
+      awayDisabledStub(),
+      attachmentLookup,
+      mediaDownload,
+      upload,
+      attachmentInsert,
+    );
+
+    await handleInboundMessage(
+      env,
+      inboundEvent({
+        media: [{ url: MEDIA_URL, content_type: "image/jpeg", size: 999 }],
+      }),
+    );
+
+    expect(mediaDownload.calls).toHaveLength(1);
+    expect(upload.calls).toHaveLength(0);
+    expect(attachmentInsert.calls).toHaveLength(0);
+  });
 });
 
 describe("handleInboundMessage — #39 notification budget", () => {

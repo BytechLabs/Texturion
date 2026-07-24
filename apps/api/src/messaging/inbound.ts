@@ -384,6 +384,20 @@ async function downloadInboundMedia(
       );
       continue;
     }
+    // Reject obviously-oversized media BEFORE reading it into Worker memory: a
+    // carrier relaying a huge file would otherwise be fully buffered into RAM
+    // only to be discarded. Content-Length can be absent or wrong, so the
+    // post-read byteLength check below stays the authoritative guard.
+    const declaredLength = Number(response.headers.get("content-length"));
+    if (
+      Number.isFinite(declaredLength) &&
+      declaredLength > MAX_INBOUND_MEDIA_BYTES
+    ) {
+      console.warn(
+        `inbound media ${index} for message ${args.messageId} declares ${declaredLength} bytes (over ${MAX_INBOUND_MEDIA_BYTES}) — skipped without buffering`,
+      );
+      continue;
+    }
     const bytes = await response.arrayBuffer();
     if (bytes.byteLength === 0 || bytes.byteLength > MAX_INBOUND_MEDIA_BYTES) {
       console.warn(
