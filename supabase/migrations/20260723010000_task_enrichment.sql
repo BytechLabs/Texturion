@@ -111,6 +111,8 @@ begin
     'should_alert', v_should_alert);
 end $$;
 
+revoke execute on function public.ai_enrich_reserve(uuid, integer, integer)
+  from public, anon, authenticated;
 grant execute on function public.ai_enrich_reserve(uuid, integer, integer)
   to service_role;
 
@@ -138,6 +140,8 @@ begin
   return to_jsonb(v_row);
 end $$;
 
+revoke execute on function public.upsert_company_ai_settings(uuid, boolean, boolean)
+  from public, anon, authenticated;
 grant execute on function public.upsert_company_ai_settings(uuid, boolean, boolean)
   to service_role;
 
@@ -172,14 +176,16 @@ as $$
 declare
   v_conversation_id uuid;
   v_body            text;
+  v_direction       text;
   v_title           text;
   v_has_address     boolean;
   v_provenance      text;
   v_task            public.tasks%rowtype;
 begin
-  -- Resolve + company-scope the source message (§10).
-  select m.conversation_id, m.body
-    into v_conversation_id, v_body
+  -- Resolve + company-scope the source message (§10). direction decides whether
+  -- the source is a note we should also link back (below, attach_fixes [#2]).
+  select m.conversation_id, m.body, m.direction
+    into v_conversation_id, v_body, v_direction
     from public.messages m
    where m.company_id = p_company_id
      and m.id = p_message_id;
@@ -231,6 +237,17 @@ begin
     return jsonb_build_object('outcome', 'conflict', 'task', null);
   end;
 
+  -- attach_fixes [#2]: link the SOURCE note back to the new task so its own
+  -- files reach the task's derived attachments union (arm (b): messages.task_id
+  -- = task). Only a note is linked; the `task_id is null` guard keeps it
+  -- idempotent and never reassigns a note already linked to another task.
+  if v_direction = 'note' then
+    update public.messages
+       set task_id = v_task.id
+     where id = p_message_id
+       and task_id is null;
+  end if;
+
   -- T2.1 audit — one task_created row on the source conversation, same txn.
   insert into public.conversation_events
     (company_id, conversation_id, actor_user_id, type, payload)
@@ -241,6 +258,10 @@ begin
   return jsonb_build_object('outcome', 'created', 'task', to_jsonb(v_task));
 end $$;
 
+revoke execute on function public.create_task(
+  uuid, uuid, text, text, uuid, timestamptz, uuid,
+  text, text, text, text, text, text, text)
+  from public, anon, authenticated;
 grant execute on function public.create_task(
   uuid, uuid, text, text, uuid, timestamptz, uuid,
   text, text, text, text, text, text, text) to service_role;
@@ -362,6 +383,10 @@ begin
   return jsonb_build_object('outcome', 'updated', 'task', to_jsonb(v_task));
 end $$;
 
+revoke execute on function public.update_task(
+  uuid, uuid, text, text, timestamptz, boolean, uuid,
+  boolean, text, text, text, text, text, text, text)
+  from public, anon, authenticated;
 grant execute on function public.update_task(
   uuid, uuid, text, text, timestamptz, boolean, uuid,
   boolean, text, text, text, text, text, text, text) to service_role;
