@@ -353,10 +353,11 @@ attachmentsRoutes.delete("/attachments/:id", requireRole("member"), async (c) =>
   const userId = c.get("userId");
   const db = getDb(getEnv(c.env));
 
-  // Soft-delete only a still-live row we own; RETURNING tells us it existed.
-  // owner_id is selected so a legacy task-owned removal can carry task_id in the
-  // event payload (the task drawer's activity feed keys on payload->>task_id).
-  const deleted = unwrap<
+  // Resolve the still-live row we own FIRST so the #106 number-access gate runs
+  // BEFORE any mutation. owner_id is selected so a legacy task-owned removal can
+  // carry task_id in the event payload (the task drawer's activity feed keys on
+  // payload->>task_id).
+  const live = unwrap<
     {
       id: string;
       owner_type: OwnerType;
@@ -367,15 +368,40 @@ attachmentsRoutes.delete("/attachments/:id", requireRole("member"), async (c) =>
   >(
     await db
       .from("attachments")
+      .select("id,owner_type,owner_id,conversation_id,file_name")
+      .eq("company_id", companyId)
+      .eq("id", id)
+      .is("deleted_at", null)
+      .limit(1),
+    "attachment lookup",
+  );
+  const row = live[0];
+  if (!row) return errorResponse(c, "not_found", "No such attachment.");
+
+  // #106: deleting an attachment is a note-level action on its conversation —
+  // a member with no access to the owning number gets the same not_found the
+  // GET/POST siblings return, instead of being able to blind-delete by id.
+  await requireConversationAccess(db, {
+    companyId,
+    userId,
+    role: c.get("role"),
+    conversationId: row.conversation_id,
+    need: "note",
+  });
+
+  // Soft-delete only if still live; RETURNING confirms we won the race (a
+  // concurrent delete that already stamped it → not_found, idempotent).
+  const deleted = unwrap<{ id: string }[]>(
+    await db
+      .from("attachments")
       .update({ deleted_at: new Date().toISOString() })
       .eq("company_id", companyId)
       .eq("id", id)
       .is("deleted_at", null)
-      .select("id,owner_type,owner_id,conversation_id,file_name"),
+      .select("id"),
     "attachment soft-delete",
   );
-  const row = deleted[0];
-  if (!row) return errorResponse(c, "not_found", "No such attachment.");
+  if (!deleted[0]) return errorResponse(c, "not_found", "No such attachment.");
 
   const removedType: ConversationEventType =
     row.owner_type === "note"

@@ -886,11 +886,11 @@ describe("GET /v1/attachments (list one owner)", () => {
 describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", () => {
   it("soft-deletes a live task attachment, audits task_attachment_removed WITH task_id, returns 204", async () => {
     const sb = stubWithRole("member");
-    // The soft-delete is a PATCH ...RETURNING; return the row it matched. The
-    // route selects owner_id so a legacy task removal can carry task_id (= the
-    // owning task id) in the event payload — the key the task drawer's activity
-    // feed (loadTaskActivity) filters task_attachment_removed on.
-    sb.on("PATCH", "/rest/v1/attachments", () => [
+    // The route now SELECTs the live row FIRST (to gate the delete on #106
+    // number access before mutating), then PATCHes deleted_at. owner_id rides
+    // the lookup so a legacy task removal can carry task_id (= the owning task
+    // id) in the event payload — the key loadTaskActivity filters on.
+    sb.on("GET", "/rest/v1/attachments", () => [
       {
         id: ATTACHMENT_ID,
         owner_type: "task",
@@ -899,6 +899,7 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
         file_name: "quote.pdf",
       },
     ]);
+    sb.on("PATCH", "/rest/v1/attachments", () => [{ id: ATTACHMENT_ID }]);
     sb.on("POST", "/rest/v1/conversation_events", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -911,6 +912,14 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
     );
     expect(res.status).toBe(204);
 
+    // The pre-mutation lookup is company-scoped, live-only, and projects
+    // owner_id/conversation_id (needed for the task_id payload + the #106 gate).
+    const lookup = sb.find("GET", "/rest/v1/attachments")[0];
+    expect(lookup.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(lookup.url.searchParams.get("id")).toBe(`eq.${ATTACHMENT_ID}`);
+    expect(lookup.url.searchParams.get("deleted_at")).toBe("is.null");
+    expect(lookup.url.searchParams.get("select")).toContain("owner_id");
+
     // Company-scoped, live-only soft-delete (never a hard row delete here — the
     // sweep cron reclaims the Storage object after the grace window).
     const patch = sb.find("PATCH", "/rest/v1/attachments")[0];
@@ -918,8 +927,6 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
     expect(patch.url.searchParams.get("id")).toBe(`eq.${ATTACHMENT_ID}`);
     expect(patch.url.searchParams.get("deleted_at")).toBe("is.null");
     expect(patch.body).toMatchObject({ deleted_at: expect.any(String) });
-    // owner_id is in the RETURNING projection (needed for the task_id payload).
-    expect(patch.url.searchParams.get("select")).toContain("owner_id");
     expect(sb.find("DELETE", "/rest/v1/attachments")).toHaveLength(0);
 
     const event = (
@@ -942,7 +949,7 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
 
   it("audits note_attachment_removed for a note-owned attachment", async () => {
     const sb = stubWithRole("member");
-    sb.on("PATCH", "/rest/v1/attachments", () => [
+    sb.on("GET", "/rest/v1/attachments", () => [
       {
         id: ATTACHMENT_ID,
         owner_type: "note",
@@ -951,6 +958,7 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
         file_name: "spec.pdf",
       },
     ]);
+    sb.on("PATCH", "/rest/v1/attachments", () => [{ id: ATTACHMENT_ID }]);
     sb.on("POST", "/rest/v1/conversation_events", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -975,7 +983,7 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
 
   it("404s an id outside the company / already deleted (no event written)", async () => {
     const sb = stubWithRole("member");
-    sb.on("PATCH", "/rest/v1/attachments", () => []); // matched no live row
+    sb.on("GET", "/rest/v1/attachments", () => []); // lookup matched no live row
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -986,6 +994,51 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
       { method: "DELETE", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(404);
+    // Never mutates when the pre-check misses.
+    expect(sb.find("PATCH", "/rest/v1/attachments")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
+  });
+
+  it("#106: 404s (no mutation) when the caller can't access the number", async () => {
+    const sb = supabaseStub(env);
+    sb.on(
+      "GET",
+      "/rest/v1/company_members",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    // One admins-only rule the member can't match → the number is hidden.
+    sb.on("GET", "/rest/v1/number_access", () => [
+      {
+        phone_number_id: "99999999-8888-4777-8666-555555555555",
+        principal_kind: "role",
+        principal: "admin",
+        level: "text",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/attachments", () => [
+      {
+        id: ATTACHMENT_ID,
+        owner_type: "note",
+        owner_id: NOTE_ID,
+        conversation_id: CONV_ID,
+        file_name: "spec.pdf",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/conversations", () => [
+      { phone_number_id: "99999999-8888-4777-8666-555555555555" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(404);
+    // The gate ran BEFORE any write — nothing soft-deleted, nothing audited.
+    expect(sb.find("PATCH", "/rest/v1/attachments")).toHaveLength(0);
     expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
   });
 });
