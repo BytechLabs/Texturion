@@ -294,6 +294,41 @@ describe("parseSuggestionOutput", () => {
     ).toEqual(["We can come Thursday.", "What time works?"]);
   });
 
+  it("reads drafts wrapped in objects (the model labels its approaches)", () => {
+    // The prompt asks for drafts taking DIFFERENT approaches, so the model
+    // readily labels each one. Every draft used to be discarded for not being
+    // a bare string, which is the live "unusable_output" the founder hit.
+    expect(
+      parseSuggestionOutput({
+        response: JSON.stringify({
+          replies: [
+            { approach: "answers directly", text: "We can come Thursday." },
+            { approach: "asks a question", message: "What time works for you?" },
+          ],
+        }),
+      }),
+    ).toEqual(["We can come Thursday.", "What time works for you?"]);
+  });
+
+  it("recovers finished drafts from JSON cut off at the token ceiling", () => {
+    // Truncation leaves no closing brace, so nothing parses and every span
+    // heuristic fails. The complete drafts before the cut are still there.
+    const truncated =
+      '{"replies": ["We can be there Thursday morning.", "What time suits you best?", "We can swing by after';
+    expect(parseSuggestionOutput({ response: truncated })).toEqual([
+      "We can be there Thursday morning.",
+      "What time suits you best?",
+    ]);
+  });
+
+  it("never offers JSON scaffolding as a message to send", () => {
+    // A half-written object must not turn into drafts that read as code.
+    const drafts = parseSuggestionOutput({
+      response: ["{", '  "replies": [', "    {", ""].join("\n"),
+    });
+    expect(drafts).toEqual([]);
+  });
+
   it("never hands back raw JSON as a draft when the shape is wrong", () => {
     // The model emitted JSON but no drafts. Falling through to the line parse
     // would offer '{"replies":"a string"}' as a message to send.
@@ -351,6 +386,42 @@ describe("sanitizeSuggestions", () => {
   it("still drops a real phone number in any shape", () => {
     expect(clean(["Reach us on 416-555-0199 any time"])).toEqual([]);
     expect(clean(["Call +1 (416) 555 0199 today"])).toEqual([]);
+  });
+
+  it("reads drafts keyed by name instead of put in an array", () => {
+    expect(
+      parseSuggestionOutput({
+        response: JSON.stringify({
+          reply1: "We can come Thursday morning.",
+          reply2: "What time works best for you?",
+        }),
+      }),
+    ).toEqual(["We can come Thursday morning.", "What time works best for you?"]);
+  });
+
+  it("keeps a draft confirming a number the customer already sent", () => {
+    // Repeating a fact the conversation already contains is a confirmation,
+    // not an invention — dropping it left the crew with nothing to send.
+    expect(
+      sanitizeSuggestions(["Great, we'll call you on 416-555-0199 shortly."], {
+        threadText: "Best number for me is 416-555-0199, call any time.",
+      }),
+    ).toEqual(["Great, we'll call you on 416-555-0199 shortly."]);
+  });
+
+  it("still drops a number the conversation has never seen", () => {
+    expect(
+      sanitizeSuggestions(["Call the office on 416-555-0142."], {
+        threadText: "Can someone come by?",
+      }),
+    ).toEqual([]);
+  });
+
+  it("keeps prose where the model forgot the space after a full stop", () => {
+    // "Thanks.Us" read as a bare domain while the rule was case-insensitive.
+    expect(clean(["Thanks.Us two will be there Thursday."])).toEqual([
+      "Thanks.Us two will be there Thursday.",
+    ]);
   });
 
   it("drops a price the conversation never mentioned", () => {

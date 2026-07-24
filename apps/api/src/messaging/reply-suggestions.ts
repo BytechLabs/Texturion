@@ -66,8 +66,16 @@ export const SUGGEST_REPLY_ALERT_THRESHOLD = Math.floor(
 export const SUGGEST_REPLY_FEATURE = "suggest_reply";
 /** Never leave the composer hanging: race the model against this timeout. */
 export const SUGGEST_REPLY_TIMEOUT_MS = 8000;
-/** Three short SMS drafts plus JSON overhead. */
-export const SUGGEST_REPLY_MAX_OUTPUT_TOKENS = 320;
+/**
+ * Room for three short drafts AND the JSON around them.
+ *
+ * 320 was sized for the drafts alone, so a model that added a label per draft,
+ * or simply wrote at its natural length, ran into the ceiling mid-object: the
+ * JSON never closed, nothing parsed, and the composer reported having nothing
+ * to say. Output tokens on this model cost $0.287 per million, so the headroom
+ * is worth about two ten-thousandths of a cent per call.
+ */
+export const SUGGEST_REPLY_MAX_OUTPUT_TOKENS = 700;
 /** Hard ceiling on how many customer-visible messages the model can see. */
 export const SUGGEST_REPLY_CONTEXT_MESSAGES = 12;
 /**
@@ -269,7 +277,7 @@ const SYSTEM_PROMPT = [
   "Write as the business, in the first person plural (we). Plain, warm, direct. Match the tone of the business's own earlier messages in the thread. Under 300 characters each. No emoji, no greeting block, no signature, no subject line, no markdown, no em dashes.",
   "",
   "NEVER INVENT FACTS. The business is held to whatever you write:",
-  "- No prices, quotes, discounts, or dollar amounts unless that exact amount already appears in the conversation.",
+  "- No prices, quotes, discounts, or dollar amounts unless that exact amount already appears in the conversation. When someone asks what it costs and no figure has been given, do NOT invent one: say you will confirm the price and ask for what you need in order to quote.",
   "- No links, website addresses, or email addresses. No phone numbers.",
   "- Never promise that someone will arrive at a specific day or time. Confirming a time the customer proposed is fine; naming a new one is not. If a time needs setting, ASK.",
   "- Never say work is done, scheduled, dispatched, ordered, or paid unless the conversation already says so.",
@@ -344,10 +352,50 @@ export function buildSuggestionMessages(
   ];
 }
 
-/** Pull the first array of strings out of any parsed JSON value. */
+/**
+ * The field names a model reaches for when it wraps a draft in an object. It
+ * was told to return three drafts taking different approaches, so it readily
+ * emits `{"approach":"answers directly","text":"..."}` — and every one of those
+ * drafts used to be discarded for not being a bare string.
+ */
+const DRAFT_FIELDS = [
+  "text",
+  "reply",
+  "message",
+  "draft",
+  "body",
+  "content",
+  "suggestion",
+];
+
+/** The draft inside an object-wrapped reply, or null when there isn't one. */
+function draftFromObject(value: Record<string, unknown>): string | null {
+  for (const field of DRAFT_FIELDS) {
+    const candidate = value[field];
+    if (typeof candidate === "string" && candidate.trim() !== "") {
+      return candidate;
+    }
+  }
+  // A single string value under any other key is unambiguous enough to take;
+  // more than one and we cannot tell the draft from its label.
+  const strings = Object.values(value).filter(
+    (item): item is string => typeof item === "string" && item.trim() !== "",
+  );
+  return strings.length === 1 ? strings[0] : null;
+}
+
+/** Pull the first array of drafts out of any parsed JSON value. */
 function stringArrayFrom(value: unknown): string[] | null {
   if (Array.isArray(value)) {
-    const strings = value.filter((item): item is string => typeof item === "string");
+    const strings = value
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && !Array.isArray(item)) {
+          return draftFromObject(item as Record<string, unknown>);
+        }
+        return null;
+      })
+      .filter((item): item is string => item !== null);
     return strings.length > 0 ? strings : null;
   }
   if (value && typeof value === "object") {
@@ -359,6 +407,16 @@ function stringArrayFrom(value: unknown): string[] | null {
       const found = stringArrayFrom(nested);
       if (found) return found;
     }
+    // Last shape: the drafts keyed by name rather than put in an array
+    // ({"reply1": "...", "reply2": "..."}), which a model reaches for when it
+    // is asked for three drafts taking different approaches. Two or more
+    // message-length strings side by side are the drafts; one alone is more
+    // likely a label or a refusal, and is left to the caller to reject.
+    const values = Object.values(value as Record<string, unknown>).filter(
+      (item): item is string =>
+        typeof item === "string" && item.trim().length >= 15,
+    );
+    if (values.length >= 2) return values;
   }
   return null;
 }
@@ -410,17 +468,55 @@ export function parseSuggestionOutput(raw: unknown): string[] {
   // line parse here would hand back the raw JSON as a message to send.
   if (parsedSomething) return [];
 
+  // Nothing parsed — the usual reason is TRUNCATION: the reply ran into the
+  // token ceiling mid-object, so there is no closing brace and every span
+  // heuristic fails. The complete drafts before the cut are still in there, so
+  // lift the finished quoted strings out rather than throwing the answer away.
+  // Keys are skipped (a quoted string followed by a colon), and anything too
+  // short to be a message is ignored.
+  const quoted = [...text.matchAll(/"((?:[^"\\]|\\.)*)"\s*(:?)/g)]
+    .filter(([, value, colon]) => colon !== ":" && value.trim().length >= 15)
+    .map(([, value]) =>
+      value.replace(/\\"/g, '"').replace(/\\n/g, " ").replace(/\\\\/g, "\\"),
+    );
+  if (quoted.length > 0) return quoted;
+
   // No JSON at all. Treat non-empty lines as drafts, dropping the chatter a
-  // model puts around them ("Here are three replies:").
+  // model puts around them ("Here are three replies:") and any JSON scaffolding
+  // left over from a half-written object, which is never a message to send.
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter((line) => line !== "" && !line.endsWith(":") && !/^```/.test(line));
+    .filter(
+      (line) =>
+        line !== "" &&
+        !line.endsWith(":") &&
+        !/^```/.test(line) &&
+        // Bare punctuation and key lines are structure, never a message.
+        !/^[[\]{},]+$/.test(line) &&
+        !/^"[^"]*"\s*:/.test(line),
+    );
   return lines.length > 0 ? lines : [];
 }
-/** A link, a bare domain, or an email address — none of which we let through. */
-const LINK_LIKE =
-  /(https?:\/\/|www\.|\S+@\S+\.\S+|\b[a-z0-9][a-z0-9-]*\.(?:com|net|org|io|co|ca|us|uk|info|biz|xyz|app|link|shop|site|online|dev)\b)/i;
+/** An explicit link or an email address. */
+const LINK_EXPLICIT = /(https?:\/\/|www\.|\S+@\S+\.\S+)/i;
+
+/**
+ * A bare domain ("acme.com"), matched CASE-SENSITIVELY on purpose.
+ *
+ * Case-insensitively, this fired on ordinary prose whenever the model dropped
+ * the space after a full stop — "Thanks.Us" and "done.Info" both read as
+ * domains — and threw away a whole set of otherwise fine drafts. Real domains
+ * people type are lowercase, so requiring lowercase keeps the rule while
+ * removing the false positive.
+ */
+const BARE_DOMAIN =
+  /\b[a-z0-9][a-z0-9-]*\.(?:com|net|org|io|co|ca|us|uk|info|biz|xyz|app|link|shop|site|online|dev)\b/;
+
+/** True when `text` carries a link, bare domain, or email address. */
+function containsLink(text: string): boolean {
+  return LINK_EXPLICIT.test(text) || BARE_DOMAIN.test(text);
+}
 
 /**
  * A phone number in any of the shapes people write it.
@@ -484,9 +580,12 @@ export function sanitizeSuggestions(
     0,
     SUGGEST_REPLY_MAX_DRAFT_CHARS,
   );
-  // An amount the person typed themselves is theirs to send, exactly like one
-  // the customer already named.
-  const allowedAmounts = moneyAmounts(`${opts.threadText}\n${draft}`);
+  // Everything this conversation already contains, plus whatever the person has
+  // typed. A fact that is ALREADY here was not invented by the model, so a
+  // draft repeating it is a confirmation. The rules below exist to stop
+  // invention, not to stop the crew confirming the number a customer just sent.
+  const known = `${opts.threadText}\n${draft}`;
+  const allowedAmounts = moneyAmounts(known);
   // A completion carries the person's own opening, so the ceiling has to leave
   // room for it — otherwise a long partial makes every completion "too long"
   // and the feature silently returns nothing.
@@ -518,8 +617,10 @@ export function sanitizeSuggestions(
     // Too long to be an SMS draft. Truncating would cut mid-sentence and read
     // broken, so an over-long draft is dropped instead.
     if (text.length > maxChars) continue;
-    if (LINK_LIKE.test(text)) continue;
-    if (containsPhoneNumber(text)) continue;
+    // A link or a number the conversation already contains is a confirmation,
+    // not an invention. Anything the thread has never seen is still dropped.
+    if (containsLink(text) && !containsLink(known)) continue;
+    if (containsPhoneNumber(text) && !containsPhoneNumber(known)) continue;
 
     const amounts = moneyAmounts(text);
     let inventedMoney = false;
