@@ -97,6 +97,14 @@ xcodebuild archive -project Loonext.xcodeproj -scheme Loonext -archivePath build
 release notes.** A customer reads them, so they are checked like changelog copy,
 not like commit messages:
 
+- **one change per subject.** No counts ("6 fixes"), no "several"/"multiple", no
+  dash or semicolon stapling two statements together, no comma lists. A release
+  note is one thing a customer can understand — split the commit, or name the
+  single user-visible outcome and leave the parts for the body
+- **describe what the customer experiences, not the code.** The audience is
+  field-service crews, so `reducer`, `middleware`, `webhook`, `endpoint`,
+  `refactor`, `wire up`, `extract` and friends are rejected. (Words naming a
+  user-VISIBLE symptom are fine, even technical-looking ones.)
 - 12-72 characters — long enough to say something, short enough to read in a list
 - present tense (`add`, not `added`), lowercase start, no trailing period
 - no vague filler (`stuff`, `things`, `various`, `misc`, `wip`, `minor`)
@@ -111,9 +119,15 @@ stays frictionless; the bar applies to what users actually read.
 ```
 good   fix(web): the dialer no longer reports a call it never placed
 good   feat(ios): tap a map pin to get directions to the job site
-bad    fix(web): 6 round-4 fixes            <- internal shorthand
-bad    fix: fixed some things               <- past tense, vague
-bad    feat(api): #221                      <- a reference, not a description
+good   fix(ios): an expired session no longer signs you out mid-shift
+
+bad    fix(web): 6 round-4 fixes - a call reported but never placed, a dead-end gate
+                                            <- a count, internal shorthand, AND
+                                               three changes in one line
+bad    fix(web): refactor the softphone provider   <- names the code, not the user
+bad    feat(api): wire up the webhook endpoint     <- same
+bad    fix: fixed some things                      <- past tense, vague
+bad    feat(api): #221                             <- a reference, not a description
 ```
 
 Enforced in two places, because either alone is insufficient:

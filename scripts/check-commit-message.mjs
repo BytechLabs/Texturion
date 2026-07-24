@@ -34,6 +34,36 @@ const INTERNAL = /\b(round[- ]?\d+|batch\s*\d*|part\s*\d+|phase\s*\d+|follow[- ]
 /** Conventional Commits is present-tense: "add", not "added". */
 const PAST_TENSE = /^(fixed|added|updated|removed|changed|improved|refactored|implemented|created|deleted|renamed|moved)\b/i;
 
+/**
+ * ONE CHANGE PER SUBJECT. A changelog line describes a single thing a customer
+ * can understand; "6 fixes — a call reported but never placed, a dead-end gate"
+ * is three entries crammed into one and reads as noise in release notes. Split
+ * the commit, or if the work genuinely belongs together, name the single
+ * user-visible outcome and leave the parts in the body.
+ */
+const BATCHED = [
+  [/^\d+\s+(fix|fixes|change|changes|improvement|improvements|update|updates|issue|issues)\b/i,
+   "starts with a COUNT of changes"],
+  [/\b(several|multiple|assorted|a few|a bunch of|batch of|various)\b/i,
+   "describes a group of changes rather than one"],
+  [/\s[—–]\s/, "uses a dash to staple two statements together"],
+  [/;/, "uses a semicolon to join separate statements"],
+  [/,[^,]*,/, "contains a list (two or more commas)"],
+];
+
+/**
+ * Implementation vocabulary. These name CODE, not what a customer experiences —
+ * the audience here is field-service crews, not engineers. "the dialer no longer
+ * reports a call it never placed" is the same fix described in their terms.
+ *
+ * Deliberately NOT banned: words that name a user-VISIBLE symptom, even if they
+ * look technical (NaN, undefined, a blank screen). Those belong in release notes.
+ */
+const JARGON = [
+  /\b(refactor(?:s|ed|ing)?|reducer|middleware|rpc|durable object|migration|endpoint|payload|mutex|regexp?|enum|schema|useeffect|callback|closure|promise|boolean|null[- ]check|memoi[sz]e|dedupe|idempotenc[ey]|webhook)\b/i,
+  /\b(wire up|hook up|plumb|extract|inline|rename|bump|wrap|gate|guard|swallow|propagate|instrument)\b/i,
+];
+
 function checkOne(message) {
   const lines = message.split("\n");
   // A commit-msg file carries comments and may end with a trailing blank.
@@ -92,6 +122,23 @@ function checkOne(message) {
     }
     if (/^#?\d+$/.test(subject.trim()) || /^(#\d+|[A-Z]+-\d+)\b/.test(subject)) {
       errors.push("subject must describe the change, not just reference an issue.");
+    }
+    for (const [pattern, why] of BATCHED) {
+      if (pattern.test(subject)) {
+        errors.push(
+          `one change per subject — this ${why}. Split the commit, or name the single user-visible outcome and put the parts in the body.`,
+        );
+        break; // one batching complaint is enough; they all have the same fix
+      }
+    }
+    for (const pattern of JARGON) {
+      const hit = subject.match(pattern);
+      if (hit) {
+        errors.push(
+          `"${hit[0]}" names the code, not what the customer experiences. Describe the change from the user's side.`,
+        );
+        break;
+      }
     }
   }
 
