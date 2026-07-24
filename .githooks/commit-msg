@@ -1,0 +1,6 @@
+#!/bin/sh
+# Rejects a commit whose message would read badly in the product changelog.
+# Enabled by `git config core.hooksPath .githooks`, which the root package.json
+# `prepare` script runs on install. CI re-checks the same rules, because a hook
+# can be skipped with --no-verify.
+exec node scripts/check-commit-message.mjs "$1"

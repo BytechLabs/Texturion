@@ -87,20 +87,50 @@ The build number must be overridden or the store rejects the upload:
 xcodebuild archive -project Loonext.xcodeproj -scheme Loonext -archivePath build/Loonext.xcarchive CURRENT_PROJECT_VERSION="$(git rev-list --count HEAD)"
 ```
 
-## Commit conventions
-
-Already at ~199/200 adherence — this documents it rather than changing it.
+## Commit conventions — enforced
 
 ```
-<type>(<scope>): <summary>
+<type>(<scope>): <subject>
 ```
 
-`feat`, `fix`, `perf` and `revert` appear in the changelog. `chore`, `ci`,
-`docs`, `test`, `refactor`, `build` do not — they stay in git where they belong.
+**`feat`, `fix`, `perf` and `revert` subjects are published verbatim in the
+release notes.** A customer reads them, so they are checked like changelog copy,
+not like commit messages:
 
-Prefer a component scope (`web`, `api`, `android`, `ios`, `shared`) and put issue
-references in the body (`Refs: #214`). An issue-number scope still works; it just
-reads worse in release notes, so the generator omits it.
+- 12-72 characters — long enough to say something, short enough to read in a list
+- present tense (`add`, not `added`), lowercase start, no trailing period
+- no vague filler (`stuff`, `things`, `various`, `misc`, `wip`, `minor`)
+- no internal shorthand (`round-3`, `batch 2`, `phase 1`, `follow-up`) — it means
+  nothing outside this repo
+- not just an issue reference — describe the change, keep `Refs: #214` in the body
+
+`chore`, `ci`, `docs`, `test`, `refactor`, `build` and `style` are hidden from the
+changelog and only have to be well-formed Conventional Commits. Internal work
+stays frictionless; the bar applies to what users actually read.
+
+```
+good   fix(web): the dialer no longer reports a call it never placed
+good   feat(ios): tap a map pin to get directions to the job site
+bad    fix(web): 6 round-4 fixes            <- internal shorthand
+bad    fix: fixed some things               <- past tense, vague
+bad    feat(api): #221                      <- a reference, not a description
+```
+
+Enforced in two places, because either alone is insufficient:
+
+- **`commit-msg` hook** — rejects it before the commit exists. Installed by the
+  root `prepare` script on `pnpm install` (`core.hooksPath=.githooks`).
+- **CI** — re-checks the commits in the push, the gate `--no-verify` cannot skip.
+  Only new commits are checked; history predates the rule.
+
+Check a branch by hand:
+
+```bash
+node scripts/check-commit-message.mjs --range origin/main..HEAD
+```
+
+Prefer a component scope (`web`, `api`, `android`, `ios`, `shared`) — the
+changelog reads better and the diff's intent is obvious.
 
 ## Rolling back
 

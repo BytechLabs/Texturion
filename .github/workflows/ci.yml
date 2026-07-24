@@ -94,6 +94,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The commit-message check reads the commits in the push. The default
+          # depth-1 checkout has neither the base ref nor HEAD~1, so the range
+          # would be unresolvable and the check would silently pass — a guard
+          # that never runs. 50 covers any realistic push without a full clone.
+          fetch-depth: 50
 
       - uses: pnpm/action-setup@v4
 
@@ -111,6 +117,28 @@ jobs:
       # against real rows. Runs before the slow jobs so it fails fast.
       - name: Guard destructive migrations
         run: node scripts/check-migrations.mjs
+
+      # feat/fix/perf subjects are published verbatim in the release notes, so
+      # they are checked like changelog copy. The commit-msg hook catches this
+      # locally; this is the gate that --no-verify cannot skip. Only the commits
+      # actually pushed are checked — history predates the rule.
+      - name: Check commit messages
+        run: |
+          BEFORE="${{ github.event.before }}"
+          # All-zeros on a new branch, and a force-push can leave it unreachable.
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "No usable base ref — checking the tip commit only."
+            RANGE="HEAD~1..HEAD"
+            git rev-parse HEAD~1 >/dev/null 2>&1 || RANGE=""
+          else
+            RANGE="$BEFORE..${{ github.sha }}"
+          fi
+          if [ -z "$RANGE" ]; then
+            echo "Nothing to check."
+          else
+            node scripts/check-commit-message.mjs --range "$RANGE"
+          fi
 
       # Reuse the TS incremental buildinfo across runs so `tsc --noEmit` only
       # re-checks what changed (apps/web/tsconfig.json sets incremental: true;
