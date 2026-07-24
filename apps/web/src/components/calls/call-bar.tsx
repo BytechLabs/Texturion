@@ -125,11 +125,23 @@ function TransferMenu({
 function CallChip({ call }: { call: CallInfo }) {
   const softphone = useSoftphone()!;
   const label = call.peer.name || formatPhone(call.peer.number);
+  // The "ended" chip is meant to be brief — auto-dismiss it after a few seconds
+  // (the manual X still works) so a stale "· ended" pill doesn't linger for the
+  // rest of the session.
+  useEffect(() => {
+    if (call.phase !== "ended") return;
+    const timer = setTimeout(() => softphone.dismiss(call.id), 6000);
+    return () => clearTimeout(timer);
+  }, [call.phase, call.id, softphone]);
   if (call.phase === "ringing") {
     return (
-      <div className="flex items-center gap-2 rounded-full border border-primary/40 bg-app-white px-3 py-1.5 shadow-lg">
+      <div
+        role="alert"
+        className="flex items-center gap-2 rounded-full border border-primary/40 bg-app-white px-3 py-1.5 shadow-lg"
+      >
         <span aria-hidden className="size-2 rounded-full bg-primary animate-pulse" />
         <span className="max-w-[140px] truncate text-[12.5px] font-medium">
+          <span className="sr-only">Incoming call from </span>
           {label}
         </span>
         <Button size="sm" className="h-6 gap-1 px-2 text-[12px]" onClick={() => softphone.answer(call.id)}>
@@ -275,7 +287,18 @@ function ActiveCard({ call }: { call: CallInfo }) {
   const serverAddressable = live.isSuccess;
 
   return (
-    <div className="relative flex w-full max-w-lg items-center gap-2.5 rounded-app-card border border-primary/20 bg-app-white px-4 py-2.5 shadow-lg">
+    <div
+      className="relative flex w-full max-w-lg items-center gap-2.5 rounded-app-card border border-primary/20 bg-app-white px-4 py-2.5 shadow-lg"
+      onKeyDown={(e) => {
+        // Escape closes whichever popover is open (they have no backdrop) —
+        // focus lives inside the card, so the keydown bubbles here.
+        if (e.key === "Escape" && (transferOpen || keypadOpen)) {
+          e.stopPropagation();
+          setTransferOpen(false);
+          setKeypadOpen(false);
+        }
+      }}
+    >
       {transferOpen && call.sessionId && serverAddressable && (
         <TransferMenu
           sessionId={call.sessionId}
