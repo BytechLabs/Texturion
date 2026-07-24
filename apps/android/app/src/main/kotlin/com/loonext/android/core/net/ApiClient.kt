@@ -4,10 +4,12 @@ import com.loonext.android.core.auth.Session
 import com.loonext.android.core.auth.SessionSource
 import com.loonext.android.core.auth.SupabaseAuth
 import com.loonext.android.core.auth.await
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -187,10 +189,22 @@ class ApiClient(
         val alreadyReplaced = staleToken != null && current.accessToken != staleToken
         if ((staleToken == null || alreadyReplaced) && !current.isExpired()) return current
         return try {
-            val next = supabaseAuth.refresh(current.refreshToken).toSession()
-            sessionStore.save(next)
-            _tokenRefreshed.tryEmit(next.accessToken)
-            next
+            // GoTrue ROTATES the refresh token: the moment the call returns, the
+            // one in the store is spent. Every caller here is cancellable (each
+            // rememberCacheFirst LaunchedEffect is re-keyed on realtime ticks and
+            // cancelled on navigation), and Call.await() propagates cancellation —
+            // so without this shield a cancelled screen fetch could abort between
+            // the rotation and the save, leaving the store holding a token the
+            // server has already revoked and forcing a spurious sign-out. The
+            // mutex serialises refreshes but is not a cancellation shield.
+            // NonCancellable keeps rotate+persist together; the cancelled caller
+            // still returns immediately afterwards.
+            withContext(NonCancellable) {
+                val next = supabaseAuth.refresh(current.refreshToken).toSession()
+                sessionStore.save(next)
+                _tokenRefreshed.tryEmit(next.accessToken)
+                next
+            }
         } catch (cause: ApiException) {
             if (cause.code == ApiErrorCode.NETWORK) throw cause
             // Refresh token rejected — the session is truly dead.

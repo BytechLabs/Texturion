@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Auto Backup rules for API 28-30 (`android:fullBackupContent`). The API 31+
+  equivalent lives in data_extraction_rules.xml — minSdk is 28, so BOTH are
+  required to actually cover the install base.
+
+  filesDir/datastore/ holds the Supabase access + refresh tokens (session) and
+  the OAuth PKCE verifier (app-prefs) in plaintext. With no rules declared,
+  allowBackup defaults to true and filesDir/ is in the default backup set, so a
+  cloud restore or a device-to-device transfer would bring up a SECOND device
+  already signed in on a refresh token the account holder cannot enumerate or
+  revoke — a full company inbox (read every customer SMS, send messages, place
+  billable calls) cloned during an ordinary phone upgrade.
+
+  The whole DIRECTORY is excluded, not the individual files: DataStore's edit{}
+  writes a transient .tmp sibling that a file-exact rule would miss. The only
+  other store in there is composer-drafts, which is device-local by nature.
+-->
+<full-backup-content>
+    <exclude domain="file" path="datastore" />
+</full-backup-content>

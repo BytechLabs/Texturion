@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.loonext.android.core.data.StoreCache
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Cache-first screen state (#176): the ONLY way a screen may load data.
@@ -35,6 +36,15 @@ fun <T : Any> rememberCacheFirst(
         try {
             flow.value = fetch()
             firstError = null
+        } catch (cause: CancellationException) {
+            // On the JVM CancellationException IS an Exception, so the generic
+            // handler below used to swallow it and paint a load FAILURE. This
+            // effect is re-keyed on every refreshKey bump (realtime tick,
+            // pull-to-refresh, navigation), so a broadcast arriving during the
+            // FIRST load — the one case `flow.value == null` does not guard —
+            // replaced the skeleton with a full-screen "Something went wrong."
+            // even though the replacement fetch was already on its way.
+            throw cause
         } catch (cause: Exception) {
             if (flow.value == null) firstError = cause.userMessage()
         }

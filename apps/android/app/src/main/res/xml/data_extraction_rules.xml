@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  API 31+ backup/transfer rules (`android:dataExtractionRules`); backup_rules.xml
+  is the API 28-30 counterpart. See that file for why filesDir/datastore/ must
+  never leave the device.
+
+  BOTH surfaces have to be covered: <cloud-backup> alone still lets Android 12+
+  device-to-device transfer copy the tokens straight to the new phone.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="datastore" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="datastore" />
+    </device-transfer>
+</data-extraction-rules>

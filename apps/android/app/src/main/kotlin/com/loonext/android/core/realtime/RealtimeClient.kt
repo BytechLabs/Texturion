@@ -175,7 +175,7 @@ class RealtimeClient(
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
-                handle(text)
+                handle(webSocket, text)
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
@@ -204,7 +204,24 @@ class RealtimeClient(
         }
     }
 
-    private fun handle(text: String) {
+    /**
+     * A CHANNEL-level failure does not close the WebSocket. The transport stays
+     * open, the 25s heartbeat keeps the server from idle-closing it, and OkHttp's
+     * ping interval is satisfied by pongs from a perfectly healthy socket — so
+     * `onClosed`/`onFailure` never fire, the reconnect loop's `closed.await()`
+     * never resumes, and the backoff never runs. Realtime is then silently dead
+     * for the life of the process: no inbound messages, no toasts, no call or
+     * task ticks, with nothing observing `state` to notice. `connect()` cannot
+     * recover it either — for the same company it early-returns and merely
+     * pushes a token onto a channel that was never joined.
+     *
+     * The trigger is ordinary: the loop rejoins with whatever token was last
+     * stashed, so an idle or offline stretch past the ~1h JWT lifetime draws a
+     * rejected join (or a server-side channel close). Closing the transport on
+     * any channel-level failure hands control back to the EXISTING capped
+     * backoff, which rejoins with the latest token.
+     */
+    private fun handle(webSocket: WebSocket, text: String) {
         val msg = try {
             json.parseToJsonElement(text).jsonObject
         } catch (_: Exception) {
@@ -212,17 +229,22 @@ class RealtimeClient(
         }
         val event = msg["event"]?.jsonPrimitive?.content ?: return
         val payload = msg["payload"] as? JsonObject
+        // Heartbeat replies ride topic "phoenix"; only the company channel's
+        // health governs the reconnect.
+        val isCompanyTopic =
+            msg["topic"]?.jsonPrimitive?.content?.startsWith("realtime:company:") == true
 
         when (event) {
             "phx_reply" -> {
                 val ok = payload?.get("status")?.jsonPrimitive?.content == "ok"
-                val topic = msg["topic"]?.jsonPrimitive?.content
-                if (ok && topic?.startsWith("realtime:company:") == true &&
-                    _state.value != RealtimeState.Joined
-                ) {
+                if (ok && isCompanyTopic && _state.value != RealtimeState.Joined) {
                     _state.value = RealtimeState.Joined
                     if (everJoined) _reconnected.tryEmit(Unit)
                     everJoined = true
+                } else if (!ok && isCompanyTopic) {
+                    // A REJECTED join (expired JWT being the common case) was
+                    // previously ignored outright, parking the loop forever.
+                    webSocket.close(1000, "join-rejected")
                 }
             }
 
@@ -237,7 +259,9 @@ class RealtimeClient(
             }
 
             "phx_close", "phx_error" -> {
-                // The reconnect loop notices via onClosed/onFailure; nothing here.
+                // NOT a transport close (see the docblock): without this the
+                // socket lives on, heartbeating, while the channel is dead.
+                if (isCompanyTopic) webSocket.close(1000, "channel-closed")
             }
         }
     }

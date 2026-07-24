@@ -170,7 +170,7 @@ actor RealtimeClient {
         while !Task.isCancelled {
             do {
                 let message = try await task.receive()
-                handle(message)
+                handle(message, on: task)
             } catch {
                 break
             }
@@ -194,7 +194,21 @@ actor RealtimeClient {
 
     // MARK: - Frames
 
-    private func handle(_ message: URLSessionWebSocketTask.Message) {
+    /**
+     A CHANNEL-level failure does not close the transport. The socket stays open,
+     the 25s heartbeat keeps the server from idle-closing it, so `task.receive()`
+     never throws, the receive loop never breaks, and `runSocket` never returns to
+     the backoff that would reconnect. Realtime is then silently dead for the life
+     of the process — no inbound messages, no call or task ticks.
+
+     The trigger is ordinary: a reconnect rejoins with whatever token was last
+     stashed, so an idle or offline stretch past the ~1h JWT lifetime draws a
+     rejected join (or a server-side channel close). Cancelling the transport on a
+     channel-level failure makes `receive()` throw, which hands control back to the
+     EXISTING capped backoff. (Same defect and same fix as the Android client.)
+     */
+    private func handle(_ message: URLSessionWebSocketTask.Message,
+                        on task: URLSessionWebSocketTask) {
         let data: Data
         switch message {
         case .string(let text): data = Data(text.utf8)
@@ -205,17 +219,23 @@ actor RealtimeClient {
               let event = msg["event"]?.stringValue
         else { return }
         let payload = msg["payload"]
+        // Heartbeat replies ride topic "phoenix"; only the company channel's
+        // health governs the reconnect.
+        let isCompanyTopic = msg["topic"]?.stringValue?.hasPrefix("realtime:company:") == true
 
         switch event {
         case "phx_reply":
             let ok = payload?["status"]?.stringValue == "ok"
-            let topic = msg["topic"]?.stringValue
-            if ok, topic?.hasPrefix("realtime:company:") == true, !joined {
+            if ok, isCompanyTopic, !joined {
                 joined = true
                 if everJoined {
                     for continuation in reconnectObservers.values { continuation.yield(()) }
                 }
                 everJoined = true
+            } else if !ok, isCompanyTopic {
+                // A REJECTED join (expired JWT being the common case) was
+                // previously ignored outright, parking the loop forever.
+                task.cancel(with: .normalClosure, reason: nil)
             }
 
         case "broadcast":
@@ -228,8 +248,12 @@ actor RealtimeClient {
             }
             deliver(RealtimeEvent(event: name, payload: inner))
 
+        case "phx_close", "phx_error":
+            // NOT a transport close (see the docblock): without this the socket
+            // lives on, heartbeating, while the channel is dead.
+            if isCompanyTopic { task.cancel(with: .normalClosure, reason: nil) }
+
         default:
-            // phx_close / phx_error: the receive loop notices the close.
             break
         }
     }
