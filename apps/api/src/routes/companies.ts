@@ -334,10 +334,20 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   if ("overage_cap_multiplier" in body) {
     // #12 Phase 0.3: `null` ("no cap") now resolves to the 10x hard ceiling —
     // the cap can no longer be disabled (companies_overage_cap_range CHECK).
-    patch.overage_cap_multiplier =
-      body.overage_cap_multiplier === null
-        ? 10
-        : Math.round(body.overage_cap_multiplier! * 100) / 100;
+    if (body.overage_cap_multiplier === null) {
+      patch.overage_cap_multiplier = 10;
+    } else {
+      const rounded = Math.round(body.overage_cap_multiplier! * 100) / 100;
+      // zod's positive() admits (0, 0.005) values that round to 0 and would
+      // trip the DB CHECK (> 0) as a raw 500 — reject them as validation errors.
+      if (rounded <= 0) {
+        throw new ApiError(
+          "validation_failed",
+          "overage_cap_multiplier must be at least 0.01.",
+        );
+      }
+      patch.overage_cap_multiplier = rounded;
+    }
   }
   // FEATURE-GAPS Step 1: after-hours away settings.
   if (body.business_hours !== undefined) {

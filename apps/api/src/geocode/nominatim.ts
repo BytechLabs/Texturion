@@ -31,6 +31,14 @@ export const NOMINATIM_USER_AGENT =
 /** Nominatim fair-use pace: at most one request per second (D25). */
 export const NOMINATIM_MIN_INTERVAL_MS = 1000;
 
+/**
+ * Hard ceiling on a single geocode HTTP call. A hung third-party would
+ * otherwise stall the whole batch cron (each contact is awaited serially for
+ * the 1 req/s pace) up to the Worker's own wall-clock limit; a timeout folds
+ * into the same retryable `failed` result as any other network error.
+ */
+export const NOMINATIM_TIMEOUT_MS = 10_000;
+
 /** One resolved coordinate. */
 export interface GeocodeHit {
   lat: number;
@@ -86,6 +94,8 @@ export async function geocodeAddress(
         "User-Agent": NOMINATIM_USER_AGENT,
         Accept: "application/json",
       },
+      // Bound the call so a hung Nominatim can't stall the serial batch cron.
+      signal: AbortSignal.timeout(NOMINATIM_TIMEOUT_MS),
     });
   } catch (cause) {
     return {

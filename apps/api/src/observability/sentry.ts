@@ -82,7 +82,12 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
     delete event.request.cookies;
     delete event.request.query_string; // may embed destination numbers / search terms
     if (event.request.url) {
-      event.request.url = redactPhones(event.request.url);
+      // Deleting `query_string` above doesn't touch the full URL, which embeds
+      // the SAME params (search terms, addresses, destination numbers). Keep
+      // only origin + path, then phone-redact what remains.
+      const url = event.request.url;
+      const cut = url.search(/[?#]/);
+      event.request.url = redactPhones(cut === -1 ? url : url.slice(0, cut));
     }
     if (event.request.headers) {
       event.request.headers = scrubUnknown(

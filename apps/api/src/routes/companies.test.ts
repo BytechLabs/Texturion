@@ -499,6 +499,16 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
       body: { overage_cap_multiplier: 25 },
     });
     expect(tooHigh.status).toBe(422);
+
+    // A positive-but-tiny cap (0.004) rounds to 0 at 2dp and would otherwise
+    // trip the DB CHECK (> 0) as a raw 500 — it's now a clean 422 pre-DB.
+    const roundsToZero = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { overage_cap_multiplier: 0.004 },
+    });
+    expect(roundsToZero.status).toBe(422);
+    expect(await errorCodeOf(roundsToZero)).toBe("validation_failed");
   });
 
   it("lets an admin set the timezone; invalid zones are 422 (D15)", async () => {

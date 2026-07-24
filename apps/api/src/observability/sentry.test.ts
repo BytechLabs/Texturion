@@ -75,6 +75,10 @@ describe("scrubEvent (SPEC §10: no bodies, names, or phone numbers reach Sentry
     expect(scrubbed.request?.data).toBeUndefined();
     expect(scrubbed.request?.cookies).toBeUndefined();
     expect(scrubbed.request?.query_string).toBeUndefined();
+    // The full request URL keeps only origin + path — its query string (which
+    // mirrors the deleted query_string: search terms, addresses, numbers) is
+    // dropped, not merely phone-redacted.
+    expect(scrubbed.request?.url).toBe("https://api.loonext.com/v1/contacts");
     expect(serialized).not.toContain("hi, call me at");
 
     // Contact names are stripped everywhere.

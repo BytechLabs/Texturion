@@ -90,6 +90,10 @@ app.use(
       "Idempotency-Key",
       "Content-Type",
     ],
+    // Let the browser cache the preflight for a day so the SPA doesn't re-issue
+    // an OPTIONS round-trip before every /v1 call (the allowed methods/headers
+    // are static). Purely a latency + request-count win; no header is widened.
+    maxAge: 86400,
   }),
 );
 app.use("/v1/*", jwtAuth());

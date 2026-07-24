@@ -63,7 +63,7 @@ import {
 const composeSchema = z
   .object({
     contact_id: z.uuid().optional(),
-    phone_e164: z.string().trim().min(1).optional(),
+    phone_e164: z.string().trim().min(1).max(32).optional(),
     phone_number_id: z.uuid(),
     body: z.string().max(4096).refine((value) => value.trim().length > 0, {
       message: "body must not be empty.",
