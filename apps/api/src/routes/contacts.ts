@@ -187,59 +187,60 @@ contactsRoutes.get("/contacts", requireRole("member"), async (c) => {
   );
   const page = buildPage(rows, limit, "created_at");
 
-  // DESIGN G6: the contacts table shows an opted-out badge, so list rows
-  // carry the same app-side opt-out state as GET /v1/contacts/:id — one
-  // batched lookup per page (max 100 rows).
+  // Three independent per-page decorations — the opted-out badge (G6), last
+  // activity (G6), and #191 created/updated actor names — none depends on
+  // another, so resolve them in ONE parallel round-trip instead of three
+  // serial awaits.
+  const listCompanyId = c.get("companyId");
   const optedOutPhones = new Set<string>();
+  const lastActivityByContact = new Map<string, string>();
+  let actorNames = new Map<string, string>();
   if (page.data.length > 0) {
-    const active = unwrap<{ phone_e164: string }[]>(
-      await db
+    const [optOut, activity, resolvedActorNames] = await Promise.all([
+      // Opted-out badge: same app-side state as GET /v1/contacts/:id.
+      db
         .from("opt_outs")
         .select("phone_e164")
-        .eq("company_id", c.get("companyId"))
+        .eq("company_id", listCompanyId)
         .is("revoked_at", null)
-        .in(
-          "phone_e164",
-          [...new Set(page.data.map((row) => row.phone_e164))],
-        ),
-      "opt-out lookup",
-    );
-    for (const row of active) optedOutPhones.add(row.phone_e164);
-  }
-
-  // DESIGN G6 "last activity" = conversation activity: the newest
-  // conversations.last_message_at per contact (messages and notes both move
-  // it — routes/conversations.ts), one batched lookup per page. Ordered DESC
-  // so first-seen per contact wins.
-  const lastActivityByContact = new Map<string, string>();
-  if (page.data.length > 0) {
-    const activity = unwrap<{ contact_id: string; last_message_at: string }[]>(
-      await db
+        .in("phone_e164", [
+          ...new Set(page.data.map((row) => row.phone_e164)),
+        ]),
+      // "Last activity" = newest conversations.last_message_at per contact
+      // (messages + notes both move it); DESC so first-seen per contact wins.
+      db
         .from("conversations")
         .select("contact_id,last_message_at")
-        .eq("company_id", c.get("companyId"))
+        .eq("company_id", listCompanyId)
         .in(
           "contact_id",
           page.data.map((row) => row.id),
         )
         .order("last_message_at", { ascending: false }),
-      "contact activity lookup",
-    );
-    for (const row of activity) {
+      // #191 attribution: created/updated actor display names for the page.
+      resolveActorNames(
+        db,
+        page.data.flatMap((row) => [
+          row.created_by_user_id,
+          row.updated_by_user_id,
+        ]),
+      ),
+    ]);
+    for (const row of unwrap<{ phone_e164: string }[]>(
+      optOut,
+      "opt-out lookup",
+    )) {
+      optedOutPhones.add(row.phone_e164);
+    }
+    for (const row of unwrap<
+      { contact_id: string; last_message_at: string }[]
+    >(activity, "contact activity lookup")) {
       if (!lastActivityByContact.has(row.contact_id)) {
         lastActivityByContact.set(row.contact_id, row.last_message_at);
       }
     }
+    actorNames = resolvedActorNames;
   }
-
-  // #191 attribution: resolve created/updated actor names for the page in one
-  // batched profiles lookup (the same mechanism as the detail route), so each
-  // list row carries created_by_name/updated_by_name — null when the actor was
-  // never recorded (older rows) or the profile has no name.
-  const actorNames = await resolveActorNames(
-    db,
-    page.data.flatMap((row) => [row.created_by_user_id, row.updated_by_user_id]),
-  );
 
   return c.json({
     ...page,

@@ -610,22 +610,24 @@ messageRoutes.get(
     >(await query, "messages list");
 
     const page = buildPage(rows, limit);
-    // D17/T5.1: flag messages that carry a live task so the thread can render
-    // the stone task indicator on a promoted message (one batch query/page).
-    const promoted = await loadMessageTaskFlags(
-      db,
-      companyId,
-      page.data.map((row) => row.id),
-    );
-    // TASKS-V2 D-D: resolve the linked task { id, title } for task-linked notes
-    // so the thread renders the "on: <task title>" chip (one batch/page).
-    const taskLinks = await loadNoteTaskLinks(
-      db,
-      companyId,
-      page.data
-        .map((row) => row.task_id)
-        .filter((v): v is string => typeof v === "string"),
-    );
+    // Two independent per-page task annotations, resolved in ONE parallel
+    // round-trip: D17/T5.1 flags messages that carry a live task (the stone
+    // task indicator on a promoted message), and TASKS-V2 D-D resolves the
+    // linked task { id, title } for task-linked notes (the "on: <title>" chip).
+    const [promoted, taskLinks] = await Promise.all([
+      loadMessageTaskFlags(
+        db,
+        companyId,
+        page.data.map((row) => row.id),
+      ),
+      loadNoteTaskLinks(
+        db,
+        companyId,
+        page.data
+          .map((row) => row.task_id)
+          .filter((v): v is string => typeof v === "string"),
+      ),
+    ]);
     return c.json({
       data: page.data.map(({ message_attachments, ...rest }) => ({
         ...rest,

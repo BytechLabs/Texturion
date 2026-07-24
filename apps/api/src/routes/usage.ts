@@ -118,65 +118,72 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     });
   }
 
-  const used = Number(
-    unwrap<number | string>(
-      await db.rpc("api_period_segments", {
-        p_company_id: companyId,
-        p_since: company.current_period_start,
-      }),
-      "usage sum",
-    ),
-  );
-
-  // #12: inbound volume this period (visibility only — not billed). Derived
-  // from the messages table, the audit's #1 unmeasured cost center.
-  const inboundUsed = Number(
-    unwrap<number | string>(
-      await db.rpc("api_period_inbound_segments", {
-        p_company_id: companyId,
-        p_since: company.current_period_start,
-      }),
-      "inbound usage sum",
-    ),
-  );
-
-  const history = unwrap<{ month: string; segments: number }[]>(
-    await db.rpc("api_usage_history", {
-      p_company_id: companyId,
-      p_months: HISTORY_MONTHS,
-    }),
-    "usage history",
-  );
-
-  // D30: per-company stored bytes, both arms, via the exact-sum RPC (a plain
-  // PostgREST read would truncate at the row cap — same reason as segments).
-  const storage = unwrap<{
-    attachments_bytes: number | string;
-    mms_bytes: number | string;
-  }>(
-    await db.rpc("api_storage_usage", { p_company_id: companyId }),
-    "storage usage",
-  );
-
-  // #12/D36: forwarded (dialed-leg) minutes this period — the fair-use
-  // measure the allowance, the 1¢/min meter, and the spending-cap gate share.
-  // Whole minutes for display (the gate works in seconds).
-  const voiceSeconds = Number(
-    unwrap<number | string>(
-      await db.rpc("api_period_forward_seconds", {
-        p_company_id: companyId,
-        p_since: company.current_period_start,
-      }),
-      "voice usage sum",
-    ),
-  );
-
   const included = PLAN_INCLUDED_SEGMENTS[company.plan];
-  const overage = Math.max(0, used - included);
   const multiplier =
     company.overage_cap_multiplier === null
       ? null
       : Number(company.overage_cap_multiplier);
+
+  // These reads are mutually independent (all keyed on company + period), so
+  // issue them in ONE parallel batch instead of six serial awaits. The end-of-
+  // period projection (decideOverage) depends only on `company` + `multiplier`,
+  // never on the sums below, so it joins the same batch.
+  const [usedRes, inboundRes, historyRes, storageRes, voiceRes, projection] =
+    await Promise.all([
+      db.rpc("api_period_segments", {
+        p_company_id: companyId,
+        p_since: company.current_period_start,
+      }),
+      // #12: inbound volume this period (visibility only — not billed).
+      db.rpc("api_period_inbound_segments", {
+        p_company_id: companyId,
+        p_since: company.current_period_start,
+      }),
+      db.rpc("api_usage_history", {
+        p_company_id: companyId,
+        p_months: HISTORY_MONTHS,
+      }),
+      // D30: per-company stored bytes via the exact-sum RPC (a PostgREST read
+      // would truncate at the row cap — same reason as segments).
+      db.rpc("api_storage_usage", { p_company_id: companyId }),
+      // #12/D36: forwarded (dialed-leg) seconds — the fair-use measure the
+      // allowance, the 1¢/min meter, and the spending-cap gate share.
+      db.rpc("api_period_forward_seconds", {
+        p_company_id: companyId,
+        p_since: company.current_period_start,
+      }),
+      // #85/#93: dynamic END-OF-PERIOD projection (extrapolated), distinct from
+      // the overage-SO-FAR figure. Exposes only customer-facing bits, never our
+      // internal cost/margin; gates the conditional overage surface in settings.
+      decideOverage(
+        db,
+        {
+          id: companyId,
+          plan: company.plan,
+          current_period_start: company.current_period_start,
+          current_period_end: company.current_period_end,
+          us_texting_enabled: company.us_texting_enabled,
+          overage_cap_multiplier: multiplier,
+        },
+        new Date(),
+      ),
+    ]);
+  const used = Number(unwrap<number | string>(usedRes, "usage sum"));
+  const inboundUsed = Number(
+    unwrap<number | string>(inboundRes, "inbound usage sum"),
+  );
+  const history = unwrap<{ month: string; segments: number }[]>(
+    historyRes,
+    "usage history",
+  );
+  const storage = unwrap<{
+    attachments_bytes: number | string;
+    mms_bytes: number | string;
+  }>(storageRes, "storage usage");
+  const voiceSeconds = Number(
+    unwrap<number | string>(voiceRes, "voice usage sum"),
+  );
+  const overage = Math.max(0, used - included);
   // D36: voice mirrors the segment shape — used vs the fair-use allowance,
   // overage-so-far at 1¢/min rated to the second (the meter bills the same
   // raw seconds this RPC sums, so these figures can never diverge from the
@@ -190,24 +197,6 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     voiceSeconds - includedVoiceMinutes * 60,
   );
   const voiceOverageMinutes = Math.floor(voiceOverageSeconds / 60);
-
-  // #85/#93: the dynamic END-OF-PERIOD projection (extrapolated), distinct from
-  // the overage-SO-FAR figure below. Exposes only the customer-facing bits —
-  // whether they're trending over what they pay + their projected extra
-  // charges — never our internal cost/margin. Gates the conditional overage
-  // surface in settings (and the warning email from #92 links here).
-  const projection = await decideOverage(
-    db,
-    {
-      id: companyId,
-      plan: company.plan,
-      current_period_start: company.current_period_start,
-      current_period_end: company.current_period_end,
-      us_texting_enabled: company.us_texting_enabled,
-      overage_cap_multiplier: multiplier,
-    },
-    new Date(),
-  );
 
   // #178 status (see the header contract). Cap nearness checks BOTH meters —
   // texting pauses at cap_segments and calling at the same multiplier over its
