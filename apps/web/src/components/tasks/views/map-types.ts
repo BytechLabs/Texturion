@@ -59,3 +59,15 @@ export function taskCoords(
   const fallback = validCoords(contact.lat, contact.lng);
   return fallback ? { ...fallback, name: contact.name } : null;
 }
+
+/**
+ * A Google Maps *directions* URL to a point — the universal `?api=1` Maps URL
+ * scheme, no API key and no per-request cost. On desktop it opens Maps
+ * directions from the user's location; on a phone browser it deep-links the
+ * native Google Maps / Apple Maps app. Built from the exact geocoded
+ * coordinate the pin shows (not the free-text address), so "Directions" lands
+ * a field crew on the job site, not an ambiguous address match.
+ */
+export function mapsDirectionsHref(lat: number, lng: number): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+}

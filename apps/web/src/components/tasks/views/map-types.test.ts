@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Task } from "@/lib/api/types";
 
-import { taskCoords } from "./map-types";
+import { mapsDirectionsHref, taskCoords } from "./map-types";
 
 /** Minimal Task with just the fields taskCoords reads. */
 function task(over: Partial<Task>): Task {
@@ -52,5 +52,19 @@ describe("taskCoords", () => {
     });
     // Bad own-geocode → falls back to the valid contact geocode, not the pin at 999.
     expect(taskCoords(t)).toEqual({ ...CALGARY, name: "Dana" });
+  });
+});
+
+describe("mapsDirectionsHref", () => {
+  it("builds a keyless Google Maps directions URL to the exact coordinate", () => {
+    expect(mapsDirectionsHref(TORONTO.lat, TORONTO.lng)).toBe(
+      "https://www.google.com/maps/dir/?api=1&destination=43.6426,-79.3871",
+    );
+  });
+
+  it("carries a negative longitude verbatim (western hemisphere — the whole market)", () => {
+    expect(mapsDirectionsHref(CALGARY.lat, CALGARY.lng)).toContain(
+      "destination=51.0447,-114.0719",
+    );
   });
 });

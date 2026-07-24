@@ -17,7 +17,7 @@ import {
 } from "react-leaflet";
 
 import { taskThreadHref } from "../task-format";
-import type { LocatedTask } from "./map-types";
+import { mapsDirectionsHref, type LocatedTask } from "./map-types";
 
 /**
  * The Leaflet map island (D25 "Map view technology"): Leaflet + OpenStreetMap
@@ -234,12 +234,25 @@ function TaskPeek({ task }: { task: LocatedTask }) {
       {task.contactName && (
         <p className="text-[12px] text-muted-foreground">{task.contactName}</p>
       )}
-      <Link
-        href={taskThreadHref(task)}
-        className="text-[12px] font-medium text-primary hover:underline"
-      >
-        Open task
-      </Link>
+      <div className="flex items-center gap-3 pt-0.5">
+        <Link
+          href={taskThreadHref(task)}
+          className="text-[12px] font-medium text-primary hover:underline"
+        >
+          Open task
+        </Link>
+        {/* Field-crew convenience: navigate straight to the job site. Opens the
+            device's Maps app (native on a phone) — a keyless, cost-free Maps
+            URL built from the pin's exact coordinate. */}
+        <a
+          href={mapsDirectionsHref(task.lat, task.lng)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[12px] font-medium text-primary hover:underline"
+        >
+          Directions
+        </a>
+      </div>
     </div>
   );
 }
