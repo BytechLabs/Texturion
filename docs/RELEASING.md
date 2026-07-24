@@ -1,25 +1,39 @@
 # Releasing
 
-**One version for the whole product.** Loonext 0.4.0 means the same thing in the
-web app, the API, and both store listings — because to a customer it *is* one
-product. Independent per-app versions would only make "what version are we on?"
-a question with several answers.
+**A version per app, because they ship on different clocks.**
+
+`api` and `web` deploy continuously — many times a day, always together, from
+the same commit. `android` and `ios` go through store review every few weeks.
+
+A single shared version sounds tidier but is a lie in practice: after forty web
+releases the repo would read `0.9.0` while the App Store still served `0.1.0`,
+so the mobile source tree would claim a version no user is running. Worse than
+separate numbers, because it looks authoritative.
+
+So each app carries its own, and **a commit only bumps the app whose files it
+touched** — an API fix never bumps the mobile versions, and never implies a
+store upload. Nothing is "released" unless its own code changed.
 
 ## The whole process
 
 **Merge the release PR.** That's it.
 
-`release-please` keeps a PR open against `main` titled
-`chore(main): release X.Y.Z`, and rewrites it on every push. It always shows the
-next version and the exact changelog that would ship, so the open PR *is* the
-preview — there is nothing to run to see what a release would contain.
+`release-please` keeps a single PR open against `main` and rewrites it on every
+push. It lists every app that has unreleased changes, with its next version and
+exact changelog — so the open PR *is* the preview; there is nothing to run to
+see what a release would contain. Apps with no changes are simply absent from
+it.
 
-Merging it writes `CHANGELOG.md`, bumps `version.txt` plus the Android
-`versionName` and iOS `MARKETING_VERSION`, tags `v<version>`, and publishes the
-GitHub Release.
+Merging writes each app's `CHANGELOG.md`, bumps its version, tags it
+(`api-v0.2.0`, `android-v0.3.0`, …), and publishes the GitHub Releases.
 
-If no release-worthy commits have landed (only `chore`/`ci`/`docs`/`test`), no
-PR appears — which is the correct answer, not a failure.
+If nothing release-worthy has landed (only `chore`/`ci`/`docs`/`test`), no PR
+appears — that is the correct answer, not a failure.
+
+**Merging does not oblige you to upload anything.** A mobile version bump means
+"this app has unreleased changes"; you upload when you actually want to ship.
+`api`/`web` are already live either way — they deployed when their commit went
+green.
 
 ## What is automatic and never needs thinking about
 
@@ -39,12 +53,12 @@ ever need it.)
 
 Starting at `0.1.0` because the product isn't public yet.
 
-**Where releases start.** `v0.1.0` is tagged as the baseline, and the tag format
-is plain `vX.Y.Z` — `include-component-in-tag: false` in the config. That is
-load-bearing: with the manifest default (component in the tag) release-please
-looks for `loonext-v0.1.0`, doesn't find it, and falls back to considering all
-1045 commits of history, producing a PR body past GitHub's 65,536-character
-limit. That is exactly how the first two runs failed.
+**Where releases start.** Each app has a baseline tag at launch —
+`api-v0.1.0`, `web-v0.1.0`, `shared-v0.1.0`, `android-v0.1.0`, `ios-v0.1.0`.
+Those are load-bearing: with no tag it can find, release-please treats the
+entire history as unreleased and builds a PR body past GitHub's 65,536-character
+limit, which is exactly how the first attempts failed (silently, with an empty
+error message). The tag names must match the config's component names.
 
 **Release traceability.** Deploy stamps the deployed commit into the API Worker
 (`--var GIT_SHA:<sha>`) and Sentry reports it as the release, so a production

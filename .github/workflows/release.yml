@@ -1,10 +1,12 @@
 name: Release
 
-# release-please keeps a "chore(main): release X.Y.Z" PR open against main,
-# continuously restating what would ship: the CHANGELOG entries and the version
-# bump derived from the Conventional Commits landed since the last tag. Merging
-# it writes CHANGELOG.md, bumps version.txt plus the Android and iOS versions,
-# tags v<version>, and publishes the GitHub Release.
+# release-please keeps ONE PR open against main and rewrites it on every push,
+# listing every app with unreleased changes plus its next version and changelog.
+# Merging it writes each app's CHANGELOG.md, bumps its version, tags it
+# (api-v0.2.0, android-v0.3.0, …) and publishes the GitHub Releases.
+#
+# Each commit is routed by the FILES it touches, so an api-only change never
+# bumps the mobile versions — nothing is "released" unless its own code changed.
 #
 # It does NOT gate deployment. api/web still deploy on every green CI exactly as
 # before — one version of a service exists at a time and nobody installs it, so

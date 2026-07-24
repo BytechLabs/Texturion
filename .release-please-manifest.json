@@ -1,3 +1,7 @@
 {
-  ".": "0.1.0"
+  "apps/api": "0.1.0",
+  "apps/web": "0.1.0",
+  "packages/shared": "0.1.0",
+  "apps/android": "0.1.0",
+  "apps/ios": "0.1.0"
 }
