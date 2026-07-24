@@ -1234,3 +1234,93 @@
      in the marketing layout reveals everything, so content is never stuck
      invisible without JavaScript. */
 }
+
+/* ---------------------------------------------------------------------------
+   THE AI MARK (components/ui/ai-orb.tsx)
+
+   One identity for every AI surface in the product. A ring of dots with four
+   honest states: resting, a pulse travelling the ring while the model decides,
+   the whole ring turning while something is produced, and a single bloom when
+   it lands. Colour is the petrol accent so it reads as "the app is doing this",
+   never as a warning.
+
+   All motion is opt-out: the prefers-reduced-motion block below stops the
+   animations, and the states stay distinguishable by opacity alone.
+--------------------------------------------------------------------------- */
+.ai-orb-dot {
+  position: absolute;
+  border-radius: 9999px;
+  background: var(--app-petrol, currentColor);
+  opacity: 0.3;
+}
+
+/* idle — a quiet, evenly lit ring. */
+.ai-orb[data-state="idle"] .ai-orb-dot {
+  opacity: 0.32;
+}
+
+/* thinking — a pulse travels around the ring, one dot at a time. */
+.ai-orb[data-state="thinking"] .ai-orb-dot {
+  animation: ai-orb-pulse 1.1s linear infinite;
+}
+
+/* working — the ring itself turns, dots held bright. */
+.ai-orb[data-state="working"] {
+  animation: ai-orb-spin 1.4s linear infinite;
+}
+.ai-orb[data-state="working"] .ai-orb-dot {
+  opacity: 0.85;
+}
+
+/* done — one brief bloom, then rest. */
+.ai-orb[data-state="done"] .ai-orb-dot {
+  animation: ai-orb-bloom 0.5s ease-out 1;
+  opacity: 0.9;
+}
+
+@keyframes ai-orb-pulse {
+  0%,
+  70%,
+  100% {
+    opacity: 0.25;
+    transform: scale(1);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes ai-orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ai-orb-bloom {
+  0% {
+    opacity: 0.3;
+    transform: scale(0.85);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-orb,
+  .ai-orb .ai-orb-dot {
+    animation: none !important;
+  }
+  /* Still readable without motion: busy states simply sit brighter. */
+  .ai-orb[data-state="thinking"] .ai-orb-dot,
+  .ai-orb[data-state="working"] .ai-orb-dot,
+  .ai-orb[data-state="done"] .ai-orb-dot {
+    opacity: 0.85;
+  }
+}

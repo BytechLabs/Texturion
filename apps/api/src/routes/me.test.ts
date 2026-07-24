@@ -37,6 +37,9 @@ afterEach(() => {
 function baseStub(): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on("GET", "/rest/v1/profiles", () => [{ display_name: "Casey Owner" }]);
+  // Settings, Account reads the password from the account itself: the Supabase
+  // identities array cannot see one set after an OAuth signup.
+  sb.on("POST", "/rest/v1/rpc/api_user_has_password", () => true);
   sb.on("GET", "/rest/v1/company_members", () => [
     {
       company_id: COMPANY_ID,
@@ -59,6 +62,7 @@ describe("GET /v1/me", () => {
     expect(await res.json()).toEqual({
       user_id: auth.subject,
       display_name: "Casey Owner",
+      has_password: true,
       memberships: [
         {
           company_id: COMPANY_ID,

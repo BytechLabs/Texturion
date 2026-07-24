@@ -289,10 +289,35 @@ export function buildSuggestionMessages(
   ];
 }
 
+/** Pull the first array of strings out of any parsed JSON value. */
+function stringArrayFrom(value: unknown): string[] | null {
+  if (Array.isArray(value)) {
+    const strings = value.filter((item): item is string => typeof item === "string");
+    return strings.length > 0 ? strings : null;
+  }
+  if (value && typeof value === "object") {
+    const parsed = modelOutputSchema.safeParse(value);
+    if (parsed.success) return parsed.data.replies;
+    // A model that renamed the key ("suggestions", "messages", ...) still gave
+    // us usable drafts; the sanitizer is what decides safety, not the key name.
+    for (const nested of Object.values(value as Record<string, unknown>)) {
+      const found = stringArrayFrom(nested);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 /**
- * Extract + validate the model's JSON. Workers AI text models return
- * `{ response: string }`; a bare string is tolerated. Any parse or schema
- * failure yields an empty list (→ the endpoint offers nothing).
+ * Extract the model's drafts. Workers AI text models return
+ * `{ response: string }`; a bare string is tolerated.
+ *
+ * Deliberately forgiving about SHAPE and strict about CONTENT: an instruct
+ * model wraps JSON in prose, renames the key, or emits a bare array often
+ * enough that a single rigid path threw away perfectly good drafts and left the
+ * composer saying "nothing to suggest". Anything that yields strings is
+ * accepted here; `sanitizeSuggestions` is the gate that decides what is safe to
+ * show. A last-resort line parse covers a model that ignored JSON entirely.
  */
 export function parseSuggestionOutput(raw: unknown): string[] {
   const text =
@@ -303,25 +328,41 @@ export function parseSuggestionOutput(raw: unknown): string[] {
         : null;
   if (!text) return [];
 
-  let json: unknown;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    // Prose around the object: take the outermost brace span and retry once.
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start === -1 || end <= start) return [];
-    try {
-      json = JSON.parse(text.slice(start, end + 1));
-    } catch {
-      return [];
-    }
+  const candidates: string[] = [text];
+  // Prose around a JSON object or array: try the outermost span of each.
+  for (const [open, close] of [
+    ["{", "}"],
+    ["[", "]"],
+  ] as const) {
+    const start = text.indexOf(open);
+    const end = text.lastIndexOf(close);
+    if (start !== -1 && end > start) candidates.push(text.slice(start, end + 1));
   }
 
-  const parsed = modelOutputSchema.safeParse(json);
-  return parsed.success ? parsed.data.replies : [];
-}
+  let parsedSomething = false;
+  for (const candidate of candidates) {
+    let json: unknown;
+    try {
+      json = JSON.parse(candidate);
+    } catch {
+      continue;
+    }
+    parsedSomething = true;
+    const found = stringArrayFrom(json);
+    if (found) return found;
+  }
+  // The model DID emit JSON, it just held no drafts. Falling through to the
+  // line parse here would hand back the raw JSON as a message to send.
+  if (parsedSomething) return [];
 
+  // No JSON at all. Treat non-empty lines as drafts, dropping the chatter a
+  // model puts around them ("Here are three replies:").
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== "" && !line.endsWith(":") && !/^```/.test(line));
+  return lines.length > 0 ? lines : [];
+}
 /** A link, a bare domain, or an email address — none of which we let through. */
 const LINK_LIKE =
   /(https?:\/\/|www\.|\S+@\S+\.\S+|\b[a-z0-9][a-z0-9-]*\.(?:com|net|org|io|co|ca|us|uk|info|biz|xyz|app|link|shop|site|online|dev)\b)/i;

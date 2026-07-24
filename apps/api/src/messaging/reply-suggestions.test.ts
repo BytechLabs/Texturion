@@ -269,14 +269,42 @@ describe("parseSuggestionOutput", () => {
     ).toEqual(["Yes"]);
   });
 
-  it("returns nothing for unparseable or wrongly-shaped output", () => {
-    expect(parseSuggestionOutput({ response: "not json at all" })).toEqual([]);
+  it("reads a bare array and a renamed key (models do both)", () => {
+    expect(parseSuggestionOutput({ response: '["Yes","On our way"]' })).toEqual([
+      "Yes",
+      "On our way",
+    ]);
+    expect(
+      parseSuggestionOutput({ response: '{"suggestions":["On our way"]}' }),
+    ).toEqual(["On our way"]);
+  });
+
+  it("falls back to lines when the model ignored JSON entirely", () => {
+    // Shape is forgiving on purpose; sanitizeSuggestions is the safety gate.
+    expect(
+      parseSuggestionOutput({
+        response: [
+          "Here are two replies:",
+          "We can come Thursday.",
+          "What time works?",
+        ].join("\n"),
+      }),
+    ).toEqual(["We can come Thursday.", "What time works?"]);
+  });
+
+  it("never hands back raw JSON as a draft when the shape is wrong", () => {
+    // The model emitted JSON but no drafts. Falling through to the line parse
+    // would offer '{"replies":"a string"}' as a message to send.
     expect(parseSuggestionOutput({ response: '{"replies":"a string"}' })).toEqual(
       [],
     );
-    expect(parseSuggestionOutput({ response: '{"other":["x"]}' })).toEqual([]);
+    expect(parseSuggestionOutput({ response: '{"other":[1,2]}' })).toEqual([]);
+  });
+
+  it("returns nothing for absent or non-text output", () => {
     expect(parseSuggestionOutput(null)).toEqual([]);
     expect(parseSuggestionOutput({ response: 42 })).toEqual([]);
+    expect(parseSuggestionOutput({ response: "" })).toEqual([]);
   });
 });
 

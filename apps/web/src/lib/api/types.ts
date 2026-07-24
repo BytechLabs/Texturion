@@ -499,6 +499,19 @@ export interface ReplySuggestions {
   suggestions: string[];
   /** True when the company turned suggestions off (hide the affordance). */
   suggestions_disabled?: boolean;
+  /**
+   * Why the list is empty. Every failure used to look identical to the person
+   * waiting ("nothing to suggest"), which hid real breakage — the founder hit
+   * exactly that. Absent on success.
+   */
+  reason?:
+    | "disabled"
+    | "nothing_to_reply"
+    | "unavailable"
+    | "rate_limited"
+    | "over_cap"
+    | "model_error"
+    | "unusable_output";
 }
 
 export interface Task {

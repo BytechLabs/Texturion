@@ -2,11 +2,9 @@
 
 import {
   FileText,
-  Loader2,
   Paperclip,
   Plus,
   Send as SendIcon,
-  Sparkles,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -30,7 +28,11 @@ import {
 } from "@/components/ui/tooltip";
 import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { useCreateNote } from "@/lib/api/conversations";
-import { useReplySuggestions } from "@/lib/api/reply-suggestions";
+import {
+  suggestionFailureMessage,
+  useReplySuggestions,
+} from "@/lib/api/reply-suggestions";
+import { AiOrb, AiStatus } from "@/components/ui/ai-orb";
 import { ApiError } from "@/lib/api/error";
 import {
   attachmentSignature,
@@ -159,14 +161,7 @@ export function ReplySuggestionChips({
   return (
     <div className="mx-auto max-w-[42rem] px-1 pb-2">
       <div className="mb-1 flex items-center gap-1.5">
-        <Sparkles
-          className="size-3 text-muted-foreground"
-          strokeWidth={1.75}
-          aria-hidden
-        />
-        <span className="text-[11px] text-muted-foreground">
-          Drafts, yours to edit
-        </span>
+        <AiStatus state="done" label="Drafts, yours to edit" />
         <button
           type="button"
           onClick={onDismiss}
@@ -393,11 +388,7 @@ export function Composer({
           setSuggestions(result.suggestions);
           return;
         }
-        toast(
-          result.suggestions_disabled
-            ? "Suggested replies are turned off for this workspace."
-            : "Nothing to suggest here yet.",
-        );
+        toast(suggestionFailureMessage(result.reason));
       },
       onError: () => toast.error("Couldn't draft a reply. Try again."),
     });
@@ -712,11 +703,10 @@ export function Composer({
                     disabled={suggestReplies.isPending}
                     className="rounded-full text-muted-foreground"
                   >
-                    {suggestReplies.isPending ? (
-                      <Loader2 className="size-5 animate-spin" strokeWidth={1.75} />
-                    ) : (
-                      <Sparkles className="size-5" strokeWidth={1.75} />
-                    )}
+                    <AiOrb
+                      state={suggestReplies.isPending ? "thinking" : "idle"}
+                      size={18}
+                    />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -768,7 +758,10 @@ export function Composer({
                     onSelect={askForSuggestions}
                     disabled={suggestReplies.isPending}
                   >
-                    <Sparkles className="size-4" strokeWidth={1.75} aria-hidden />
+                    <AiOrb
+                      state={suggestReplies.isPending ? "thinking" : "idle"}
+                      size={16}
+                    />
                     {text.trim() === "" ? "Draft a reply" : "Finish this reply"}
                   </DropdownMenuItem>
                 </DropdownMenuContent>

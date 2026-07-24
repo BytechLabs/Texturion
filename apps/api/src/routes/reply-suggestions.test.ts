@@ -160,6 +160,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     expect(await res.json()).toEqual({
       suggestions: [],
       suggestions_disabled: true,
+      reason: "disabled",
     });
     expect(run).not.toHaveBeenCalled();
     expect(sb.find("POST", "/rest/v1/rpc/ai_usage_reserve")).toHaveLength(0);
@@ -175,7 +176,10 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     });
     const res = await suggest(sb, { ...env, AI: ai });
 
-    expect(await res.json()).toEqual({ suggestions: [] });
+    expect(await res.json()).toEqual({
+      suggestions: [],
+      reason: "nothing_to_reply",
+    });
     expect(run).not.toHaveBeenCalled();
     expect(sb.find("POST", "/rest/v1/rpc/ai_usage_reserve")).toHaveLength(0);
   });
@@ -203,7 +207,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     });
     const res = await suggest(sb, { ...env, AI: ai });
 
-    expect(await res.json()).toEqual({ suggestions: [] });
+    expect(await res.json()).toEqual({ suggestions: [], reason: "over_cap" });
     expect(run).not.toHaveBeenCalled();
   });
 
@@ -245,7 +249,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
 
     const res = await suggest(sb, { ...env, AI: ai });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ suggestions: [] });
+    expect(await res.json()).toEqual({ suggestions: [], reason: "over_cap" });
     expect(run).not.toHaveBeenCalled();
   });
 
@@ -303,12 +307,15 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
       }),
     };
     expect(await (await suggest(stubs(), { ...env, AI: failing })).json()).toEqual(
-      { suggestions: [] },
+      { suggestions: [], reason: "model_error" },
     );
 
-    const { ai } = mockAi({ response: "I'm sorry, I can't do that." });
+    // Prose with no usable draft: reported as unusable, NOT as "no ideas" —
+    // the distinction is what tells us the model is reachable at all.
+    const { ai } = mockAi({ response: "Sorry:" });
     expect(await (await suggest(stubs(), { ...env, AI: ai })).json()).toEqual({
       suggestions: [],
+      reason: "unusable_output",
     });
   });
 
@@ -316,7 +323,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     const sb = stubs();
     const res = await suggest(sb, env);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ suggestions: [] });
+    expect(await res.json()).toEqual({ suggestions: [], reason: "unavailable" });
     expect(sb.find("POST", "/rest/v1/rpc/ai_usage_reserve")).toHaveLength(0);
   });
 

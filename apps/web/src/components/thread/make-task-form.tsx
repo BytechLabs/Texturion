@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Loader2, MapPin, Sparkles } from "lucide-react";
+import { ChevronDown, MapPin } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -22,6 +22,7 @@ import { useCreateTaskFromMessage, type TaskAddressInput } from "@/lib/api/tasks
 import { useMembers } from "@/lib/api/team";
 import type { AddressProvenance, Message } from "@/lib/api/types";
 import { useCompanyId } from "@/lib/company/provider";
+import { AiOrb } from "@/components/ui/ai-orb";
 import { cn } from "@/lib/utils";
 
 import { messageTaskTitle } from "./make-task-title";
@@ -287,7 +288,7 @@ export function MakeTaskForm({
           <Label htmlFor="make-task-due">Due (optional)</Label>
           {dueSuggested && (
             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Sparkles className="size-3" aria-hidden /> Suggested
+              <AiOrb state="done" size={12} /> Suggested
             </span>
           )}
         </div>
@@ -315,14 +316,11 @@ export function MakeTaskForm({
             <MapPin className="size-4 text-muted-foreground" strokeWidth={1.75} />
             Address
             {enriching && (
-              <Loader2
-                className="size-3 animate-spin text-muted-foreground"
-                aria-label="Looking for an address"
-              />
+              <AiOrb state="thinking" size={14} />
             )}
             {provLabel && (
               <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
-                <Sparkles className="size-3" aria-hidden />
+                <AiOrb state="idle" size={12} />
                 {provLabel}
               </span>
             )}

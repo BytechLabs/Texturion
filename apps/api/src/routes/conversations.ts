@@ -638,7 +638,11 @@ conversationsRoutes.post(
 
     const settings = await loadAiSettings(db, companyId);
     if (!settings.suggest_replies) {
-      return c.json({ suggestions: [], suggestions_disabled: true });
+      return c.json({
+        suggestions: [],
+        suggestions_disabled: true,
+        reason: "disabled" as const,
+      });
     }
 
     // Customer-visible history only, oldest-first. INTERNAL NOTES ARE EXCLUDED
@@ -666,17 +670,19 @@ conversationsRoutes.post(
     // "Only when needed" (cost): with nothing typed and nothing unanswered,
     // there is nothing to draft. No model call, no unit spent.
     if (!shouldSuggest(messages, draft)) {
-      return c.json({ suggestions: [] });
+      return c.json({ suggestions: [], reason: "nothing_to_reply" as const });
     }
     // No binding (local dev/tests): offer nothing rather than pretend.
-    if (!env.AI) return c.json({ suggestions: [] });
+    if (!env.AI) return c.json({ suggestions: [], reason: "unavailable" as const });
 
     // Per-company burst limiter (absent in dev/tests → skipped).
     if (env.AI_REPLY_RATE_LIMITER) {
       const { success } = await env.AI_REPLY_RATE_LIMITER.limit({
         key: companyId,
       });
-      if (!success) return c.json({ suggestions: [] });
+      if (!success) {
+        return c.json({ suggestions: [], reason: "rate_limited" as const });
+      }
     }
 
     // Monthly cap-and-drop: reserve one unit atomically; over cap → no call.
@@ -699,7 +705,9 @@ conversationsRoutes.post(
         }).catch(() => {}),
       );
     }
-    if (reserve.over_cap) return c.json({ suggestions: [] });
+    if (reserve.over_cap) {
+      return c.json({ suggestions: [], reason: "over_cap" as const });
+    }
 
     const [company, contact] = await Promise.all([
       db
@@ -764,16 +772,35 @@ conversationsRoutes.post(
           );
         }),
       ]);
-    } catch {
-      return c.json({ suggestions: [] });
+    } catch (error) {
+      // A model that is unreachable, renamed, or slow looks exactly like "no
+      // ideas" to the person waiting, which is the least useful thing we could
+      // tell them. Say it failed, and leave a breadcrumb for the logs.
+      console.error(
+        `reply suggestion model call failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return c.json({ suggestions: [], reason: "model_error" as const });
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
     }
 
-    const suggestions = sanitizeSuggestions(parseSuggestionOutput(raw), {
+    const parsed = parseSuggestionOutput(raw);
+    const suggestions = sanitizeSuggestions(parsed, {
       threadText: threadTextOf(messages),
       draft,
     });
+    if (suggestions.length === 0) {
+      // The model answered but nothing survived parsing or the safety rules
+      // (every draft carried an invented link, price, or phone number). Worth
+      // distinguishing: it means the model IS reachable and the prompt or the
+      // filters are what need work.
+      console.error(
+        `reply suggestions unusable: model returned ${parsed.length} candidate(s), 0 passed`,
+      );
+      return c.json({ suggestions: [], reason: "unusable_output" as const });
+    }
     return c.json({ suggestions });
   },
 );

@@ -9,7 +9,6 @@ import {
   MapPin,
   MoreHorizontal,
   Paperclip,
-  Sparkles,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
@@ -74,6 +73,7 @@ import {
   ATTACHMENT_ACCEPT,
   MAX_ATTACHMENTS_PER_OWNER,
 } from "@/lib/attachments/validate";
+import { AiOrb } from "@/components/ui/ai-orb";
 import { cn } from "@/lib/utils";
 
 import { TaskDoneCheckbox } from "./task-atoms";
@@ -834,7 +834,7 @@ function TaskAddressSection({
           Address
           {provLabel && (
             <span className="inline-flex items-center gap-1 rounded-full bg-app-stone-1 px-2 py-0.5 text-[11px] font-normal text-app-muted">
-              <Sparkles className="size-3" aria-hidden />
+              <AiOrb state="idle" size={12} />
               {provLabel}
             </span>
           )}
