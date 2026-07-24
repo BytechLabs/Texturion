@@ -1,7 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { decideAuthRedirect } from "@/lib/auth/redirects";
+import {
+  decideAuthRedirect,
+  hasSupabaseSessionCookie,
+  isTransientAuthBlip,
+} from "@/lib/auth/redirects";
 import { decideBlogRoute, decideHostRedirect } from "@/lib/hosts";
 
 /**
@@ -73,16 +77,39 @@ export async function middleware(request: NextRequest) {
 
   // getUser() validates the JWT against Supabase (and refreshes the session
   // cookie via setAll above) — never trust getSession() alone in middleware.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // It can fail TRANSIENTLY at the edge (a network/Supabase hiccup or cold
+  // isolate) — returning an error, or throwing — which must NOT be read as
+  // "signed out".
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] =
+    null;
+  let getUserErrored = false;
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+    getUserErrored = result.error !== null;
+  } catch {
+    getUserErrored = true;
+  }
 
   const redirect = decideAuthRedirect(request.nextUrl.pathname, user !== null);
   if (redirect) {
-    const url = request.nextUrl.clone();
-    url.pathname = redirect.pathname;
-    url.search = redirect.search;
-    return NextResponse.redirect(url);
+    // Suppress an intermittent protected-path → /login bounce when getUser()
+    // only blipped while a session cookie is present: honoring it hard-reloads
+    // the client-side navigation (the "Loading your workspace…" full refresh)
+    // and then bounces back. Real auth is enforced downstream, so this fails
+    // OPEN safely; a genuinely missing session still redirects.
+    const cookieNames = request.cookies.getAll().map((c) => c.name);
+    const blip = isTransientAuthBlip(
+      redirect,
+      getUserErrored,
+      hasSupabaseSessionCookie(cookieNames),
+    );
+    if (!blip) {
+      const url = request.nextUrl.clone();
+      url.pathname = redirect.pathname;
+      url.search = redirect.search;
+      return NextResponse.redirect(url);
+    }
   }
 
   return response;

@@ -69,6 +69,44 @@ export function decideAuthRedirect(
 }
 
 /**
+ * True when the request carries a Supabase auth-token cookie (possibly chunked
+ * as `sb-<ref>-auth-token.0/.1`). A present cookie means the browser HAS a
+ * session — it may just need a refresh — distinct from a genuinely signed-out
+ * request that carries none.
+ */
+export function hasSupabaseSessionCookie(
+  cookieNames: readonly string[],
+): boolean {
+  return cookieNames.some(
+    (name) => name.startsWith("sb-") && name.includes("auth-token"),
+  );
+}
+
+/**
+ * Whether a protected-path → /login bounce should be SUPPRESSED because
+ * middleware's `getUser()` only failed TRANSIENTLY (an edge/Supabase hiccup or
+ * cold isolate) while a Supabase session cookie is present. Honoring the bounce
+ * in that case turns a client-side navigation into a hard reload — the
+ * intermittent "Loading your workspace…" full-page refresh — and then bounces
+ * back, even though the session is valid. Real auth is still enforced
+ * downstream (every API call is Bearer-validated; CompanyProvider needs /me),
+ * so failing OPEN on a transient blip is safe. A genuinely missing session
+ * (no auth cookie) is NOT a blip and still redirects.
+ */
+export function isTransientAuthBlip(
+  redirect: AuthRedirect | null,
+  getUserErrored: boolean,
+  hasSessionCookie: boolean,
+): boolean {
+  return (
+    redirect !== null &&
+    redirect.pathname === "/login" &&
+    getUserErrored &&
+    hasSessionCookie
+  );
+}
+
+/**
  * Validate a ?next= target from the URL: only same-origin absolute paths are
  * honored (open-redirect guard). Falls back to /inbox.
  *

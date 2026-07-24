@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   decideAuthRedirect,
+  hasSupabaseSessionCookie,
   isAuthPage,
   isProtectedPath,
+  isTransientAuthBlip,
   safeNextPath,
 } from "./redirects";
 
@@ -91,6 +93,36 @@ describe("middleware redirect logic (SPEC §10, G12)", () => {
     expect(safeNextPath("//evil.example")).toBe("/for-you");
     expect(safeNextPath(null)).toBe("/for-you");
     expect(safeNextPath("")).toBe("/for-you");
+  });
+
+  it("hasSupabaseSessionCookie detects the (possibly chunked) auth-token cookie", () => {
+    expect(hasSupabaseSessionCookie(["sb-abcdef-auth-token"])).toBe(true);
+    expect(
+      hasSupabaseSessionCookie(["sb-abcdef-auth-token.0", "sb-abcdef-auth-token.1"]),
+    ).toBe(true);
+    expect(hasSupabaseSessionCookie(["other", "theme"])).toBe(false);
+    expect(hasSupabaseSessionCookie([])).toBe(false);
+  });
+
+  describe("isTransientAuthBlip (the intermittent full-reload flash fix)", () => {
+    const loginBounce = decideAuthRedirect("/inbox", false); // → /login
+
+    it("suppresses a /login bounce when getUser blipped but a session cookie is present", () => {
+      // Authed nav where getUser() transiently failed: DO NOT hard-reload them.
+      expect(isTransientAuthBlip(loginBounce, true, true)).toBe(true);
+    });
+
+    it("still redirects a genuinely signed-out request (no session cookie)", () => {
+      expect(isTransientAuthBlip(loginBounce, true, false)).toBe(false);
+      // getUser succeeded and returned no user → a real sign-out, not a blip.
+      expect(isTransientAuthBlip(loginBounce, false, true)).toBe(false);
+    });
+
+    it("never suppresses a non-/login redirect (e.g. authed user off an auth page)", () => {
+      const authPageBounce = decideAuthRedirect("/login", true); // → /for-you
+      expect(isTransientAuthBlip(authPageBounce, true, true)).toBe(false);
+      expect(isTransientAuthBlip(null, true, true)).toBe(false);
+    });
   });
 
   it("safeNextPath rejects backslash/control-char open-redirect bypasses", () => {
