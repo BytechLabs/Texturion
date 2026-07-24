@@ -184,20 +184,40 @@ export function MessageList({
   );
 
   // #3: jump to a pinned message from the banner — scroll the virtualizer to
-  // the cluster that holds it. A no-op if the message isn't in the current
-  // (possibly filtered) view; the row is still rendered so its Pinned chip
-  // marks it once on screen.
+  // the cluster that holds it. The pinned banner is built from the UNfiltered
+  // set, so a pinned message can be hidden by the current thread filter (e.g.
+  // Notes-only); tapping Jump would otherwise dead-end silently. If the target
+  // is in the full stream but filtered out, restore all categories and complete
+  // the jump from the effect below once it's rendered.
+  const pendingJump = useRef<string | null>(null);
+  const clusterHas = (item: ThreadItem, messageId: string) =>
+    item.kind === "cluster" && item.messages.some((m) => m.id === messageId);
   const scrollToMessage = useCallback(
     (messageId: string) => {
-      const index = items.findIndex(
-        (item) =>
-          item.kind === "cluster" &&
-          item.messages.some((m) => m.id === messageId),
-      );
-      if (index >= 0) virtualizer.scrollToIndex(index, { align: "center" });
+      const index = items.findIndex((item) => clusterHas(item, messageId));
+      if (index >= 0) {
+        virtualizer.scrollToIndex(index, { align: "center" });
+        return;
+      }
+      if (allItems.some((item) => clusterHas(item, messageId))) {
+        pendingJump.current = messageId;
+        onFilterChange(ALL_CATEGORIES_ON);
+      }
     },
-    [items, virtualizer],
+    [items, allItems, virtualizer, onFilterChange],
   );
+
+  // Finish a cross-filter jump: once the restored full stream includes the
+  // pending target, scroll to it and clear the pending marker.
+  useEffect(() => {
+    const target = pendingJump.current;
+    if (target === null) return;
+    const index = items.findIndex((item) => clusterHas(item, target));
+    if (index >= 0) {
+      pendingJump.current = null;
+      virtualizer.scrollToIndex(index, { align: "center" });
+    }
+  }, [items, virtualizer]);
 
   // Anchored prepend: remember total size + scrollTop before older pages
   // land, restore the visual position after (G5 "anchored scroll on
