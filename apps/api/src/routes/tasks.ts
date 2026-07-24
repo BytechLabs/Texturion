@@ -452,20 +452,12 @@ async function loadEnrichmentContext(
   opts: { conversationId?: string; messageId?: string },
 ): Promise<{
   timezone: string;
-  areaCode: string | null;
-  country: string | null;
   contactAddress: string | null;
 }> {
-  const companyRows = unwrap<
-    {
-      timezone: string | null;
-      requested_area_code: string | null;
-      country: string | null;
-    }[]
-  >(
+  const companyRows = unwrap<{ timezone: string | null }[]>(
     await db
       .from("companies")
-      .select("timezone,requested_area_code,country")
+      .select("timezone")
       .eq("id", companyId)
       .limit(1),
     "enrichment company lookup",
@@ -514,8 +506,6 @@ async function loadEnrichmentContext(
 
   return {
     timezone: company?.timezone ?? "America/Toronto",
-    areaCode: company?.requested_area_code ?? null,
-    country: company?.country ?? null,
     contactAddress,
   };
 }
@@ -624,8 +614,6 @@ tasksRoutes.post("/tasks/enrich", requireRole("member"), async (c) => {
     text,
     now: new Date(),
     timezone: ctx.timezone,
-    areaCode: ctx.areaCode,
-    country: ctx.country,
     contactAddress: ctx.contactAddress,
   });
 

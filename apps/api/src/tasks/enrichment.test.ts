@@ -18,8 +18,6 @@ import {
 const baseCtx: EnrichmentContext = {
   text: "fix the sink",
   timezone: "America/Toronto",
-  areaCode: "416",
-  country: "CA",
   contactAddress: null,
   now: new Date("2026-07-15T12:00:00Z"),
 };
@@ -40,15 +38,25 @@ describe("buildEnrichmentMessages", () => {
     expect(user.trim().endsWith("<<<")).toBe(true);
   });
 
-  it("includes company area code, country, and the contact address fallback", () => {
+  it("includes the contact address fallback + timezone, but NOT the area code", () => {
     const user = buildEnrichmentMessages({
       ...baseCtx,
       contactAddress: "12 Elm St, Toronto",
     })[1].content;
-    expect(user).toContain("416");
-    expect(user).toContain("CA");
     expect(user).toContain("12 Elm St, Toronto");
     expect(user).toContain("America/Toronto");
+    // The area code is deliberately withheld — it only tempted the model to
+    // invent a city/postal code from a phone prefix.
+    expect(user).not.toContain("416");
+    expect(user).not.toMatch(/area code/i);
+  });
+
+  it("the system prompt forbids fabrication (high confidence only)", () => {
+    const system = buildEnrichmentMessages(baseCtx)[0].content;
+    expect(system).toMatch(/never fabricate a postal/i);
+    expect(system).toMatch(/a time is not an address/i);
+    expect(system).toMatch(/my place/i);
+    expect(system).toMatch(/not certain|null than to guess/i);
   });
 
   it("says 'none' when there is no contact address", () => {
@@ -123,13 +131,10 @@ describe("buildEnrichmentResult", () => {
     expect(r.address_provenance).toBe("message");
   });
 
-  it("model source 'inference' maps to provenance 'company'", () => {
-    const r = buildEnrichmentResult(
-      { city: "Toronto", state: "ON", source: "inference" },
-      opts,
-    );
-    expect(r.address_provenance).toBe("company");
-    expect(r.address?.street).toBeNull();
+  it("a text address with no explicit source still maps to 'message'", () => {
+    const r = buildEnrichmentResult({ street: "5 King St W" }, opts);
+    expect(r.address?.street).toBe("5 King St W");
+    expect(r.address_provenance).toBe("message");
   });
 
   it("no model address but a contact on file → contact fallback", () => {
