@@ -46,7 +46,12 @@ function TemplateRow({
         </p>
       </div>
       <div className="flex shrink-0 gap-1">
-        <Button variant="ghost" size="sm" onClick={onEdit}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onEdit}
+          aria-label={`Edit template ${template.name}`}
+        >
           Edit
         </Button>
         <Button
@@ -54,6 +59,7 @@ function TemplateRow({
           size="sm"
           className="text-muted-foreground hover:text-destructive"
           onClick={onDelete}
+          aria-label={`Delete template ${template.name}`}
         >
           Delete
         </Button>

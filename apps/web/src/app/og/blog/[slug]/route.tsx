@@ -21,6 +21,18 @@ import { blogArt } from "@/lib/marketing/blog-art";
  * never an open image generator (cost-protection).
  */
 
+// The card is deterministic per deploy (a static post registry + deterministic
+// art), so render each ONCE at build rather than re-running Satori on every
+// crawler/scraper hit. dynamicParams:false keeps the servable surface exactly
+// the registry — an unknown slug 404s at the routing layer, never an open
+// image generator (cost-protection, §21).
+export const dynamic = "force-static";
+export const dynamicParams = false;
+
+export function generateStaticParams() {
+  return BLOG_POSTS.map((post) => ({ slug: post.slug }));
+}
+
 const GROUND = "#EDF2FB"; // Frost: the plate well, full-bleed.
 const INK = "#10173B";
 const INK_55 = "#5A6080";

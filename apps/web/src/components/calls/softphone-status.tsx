@@ -15,6 +15,11 @@ export function SoftphoneStatus({ className }: { className?: string }) {
 
   return (
     <span
+      // Announce the ready↔connecting transition to screen readers — a purely
+      // visual dot + title text left it silent for non-sighted users who most
+      // need to know their browser can (or can't yet) ring for a call.
+      role="status"
+      aria-live="polite"
       className={cn(
         "inline-flex items-center gap-1.5 text-[12px] font-medium",
         className,

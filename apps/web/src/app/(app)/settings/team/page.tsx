@@ -224,6 +224,7 @@ function InviteRow({ invite }: { invite: Invite }) {
         size="sm"
         className="text-muted-foreground"
         disabled={expired}
+        aria-label={`Copy invite link for ${invite.email}`}
         onClick={() => {
           void navigator.clipboard
             .writeText(`${window.location.origin}/invite/${invite.id}`)
@@ -238,6 +239,7 @@ function InviteRow({ invite }: { invite: Invite }) {
         size="sm"
         className="text-muted-foreground hover:text-destructive"
         disabled={revoke.isPending}
+        aria-label={`Revoke invite for ${invite.email}`}
         onClick={() =>
           revoke.mutate(invite.id, {
             onSuccess: () => toast.success("Invite revoked."),
