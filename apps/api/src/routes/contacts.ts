@@ -314,23 +314,25 @@ contactsRoutes.get("/contacts/export", requireRole("member"), async (c) => {
   );
 
   // Tags live per-CONVERSATION (there is no contact_tags table); a contact's
-  // tags = the union of tags across its conversations. One batched lookup per
-  // export keeps this a single round-trip regardless of contact count.
+  // tags = the union of tags across its conversations. Chunk the lookup: a
+  // single .in() over up to EXPORT_MAX_ROWS (50k) contact UUIDs would build a
+  // multi-megabyte URL that PostgREST / the Worker rejects, breaking the export
+  // outright for exactly the largest customers. IMPORT_CHUNK (200) keeps each
+  // request's URL small — the same bound the CSV importer already uses.
   const tagsByContact = new Map<string, Set<string>>();
-  if (rows.length > 0) {
-    interface TagJoinRow {
-      contact_id: string;
-      conversation_tags: { tags: { name: string } | null }[];
-    }
+  interface TagJoinRow {
+    contact_id: string;
+    conversation_tags: { tags: { name: string } | null }[];
+  }
+  const exportContactIds = rows.map((row) => row.id);
+  for (let i = 0; i < exportContactIds.length; i += IMPORT_CHUNK) {
+    const chunk = exportContactIds.slice(i, i + IMPORT_CHUNK);
     const joins = unwrap<TagJoinRow[]>(
       await db
         .from("conversations")
         .select("contact_id,conversation_tags(tags(name))")
         .eq("company_id", companyId)
-        .in(
-          "contact_id",
-          rows.map((row) => row.id),
-        ),
+        .in("contact_id", chunk),
       "contacts export tags",
     );
     for (const join of joins) {

@@ -181,7 +181,12 @@ async function deliverIncomingCallPush(
   const { data, error } = await db
     .from("push_subscriptions")
     .select("id,user_id,endpoint,p256dh,auth")
-    .in("user_id", pushUserIds);
+    .in("user_id", pushUserIds)
+    // #30 defensive bound (mirrors inbound.ts): each user is capped at 10 live
+    // subscriptions, but a bad table state must never unbound the ring fan-out —
+    // newest 50 across the audience is far above any legitimate team's devices.
+    .order("created_at", { ascending: false })
+    .limit(50);
   if (error) return { unreachableUserIds: [] }; // best-effort — never throw
   const subscriptions = (data ?? []) as SubscriptionRow[];
 

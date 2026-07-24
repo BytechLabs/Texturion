@@ -919,6 +919,40 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     expect(call.url.searchParams.get("deleted_at")).toBe("is.null");
   });
 
+  it("chunks the tag lookup so a large export never builds an over-long .in() URL", async () => {
+    const sb = stubWithRole("member");
+    const contacts = Array.from({ length: 250 }, (_, i) => ({
+      id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+      name: `C${i}`,
+      phone_e164: `+1416555${String(1000 + i)}`,
+      consent_source: "attested",
+      consent_at: "2026-06-01T00:00:00+00:00",
+      created_at: "2026-05-01T00:00:00+00:00",
+    }));
+    sb.on("GET", "/rest/v1/contacts", () => contacts);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/export",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+
+    // 250 contacts → two chunked lookups (200 + 50), never one giant .in()
+    // whose URL PostgREST/the Worker would reject.
+    const convCalls = sb.find("GET", "/rest/v1/conversations");
+    expect(convCalls).toHaveLength(2);
+    for (const convCall of convCalls) {
+      const inParam = convCall.url.searchParams.get("contact_id") ?? "";
+      const ids = inParam.replace(/^in\.\(/, "").replace(/\)$/, "").split(",");
+      expect(ids.length).toBeLessThanOrEqual(200);
+    }
+  });
+
   it("neutralizes CSV/formula injection in the name and tags columns, leaves phone bare (OWASP)", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [

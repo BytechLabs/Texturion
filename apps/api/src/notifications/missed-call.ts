@@ -172,7 +172,13 @@ export async function notifyMissedCall(
       await db
         .from("push_subscriptions")
         .select("id,user_id,endpoint,p256dh,auth")
-        .in("user_id", pushUsers),
+        .in("user_id", pushUsers)
+        // #30 defensive bound (mirrors inbound.ts): POST /v1/push-subscriptions
+        // caps each user at 10 live rows, but a bad table state must never
+        // unbound a webhook's fan-out — newest 50 across the audience is far
+        // above any legitimate team's devices.
+        .order("created_at", { ascending: false })
+        .limit(50),
       "push subscriptions lookup",
     );
     const payload = JSON.stringify({
