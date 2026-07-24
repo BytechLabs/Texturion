@@ -60,11 +60,12 @@ struct TaskEnrichment: Codable, Sendable {
     )
 }
 
-/// GET/PATCH /v1/company/ai-settings — per-company enrichment opt-in. Defaults
-/// all-off (a company that never set it, or a lagging payload dropping a field).
+/// GET/PATCH /v1/company/ai-settings — per-company enrichment opt-in. Both
+/// toggles default ON (matching the server default), so an absent/lagging field
+/// decodes to enabled rather than off.
 struct CompanyAiSettings: Codable, Sendable {
-    @Default<DefaultFalse> var enrich_task_address: Bool
-    @Default<DefaultFalse> var enrich_task_due: Bool
+    @Default<DefaultTrue> var enrich_task_address: Bool
+    @Default<DefaultTrue> var enrich_task_due: Bool
 
     init(enrich_task_address: Bool, enrich_task_due: Bool) {
         self.enrich_task_address = enrich_task_address

@@ -104,6 +104,7 @@ import com.loonext.android.core.net.ApiException
 import com.loonext.android.features.contacts.MultipartClient
 import com.loonext.android.features.contacts.uploadNoteFile
 import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.CountryField
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
@@ -1188,11 +1189,10 @@ private fun TaskAddressSection(
                     modifier = Modifier.weight(1f),
                 )
             }
-            AddressInput(
+            CountryField(
                 value = fields.country,
-                placeholder = "Country",
+                onValueChange = { v -> edit { it.copy(country = v) } },
                 enabled = enabled,
-                onValue = { v -> edit { it.copy(country = v) } },
                 modifier = Modifier.fillMaxWidth(),
             )
 

@@ -1254,7 +1254,12 @@ private struct MakeTaskSheet: View {
                         addrField("State / province", keyPath: \.state, field: .state)
                         addrField("Postal code", keyPath: \.postalCode, field: .postal)
                     }
-                    addrField("Country", keyPath: \.country, field: .country)
+                    // #214: the country is a typable, searchable picker. A
+                    // selection is a user edit → mark the address "manual" (an
+                    // enrichment assigns `addr` directly, bypassing this).
+                    CountryField(value: $addr.country) {
+                        addrProvenance = AddressProvenance.manual
+                    }
                 }
             }
         }

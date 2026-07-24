@@ -198,11 +198,15 @@ data class TaskEnrichment(
     val enrichment_disabled: Boolean = false,
 )
 
-/** #214 per-company enrichment opt-in (Settings → AI). Default OFF. */
+/**
+ * #214 per-company enrichment opt-in (Settings → AI). Defaults ON to match the
+ * server (GET /v1/company/ai-settings returns {true,true} when unset), so an
+ * absent-field decode or a missing cache also resolves to ON.
+ */
 @Serializable
 data class CompanyAiSettings(
-    val enrich_task_address: Boolean = false,
-    val enrich_task_due: Boolean = false,
+    val enrich_task_address: Boolean = true,
+    val enrich_task_due: Boolean = true,
 )
 
 /**

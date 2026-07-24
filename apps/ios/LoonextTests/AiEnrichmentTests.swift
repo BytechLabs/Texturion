@@ -145,11 +145,13 @@ final class AiEnrichmentTests: XCTestCase {
 
     // MARK: - Settings + enrichment decodes
 
-    func testCompanyAiSettingsDefaultsFalseForMissingKeys() throws {
+    func testCompanyAiSettingsDefaultsTrueForMissingKeys() throws {
+        // Both toggles default ON (server parity), so an absent/lagging field
+        // decodes to enabled rather than off.
         let settings: CompanyAiSettings = try decode("{}")
-        XCTAssertFalse(settings.enrich_task_address)
-        XCTAssertFalse(settings.enrich_task_due)
-        XCTAssertFalse(settings.anyEnabled)
+        XCTAssertTrue(settings.enrich_task_address)
+        XCTAssertTrue(settings.enrich_task_due)
+        XCTAssertTrue(settings.anyEnabled)
     }
 
     func testCompanyAiSettingsDecodesBothToggles() throws {

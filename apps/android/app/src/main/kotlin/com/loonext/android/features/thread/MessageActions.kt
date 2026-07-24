@@ -70,6 +70,7 @@ import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.TaskAddressInput
 import com.loonext.android.core.model.addressProvenanceLabel
 import com.loonext.android.ui.common.AppSheet
+import com.loonext.android.ui.common.CountryField
 import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
@@ -865,10 +866,9 @@ private fun AddressSection(
                         modifier = Modifier.weight(1f),
                     )
                 }
-                AddressField(
+                CountryField(
                     value = fields.country,
-                    placeholder = "Country",
-                    onValue = { v -> onEdit { it.copy(country = v) } },
+                    onValueChange = { v -> onEdit { it.copy(country = v) } },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

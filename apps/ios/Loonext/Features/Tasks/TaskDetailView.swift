@@ -823,7 +823,15 @@ private struct TaskAddressSection: View {
                         addrField("State / province", text: $fields.state, field: .state)
                         addrField("Postal code", text: $fields.postalCode, field: .postal)
                     }
-                    addrField("Country", text: $fields.country, field: .country)
+                    // #214: the country is a typable, searchable picker. A
+                    // selection is a field edit — mark the address "manual" (as
+                    // typing does) and commit right away, since there is no
+                    // text-field blur to trigger the save. The binding and
+                    // provenance are written before `commit()` reads them.
+                    CountryField(value: $fields.country) {
+                        provenance = AddressProvenance.manual
+                        commit()
+                    }
                 }
                 // Editing any field marks the whole address user-authored.
                 .onChange(of: fields) { _, _ in provenance = AddressProvenance.manual }
