@@ -29,6 +29,11 @@ import {
 import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { useCreateNote } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
+import {
+  attachmentSignature,
+  idempotencyKeyFor,
+  type FailedAttempt,
+} from "@/lib/api/idempotency";
 import { useSendMessage, type OutboundMedia } from "@/lib/api/messages";
 import { isFilePaste } from "@/lib/attachments/clipboard";
 import {
@@ -262,6 +267,12 @@ export function Composer({
   const send = useSendMessage(conversationId);
   const createNote = useCreateNote(conversationId);
   const uploadNoteFiles = useUploadNoteFiles();
+  /**
+   * The last send that FAILED, with the Idempotency-Key it used. Pressing send
+   * again on the same text reuses that key, so a response that was merely lost
+   * (rather than a send that never happened) can never reach the customer twice.
+   */
+  const lastFailedSendRef = useRef<FailedAttempt | null>(null);
   const [mode, setMode] = useState<"sms" | "note">(noteOnly ? "note" : "sms");
   const isNote = noteOnly || mode === "note";
   const [text, setText] = useState("");
@@ -383,16 +394,30 @@ export function Composer({
       toast.error("Couldn't read that file. Try attaching it again.");
       return;
     }
+    // Reuse the Idempotency-Key when this is a RETRY of the same text and
+    // attachments. A failed send restores the draft, so the natural next action
+    // is to press send again — and with a fresh key each time, a send whose
+    // response was merely LOST (flaky signal, tab closed mid-request) reached
+    // the customer twice and billed twice. Same rule as the Android composer:
+    // same content -> same key, any edit -> new key.
+    const signature = `${draftText} ${attachmentSignature(draftAttachments)}`;
+    const idempotencyKey = idempotencyKeyFor(
+      lastFailedSendRef.current,
+      signature,
+    );
+
     send.mutate(
-      { body: draftText, media },
+      { body: draftText, media, idempotencyKey },
       {
         onSuccess: () => {
+          lastFailedSendRef.current = null;
           for (const a of draftAttachments) {
             if (a.previewUrl !== null) URL.revokeObjectURL(a.previewUrl);
           }
           textareaRef.current?.focus();
         },
         onError: (error) => {
+          lastFailedSendRef.current = { signature, key: idempotencyKey };
           setText(draftText);
           setAttachments(draftAttachments);
           toast.error(

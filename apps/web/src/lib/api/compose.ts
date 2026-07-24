@@ -23,17 +23,23 @@ export interface ComposeInput {
   quiet_hours_confirmed?: boolean;
   /** #12 outbound MMS — ≤3 jpeg/png/gif items, ≤1 MB each (§7). */
   media?: OutboundMedia[];
+  /**
+   * Supplied by the caller so a RETRY of the same message can reuse it. Minted
+   * per attempt, a compose whose response was lost sent the customer their
+   * FIRST-EVER text from this business twice — and billed twice.
+   */
+  idempotencyKey?: string;
 }
 
 export function useStartConversation() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: ComposeInput) =>
+    mutationFn: ({ idempotencyKey, ...input }: ComposeInput) =>
       apiFetch<ComposeResult>("/v1/conversations", {
         method: "POST",
         companyId,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: idempotencyKey ?? crypto.randomUUID(),
         body: input,
       }),
     onSuccess: ({ conversation, message }) => {

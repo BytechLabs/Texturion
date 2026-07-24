@@ -640,15 +640,20 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         // placement keyed on S and wait for the op INVITE (an inbound SDK call
         // carrying X-Loonext-Session=S), which the notification handler
         // auto-answers and reconciles into this "Calling…" chip.
+        // Register BEFORE authorizing. Authorize is the step that makes the
+        // server dial the customer and claim the line; registration is purely
+        // local and has no server-side effect. Doing them the other way round
+        // meant a registration failure surfaced "Couldn't start the call" while
+        // the customer's phone was already ringing, with nothing on screen to
+        // cancel — the call could only end by the customer answering a silent
+        // line or the ring window lapsing.
+        await ensureClient();
         const auth = await authorize.mutateAsync({
           conversation_id: conversationId,
           contact_id: contactId,
           to,
           phone_number_id: phoneNumberId,
         });
-        // Make sure the phone is registered so the op INVITE can reach us (the
-        // same registration that makes inbound ring work). No newCall.
-        await ensureClient();
         const sessionId = auth.call_session_id;
         if (!sessionId) {
           // A server that returned no S cannot be correlated to an op INVITE —

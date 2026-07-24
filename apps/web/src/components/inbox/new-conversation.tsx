@@ -38,6 +38,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompany } from "@/lib/api/companies";
 import { useStartConversation, type ComposeInput } from "@/lib/api/compose";
+import {
+  attachmentSignature,
+  idempotencyKeyFor,
+  type FailedAttempt,
+} from "@/lib/api/idempotency";
 import { useContact, useContacts } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";
 import type { OutboundMedia } from "@/lib/api/messages";
@@ -89,6 +94,13 @@ export function NewConversation() {
   // so start.isPending doesn't cover that window — a double-click would create
   // two conversations + bill two SMS. This ref blocks the second entry.
   const submittingRef = useRef(false);
+  /**
+   * The last attempt that FAILED, with the Idempotency-Key it used. Retrying the
+   * same recipient + text reuses that key, so a response that was merely lost
+   * cannot send this customer their first-ever text from us twice (and bill
+   * twice). Any edit to the recipient, body or attachments mints a new key.
+   */
+  const lastFailedComposeRef = useRef<FailedAttempt | null>(null);
 
   // --- Recipient -------------------------------------------------------------
   const [recipient, setRecipient] = useState<Recipient | null>(null);
@@ -247,6 +259,20 @@ export function NewConversation() {
       toast.error("Couldn't read that file. Try attaching it again.");
       return;
     }
+    // Same rule as the thread composer: retrying identical content reuses the
+    // key, so a lost response can't double-send. The quiet-hours re-entry
+    // changes nothing here — that rejection means nothing was sent.
+    const signature = [
+      recipient?.kind === "contact" ? recipient.contact.id : destinationE164,
+      numberId,
+      body,
+      attachmentSignature(attachments),
+    ].join(" ");
+    const idempotencyKey = idempotencyKeyFor(
+      lastFailedComposeRef.current,
+      signature,
+    );
+
     const inputBody: ComposeInput = {
       ...(recipient?.kind === "contact"
         ? { contact_id: recipient.contact.id }
@@ -255,12 +281,15 @@ export function NewConversation() {
       body,
       ...(quietConfirmed ? { quiet_hours_confirmed: true } : {}),
       ...(media ? { media } : {}),
+      idempotencyKey,
     };
     start.mutate(inputBody, {
       onSuccess: ({ conversation }) => {
+        lastFailedComposeRef.current = null;
         router.push(`/inbox/${conversation.id}`);
       },
       onError: (error) => {
+        lastFailedComposeRef.current = { signature, key: idempotencyKey };
         // Clear the guard so the quiet-hours dialog's submit(true) re-entry and
         // ordinary retries can proceed. (Success navigates away — no reset.)
         submittingRef.current = false;

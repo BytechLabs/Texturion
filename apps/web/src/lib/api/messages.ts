@@ -101,11 +101,22 @@ export function useSendMessage(conversationId: string) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { body: string; media?: OutboundMedia[] }) =>
+    mutationFn: (input: {
+      body: string;
+      media?: OutboundMedia[];
+      /**
+       * Supplied by the caller so a RETRY of the same text can reuse it. Minting
+       * it here meant every attempt carried a fresh key, so a send whose response
+       * was lost (flaky signal, tab closed mid-request) sent the customer a
+       * SECOND copy on retry — and billed for it. Optional: callers with no
+       * retry affordance keep the old behaviour.
+       */
+      idempotencyKey?: string;
+    }) =>
       apiFetch<Message>("/v1/messages/send", {
         method: "POST",
         companyId,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: input.idempotencyKey ?? crypto.randomUUID(),
         body: {
           conversation_id: conversationId,
           body: input.body,
