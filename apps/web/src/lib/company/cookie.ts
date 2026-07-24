@@ -38,5 +38,11 @@ export function readCompanyCookie(): string | null {
 
 export function writeCompanyCookie(companyId: string): void {
   if (typeof document === "undefined") return;
-  document.cookie = `${COMPANY_COOKIE}=${encodeURIComponent(companyId)}; Path=/; Max-Age=${ONE_YEAR_SECONDS}; SameSite=Lax`;
+  // Secure on HTTPS (production) so the company-choice cookie is never sent over
+  // plaintext; omitted on http localhost so dev still works.
+  const secure =
+    typeof location !== "undefined" && location.protocol === "https:"
+      ? "; Secure"
+      : "";
+  document.cookie = `${COMPANY_COOKIE}=${encodeURIComponent(companyId)}; Path=/; Max-Age=${ONE_YEAR_SECONDS}; SameSite=Lax${secure}`;
 }

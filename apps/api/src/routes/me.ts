@@ -62,17 +62,11 @@ meRoutes.get("/me", async (c) => {
   const db = getDb(env);
   const userId = c.get("userId");
 
-  const profiles = unwrap<{ display_name: string }[]>(
-    await db
-      .from("profiles")
-      .select("display_name")
-      .eq("user_id", userId)
-      .limit(1),
-    "profile lookup",
-  );
-
-  const membershipRows = unwrap<MembershipRow[]>(
-    await db
+  // Both key only on userId — one parallel round-trip instead of two serial
+  // (GET /v1/me is on every app load).
+  const [profilesRes, membershipRes] = await Promise.all([
+    db.from("profiles").select("display_name").eq("user_id", userId).limit(1),
+    db
       .from("company_members")
       .select(
         "company_id,role,companies!inner(name,subscription_status,deleted_at)",
@@ -80,6 +74,13 @@ meRoutes.get("/me", async (c) => {
       .eq("user_id", userId)
       .is("deactivated_at", null)
       .is("companies.deleted_at", null),
+  ]);
+  const profiles = unwrap<{ display_name: string }[]>(
+    profilesRes,
+    "profile lookup",
+  );
+  const membershipRows = unwrap<MembershipRow[]>(
+    membershipRes,
     "memberships lookup",
   );
 

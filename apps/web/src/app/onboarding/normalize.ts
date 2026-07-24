@@ -18,7 +18,11 @@ export function normalizeWebsite(input: string): string {
  * sole-prop mobile check — isUsCaDestination — is authoritative).
  */
 export function normalizeNanpPhone(input: string): string | null {
-  const digits = input.replace(/\D/g, "");
+  const trimmed = input.trim();
+  // A '+' prefix that isn't '+1' is an explicit non-NANP number — reject before
+  // stripping (parity with the other normalizers; isUsCaDestination is final).
+  if (trimmed.startsWith("+") && !trimmed.startsWith("+1")) return null;
+  const digits = trimmed.replace(/\D/g, "");
   let e164: string;
   if (digits.length === 10) e164 = `+1${digits}`;
   else if (digits.length === 11 && digits.startsWith("1")) e164 = `+${digits}`;

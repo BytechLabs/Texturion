@@ -29,6 +29,9 @@ export function formatAbsoluteDateTime(
   iso: string,
   timeZone?: string,
 ): string {
+  // Guard bad/absent input so a tooltip never shows "Invalid Date" or throws.
+  const parsed = new Date(iso);
+  if (!iso || Number.isNaN(parsed.getTime())) return "";
   // timeZoneName cannot combine with dateStyle/timeStyle — components only.
   return new Intl.DateTimeFormat(undefined, {
     year: "numeric",
@@ -38,7 +41,7 @@ export function formatAbsoluteDateTime(
     minute: "2-digit",
     timeZoneName: "short",
     ...(timeZone ? { timeZone } : {}),
-  }).format(new Date(iso));
+  }).format(parsed);
 }
 
 /**
@@ -47,6 +50,8 @@ export function formatAbsoluteDateTime(
  */
 export function formatRelativeTime(iso: string, now: Date = new Date()): string {
   const date = new Date(iso);
+  // A bad/absent timestamp must render blank, not "NaNm" or a 1970 date.
+  if (!iso || Number.isNaN(date.getTime())) return "";
   const minutes = differenceInMinutes(now, date);
   if (minutes < 1) return "now";
   if (minutes < 60) return `${minutes}m`;

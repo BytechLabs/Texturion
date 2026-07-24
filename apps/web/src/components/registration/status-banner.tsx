@@ -128,7 +128,7 @@ export function WorkspaceStatusBanner() {
         strokeWidth={1.75}
         aria-hidden
       />
-      <p className="min-w-0 flex-1 truncate text-[13px] leading-snug text-foreground/80">
+      <p className="min-w-0 flex-1 line-clamp-2 text-[13px] leading-snug text-foreground/80">
         {message}
       </p>
       {action && (
