@@ -30,6 +30,17 @@
     <!-- Tasks Map view (#184): the optional "my location" recenter. Coarse
          only, requested at runtime on the button tap, never at startup. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Device contacts (#183): READ_CONTACTS is a runtime permission requested
+         at the point of use (the dialer / a contact picker), never at launch —
+         it powers live dialer correlation to a saved name. WRITE_CONTACTS is
+         used only by the app's OWN sync adapter, under its own device-side
+         account, to write the "Call/Text with Loonext" rows (part 3). -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+    <!-- #183 part 3: sync-adapter plumbing for the Connected-Apps account.
+         Normal (non-dangerous) permissions — no runtime prompt. -->
+    <uses-permission android:name="android.permission.READ_SYNC_SETTINGS" />
+    <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" />
 
     <application
         android:name=".LoonextApp"
@@ -56,6 +67,21 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="com.loonext.android" android:host="auth-callback" />
+            </intent-filter>
+            <!-- #183 part 3 (Connected Apps): tapping "Call with Loonext" /
+                 "Text with Loonext" on a contact in the system Contacts app
+                 fires a VIEW intent on the tapped data row (our custom MIME
+                 type). MainActivity resolves the row's number and opens the
+                 dialer / composer for it. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="vnd.android.cursor.item/vnd.com.loonext.android.call" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="vnd.android.cursor.item/vnd.com.loonext.android.text" />
             </intent-filter>
         </activity>
 
@@ -103,5 +129,36 @@
         <receiver
             android:name=".telephony.CallActionReceiver"
             android:exported="false" />
+
+        <!-- #183 part 3 (Connected Apps): the Loonext device-side account +
+             Contacts sync adapter that write the "Call/Text with Loonext" rows.
+             Both are framework-bound (AccountManager / SyncManager) so they are
+             exported the way AOSP's SampleSyncAdapter is; the authenticator is a
+             sync anchor only, never a login (see LoonextAuthenticator). -->
+        <service
+            android:name=".features.contacts.sync.AuthenticatorService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accounts.AccountAuthenticator" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accounts.AccountAuthenticator"
+                android:resource="@xml/authenticator" />
+        </service>
+
+        <service
+            android:name=".features.contacts.sync.ContactsSyncService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.content.SyncAdapter" />
+            </intent-filter>
+            <meta-data
+                android:name="android.content.SyncAdapter"
+                android:resource="@xml/sync_adapter" />
+            <!-- Declares how the call/text rows render in the Contacts app. -->
+            <meta-data
+                android:name="android.provider.CONTACTS_STRUCTURE"
+                android:resource="@xml/contacts" />
+        </service>
     </application>
 </manifest>

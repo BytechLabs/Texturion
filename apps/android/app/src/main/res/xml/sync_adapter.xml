@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    #183, part 3: binds the Loonext account to the Contacts provider so the
+    SyncManager runs ContactsSyncAdapter. contentAuthority is the Contacts
+    provider; accountType matches authenticator.xml. userVisible=false keeps it
+    out of Settings' per-account sync list (it is app-managed, not user-toggled);
+    supportsUploading=false because we only write our own rows, never upload the
+    user's contacts anywhere.
+-->
+<sync-adapter xmlns:android="http://schemas.android.com/apk/res/android"
+    android:contentAuthority="com.android.contacts"
+    android:accountType="com.loonext.android"
+    android:userVisible="false"
+    android:supportsUploading="false"
+    android:allowParallelSyncs="false"
+    android:isAlwaysSyncable="true" />

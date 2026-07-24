@@ -34,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -89,12 +90,22 @@ fun DialerSheet(
     lookupContact: (suspend (digits: String) -> String?)? = null,
     /** Offer "Add contact" for an unmatched dialable number. */
     onAddContact: ((e164: String) -> Unit)? = null,
+    /**
+     * #183 part 2: whether device-contact correlation is live (READ_CONTACTS
+     * granted). When false and [onDeviceContactsGranted] is set, the dialer
+     * requests the permission on open with a clear rationale row — never at app
+     * launch — and degrades to app-only correlation if the user declines.
+     */
+    deviceContactsGranted: Boolean = false,
+    onDeviceContactsGranted: (() -> Unit)? = null,
 ) {
     val haptics = rememberHaptics()
     var digits by remember { mutableStateOf(initialDigits.take(15)) }
     var matchedName by remember { mutableStateOf<String?>(null) }
     if (lookupContact != null) {
-        LaunchedEffect(digits) {
+        // Re-key on the grant flag too: granting device access mid-session
+        // re-correlates the already-typed number without waiting for a keystroke.
+        LaunchedEffect(digits, deviceContactsGranted) {
             if (digits.length < 4) {
                 matchedName = null
                 return@LaunchedEffect
@@ -108,6 +119,32 @@ fun DialerSheet(
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val dialable = dialableE164(digits)
+
+    // #183 part 2: contacts access is requested HERE, at the point of use, not
+    // at launch. READ (dialer name matching) + WRITE (the app's own
+    // Connected-Apps rows) are asked together — one system prompt, same
+    // permission group. The grant callback lights up device correlation and
+    // stands up the "Call/Text with Loonext" rows.
+    val contactsPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { result ->
+        if (result[Manifest.permission.READ_CONTACTS] == true) {
+            onDeviceContactsGranted?.invoke()
+        }
+    }
+    fun requestContacts() = contactsPermissionLauncher.launch(
+        arrayOf(Manifest.permission.READ_CONTACTS, Manifest.permission.WRITE_CONTACTS),
+    )
+    // Ask once when the dialer opens (Android suppresses the dialog silently
+    // after a permanent denial, so this never nags). The rationale row below
+    // lets the user opt in later on tap.
+    var contactsAsked by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (onDeviceContactsGranted != null && !deviceContactsGranted && !contactsAsked) {
+            contactsAsked = true
+            requestContacts()
+        }
+    }
 
     fun placeCall() {
         val to = dialable ?: return
@@ -246,6 +283,24 @@ fun DialerSheet(
                                 .clickable {
                                     haptics.tap()
                                     onAddContact!!.invoke(addTarget)
+                                }
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                        )
+
+                        // #183 part 2: the clear rationale + opt-in when device
+                        // correlation is off. Tapping re-requests READ_CONTACTS.
+                        onDeviceContactsGranted != null && !deviceContactsGranted -> Text(
+                            "Match names from your contacts",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable {
+                                    haptics.tap()
+                                    requestContacts()
                                 }
                                 .padding(horizontal = 10.dp, vertical = 4.dp),
                         )

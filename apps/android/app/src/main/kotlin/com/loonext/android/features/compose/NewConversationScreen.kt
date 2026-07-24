@@ -112,6 +112,10 @@ fun NewConversationScreen(
     onCreated: (conversationId: String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    /** #183 part 3: a raw number to seed the recipient field with (a "Text with
+     *  Loonext" tap on a device contact that isn't an app contact yet). Ignored
+     *  when [prefillContactId] resolves a saved contact. */
+    prefillPhone: String? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -166,6 +170,8 @@ fun NewConversationScreen(
             onCreated = onCreated,
             onBack = onBack,
             modifier = modifier,
+            // Seed the recipient only when no saved contact was prefilled.
+            prefillRecipient = prefillPhone?.takeIf { prefillContactId == null },
         )
     }
 }
@@ -184,11 +190,16 @@ private fun NewConversationLoaded(
     onCreated: (String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    prefillRecipient: String? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var recipientInput by remember { mutableStateOf("") }
+    // #183 part 3: a Connected-Apps "Text with Loonext" tap seeds the recipient
+    // with the tapped number, formatted; the user can still edit it. Seeded once.
+    var recipientInput by remember {
+        mutableStateOf(prefillRecipient?.let { Nanp.formatAsYouType(Nanp.nationalDigits(it)) } ?: "")
+    }
     var contactMatches by remember { mutableStateOf<List<Contact>>(emptyList()) }
     var fromNumberId by remember(numbers) {
         mutableStateOf(numbers.firstOrNull()?.id)

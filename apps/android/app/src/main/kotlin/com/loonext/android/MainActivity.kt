@@ -3,6 +3,7 @@ package com.loonext.android
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.ContactsContract
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -74,6 +75,8 @@ import com.loonext.android.features.tasks.TaskDetailScreen
 import com.loonext.android.features.tasks.TaskMutations
 import com.loonext.android.features.contacts.ContactDetailScreen
 import com.loonext.android.features.contacts.ContactMutations
+import com.loonext.android.features.contacts.sync.ContactsActionKind
+import com.loonext.android.features.contacts.sync.contactsActionKind
 import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.CenteredError
@@ -99,6 +102,18 @@ sealed interface DeepLink {
      * param, §17.7; that was scenario 2's dead end).
      */
     data class Calls(val sessionId: String? = null) : DeepLink
+
+    /**
+     * #183 part 3 (Connected Apps): "Call with Loonext" on a system-Contacts
+     * contact — open the dialer prefilled with [number] on the Calls tab.
+     */
+    data class Dial(val number: String) : DeepLink
+
+    /**
+     * #183 part 3 (Connected Apps): "Text with Loonext" on a system-Contacts
+     * contact — open the composer prefilled with [number].
+     */
+    data class ComposeTo(val number: String) : DeepLink
 }
 
 /** Notification-tap URLs: https://app.loonext.com/inbox/{id} or /calls?call=… */
@@ -124,6 +139,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         parseDeepLink(intent?.data)?.let { deepLinks.value = it }
+        // #183 part 3: a "Call/Text with Loonext" tap arrives as a VIEW intent
+        // on the tapped contact data row — resolve it to a Dial/ComposeTo link.
+        parseContactsActionIntent(intent)?.let { deepLinks.value = it }
         // OAuth redirect (#166) — buffered until AuthFlow mounts on cold start.
         intent?.data?.takeIf { it.scheme == OAUTH_REDIRECT_SCHEME }
             ?.let(AuthCallbacks::deliver)
@@ -148,8 +166,33 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         parseDeepLink(intent.data)?.let { deepLinks.value = it }
+        parseContactsActionIntent(intent)?.let { deepLinks.value = it }
         intent.data?.takeIf { it.scheme == OAUTH_REDIRECT_SCHEME }
             ?.let(AuthCallbacks::deliver)
+    }
+
+    /**
+     * #183 part 3: resolve a Connected-Apps VIEW intent (fired when the user taps
+     * "Call/Text with Loonext" on a contact) into a deep link. The intent's type
+     * is our custom row MIME type and its data is the tapped ContactsContract
+     * data row; DATA1 holds the E.164 number the sync adapter wrote. Reading the
+     * row needs READ_CONTACTS — by the time these rows are tappable the user has
+     * granted it; a denial degrades to null (no crash, nothing opens).
+     */
+    private fun parseContactsActionIntent(intent: Intent?): DeepLink? {
+        intent ?: return null
+        if (intent.action != Intent.ACTION_VIEW) return null
+        val kind = contactsActionKind(intent.type, packageName) ?: return null
+        val data = intent.data ?: return null
+        val number = runCatching {
+            contentResolver.query(
+                data, arrayOf(ContactsContract.Data.DATA1), null, null, null,
+            )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: return null
+        return when (kind) {
+            ContactsActionKind.CALL -> DeepLink.Dial(number)
+            ContactsActionKind.TEXT -> DeepLink.ComposeTo(number)
+        }
     }
 }
 
@@ -285,7 +328,12 @@ private sealed interface Overlay {
     ) : Overlay
     data class Task(val taskId: String) : Overlay
     data class Contact(val contactId: String) : Overlay
-    data class Compose(val prefillContactId: String?) : Overlay
+    data class Compose(
+        val prefillContactId: String?,
+        /** #183 part 3: a raw number to seed the recipient with (a "Text with
+         *  Loonext" tap on a device contact that has no app contact yet). */
+        val prefillPhone: String? = null,
+    ) : Overlay
     data object Notifications : Overlay
     data object Settings : Overlay
 
@@ -365,6 +413,20 @@ private fun ReadyShell(
                         }
                     }
                 }
+
+                // #183 part 3: "Call with Loonext" — land on the Calls tab and
+                // hand the number to CallsScreen via the pendingDial bus, which
+                // opens the dialer prefilled.
+                is DeepLink.Dial -> {
+                    routeStack.clear()
+                    tab = ShellTab.Calls
+                    graph.pendingDial.value = link.number
+                }
+
+                // #183 part 3: "Text with Loonext" — open the composer seeded
+                // with the number.
+                is DeepLink.ComposeTo ->
+                    push(Overlay.Compose(prefillContactId = null, prefillPhone = link.number))
 
                 null -> Unit
             }
@@ -562,6 +624,7 @@ private fun ReadyShell(
                         companyId = companyId,
                         me = hydratedMe,
                         prefillContactId = active.prefillContactId,
+                        prefillPhone = active.prefillPhone,
                         onCreated = {
                             pop()
                             push(Overlay.Thread(it))

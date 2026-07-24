@@ -74,9 +74,13 @@ import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.PhoneNumberSummary
-import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.features.contacts.ContactMutations
 import com.loonext.android.features.contacts.CreateContactSheet
+import com.loonext.android.features.contacts.device.ContentResolverDeviceContacts
+import com.loonext.android.features.contacts.device.DialerCandidate
+import com.loonext.android.features.contacts.device.MatchSource
+import com.loonext.android.features.contacts.device.correlateDialedNumber
+import com.loonext.android.features.contacts.device.deviceDialerCandidates
 import com.loonext.android.BuildConfig
 import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.SoftphoneManager
@@ -182,6 +186,38 @@ fun CallsScreen(
     var addContactPrefill by rememberSaveable { mutableStateOf<String?>(null) }
     val contactsRepo = remember(graph) { com.loonext.android.core.data.ContactsRepository(graph.api) }
     val scope = rememberCoroutineScope()
+
+    // #183 parts 1-2: the device address book, read behind an interface so the
+    // correlation is testable. Loaded ONCE into an in-memory candidate snapshot
+    // when contacts access is granted; the dialer correlates against it on every
+    // keystroke with no repeat ContentResolver reads. Absent permission → empty,
+    // and the dialer degrades to app-only correlation.
+    val deviceContacts = remember(context) { ContentResolverDeviceContacts(context) }
+    var contactsGranted by remember { mutableStateOf(deviceContacts.hasPermission()) }
+    var deviceCandidates by remember { mutableStateOf<List<DialerCandidate>>(emptyList()) }
+    LaunchedEffect(contactsGranted) {
+        if (contactsGranted) {
+            deviceCandidates = deviceDialerCandidates(
+                runCatching { deviceContacts.loadContacts() }.getOrDefault(emptyList()),
+            )
+            // #183 part 3: (re)establish the Connected-Apps account + rows
+            // whenever contacts access is live — covers a re-sign-in where the
+            // permission persisted but the account was torn down at sign-out.
+            // Idempotent: ensure() no-ops when the account already exists.
+            graph.enableContactsIntegration()
+        }
+    }
+    // #183 part 3: a "Call with Loonext" tap in the system Contacts app routes
+    // here via the pendingDial bus — open the dialer prefilled with that number.
+    LaunchedEffect(Unit) {
+        graph.pendingDial.collect { number ->
+            if (number != null) {
+                dialerPrefill = number
+                dialerOpen = true
+                graph.pendingDial.value = null
+            }
+        }
+    }
 
     // #176 cache-first: each filter is its own key, so a revisit (or a return
     // to a previously-used filter) paints instantly from StoreCache while the
@@ -549,17 +585,26 @@ fun CallsScreen(
             onDismiss = { dialerOpen = false },
             initialDigits = dialerPrefill,
             lookupContact = { typed ->
-                // Correlate typed digits with saved contacts (name shows live
-                // in the dialer). Server q matches name+phone; double-check the
-                // digits actually appear in the hit's number.
-                runCatching {
-                    contactsRepo.contacts(companyId, q = typed, limit = 5).data
-                        .firstOrNull { c ->
-                            c.phone_e164.filter(Char::isDigit).contains(typed.filter(Char::isDigit))
-                        }
-                        ?.let { it.name?.takeIf(String::isNotBlank) ?: formatPhone(it.phone_e164) }
-                }.getOrNull()
+                // #183 part 2: correlate typed digits with the crew's saved
+                // contacts AND the device address book, in ONE pure matcher.
+                // App candidates go first so they win ties (server q matches
+                // name+phone); device candidates supplement from the in-memory
+                // snapshot. The matcher re-verifies the digits actually match.
+                val app = runCatching {
+                    contactsRepo.contacts(companyId, q = typed, limit = 5).data.map { c ->
+                        DialerCandidate(
+                            name = c.name,
+                            number = c.phone_e164,
+                            source = MatchSource.APP,
+                        )
+                    }
+                }.getOrDefault(emptyList())
+                correlateDialedNumber(typed, app + deviceCandidates)?.name
             },
+            deviceContactsGranted = contactsGranted,
+            // Flipping this triggers the LaunchedEffect above, which loads
+            // device candidates AND stands up the Connected-Apps rows (part 3).
+            onDeviceContactsGranted = { contactsGranted = true },
             onAddContact = { e164 ->
                 dialerOpen = false
                 addContactPrefill = e164

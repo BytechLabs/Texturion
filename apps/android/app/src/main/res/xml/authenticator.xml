@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    #183, part 3: the Loonext device-side account. It exists only to anchor the
+    Contacts sync adapter that writes the "Call/Text with Loonext" rows — it is
+    NOT a login (see LoonextAuthenticator). accountType MUST equal the value in
+    ContactsSyncPlan.LOONEXT_ACCOUNT_TYPE and the sync_adapter.xml accountType.
+-->
+<account-authenticator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accountType="com.loonext.android"
+    android:icon="@mipmap/ic_launcher"
+    android:smallIcon="@mipmap/ic_launcher"
+    android:label="@string/loonext_account_label" />

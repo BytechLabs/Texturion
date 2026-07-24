@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Connected-Apps integration (#183, part 3). The account label names the
+         app's device-side Contacts account; the two action labels are the
+         fallback text the system Contacts app shows for the custom rows when a
+         ROM ignores the per-row DATA2 summary. -->
+    <string name="loonext_account_label">Loonext</string>
+    <string name="contacts_action_call">Call with Loonext</string>
+    <string name="contacts_action_text">Text with Loonext</string>
+</resources>

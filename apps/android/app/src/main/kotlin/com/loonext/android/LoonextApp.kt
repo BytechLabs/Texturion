@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
@@ -103,10 +104,41 @@ class AppGraph(private val app: Application) {
     val notificationsRepo = NotificationsRepository(api)
     val searchRepo = SearchRepository(api)
 
+    /**
+     * #183 part 3: the "Call with Loonext" deep-link bus. A tap on that row in
+     * the system Contacts app lands in MainActivity, which resolves the number
+     * and publishes it here; CallsScreen consumes it to open the dialer
+     * prefilled. (The "Text with Loonext" twin routes through a Compose overlay,
+     * not this bus.)
+     */
+    val pendingDial = MutableStateFlow<String?>(null)
+
+    /**
+     * #183 part 3: create the device-side Connected-Apps account (idempotent)
+     * and kick a sync so the "Call/Text with Loonext" rows get written. Called
+     * once the user grants contacts access at the dialer. Silent if the platform
+     * refuses the account or contacts write permission is absent (the sync then
+     * no-ops until it is granted).
+     */
+    fun enableContactsIntegration() {
+        runCatching {
+            val accounts = android.accounts.AccountManager.get(app)
+            if (com.loonext.android.features.contacts.sync.LoonextContactsAccount.ensure(accounts)) {
+                com.loonext.android.features.contacts.sync.LoonextContactsAccount.requestSync()
+            }
+        }
+    }
+
     init {
         authManager.onSignedOut = {
             storeCache.clear()
             notificationsReadState.clear()
+            // #183 part 3: tear down the Connected-Apps account so the
+            // "Call/Text with Loonext" rows leave with the session.
+            runCatching {
+                com.loonext.android.features.contacts.sync.LoonextContactsAccount
+                    .remove(android.accounts.AccountManager.get(app))
+            }
         }
         // #176 warmer: the moment a company is active, prime every tab's
         // default query so even the first tap after launch paints instantly.
