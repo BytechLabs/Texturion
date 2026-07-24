@@ -35,6 +35,7 @@ const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
 const CONVERSATION_ID = "bbbbbbbb-0000-4000-8000-00000000000b";
 const MESSAGE_ID = "aaaaaaaa-0000-4000-8000-00000000000a";
 const TASK_ID = "77777777-0000-4000-8000-000000000077";
+const CONTACT_ID = "c0cccccc-0000-4000-8000-0000000000c0";
 const OTHER_USER = "22222222-0000-4000-8000-000000000022";
 const NOTE_ID = "dddddddd-0000-4000-8000-0000000000d1";
 const MMS_ATT_ID = "eeeeeeee-1111-4000-8000-0000000000a1";
@@ -278,6 +279,12 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     return stubRoute(restMatch(env, "GET", "tasks"), () => rows);
   }
 
+  // The has_location (Map) path reads the flat task_map_rows view (#221), not
+  // the tasks table.
+  function mapStub(rows: Record<string, unknown>[]): Stub {
+    return stubRoute(restMatch(env, "GET", "task_map_rows"), () => rows);
+  }
+
   it("rejects malformed filter params with 422 before touching the DB", async () => {
     for (const q of [
       "conversation_id=not-a-uuid",
@@ -487,23 +494,27 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     );
   });
 
-  it("has_location=true joins contacts and filters lat not-null", async () => {
-    const list = listStub([]);
+  it("has_location=true reads the map view and filters on the coalesced location (#221)", async () => {
+    const list = mapStub([]);
     stubFetch(jwksRoute(auth), membersRoute(), numberAccessRoute(), list.route);
     await request("GET", "/v1/tasks?has_location=true");
     const q = list.calls[0].url.searchParams;
-    expect(q.get("select")).toContain("contacts!inner");
-    expect(q.get("conversations.contacts.lat")).toBe("not.is.null");
+    // Flat view columns, not a nested embed.
+    expect(q.get("select")).toContain("contact_lat");
+    expect(q.get("select")).not.toContain("contacts!inner");
+    // THE #221 fix: map_lat = coalesce(task.lat, contact.lat) — a task with its
+    // OWN geocode but a non-geocoded contact now qualifies.
+    expect(q.get("map_lat")).toBe("not.is.null");
     // Unrestricted caller → no hidden-number exclusion on the map view.
-    expect(q.get("conversations.phone_number_id")).toBeNull();
+    expect(q.get("phone_number_id")).toBeNull();
   });
 
   it("#106/#107: the map view excludes tasks on numbers hidden from the caller", async () => {
     // The map projects the source contact's name + geocode (conversation
     // content), so a restricted member must not see hidden-number pins. The
-    // exclusion is a DB-level embed filter (keeps the keyset window correct).
+    // exclusion is a flat view-column filter (keeps the keyset window correct).
     const HIDDEN_NUM = "f0000000-0000-4000-8000-0000000000f1";
-    const list = listStub([]);
+    const list = mapStub([]);
     stubFetch(
       jwksRoute(auth),
       membersRoute(),
@@ -519,7 +530,60 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     );
     await request("GET", "/v1/tasks?has_location=true");
     const q = list.calls[0].url.searchParams;
-    expect(q.get("conversations.phone_number_id")).toBe(`not.in.(${HIDDEN_NUM})`);
+    expect(q.get("phone_number_id")).toBe(`not.in.(${HIDDEN_NUM})`);
+  });
+
+  it("has_location projects the flat view row → done + contact, stripping view-only columns (#221)", async () => {
+    // A task with its OWN geocode but a contact WITHOUT one — the case #221
+    // makes visible. The view row carries flat done_at + contact_* columns.
+    const list = mapStub([
+      {
+        id: TASK_ID,
+        company_id: COMPANY_ID,
+        message_id: MESSAGE_ID,
+        conversation_id: CONVERSATION_ID,
+        title: "Paint the CN Tower",
+        due_at: null,
+        created_at: "2026-07-24T00:00:00.000Z",
+        updated_at: "2026-07-24T00:00:00.000Z",
+        lat: 43.6426,
+        lng: -79.3871,
+        done_at: null,
+        contact_id: CONTACT_ID,
+        contact_name: "Acme Co",
+        contact_lat: null,
+        contact_lng: null,
+      },
+    ]);
+    stubFetch(jwksRoute(auth), membersRoute(), numberAccessRoute(), list.route);
+    const response = await request("GET", "/v1/tasks?has_location=true");
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      data: Record<string, unknown>[];
+    };
+    const row = body.data[0];
+    // Derived + projected fields.
+    expect(row.done).toBe(false);
+    expect(row.status).toBe("open");
+    expect(row.lat).toBe(43.6426); // the task's own geocode reaches the client
+    expect(row.contact).toEqual({
+      id: CONTACT_ID,
+      name: "Acme Co",
+      lat: null, // contact NOT geocoded — the pin comes from the task's own lat
+      lng: null,
+    });
+    // View-only columns never leak into the task contract.
+    for (const leak of [
+      "done_at",
+      "contact_id",
+      "contact_name",
+      "contact_lat",
+      "contact_lng",
+      "map_lat",
+      "phone_number_id",
+    ]) {
+      expect(row).not.toHaveProperty(leak);
+    }
   });
 
   it("q applies a title trgm ilike (escaped)", async () => {

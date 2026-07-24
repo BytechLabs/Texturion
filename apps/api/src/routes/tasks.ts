@@ -741,27 +741,39 @@ tasksRoutes.get("/tasks", requireRole("member"), async (c) => {
   const createdCursor =
     dueSorted || rawCursor === undefined ? null : decodeCursor(rawCursor);
 
-  // messages!message_id!inner embeds the SOURCE row (tasks.message_id → messages,
-  // disambiguated from the reverse messages.task_id FK) so status can filter on
-  // done_at and the response carries the derived `done`. has_location joins
-  // contacts via the source conversation only when requested (keeps the common
-  // path lean).
-  const select =
-    `${TASK_COLUMNS},messages!message_id!inner(id,done_at)` +
-    (hasLocation
-      ? ",conversations!inner(id,phone_number_id,contacts!inner(id,name,lat,lng))"
-      : "");
-
-  let query = db
-    .from("tasks")
-    .select(select)
-    .eq("company_id", companyId)
-    .is("deleted_at", null);
+  // The common (non-map) path reads `tasks` and embeds the SOURCE row
+  // (messages!message_id!inner, disambiguated from the reverse messages.task_id
+  // FK) so status filters on done_at and the response carries derived `done`.
+  //
+  // The has_location (Map) path instead reads the FLAT `task_map_rows` view
+  // (#221): it pre-joins the source message (done_at), conversation
+  // (phone_number_id, for the #106 access filter) and contact (name + geocode),
+  // and exposes `map_lat = coalesce(task.lat, contact.lat)`. That coalesce is
+  // the fix — a task with its OWN geocode but a non-geocoded contact now
+  // appears. PostgREST cannot OR a root column against an embedded one, so the
+  // predicate has to live on a flat view column. `done_at` is therefore a plain
+  // column on this path, so status/overdue filters reference it directly.
+  const doneAtCol = hasLocation ? "done_at" : "messages.done_at";
+  let query = hasLocation
+    ? db
+        .from("task_map_rows")
+        .select(
+          `${TASK_COLUMNS},done_at,contact_id,contact_name,contact_lat,contact_lng`,
+        )
+        .eq("company_id", companyId)
+        .is("deleted_at", null)
+        // The map location = the task's own geocode OR the contact's (#221).
+        .not("map_lat", "is", null)
+    : db
+        .from("tasks")
+        .select(`${TASK_COLUMNS},messages!message_id!inner(id,done_at)`)
+        .eq("company_id", companyId)
+        .is("deleted_at", null);
 
   if (effectiveStatus === "open") {
-    query = query.is("messages.done_at", null);
+    query = query.is(doneAtCol, null);
   } else if (effectiveStatus === "done") {
-    query = query.not("messages.done_at", "is", null);
+    query = query.not(doneAtCol, "is", null);
   }
   if (assignee !== undefined) {
     query = query.eq("assigned_user_id", assignee);
@@ -775,19 +787,15 @@ tasksRoutes.get("/tasks", requireRole("member"), async (c) => {
   if (dueAfter !== undefined) query = query.gte("due_at", dueAfter);
   if (overdue) {
     // Overdue = past due AND not yet done (a done task is never "overdue").
-    query = query
-      .lt("due_at", new Date().toISOString())
-      .is("messages.done_at", null);
+    query = query.lt("due_at", new Date().toISOString()).is(doneAtCol, null);
   }
   if (hasLocation) {
-    query = query.not("conversations.contacts.lat", "is", null);
-    // #106/#107: the map view exposes the source contact's NAME + geocode via
-    // the conversations→contacts join — that's conversation content, not the
-    // globally-visible task title. Exclude tasks whose number is hidden from
-    // the caller so the map can never plot a hidden customer. The !inner join
-    // makes this embed filter drop the parent row, so the keyset window stays
-    // correct (no post-filter truncation). Owners/admins and no-rules companies
-    // resolve unrestricted and skip it.
+    // #106/#107: the map exposes the source contact's NAME + geocode — that's
+    // conversation content, not the globally-visible task title. Exclude tasks
+    // whose number is hidden from the caller so the map can never plot a hidden
+    // customer. phone_number_id is a flat view column, so this filter drops the
+    // row directly (no embed post-filter → the keyset window stays correct).
+    // Owners/admins and no-rules companies resolve unrestricted and skip it.
     const access = await resolveNumberAccess(db, {
       companyId,
       userId,
@@ -795,7 +803,7 @@ tasksRoutes.get("/tasks", requireRole("member"), async (c) => {
     });
     if (access.hiddenNumberIds && access.hiddenNumberIds.length > 0) {
       query = query.not(
-        "conversations.phone_number_id",
+        "phone_number_id",
         "in",
         `(${access.hiddenNumberIds.join(",")})`,
       );
@@ -823,21 +831,19 @@ tasksRoutes.get("/tasks", requireRole("member"), async (c) => {
     if (createdCursor) query = query.or(keysetFilter("created_at", createdCursor));
   }
 
-  interface TaskListContactEmbed {
-    id: string;
-    name: string | null;
-    lat: number | null;
-    lng: number | null;
-  }
   interface TaskListRow {
     id: string;
     created_at: string;
     due_at: string | null;
-    messages: { done_at: string | null } | null;
-    // Only present when has_location narrowed the set (the conversations!inner
-    // → contacts!inner embed): the source contact's cached geocode. A single
-    // conversation resolves to one contact object (not an array).
-    conversations?: { id: string; contacts: TaskListContactEmbed | null } | null;
+    // Non-map path: `done` derives from the messages!message_id!inner embed.
+    messages?: { done_at: string | null } | null;
+    // has_location (task_map_rows view) path: flat columns — `done` derives from
+    // done_at and the source contact's geocode rides on contact_* .
+    done_at?: string | null;
+    contact_id?: string | null;
+    contact_name?: string | null;
+    contact_lat?: number | null;
+    contact_lng?: number | null;
     [key: string]: unknown;
   }
   const rows = unwrap<TaskListRow[]>(
@@ -848,35 +854,34 @@ tasksRoutes.get("/tasks", requireRole("member"), async (c) => {
   const hasNext = rows.length > limit;
   const pageRows = hasNext ? rows.slice(0, limit) : rows;
   const data = pageRows.map((row) => {
-    // `messages` (the join used to derive done) and `conversations` (only
-    // present for has_location) are read-only join artifacts — strip both from
-    // the row shape returned to the client.
     const rest = { ...row } as Record<string, unknown>;
-    delete rest.messages;
-    delete rest.conversations;
-    const done = (row.messages?.done_at ?? null) !== null;
-    // Map view (D25): when has_location narrowed the set, project the already-
-    // joined contact geocode onto the row as `contact` (the TaskContactLocation
-    // shape the web client's `taskCoords` reads). Without this the coordinates
-    // that the join used to FILTER would never reach the client and no pin
-    // could render. Non-located reads never carry the join, so `contact` is
-    // simply absent there — the frozen non-map contract is unchanged.
-    const base = { ...rest, done, status: done ? "done" : "open" };
     if (hasLocation) {
-      const contact = row.conversations?.contacts ?? null;
-      return {
-        ...base,
-        contact: contact
+      // Map view (task_map_rows view): `done` + the source contact's geocode
+      // arrive as FLAT columns. Derive done, fold the geocode into `contact`
+      // (the TaskContactLocation shape the client's taskCoords reads — without
+      // it no pin could render), and strip the view-only columns from the row.
+      const done = (row.done_at ?? null) !== null;
+      const contact =
+        row.contact_id != null
           ? {
-              id: contact.id,
-              name: contact.name,
-              lat: contact.lat,
-              lng: contact.lng,
+              id: row.contact_id,
+              name: row.contact_name ?? null,
+              lat: row.contact_lat ?? null,
+              lng: row.contact_lng ?? null,
             }
-          : null,
-      };
+          : null;
+      delete rest.done_at;
+      delete rest.contact_id;
+      delete rest.contact_name;
+      delete rest.contact_lat;
+      delete rest.contact_lng;
+      return { ...rest, done, status: done ? "done" : "open", contact };
     }
-    return base;
+    // Non-map path (unchanged frozen contract): `messages` is a read-only join
+    // artifact and there is no `contact`.
+    delete rest.messages;
+    const done = (row.messages?.done_at ?? null) !== null;
+    return { ...rest, done, status: done ? "done" : "open" };
   });
 
   // next_cursor matches the view's ordering: due-sorted pages advance on the
