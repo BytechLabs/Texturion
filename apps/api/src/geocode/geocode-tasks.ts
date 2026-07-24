@@ -94,6 +94,11 @@ export async function geocodeTasksJob(
     .select(
       "id,addr_street,addr_unit,addr_city,addr_state,addr_postal_code,addr_country",
     )
+    // Soft-deleted tasks never appear on the Map (the /v1/tasks feed filters
+    // them), so geocoding them is pure waste — and worse, they'd consume the
+    // capped batch and the paced Nominatim budget ahead of live tasks. Exclude
+    // them, exactly like the contacts twin.
+    .is("deleted_at", null)
     .or(RETRYABLE_STATUSES)
     .order("created_at", { ascending: true })
     .limit(GEOCODE_TASKS_BATCH);

@@ -33,12 +33,19 @@ function stubWorld(
   geocodeFor: (q: string) => unknown,
 ): {
   route: FetchRoute;
-  captured: { nominatim: URL[]; updates: { url: URL; body: unknown }[] };
+  captured: { nominatim: URL[]; updates: { url: URL; body: unknown }[]; scans: URL[] };
 } {
-  const captured = { nominatim: [] as URL[], updates: [] as { url: URL; body: unknown }[] };
+  const captured = {
+    nominatim: [] as URL[],
+    updates: [] as { url: URL; body: unknown }[],
+    scans: [] as URL[],
+  };
   const route: FetchRoute = (url, request) => {
     if (url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/tasks`)) {
-      if (request.method === "GET") return Response.json(scanRows);
+      if (request.method === "GET") {
+        captured.scans.push(url);
+        return Response.json(scanRows);
+      }
       if (request.method === "PATCH") {
         return (async () => {
           const body = await request.clone().json();
@@ -98,6 +105,18 @@ describe("geocodeTasksJob", () => {
       lng: -79.3871,
       geocode_status: "ok",
     });
+  });
+
+  it("excludes soft-deleted tasks from the scan (they never hit the Map)", async () => {
+    const { route, captured } = stubWorld([], () => []);
+    stubFetch(route);
+
+    await geocodeTasksJob(env, undefined, noSleep);
+
+    // The work-set query filters deleted_at is null, so a deleted task with an
+    // address can never consume the batch or the paced Nominatim budget.
+    expect(captured.scans).toHaveLength(1);
+    expect(captured.scans[0].searchParams.get("deleted_at")).toBe("is.null");
   });
 
   it("marks a task Nominatim can't place as no_address (terminal)", async () => {
