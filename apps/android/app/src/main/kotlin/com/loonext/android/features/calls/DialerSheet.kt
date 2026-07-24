@@ -48,6 +48,8 @@ import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.AppSheet
+import com.loonext.android.ui.common.PreviewHarness
+import com.loonext.android.ui.common.ResponsivePreviews
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
@@ -394,6 +396,102 @@ fun DialerSheet(
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(bottom = 16.dp),
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * #180 responsive proof: the dialer body laid out at every ratio, driven by the
+ * SAME proportional scale + backstop scroll as the live sheet (real [KeypadKey]
+ * atoms). On a short/square viewport the keys shrink; below the scale floor the
+ * scroll keeps the call disc reachable.
+ */
+@ResponsivePreviews
+@Composable
+private fun DialerBodyPreview() {
+    PreviewHarness {
+        val digits = "4155550134"
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val scale = (maxHeight / DIALER_DESIGN_HEIGHT).coerceIn(MIN_DIALER_SCALE, 1f)
+            val keySpacing = 26.dp * scale
+            val keySize = (72.dp * scale)
+                .coerceAtMost((maxWidth - 52.dp - keySpacing * 2) / 3)
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 26.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                LineStatusRow(
+                    text = "Line ready · (415) 555-0134",
+                    dot = BrandColor.LimeBright,
+                    textColor = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
+                Text(
+                    formatAsYouDial(digits),
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontSize = 31.sp * scale,
+                        letterSpacing = 0.01.em,
+                    ),
+                    color = MaterialTheme.colorScheme.onBackground,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 14.dp * scale, bottom = 4.dp),
+                )
+                Box(Modifier.height(26.dp))
+                KEYPAD_ROWS.forEach { row ->
+                    Row(
+                        Modifier.padding(bottom = 12.dp * scale),
+                        horizontalArrangement = Arrangement.spacedBy(keySpacing),
+                    ) {
+                        row.forEach { (key, letters) ->
+                            KeypadKey(
+                                digit = key,
+                                letters = letters,
+                                onClick = {},
+                                size = keySize,
+                                textScale = scale,
+                            )
+                        }
+                    }
+                }
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp * scale, bottom = 16.dp * scale),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.weight(1f)) {}
+                    Surface(
+                        onClick = {},
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        contentColor = MaterialTheme.colorScheme.onTertiary,
+                        modifier = Modifier.size(68.dp * scale),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Outlined.Call,
+                                contentDescription = "Call",
+                                modifier = Modifier.size(26.dp * scale),
+                            )
+                        }
+                    }
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        IconButton(onClick = {}) {
+                            Icon(
+                                Icons.AutoMirrored.Outlined.Backspace,
+                                contentDescription = "Delete last digit",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
             }
         }

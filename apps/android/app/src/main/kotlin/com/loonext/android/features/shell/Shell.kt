@@ -70,6 +70,7 @@ import com.loonext.android.features.tasks.TasksTab
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.assertAboveIme
+import com.loonext.android.ui.common.contentMaxWidth
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.theme.BrandColor
@@ -223,7 +224,11 @@ fun MainShell(
                     LocalShellPagerBlocker provides blocker,
                     LocalShellPageActive provides (pagerState.settledPage == page),
                 ) {
-                    content(shellTabForPage(page), Modifier.fillMaxSize())
+                    // #180: cap + centre the tab content on wide viewports
+                    // (tablets, foldable inner displays) so lists and headers
+                    // don't stretch edge-to-edge; a no-op on phones. The pill
+                    // nav and fade gradient stay full-width (drawn above this).
+                    content(shellTabForPage(page), Modifier.fillMaxSize().contentMaxWidth())
                 }
             }
 
@@ -236,7 +241,7 @@ fun MainShell(
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.background),
                 ) {
-                    content(ShellTab.Contacts, contentInsets)
+                    content(ShellTab.Contacts, contentInsets.contentMaxWidth())
                 }
             }
 

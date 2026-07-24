@@ -78,8 +78,15 @@ import com.loonext.android.core.model.UsageStatus
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.PreviewHarness
+import com.loonext.android.ui.common.ResponsivePreviews
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
+import com.loonext.android.ui.common.contentMaxWidth
+import com.loonext.android.ui.common.isCompactHeight
+import com.loonext.android.ui.common.previewCompany
+import com.loonext.android.ui.common.previewMe
+import com.loonext.android.ui.common.previewUsage
 import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
@@ -308,6 +315,9 @@ private fun SettingsIndex(
     onOpenDiagnostics: () -> Unit,
     onVersionTap: () -> Unit,
 ) {
+    // #180: the hub already scrolls at any height; condense the inter-card
+    // rhythm on short/landscape viewports so more of the list clears the fold.
+    val compact = isCompactHeight()
     Column(
         Modifier
             .fillMaxSize()
@@ -316,7 +326,7 @@ private fun SettingsIndex(
             // The route title lives in the host's header slot (#200); the hub
             // opens straight onto the identity card.
             .padding(top = 6.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(13.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 9.dp else 13.dp),
     ) {
         IdentityCard(company, me, role, onCopyNumber)
         usage?.let { UsageStatusCard(it, onOpen = { onOpen(SettingsSection.Usage) }) }
@@ -738,4 +748,29 @@ private fun SectionContainer(content: @Composable () -> Unit) {
 private fun copyToClipboard(context: Context, text: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     clipboard.setPrimaryClip(ClipData.newPlainText("Phone number", text))
+}
+
+/**
+ * #180 responsive proof: the settings hub index laid out at every ratio. The
+ * scroll keeps Profile / the version footer reachable on the shortest viewport;
+ * [contentMaxWidth] mirrors the route host's cap on wide screens.
+ */
+@ResponsivePreviews
+@Composable
+private fun SettingsIndexPreview() {
+    PreviewHarness {
+        Box(Modifier.fillMaxSize().contentMaxWidth()) {
+            SettingsIndex(
+                company = previewCompany(),
+                me = previewMe(),
+                role = "owner",
+                usage = previewUsage(),
+                devMode = false,
+                onOpen = {},
+                onCopyNumber = {},
+                onOpenDiagnostics = {},
+                onVersionTap = {},
+            )
+        }
+    }
 }

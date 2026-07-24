@@ -89,30 +89,38 @@ struct ExternalStepView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Text(headline)
-                .font(.display(24))
-                .foregroundStyle(BrandColor.ink)
-                .multilineTextAlignment(.center)
-            Text(message)
-                .font(.golos(13.5))
-                .foregroundStyle(BrandColor.muted600)
-                .multilineTextAlignment(.center)
-                .padding(.top, 8)
-                .padding(.bottom, 20)
-            PrimaryButton(title: cta, enabled: true) {
-                openURL(url)
+        // #180: centered on tall viewports, but scrolls the instant the copy +
+        // three actions can't fit a short/square window — Sign out stays
+        // reachable. The 440 cap keeps the column from stretching on iPad.
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(spacing: 0) {
+                    Text(headline)
+                        .font(.display(24))
+                        .foregroundStyle(BrandColor.ink)
+                        .multilineTextAlignment(.center)
+                    Text(message)
+                        .font(.golos(13.5))
+                        .foregroundStyle(BrandColor.muted600)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 8)
+                        .padding(.bottom, 20)
+                    PrimaryButton(title: cta, enabled: true) {
+                        openURL(url)
+                    }
+                    Button("I've done this — refresh", action: onRefresh)
+                        .font(.golos(13, weight: .medium))
+                        .padding(.top, 12)
+                    Button("Sign out", action: onSignOut)
+                        .font(.golos(13, weight: .medium))
+                        .padding(.top, 8)
+                }
+                .frame(maxWidth: 440)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 24)
+                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
             }
-            Button("I've done this — refresh", action: onRefresh)
-                .font(.golos(13, weight: .medium))
-                .padding(.top, 12)
-            Button("Sign out", action: onSignOut)
-                .font(.golos(13, weight: .medium))
-                .padding(.top, 8)
         }
-        .frame(maxWidth: 440)
-        .padding(.horizontal, 28)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(BrandColor.canvas.ignoresSafeArea())
         .tint(BrandColor.olive)
     }

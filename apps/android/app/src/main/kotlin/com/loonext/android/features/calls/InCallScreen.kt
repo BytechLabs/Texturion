@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -70,8 +71,11 @@ import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.PreviewHarness
+import com.loonext.android.ui.common.ResponsivePreviews
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.isCompactHeight
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
@@ -193,12 +197,34 @@ fun InCallScreen(
     }
     val transferAddressable = CallWakePolicy.transferAddressable(featured, outboundAddressable)
 
-    Column(
-        modifier
-            .fillMaxSize()
-            .padding(start = 22.dp, end = 22.dp, top = 10.dp, bottom = 22.dp),
+    // #180: the live-call surface must stay fully reachable at ANY viewport —
+    // a square cover display, a foldable, landscape. The body scrolls when it
+    // is taller than the screen, yet still bottom-anchors the controls when
+    // there is room: heightIn(min = viewport) + SpaceBetween reproduces the old
+    // weight-spacer layout on tall screens and grows past it (scrolling) on
+    // short ones. Compact height also shrinks the identity block so it rarely
+    // needs to scroll at all. Telecom/answer logic is untouched — layout only.
+    BoxWithConstraints(modifier.fillMaxSize()) {
+      val compact = isCompactHeight()
+      Column(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = maxHeight)
+            .verticalScroll(rememberScrollState())
+            .padding(
+                start = 22.dp,
+                end = 22.dp,
+                top = if (compact) 6.dp else 10.dp,
+                bottom = if (compact) 14.dp else 22.dp,
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+        verticalArrangement = Arrangement.SpaceBetween,
+      ) {
+        // Top cluster: hide affordance + caller identity + other-call rows.
+        Column(
+            Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
         Row(Modifier.fillMaxWidth()) {
             val hideInteraction = remember { MutableInteractionSource() }
             Surface(
@@ -229,16 +255,18 @@ fun InCallScreen(
         if (featured != null) {
             CallerAvatar(
                 featured.peerName,
-                size = 96.dp,
+                size = if (compact) 72.dp else 96.dp,
                 badge = featured.phase != CallPhase.RINGING,
                 ringing = featured.phase == CallPhase.RINGING,
             )
             Text(
                 featured.peerName,
-                style = MaterialTheme.typography.headlineSmall.copy(fontSize = 26.sp),
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontSize = if (compact) 22.sp else 26.sp,
+                ),
                 color = MaterialTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 10.dp),
+                modifier = Modifier.padding(top = if (compact) 6.dp else 10.dp),
             )
             if (featured.peerNumber.isNotBlank() &&
                 formatPhone(featured.peerNumber) != featured.peerName
@@ -250,7 +278,7 @@ fun InCallScreen(
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
-            CallPhaseLine(featured)
+            CallPhaseLine(featured, compact = compact)
         }
 
         snapshot.error?.let {
@@ -272,9 +300,14 @@ fun InCallScreen(
                 Spacer(Modifier.height(8.dp))
             }
         }
+        }
 
-        Spacer(Modifier.weight(1f))
-
+        // Bottom cluster: controls + the end/answer affordances, pinned to the
+        // foot of the viewport (SpaceBetween) or scrolled to when space is tight.
+        Column(
+            Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
         if (featured != null && featured.phase != CallPhase.RINGING) {
             if (conversationId != null) {
                 CallNoteCard(
@@ -401,7 +434,7 @@ fun InCallScreen(
             }
         }
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(if (compact) 10.dp else 18.dp))
         if (featured != null && featured.phase == CallPhase.RINGING &&
             featured.direction == CallDirection.INBOUND
         ) {
@@ -474,6 +507,8 @@ fun InCallScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+        }
+      }
     }
 
     if (dtmfOpen && featured != null) {
@@ -574,7 +609,7 @@ private fun CallNoteCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
 
 /** "Ringing…" / "Connecting…" / the big live timer / "On hold" / "Call ended". */
 @Composable
-private fun CallPhaseLine(call: CallSnapshot) {
+private fun CallPhaseLine(call: CallSnapshot, compact: Boolean = false) {
     // Phase swaps cross-animate; the per-second timer tick lives INSIDE the
     // ACTIVE branch so it never retriggers the transition (#194).
     AnimatedContent(targetState = call.phase, label = "callPhase") { phase ->
@@ -589,7 +624,9 @@ private fun CallPhaseLine(call: CallSnapshot) {
                 }
                 Text(
                     formatTimer(now - anchor),
-                    fontSize = 48.sp,
+                    // #180: the 48sp timer eats a square/landscape viewport;
+                    // condense it (still the dominant element) when height is compact.
+                    fontSize = if (compact) 34.sp else 48.sp,
                     fontWeight = FontWeight.Normal,
                     letterSpacing = (-0.01).em,
                     color = MaterialTheme.colorScheme.onBackground,
@@ -985,3 +1022,130 @@ private fun TransferTargetRow(
 }
 
 private data class TransferRow(val userId: String, val name: String, val busy: Boolean)
+
+/**
+ * #180 responsive proof: the active-call surface laid out at every ratio, in the
+ * SAME scroll + SpaceBetween + compact-height structure the live screen uses
+ * (real [CallerAvatar] / [ControlCircle] / [EndCallPill] atoms). Every control
+ * stays reachable on a square 720 or a 412-tall landscape viewport.
+ */
+@ResponsivePreviews
+@Composable
+private fun InCallScreenPreview() {
+    PreviewHarness {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val compact = isCompactHeight()
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = maxHeight)
+                    .verticalScroll(rememberScrollState())
+                    .padding(
+                        start = 22.dp,
+                        end = 22.dp,
+                        top = if (compact) 6.dp else 10.dp,
+                        bottom = if (compact) 14.dp else 22.dp,
+                    ),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(
+                    Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Row(Modifier.fillMaxWidth()) {
+                        Surface(
+                            onClick = {},
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surface,
+                            shadowElevation = 1.dp,
+                            modifier = Modifier.size(44.dp),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Outlined.KeyboardArrowDown,
+                                    contentDescription = "Hide",
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                        }
+                        Spacer(Modifier.weight(1f))
+                    }
+                    CallerAvatar(
+                        "Jordan Lee",
+                        size = if (compact) 72.dp else 96.dp,
+                        badge = true,
+                    )
+                    Text(
+                        "Jordan Lee",
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontSize = if (compact) 22.sp else 26.sp,
+                        ),
+                        color = MaterialTheme.colorScheme.onBackground,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = if (compact) 6.dp else 10.dp),
+                    )
+                    Text(
+                        "02:14",
+                        fontSize = if (compact) 34.sp else 48.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+                Column(
+                    Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Row(Modifier.fillMaxWidth()) {
+                        ControlCircle(
+                            icon = Icons.Outlined.Mic,
+                            label = "Mute",
+                            onClick = {},
+                            modifier = Modifier.weight(1f),
+                        )
+                        ControlCircle(
+                            icon = Icons.Outlined.Dialpad,
+                            label = "Keypad",
+                            onClick = {},
+                            modifier = Modifier.weight(1f),
+                        )
+                        ControlCircle(
+                            icon = Icons.Outlined.Pause,
+                            label = "Hold",
+                            onClick = {},
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth()) {
+                        ControlCircle(
+                            icon = Icons.Outlined.PhoneForwarded,
+                            label = "Transfer",
+                            onClick = {},
+                            modifier = Modifier.weight(1f),
+                        )
+                        ControlCircle(
+                            icon = Icons.AutoMirrored.Outlined.Message,
+                            label = "Note",
+                            onClick = {},
+                            modifier = Modifier.weight(1f),
+                        )
+                        ControlCircle(
+                            icon = Icons.Outlined.VolumeUp,
+                            label = "Speaker",
+                            onClick = {},
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Spacer(Modifier.height(if (compact) 10.dp else 18.dp))
+                    EndCallPill(
+                        onClick = {},
+                        label = "End call",
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+    }
+}

@@ -37,6 +37,10 @@ compose-ui = { group = "androidx.compose.ui", name = "ui" }
 compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+# #180 responsive layout: WindowSizeClass (calculateWindowSizeClass) — pinned to
+# the same material3 family already in use so the size-class buckets match the
+# Material components. Its own artifact, not part of the compose BOM.
+compose-material3-windowsize = { group = "androidx.compose.material3", name = "material3-window-size-class", version.ref = "material3" }
 compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }

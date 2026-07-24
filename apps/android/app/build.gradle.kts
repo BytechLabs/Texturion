@@ -74,6 +74,8 @@ kotlin {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         optIn.add("androidx.compose.material3.ExperimentalMaterial3Api")
         optIn.add("androidx.compose.material3.ExperimentalMaterial3ExpressiveApi")
+        // #180: calculateWindowSizeClass / calculateFromSize are still experimental.
+        optIn.add("androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi")
     }
 }
 
@@ -92,6 +94,7 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
+    implementation(libs.compose.material3.windowsize)
     implementation(libs.compose.material.icons.extended)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)

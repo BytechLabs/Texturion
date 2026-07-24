@@ -21,6 +21,17 @@ struct InCallView: View {
     @State private var speakerOn = false
     @State private var conversationId: String?
 
+    /// #180: in landscape / square viewports the vertical size class is compact
+    /// — collapse the identity block's rhythm so the controls and End-call pill
+    /// stay on screen (and the scroll backstop guarantees reachability below).
+    @Environment(\.verticalSizeClass) private var vSizeClass
+
+    private var compactHeight: Bool { vSizeClass == .compact }
+    private var avatarSize: CGFloat { compactHeight ? 76 : 112 }
+    private var avatarRingInner: CGFloat { compactHeight ? 94 : 130 }
+    private var avatarRingOuter: CGFloat { compactHeight ? 110 : 150 }
+    private var avatarBlockHeight: CGFloat { compactHeight ? 112 : 152 }
+
     private var snapshot: SoftphoneSnapshot { manager.state }
 
     private var featured: CallSnapshot? {
@@ -31,24 +42,70 @@ struct InCallView: View {
     }
 
     var body: some View {
+        // #180: the live-call surface fills the viewport and distributes its
+        // rhythm on tall screens, but scrolls the instant the fixed content
+        // (avatar, controls, End-call pill, Hide) can't fit — so no control is
+        // ever stranded on a short/square viewport.
+        GeometryReader { proxy in
+            ScrollView {
+                callColumn
+                    .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(BrandColor.insetDeep.ignoresSafeArea())
+        .task(id: snapshot.liveCalls.isEmpty) {
+            if snapshot.liveCalls.isEmpty {
+                // A brief beat so "Call ended" registers, then close.
+                try? await Task.sleep(for: .milliseconds(400))
+                if !Task.isCancelled { onClose() }
+            }
+        }
+        // The notes deep-link: resolve live facts once the session is known.
+        .task(id: featured?.sessionId) {
+            conversationId = nil
+            guard let session = featured?.sessionId else { return }
+            conversationId = try? await manager.liveFacts(sessionId: session).conversation_id
+        }
+        .sheet(isPresented: $dtmfOpen) {
+            if let featured {
+                DtmfSheet { digit in manager.dtmf(featured.id, digit: digit) }
+            }
+        }
+        .sheet(isPresented: $transferOpen) {
+            if let featured, let session = featured.sessionId {
+                TransferSheet(
+                    manager: manager,
+                    service: service,
+                    companyId: companyId,
+                    sessionId: session
+                )
+            }
+        }
+    }
+
+    /// The identity + controls + actions column. Its top rhythm collapses under
+    /// a compact vertical size class (landscape / square) so the whole surface
+    /// stays on screen; the scroll backstop covers anything shorter still.
+    private var callColumn: some View {
         VStack(spacing: 0) {
-            Spacer().frame(height: 48)
+            Spacer().frame(height: compactHeight ? 14 : 48)
 
             if let featured {
                 ZStack {
                     Circle()
                         .stroke(BrandColor.lime.opacity(0.55), lineWidth: 2)
-                        .frame(width: 130, height: 130)
+                        .frame(width: avatarRingInner, height: avatarRingInner)
                     Circle()
                         .stroke(
                             BrandColor.ink.opacity(0.2),
                             style: StrokeStyle(lineWidth: 2, dash: [2, 5])
                         )
-                        .frame(width: 150, height: 150)
-                    InitialsAvatar(name: featured.peerName, size: 112)
+                        .frame(width: avatarRingOuter, height: avatarRingOuter)
+                    InitialsAvatar(name: featured.peerName, size: avatarSize)
                 }
-                .frame(height: 152)
-                Spacer().frame(height: 20)
+                .frame(height: avatarBlockHeight)
+                Spacer().frame(height: compactHeight ? 10 : 20)
                 Text(featured.peerName)
                     .font(.display(26))
                     .kerning(-0.26)
@@ -86,13 +143,13 @@ struct InCallView: View {
                 .padding(.horizontal, 22)
             }
 
-            Spacer()
+            Spacer(minLength: compactHeight ? 16 : 0)
 
             if let featured, featured.phase != .ringing {
                 controls(for: featured)
             }
 
-            Spacer().frame(height: 22)
+            Spacer().frame(height: compactHeight ? 16 : 22)
 
             if let featured, featured.phase == .ringing {
                 // The in-app ring layout (spec 04): brick Decline, lime Answer.
@@ -114,36 +171,6 @@ struct InCallView: View {
             }
             .padding(.horizontal, 22)
             Spacer().frame(height: 16)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(BrandColor.insetDeep.ignoresSafeArea())
-        .task(id: snapshot.liveCalls.isEmpty) {
-            if snapshot.liveCalls.isEmpty {
-                // A brief beat so "Call ended" registers, then close.
-                try? await Task.sleep(for: .milliseconds(400))
-                if !Task.isCancelled { onClose() }
-            }
-        }
-        // The notes deep-link: resolve live facts once the session is known.
-        .task(id: featured?.sessionId) {
-            conversationId = nil
-            guard let session = featured?.sessionId else { return }
-            conversationId = try? await manager.liveFacts(sessionId: session).conversation_id
-        }
-        .sheet(isPresented: $dtmfOpen) {
-            if let featured {
-                DtmfSheet { digit in manager.dtmf(featured.id, digit: digit) }
-            }
-        }
-        .sheet(isPresented: $transferOpen) {
-            if let featured, let session = featured.sessionId {
-                TransferSheet(
-                    manager: manager,
-                    service: service,
-                    companyId: companyId,
-                    sessionId: session
-                )
-            }
         }
     }
 
@@ -764,4 +791,32 @@ private func previewSnapshot(
     }
     .padding()
     .background(BrandColor.insetDeep)
+}
+
+// #180 responsive matrix — the live surface renders from CallsManager state
+// (no injection seam by design), so these prove the callColumn + scroll
+// backstop compile and lay out at a landscape and a square ratio.
+
+#Preview("In-call · landscape frame") {
+    let graph = AppGraph()
+    InCallView(
+        manager: CallsManager.get(graph: graph),
+        service: CallsService(api: graph.api),
+        companyId: "co-preview",
+        openConversation: { _ in },
+        onClose: {}
+    )
+    .frame(width: 740, height: 360)
+}
+
+#Preview("In-call · 1:1 square frame") {
+    let graph = AppGraph()
+    InCallView(
+        manager: CallsManager.get(graph: graph),
+        service: CallsService(api: graph.api),
+        companyId: "co-preview",
+        openConversation: { _ in },
+        onClose: {}
+    )
+    .frame(width: 400, height: 400)
 }

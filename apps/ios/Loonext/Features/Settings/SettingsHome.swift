@@ -155,7 +155,7 @@ struct SettingsHome: View {
                     ForEach(Array(SettingsSection.allCases.enumerated()), id: \.element.id) { index, section in
                         if index > 0 { RowDivider() }
                         NavigationLink(value: section) {
-                            sectionRow(section)
+                            SettingsSectionRow(section: section)
                         }
                         .buttonStyle(.plain)
                     }
@@ -164,6 +164,10 @@ struct SettingsHome: View {
             .padding(.horizontal, 18)
             .padding(.top, 8)
             .padding(.bottom, 24)
+            // Cap + center the index on a regular-width (iPad) window so it
+            // doesn't stretch edge-to-edge (#180).
+            .frame(maxWidth: 640)
+            .frame(maxWidth: .infinity)
         }
         .background(BrandColor.canvas)
         .toolbar(.hidden, for: .navigationBar)
@@ -226,36 +230,6 @@ struct SettingsHome: View {
         company.numbers.first { $0.status == NumberStatus.active && $0.number_e164 != nil }?.number_e164
     }
 
-    /// Spec-28 index row: inset icon tile, 13.5 semibold title, 11 muted blurb.
-    private func sectionRow(_ section: SettingsSection) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: section.icon)
-                .font(.system(size: 15))
-                .foregroundStyle(BrandColor.muted900)
-                .frame(width: 36, height: 36)
-                .background(
-                    BrandColor.inset,
-                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                )
-            VStack(alignment: .leading, spacing: 1) {
-                Text(section.title)
-                    .font(.golos(13.5, weight: .semibold))
-                    .foregroundStyle(BrandColor.ink)
-                Text(section.blurb)
-                    .font(.golos(11))
-                    .foregroundStyle(BrandColor.muted400)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 8)
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(BrandColor.muted250)
-        }
-        .padding(.horizontal, 15)
-        .padding(.vertical, 11)
-        .contentShape(Rectangle())
-    }
-
     // MARK: - Section screens
 
     @ViewBuilder
@@ -295,6 +269,10 @@ struct SettingsHome: View {
                 }
             }
             .padding(.vertical, 10)
+            // Same iPad cap as the index, so a section's rows/forms stay a
+            // readable column instead of spanning the full width (#180).
+            .frame(maxWidth: 640)
+            .frame(maxWidth: .infinity)
         }
         .background(BrandColor.canvas)
         .navigationTitle(section.title)
@@ -341,4 +319,83 @@ struct SettingsHome: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
+}
+
+/// Spec-28 index row: inset icon tile, 13.5 semibold title, 11 muted blurb.
+/// Standalone so the responsive index preview can render the real section
+/// grammar without the (heavily-defaulted) `CompanyView` the live screen loads.
+private struct SettingsSectionRow: View {
+    let section: SettingsSection
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: section.icon)
+                .font(.system(size: 15))
+                .foregroundStyle(BrandColor.muted900)
+                .frame(width: 36, height: 36)
+                .background(
+                    BrandColor.inset,
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                )
+            VStack(alignment: .leading, spacing: 1) {
+                Text(section.title)
+                    .font(.golos(13.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
+                Text(section.blurb)
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted400)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(BrandColor.muted250)
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 11)
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Previews
+
+/// The settings index grammar (title + all nine section rows), rendered from
+/// the real `SettingsSection` metadata inside the app's card + scroll shell.
+/// #180 responsive matrix — fixed frames prove every row stays reachable via
+/// scroll at each ratio.
+private struct SettingsIndexPreview: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 13) {
+                ScreenTitle(text: "Settings")
+                PaperCard {
+                    ForEach(Array(SettingsSection.allCases.enumerated()), id: \.element.id) { index, section in
+                        if index > 0 { RowDivider() }
+                        SettingsSectionRow(section: section)
+                    }
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
+            .padding(.bottom, 24)
+            .frame(maxWidth: 640)
+            .frame(maxWidth: .infinity)
+        }
+        .background(BrandColor.canvas)
+    }
+}
+
+#Preview("Settings index · tall phone") {
+    SettingsIndexPreview()
+        .frame(width: 390, height: 720)
+}
+
+#Preview("Settings index · 1:1 square") {
+    SettingsIndexPreview()
+        .frame(width: 380, height: 380)
+}
+
+#Preview("Settings index · iPad width") {
+    SettingsIndexPreview()
+        .frame(width: 900, height: 820)
 }

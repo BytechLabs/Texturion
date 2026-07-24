@@ -70,11 +70,15 @@ import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.PreviewHarness
+import com.loonext.android.ui.common.ResponsivePreviews
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
+import com.loonext.android.ui.common.isCompactHeight
 import com.loonext.android.ui.common.loonextWordmark
+import com.loonext.android.ui.common.previewMe
 import com.loonext.android.ui.common.rememberHaptics
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
@@ -97,27 +101,70 @@ fun AccountSheet(
     onSignOut: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
     val theme by graph.prefs.theme.collectAsStateWithLifecycle(initialValue = "system")
-    val membership = me.memberships.firstOrNull { it.company_id == companyId }
-    val company = me.company
-    val workspaceName = membership?.name ?: company?.name
 
     AppSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
     ) {
-        Column(
-            // #180: rows must stay reachable at ANY viewport height. When the
-            // sheet is taller than the screen allows, the content scrolls; on
-            // tall screens the scroll never engages and nothing moves.
-            Modifier
-                .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
+        AccountSheetContent(
+            me = me,
+            companyId = companyId,
+            unreadNotifications = unreadNotifications,
+            theme = theme,
+            onSelectTheme = { value ->
+                haptics.tap()
+                scope.launch { graph.prefs.setTheme(value) }
+            },
+            onOpenContacts = onOpenContacts,
+            onOpenNotifications = onOpenNotifications,
+            onOpenSettings = onOpenSettings,
+            onSwitchWorkspace = onSwitchWorkspace,
+            onSignOut = onSignOut,
+            onDismiss = onDismiss,
+        )
+    }
+}
+
+/**
+ * The sheet's visual body, split out from its graph wiring (#180) so it can be
+ * previewed at every viewport ratio. [theme] + [onSelectTheme] stand in for the
+ * prefs flow; everything else is plain data. The content scrolls, so Sign out
+ * stays reachable even on a square cover display, and condenses its rhythm when
+ * height is compact.
+ */
+@Composable
+internal fun AccountSheetContent(
+    me: Me,
+    companyId: String,
+    unreadNotifications: Int,
+    theme: String,
+    onSelectTheme: (String) -> Unit,
+    onOpenContacts: () -> Unit,
+    onOpenNotifications: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onSwitchWorkspace: (String) -> Unit,
+    onSignOut: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val haptics = rememberHaptics()
+    val compact = isCompactHeight()
+    val membership = me.memberships.firstOrNull { it.company_id == companyId }
+    val company = me.company
+    val workspaceName = membership?.name ?: company?.name
+
+    Column(
+        // #180: rows must stay reachable at ANY viewport height. When the
+        // sheet is taller than the screen allows, the content scrolls; on
+        // tall screens the scroll never engages and nothing moves.
+        Modifier
+            .verticalScroll(rememberScrollState())
+            .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 9.dp else 14.dp),
+    ) {
             // --- Ink identity tile: workspace + who you are + numbers -----
             Surface(
                 shape = MaterialTheme.shapes.large,
@@ -128,7 +175,12 @@ fun AccountSheet(
                 val activeNumbers = company?.numbers
                     ?.filter { it.status == NumberStatus.ACTIVE && it.number_e164 != null }
                     .orEmpty()
-                Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                Column(
+                    Modifier.padding(
+                        horizontal = 16.dp,
+                        vertical = if (compact) 10.dp else 14.dp,
+                    ),
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             Modifier
@@ -250,10 +302,7 @@ fun AccountSheet(
                                         label = "themeLabel",
                                     )
                                     Surface(
-                                        onClick = {
-                                            if (!selected) haptics.tap()
-                                            scope.launch { graph.prefs.setTheme(value) }
-                                        },
+                                        onClick = { if (!selected) onSelectTheme(value) },
                                         shape = CircleShape,
                                         color = Color.Transparent,
                                         modifier = Modifier.onGloballyPositioned {
@@ -411,7 +460,6 @@ fun AccountSheet(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-    }
 }
 
 /** Pill number chip on the ink tile — tap to copy. */
@@ -530,4 +578,29 @@ private fun Chevron() {
 private fun copy(context: Context, text: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     clipboard.setPrimaryClip(ClipData.newPlainText("Phone number", text))
+}
+
+/**
+ * #180 responsive proof: the You sheet — the founder's clip example — laid out
+ * at every ratio. The scroll keeps Settings and Sign out reachable even on a
+ * square 720 or a 412-tall landscape viewport.
+ */
+@ResponsivePreviews
+@Composable
+private fun AccountSheetContentPreview() {
+    PreviewHarness {
+        AccountSheetContent(
+            me = previewMe(),
+            companyId = "co_1",
+            unreadNotifications = 3,
+            theme = "system",
+            onSelectTheme = {},
+            onOpenContacts = {},
+            onOpenNotifications = {},
+            onOpenSettings = {},
+            onSwitchWorkspace = {},
+            onSignOut = {},
+            onDismiss = {},
+        )
+    }
 }

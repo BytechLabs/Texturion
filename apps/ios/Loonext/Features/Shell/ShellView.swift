@@ -88,6 +88,17 @@ struct ShellView: View {
     @State private var counts = ShellCounts()
     @State private var countsKey = 0
 
+    /// #180: the shell is where the window's horizontal size class is known.
+    /// Regular width (iPad, or an iPad-style split) caps the floating pill so it
+    /// reads as a centered control instead of stretching the full width; the
+    /// tab roots and the sheets they present read their own vertical size class
+    /// (AccountSheet, InCallView) for compact-height rhythm.
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+
+    /// The pill's max width — capped and centered on a regular-width window,
+    /// full-bleed (minus its inset) on a compact phone.
+    private var pillMaxWidth: CGFloat { hSizeClass == .regular ? 460 : .infinity }
+
     /// The shared unread state (#201) — the SAME instance the notifications
     /// screen and the account sheet read, so the avatar dot clears the frame a
     /// mark-read lands, and an in-flight server count can't resurrect it.
@@ -330,6 +341,9 @@ struct ShellView: View {
         .frame(height: 66)
         .background(BrandColor.inkFixed, in: Capsule())
         .shadow(color: BrandColor.inkFixed.opacity(0.28), radius: 20, x: 0, y: 9)
+        // Cap + center on regular width (iPad); full-bleed on a phone (#180).
+        .frame(maxWidth: pillMaxWidth)
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, 14)
         .padding(.bottom, 14)
     }

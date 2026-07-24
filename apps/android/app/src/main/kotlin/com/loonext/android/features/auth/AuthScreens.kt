@@ -59,6 +59,10 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.loonext.android.core.auth.AuthManager
+import com.loonext.android.ui.common.PreviewHarness
+import com.loonext.android.ui.common.ResponsivePreviews
+import com.loonext.android.ui.common.contentMaxWidth
+import com.loonext.android.ui.common.isCompactHeight
 import com.loonext.android.ui.common.loonextWordmark
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -289,13 +293,18 @@ fun AuthFlow(viewModel: AuthViewModel) {
     // Keyboard: MainActivity's PreShellHost pads the ime for EVERY signed-out
     // surface (#199) - no local imePadding here. The scroll plus foundation's
     // focus relocation brings the focused field above the keyboard.
+    // #180: the front door already scrolls at any height; additionally cap +
+    // centre the column on wide viewports (tablets, foldables) so the form
+    // doesn't stretch, and trim the top gap on short/landscape viewports.
+    val compact = isCompactHeight()
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .contentMaxWidth(460.dp)
             .statusBarsPadding()
             .padding(horizontal = 24.dp)
-            .padding(top = 18.dp, bottom = 24.dp),
+            .padding(top = if (compact) 8.dp else 18.dp, bottom = 24.dp),
     ) {
         when (screen) {
             AuthScreen.Login -> LoginForm(
@@ -766,5 +775,35 @@ private fun ErrorLine(error: String?) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error,
         )
+    }
+}
+
+/**
+ * #180 responsive proof: the real sign-in front door laid out at every ratio
+ * (square cover display, small phone, tall 21:9, landscape, tablet). The scroll
+ * keeps every control reachable; the max-width cap centres it on wide screens.
+ */
+@ResponsivePreviews
+@Composable
+private fun AuthFlowPreview() {
+    PreviewHarness {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .contentMaxWidth(460.dp)
+                .statusBarsPadding()
+                .padding(horizontal = 24.dp)
+                .padding(top = 18.dp, bottom = 24.dp),
+        ) {
+            LoginForm(
+                busy = false,
+                error = null,
+                onSubmit = { _, _ -> },
+                onGoogle = {},
+                onForgot = {},
+                onSignUp = {},
+            )
+        }
     }
 }

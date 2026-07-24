@@ -11,6 +11,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.size
@@ -32,7 +36,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -81,7 +87,9 @@ import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CenteredLoading
+import com.loonext.android.ui.common.LocalWindowSizeClass
 import com.loonext.android.ui.common.ResyncOnResume
+import com.loonext.android.ui.common.contentMaxWidth
 import com.loonext.android.ui.common.imeHost
 import com.loonext.android.ui.theme.LoonextTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -154,11 +162,18 @@ class MainActivity : ComponentActivity() {
                 "dark" -> true
                 else -> isSystemInDarkTheme()
             }
+            // #180: compute the WindowSizeClass ONCE at the top and thread it
+            // down via LocalWindowSizeClass, so every surface (tabs, sheets,
+            // dialogs, the in-call screen) can adapt its vertical rhythm and
+            // max width to a square cover display, a foldable, or a tablet.
+            val windowSizeClass = calculateWindowSizeClass(this)
             LoonextTheme(darkTheme = darkTheme) {
-                Root(graph, deepLinks)
-                // #168A: no adb on the founder's device — if the last run
-                // crashed, offer the saved report once via the share sheet.
-                CrashReportPrompt(graph.diagnostics)
+                CompositionLocalProvider(LocalWindowSizeClass provides windowSizeClass) {
+                    Root(graph, deepLinks)
+                    // #168A: no adb on the founder's device — if the last run
+                    // crashed, offer the saved report once via the share sheet.
+                    CrashReportPrompt(graph.diagnostics)
+                }
             }
         }
     }
@@ -759,7 +774,10 @@ private fun OverlayScaffold(
                     Box(Modifier.align(Alignment.CenterEnd)) { slot() }
                 }
             }
-            content(Modifier.fillMaxSize())
+            // #180: cap + centre the hosted route body on wide viewports so
+            // settings / notifications / diagnostics don't stretch; no-op on
+            // phones. The header above stays full-width.
+            content(Modifier.fillMaxSize().contentMaxWidth())
         }
     }
 }
@@ -775,13 +793,19 @@ private fun ExternalStep(
     onSignOut: () -> Unit,
 ) {
     val context = LocalContext.current
-    Column(
+    // #180: centre the interstitial when there is room, but let it scroll on a
+    // short/landscape viewport so the CTA and Sign out never fall off-screen.
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+      Column(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 28.dp),
+            .fillMaxWidth()
+            .heightIn(min = maxHeight)
+            .verticalScroll(rememberScrollState())
+            .contentMaxWidth(460.dp)
+            .padding(horizontal = 28.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+      ) {
         Text(headline, style = MaterialTheme.typography.headlineSmall)
         Text(
             body,
@@ -795,5 +819,6 @@ private fun ExternalStep(
         }) { Text(cta) }
         TextButton(onClick = onRefresh) { Text("I've done this — refresh") }
         TextButton(onClick = onSignOut) { Text("Sign out") }
+      }
     }
 }

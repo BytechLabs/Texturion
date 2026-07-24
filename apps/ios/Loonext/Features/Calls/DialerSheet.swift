@@ -13,6 +13,15 @@ private let keypadLetters: [String: String] = [
     "7": "PQRS", "8": "TUV", "9": "WXYZ", "0": "+",
 ]
 
+/// Height the full-size dialer layout needs (#180). Viewports at or above it
+/// render the spec exactly; shorter/square ones scale the keys, spacing, the
+/// readout, and the call disc down proportionally so everything stays reachable
+/// (the Android DialerSheet twin — design height 620, floor 0.55).
+private let dialerDesignHeight: CGFloat = 620
+
+/// Floor for the proportional scale; below it the backstop scroll takes over.
+private let minDialerScale: CGFloat = 0.55
+
 /// The dialer — call ANY US/CA number. From-number chips appear only when the
 /// company owns several active numbers (a single-number company lets the
 /// server imply it). The mic permission is preflighted BEFORE authorizing, so
@@ -53,19 +62,54 @@ struct DialerSheet: View {
     private var dialable: String? { dialableE164(digits) }
 
     var body: some View {
-        VStack(spacing: 8) {
+        // #180: the keypad derives from the available space. At or above the
+        // design height scale == 1 and the sheet is pixel-identical to the
+        // spec; on short/square viewports the keys, spacing, readout, and call
+        // disc shrink together. The vertical scroll is the backstop below the
+        // scale floor, so every control stays reachable at any ratio.
+        GeometryReader { proxy in
+            let scale = min(max(proxy.size.height / dialerDesignHeight, minDialerScale), 1)
+            let keySpacing = 24 * scale
+            let keySize = min(72 * scale, (proxy.size.width - 48 - keySpacing * 2) / 3)
+            ScrollView {
+                dialerColumn(scale: scale, keySize: keySize, keySpacing: keySpacing)
+                    .padding(.horizontal, 24)
+                    .frame(maxWidth: .infinity, minHeight: proxy.size.height, alignment: .top)
+            }
+        }
+        // Opens FULLY EXPANDED (#186 item 5) — the single large detent.
+        .presentationDetents([.large])
+        .presentationBackground(BrandColor.canvas)
+        // Debounced live contact correlation as the digits change.
+        .task(id: digits) {
+            guard let lookupContact else { return }
+            let typed = digits.filter(\.isNumber)
+            if typed.count < 4 {
+                matchedName = nil
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(250)) // debounce keypad taps
+            if Task.isCancelled { return }
+            matchedName = await lookupContact(typed)
+        }
+    }
+
+    /// The dialer column, its geometry scaled from the available height (#180).
+    @ViewBuilder
+    private func dialerColumn(scale: CGFloat, keySize: CGFloat, keySpacing: CGFloat) -> some View {
+        VStack(spacing: 8 * scale) {
             Capsule()
                 .fill(BrandColor.insetDeep)
                 .frame(width: 36, height: 5)
                 .padding(.top, 8)
 
             Text(digits.isEmpty ? "Enter a number" : formatAsYouDial(digits))
-                .font(.display(31))
+                .font(.display(31 * scale))
                 .foregroundStyle(digits.isEmpty ? BrandColor.muted400 : BrandColor.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .frame(maxWidth: .infinity)
-                .padding(.top, 12)
+                .padding(.top, 12 * scale)
                 .padding(.bottom, 2)
                 .monospacedDigit()
 
@@ -74,7 +118,7 @@ struct DialerSheet: View {
             // and unknown. Fixed height so the keypad never jumps.
             correlationRow
                 .frame(height: 26)
-                .padding(.bottom, 8)
+                .padding(.bottom, 8 * scale)
 
             if numbers.count > 1 {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -104,16 +148,16 @@ struct DialerSheet: View {
                 .padding(.bottom, 8)
             }
 
-            VStack(spacing: 12) {
+            VStack(spacing: 12 * scale) {
                 ForEach(keypadRows, id: \.self) { row in
-                    HStack(spacing: 24) {
+                    HStack(spacing: keySpacing) {
                         ForEach(row, id: \.self) { key in
                             Button {
                                 if digits.count < 15 { digits += key }
                             } label: {
                                 VStack(spacing: 0) {
                                     Text(key)
-                                        .font(.golos(24, weight: .semibold))
+                                        .font(.golos(keySize * 0.34, weight: .semibold))
                                         .foregroundStyle(
                                             (key == "*" || key == "#")
                                                 ? BrandColor.muted500
@@ -121,12 +165,12 @@ struct DialerSheet: View {
                                         )
                                     if let letters = keypadLetters[key] {
                                         Text(letters)
-                                            .font(.golos(8.5, weight: .bold))
+                                            .font(.golos(keySize * 0.12, weight: .bold))
                                             .kerning(1.4)
                                             .foregroundStyle(BrandColor.muted300)
                                     }
                                 }
-                                .frame(width: 72, height: 72)
+                                .frame(width: keySize, height: keySize)
                                 .background(BrandColor.paper, in: Circle())
                             }
                             .buttonStyle(.plain)
@@ -145,11 +189,11 @@ struct DialerSheet: View {
                                 .tint(BrandColor.onLime)
                         } else {
                             Image(systemName: "phone")
-                                .font(.system(size: 24, weight: .medium))
+                                .font(.system(size: 24 * scale, weight: .medium))
                         }
                     }
                     .foregroundStyle(BrandColor.onLime)
-                    .frame(width: 68, height: 68)
+                    .frame(width: 68 * scale, height: 68 * scale)
                     .background(BrandColor.lime, in: Circle())
                 }
                 .buttonStyle(.plain)
@@ -171,7 +215,7 @@ struct DialerSheet: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            .padding(.top, 8)
+            .padding(.top, 8 * scale)
 
             if let errorText {
                 Text(errorText)
@@ -182,22 +226,6 @@ struct DialerSheet: View {
             }
 
             Spacer(minLength: 16)
-        }
-        .padding(.horizontal, 24)
-        // Opens FULLY EXPANDED (#186 item 5) — the single large detent.
-        .presentationDetents([.large])
-        .presentationBackground(BrandColor.canvas)
-        // Debounced live contact correlation as the digits change.
-        .task(id: digits) {
-            guard let lookupContact else { return }
-            let typed = digits.filter(\.isNumber)
-            if typed.count < 4 {
-                matchedName = nil
-                return
-            }
-            try? await Task.sleep(for: .milliseconds(250)) // debounce keypad taps
-            if Task.isCancelled { return }
-            matchedName = await lookupContact(typed)
         }
     }
 
@@ -304,4 +332,37 @@ private func previewNumber(id: String, e164: String) -> PhoneNumberSummary {
         manager: CallsManager.get(graph: AppGraph()),
         numbers: [previewNumber(id: "num-1", e164: "+14155550111")]
     )
+}
+
+// #180 responsive matrix — fixed frames drive the GeometryReader scale so the
+// keypad, readout, and call disc stay reachable at every ratio.
+
+#Preview("Dialer · 1:1 square") {
+    DialerSheet(
+        manager: CallsManager.get(graph: AppGraph()),
+        numbers: [previewNumber(id: "num-1", e164: "+14155550111")]
+    )
+    .frame(width: 380, height: 380)
+    .background(BrandColor.canvas)
+}
+
+#Preview("Dialer · landscape") {
+    DialerSheet(
+        manager: CallsManager.get(graph: AppGraph()),
+        numbers: [
+            previewNumber(id: "num-1", e164: "+14155550111"),
+            previewNumber(id: "num-2", e164: "+14155550122"),
+        ]
+    )
+    .frame(width: 740, height: 360)
+    .background(BrandColor.canvas)
+}
+
+#Preview("Dialer · small phone") {
+    DialerSheet(
+        manager: CallsManager.get(graph: AppGraph()),
+        numbers: [previewNumber(id: "num-1", e164: "+14155550111")]
+    )
+    .frame(width: 320, height: 568)
+    .background(BrandColor.canvas)
 }

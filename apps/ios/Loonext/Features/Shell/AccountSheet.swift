@@ -22,6 +22,12 @@ struct AccountSheet: View {
     let onSignOut: @MainActor () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    /// #180: collapse the sheet's vertical rhythm on a compact-height viewport
+    /// (landscape / square) so every card — including Sign out — stays reachable
+    /// without a long scroll.
+    @Environment(\.verticalSizeClass) private var vSizeClass
+
+    private var compactHeight: Bool { vSizeClass == .compact }
 
     /// Live unread count from the shared state — reading it here makes this
     /// sheet re-render the instant a mark-read clears the badge.
@@ -45,7 +51,7 @@ struct AccountSheet: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: compactHeight ? 10 : 14) {
                 identityCard
 
                 if !activeNumbers.isEmpty {
@@ -65,8 +71,12 @@ struct AccountSheet: View {
                 linksCard
             }
             .padding(.horizontal, 18)
-            .padding(.top, 18)
+            .padding(.top, compactHeight ? 10 : 18)
             .padding(.bottom, 24)
+            // Keep the cards from stretching edge-to-edge on a regular-width
+            // (iPad) sheet — capped and centered (#180).
+            .frame(maxWidth: 640)
+            .frame(maxWidth: .infinity)
         }
         .background(BrandColor.canvas)
         .presentationDetents([.medium, .large])
@@ -254,4 +264,66 @@ struct AccountSheet: View {
         }
         .buttonStyle(.plain)
     }
+}
+
+// MARK: - Previews (inline mock Me — nothing here touches the network)
+
+private func previewAccountMe() -> Me {
+    Me(
+        user_id: "u-preview",
+        display_name: "Dana Whitcomb",
+        memberships: [
+            Membership(
+                company_id: "co-1",
+                name: "Northgate Plumbing",
+                role: "owner",
+                subscription_status: SubscriptionStatus.active
+            ),
+        ],
+        company: nil
+    )
+}
+
+@MainActor
+private func previewAccountSheet() -> AccountSheet {
+    AccountSheet(
+        prefs: AppPrefs(),
+        me: previewAccountMe(),
+        companyId: "co-1",
+        readState: CompanyReadState(),
+        onOpenContacts: {},
+        onOpenNotifications: {},
+        onOpenSettings: {},
+        onSwitchWorkspace: { _ in },
+        onSignOut: {}
+    )
+}
+
+// #180 responsive matrix — fixed frames prove every card (Sign out included)
+// stays reachable via scroll at each ratio; the compact-height variant forces
+// the collapsed rhythm branch.
+
+#Preview("Account · tall phone") {
+    previewAccountSheet()
+        .frame(width: 390, height: 720)
+        .background(BrandColor.canvas)
+}
+
+#Preview("Account · 1:1 square") {
+    previewAccountSheet()
+        .frame(width: 380, height: 380)
+        .background(BrandColor.canvas)
+}
+
+#Preview("Account · landscape (compact height)") {
+    previewAccountSheet()
+        .frame(width: 720, height: 360)
+        .environment(\.verticalSizeClass, UserInterfaceSizeClass.compact)
+        .background(BrandColor.canvas)
+}
+
+#Preview("Account · iPad width") {
+    previewAccountSheet()
+        .frame(width: 900, height: 820)
+        .background(BrandColor.canvas)
 }

@@ -613,3 +613,24 @@ struct PrimaryButton: View {
         .padding(.top, 8)
     }
 }
+
+// MARK: - Previews
+
+// #180 responsive matrix — the auth column already scrolls and caps at 440;
+// fixed frames prove the login form stays reachable at each ratio (nothing
+// here touches the network until a button is tapped).
+
+#Preview("Auth · tall phone") {
+    AuthFlow(authManager: AppGraph().authManager)
+        .frame(width: 390, height: 720)
+}
+
+#Preview("Auth · 1:1 square") {
+    AuthFlow(authManager: AppGraph().authManager)
+        .frame(width: 380, height: 380)
+}
+
+#Preview("Auth · iPad width") {
+    AuthFlow(authManager: AppGraph().authManager)
+        .frame(width: 900, height: 760)
+}
