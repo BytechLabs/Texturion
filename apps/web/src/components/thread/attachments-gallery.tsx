@@ -118,7 +118,10 @@ export function AttachmentsGallery({
                   Try again
                 </button>
               </div>
-            ) : tabItems.length === 0 ? (
+            ) : tabItems.length === 0 && !hasNext ? (
+              // Only truly empty once there are no more pages to load. With
+              // items still unfetched (hasNext), fall through so the "Load more"
+              // button shows instead of a false "nothing shared" on this tab.
               <GalleryEmpty tab={tab} />
             ) : (
               <div className="space-y-6">

@@ -384,20 +384,33 @@ function ScreeningCard({
   const update = useUpdateCompany();
   const [error, setError] = useState<string | null>(null);
   const radioRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  // Optimistic selection: the choice + aria-checked move at the click, and the
+  // radios are never disabled mid-interaction (disabling the just-focused radio
+  // dropped keyboard focus). Cleared once the saved server value catches up.
+  const [pending, setPending] = useState<CompanyView["call_screening"] | null>(
+    null,
+  );
+  const activeScreening = pending ?? company.call_screening;
+  useEffect(() => {
+    if (pending !== null && company.call_screening === pending) setPending(null);
+  }, [company.call_screening, pending]);
 
   function choose(value: CompanyView["call_screening"]) {
-    if (value === company.call_screening) return;
+    if (value === activeScreening) return;
     setError(null);
+    setPending(value);
     update.mutate(
       { call_screening: value },
       {
         onSuccess: () => toast.success("Call screening updated."),
-        onError: (cause) =>
+        onError: (cause) => {
+          setPending(null); // revert the optimistic selection
           setError(
             cause instanceof ApiError
               ? cause.message
               : "Couldn't save. Try again.",
-          ),
+          );
+        },
       },
     );
   }
@@ -405,7 +418,7 @@ function ScreeningCard({
   // WAI-ARIA radiogroup keyboard contract: Arrow keys move focus AND selection
   // across the options (with roving tabindex, one Tab stop for the whole group).
   const currentIndex = SCREENING_CHOICES.findIndex(
-    (choice) => choice.value === company.call_screening,
+    (choice) => choice.value === activeScreening,
   );
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     if (!canEdit) return;
@@ -440,7 +453,7 @@ function ScreeningCard({
         className="space-y-2"
       >
         {SCREENING_CHOICES.map((choice, i) => {
-          const selected = company.call_screening === choice.value;
+          const selected = activeScreening === choice.value;
           return (
             <button
               key={choice.value}
@@ -451,7 +464,7 @@ function ScreeningCard({
               role="radio"
               aria-checked={selected}
               tabIndex={selected || (currentIndex === -1 && i === 0) ? 0 : -1}
-              disabled={!canEdit || update.isPending}
+              disabled={!canEdit}
               onClick={() => choose(choice.value)}
               className={
                 "w-full rounded-md border px-3 py-2.5 text-left transition-colors duration-150 " +
