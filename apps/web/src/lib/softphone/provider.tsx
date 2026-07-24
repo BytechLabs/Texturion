@@ -28,6 +28,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
+import { toast } from "sonner";
 
 import {
   useAuthorizeBrowserCall,
@@ -110,7 +111,15 @@ const PLACEMENT_TIMEOUT_MS = 48_000;
 
 /** A microphone-permission failure carrying a member-facing, actionable
  *  message (distinguished from an ApiError in the call catch blocks). */
-class MicPermissionError extends Error {}
+/**
+ * Exported so the placeCall callers can narrow on it. Its message is the only
+ * ACTIONABLE copy in the whole start-a-call path ("Microphone access is
+ * blocked. Click the 🎤 or 🔒 icon…"), and both call sites previously narrowed
+ * on ApiError alone — so a remembered browser Block (which throws instantly,
+ * with no prompt) always rendered the generic "Couldn't start the call. Try
+ * again.", which tells the user to do the one thing that cannot work.
+ */
+export class MicPermissionError extends Error {}
 
 /**
  * Prove we can capture the microphone BEFORE any server-side effect (the line
@@ -609,7 +618,14 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       contactName: string;
     }) => {
       const live = stateRef.current.calls.filter((c) => c.phase !== "ended");
-      if (live.length >= MAX_CONCURRENT_CALLS) return;
+      if (live.length >= MAX_CONCURRENT_CALLS) {
+        // THROW, don't return. A bare return resolved placeCall as SUCCESS, so
+        // every caller (dialer, call button, contact panel) closed its dialog
+        // and reported a call it never placed — the ceiling was invisible and
+        // the customer was never dialled. The callers' existing catch turns
+        // this into a visible message with the digits still in the dialog.
+        throw new Error("You're already on two calls. Hang up one first.");
+      }
       try {
         // Mic FIRST — before we reserve the line. A denial here never strands a
         // reservation (no "on another call" phantom), never bills, and surfaces
@@ -649,11 +665,13 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         // failed after the 200, or the ring window lapsed), drop the chip + warn.
         const timer = setTimeout(() => {
           pendingPlacementsRef.current.delete(sessionId);
-          dispatch({
-            type: "placement_failed",
-            placementId,
-            message: "Couldn't reach the line. Please try again.",
-          });
+          const message = "Couldn't reach the line. Please try again.";
+          dispatch({ type: "placement_failed", placementId, message });
+          // The dispatch alone is invisible: nothing renders `state.error`, so
+          // an outbound call that never connected simply vanished after the
+          // timeout with no explanation — the user is left staring at a dialer
+          // wondering whether it rang. Toast it, like the answer path does.
+          toast.error(message);
         }, PLACEMENT_TIMEOUT_MS);
         pendingPlacementsRef.current.set(sessionId, { placementId, timer });
         // Remember S as one of OUR placement sessions (identity-based op-INVITE

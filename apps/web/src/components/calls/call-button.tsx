@@ -16,7 +16,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/error";
-import { useSoftphone } from "@/lib/softphone/provider";
+import { MicPermissionError, useSoftphone } from "@/lib/softphone/provider";
 
 export function CallButton({
   conversationId,
@@ -48,7 +48,13 @@ export function CallButton({
       .placeCall({ conversationId, contactId, contactName })
       .catch((cause) =>
         toast.error(
-          cause instanceof ApiError
+          // MicPermissionError carries the only actionable copy in this path
+          // ("Microphone access is blocked. Click the 🎤 or 🔒 icon…"), and the
+          // concurrency ceiling now throws a written message too. Narrowing on
+          // ApiError alone showed "Try again." for both — advice that cannot
+          // work for a blocked mic. Anything else still gets the calm generic,
+          // so a raw fetch/chunk-load failure never reaches the user.
+          cause instanceof MicPermissionError || cause instanceof ApiError
             ? cause.message
             : "Couldn't start the call. Try again.",
         ),

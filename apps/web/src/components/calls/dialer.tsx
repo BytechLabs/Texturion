@@ -29,7 +29,7 @@ import {
 import { ApiError } from "@/lib/api/error";
 import { useNumbers } from "@/lib/api/numbers";
 import { formatPhone } from "@/lib/format/phone";
-import { useSoftphone } from "@/lib/softphone/provider";
+import { MicPermissionError, useSoftphone } from "@/lib/softphone/provider";
 
 const KEYS = [
   "1",
@@ -96,7 +96,11 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
       setDigits("");
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "Couldn't start the call.",
+        // See call-button.tsx: a blocked mic and the concurrency ceiling both
+        // carry actionable copy that ApiError-only narrowing threw away.
+        cause instanceof MicPermissionError || cause instanceof ApiError
+          ? cause.message
+          : "Couldn't start the call.",
       );
     } finally {
       setCalling(false);

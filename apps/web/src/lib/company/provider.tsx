@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMe } from "@/lib/api/me";
 import type { MemberRole, Membership } from "@/lib/api/types";
-import { useSessionReady } from "@/lib/auth/use-session-ready";
+import { useSessionState } from "@/lib/auth/use-session-ready";
 
 import {
   readCompanyCookie,
@@ -50,7 +50,8 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   // Gate /v1/me on the resolved Supabase session so the first call after an
   // OAuth redirect carries a token (shared with the onboarding wizard, which
   // loads /me the same way outside this provider).
-  const me = useMe(useSessionReady());
+  const sessionState = useSessionState();
+  const me = useMe(sessionState === "ready");
   const [chosen, setChosen] = useState<string | null>(() =>
     readCompanyCookie(),
   );
@@ -76,10 +77,20 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     if (needsOnboarding) router.replace("/onboarding");
   }, [needsOnboarding, router]);
 
-  const switchCompany = useCallback((companyId: string) => {
-    writeCompanyCookie(companyId);
-    setChosen(companyId);
-  }, []);
+  const switchCompany = useCallback(
+    (companyId: string) => {
+      if (companyId === activeId) return; // re-selecting the current one is a no-op
+      writeCompanyCookie(companyId);
+      setChosen(companyId);
+      // Leave the entity URL behind. Every id in the path — conversation, task,
+      // contact — belongs to the workspace you just LEFT, so switching from
+      // /inbox/<id> re-rendered the same route against the new company and
+      // showed "this conversation doesn't exist". Land somewhere that is valid
+      // in any workspace instead.
+      router.replace("/for-you");
+    },
+    [activeId, router],
+  );
 
   const value = useMemo<CompanyContextValue | null>(() => {
     if (!me.data || activeId === null) return null;
@@ -128,6 +139,24 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   }
 
   if (!value || needsCheckout) {
+    // A session that resolved to "no session" is NOT loading — it is a dead
+    // end. The middleware fails open, so nothing downstream redirects, and this
+    // gate used to sit on "Loading your workspace…" forever with no sign-out
+    // and no route back to login. Say what happened and offer the way out.
+    if (sessionState === "signed-out") {
+      return (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            Your session has expired. Sign in again to get back to your
+            workspace.
+          </p>
+          <Button onClick={() => router.replace("/login")} size="sm">
+            Go to sign in
+          </Button>
+          <GateSignOut />
+        </div>
+      );
+    }
     // Loading (or redirecting to onboarding): named state, never a bare
     // spinner (G1 "no spinners without words").
     return (
