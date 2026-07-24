@@ -28,12 +28,27 @@ extension View {
 }
 
 private struct ResyncOnForegroundModifier: ViewModifier {
+    /// How long the app must have been away before a return is worth a resync.
+    /// A glance away — Control Center, the notification shade, a two-second app
+    /// switch — cannot have missed a frame the socket was connected to receive,
+    /// and `.active` fires for every one of them. Resyncing each time made every
+    /// live screen refetch constantly; only a real absence earns the round-trip.
+    private static let minAwaySeconds: TimeInterval = 30
+
     @Environment(\.scenePhase) private var scenePhase
     let resync: @MainActor () -> Void
+    /// When we left `.active` (nil = not away).
+    @State private var awaySince: Date?
 
     func body(content: Content) -> some View {
         content.onChange(of: scenePhase) { _, phase in
-            if phase == .active { resync() }
+            if phase == .active {
+                let awayFor = awaySince.map { Date().timeIntervalSince($0) } ?? 0
+                awaySince = nil
+                if awayFor >= Self.minAwaySeconds { resync() }
+            } else if awaySince == nil {
+                awaySince = Date()
+            }
         }
     }
 }

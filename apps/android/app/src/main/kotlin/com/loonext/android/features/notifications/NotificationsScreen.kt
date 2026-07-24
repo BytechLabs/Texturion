@@ -176,10 +176,15 @@ fun NotificationsScreen(
     // #215: heal a queue-moving frame missed while backgrounded/blurred by
     // revalidating on return to the foreground.
     ResyncOnResume(companyId) { refreshKey++ }
-    // 60s badge poll — the backstop when realtime is quiet or degraded.
+    // Badge poll — ONLY a drift-correction backstop for anything realtime does
+    // not broadcast. Realtime is the live path, so this ran every 60s forever on
+    // every foregrounded app purely to re-confirm a number that was almost always
+    // already correct. Five minutes keeps the backstop honest at a fifth of the
+    // requests (Workers bill per request); a genuinely missed count also self-
+    // heals on the next broadcast or away-resync.
     LaunchedEffect(companyId) {
         while (true) {
-            delay(60_000)
+            delay(5 * 60_000L)
             runCatching { repo.unreadCount(companyId) }
                 .onSuccess { readState.offerServerCount(unreadFlow, it.count) }
         }

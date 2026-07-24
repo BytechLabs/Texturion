@@ -82,8 +82,17 @@ export function useUpdateNotificationPrefs() {
 // its own `unread` dots optimistically, then re-reads.
 // ---------------------------------------------------------------------------
 
-/** How often the bell badge polls when idle — realtime also invalidates it. */
-const UNREAD_POLL_MS = 60_000;
+/**
+ * How often the bell badge polls when idle. Realtime is the LIVE path — the
+ * for-you/notifications subscription invalidates this key on every inbound /
+ * assign broadcast — so this poll is only a drift-correction fallback for the
+ * rare thing that isn't broadcast. It was 60s, which meant every open tab hit
+ * the API every minute forever (the single largest source of idle request
+ * volume, and Workers bill per request). Five minutes keeps the fallback honest
+ * at a fifth of the cost; a genuinely missed count self-heals on the next
+ * broadcast, the next away-resync, or within 5 minutes.
+ */
+const UNREAD_POLL_MS = 5 * 60_000;
 
 /**
  * GET /v1/notifications/unread-count — the bell badge count. Kept live by both

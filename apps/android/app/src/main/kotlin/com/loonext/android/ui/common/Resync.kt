@@ -1,13 +1,23 @@
 package com.loonext.android.ui.common
 
+import android.os.SystemClock
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+
+/**
+ * How long the app must have been away before a return is worth a resync. A
+ * glance away — a permission dialog, the notification shade, a two-second app
+ * switch — cannot have missed a frame the socket was connected to receive, so
+ * resyncing then is pure request cost on every live screen at once.
+ */
+private const val RESYNC_MIN_AWAY_MS = 30_000L
 
 /**
  * #215 resync-on-foreground safety net. Every live surface subscribes to the
@@ -34,7 +44,20 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 fun ResyncOnResume(key: Any? = Unit, onResync: () -> Unit) {
     val latest by rememberUpdatedState(onResync)
     var sawInitialResume by remember(key) { mutableStateOf(false) }
+    // Wall-clock of the moment we left the foreground (0 = not away). Only a
+    // genuine absence earns a resync — see RESYNC_MIN_AWAY_MS.
+    var awaySince by remember(key) { mutableLongStateOf(0L) }
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
+        if (awaySince == 0L) awaySince = SystemClock.elapsedRealtime()
+    }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        if (sawInitialResume) latest() else sawInitialResume = true
+        val awayFor =
+            if (awaySince == 0L) 0L else SystemClock.elapsedRealtime() - awaySince
+        awaySince = 0L
+        if (!sawInitialResume) {
+            sawInitialResume = true
+        } else if (awayFor >= RESYNC_MIN_AWAY_MS) {
+            latest()
+        }
     }
 }

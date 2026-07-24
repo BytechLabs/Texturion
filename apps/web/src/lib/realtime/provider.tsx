@@ -442,22 +442,50 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     // invalidates the ACTIVE company-scoped queries (React Query refetches every
     // loaded page of each, picking up anything missed). Same primitive the
     // conversation list/calls/tasks surfaces use, so the whole class is closed.
+    //
+    // RATE-LIMITED (request cost). Firing this on every focus/visibility event
+    // was a real load problem: a single tab switch raises BOTH `visibilitychange`
+    // AND `focus`, so one glance sent two full invalidations — every active
+    // company query (for-you, unread, conversations, tasks, calls…) refetching at
+    // once, twice. And a two-second alt-tab cannot have missed anything: the
+    // socket stayed connected and delivered live. So resync only when the tab was
+    // genuinely AWAY long enough for a frame to plausibly be lost, and never more
+    // than once per throttle window (which also collapses the duplicate
+    // focus/visibility pair into one). The safety net is preserved for the case
+    // it was built for — a long absence — at a fraction of the requests.
+    const RESYNC_MIN_AWAY_MS = 30_000;
+    const RESYNC_THROTTLE_MS = 60_000;
+    let awaySince: number | null = null;
+    let lastResyncAt = 0;
+
     function resyncActive() {
       queryClient.invalidateQueries({
         queryKey: [companyId],
         refetchType: "active",
       });
     }
-    const onVisible = () => {
-      if (
-        typeof document === "undefined" ||
-        document.visibilityState === "visible"
-      ) {
-        resyncActive();
-      }
+    const markAway = () => {
+      if (awaySince === null) awaySince = Date.now();
     };
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", onVisible);
+    const maybeResync = () => {
+      const now = Date.now();
+      const awayFor = awaySince === null ? 0 : now - awaySince;
+      awaySince = null;
+      if (awayFor < RESYNC_MIN_AWAY_MS) return;
+      if (now - lastResyncAt < RESYNC_THROTTLE_MS) return;
+      lastResyncAt = now;
+      resyncActive();
+    };
+    const onVisibility = () => {
+      if (typeof document === "undefined") return;
+      if (document.visibilityState === "visible") maybeResync();
+      else markAway();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    // A window blur/focus without a visibility change (another app on top) is
+    // the same "was I away?" question — routed through the same gate.
+    window.addEventListener("blur", markAway);
+    window.addEventListener("focus", maybeResync);
 
     let hadDrop = false;
     let everSubscribed = false;
@@ -521,8 +549,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       disposed = true;
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", markAway);
+      window.removeEventListener("focus", maybeResync);
       for (const timer of pendingUpdates.values()) clearTimeout(timer);
       pendingUpdates.clear();
       authSubscription.unsubscribe();
