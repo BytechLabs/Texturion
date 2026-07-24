@@ -196,6 +196,7 @@ describe("GET /v1/contacts", () => {
 describe("POST /v1/contacts (upsert semantics)", () => {
   it("normalizes the phone, upserts on (company_id, phone_e164), clears deleted_at", async () => {
     const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => []); // no existing live contact → insert path
     sb.on("POST", "/rest/v1/contacts", () => [contactRow()]);
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -334,6 +335,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
 describe("#191 contact attribution (created/updated/deleted actors + names)", () => {
   it("POST records created_by_user_id = the caller", async () => {
     const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => []); // no existing → insert path stamps created_by
     sb.on("POST", "/rest/v1/contacts", () => [contactRow()]);
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -346,6 +348,31 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
     const upsert = sb.find("POST", "/rest/v1/contacts")[0]
       .body as Record<string, unknown>;
     expect(upsert.created_by_user_id).toBe(auth.subject);
+  });
+
+  it("re-adding an EXISTING live contact updates it — preserves created_by, stamps updated_by, no upsert", async () => {
+    const sb = stubWithRole("member");
+    // An existing, non-deleted contact on this (company, phone).
+    sb.on("GET", "/rest/v1/contacts", () => [{ id: CONTACT_ID, deleted_at: null }]);
+    sb.on("PATCH", "/rest/v1/contacts", (call) => [
+      { ...contactRow(), ...(call.body as Record<string, unknown>) },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/contacts", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { phone_e164: "+14165550199", name: "Renamed" },
+    });
+    expect(res.status).toBe(201);
+    // Takes the UPDATE path — never re-inserts (which would overwrite
+    // created_by_user_id with the current caller).
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+    const patch = sb.find("PATCH", "/rest/v1/contacts")[0]
+      .body as Record<string, unknown>;
+    expect(patch.updated_by_user_id).toBe(auth.subject);
+    expect(patch).not.toHaveProperty("created_by_user_id");
+    expect(patch.name).toBe("Renamed");
   });
 
   it("GET resolves created_by_name/updated_by_name from profiles (the message-sender/assignment mechanism)", async () => {
@@ -759,10 +786,10 @@ describe("opt-out mark/revoke (SPEC §5)", () => {
   it("POST /v1/contacts/:id/opt-out writes a manual opt-out + event", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
-    sb.on("GET", "/rest/v1/opt_outs", () => []); // not currently opted out
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []); // no revoked row to revive
     sb.on("POST", "/rest/v1/opt_outs", (call) => [
       { id: "0abc0abc-1111-4222-8333-444444444444", ...(call.body as object) },
-    ]);
+    ]); // brand-new opt-out wins the insert
     sb.on("GET", "/rest/v1/conversations", () => [
       { id: "aaaaaaaa-1111-4222-8333-444444444444" },
     ]);
@@ -799,9 +826,11 @@ describe("opt-out mark/revoke (SPEC §5)", () => {
   it("is idempotent: an active opt-out returns 200 with no new event", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []); // nothing revoked to revive
+    sb.on("POST", "/rest/v1/opt_outs", () => []); // ON CONFLICT DO NOTHING → no-op
     sb.on("GET", "/rest/v1/opt_outs", () => [
       { id: "0abc0abc-1111-4222-8333-444444444444", phone_e164: "+14165550199" },
-    ]);
+    ]); // the current active row, returned unchanged
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -812,7 +841,8 @@ describe("opt-out mark/revoke (SPEC §5)", () => {
       { method: "POST", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(sb.find("POST", "/rest/v1/opt_outs")).toHaveLength(0);
+    // The insert was attempted but conflicted (no-op); the KEY invariant is no
+    // duplicate timeline event.
     expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
   });
 
@@ -1200,6 +1230,7 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
 describe("geocode cache reset on address writes (D25)", () => {
   it("clears the geocode cache on POST /v1/contacts when an address is set", async () => {
     const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => []); // no existing → insert path
     sb.on("POST", "/rest/v1/contacts", () => [contactRow()]);
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -1222,6 +1253,7 @@ describe("geocode cache reset on address writes (D25)", () => {
 
   it("does NOT touch the geocode cache when no address is provided", async () => {
     const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => []); // no existing → insert path
     sb.on("POST", "/rest/v1/contacts", () => [contactRow()]);
     stubFetch(jwksRoute(auth), sb.route);
 

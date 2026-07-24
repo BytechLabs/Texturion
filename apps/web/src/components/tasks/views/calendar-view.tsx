@@ -220,7 +220,13 @@ function DayCell({
         e.preventDefault();
         setOver(true);
       }}
-      onDragLeave={() => setOver(false)}
+      onDragLeave={(e) => {
+        // Only clear when the pointer truly exits the day cell (dragleave also
+        // fires when crossing onto a child chip) — otherwise the highlight flickers.
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setOver(false);
+        }
+      }}
       onDrop={onDrop}
       className={cn(
         "flex flex-col gap-1 border-b border-r border-border-subtle p-1.5",

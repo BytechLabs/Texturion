@@ -770,8 +770,16 @@ export class CallSessionDO extends DurableObject<Env> {
       return;
     } catch (cause) {
       this.rt.sentryError(cause);
-      // Arm the retry alarm; the DO's own state never regresses.
-      await this.putPendingMirror({ set, attempts: 1 });
+      // MERGE into any existing pending mirror rather than overwriting it: a
+      // second failed mirror carrying DIFFERENT columns would otherwise drop the
+      // first one's (e.g. answered_at), and the retry would re-apply only the
+      // latest set — losing earlier state or re-applying a stale one over a
+      // terminal one. Newer values win per-column; keep the accumulated attempts.
+      const prev = await this.getPendingMirror();
+      await this.putPendingMirror({
+        set: { ...prev?.set, ...set },
+        attempts: prev?.attempts ?? 1,
+      });
       await this.setAlarmSlot("mirror-retry", Date.now() + MIRROR_RETRY_MS);
       // A terminal mirror must eventually land; a non-terminal one likewise
       // retries but never blocks the transition (the machine is authoritative).

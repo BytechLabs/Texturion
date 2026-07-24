@@ -102,7 +102,13 @@ function Column({
         e.preventDefault();
         setOver(true);
       }}
-      onDragLeave={() => setOver(false)}
+      onDragLeave={(e) => {
+        // dragleave fires when the pointer crosses onto a child card too — only
+        // clear the highlight when it truly exits the column, or it flickers.
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setOver(false);
+        }
+      }}
       onDrop={(e) => {
         e.preventDefault();
         setOver(false);

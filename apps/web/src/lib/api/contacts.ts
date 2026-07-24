@@ -43,6 +43,10 @@ export function useContacts(q = "") {
       fetchContactsPage(companyId, trimmed, pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,
+    // Keep the previous result set visible while a new search term resolves —
+    // each keystroke moves to a fresh (uncached) query key, which otherwise
+    // collapsed the whole table to skeleton (+ lost loaded pages + scroll).
+    placeholderData: (previous) => previous,
   });
 }
 

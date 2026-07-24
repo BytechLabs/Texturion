@@ -387,31 +387,60 @@ contactsRoutes.post("/contacts", requireRole("member"), async (c) => {
   }
 
   const db = getDb(getEnv(c.env));
-  const row: Record<string, unknown> = {
-    company_id: c.get("companyId"),
-    phone_e164: phone,
-    // Upsert semantics (SPEC §7): any create path resurrects a soft-deleted
-    // contact.
-    deleted_at: null,
-    // #191 attribution: record who created (or resurrected) the contact.
-    created_by_user_id: c.get("userId"),
-  };
-  if (body.name !== undefined) row.name = body.name;
-  if (body.notes !== undefined) row.notes = body.notes;
+  const companyId = c.get("companyId");
+  const userId = c.get("userId");
+
+  // Shared column writes (both the insert and the update path set these).
+  const fields: Record<string, unknown> = {};
+  if (body.name !== undefined) fields.name = body.name;
+  if (body.notes !== undefined) fields.notes = body.notes;
   if (body.address !== undefined) {
-    row.address = body.address;
-    // A new/resurrected contact with an address needs geocoding (D25). The
-    // create schema requires a non-empty address, so this always queues.
-    Object.assign(row, geocodeReset(body.address));
+    fields.address = body.address;
+    // A new/resurrected/edited address needs geocoding (D25).
+    Object.assign(fields, geocodeReset(body.address));
   }
 
-  const rows = unwrap<Record<string, unknown>[]>(
+  // Re-adding an EXISTING live contact is an UPDATE, not a create: preserve
+  // created_by_user_id (who first added them) and record updated_by_user_id,
+  // instead of the upsert overwriting created_by with the current caller and
+  // never stamping updated_by (#191 attribution). A soft-deleted or brand-new
+  // number still takes the upsert (resurrect / insert) with a fresh created_by.
+  const existing = unwrap<{ id: string; deleted_at: string | null }[]>(
     await db
       .from("contacts")
-      .upsert(row, { onConflict: "company_id,phone_e164" })
-      .select(CONTACT_COLUMNS),
-    "contact upsert",
+      .select("id,deleted_at")
+      .eq("company_id", companyId)
+      .eq("phone_e164", phone)
+      .limit(1),
+    "contact lookup",
   );
+  const live = existing[0]?.deleted_at === null ? existing[0] : null;
+
+  const rows = live
+    ? unwrap<Record<string, unknown>[]>(
+        await db
+          .from("contacts")
+          .update({ ...fields, updated_by_user_id: userId })
+          .eq("id", live.id)
+          .select(CONTACT_COLUMNS),
+        "contact update",
+      )
+    : unwrap<Record<string, unknown>[]>(
+        await db
+          .from("contacts")
+          .upsert(
+            {
+              company_id: companyId,
+              phone_e164: phone,
+              deleted_at: null,
+              created_by_user_id: userId,
+              ...fields,
+            },
+            { onConflict: "company_id,phone_e164" },
+          )
+          .select(CONTACT_COLUMNS),
+        "contact upsert",
+      );
   return c.json(rows[0], 201);
 });
 
@@ -941,37 +970,60 @@ contactsRoutes.post(
     }
     const phone = contact.phone_e164 as string;
 
-    const active = unwrap<Record<string, unknown>[]>(
+    const optOutCols = "id,phone_e164,source,created_at,revoked_at";
+    // Make the STATE TRANSITION the arbiter for the timeline event, so a
+    // concurrent double-submit can't write duplicate `opted_out` events (the
+    // old check-then-write raced: two requests both passed the "already active?"
+    // read, both upserted the idempotent row, and both inserted the event).
+    // (1) Resurrect a REVOKED opt-out — only a genuine revoked→active change.
+    const revived = unwrap<Record<string, unknown>[]>(
       await db
         .from("opt_outs")
-        .select("id,phone_e164,source,created_at,revoked_at")
+        .update({ source: "manual", created_by: userId, revoked_at: null })
         .eq("company_id", companyId)
         .eq("phone_e164", phone)
-        .is("revoked_at", null)
-        .limit(1),
-      "opt-out lookup",
+        .not("revoked_at", "is", null)
+        .select(optOutCols),
+      "opt-out revive",
     );
-    if (active.length > 0) {
-      // Already opted out — idempotent, no duplicate timeline event.
-      return c.json(active[0]);
+    let transitioned = revived[0];
+    if (!transitioned) {
+      // (2) No revoked row to revive → try a brand-new opt-out. ON CONFLICT DO
+      // NOTHING (ignoreDuplicates) so a concurrent insert OR an already-active
+      // row yields zero rows — only the winner transitions.
+      const inserted = unwrap<Record<string, unknown>[]>(
+        await db
+          .from("opt_outs")
+          .upsert(
+            {
+              company_id: companyId,
+              phone_e164: phone,
+              source: "manual",
+              created_by: userId,
+              revoked_at: null,
+            },
+            { onConflict: "company_id,phone_e164", ignoreDuplicates: true },
+          )
+          .select(optOutCols),
+        "opt-out insert",
+      );
+      transitioned = inserted[0];
     }
-
-    const rows = unwrap<Record<string, unknown>[]>(
-      await db
-        .from("opt_outs")
-        .upsert(
-          {
-            company_id: companyId,
-            phone_e164: phone,
-            source: "manual",
-            created_by: userId,
-            revoked_at: null,
-          },
-          { onConflict: "company_id,phone_e164" },
-        )
-        .select("id,phone_e164,source,created_at,revoked_at"),
-      "opt-out upsert",
-    );
+    if (!transitioned) {
+      // Already opted out (active), or lost the concurrent insert — idempotent,
+      // NO duplicate event. Return the current active row.
+      const current = unwrap<Record<string, unknown>[]>(
+        await db
+          .from("opt_outs")
+          .select(optOutCols)
+          .eq("company_id", companyId)
+          .eq("phone_e164", phone)
+          .is("revoked_at", null)
+          .limit(1),
+        "opt-out current",
+      );
+      return c.json(current[0]);
+    }
 
     await insertConversationEvents(db, [
       {
@@ -982,7 +1034,7 @@ contactsRoutes.post(
         payload: { phone_e164: phone, source: "manual" },
       },
     ]);
-    return c.json(rows[0], 201);
+    return c.json(transitioned, 201);
   },
 );
 
