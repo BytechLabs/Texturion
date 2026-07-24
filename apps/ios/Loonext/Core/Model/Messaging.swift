@@ -61,6 +61,12 @@ struct ConversationSnippet: Codable, Sendable {
     let body: String
     let created_at: String
     let has_attachments: Bool
+    /// How many attachments ride the last message. Optional so a response from
+    /// a server that predates migration 20260724080000 still decodes.
+    var attachment_count: Int?
+    /// The kind they all share, "file" for a mixed set, nil when there are
+    /// none. The inbox labels from THIS instead of guessing a noun.
+    var attachment_kind: String?
 }
 
 /// GET /v1/conversations row (api_list_conversations RPC).

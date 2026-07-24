@@ -948,6 +948,17 @@ private struct PinnedBanner: View {
 
     @State private var expanded = false
 
+    /// A media-only pinned message is named by what it carries, not "Photo".
+    private func pinnedPreview(_ message: Message) -> String {
+        guard message.body.isBlank else { return message.body }
+        let kinds = message.attachments.map { MediaKind.of($0.content_type) }
+        guard !kinds.isEmpty else { return message.body }
+        return attachmentLabel(
+            kind: sharedMediaKind(kinds) ?? .file,
+            count: kinds.count
+        )
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             Button {
@@ -977,7 +988,7 @@ private struct PinnedBanner: View {
                         onJump(message.id)
                     } label: {
                         HStack(spacing: 8) {
-                            Text(message.body.isBlank ? "Photo" : message.body)
+                            Text(pinnedPreview(message))
                                 .font(.golos(12.5))
                                 .foregroundStyle(BrandColor.ink)
                                 .lineLimit(1)

@@ -960,7 +960,17 @@ private struct ConversationRow: View {
 
     private var snippet: String {
         guard let last = row.last_message else { return "" }
-        let body = last.body.isBlank && last.has_attachments ? "Photo" : last.body
+        // Name what actually arrived: a voice message is not a "Photo", which
+        // is what this row used to call every attachment.
+        let body: String
+        if last.body.isBlank && last.has_attachments {
+            body = attachmentLabel(
+                kind: last.attachment_kind.map { MediaKind(rawValue: $0) ?? .file },
+                count: last.attachment_count ?? 1
+            )
+        } else {
+            body = last.body
+        }
         return last.direction == "note" ? "Note · \(body)" : body
     }
 
