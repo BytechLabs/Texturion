@@ -50,6 +50,8 @@ import { ApiError } from "../http/errors";
 import { buildPage } from "../http/pagination";
 import {
   decodeOutboundMedia,
+  MAX_OUTBOUND_MEDIA_BODY_BYTES,
+  MAX_OUTBOUND_MEDIA_BYTES,
   MAX_OUTBOUND_MEDIA_ITEMS,
   MMS_SEGMENTS,
   signedMediaUrls,
@@ -66,6 +68,7 @@ import {
 } from "../messaging/send";
 import type { AttachmentSummary, MessageRow } from "../messaging/types";
 import {
+  assertBodyWithinLimit,
   keysetFilter,
   parseCursor,
   parseJsonBody,
@@ -98,7 +101,10 @@ export function requireIdempotencyKey(c: Context): string {
  */
 export const mediaItemSchema = z.object({
   content_type: z.string().min(1).max(255),
-  base64: z.string().min(1),
+  // Schema-level ceiling (defense-in-depth): the decoded 1 MB cap × ~2 for
+  // base64 expansion + whitespace. The real guard is the Content-Length
+  // pre-check on the routes (zod runs only after the body is buffered).
+  base64: z.string().min(1).max(MAX_OUTBOUND_MEDIA_BYTES * 2),
 });
 
 const sendSchema = z
@@ -256,6 +262,10 @@ messageRoutes.post("/messages/send", requireRole("member"), async (c) => {
   const env = getEnv(c.env);
   const companyId = c.get("companyId");
   const idempotencyKey = requireIdempotencyKey(c);
+  // Reject an oversized media payload on Content-Length BEFORE c.req.json()
+  // buffers the whole body into Worker memory (SPEC §10) — the per-item decoded
+  // cap in decodeOutboundMedia runs only after the full buffer + a base64 copy.
+  assertBodyWithinLimit(c, MAX_OUTBOUND_MEDIA_BODY_BYTES);
   const body = await parseJsonBody(c, sendSchema);
   const media = body.media ? decodeOutboundMedia(body.media) : [];
 

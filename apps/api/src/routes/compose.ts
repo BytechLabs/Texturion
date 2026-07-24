@@ -34,6 +34,7 @@ import { getEnv } from "../env";
 import { ApiError } from "../http/errors";
 import {
   decodeOutboundMedia,
+  MAX_OUTBOUND_MEDIA_BODY_BYTES,
   MAX_OUTBOUND_MEDIA_ITEMS,
   MMS_SEGMENTS,
   signedMediaUrls,
@@ -52,7 +53,12 @@ import {
   type ConversationEventRow,
 } from "./core/events";
 import { normalizeNanpPhone } from "./core/phone";
-import { isUniqueViolation, parseJsonBody, unwrap } from "./core/http";
+import {
+  assertBodyWithinLimit,
+  isUniqueViolation,
+  parseJsonBody,
+  unwrap,
+} from "./core/http";
 import {
   loadAttachments,
   mediaItemSchema,
@@ -301,6 +307,9 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
   const companyId = c.get("companyId");
   const userId = c.get("userId");
   const idempotencyKey = requireIdempotencyKey(c);
+  // Reject an oversized media payload on Content-Length BEFORE buffering the
+  // whole JSON body into Worker memory (SPEC §10; mirrors /messages/send).
+  assertBodyWithinLimit(c, MAX_OUTBOUND_MEDIA_BODY_BYTES);
   const body = await parseJsonBody(c, composeSchema);
   const media = body.media ? decodeOutboundMedia(body.media) : [];
   const db = getDb(env);

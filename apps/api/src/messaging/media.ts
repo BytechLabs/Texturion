@@ -28,6 +28,16 @@ export const MAX_OUTBOUND_MEDIA_BYTES = MMS_MAX_MEDIA_BYTES;
 export const MAX_OUTBOUND_MEDIA_ITEMS = MMS_MAX_MEDIA_ITEMS;
 
 /**
+ * Content-Length ceiling for the JSON media routes (POST /v1/messages/send,
+ * compose): the decoded per-item cap × ~2 (base64 expansion + whitespace) ×
+ * the item cap, plus headroom for the JSON envelope. Used with
+ * assertBodyWithinLimit to reject BEFORE c.req.json() buffers the whole body
+ * into Worker memory (SPEC §10) — zod's per-item cap runs only after buffering.
+ */
+export const MAX_OUTBOUND_MEDIA_BODY_BYTES =
+  MAX_OUTBOUND_MEDIA_ITEMS * MAX_OUTBOUND_MEDIA_BYTES * 2 + 256 * 1024;
+
+/**
  * Inbound media constraints: carriers deliver the same deliverable set the
  * outbound path sends (#189 — a customer's voice note or contact card is no
  * longer dropped), bounded by the `mms-media` bucket's 5 MB file limit. The
