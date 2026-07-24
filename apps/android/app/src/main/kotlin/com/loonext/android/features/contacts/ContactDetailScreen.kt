@@ -133,7 +133,18 @@ internal fun ContactDetailScreen(
         try {
             mutations.detail(companyId, contactId)
         } catch (cause: Exception) {
-            if ((cause as? ApiException)?.code == ApiErrorCode.NOT_FOUND) notFound = true
+            if ((cause as? ApiException)?.code == ApiErrorCode.NOT_FOUND) {
+                notFound = true
+                // Drop the cached row too. rememberCacheFirst returns Ready(cached)
+                // whenever the cache holds a value, so without this the Failed
+                // branch below — the only place `notFound` is rendered — was
+                // unreachable for any contact that had ever been opened: one
+                // deleted on another device kept rendering as though it existed,
+                // with every action on it failing.
+                graph.storeCache
+                    .flowOf<Contact>(CacheKeys.contact(companyId, contactId))
+                    .value = null
+            }
             throw cause
         }
     }

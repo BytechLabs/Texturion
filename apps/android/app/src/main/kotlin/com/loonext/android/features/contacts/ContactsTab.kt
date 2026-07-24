@@ -247,7 +247,18 @@ private fun ContactListScreen(
     }
 
     val defaultSnapshot = (defaultState as? LoadState.Ready)?.value
-    val snapshot = if (debouncedQ.isEmpty()) defaultSnapshot else searchSnapshot ?: defaultSnapshot
+    // A FAILED search must never fall through to the unfiltered list: that
+    // rendered every contact in the workspace as though they matched the query
+    // (and `snapshot != null` below reported it as Ready, so the failure was
+    // invisible). Falling back while a search is merely IN FLIGHT is still
+    // correct — that is the "hold the previous rows while typing" behaviour.
+    val searchFailed =
+        debouncedQ.isNotEmpty() && searchSnapshot == null && searchState is LoadState.Failed
+    val snapshot = when {
+        debouncedQ.isEmpty() -> defaultSnapshot
+        searchFailed -> null
+        else -> searchSnapshot ?: defaultSnapshot
+    }
     val rows = snapshot?.rows ?: emptyList()
     val nextCursor = snapshot?.nextCursor
     val state: LoadState<Unit> = when {

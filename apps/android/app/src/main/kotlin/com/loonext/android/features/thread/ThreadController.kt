@@ -414,12 +414,14 @@ class ThreadController(
                     messagesCursor = detail.messages.next_cursor
                 }
             }
-            runCatching {
-                val page = repo.events(companyId, conversationId)
-                events = page.data
-                eventsCursor = page.next_cursor
-                eventsExhausted = page.next_cursor == null
-            }
+            // MERGE page 1, don't REPLACE with it. Assigning `events = page.data`
+            // discarded every audit line the user had already paged back to — a
+            // reconnect while scrolled into history silently erased the system
+            // events from the visible thread (and reset the cursor, so paging
+            // back re-fetched from the top). refreshEvents() is the same call
+            // with the merge + cursor guard + ensureEventsCoverMessages that the
+            // messages arm above already uses.
+            runCatching { refreshEvents() }
             runCatching { refreshPinned() }
             runCatching { refreshContact() }
             persistSnapshot()

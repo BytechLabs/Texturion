@@ -71,6 +71,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -555,12 +559,31 @@ private class InboxController(
      * way; cache-first semantics untouched.
      */
     fun toggleRead(row: ConversationListItem) {
+        // The optimistic flip must be ROLLED BACK when the server refuses it.
+        // runCatching swallowed the failure, so the dot stayed flipped while the
+        // server still disagreed — the next revalidation silently flipped it
+        // back, and the user was never told the action failed. Mirrors
+        // toggleStatus's notify-on-failure below.
         if (row.unread) {
             markLocallyRead(row.id)
-            scope.launch { runCatching { repo.markRead(companyId, row.id) } }
+            scope.launch {
+                try {
+                    repo.markRead(companyId, row.id)
+                } catch (cause: Exception) {
+                    markLocallyUnread(row.id)
+                    notify(cause.userMessage())
+                }
+            }
         } else {
             markLocallyUnread(row.id)
-            scope.launch { runCatching { repo.markUnread(companyId, row.id) } }
+            scope.launch {
+                try {
+                    repo.markUnread(companyId, row.id)
+                } catch (cause: Exception) {
+                    markLocallyRead(row.id)
+                    notify(cause.userMessage())
+                }
+            }
         }
     }
 
@@ -1094,6 +1117,21 @@ private fun SwipeableConversationRow(
     val haptics = rememberHaptics()
     val closed = row.status == ConversationStatus.CLOSED
     SwipeActionRow(
+        // #185 says a swipe is a shortcut, never the ONLY path — but marking a
+        // conversation UNREAD had no other path at all (opening the thread only
+        // ever clears the dot), so it was unreachable for anyone who cannot
+        // perform the drag. Exposing both as accessibility custom actions puts
+        // them in TalkBack's actions menu without changing the visual row.
+        modifier = Modifier.semantics {
+            customActions = listOf(
+                CustomAccessibilityAction(
+                    if (row.unread) "Mark read" else "Mark unread",
+                ) { controller.toggleRead(row); true },
+                CustomAccessibilityAction(
+                    if (closed) "Reopen conversation" else "Close conversation",
+                ) { controller.toggleStatus(row); true },
+            )
+        },
         startAction = SwipeAction(
             icon = if (row.unread) {
                 Icons.Outlined.MarkEmailRead
@@ -1127,6 +1165,10 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
     Row(
         Modifier
             .fillMaxWidth()
+            // Unread was carried ONLY by the coral dot, so TalkBack read a read
+            // and an unread conversation identically — the single most important
+            // piece of state on the inbox row was invisible to screen readers.
+            .semantics { stateDescription = if (row.unread) "Unread" else "Read" }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.Top,
     ) {
