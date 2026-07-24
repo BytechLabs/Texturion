@@ -74,13 +74,23 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
     }
     setCalling(true);
     try {
+      // Display the number formatted on the call chip (the server still does the
+      // authoritative normalization on `to`). Only NANP shapes format; anything
+      // else falls back to the raw digits.
+      const cleaned = digits.replace(/\D/g, "");
+      const e164 =
+        cleaned.length === 10
+          ? `+1${cleaned}`
+          : cleaned.length === 11 && cleaned.startsWith("1")
+            ? `+${cleaned}`
+            : digits;
       await softphone.placeCall({
         to: digits,
         // Only pin a caller-ID number when the company owns several; a
         // single-number company lets the server imply it.
         phoneNumberId:
           active.length > 1 ? (fromId ?? active[0]?.id) : undefined,
-        contactName: digits,
+        contactName: formatPhone(e164),
       });
       setOpen(false);
       setDigits("");

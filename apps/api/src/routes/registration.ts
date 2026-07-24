@@ -509,7 +509,14 @@ registrationRoutes.post("/enable-us", requireRole("owner"), async (c) => {
     // owner can retry (otherwise a failed create would wedge enable-us forever).
     const { error: rollbackError } = await db
       .from("companies")
-      .update({ registration_fee_charge_started_at: null })
+      // Also undo us_texting_enabled (set true before the invoice above): a
+      // failed invoice must leave enable-us all-or-nothing, not a company marked
+      // US-enabled without ever being charged the $29 fee. Guarded on
+      // registration_fee_paid_at is null so an already-paid company is untouched.
+      .update({
+        registration_fee_charge_started_at: null,
+        us_texting_enabled: false,
+      })
       .eq("id", companyId)
       .is("registration_fee_paid_at", null);
     if (rollbackError) Sentry.captureException(rollbackError);

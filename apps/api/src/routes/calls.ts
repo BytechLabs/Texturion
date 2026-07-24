@@ -246,19 +246,32 @@ async function resolveBusinessNumber(
     if (!match) {
       return errorResponse(c, "conflict", "That number isn't active right now.");
     }
+    // The explicit choice's #106 access is enforced by the caller's downstream
+    // 'text'-level gate; here we only resolve the id.
     return { phoneNumberId: match.id, businessNumber: match.number_e164 };
   }
-  if (rows.length === 0) {
+  // #106: auto-select only among numbers the caller can actually text from
+  // (calling is outreach → needs 'text' level). Without this, a restricted
+  // member with exactly one usable number in a multi-number company was told to
+  // "choose" between numbers they can't use, and the sole-number convenience
+  // path never fired.
+  const access = await resolveNumberAccess(db, {
+    companyId,
+    userId: c.get("userId"),
+    role: c.get("role"),
+  });
+  const usable = rows.filter((r) => access.levelFor(r.id) === "text");
+  if (usable.length === 0) {
     return errorResponse(c, "conflict", "You have no active number to call from.");
   }
-  if (rows.length > 1) {
+  if (usable.length > 1) {
     return errorResponse(
       c,
       "validation_failed",
       "Choose which of your numbers to call from.",
     );
   }
-  return { phoneNumberId: rows[0].id, businessNumber: rows[0].number_e164 };
+  return { phoneNumberId: usable[0].id, businessNumber: usable[0].number_e164 };
 }
 
 /**

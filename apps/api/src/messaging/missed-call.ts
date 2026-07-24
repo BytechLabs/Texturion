@@ -19,6 +19,7 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
+import { ApiError } from "../http/errors";
 import { notifyMissedCall } from "../notifications/missed-call";
 import { guardedMissedCallText } from "./auto-send-missed";
 import { applySendMergeFields } from "./merge";
@@ -173,8 +174,17 @@ export async function sendMissedCallText(
   if (!isUsCaDestination(args.callerE164)) return NO_TEXT;
 
   // §7 send gates (subscription active, US/CA destination registration-clear).
-  // A throw here is caught by the webhook dispatch and lands on the ledger.
-  await runPreSendGates(env, args.companyId, args.callerE164);
+  // A gate failure (lapsed subscription, pending 10DLC registration — states
+  // that last days) is first-pass-final for the retry window, so skip SILENTLY
+  // like the non-textable caller above. Throwing would burn all 5 ledger
+  // retries + a Sentry page on EVERY missed call until the gate clears. A
+  // non-gate error (DB/network) still propagates so the sweeper can retry it.
+  try {
+    await runPreSendGates(env, args.companyId, args.callerE164);
+  } catch (cause) {
+    if (cause instanceof ApiError) return NO_TEXT;
+    throw cause;
+  }
 
   // Merge fields into the booking-forward message — owner-authored or the
   // product default (contact name is unknown for a brand-new caller).
