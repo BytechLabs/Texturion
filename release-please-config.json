@@ -25,19 +25,17 @@
 
   "release-type": "simple",
 
-  "//pre-1.0": [
-    "The product is not public yet, so it lives in 0.x — where semver's contract",
-    "is 'anything may change'. bump-minor-pre-major keeps a breaking change on a",
-    "MINOR bump (0.1.0 -> 0.2.0) instead of letting it jump to 1.0.0, which would",
-    "otherwise happen the first time a `feat!` lands and would announce a",
-    "stability promise that isn't being made yet.",
+  "//tag-format": [
+    "Tags are plain `v0.1.0`, NOT `loonext-v0.1.0`.",
     "",
-    "1.0.0 therefore becomes a DELIBERATE act: add a `Release-As: 1.0.0` footer to",
-    "a commit when the product is actually ready for public consumption.",
-    "",
-    "feat -> minor, fix -> patch, as usual."
+    "This is load-bearing. A manifest config defaults include-component-in-tag to",
+    "TRUE, so release-please looked for `loonext-v0.1.0`, found no previous",
+    "release, and considered all 1045 commits of history — producing a PR body",
+    "past GitHub's 65,536-character limit, which is why the first two runs failed",
+    "at PR creation with an empty error. With one product version there is no",
+    "component to disambiguate anyway."
   ],
-  "bump-minor-pre-major": true,
+  "include-component-in-tag": false,
 
   "packages": {
     ".": {

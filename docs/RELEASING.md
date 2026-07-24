@@ -32,23 +32,19 @@ no stored state, and can't collide across branches. CI passes it automatically.
 The `1` committed in `build.gradle.kts` / `project.yml` is a local-dev fallback
 and is never what gets uploaded.
 
-**Which version bump.** Inferred from the commits: any `feat` gives a minor,
-otherwise patch.
+**Which version bump.** release-please decides, from the commits: a `feat` gives
+a minor, a `fix` a patch, a `feat!`/`BREAKING CHANGE:` a major. Nothing to
+choose. (`Release-As: X.Y.Z` in a commit footer forces a specific version if you
+ever need it.)
 
-**We are pre-1.0, deliberately.** The product is not public yet, so it lives in
-`0.x` — where semver's contract is "anything may change". A breaking change
-(`feat!`, or a `BREAKING CHANGE:` footer) therefore bumps the **minor**
-(`0.1.0` → `0.2.0`) rather than jumping to `1.0.0`, which would announce a
-stability promise that isn't being made yet.
+Starting at `0.1.0` because the product isn't public yet.
 
-Going 1.0.0 is a deliberate act: add a `Release-As: 1.0.0` footer to a commit
-when the product is genuinely ready for public consumption. The same footer
-forces any specific version.
-
-**Where releases start.** `v0.1.0` is tagged as the baseline. Without it the
-first release PR would sweep up all 506 commits of pre-launch history — whose PR
-body exceeds GitHub's 65,536-character limit, which is exactly how the first
-attempt failed. Releases begin from that tag.
+**Where releases start.** `v0.1.0` is tagged as the baseline, and the tag format
+is plain `vX.Y.Z` — `include-component-in-tag: false` in the config. That is
+load-bearing: with the manifest default (component in the tag) release-please
+looks for `loonext-v0.1.0`, doesn't find it, and falls back to considering all
+1045 commits of history, producing a PR body past GitHub's 65,536-character
+limit. That is exactly how the first two runs failed.
 
 **Release traceability.** Deploy stamps the deployed commit into the API Worker
 (`--var GIT_SHA:<sha>`) and Sentry reports it as the release, so a production
