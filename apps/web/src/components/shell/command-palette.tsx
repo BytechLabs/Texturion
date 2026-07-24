@@ -205,7 +205,7 @@ export function CommandPalette() {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
+      if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
         setOpen((current) => !current);
       }
@@ -242,12 +242,14 @@ export function CommandPalette() {
     results.tasks.length === 0 &&
     results.attachments.length === 0 &&
     results.templates.length === 0;
-  const searchStatus: "searching" | "empty" | null = searching
-    ? search.isFetching && !results
-      ? "searching"
-      : noHits && !search.isFetching
-        ? "empty"
-        : null
+  const searchStatus: "searching" | "empty" | "error" | null = searching
+    ? search.isError
+      ? "error"
+      : search.isFetching && !results
+        ? "searching"
+        : noHits && !search.isFetching
+          ? "empty"
+          : null
     : null;
 
   const reset = () => {
@@ -286,8 +288,16 @@ export function CommandPalette() {
             explicit row below owns that state instead. */}
         {!searching && <CommandEmpty>No matches.</CommandEmpty>}
         {searchStatus && (
-          <div className="py-6 text-center text-sm text-app-muted">
-            {searchStatus === "searching" ? "Searching…" : "No matches."}
+          <div
+            role="status"
+            aria-live="polite"
+            className="py-6 text-center text-sm text-app-muted"
+          >
+            {searchStatus === "searching"
+              ? "Searching…"
+              : searchStatus === "error"
+                ? "Couldn't search — check your connection and try again."
+                : "No matches."}
           </div>
         )}
 
