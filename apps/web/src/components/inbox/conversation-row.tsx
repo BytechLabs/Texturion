@@ -144,12 +144,16 @@ export const ConversationRow = memo(function ConversationRow({
     <Link
       href={`/inbox/${conversation.id}`}
       aria-current={active ? "page" : undefined}
-      // Fold the message preview into the label: an explicit aria-label
-      // overrides the row's inner text for screen readers, so without this the
-      // most important content — the latest message — was silent.
+      // An explicit aria-label overrides the row's inner text for screen
+      // readers, so EVERY state a sighted user sees (unread, pinned, internal
+      // note, assignee, spam) plus the latest message must be folded in here —
+      // otherwise those indicators (and the sr-only assignee span below) are
+      // silent for AT.
       aria-label={`Conversation with ${name}${unread ? ", unread" : ""}${
-        previewText ? `. ${previewText}` : ""
-      }`}
+        pinned ? ", pinned" : ""
+      }${snippet?.direction === "note" ? ", internal note" : ""}${
+        assigneeName ? `, assigned to ${assigneeName}` : ""
+      }${spamView ? ", spam" : ""}${previewText ? `. ${previewText}` : ""}`}
       style={{ height: ROW_HEIGHT }}
       className={cn(
         "relative flex items-start gap-[11px] rounded-app-card border p-[11px] transition-[background,box-shadow,border-color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
@@ -231,8 +235,10 @@ export const ConversationRow = memo(function ConversationRow({
                 title={`Assigned to ${assigneeName}`}
                 className="inline-flex items-center gap-1 rounded-full border border-app-line bg-app-stone-0 px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted dark:text-app-muted"
               >
-                {/* The chip shows only initials — give SR users the full name. */}
-                <span className="sr-only">Assigned to {assigneeName}: </span>
+                {/* The chip shows only initials (title tooltip for pointer
+                    users); the full name is announced to AT via the row's
+                    aria-label, so no sr-only span here — it would be dead code
+                    (the aria-label overrides all descendants). */}
                 {avatarInitials(assigneeName)}
               </span>
             )}

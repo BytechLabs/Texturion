@@ -4,6 +4,7 @@ import { Lock } from "lucide-react";
 import Link from "next/link";
 import { Fragment } from "react";
 
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSearch } from "@/lib/api/search";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
@@ -44,10 +45,13 @@ export function SearchResults({ q }: { q: string }) {
   }
   if (search.isError) {
     return (
-      <div className="flex flex-1 items-center justify-center p-8">
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
         <p className="text-sm text-muted-foreground">
           Search isn&apos;t responding. Try again in a moment.
         </p>
+        <Button variant="outline" size="sm" onClick={() => search.refetch()}>
+          Try again
+        </Button>
       </div>
     );
   }

@@ -77,8 +77,10 @@ export default function MarketingLayout({
       <CountryProvider>
         <Nav />
         {/* id="content" is the nav skip link's target; keep it in sync with
-            nav.tsx's .frn-skip href. */}
-        <main id="content" className="flex-1">
+            nav.tsx's .frn-skip href. tabIndex={-1} makes it a programmatic
+            focus target so activating the skip link actually moves focus (and
+            the AT reading cursor) into the content across browsers. */}
+        <main id="content" tabIndex={-1} className="flex-1 outline-none">
           {children}
         </main>
         <Footer />

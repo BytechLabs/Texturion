@@ -235,12 +235,14 @@ export function ConversationList({
           );
         })}
         {/* #11: leaving ghosts — a snapshot of the just-removed row fading out
-            in place. Non-interactive, aria-hidden (the real row is already gone
-            from the a11y tree). */}
+            in place. `inert` (not just aria-hidden) so the ConversationRow's
+            <Link> inside is removed from BOTH the a11y tree AND the tab order —
+            aria-hidden alone left a keyboard user able to Tab into an
+            invisible, animating-out row. */}
         {ghosts.map((ghost) => (
           <div
             key={`ghost-${ghost.id}`}
-            aria-hidden
+            inert
             className="app-motion-row-leave pointer-events-none absolute inset-x-0 top-0"
             style={{ transform: `translateY(${ghost.top}px)` }}
           >
