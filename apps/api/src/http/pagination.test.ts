@@ -72,7 +72,7 @@ describe("buildPage (SPEC §7: { data, next_cursor } from limit+1 rows)", () => 
   ];
 
   it("trims to limit and points the cursor at the last returned row", () => {
-    const page = buildPage(rows, 2);
+    const page = buildPage(rows, 2, "created_at");
     expect(page.data).toEqual(rows.slice(0, 2));
     expect(page.next_cursor).not.toBeNull();
     expect(decodeCursor(page.next_cursor!)).toEqual({
@@ -82,12 +82,12 @@ describe("buildPage (SPEC §7: { data, next_cursor } from limit+1 rows)", () => 
   });
 
   it("returns next_cursor null when the page is not full past the limit", () => {
-    expect(buildPage(rows, 3)).toEqual({ data: rows, next_cursor: null });
-    expect(buildPage(rows.slice(0, 1), 3)).toEqual({
+    expect(buildPage(rows, 3, "created_at")).toEqual({ data: rows, next_cursor: null });
+    expect(buildPage(rows.slice(0, 1), 3, "created_at")).toEqual({
       data: rows.slice(0, 1),
       next_cursor: null,
     });
-    expect(buildPage([], 3)).toEqual({ data: [], next_cursor: null });
+    expect(buildPage([], 3, "created_at")).toEqual({ data: [], next_cursor: null });
   });
 
   it("supports the conversations sort key (last_message_at)", () => {
@@ -104,8 +104,8 @@ describe("buildPage (SPEC §7: { data, next_cursor } from limit+1 rows)", () => 
   });
 
   it("rejects a non-positive limit with 422 validation_failed", () => {
-    expect(() => buildPage(rows, 0)).toThrowError(ApiError);
-    expect(() => buildPage(rows, -1)).toThrowError(ApiError);
-    expect(() => buildPage(rows, 2.5)).toThrowError(ApiError);
+    expect(() => buildPage(rows, 0, "created_at")).toThrowError(ApiError);
+    expect(() => buildPage(rows, -1, "created_at")).toThrowError(ApiError);
+    expect(() => buildPage(rows, 2.5, "created_at")).toThrowError(ApiError);
   });
 });

@@ -60,6 +60,9 @@ async function fetchCompanyRow(
         "stripe_customer_id,registration_fee_paid_at",
     )
     .eq("id", companyId)
+    // Match usage.ts + the billing jobs: a soft-deleted company is not_found
+    // here rather than an actionable registration/billing target.
+    .is("deleted_at", null)
     .limit(1);
   if (error) throw new Error(`companies lookup failed: ${error.message}`);
   const row = (data?.[0] ?? null) as unknown as RegistrationCompanyRow | null;

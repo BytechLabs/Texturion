@@ -66,12 +66,23 @@ export function assertBodyWithinLimit(c: Context, maxBytes: number): void {
 }
 
 /**
- * `limit` query param: positive integer, capped at `max`, `fallback` when
- * absent (SPEC §7: conversations default 25; messages default 50, max 100).
+ * `limit` query param: a canonical positive integer 1..max; `fallback` when
+ * absent, and a 422 for anything out of range or non-canonical (SPEC §7:
+ * conversations default 25; messages default 50, max 100). Matches the strict
+ * UUID/enum/cursor validation elsewhere in this layer.
  */
 export function parseLimit(c: Context, fallback: number, max: number): number {
   const raw = c.req.query("limit");
   if (raw === undefined) return fallback;
+  // Only accept a plain run of digits — reject "1e2", "0x1f", "25.0", padded
+  // forms that Number() would silently coerce (a strict API surface, not a
+  // lenient one).
+  if (!/^\d+$/.test(raw)) {
+    throw new ApiError(
+      "validation_failed",
+      `limit must be an integer between 1 and ${max}.`,
+    );
+  }
   const value = Number(raw);
   if (!Number.isInteger(value) || value < 1 || value > max) {
     throw new ApiError(

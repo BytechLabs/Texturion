@@ -50,7 +50,10 @@ const planBodySchema = z.object({
   // retired ones below — a pre-D42 bundle still selling the $8 Calling
   // add-on must not dead-end at the pay button with a 422. Unknown ids that
   // were never modules still 422 (typo protection).
-  modules: z.array(z.string()).optional(),
+  // Bounded: there are only a handful of real module ids, so a 20-item array of
+  // ≤64-char strings is generous and rejects an abusive payload with a clean 422
+  // (the handler materializes this into a Set + two filter passes).
+  modules: z.array(z.string().max(64)).max(20).optional(),
 });
 
 const moduleBodySchema = z.object({
@@ -87,6 +90,9 @@ async function fetchCompany(
         "stripe_customer_id,stripe_subscription_id,registration_fee_paid_at",
     )
     .eq("id", companyId)
+    // A soft-deleted company is not billable — match usage.ts + the billing
+    // background jobs, which all filter deleted_at (it's never hard-deleted).
+    .is("deleted_at", null)
     .limit(1);
   if (error) throw new Error(`companies lookup failed: ${error.message}`);
   // supabase-js cannot statically type an untyped-database select; the row

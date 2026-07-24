@@ -244,7 +244,18 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
   it("422s on a garbage cursor and an out-of-range limit", async () => {
     const sb = memberStub();
     stubFetch(jwksRoute(auth), sb.route);
-    for (const qs of ["cursor=garbage", "limit=0", "limit=101", "status=bogus"]) {
+    // Non-canonical numeric forms Number() would silently coerce must 422 too
+    // (strict surface): 1e2→100, 0x19→25, 25.0, whitespace-padded.
+    for (const qs of [
+      "cursor=garbage",
+      "limit=0",
+      "limit=101",
+      "status=bogus",
+      "limit=1e2",
+      "limit=0x19",
+      "limit=25.0",
+      "limit=%2025",
+    ]) {
       const res = await apiRequest(
         app,
         env,

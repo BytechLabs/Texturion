@@ -73,10 +73,11 @@ export interface Page<T> {
 export function buildPage<T extends { id: string }>(
   rows: readonly T[],
   limit: number,
-  timestampColumn: Extract<keyof T, string> = "created_at" as Extract<
-    keyof T,
-    string
-  >,
+  // Required (no "created_at" default): the old default was an unsound
+  // double-cast that let a caller paginate a row shape WITHOUT created_at,
+  // compiling clean and only 500ing at runtime once data grew past one page.
+  // Naming the sort key forces every list route to declare it up front.
+  timestampColumn: Extract<keyof T, string>,
 ): Page<T> {
   if (!Number.isInteger(limit) || limit < 1) {
     throw new ApiError("validation_failed", "limit must be a positive integer.");

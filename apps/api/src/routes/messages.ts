@@ -609,7 +609,7 @@ messageRoutes.get(
       })[]
     >(await query, "messages list");
 
-    const page = buildPage(rows, limit);
+    const page = buildPage(rows, limit, "created_at");
     // Two independent per-page task annotations, resolved in ONE parallel
     // round-trip: D17/T5.1 flags messages that carry a live task (the stone
     // task indicator on a promoted message), and TASKS-V2 D-D resolves the
