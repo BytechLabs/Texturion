@@ -82,6 +82,7 @@ export default function BlogIndexPage() {
               <FrCard className="h-full p-0">
                 <Link
                   href={blogPostPath(featured.slug)}
+                  aria-label={`Read: ${featured.title}`}
                   className="group flex h-full flex-col overflow-hidden rounded-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)] md:flex-row"
                 >
                   <BlogPlate
@@ -121,6 +122,7 @@ export default function BlogIndexPage() {
                 <FrCard className="h-full p-0">
                   <Link
                     href={blogPostPath(post.slug)}
+                    aria-label={`Read: ${post.title}`}
                     className="group flex h-full flex-col overflow-hidden rounded-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
                   >
                     <BlogPlate

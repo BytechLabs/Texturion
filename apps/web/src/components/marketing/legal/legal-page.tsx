@@ -110,11 +110,19 @@ export function LegalLink({
   href: string;
   children: React.ReactNode;
 }) {
+  const className =
+    "font-medium text-[color:var(--fr-cobalt)] underline decoration-[color:var(--fr-cobalt)]/35 underline-offset-4 transition-colors duration-200 ease-out hover:decoration-[color:var(--fr-cobalt)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]";
+  // Internal path → client-side navigation (no full page reload / re-download).
+  // Hash anchors, mailto:, and external http(s) links stay a plain <a>.
+  if (href.startsWith("/") && !href.startsWith("//")) {
+    return (
+      <Link href={href} className={className}>
+        {children}
+      </Link>
+    );
+  }
   return (
-    <a
-      href={href}
-      className="font-medium text-[color:var(--fr-cobalt)] underline decoration-[color:var(--fr-cobalt)]/35 underline-offset-4 transition-colors duration-200 ease-out hover:decoration-[color:var(--fr-cobalt)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
-    >
+    <a href={href} className={className}>
       {children}
     </a>
   );
