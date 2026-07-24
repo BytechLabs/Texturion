@@ -144,7 +144,19 @@ function CallChip({ call }: { call: CallInfo }) {
           <span className="sr-only">Incoming call from </span>
           {label}
         </span>
-        <Button size="sm" className="h-6 gap-1 px-2 text-[12px]" onClick={() => softphone.answer(call.id)}>
+        <Button
+          size="sm"
+          className="h-6 gap-1 px-2 text-[12px]"
+          onClick={() =>
+            void softphone.answer(call.id).catch((cause) =>
+              toast.error(
+                cause instanceof Error
+                  ? cause.message
+                  : "Couldn't answer the call.",
+              ),
+            )
+          }
+        >
           <Phone className="size-3" strokeWidth={1.75} />
           Answer
         </Button>

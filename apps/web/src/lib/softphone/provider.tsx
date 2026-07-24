@@ -206,8 +206,9 @@ interface SoftphoneContextValue extends SoftphoneState {
     phoneNumberId?: string;
     contactName: string;
   }) => Promise<void>;
-  /** Answer a ringing call; any active call is put on hold first. */
-  answer: (id: string) => void;
+  /** Answer a ringing call; any active call is put on hold first. Rejects when
+   *  the mic can't be acquired so the caller can surface the reason. */
+  answer: (id: string) => Promise<void>;
   /** Hang up one call (default: the active one). */
   hangup: (id?: string) => void;
   /** Hold/unhold flip — unholding another call swaps the active audio. */
@@ -693,14 +694,15 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       try {
         await acquireMicOrThrow();
       } catch (cause) {
-        dispatch({
-          type: "error",
-          message:
-            cause instanceof MicPermissionError
-              ? cause.message
-              : "Couldn't answer the call.",
-        });
-        return;
+        const message =
+          cause instanceof MicPermissionError
+            ? cause.message
+            : "Couldn't answer the call.";
+        dispatch({ type: "error", message });
+        // Reject so the Answer click can surface the reason. state.error is not
+        // rendered anywhere, so without this the ring chip just keeps ringing
+        // and the actionable "mic is blocked" message is lost.
+        throw new Error(message);
       }
       holdActive();
       try {
