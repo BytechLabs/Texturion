@@ -127,6 +127,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import com.loonext.android.features.compose.attachmentLabel
+import com.loonext.android.features.compose.mmsKindFromName
 
 private enum class InboxStatusTab(val label: String) {
     Open("Open"), Mine("Mine"), All("All"), Closed("Closed")
@@ -1224,8 +1226,16 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
                 )
             }
             val snippet = row.last_message?.let { last ->
-                val body = if (last.body.isBlank() && last.has_attachments) "Photo"
-                else last.body
+                // Name what actually arrived: a voice message is not a "Photo",
+                // which is what this row used to call every attachment.
+                val body = if (last.body.isBlank() && last.has_attachments) {
+                    attachmentLabel(
+                        mmsKindFromName(last.attachment_kind),
+                        last.attachment_count ?: 1,
+                    )
+                } else {
+                    last.body
+                }
                 if (last.direction == "note") "Note · $body" else body
             }.orEmpty()
             Text(

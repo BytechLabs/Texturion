@@ -1,5 +1,8 @@
 package com.loonext.android.features.inbox
 
+import com.loonext.android.features.compose.MmsKind
+import com.loonext.android.features.compose.attachmentLabel
+
 /**
  * Pure decision + copy for the global inbound-message toast (#165) — no
  * Android imports, unit-tested on the JVM. The realtime payload is treated as
@@ -38,12 +41,31 @@ fun inboundToastLine(
     body: String?,
     hasAttachments: Boolean,
     maxLength: Int = 90,
+    /** The kind of media that arrived, when known; null → the neutral wording. */
+    attachmentKind: MmsKind? = null,
+    attachmentCount: Int = 1,
 ): String {
     val who = contactName?.trim()?.takeIf { it.isNotEmpty() } ?: "New message"
     val text = body?.trim()?.replace(Regex("\\s+"), " ").orEmpty()
     val snippet = when {
         text.isNotEmpty() -> text
-        hasAttachments -> "Sent a photo"
+        // "Sent a photo" was wrong for every non-image attachment, a voice
+        // message included.
+        hasAttachments -> {
+            val noun = attachmentLabel(attachmentKind, attachmentCount)
+                .replaceFirstChar { it.lowercase() }
+            // A counted label ("3 photos") already reads as a phrase; a single
+            // one needs an article, and "audio"/"attachment" need "an".
+            val phrase = if (attachmentCount > 1) {
+                noun
+            } else {
+                val article = if (noun.firstOrNull()?.lowercaseChar() in
+                    listOf('a', 'e', 'i', 'o', 'u')
+                ) "an" else "a"
+                "$article $noun"
+            }
+            "Sent $phrase"
+        }
         else -> "Sent a message"
     }
     val line = "$who: $snippet"

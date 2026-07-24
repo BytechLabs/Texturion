@@ -13,6 +13,8 @@ import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.ui.common.formatPhone
 import kotlinx.serialization.json.JsonPrimitive
+import com.loonext.android.features.compose.mmsKindOf
+import com.loonext.android.features.compose.sharedMmsKind
 
 /**
  * The global inbound-message toast (#165): while the app is open, a customer
@@ -73,11 +75,14 @@ fun InboundMessageToastHost(
             // while the detail was in flight.
             if (viewedConversationId() == conversationId) return@collect
 
+            val kinds = newestInbound.attachments.map { mmsKindOf(it.content_type) }
             val line = inboundToastLine(
                 contactName = detail.contact.name
                     ?: formatPhone(detail.contact.phone_e164),
                 body = newestInbound.body,
-                hasAttachments = newestInbound.attachments.isNotEmpty(),
+                hasAttachments = kinds.isNotEmpty(),
+                attachmentKind = sharedMmsKind(kinds),
+                attachmentCount = kinds.size,
             )
             val result = snackbar.showSnackbar(
                 message = line,

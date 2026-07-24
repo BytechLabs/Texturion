@@ -1077,6 +1077,52 @@ fun mmsKindOf(contentType: String?): MmsKind {
     }
 }
 
+/**
+ * What to call an attachment in a one-line preview (inbox row, inbound toast).
+ *
+ * A customer's voice message used to read as "Photo" everywhere, because the
+ * row only had a has_attachments boolean and every surface guessed a noun. This
+ * is the one place that turns a kind plus a count into words. Mirrors
+ * attachmentLabel in apps/web/src/lib/attachments/media-label.ts and
+ * apps/ios/Loonext/Core/Model/MediaKind.swift.
+ *
+ * `kind` is null for an unknown kind or a MIXED set: the neutral noun.
+ */
+fun attachmentLabel(kind: MmsKind?, count: Int): String {
+    val n = maxOf(count, 1)
+    val many = n > 1
+    return when (kind) {
+        MmsKind.Image -> if (many) "$n photos" else "Photo"
+        MmsKind.Audio -> if (many) "$n audio messages" else "Audio message"
+        MmsKind.Video -> if (many) "$n videos" else "Video"
+        MmsKind.Contact -> if (many) "$n contact cards" else "Contact card"
+        MmsKind.Calendar -> if (many) "$n calendar invites" else "Calendar invite"
+        MmsKind.Document -> if (many) "$n PDFs" else "PDF"
+        MmsKind.Text -> if (many) "$n text files" else "Text file"
+        MmsKind.File, null -> if (many) "$n attachments" else "Attachment"
+    }
+}
+
+/** Parse the server's snippet kind string; unknown or absent → null. */
+fun mmsKindFromName(name: String?): MmsKind? = when (name) {
+    "image" -> MmsKind.Image
+    "audio" -> MmsKind.Audio
+    "video" -> MmsKind.Video
+    "contact" -> MmsKind.Contact
+    "calendar" -> MmsKind.Calendar
+    "document" -> MmsKind.Document
+    "text" -> MmsKind.Text
+    "file" -> MmsKind.File
+    else -> null
+}
+
+/**
+ * The kind every attachment shares, or null when they disagree (a mixed set
+ * takes the neutral wording). Mirrors the SQL in migration 20260724080000.
+ */
+fun sharedMmsKind(kinds: List<MmsKind>): MmsKind? =
+    kinds.firstOrNull()?.takeIf { first -> kinds.all { it == first } }
+
 /** The stroke icon a kind renders with (file chips in composer + bubbles). */
 val MmsKind.icon: ImageVector
     get() = when (this) {

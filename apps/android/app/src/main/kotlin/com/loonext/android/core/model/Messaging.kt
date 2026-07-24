@@ -68,6 +68,12 @@ data class ConversationSnippet(
     val body: String,
     val created_at: String,
     val has_attachments: Boolean,
+    /** How many attachments ride the last message. Defaulted so a response from
+     *  a server predating migration 20260724080000 still decodes. */
+    val attachment_count: Int? = null,
+    /** The kind they all share, "file" for a mixed set, null when there are
+     *  none. The inbox labels from THIS instead of guessing a noun. */
+    val attachment_kind: String? = null,
 )
 
 /** GET /v1/conversations row (api_list_conversations RPC). */

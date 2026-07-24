@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.loonext.android.features.compose.MmsKind
 
 /**
  * The global inbound toast's decision + copy (#165). The suppression rule is
@@ -70,11 +71,51 @@ class InboundToastLogicTest {
     fun `media-only text says what arrived instead of an empty snippet`() {
         assertEquals(
             "Dana: Sent a photo",
-            inboundToastLine("Dana", "  ", hasAttachments = true),
+            inboundToastLine(
+                "Dana", "  ", hasAttachments = true,
+                attachmentKind = MmsKind.Image,
+            ),
         )
         assertEquals(
             "Dana: Sent a message",
             inboundToastLine("Dana", null, hasAttachments = false),
+        )
+    }
+
+    @Test
+    fun `a voice message is never announced as a photo`() {
+        assertEquals(
+            "Dana: Sent an audio message",
+            inboundToastLine(
+                "Dana", "", hasAttachments = true,
+                attachmentKind = MmsKind.Audio,
+            ),
+        )
+    }
+
+    @Test
+    fun `several attachments are counted, not pluralized by hand`() {
+        assertEquals(
+            "Dana: Sent 3 photos",
+            inboundToastLine(
+                "Dana", "", hasAttachments = true,
+                attachmentKind = MmsKind.Image, attachmentCount = 3,
+            ),
+        )
+    }
+
+    @Test
+    fun `an unknown or mixed set falls back to the neutral noun`() {
+        assertEquals(
+            "Dana: Sent an attachment",
+            inboundToastLine("Dana", "", hasAttachments = true),
+        )
+        assertEquals(
+            "Dana: Sent 2 attachments",
+            inboundToastLine(
+                "Dana", "", hasAttachments = true,
+                attachmentKind = null, attachmentCount = 2,
+            ),
         )
     }
 
