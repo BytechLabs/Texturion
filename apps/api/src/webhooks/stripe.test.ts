@@ -883,6 +883,29 @@ describe("§9 event → state table", () => {
     expect(email.text).toContain("https://invoice.stripe.test/i/in_1");
   });
 
+  it("invoice.payment_failed: no dunning email when the re-fetched subscription is active (out-of-order)", async () => {
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      // A later payment success already flipped the subscription back to active;
+      // this failed-payment event arrives out of order.
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({ status: "active" }),
+      ),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => [
+        { id: COMPANY_ID, name: "Acme Plumbing" },
+      ]),
+      ...recipientEndpoints(),
+    ]);
+    await deliver(eventOf("invoice.payment_failed", invoiceFixture()), harness);
+
+    // Status still mirrors the truth (active)…
+    expect(harness.callsTo("PATCH", /companies/)[0].json()).toMatchObject({
+      subscription_status: "active",
+    });
+    // …but texting isn't paused, so the alarming dunning email must NOT send.
+    expect(harness.callsTo("POST", /api\.resend\.com/)).toHaveLength(0);
+  });
+
   it("invoice.payment_failed with us_registration metadata clears the fee start-marker (retry unblocked, §2)", async () => {
     const harness = makeHarness([
       ...ledgerEndpoints(),

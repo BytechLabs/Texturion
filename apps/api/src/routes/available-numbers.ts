@@ -57,6 +57,23 @@ availableNumbersRoutes.get("/", async (c) => {
     }
   }
 
+  // Cost/abuse guard: this JWT-only, company-exempt route fires a live Telnyx
+  // inventory search per request, so any signed-in account (even one owning no
+  // company) could hammer it. Rate-limit per caller — binding absent in
+  // dev/tests → skipped, exactly like every other VERIFY_RATE_LIMITER site.
+  if (env.VERIFY_RATE_LIMITER) {
+    const { success } = await env.VERIFY_RATE_LIMITER.limit({
+      key: `available-numbers:${c.get("userId")}`,
+    });
+    if (!success) {
+      return errorResponse(
+        c,
+        "rate_limited",
+        "Too many number searches. Wait a minute and try again.",
+      );
+    }
+  }
+
   const result = await searchInventory(env, {
     country,
     areaCode: area_code,

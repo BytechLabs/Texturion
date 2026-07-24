@@ -22,6 +22,7 @@ import {
   hasLiveSubscription,
   mirrorSubscriptionStatus,
   planForLicensedPrice,
+  type LocalSubscriptionStatus,
   type PlanId,
 } from "../billing/plans";
 import { billingRecipients } from "../billing/recipients";
@@ -635,7 +636,7 @@ export async function syncSubscription(
   env: Env,
   subscriptionId: string,
   db: SupabaseClient = getDb(env),
-): Promise<{ id: string; name: string }[]> {
+): Promise<{ id: string; name: string; status: LocalSubscriptionStatus }[]> {
   const subscription = await getStripe(env).subscriptions.retrieve(
     subscriptionId,
   );
@@ -686,7 +687,9 @@ export async function syncSubscription(
       );
     }
   }
-  return companies.map(({ id, name }) => ({ id, name }));
+  // Expose the mirrored (truth) status so callers can gate on it — e.g. the
+  // dunning email must not fire when an out-of-order success left this active.
+  return companies.map(({ id, name }) => ({ id, name, status }));
 }
 
 /**
@@ -868,6 +871,11 @@ async function handleInvoicePaymentFailed(
 
   const companies = await syncSubscription(env, subscriptionId, db);
   for (const company of companies) {
+    // Out-of-order delivery: syncSubscription just re-fetched the TRUTH. If the
+    // subscription is now active (a later payment success landed before this
+    // failed-payment event), texting is NOT paused — don't send the alarming
+    // "paused" email (and don't burn the per-attempt email-ledger claim on it).
+    if (company.status === "active") continue;
     // #52: ONE dunning email per payment ATTEMPT — the key carries
     // `attempt_count`, so each of Stripe's smart retries still notifies the
     // customer (a distinct failure), while sweeper replays of this same event
