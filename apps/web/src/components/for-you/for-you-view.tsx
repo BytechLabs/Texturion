@@ -398,6 +398,38 @@ function SectionSkeleton() {
 }
 
 /**
+ * One count in the dashboard's summary strip. Quiet by default; a tile with
+ * work in it lifts to white so the eye lands on it first. Not a control — the
+ * sections below are where you act, and inventing navigation here would just
+ * add a second way to do the same thing.
+ */
+function SummaryTile({ label, count }: { label: string; count: number }) {
+  const active = count > 0;
+  return (
+    <div
+      className={cn(
+        "rounded-app-card border px-3 py-2.5",
+        active
+          ? "border-app-line bg-app-white"
+          : "border-transparent bg-app-stone-1",
+      )}
+    >
+      <p
+        className={cn(
+          "text-[20px] font-semibold leading-none tabular-nums",
+          active ? "text-app-ink" : "text-app-muted-2",
+        )}
+      >
+        {count}
+      </p>
+      <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.06em] text-app-muted-2">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+/**
  * /for-you — the triage home (PORTAL-UX §3.1), the DEFAULT landing. A single
  * scrollable stage of typed cards in labeled sections rendered from api_for_you:
  * Triage (owner/lead), Waiting on you, My tasks, Unread. Each card shows WHY it
@@ -422,7 +454,7 @@ export function ForYouView() {
     : 0;
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8">
+    <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8 lg:max-w-5xl">
       <header className="mb-6 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-[22px] font-semibold tracking-[-0.01em] text-app-ink">
@@ -449,6 +481,29 @@ export function ForYouView() {
           <NotificationBell />
         </div>
       </header>
+
+      {/* The dashboard's summary strip: where the work is, before you read a
+          single card. Hidden while loading and when the queue is empty, where
+          the caught-up card already says everything. */}
+      {forYou.data && total > 0 && (
+        <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {isLead && (
+            <SummaryTile
+              label="Triage"
+              count={
+                (forYou.data.triage?.conversations.length ?? 0) +
+                (forYou.data.triage?.tasks.length ?? 0)
+              }
+            />
+          )}
+          <SummaryTile
+            label="Waiting on you"
+            count={forYou.data.waiting_on_you.length}
+          />
+          <SummaryTile label="My tasks" count={forYou.data.my_tasks.length} />
+          <SummaryTile label="Unread" count={forYou.data.unread.length} />
+        </div>
+      )}
 
       {forYou.isError ? (
         <div className="flex flex-col items-center gap-3 rounded-app-card border border-app-line bg-app-white px-6 py-12 text-center">
@@ -511,7 +566,11 @@ function ForYouSections({ data, isLead }: { data: ForYou; isLead: boolean }) {
   }
 
   return (
-    <div className="space-y-7">
+    // A dashboard on a wide screen: sections sit as panels in two columns
+    // instead of one long scroll. `items-start` keeps a short panel short
+    // rather than stretching it to its neighbour's height, and the columns
+    // collapse back to a single stack on a phone, where stacked IS right.
+    <div className="space-y-7 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0">
       {isLead && triageCount > 0 && (
         <Section label="Triage" count={triageCount}>
           {triage?.conversations.map((item) => (
@@ -547,7 +606,9 @@ function ForYouSections({ data, isLead }: { data: ForYou; isLead: boolean }) {
         </Section>
       )}
 
-      <RecentCallsSection />
+      <div className="lg:col-span-2">
+        <RecentCallsSection />
+      </div>
     </div>
   );
 }
