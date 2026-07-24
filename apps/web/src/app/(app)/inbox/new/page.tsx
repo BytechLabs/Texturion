@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { NewConversation } from "@/components/inbox/new-conversation";
 import { Skeleton } from "@/components/ui/skeleton";
+
+export const metadata: Metadata = { title: "New message" };
 
 /**
  * /inbox/new — outbound-first compose (G5). Mobile: full-screen push (the
