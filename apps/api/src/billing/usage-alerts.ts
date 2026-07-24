@@ -11,6 +11,8 @@
  * selected by state — sums vs the ledger — never by "last run" bookkeeping),
  * so re-runs and overlaps can never double-send.
  */
+import * as Sentry from "@sentry/cloudflare";
+
 import { billingRecipients } from "./recipients";
 import { EGRESS_ALLOWANCE_BYTES } from "../attachments/egress";
 import {
@@ -285,6 +287,13 @@ export async function recordAndSendAlert(
 }
 
 /**
+ * Per-run cap on the active-company scan — each company issues ~4 usage RPCs,
+ * so this bounds subrequests well under the Workers ceiling and makes the read
+ * limit explicit rather than a silent PostgREST 1000-row truncation.
+ */
+const USAGE_ALERTS_BATCH = 200;
+
+/**
  * Hourly usage-alert check (SPEC §9 metering pipeline tail): for every active
  * company with a live billing period, sum the period's `usage_events` (the
  * app-side source of truth — same `api_period_segments` RPC as GET /v1/usage)
@@ -298,9 +307,21 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
     .eq("subscription_status", "active")
     .not("plan", "is", null)
     .not("current_period_start", "is", null)
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    // Bounded per-run: each company issues ~4 usage RPCs, so an unbounded active
+    // scan would risk the Workers subrequest ceiling / the PostgREST 1000-row
+    // silent truncation (tenants past the cap would miss their overage warnings
+    // and hit surprise bills) as the base grows.
+    .order("id", { ascending: true })
+    .limit(USAGE_ALERTS_BATCH);
   if (error) {
     throw new Error(`active companies lookup failed: ${error.message}`);
+  }
+  if ((data ?? []).length >= USAGE_ALERTS_BATCH) {
+    Sentry.captureMessage(
+      `usage-alerts scan hit its per-run cap of ${USAGE_ALERTS_BATCH}; tenants past the cap miss overage warnings this run — add checkpoint-resume before the active base outgrows one invocation`,
+      "warning",
+    );
   }
 
   const failures: unknown[] = [];

@@ -105,6 +105,13 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
       retiredModuleItemsRemoved: 0,
       extraNumberQuantitiesConverged: 0,
     });
+    // #12: the re-mirror scan excludes terminal canceled tenants (which keep
+    // their sub id forever → unbounded churn growth) and is bounded per run.
+    const remirrorCall = harness.callsTo("GET", /\/rest\/v1\/companies/)[0];
+    expect(
+      remirrorCall.url.searchParams.getAll("subscription_status"),
+    ).toContain("neq.canceled");
+    expect(remirrorCall.url.searchParams.get("limit")).toBe("500");
     // The mirror wrote Stripe's CURRENT truth (missed-webhook backstop).
     expect(patches).toEqual([
       {

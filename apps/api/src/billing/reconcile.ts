@@ -38,6 +38,28 @@ import { getStripe, type Stripe } from "./stripe";
  */
 const ORPHAN_SUBSCRIPTION_MIN_AGE_S = 3600;
 const COLLECTIBLE_STATUSES = new Set(["active", "past_due", "unpaid"]);
+
+/**
+ * Per-run scan caps. A single Workers invocation is bounded to ~1000
+ * subrequests, and a PostgREST read silently truncates at the 1000-row default,
+ * so an unbounded per-company scan either crashes partway (leaving the tail
+ * unreconciled at the SAME place every run) or drops tenants with no error.
+ * Each scan below is ordered + capped; the orphan sweep issues up to ~4 Stripe
+ * subrequests per company (list + retrieve + item ops), so it takes the tighter
+ * cap. If a scan hits its cap we alert — the base has outgrown one run and
+ * checkpoint-resume should be added before the tail is missed.
+ */
+const RECONCILE_REMIRROR_BATCH = 500;
+const ORPHAN_SWEEP_BATCH = 200;
+
+function warnIfScanAtCapacity(count: number, batch: number, scan: string): void {
+  if (count >= batch) {
+    Sentry.captureMessage(
+      `reconcile ${scan} scan hit its per-run cap of ${batch}; the tail is NOT processed this run — add checkpoint-resume before the base outgrows one invocation`,
+      "warning",
+    );
+  }
+}
 const SETTLED_STATUSES = new Set(["active", "past_due", "unpaid", "trialing"]);
 
 export interface SubscriptionReconcileSummary {
@@ -73,11 +95,25 @@ export async function runSubscriptionReconcileJob(
     .from("companies")
     .select("id,stripe_subscription_id")
     .neq("subscription_status", "active")
+    // Canceled tenants keep their stripe_subscription_id FOREVER, so including
+    // them grows this scan with lifetime churn — and re-mirroring a canceled sub
+    // is a no-op (Stripe returns canceled; a resubscribe is a NEW sub handled by
+    // checkout webhooks). Exclude them; the remaining non-active states
+    // (past_due/unpaid/incomplete) are transient + recoverable — the actual
+    // reconcile target (a missed webhook that left texting wrongly paused).
+    .neq("subscription_status", "canceled")
     .not("stripe_subscription_id", "is", null)
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    .order("id", { ascending: true })
+    .limit(RECONCILE_REMIRROR_BATCH);
   if (error) {
     throw new Error(`non-active companies lookup failed: ${error.message}`);
   }
+  warnIfScanAtCapacity(
+    (data ?? []).length,
+    RECONCILE_REMIRROR_BATCH,
+    "re-mirror",
+  );
 
   const failures: unknown[] = [];
   for (const row of (data ?? []) as {
@@ -155,10 +191,16 @@ async function sweepOrphanSubscriptions(
     .select("id,plan,stripe_customer_id,stripe_subscription_id")
     .not("stripe_customer_id", "is", null)
     .not("stripe_subscription_id", "is", null)
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    // Bounded per-run: each company issues up to ~4 Stripe subrequests, so a
+    // full unbounded paying-base scan would blow the ~1000 subrequest ceiling
+    // (or silently truncate at the PostgREST 1000-row default) as the base grows.
+    .order("id", { ascending: true })
+    .limit(ORPHAN_SWEEP_BATCH);
   if (error) {
     throw new Error(`orphan-sweep companies lookup failed: ${error.message}`);
   }
+  warnIfScanAtCapacity((data ?? []).length, ORPHAN_SWEEP_BATCH, "orphan-sweep");
 
   const nowEpoch = Math.floor(now.getTime() / 1000);
   const stripe = getStripe(env);
