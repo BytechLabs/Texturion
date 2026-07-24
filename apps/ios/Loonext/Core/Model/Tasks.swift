@@ -34,6 +34,13 @@ struct TaskItem: Codable, Sendable {
     var addr_postal_code: String? = nil
     var addr_country: String? = nil
     var addr_provenance: String? = nil
+    /// #214/Map: the task's OWN geocoded coordinates (from its addr_* address,
+    /// cached by the geocode-tasks cron; projected by TASK_COLUMNS). Nil until
+    /// geocoded or when the task has no address. The Map prefers these over the
+    /// contact's saved location so a job pins at its SITE, not where the customer
+    /// lives — the founder-reported wrong-pin fix (web parity, map-types.ts).
+    var lat: Double? = nil
+    var lng: Double? = nil
 }
 
 struct TaskContactLocation: Codable, Sendable {

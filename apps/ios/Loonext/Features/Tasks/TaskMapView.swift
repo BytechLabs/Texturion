@@ -43,17 +43,26 @@ struct TaskMapModel {
     let missing: Int
 }
 
-/// The web's `taskCoords` guard, ported exactly: only finite, in-range
-/// coordinates plot; everything else counts as "without a location".
+/// The web's `taskCoords`, ported exactly (map-types.ts): PREFER the task's OWN
+/// geocoded address (a job SITE — "CN Tower, Toronto") over the contact's saved
+/// location (where the customer lives — "Calgary"), falling back to the contact
+/// only when the task has none. Only finite, in-range coordinates plot;
+/// everything else counts as "without a location".
 func taskPinCoords(_ task: TaskItem) -> (lat: Double, lng: Double)? {
-    guard let contact = task.contact, let lat = contact.lat, let lng = contact.lng else {
+    if let own = validPin(task.lat, task.lng) { return own }
+    return validPin(task.contact?.lat, task.contact?.lng)
+}
+
+/// Finite, on-Earth coordinates or nil (a bad geocode must never plot).
+private func validPin(_ lat: Double?, _ lng: Double?) -> (lat: Double, lng: Double)? {
+    guard let lat = lat, let lng = lng,
+          lat.isFinite, lng.isFinite, abs(lat) <= 90, abs(lng) <= 180 else {
         return nil
     }
-    guard lat.isFinite, lng.isFinite, abs(lat) <= 90, abs(lng) <= 180 else { return nil }
     return (lat, lng)
 }
 
-/// Partition rows into per-contact pin groups + the unlocated count. Group
+/// Partition rows into per-location pin groups + the unlocated count. Group
 /// order follows first appearance so the render is deterministic.
 func buildTaskMapModel(_ rows: [TaskItem]) -> TaskMapModel {
     struct Located { let task: TaskItem; let lat: Double; let lng: Double }
@@ -64,7 +73,10 @@ func buildTaskMapModel(_ rows: [TaskItem]) -> TaskMapModel {
     var order: [String] = []
     var buckets: [String: [Located]] = [:]
     for item in located {
-        let key = item.task.contact?.id ?? "\(item.lat),\(item.lng)"
+        // Fuse by the RESOLVED coordinate, not the contact: a task now pins at
+        // its OWN site, so two jobs for the same customer at different addresses
+        // must be two pins (contact grouping collapsed them onto the first).
+        let key = "\(item.lat),\(item.lng)"
         if buckets[key] == nil { order.append(key) }
         buckets[key, default: []].append(item)
     }

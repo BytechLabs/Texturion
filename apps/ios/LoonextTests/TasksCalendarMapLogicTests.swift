@@ -241,13 +241,79 @@ final class TasksCalendarMapLogicTests: XCTestCase {
         XCTAssertEqual(model.missing, 2)
         XCTAssertEqual(model.groups.count, 2)
 
-        // Group order follows first appearance.
-        XCTAssertEqual(model.groups.map(\.id), ["c1", "c2"])
+        // Group order follows first appearance; pins now fuse by RESOLVED
+        // coordinate (not contact id), so the two Henderson tasks at one
+        // location still collapse into one pin.
+        XCTAssertEqual(model.groups.map(\.lat), [43.6, 40.7])
         let henderson = model.groups[0]
         XCTAssertEqual(henderson.tasks.map(\.id), ["a", "b"])
         XCTAssertEqual(henderson.contactName, "Henderson")
         XCTAssertEqual(henderson.lat, 43.6)
         XCTAssertEqual(model.groups[1].tasks.map(\.id), ["c"])
+    }
+
+    // MARK: - Map: task's OWN geocode preferred over the contact (founder fix)
+
+    /// A task carrying its own geocoded coordinate plus a (possibly different)
+    /// contact location — the #214 Map wrong-pin case.
+    private func ownLocated(
+        id: String,
+        contactId: String,
+        contactLat: Double?,
+        contactLng: Double?,
+        lat: Double?,
+        lng: Double?
+    ) -> TaskItem {
+        TaskItem(
+            id: id,
+            company_id: "c1",
+            message_id: "m-\(id)",
+            conversation_id: "cv1",
+            title: "Task \(id)",
+            description: "",
+            assigned_user_id: nil,
+            due_at: nil,
+            created_by_user_id: "u1",
+            created_at: "2026-07-01T00:00:00Z",
+            updated_at: "2026-07-01T00:00:00Z",
+            done: false,
+            status: "open",
+            contact: contact(id: contactId, name: "Customer", lat: contactLat, lng: contactLng),
+            attachment_count: nil,
+            lat: lat,
+            lng: lng
+        )
+    }
+
+    func testTaskPinCoordsPrefersTasksOwnGeocodeOverContact() {
+        // The job SITE (Toronto) wins over where the customer lives (Calgary).
+        let pin = taskPinCoords(
+            ownLocated(id: "j", contactId: "c1", contactLat: 51.04, contactLng: -114.07, lat: 43.64, lng: -79.39)
+        )
+        XCTAssertEqual(pin?.lat, 43.64)
+        XCTAssertEqual(pin?.lng, -79.39)
+    }
+
+    func testTaskPinCoordsRejectsOutOfRangeOwnCoordThenFallsBackToContact() {
+        let pin = taskPinCoords(
+            ownLocated(id: "j", contactId: "c1", contactLat: 51.04, contactLng: -114.07, lat: 91, lng: 0)
+        )
+        XCTAssertEqual(pin?.lat, 51.04)
+        XCTAssertEqual(pin?.lng, -114.07)
+    }
+
+    func testBuildTaskMapModelSplitsSameContactAcrossDifferentSites() {
+        // THE founder fix: two jobs for ONE customer at different addresses are
+        // two pins; contact-id grouping collapsed them onto the first location.
+        let rows = [
+            ownLocated(id: "toronto", contactId: "same", contactLat: nil, contactLng: nil, lat: 43.64, lng: -79.39),
+            ownLocated(id: "calgary", contactId: "same", contactLat: nil, contactLng: nil, lat: 51.04, lng: -114.07),
+        ]
+        let model = buildTaskMapModel(rows)
+        XCTAssertEqual(model.groups.count, 2)
+        XCTAssertEqual(model.located, 2)
+        XCTAssertEqual(model.missing, 0)
+        XCTAssertEqual(Set(model.groups.flatMap { $0.tasks.map(\.id) }), ["toronto", "calgary"])
     }
 
     func testBuildTaskMapModelBlankContactNameCollapsesToNil() {
