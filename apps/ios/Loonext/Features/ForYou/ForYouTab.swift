@@ -468,6 +468,7 @@ private func previewCall(
         stir_attestation: nil,
         voicemail_seconds: nil,
         answered_by_user_id: nil,
+        answered_by_name: nil,
         started_at: startedAt
     )
 }

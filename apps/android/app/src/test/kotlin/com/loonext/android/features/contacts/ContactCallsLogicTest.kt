@@ -19,12 +19,14 @@ private fun call(
     outcome: String? = null,
     direction: String = "inbound",
     forwardSeconds: Int = 0,
+    answeredByName: String? = null,
 ) = Call(
     id = id,
     call_session_id = "sess-$id",
     outcome = outcome,
     direction = direction,
     forward_seconds = forwardSeconds,
+    answered_by_name = answeredByName,
     started_at = startedAt,
 )
 
@@ -93,6 +95,41 @@ class ContactCallsLogicTest {
         )
         // Unknown future outcomes degrade to the in-flight copy, never crash.
         assertEquals("In progress", contactCallOutcomeLabel(call(outcome = "some_new_state")))
+    }
+
+    @Test
+    fun `#191 an answered call names the acting placer or answerer`() {
+        assertEquals(
+            "Sam called · 3m 12s",
+            contactCallOutcomeLabel(
+                call(
+                    outcome = "answered",
+                    direction = "outbound",
+                    forwardSeconds = 192,
+                    answeredByName = "Sam",
+                ),
+            ),
+        )
+        assertEquals(
+            "Answered by Sam · 4m 32s",
+            contactCallOutcomeLabel(
+                call(
+                    outcome = "answered",
+                    direction = "inbound",
+                    forwardSeconds = 272,
+                    answeredByName = "Sam",
+                ),
+            ),
+        )
+        // Falls back to the crew-side copy when the actor is unknown (legacy rows).
+        assertEquals(
+            "You called",
+            contactCallOutcomeLabel(call(outcome = "answered", direction = "outbound")),
+        )
+        assertEquals(
+            "Answered",
+            contactCallOutcomeLabel(call(outcome = "answered", direction = "inbound")),
+        )
     }
 
     @Test

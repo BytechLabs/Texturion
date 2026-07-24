@@ -22,6 +22,7 @@ private fun call(
     screening: String? = null,
     id: String = "c1",
     answeredBy: String? = null,
+    answeredByName: String? = null,
     answeredAt: String? = null,
     phoneNumberId: String? = null,
 ) = Call(
@@ -37,6 +38,7 @@ private fun call(
     forward_seconds = forwardSeconds,
     screening_result = screening,
     answered_by_user_id = answeredBy,
+    answered_by_name = answeredByName,
     answered_at = answeredAt,
     started_at = "2026-07-15T12:00:00Z",
 )
@@ -121,6 +123,64 @@ class CallsLogicTest {
         assertEquals("Calling…", callOutcomeLabel(call(outcome = null, direction = "outbound")))
         // Unknown future outcome values degrade to the in-flight copy, never crash.
         assertEquals("In progress", callOutcomeLabel(call(outcome = "some_new_state")))
+    }
+
+    @Test
+    fun `#191 an answered call names the acting placer or answerer`() {
+        // Outbound: the placer's name replaces the viewer-assumed "You called".
+        assertEquals(
+            "Sam called · 3m 12s",
+            callOutcomeLabel(
+                call(
+                    outcome = "answered",
+                    direction = "outbound",
+                    forwardSeconds = 192,
+                    answeredByName = "Sam",
+                ),
+            ),
+        )
+        // Inbound: the answerer's name replaces the bare "Answered".
+        assertEquals(
+            "Answered by Sam · 4m 32s",
+            callOutcomeLabel(
+                call(
+                    outcome = "answered",
+                    direction = "inbound",
+                    forwardSeconds = 272,
+                    answeredByName = "Sam",
+                ),
+            ),
+        )
+        // No talk time still names the actor.
+        assertEquals(
+            "Sam called",
+            callOutcomeLabel(call(outcome = "answered", direction = "outbound", answeredByName = "Sam")),
+        )
+        assertEquals(
+            "Answered by Sam",
+            callOutcomeLabel(call(outcome = "answered", direction = "inbound", answeredByName = "Sam")),
+        )
+    }
+
+    @Test
+    fun `#191 falls back to the crew-side copy when the actor is unknown`() {
+        assertEquals(
+            "You called",
+            callOutcomeLabel(call(outcome = "answered", direction = "outbound", answeredByName = null)),
+        )
+        assertEquals(
+            "Answered",
+            callOutcomeLabel(call(outcome = "answered", direction = "inbound", answeredByName = null)),
+        )
+        // A blank name is no name at all — still falls back.
+        assertEquals(
+            "You called",
+            callOutcomeLabel(call(outcome = "answered", direction = "outbound", answeredByName = "  ")),
+        )
+        assertEquals(
+            "Answered",
+            callOutcomeLabel(call(outcome = "answered", direction = "inbound", answeredByName = "  ")),
+        )
     }
 
     @Test

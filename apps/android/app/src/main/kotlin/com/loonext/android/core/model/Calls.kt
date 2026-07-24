@@ -30,6 +30,11 @@ data class Call(
     val stir_attestation: String? = null,
     val voicemail_seconds: Int? = null,
     val answered_by_user_id: String? = null,
+    /** #191: the acting member's resolved display name — the PLACER of an
+     *  outbound call, the ANSWERER of an inbound one (both land in
+     *  answered_by_user_id, resolved to a name server-side). Null when the actor
+     *  is unknown (pre-#211 outbound, an un-answered call, or a blank profile). */
+    val answered_by_name: String? = null,
     /** When the line was picked up — the #210 live-duration anchor. */
     val answered_at: String? = null,
     val started_at: String,

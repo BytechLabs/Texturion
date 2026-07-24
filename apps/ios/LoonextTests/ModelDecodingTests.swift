@@ -282,6 +282,20 @@ final class ModelDecodingTests: XCTestCase {
         // contact > CNAM dip > raw number.
         XCTAssertEqual(call.displayName, "RAY BUILDERS")
         XCTAssertEqual(call.outcome, CallOutcome.missed)
+        // #191: absent answered_by_name decodes to nil (pre-#191 rows are safe).
+        XCTAssertNil(call.answered_by_name)
+
+        // …and when the server sends it, the acting member's name decodes.
+        let attributed: Call = try decode(#"""
+        {"id":"call2","call_session_id":"sess2","caller_e164":"+14155550134",
+         "contact_id":null,"contact_name":null,"caller_name":null,
+         "phone_number_id":"pn1","conversation_id":null,"outcome":"answered",
+         "direction":"outbound","forward_seconds":192,"screening_result":null,
+         "stir_attestation":"A","voicemail_seconds":null,
+         "answered_by_user_id":"u1","answered_by_name":"Sam",
+         "started_at":"2026-07-10T12:00:00Z"}
+        """#)
+        XCTAssertEqual(attributed.answered_by_name, "Sam")
     }
 
     func testUsageNestedDefaults() throws {

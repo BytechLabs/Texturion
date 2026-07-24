@@ -51,6 +51,7 @@ import {
   pathUuid,
   unwrap,
 } from "./core/http";
+import { resolveActorNames } from "./core/attribution";
 import { normalizeNanpPhone } from "./core/phone";
 import { parseVCards } from "./core/vcard";
 
@@ -133,30 +134,6 @@ async function findContact(
     "contact lookup",
   );
   return rows[0] ?? null;
-}
-
-/**
- * #191 attribution: resolve actor user-ids to member display names the same
- * way the task-detail route does (a profiles user_id -> display_name lookup).
- * One batched call; only a resolved, non-empty display_name maps to a name, so
- * an actor-less (pre-#191) or blank-profile row yields null and the UI omits
- * the attribution line rather than showing an empty one.
- */
-async function resolveActorNames(
-  db: Db,
-  userIds: (string | null | undefined)[],
-): Promise<Map<string, string>> {
-  const names = new Map<string, string>();
-  const ids = [...new Set(userIds.filter((v): v is string => Boolean(v)))];
-  if (ids.length === 0) return names;
-  const found = unwrap<{ user_id: string; display_name: string | null }[]>(
-    await db.from("profiles").select("user_id,display_name").in("user_id", ids),
-    "contact attribution profiles",
-  );
-  for (const p of found) {
-    if (p.display_name) names.set(p.user_id, p.display_name);
-  }
-  return names;
 }
 
 export const contactsRoutes = new Hono<AppEnv>();

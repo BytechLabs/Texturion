@@ -24,23 +24,28 @@ func formatCallDuration(_ seconds: Int) -> String {
 
 /// The row's plain-language outcome line (web parity). Outbound speaks from
 /// the crew's side ("You called…", "No answer" — nothing was missed by the
-/// crew). A null outcome is a session still in flight.
+/// crew). A null outcome is a session still in flight. #191: an answered call
+/// names the acting member (placer/answerer) when the server resolved one, so a
+/// crew's log doesn't mis-attribute every member's call to the viewer.
 func callOutcomeLabel(_ call: Call) -> String {
     let outbound = call.direction == "outbound"
+    let dur = call.forward_seconds > 0
+        ? " · \(formatCallDuration(call.forward_seconds))"
+        : ""
+    let actor = call.answered_by_name
     switch call.outcome {
     case CallOutcome.missed:
         return outbound ? "No answer" : "Missed"
     case CallOutcome.voicemail:
         return "Voicemail"
     case CallOutcome.answered:
-        if outbound && call.forward_seconds > 0 {
-            return "You called · \(formatCallDuration(call.forward_seconds))"
+        if outbound {
+            // "Sam called" when the placer is known; "You called" (crew's-side
+            // framing) for legacy/pre-#191 rows that carry no placer.
+            return (actor.map { "\($0) called" } ?? "You called") + dur
         }
-        if outbound { return "You called" }
-        if call.forward_seconds > 0 {
-            return "Answered · \(formatCallDuration(call.forward_seconds))"
-        }
-        return "Answered"
+        // "Answered by Sam" when the answerer is known; bare "Answered" otherwise.
+        return (actor.map { "Answered by \($0)" } ?? "Answered") + dur
     default:
         // Unknown future outcomes degrade to the in-flight copy, never crash.
         return outbound ? "Calling…" : "In progress"

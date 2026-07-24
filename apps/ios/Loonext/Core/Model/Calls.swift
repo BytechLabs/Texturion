@@ -28,6 +28,10 @@ struct Call: Codable, Sendable {
     let stir_attestation: String?
     let voicemail_seconds: Int?
     let answered_by_user_id: String?
+    /// #191: server-resolved display name of the acting member — the PLACER of
+    /// an outbound call, the ANSWERER of an inbound one (both land in
+    /// `answered_by_user_id`). Optional so pre-#191 rows decode cleanly.
+    var answered_by_name: String?
     let started_at: String
 
     /// Display resolution order: contact > CNAM dip > raw number.

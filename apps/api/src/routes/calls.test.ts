@@ -48,6 +48,8 @@ function callRow(overrides: Record<string, unknown> = {}) {
     outcome: "missed",
     forward_seconds: 0,
     started_at: "2026-07-10T15:00:00+00:00",
+    // #191: resolved in the route from answered_by_user_id (null actor → null).
+    answered_by_name: null,
     ...overrides,
   };
 }
@@ -91,6 +93,42 @@ describe("GET /v1/calls", () => {
       p_cursor_id: null,
       p_contact_id: null, // #205: absent param = unfiltered, unchanged shape
     });
+  });
+
+  it("#191: resolves answered_by_name from the actor's profile (the placer/answerer)", async () => {
+    const ACTOR = "dddddddd-0000-4000-8000-00000000000d";
+    const sb = callsStub([
+      callRow({ id: "aaaaaaaa-0000-4000-8000-000000000009", answered_by_user_id: ACTOR }),
+    ]);
+    // #191 attribution: the route batch-resolves the actor via a profiles lookup.
+    sb.on("GET", "/rest/v1/profiles", () => [
+      { user_id: ACTOR, display_name: "Sam Owner" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { answered_by_name: string | null }[] };
+    expect(body.data[0].answered_by_name).toBe("Sam Owner");
+    // The lookup was scoped to the page's actor ids.
+    const lookup = sb.find("GET", "/rest/v1/profiles");
+    expect(lookup).toHaveLength(1);
+  });
+
+  it("#191: answered_by_name stays null when the actor has no profile / no actor (no wasted lookup)", async () => {
+    const sb = callsStub([callRow()]); // answered_by_user_id absent
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { answered_by_name: string | null }[] };
+    expect(body.data[0].answered_by_name).toBeNull();
+    // No actor ids on the page → the profiles lookup is skipped entirely.
+    expect(sb.find("GET", "/rest/v1/profiles")).toHaveLength(0);
   });
 
   it("passes the #106 deny list into the SQL for a restricted member", async () => {

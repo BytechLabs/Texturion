@@ -21,8 +21,15 @@ export function callOutcomeLabel(call: {
   outcome: "answered" | "voicemail" | "missed" | null;
   direction?: "inbound" | "outbound";
   forward_seconds: number;
+  /** #191: the acting member's resolved name — the placer of an outbound call,
+   *  the answerer of an inbound one. Names WHO on an answered call so a crew's
+   *  log doesn't mis-attribute every member's call to the viewer. */
+  answered_by_name?: string | null;
 }): string {
   const outbound = call.direction === "outbound";
+  const dur =
+    call.forward_seconds > 0 ? ` · ${formatCallDuration(call.forward_seconds)}` : "";
+  const actor = call.answered_by_name ?? null;
   switch (call.outcome) {
     case "missed":
       return outbound ? "No answer" : "Missed";
@@ -30,13 +37,12 @@ export function callOutcomeLabel(call: {
       return "Voicemail";
     case "answered":
       if (outbound) {
-        return call.forward_seconds > 0
-          ? `You called · ${formatCallDuration(call.forward_seconds)}`
-          : "You called";
+        // "Sam called" when the placer is known; "You called" (crew's-side
+        // framing) for legacy/pre-#211 rows that carry no placer.
+        return `${actor ? `${actor} called` : "You called"}${dur}`;
       }
-      return call.forward_seconds > 0
-        ? `Answered · ${formatCallDuration(call.forward_seconds)}`
-        : "Answered";
+      // "Answered by Sam" when the answerer is known; bare "Answered" otherwise.
+      return `${actor ? `Answered by ${actor}` : "Answered"}${dur}`;
     default:
       return outbound ? "Calling…" : "In progress";
   }

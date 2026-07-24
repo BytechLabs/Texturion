@@ -77,6 +77,7 @@ function call(overrides: Partial<Call> = {}): Call {
     stir_attestation: null,
     voicemail_seconds: null,
     answered_by_user_id: null,
+    answered_by_name: null,
     started_at: atDaysAgo(0),
     ...overrides,
   };

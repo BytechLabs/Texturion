@@ -822,6 +822,10 @@ export interface Call {
   stir_attestation: string | null;
   voicemail_seconds: number | null;
   answered_by_user_id: string | null;
+  /** #191: the acting member's display name — the PLACER of an outbound call, the
+   *  ANSWERER of an inbound one. Null when the actor is unknown (pre-#211 outbound,
+   *  an un-answered call, or a blank profile). */
+  answered_by_name: string | null;
   started_at: string;
   /**
    * #170/#208 CALLS-V3 §3/§8.4: the DO-mirrored live phase. NULLABLE by

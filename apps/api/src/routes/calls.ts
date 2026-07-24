@@ -28,6 +28,7 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
 import { buildPage } from "../http/pagination";
+import { resolveActorNames } from "./core/attribution";
 import {
   buildOutboundState,
   companyOverVoiceCap,
@@ -75,6 +76,13 @@ export interface CallRow {
   stir_attestation: string | null;
   voicemail_seconds: number | null;
   answered_by_user_id: string | null;
+  /** #191 attribution: the display name of the acting member — the PLACER for an
+   *  outbound call ("{name} called"), the ANSWERER for an inbound one ("Answered
+   *  by {name}"). Resolved from answered_by_user_id via a batched profiles lookup
+   *  (same mechanism as contact attribution). Null when the actor is unknown (a
+   *  pre-#211 outbound row, an un-answered inbound call, or a blank profile), so
+   *  the client omits the attribution line rather than showing an empty one. */
+  answered_by_name: string | null;
   /** #208: the DO's state mirror (ended_% = terminal even while outcome lags). */
   state: string | null;
   /** #210: when the call was answered — the live-duration anchor. */
@@ -98,7 +106,7 @@ callsRoutes.get("/calls", requireRole("member"), async (c) => {
     userId: c.get("userId"),
     role: c.get("role"),
   });
-  const rows = unwrap<CallRow[]>(
+  const rows = unwrap<Omit<CallRow, "answered_by_name">[]>(
     await db.rpc("api_list_calls", {
       p_company_id: c.get("companyId"),
       p_limit: limit + 1,
@@ -110,7 +118,20 @@ callsRoutes.get("/calls", requireRole("member"), async (c) => {
     }),
     "calls list",
   );
-  return c.json(buildPage(rows, limit, "started_at"));
+  // #191 attribution: name the acting member — the placer of an outbound call, the
+  // answerer of an inbound one (both land in answered_by_user_id). One batched
+  // profiles lookup for the page; a row with no actor / blank profile stays null.
+  const actorNames = await resolveActorNames(
+    db,
+    rows.map((r) => r.answered_by_user_id),
+  );
+  const enriched: CallRow[] = rows.map((r) => ({
+    ...r,
+    answered_by_name: r.answered_by_user_id
+      ? actorNames.get(r.answered_by_user_id) ?? null
+      : null,
+  }));
+  return c.json(buildPage(enriched, limit, "started_at"));
 });
 
 /**

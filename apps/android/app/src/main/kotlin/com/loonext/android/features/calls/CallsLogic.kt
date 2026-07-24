@@ -58,23 +58,26 @@ fun formatCallDuration(seconds: Int): String {
 /**
  * The row's plain-language outcome line (web parity). Outbound speaks from
  * the crew's side ("You called…", "No answer" — nothing was missed by the
- * crew). A null outcome is a session still in flight.
+ * crew). An answered call NAMES the acting member (#191): the placer of an
+ * outbound call, the answerer of an inbound one — so a crew's log doesn't
+ * mis-attribute every member's call to whoever is looking. The bare
+ * "You called"/"Answered" is the fallback for legacy rows with no actor.
+ * A null outcome is a session still in flight.
  */
 fun callOutcomeLabel(call: Call): String {
     val outbound = call.direction == "outbound"
+    val dur =
+        if (call.forward_seconds > 0) " · ${formatCallDuration(call.forward_seconds)}" else ""
+    val actor = call.answered_by_name?.takeIf { it.isNotBlank() }
     return when (call.outcome) {
         CallOutcome.MISSED -> if (outbound) "No answer" else "Missed"
         CallOutcome.VOICEMAIL -> "Voicemail"
-        CallOutcome.ANSWERED -> when {
-            outbound && call.forward_seconds > 0 ->
-                "You called · ${formatCallDuration(call.forward_seconds)}"
-
-            outbound -> "You called"
-            call.forward_seconds > 0 ->
-                "Answered · ${formatCallDuration(call.forward_seconds)}"
-
-            else -> "Answered"
-        }
+        CallOutcome.ANSWERED ->
+            if (outbound) {
+                "${if (actor != null) "$actor called" else "You called"}$dur"
+            } else {
+                "${if (actor != null) "Answered by $actor" else "Answered"}$dur"
+            }
 
         else -> if (outbound) "Calling…" else "In progress"
     }

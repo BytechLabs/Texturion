@@ -103,24 +103,26 @@ internal fun contactCallDuration(seconds: Int): String {
 
 /**
  * The row's plain-language outcome line. Outbound speaks from the crew's side
- * ("You called…", "No answer"). A null outcome is a session still in flight.
+ * ("You called…", "No answer"). An answered call NAMES the acting member (#191):
+ * the placer of an outbound call, the answerer of an inbound one; the bare
+ * "You called"/"Answered" is the fallback for legacy rows with no actor. A null
+ * outcome is a session still in flight.
  * Source: features/calls/CallsLogic.kt callOutcomeLabel.
  */
 internal fun contactCallOutcomeLabel(call: Call): String {
     val outbound = call.direction == "outbound"
+    val dur =
+        if (call.forward_seconds > 0) " · ${contactCallDuration(call.forward_seconds)}" else ""
+    val actor = call.answered_by_name?.takeIf { it.isNotBlank() }
     return when (call.outcome) {
         CallOutcome.MISSED -> if (outbound) "No answer" else "Missed"
         CallOutcome.VOICEMAIL -> "Voicemail"
-        CallOutcome.ANSWERED -> when {
-            outbound && call.forward_seconds > 0 ->
-                "You called · ${contactCallDuration(call.forward_seconds)}"
-
-            outbound -> "You called"
-            call.forward_seconds > 0 ->
-                "Answered · ${contactCallDuration(call.forward_seconds)}"
-
-            else -> "Answered"
-        }
+        CallOutcome.ANSWERED ->
+            if (outbound) {
+                "${if (actor != null) "$actor called" else "You called"}$dur"
+            } else {
+                "${if (actor != null) "Answered by $actor" else "Answered"}$dur"
+            }
 
         else -> if (outbound) "Calling…" else "In progress"
     }

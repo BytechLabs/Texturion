@@ -66,6 +66,34 @@ describe("callOutcomeLabel", () => {
     ).toBe("You called");
   });
 
+  it("#191: names the acting placer/answerer on an answered call", () => {
+    expect(
+      callOutcomeLabel({
+        outcome: "answered",
+        direction: "outbound",
+        forward_seconds: 192,
+        answered_by_name: "Sam",
+      }),
+    ).toBe("Sam called · 3m 12s");
+    expect(
+      callOutcomeLabel({
+        outcome: "answered",
+        direction: "inbound",
+        forward_seconds: 272,
+        answered_by_name: "Sam",
+      }),
+    ).toBe("Answered by Sam · 4m 32s");
+  });
+
+  it("#191: falls back when the actor is unknown (legacy rows) — 'You called' / 'Answered'", () => {
+    expect(
+      callOutcomeLabel({ outcome: "answered", direction: "outbound", forward_seconds: 0 }),
+    ).toBe("You called");
+    expect(
+      callOutcomeLabel({ outcome: "answered", direction: "inbound", forward_seconds: 0 }),
+    ).toBe("Answered");
+  });
+
   it("#133: a null outcome is in flight — 'Calling…' outbound, 'In progress' inbound", () => {
     expect(
       callOutcomeLabel({ outcome: null, direction: "outbound", forward_seconds: 0 }),

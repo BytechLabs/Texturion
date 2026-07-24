@@ -11,7 +11,8 @@ final class CallsLogicTests: XCTestCase {
         contactName: String? = nil,
         callerName: String? = nil,
         callerE164: String? = nil,
-        screening: String? = nil
+        screening: String? = nil,
+        answeredByName: String? = nil
     ) -> Call {
         Call(
             id: "c1",
@@ -29,6 +30,7 @@ final class CallsLogicTests: XCTestCase {
             stir_attestation: nil,
             voicemail_seconds: nil,
             answered_by_user_id: nil,
+            answered_by_name: answeredByName,
             started_at: "2026-07-15T12:00:00Z"
         )
     }
@@ -84,6 +86,38 @@ final class CallsLogicTests: XCTestCase {
         )
         // Unknown future outcome values degrade to the in-flight copy, never crash.
         XCTAssertEqual("In progress", callOutcomeLabel(call(outcome: "some_new_state")))
+    }
+
+    func testAnsweredCallNamesTheActingPlacerOrAnswerer() {
+        // #191: name the placer of an outbound call and the answerer of an
+        // inbound one, mirroring the web's callOutcomeLabel exactly.
+        XCTAssertEqual(
+            "Sam called · 3m 12s",
+            callOutcomeLabel(call(
+                outcome: "answered",
+                direction: "outbound",
+                forwardSeconds: 192,
+                answeredByName: "Sam"
+            ))
+        )
+        XCTAssertEqual(
+            "Answered by Sam · 4m 32s",
+            callOutcomeLabel(call(
+                outcome: "answered",
+                direction: "inbound",
+                forwardSeconds: 272,
+                answeredByName: "Sam"
+            ))
+        )
+        // Legacy/pre-#191 rows carry no actor → the viewer-neutral fallbacks.
+        XCTAssertEqual(
+            "You called",
+            callOutcomeLabel(call(outcome: "answered", direction: "outbound"))
+        )
+        XCTAssertEqual(
+            "Answered",
+            callOutcomeLabel(call(outcome: "answered", direction: "inbound"))
+        )
     }
 
     func testOnlyAnInboundMissIsActionableUrgency() {
