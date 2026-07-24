@@ -115,13 +115,12 @@ export function CalendarView({ state }: { state: TaskPageState }) {
             Today
           </Button>
         </div>
-        <div role="tablist" aria-label="Calendar range" className="flex rounded-lg bg-muted p-0.5">
+        <div role="group" aria-label="Calendar range" className="flex rounded-lg bg-muted p-0.5">
           {(["month", "week"] as const).map((m) => (
             <button
               key={m}
               type="button"
-              role="tab"
-              aria-selected={mode === m}
+              aria-pressed={mode === m}
               onClick={() => setMode(m)}
               className={cn(
                 "rounded-md px-3 py-1 text-[13px] font-medium capitalize transition-colors duration-150 ease-out",
