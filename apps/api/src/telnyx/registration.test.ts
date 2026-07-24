@@ -106,12 +106,50 @@ function registerBumpRpc(rest: FakeRest) {
   });
 }
 
+/**
+ * Faithful simulator of the 20260724010000 `merge_number_assignment` RPC: a
+ * per-key merge of one number's status (+ optional failure-notified stamp) into
+ * the row's data ledgers, mirroring the single jsonb UPDATE.
+ */
+function registerMergeNumberAssignmentRpc(rest: FakeRest) {
+  rest.rpc("merge_number_assignment", (args) => {
+    const row = rest
+      .rows("messaging_registrations")
+      .find(
+        (candidate) =>
+          candidate.id === args.p_row_id &&
+          candidate.company_id === args.p_company_id,
+      );
+    if (!row) return null;
+    const data = (row.data ?? {}) as Record<string, unknown>;
+    const assignments = {
+      ...((data.numberAssignments as Record<string, unknown>) ?? {}),
+      [args.p_phone as string]: args.p_status,
+    };
+    const notified = {
+      ...((data.assignmentFailureNotified as Record<string, unknown>) ?? {}),
+    };
+    if (args.p_clear_notified) {
+      delete notified[args.p_phone as string];
+    } else if (args.p_notified_at != null) {
+      notified[args.p_phone as string] = args.p_notified_at;
+    }
+    row.data = {
+      ...data,
+      numberAssignments: assignments,
+      assignmentFailureNotified: notified,
+    };
+    return null;
+  });
+}
+
 function setup(companyOverrides: Record<string, unknown> = {}) {
   const env = completeEnv();
   const rest = new FakeRest(env);
   rest.table("companies");
   rest.table("messaging_registrations", REGISTRATION_DEFAULTS);
   registerBumpRpc(rest);
+  registerMergeNumberAssignmentRpc(rest);
   rest.table("phone_numbers", {
     status: "active",
     number_e164: null,

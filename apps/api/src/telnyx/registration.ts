@@ -1009,6 +1009,39 @@ function assignmentFailureNotified(row: RegistrationRow): Record<string, string>
 }
 
 /**
+ * Race-safe merge of ONE number's assignment state (and optional failure-
+ * notified stamp) into the campaign row's JSON ledgers via the
+ * merge_number_assignment RPC — a single UPDATE that re-reads committed data,
+ * so concurrent 10DLC webhooks / the R3 bulk assign no longer clobber each
+ * other's whole-object write. See the migration.
+ */
+async function mergeNumberAssignment(
+  db: SupabaseClient,
+  args: {
+    rowId: string;
+    companyId: string;
+    phone: string;
+    status: AssignmentState;
+    /** Set assignmentFailureNotified[phone] (FAILED + notify path). */
+    notifiedAt?: string | null;
+    /** Delete assignmentFailureNotified[phone] (ADDED path). */
+    clearNotified?: boolean;
+  },
+): Promise<void> {
+  const { error } = await db.rpc("merge_number_assignment", {
+    p_row_id: args.rowId,
+    p_company_id: args.companyId,
+    p_phone: args.phone,
+    p_status: args.status,
+    p_notified_at: args.notifiedAt ?? null,
+    p_clear_notified: args.clearNotified ?? false,
+  });
+  if (error) {
+    throw new Error(`merge_number_assignment failed: ${error.message}`);
+  }
+}
+
+/**
  * PORTING.md §9 scope: the "ask your previous texting provider to remove
  * {number} from their campaign" guidance applies to PORTED numbers (the
  * losing provider's carrier campaign is what blocks the assignment). A live
@@ -1056,23 +1089,33 @@ export async function assignNumbersToCampaign(
   for (const item of data ?? []) {
     const e164 = (item as { number_e164: string }).number_e164;
     if (ledger[e164] === "added" || ledger[e164] === "pending") continue;
+    let status: AssignmentState;
     try {
       await telnyxRequest(env, {
         method: "POST",
         path: "/v2/10dlc/phoneNumberCampaign",
         body: { phoneNumber: e164, campaignId: campaign.telnyx_id },
       });
-      ledger[e164] = "pending";
+      status = "pending";
     } catch (cause) {
-      ledger[e164] = "failed";
+      status = "failed";
       Sentry.captureException(cause);
     }
+    // Per-key atomic merge (not a whole-object write) so a concurrent
+    // phone_number.update webhook's ledger entry isn't clobbered here.
+    await mergeNumberAssignment(db, {
+      rowId: campaign.id,
+      companyId: campaign.company_id,
+      phone: e164,
+      status,
+    });
+    ledger[e164] = status; // keep the local snapshot in sync for the return
     changed = true;
   }
   if (!changed) return campaign;
-  return updateRow(db, campaign.id, {
-    data: { ...campaign.data, numberAssignments: ledger },
-  });
+  // Return the local snapshot (this call's changes) — the retry cron compares
+  // it to measure what THIS attempt did; the DB is already updated per-key.
+  return { ...campaign, data: { ...campaign.data, numberAssignments: ledger } };
 }
 
 /**
@@ -1268,14 +1311,17 @@ export async function handle10dlcEvent(
     const ledger = assignmentLedger(row);
     const notified = assignmentFailureNotified(row);
     let sendBlockedEmail = false;
+    let newStatus: AssignmentState;
+    let notifiedAt: string | null = null;
+    let clearNotified = false;
     if (status === "ADDED") {
       if (ledger[phoneNumber] === "added") return; // duplicate delivery
-      ledger[phoneNumber] = "added";
+      newStatus = "added";
       // Resolved — clear the one-shot stamp so a future re-failure (a new
       // incident, e.g. the old provider re-claims the number) notifies again.
-      delete notified[phoneNumber];
+      clearNotified = true;
     } else if (status === "FAILED") {
-      ledger[phoneNumber] = "failed";
+      newStatus = "failed";
       Sentry.captureMessage(
         `10DLC number assignment FAILED for campaign ${campaignId} (company ${row.company_id}): ${formatReasons(payload.reasons) ?? "no reason given"}`,
         "error",
@@ -1285,16 +1331,20 @@ export async function handle10dlcEvent(
       sendBlockedEmail =
         !notified[phoneNumber] &&
         (await isPortedNumber(db, row.company_id, phoneNumber));
-      if (sendBlockedEmail) notified[phoneNumber] = new Date().toISOString();
+      if (sendBlockedEmail) notifiedAt = new Date().toISOString();
     } else {
       return; // DELETED / other — nothing to track
     }
-    await updateRow(db, row.id, {
-      data: {
-        ...row.data,
-        numberAssignments: ledger,
-        assignmentFailureNotified: notified,
-      },
+    // Per-key atomic merge (not a whole-object write) so a concurrent
+    // phone_number.update for a DIFFERENT number on this campaign can't clobber
+    // this one's ledger entry.
+    await mergeNumberAssignment(db, {
+      rowId: row.id,
+      companyId: row.company_id,
+      phone: phoneNumber,
+      status: newStatus,
+      notifiedAt,
+      clearNotified,
     });
     if (sendBlockedEmail) {
       // After the stamp is persisted (like every transition email here): a
