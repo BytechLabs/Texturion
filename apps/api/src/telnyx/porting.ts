@@ -380,11 +380,21 @@ export async function uploadPortDocument(
 // ---------------------------------------------------------------------------
 
 /** §3.3 — `POST /v2/porting_orders { phone_numbers:[e164] }` (create; id only). */
-async function createPortingOrder(env: Env, e164: string): Promise<string> {
+async function createPortingOrder(
+  env: Env,
+  e164: string,
+  idempotencyKey: string,
+): Promise<string> {
   const response = await telnyxRequest<PortingOrderResponse>(env, {
     method: "POST",
     path: "/v2/porting_orders",
     body: { phone_numbers: [e164] },
+    // Deterministic key from the port_requests row so a crash-after-create
+    // resume OR a webhook-vs-cron concurrent entry (neither serialized — the
+    // sibling sagas hold a lease / persisted key, porting has neither) collapses
+    // to the SINGLE original order: Telnyx replays the first response instead of
+    // creating an orphan or a second rejected order that wedges the row forever.
+    idempotencyKey,
   });
   const id = response.data?.id;
   if (!id) throw new Error("Telnyx porting order create returned no id");
@@ -649,7 +659,11 @@ async function runPortSagaSteps(
   // create protection). Idempotent: skip if already created.
   let current = row;
   if (!current.telnyx_porting_order_id) {
-    const orderId = await createPortingOrder(env, current.phone_e164);
+    const orderId = await createPortingOrder(
+      env,
+      current.phone_e164,
+      `port-order-create:${current.id}`,
+    );
     current = await updatePortRow(db, current.id, {
       telnyx_porting_order_id: orderId,
       status: current.status === "draft" ? "draft" : current.status,
@@ -740,7 +754,11 @@ async function runPortConfirmSteps(
   // that somehow lost its order id re-creates it (crash-after-create healing).
   let current = row;
   if (!current.telnyx_porting_order_id) {
-    const orderId = await createPortingOrder(env, current.phone_e164);
+    const orderId = await createPortingOrder(
+      env,
+      current.phone_e164,
+      `port-order-create:${current.id}`,
+    );
     current = await updatePortRow(db, current.id, {
       telnyx_porting_order_id: orderId,
     });

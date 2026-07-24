@@ -251,4 +251,14 @@ describe("resolveDueAt", () => {
     expect(resolveDueAt("2026-07-15", "25:00", "America/Toronto")).toBeNull();
     expect(resolveDueAt("2026-13-40", "10:00", "America/Toronto")).toBeNull();
   });
+
+  it("rejects a calendar-impossible day instead of silently rolling it over", () => {
+    // Date.UTC(2026, 1, 31) rolls to Mar 3 — a wrong due date if accepted.
+    expect(resolveDueAt("2026-02-31", "10:00", "America/Toronto")).toBeNull();
+    expect(resolveDueAt("2026-04-31", "10:00", "America/Toronto")).toBeNull();
+    // 2026 is not a leap year → Feb 29 doesn't exist.
+    expect(resolveDueAt("2026-02-29", "10:00", "America/Toronto")).toBeNull();
+    // A real leap day still works.
+    expect(resolveDueAt("2028-02-29", "10:00", "America/Toronto")).not.toBeNull();
+  });
 });

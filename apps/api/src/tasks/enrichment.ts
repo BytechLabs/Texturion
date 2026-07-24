@@ -321,6 +321,19 @@ export function resolveDueAt(
   }
   if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59) return null;
 
+  // Reject a calendar-impossible day (Feb 31, Apr 31, Feb 29 in a non-leap
+  // year): Date.UTC silently ROLLS these over to the next month, so a bad AI
+  // suggestion would otherwise become a wrong-but-plausible due date. Round-trip
+  // the components to confirm the day really exists in that month.
+  const probe = new Date(Date.UTC(y, mo - 1, d));
+  if (
+    probe.getUTCFullYear() !== y ||
+    probe.getUTCMonth() !== mo - 1 ||
+    probe.getUTCDate() !== d
+  ) {
+    return null;
+  }
+
   return zonedWallTimeToUtcIso(y, mo, d, h, mi, timezone);
 }
 

@@ -211,6 +211,11 @@ describe("startPortSaga — §4 P1–P4 (create draft, do NOT confirm)", () => {
     // P2 create: phone_numbers[] is the ONLY field at create (§3.3).
     const create = telnyx.callsTo("POST", /^\/v2\/porting_orders$/)[0];
     expect(create.body).toEqual({ phone_numbers: [PORT_E164] });
+    // Deterministic Idempotency-Key from the row id — a crash-resume or a
+    // webhook-vs-cron re-create collapses to the single order (no orphan/wedge).
+    expect(create.headers.get("Idempotency-Key")).toBe(
+      `port-order-create:${PORT_ID}`,
+    );
     // Persisted immediately (crash-after-create protection).
     expect(portRow(rest).telnyx_porting_order_id).toBe(ORDER_ID);
 

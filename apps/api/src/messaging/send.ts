@@ -13,6 +13,7 @@ import { lookupAreaCode } from "@loonext/shared";
 
 import { capture } from "../analytics/posthog";
 import type { Env } from "../env";
+import { TELNYX_TIMEOUT_MS } from "../telnyx/client";
 import { ApiError } from "../http/errors";
 import { getSendGates } from "../telnyx/registration";
 import type { GateResult, MessageRow } from "./types";
@@ -223,6 +224,10 @@ async function telnyxCreateMessage(
         text: args.text,
         ...(args.mediaUrls.length > 0 ? { media_urls: args.mediaUrls } : {}),
       }),
+      // Bound the call like the shared Telnyx client — a stalled endpoint would
+      // otherwise hang the send (a webhook waitUntil isolate, or a user route);
+      // an abort folds into the network-error result the catch already returns.
+      signal: AbortSignal.timeout(TELNYX_TIMEOUT_MS),
     });
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : String(cause);
