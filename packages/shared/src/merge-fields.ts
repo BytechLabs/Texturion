@@ -105,15 +105,17 @@ export function applyMergeFields(
   return anyDropped ? tidyDroppedTokens(substituted) : substituted;
 }
 
-/** True when `text` contains at least one {token} this substituter handles. */
+/**
+ * True when `text` contains at least one {token} applyMergeFields would act on.
+ * This matches TOKEN_PATTERN (ANY {token}), not just the KNOWN tokens: an
+ * unknown token like {foo} is still stripped by applyMergeFields, so gating the
+ * preview on known-only tokens hid a preview while the sent text silently
+ * changed. Now the preview shows whenever the composed text will differ.
+ */
 export function hasMergeFields(text: string): boolean {
   if (!text.includes("{")) return false;
   TOKEN_PATTERN.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = TOKEN_PATTERN.exec(text)) !== null) {
-    if ((MERGE_FIELD_TOKENS as readonly string[]).includes(match[1].toLowerCase())) {
-      return true;
-    }
-  }
-  return false;
+  const result = TOKEN_PATTERN.test(text);
+  TOKEN_PATTERN.lastIndex = 0;
+  return result;
 }

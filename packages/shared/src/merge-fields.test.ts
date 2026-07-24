@@ -96,8 +96,11 @@ describe("hasMergeFields", () => {
     expect(hasMergeFields("Business: {business_name}")).toBe(true);
   });
 
-  it("ignores unknown tokens and brace-free text", () => {
-    expect(hasMergeFields("Hi {gizmo}")).toBe(false);
+  it("detects an unknown token too (applyMergeFields strips it → composed text differs)", () => {
+    expect(hasMergeFields("Hi {gizmo}")).toBe(true);
+  });
+
+  it("is false for brace-free or malformed (spaced) tokens", () => {
     expect(hasMergeFields("plain text")).toBe(false);
     expect(hasMergeFields("a { b } c")).toBe(false);
   });

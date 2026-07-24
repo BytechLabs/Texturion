@@ -178,6 +178,9 @@ export function InlineDue({ task }: { task: Task }) {
 function toLocalInput(iso: string | null): string {
   if (iso === null) return "";
   const d = new Date(iso);
+  // An unparseable due_at makes `local` an Invalid Date whose toISOString()
+  // throws RangeError — guard to a blank input instead (matches isoToLocalInput).
+  if (Number.isNaN(d.getTime())) return "";
   const local = new Date(d.getTime() - d.getTimezoneOffset() * 60_000);
   return local.toISOString().slice(0, 16);
 }

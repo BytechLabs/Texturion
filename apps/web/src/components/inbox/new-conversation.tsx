@@ -374,7 +374,18 @@ export function NewConversation() {
               </span>
             </div>
           ) : (
-            <div className="relative">
+            <div
+              className="relative"
+              // Dismiss the listbox when focus leaves the combobox entirely
+              // (Tab away / click elsewhere). Clicking an option focuses that
+              // option button — still inside this container — so selection's
+              // onClick fires before any close.
+              onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                  setSearchOpen(false);
+                }
+              }}
+            >
               <Input
                 id="compose-to"
                 value={displayInput}

@@ -94,7 +94,7 @@ export function ChangeEmailCard({ email }: { email: string | null }) {
       }
     >
       {sent ? (
-        <div className="space-y-2">
+        <div className="space-y-2" role="status" aria-live="polite">
           <p className="text-sm">
             We&apos;ve emailed both your old and new address. Confirm from each
             to finish the change.
