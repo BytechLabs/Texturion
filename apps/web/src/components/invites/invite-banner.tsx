@@ -69,7 +69,7 @@ export function InviteBanner() {
     <div
       role="status"
       aria-label={`You've been invited to join ${company}`}
-      className="fixed inset-x-0 bottom-4 z-50 mx-auto flex w-fit max-w-[calc(100vw-2rem)] items-center gap-3 rounded-app-card border border-app-line bg-app-white px-4 py-3 shadow-lg"
+      className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+0.5rem)] z-50 mx-auto flex w-fit max-w-[calc(100vw-2rem)] items-center gap-3 rounded-app-card border border-app-line bg-app-white px-4 py-3 shadow-lg lg:bottom-4"
       style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
     >
       <p className="min-w-0 text-sm text-app-ink">

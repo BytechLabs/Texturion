@@ -24,8 +24,6 @@ export function VoicemailPlayer({
 
   if (open && voicemail.data?.url) {
     return (
-      // eslint-disable-next-line jsx-a11y/media-has-caption -- a customer
-      // voicemail has no caption track; the duration label is the context.
       <audio
         src={voicemail.data.url}
         controls
@@ -44,7 +42,13 @@ export function VoicemailPlayer({
         // Rows are links — playing a voicemail must not navigate.
         event.preventDefault();
         event.stopPropagation();
-        setOpen(true);
+        // A failed fetch already has open=true, so "retry" must refetch — not
+        // setOpen(true) again (a no-op that leaves the button lying).
+        if (voicemail.isError) {
+          void voicemail.refetch();
+        } else {
+          setOpen(true);
+        }
       }}
       className="inline-flex items-center gap-1.5 rounded-full border border-app-line bg-app-white px-2.5 py-1 text-[12px] font-medium text-app-ink transition-colors duration-150 hover:bg-app-stone-1"
     >

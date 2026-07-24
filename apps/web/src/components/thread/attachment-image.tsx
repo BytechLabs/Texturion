@@ -28,15 +28,23 @@ export function AttachmentImage({
   const url = useAttachmentUrl(attachment.id);
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
+  // The URL fetch can succeed yet the <img> still fail to render (expired/broken
+  // signed URL, mid-flight network blip) — without this the thumbnail is a
+  // permanent pulsing skeleton on a disabled button. Treat it like a url error.
+  const [failed, setFailed] = useState(false);
 
-  if (url.isError) {
+  if (url.isError || failed) {
     return (
       <div className="flex size-44 items-center justify-center rounded-lg border border-border bg-muted">
         <div className="flex flex-col items-center gap-1 text-muted-foreground">
           <ImageOff className="size-5" strokeWidth={1.75} aria-hidden />
           <button
             type="button"
-            onClick={() => url.refetch()}
+            onClick={() => {
+              setFailed(false);
+              setLoaded(false);
+              void url.refetch();
+            }}
             className="text-xs underline-offset-2 hover:underline"
           >
             Photo didn&apos;t load. Retry
@@ -66,6 +74,7 @@ export function AttachmentImage({
             src={url.data.url}
             alt={alt}
             onLoad={() => setLoaded(true)}
+            onError={() => setFailed(true)}
             className={cn(
               "size-full object-cover transition-[opacity,filter] duration-200 ease-out",
               loaded ? "opacity-100 blur-0" : "opacity-0 blur-sm",

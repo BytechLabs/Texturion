@@ -94,6 +94,9 @@ export function TaskDue({
       )}
       title={overdue ? "Overdue" : undefined}
     >
+      {/* Overdue is otherwise color-only (WCAG 1.4.1) — give SR/color-blind
+          users a text signal without changing the visual. */}
+      {overdue && <span className="sr-only">Overdue: </span>}
       {formatDue(task.due_at)}
     </span>
   );

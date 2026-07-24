@@ -58,6 +58,9 @@ export function faviconHref(unread: number): string {
 interface UnreadCountableRow {
   id: string;
   unread?: boolean;
+  /** Spam threads are silenced (SPEC §6.3) — never counted toward the badge,
+   *  even after the Spam view caches their rows under the same list prefix. */
+  is_spam?: boolean;
 }
 
 /** The minimal structural shape of a cached infinite conversation list. */
@@ -79,6 +82,8 @@ export function countUnreadConversations(
     if (!list?.pages) continue;
     for (const page of list.pages) {
       for (const row of page.data ?? []) {
+        // Spam is silenced — a cached Spam-view row must never inflate the badge.
+        if (row.is_spam === true) continue;
         unreadById.set(
           row.id,
           (unreadById.get(row.id) ?? false) || row.unread === true,
