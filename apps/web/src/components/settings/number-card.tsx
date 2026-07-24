@@ -214,8 +214,13 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
             size="icon-sm"
             aria-label="Copy number"
             onClick={() => {
-              void navigator.clipboard.writeText(number.number_e164 as string);
-              toast.success("Number copied.");
+              // Only claim success once the write actually resolves — a denied
+              // clipboard permission or an insecure context rejects, and a
+              // false "copied" toast leaves the user pasting stale data.
+              void navigator.clipboard
+                .writeText(number.number_e164 as string)
+                .then(() => toast.success("Number copied."))
+                .catch(() => toast.error("Couldn't copy the number."));
             }}
           >
             <Copy strokeWidth={1.75} />

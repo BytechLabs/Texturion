@@ -81,16 +81,8 @@ function NotificationRow({
   const name = contactDisplayName(item.contact);
   const href = deepLink(item);
 
-  return (
-    <button
-      type="button"
-      disabled={!href}
-      onClick={() => onSelect(item)}
-      className={cn(
-        "flex w-full items-start gap-3 px-4 py-3 text-left transition-colors duration-150 ease-out",
-        href ? "hover:bg-secondary/60" : "cursor-default",
-      )}
-    >
+  const body = (
+    <>
       {/* Unread dot (petrol) points; read items recede to a hollow slot so the
           row height never jumps. */}
       <span
@@ -118,6 +110,28 @@ function NotificationRow({
           {formatRelativeTime(item.created_at)}
         </span>
       </span>
+    </>
+  );
+
+  // No deep-link (e.g. the source conversation is gone) → nothing to open, so
+  // render a plain readable row instead of a disabled <button>. A disabled
+  // button is dropped from the a11y tree entirely — keyboard and screen-reader
+  // users could neither focus nor hear it. "Mark all read" clears it.
+  if (!href) {
+    return (
+      <div className="flex w-full items-start gap-3 px-4 py-3 text-left">
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(item)}
+      className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors duration-150 ease-out hover:bg-secondary/60"
+    >
+      {body}
     </button>
   );
 }

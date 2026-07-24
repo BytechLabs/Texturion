@@ -1,5 +1,11 @@
 import { MessagesSquare } from "lucide-react";
 
+import type { Metadata } from "next";
+
+// A named tab title instead of the bare app default ("Loonext") so this
+// screen is distinguishable in the browser history / a wall of tabs.
+export const metadata: Metadata = { title: "Inbox" };
+
 /**
  * /inbox with no thread selected. Mobile shows the list (the layout hides
  * this pane); tablet/desktop shows a quiet placeholder in the thread region.

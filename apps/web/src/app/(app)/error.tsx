@@ -5,6 +5,8 @@ import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 
+import { reportBoundaryError } from "../error";
+
 /**
  * The (app) route-segment error boundary. A single crashing component
  * (a v1-shaped /v1/search payload, a malformed realtime frame, any render
@@ -23,9 +25,12 @@ export default function AppError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Surface it for the browser console / error reporting; the digest is the
-    // server-correlated id Next.js assigns.
+    // Surface it for the browser console; the digest is the server-correlated
+    // id Next.js assigns. Also ship it to Sentry — an authenticated-surface
+    // crash caught here would otherwise stay invisible to us (only the global
+    // and root boundaries reported before).
     console.error("App segment error", error);
+    void reportBoundaryError(error);
   }, [error]);
 
   return (
