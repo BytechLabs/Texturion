@@ -14,6 +14,11 @@
  *     recurring carrier fee). A crashed claimer's lease expires and the row
  *     is retried while attempts remain.
  *
+ *   pruneWebhookEvents  (daily)  — retention for that same ledger: drop
+ *     PROCESSED rows past the 30-day dedupe window, oldest-first and batched.
+ *     The sweeper only ever replays; without this the ledger (full payload per
+ *     webhook) grows without bound, linearly with messages + calls.
+ *
  *   failStuckOutboundSends  (*\/5)  — #20: fail out outbound rows stuck
  *     'queued' with no telnyx_message_id beyond the safety window (the send
  *     crashed between the gate insert and the Telnyx call), so they surface
@@ -40,6 +45,20 @@ import type { TelnyxEvent } from "./types";
 const SWEEP_MIN_AGE_MS = 2 * 60 * 1000;
 const SWEEP_MAX_ATTEMPTS = 5;
 const SWEEP_BATCH = 100;
+/**
+ * Retention for the `webhook_events` ledger. The ledger's one guarantee is
+ * deduping a provider RE-delivery, so retention only has to outlast the
+ * longest redelivery either provider can produce: Stripe retries for ~3 days
+ * (an event stays manually re-sendable for 30), Telnyx gives up far sooner.
+ * 30 days keeps the dedupe window strictly wider than both.
+ */
+const WEBHOOK_RETENTION_DAYS = 30;
+/**
+ * Per-run ceiling. Comfortably above the ingest rate at any plausible volume,
+ * so a backlog drains over consecutive days instead of one cron run holding a
+ * long delete.
+ */
+const PRUNE_BATCH = 5000;
 /**
  * #22: how long a claim shields a row from other sweep runs. Longer than any
  * realistic sweep pass (even 100 rows × media downloads), shorter than
@@ -136,6 +155,42 @@ export async function sweepWebhookEvents(env: Env): Promise<void> {
         );
       }
     }
+  }
+}
+
+/**
+ * Ledger retention: drop PROCESSED `webhook_events` past the dedupe window.
+ *
+ * The sweeper above only ever replays the unprocessed tail — nothing removed a
+ * row, so the ledger (which stores each webhook's full payload) grew without
+ * bound for the life of the install, linearly with messages + calls. This caps
+ * it. Only processed rows are eligible: an unprocessed row is still owed a
+ * replay, and one that exhausted its attempts is the forensic record behind a
+ * §11 Sentry alert.
+ */
+export async function pruneWebhookEvents(
+  env: Env,
+  now: Date = new Date(),
+): Promise<void> {
+  const db = getDb(env);
+  const before = new Date(
+    now.getTime() - WEBHOOK_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+  ).toISOString();
+
+  const { data, error } = await db.rpc("api_prune_webhook_events", {
+    p_before: before,
+    p_limit: PRUNE_BATCH,
+  });
+  if (error) {
+    throw new Error(`webhook_events prune failed: ${error.message}`);
+  }
+  const removed = typeof data === "number" ? data : 0;
+  if (removed >= PRUNE_BATCH) {
+    // Hit the ceiling: a backlog is still draining. Visible so a ledger growing
+    // faster than one run can trim never stays silent.
+    console.log(
+      `webhook_events prune removed ${removed} rows (batch ceiling — more remain)`,
+    );
   }
 }
 

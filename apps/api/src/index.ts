@@ -18,6 +18,7 @@ import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { ApiError, errorResponse } from "./http/errors";
 import {
   failStuckOutboundSends,
+  pruneWebhookEvents,
   reportUnreportedUsage,
   reportUnreportedVoiceUsage,
   sweepStaleCalls,
@@ -280,6 +281,10 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
   // Subscription reconcile: re-mirror non-active companies from Stripe;
   // report stale invites.
   "0 15 * * *": [runSubscriptionReconcileJob],
+  // Ledger retention: drop PROCESSED webhook_events past the 30-day dedupe
+  // window. The */5 sweeper only replays the unprocessed tail, so without this
+  // the ledger grows without bound for the life of the install.
+  "30 15 * * *": [pruneWebhookEvents],
 };
 
 // Exported (not just the Sentry-wrapped default) so the outermost fetch guard

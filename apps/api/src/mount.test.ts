@@ -20,6 +20,7 @@ import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { app, CRON_JOBS } from "./index";
 import {
   failStuckOutboundSends,
+  pruneWebhookEvents,
   reportUnreportedUsage,
   reportUnreportedVoiceUsage,
   sweepStaleCalls,
@@ -418,6 +419,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
         "10 13 * * *", // port reconcile & resume (PORTING.md §5.2)
         "0 14 * * *", // grace & release
         "0 15 * * *", // subscription reconcile
+        "30 15 * * *", // webhook_events ledger retention
       ].sort(),
     );
   });
@@ -449,5 +451,6 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     expect(CRON_JOBS["10 13 * * *"]).toEqual([pollPortRequests]);
     expect(CRON_JOBS["0 14 * * *"]).toEqual([runGraceJob]);
     expect(CRON_JOBS["0 15 * * *"]).toEqual([runSubscriptionReconcileJob]);
+    expect(CRON_JOBS["30 15 * * *"]).toEqual([pruneWebhookEvents]);
   });
 });

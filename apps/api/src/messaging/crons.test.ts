@@ -14,6 +14,7 @@ import { completeEnv, stubFetch } from "../test/support";
 import {
   failStuckOutboundSends,
   isDuplicateMeterIdentifierError,
+  pruneWebhookEvents,
   reportUnreportedUsage,
   reportUnreportedVoiceUsage,
   sweepStaleCalls,
@@ -263,6 +264,56 @@ describe("sweepWebhookEvents", () => {
     expect(ledgerPatch.calls[1].body).toEqual({
       last_error: expect.stringContaining("message.sent update failed"),
     });
+  });
+});
+
+describe("pruneWebhookEvents (ledger retention)", () => {
+  it("prunes at the 30-day dedupe window, oldest-first and batched", async () => {
+    const rpc = stubRoute(rpcMatch(env, "api_prune_webhook_events"), () => 12);
+    stubFetch(rpc.route);
+    const now = new Date("2026-07-24T15:30:00.000Z");
+
+    await pruneWebhookEvents(env, now);
+
+    expect(rpc.calls).toHaveLength(1);
+    const body = rpc.calls[0].body as Record<string, unknown>;
+    // 30 days before the injected clock — the window must stay strictly wider
+    // than any provider redelivery (Stripe ~3d, re-sendable for 30).
+    expect(body.p_before).toBe("2026-06-24T15:30:00.000Z");
+    expect(body.p_limit).toBe(5000);
+  });
+
+  it("stays quiet on a normal run, but reports when the batch ceiling is hit", async () => {
+    const consoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const under = stubRoute(rpcMatch(env, "api_prune_webhook_events"), () => 4);
+    stubFetch(under.route);
+    await pruneWebhookEvents(env, new Date());
+    expect(consoleLog).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+    const atCeiling = stubRoute(
+      rpcMatch(env, "api_prune_webhook_events"),
+      () => 5000,
+    );
+    stubFetch(atCeiling.route);
+    await pruneWebhookEvents(env, new Date());
+    expect(consoleLog).toHaveBeenCalledWith(
+      expect.stringContaining("batch ceiling"),
+    );
+
+    consoleLog.mockRestore();
+  });
+
+  it("throws on an RPC failure so the cron run is recorded as failed", async () => {
+    const rpc = stubRoute(rpcMatch(env, "api_prune_webhook_events"), () =>
+      Response.json({ message: "boom" }, { status: 500 }),
+    );
+    stubFetch(rpc.route);
+
+    await expect(pruneWebhookEvents(env, new Date())).rejects.toThrow(
+      /webhook_events prune failed/,
+    );
   });
 });
 

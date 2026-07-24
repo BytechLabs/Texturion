@@ -39,7 +39,8 @@
       "0 13 * * *", // registration poller (daily)
       "10 13 * * *", // port reconcile & resume (daily; PORTING.md §5.2)
       "0 14 * * *", // grace & release (daily)
-      "0 15 * * *" // subscription reconcile (daily)
+      "0 15 * * *", // subscription reconcile (daily)
+      "30 15 * * *" // webhook_events ledger retention (daily)
     ]
   },
   "unsafe": {
