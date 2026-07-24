@@ -824,7 +824,13 @@ export function Composer({
         <textarea
           ref={textareaRef}
           value={text}
-          onChange={(event) => setText(event.target.value)}
+          onChange={(event) => {
+            setText(event.target.value);
+            // Drafts were written for what was typed a moment ago; once that
+            // changes they are stale, so they go rather than sit there
+            // offering to overwrite newer words.
+            if (suggestions.length > 0) setSuggestions([]);
+          }}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
           rows={1}

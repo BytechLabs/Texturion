@@ -229,7 +229,9 @@ struct ThreadComposerView: View {
             }
             ForEach(suggestions, id: \.self) { suggestion in
                 Button {
-                    state.text = suggestion
+                    // `text` is private(set); onTextChange is the writer (it
+                    // also queues the draft save, which a raw assignment skips).
+                    state.onTextChange(suggestion)
                     suggestions = []
                 } label: {
                     Text(suggestion)
@@ -377,6 +379,10 @@ struct ThreadComposerView: View {
             templatePickerOpen = true
         } else {
             state.onTextChange(value)
+            // Drafts were written for what was typed a moment ago; once that
+            // changes they are stale, so they go rather than sit there
+            // offering to overwrite newer words.
+            if !suggestions.isEmpty { suggestions = [] }
         }
     }
 

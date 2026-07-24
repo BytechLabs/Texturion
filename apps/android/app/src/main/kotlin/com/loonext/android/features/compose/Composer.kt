@@ -501,6 +501,10 @@ fun ThreadComposer(
                         templatePickerOpen = true
                     } else {
                         state.onTextChange(value)
+                        // Drafts were written for what was typed a moment ago;
+                        // once that changes they are stale, so they go rather
+                        // than sit there offering to overwrite newer words.
+                        if (suggestions.isNotEmpty()) suggestions = emptyList()
                     }
                 },
                 placeholder = if (isNote) "Write an internal note…" else "Text message",
