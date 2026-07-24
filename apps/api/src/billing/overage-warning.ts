@@ -60,7 +60,7 @@ export async function runOverageWarningJob(
   const { data, error } = await db
     .from("companies")
     .select(
-      "id,name,plan,current_period_start,current_period_end,us_texting_enabled,overage_cap_multiplier",
+      "id,name,plan,current_period_start,current_period_end,us_texting_enabled,overage_cap_multiplier,paid_extra_numbers",
     )
     .eq("subscription_status", "active")
     .not("plan", "is", null)

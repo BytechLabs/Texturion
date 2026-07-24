@@ -41,6 +41,7 @@ function endpoints(state: State): StubEndpoint[] {
         current_period_end: PERIOD_END,
         us_texting_enabled: true,
         overage_cap_multiplier: 3,
+        paid_extra_numbers: 0,
       },
     ]),
     endpoint("POST", /\/rpc\/api_period_segments/, () => 0),

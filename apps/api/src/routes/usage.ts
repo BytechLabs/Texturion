@@ -21,8 +21,10 @@
  * Raw numbers stay in the payload for the owner-facing "details" affordance.
  * (#97/#103: no `mms` meter — pictures count 3 segments each in the message
  * meter, with no separate cap.)
- * cap_segments = included × overage_cap_multiplier (null multiplier = no cap,
- * SPEC §2). `history` is the last 6 calendar months (oldest first, zero-
+ * cap_segments = included × overage_cap_multiplier. The cap ALWAYS applies —
+ * overage_cap_multiplier is NOT NULL and bounded to (0, 10] since the
+ * un-defeatable-cap migration (#12); "no cap" resolves to the 10x ceiling, not
+ * unbounded. `history` is the last 6 calendar months (oldest first, zero-
  * filled) for the G8 "6-month history bars". `storage` (D30) is the
  * company's stored bytes — attachments_bytes = LIVE generic (note-borne)
  * attachments, the arm the plan budget gates on upload; mms_bytes =
@@ -54,6 +56,7 @@ interface CompanyUsageRow {
   current_period_end: string | null;
   overage_cap_multiplier: number | string | null;
   us_texting_enabled: boolean;
+  paid_extra_numbers: number;
 }
 
 /** DESIGN G8: the usage screen renders a 6-month history. */
@@ -69,7 +72,7 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     await db
       .from("companies")
       .select(
-        "plan,current_period_start,current_period_end,overage_cap_multiplier,us_texting_enabled",
+        "plan,current_period_start,current_period_end,overage_cap_multiplier,us_texting_enabled,paid_extra_numbers",
       )
       .eq("id", companyId)
       .is("deleted_at", null)
@@ -164,6 +167,7 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
           current_period_end: company.current_period_end,
           us_texting_enabled: company.us_texting_enabled,
           overage_cap_multiplier: multiplier,
+          paid_extra_numbers: company.paid_extra_numbers,
         },
         new Date(),
       ),

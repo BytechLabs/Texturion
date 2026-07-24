@@ -354,6 +354,7 @@ describe("decideOverage (DB orchestrator)", () => {
     current_period_end: "2026-07-01T00:00:00Z",
     us_texting_enabled: true,
     overage_cap_multiplier: 3,
+    paid_extra_numbers: 0,
   };
 
   function endpoints(

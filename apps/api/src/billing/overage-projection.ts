@@ -60,10 +60,7 @@ import {
 } from "./costs";
 import { enabledModuleFlags } from "./company-modules";
 import { periodProviderCostCents } from "./provider-costs";
-import {
-  desiredExtraQuantity,
-  EXTRA_NUMBER_MONTHLY_CENTS,
-} from "./extra-numbers";
+import { EXTRA_NUMBER_MONTHLY_CENTS } from "./extra-numbers";
 import {
   PLAN_INCLUDED_SEGMENTS,
   PLAN_OVERAGE_CENTS_PER_SEGMENT,
@@ -122,10 +119,11 @@ export interface OverageDecision {
   revenueCents: number;
   /** revenueCents - extrapolatedCostCents (negative = projected loss). */
   marginCents: number;
-  /** Projected month-end OUTBOUND overage the CUSTOMER will be billed, in cents
-   *  (gross, before Stripe). Customer-facing — the "$X extra this period" figure
-   *  a settings/usage surface can show. Distinct from the internal cost/margin
-   *  above, which are ours and must not be exposed to the customer. */
+  /** Projected month-end TOTAL overage the CUSTOMER will be billed, in cents
+   *  (gross, before Stripe) — outbound-segment overage PLUS voice-minute
+   *  overage (both metered surfaces). Customer-facing "$X extra this period".
+   *  Distinct from the internal cost/margin above, which are ours and must not
+   *  be exposed to the customer. */
   projectedOverageChargesCents: number;
   /** Days elapsed in the current period at `now`. */
   elapsedDays: number;
@@ -339,6 +337,13 @@ export interface OverageCompany {
   us_texting_enabled: boolean;
   /** companies.overage_cap_multiplier — null means the owner cleared the cap. */
   overage_cap_multiplier: number | null;
+  /**
+   * companies.paid_extra_numbers — the extra-number quantity actually BILLED
+   * (mirrored from Stripe, #110). Used for the revenue term so the loss
+   * projection counts real revenue, not a count derived from the live number
+   * list (which can diverge from what Stripe charges).
+   */
+  paid_extra_numbers: number;
 }
 
 async function rpcNumber(
@@ -438,10 +443,14 @@ export async function decideOverage(
   const paidModules = moduleFlags
     .filter((m) => !m.grandfathered)
     .map((m) => m.module);
+  // Revenue uses the BILLED extra quantity (paid_extra_numbers), not a count
+  // derived from `numbers` — the live number list can differ from what Stripe
+  // actually charges (mid-change, released-but-unsynced), which would inflate
+  // revenue with phantom dollars and mute the loss warning. `numbers` stays the
+  // COST/rent term below (what we actually pay Telnyx for).
   const baseRevenueGrossCents =
     companyRevenueCents(company.plan, paidModules) +
-    desiredExtraQuantity(numbers, company.plan) *
-      EXTRA_NUMBER_MONTHLY_CENTS[company.plan];
+    company.paid_extra_numbers * EXTRA_NUMBER_MONTHLY_CENTS[company.plan];
   return overageDecision(
     {
       usage,

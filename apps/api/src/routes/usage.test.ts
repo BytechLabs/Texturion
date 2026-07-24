@@ -92,6 +92,7 @@ const starterCompany = {
   current_period_start: "2026-06-15T00:00:00+00:00",
   current_period_end: "2026-07-15T00:00:00+00:00",
   overage_cap_multiplier: 3,
+  paid_extra_numbers: 0,
   us_texting_enabled: true,
 };
 
