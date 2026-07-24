@@ -10,7 +10,6 @@ import {
   apiRequest,
   buildTestApp,
   membershipResponder,
-  pgError,
   supabaseStub,
   type SupabaseStub,
 } from "../test/routes-harness";
@@ -959,11 +958,10 @@ describe("POST /v1/conversations/:id/tags (create-on-attach)", () => {
     ]);
   });
 
-  it("creates the tag on attach by name when it does not exist", async () => {
+  it("creates-or-reuses the tag on attach by name via the atomic find-or-create RPC", async () => {
     const sb = memberStub();
     sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
-    sb.on("GET", "/rest/v1/tags", () => []); // no existing tag with that name
-    sb.on("POST", "/rest/v1/tags", () => [
+    sb.on("POST", "/rest/v1/rpc/api_find_or_create_tag", () => [
       { id: TAG_ID, name: "Follow up", color: null },
     ]);
     sb.on("POST", "/rest/v1/conversation_tags", () => [
@@ -980,20 +978,20 @@ describe("POST /v1/conversations/:id/tags (create-on-attach)", () => {
       { method: "POST", companyId: COMPANY_ID, body: { name: "Follow up" } },
     );
     expect(res.status).toBe(201);
-    const created = sb.find("POST", "/rest/v1/tags")[0];
-    expect(created.body).toEqual({ company_id: COMPANY_ID, name: "Follow up" });
+    // The atomic RPC (keyed on lower(name)) replaces the find/insert/re-select
+    // dance and its create/select race.
+    const rpc = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag")[0];
+    expect(rpc.body).toEqual({ p_company_id: COMPANY_ID, p_name: "Follow up" });
   });
 
-  it("recovers from a concurrent-create unique violation by re-selecting the winner", async () => {
+  it("attaches a tag whose name contains '*' — the raw name reaches the RPC (no escapeLike stripping)", async () => {
+    // The old ilike lookup used escapeLike, which DELETES '*', so a name like
+    // "VIP*" matched the wrong tag or 500'd on the second attach.
     const sb = memberStub();
     sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
-    let lookups = 0;
-    sb.on("GET", "/rest/v1/tags", () => {
-      lookups += 1;
-      // First lookup: not found. Second (after 23505): the winner's row.
-      return lookups === 1 ? [] : [{ id: TAG_ID, name: "Won", color: null }];
-    });
-    sb.on("POST", "/rest/v1/tags", () => pgError("23505", "duplicate key"));
+    sb.on("POST", "/rest/v1/rpc/api_find_or_create_tag", () => [
+      { id: TAG_ID, name: "VIP*", color: null },
+    ]);
     sb.on("POST", "/rest/v1/conversation_tags", () => [
       { conversation_id: CONV_ID, tag_id: TAG_ID },
     ]);
@@ -1005,9 +1003,11 @@ describe("POST /v1/conversations/:id/tags (create-on-attach)", () => {
       env,
       await auth.token(),
       `/v1/conversations/${CONV_ID}/tags`,
-      { method: "POST", companyId: COMPANY_ID, body: { name: "Won" } },
+      { method: "POST", companyId: COMPANY_ID, body: { name: "VIP*" } },
     );
     expect(res.status).toBe(201);
+    const rpc = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag")[0];
+    expect(rpc.body).toEqual({ p_company_id: COMPANY_ID, p_name: "VIP*" });
     expect(await res.json()).toMatchObject({ id: TAG_ID });
   });
 

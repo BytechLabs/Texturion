@@ -38,7 +38,13 @@ import { sendEmail } from "../email/resend";
 import { getEnv, type Env } from "../env";
 import { revokeMemberTelephonyCredential } from "./webrtc";
 import { ApiError, errorResponse } from "../http/errors";
-import { expectOk, parseJsonBody, pathUuid, unwrap } from "./core/http";
+import {
+  expectOk,
+  isUniqueViolation,
+  parseJsonBody,
+  pathUuid,
+  unwrap,
+} from "./core/http";
 import { seatLimit } from "./core/plans";
 
 const MEMBER_COLUMNS = "id,user_id,role,deactivated_at,created_at";
@@ -516,17 +522,27 @@ teamRoutes.post("/invites/accept", async (c) => {
     );
   }
 
-  const memberRows = unwrap<Record<string, unknown>[]>(
+  const insertResult = await db
+    .from("company_members")
+    .insert({
+      company_id: invite.company_id,
+      user_id: userId,
+      role: invite.role,
+    })
+    .select(MEMBER_COLUMNS);
+  if (isUniqueViolation(insertResult.error)) {
+    // The invitee is already a member (a duplicate or stale invite). Consume
+    // the invite so it stops counting toward the seat cap — otherwise it lingers
+    // as a phantom pending seat that can block a real invite — then 409.
     await db
-      .from("company_members")
-      .insert({
-        company_id: invite.company_id,
-        user_id: userId,
-        role: invite.role,
-      })
-      .select(MEMBER_COLUMNS),
+      .from("invites")
+      .update({ accepted_at: new Date().toISOString() })
+      .eq("id", invite.id);
+    return errorResponse(c, "conflict", "Already a member of this company.");
+  }
+  const memberRows = unwrap<Record<string, unknown>[]>(
+    insertResult,
     "membership create",
-    "Already a member of this company.",
   );
 
   // notification_prefs row, defaults true/true (SPEC §7).

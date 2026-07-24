@@ -16,6 +16,7 @@ import { runOverageWarningJob } from "./billing/overage-warning";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
 import { sweepDeletedAttachments } from "./attachments/sweep";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
+import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { app, CRON_JOBS } from "./index";
 import {
   failStuckOutboundSends,
@@ -443,6 +444,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     ]);
     expect(CRON_JOBS["30 * * * *"]).toEqual([nudgeSoleProprietorOtp]);
     expect(CRON_JOBS["20 * * * *"]).toEqual([geocodeContactsJob]);
+    expect(CRON_JOBS["40 * * * *"]).toEqual([geocodeTasksJob]);
     expect(CRON_JOBS["0 13 * * *"]).toEqual([pollRegistrations]);
     expect(CRON_JOBS["10 13 * * *"]).toEqual([pollPortRequests]);
     expect(CRON_JOBS["0 14 * * *"]).toEqual([runGraceJob]);

@@ -724,7 +724,10 @@ export async function handleTerminalCallEvent(
     ? decodeForwardCaller(payload.client_state ?? null)
     : outboundLeg
       ? decodeOutboundCustomer(payload.client_state)
-      : (payload.from ?? null);
+      : // Normalize the inbound caller so a CLIR/blocked marker ('anonymous',
+        // 'Restricted') threads as null — not a literal shared "anonymous"
+        // contact/conversation — matching the initiated/synthetic paths.
+        normalizeCaller(payload.from);
 
   if (!ourNumberE164) return;
   const resolved = await resolveNumber(db, ourNumberE164);

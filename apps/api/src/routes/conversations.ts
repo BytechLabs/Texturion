@@ -53,7 +53,6 @@ import {
 import {
   escapeLike,
   expectOk,
-  isUniqueViolation,
   keysetFilter,
   parseCursor,
   parseJsonBody,
@@ -727,41 +726,23 @@ conversationsRoutes.post(
       tag = rows[0];
     } else {
       // Create-on-attach (SPEC §7): reuse the company's tag with this name
-      // (case-insensitive — tags_name_uq is on lower(name)), else create it.
-      // The insert races against concurrent attaches; on unique violation the
-      // winner's row is re-selected.
+      // (case-insensitive — tags_name_uq is on lower(name)), else create it, in
+      // ONE atomic RPC. The old ilike-by-name lookup used escapeLike, which
+      // STRIPS '*' (PostgREST maps '*'->'%' unescapably), so a name with a '*'
+      // matched the wrong tag or 500'd on the second attach — and it raced the
+      // concurrent create/select. The RPC keys on (company_id, lower(name)).
       const name = body.name as string;
-      const escaped = escapeLike(name);
-      const findByName = async (): Promise<TagRow | null> => {
-        const rows = unwrap<TagRow[]>(
-          await db
-            .from("tags")
-            .select("id,name,color")
-            .eq("company_id", companyId)
-            .ilike("name", escaped)
-            .limit(1),
-          "tag lookup by name",
-        );
-        return rows[0] ?? null;
-      };
-      const existing = await findByName();
-      if (existing) {
-        tag = existing;
-      } else {
-        const inserted = await db
-          .from("tags")
-          .insert({ company_id: companyId, name })
-          .select("id,name,color");
-        if (inserted.error && isUniqueViolation(inserted.error)) {
-          const winner = await findByName();
-          if (!winner) {
-            throw new Error("tag create-on-attach: conflict but no row found");
-          }
-          tag = winner;
-        } else {
-          tag = unwrap<TagRow[]>(inserted, "tag create")[0];
-        }
+      const rows = unwrap<TagRow[]>(
+        await db.rpc("api_find_or_create_tag", {
+          p_company_id: companyId,
+          p_name: name,
+        }),
+        "tag find-or-create",
+      );
+      if (!rows[0]) {
+        throw new Error("tag find-or-create: no row returned");
       }
+      tag = rows[0];
     }
 
     // ignoreDuplicates: attaching an already-attached tag is a no-op (200,

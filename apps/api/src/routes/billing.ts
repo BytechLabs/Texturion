@@ -397,6 +397,17 @@ billingRoutes.post("/change-plan", async (c) => {
   if (company.plan === target) {
     return errorResponse(c, "conflict", `Already on the ${target} plan.`);
   }
+  // A canceled subscription keeps `plan` + `stripe_subscription_id` populated
+  // (handleSubscriptionDeleted only flips subscription_status), so without this
+  // guard change-plan would call Stripe against a dead subscription and 500 —
+  // the same guard its /modules sibling already has.
+  if (!hasLiveSubscription(company.subscription_status)) {
+    return errorResponse(
+      c,
+      "conflict",
+      "Your subscription is canceled — resubscribe to change plans.",
+    );
+  }
 
   const stripe = getStripe(env);
   const subscription = await stripe.subscriptions.retrieve(
