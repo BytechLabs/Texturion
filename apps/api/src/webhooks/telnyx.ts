@@ -77,14 +77,17 @@ telnyxWebhookRoute.post("/", async (c) => {
   // ACK. Only on the fresh ledger insert; a duplicate POST already recorded it.
   if (eventType === "call.cost") {
     if (data && data.length > 0) {
-      await recordVoiceCost(
+      const recorded = await recordVoiceCost(
         db,
         event.data?.payload,
         typeof event.data?.occurred_at === "string"
           ? event.data.occurred_at
           : null,
       );
-      await stampProcessed(db, eventId);
+      // Only mark processed when recording didn't hit a TRANSIENT error, so the
+      // §11 sweeper re-drives a dropped cost (processed_at stays NULL). A
+      // definite skip (untracked leg) still returns true and stamps normally.
+      if (recorded) await stampProcessed(db, eventId);
     }
     return c.json({ received: true });
   }

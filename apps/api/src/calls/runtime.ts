@@ -1052,6 +1052,23 @@ export async function computeRingContext(
   if (rules.error) {
     throw new Error(`number_access read failed: ${rules.error.message}`);
   }
+  // Treat the push-channel reads like their siblings: a TRANSIENT failure must
+  // fail the whole initiated context (Telnyx retries) rather than silently
+  // empty the push audience — for a push-only crew that would short-circuit a
+  // real incoming call straight to voicemail.
+  if (subs.error) {
+    throw new Error(`push_subscriptions read failed: ${subs.error.message}`);
+  }
+  if (tokens.error) {
+    throw new Error(`device_push_tokens read failed: ${tokens.error.message}`);
+  }
+  if (prefs.error) {
+    // Prefs default to enabled when a row is absent, so an empty map is safe
+    // enough to proceed — but don't let a transient failure pass unseen.
+    Sentry.captureException(
+      new Error(`notification_prefs read failed: ${prefs.error.message}`),
+    );
+  }
   const accessRules = (rules.data ?? []) as NumberAccessRule[];
   const sipByUser = new Map(
     (credentials.data ?? []).map((row) => [
@@ -1065,13 +1082,10 @@ export async function computeRingContext(
       (row as { push_enabled: boolean | null }).push_enabled,
     ]),
   );
+  // subs/tokens errors already threw above, so these reads are safe.
   const channelUsers = new Set<string>([
-    ...(subs.error ? [] : (subs.data ?? [])).map(
-      (row) => (row as { user_id: string }).user_id,
-    ),
-    ...(tokens.error ? [] : (tokens.data ?? [])).map(
-      (row) => (row as { user_id: string }).user_id,
-    ),
+    ...(subs.data ?? []).map((row) => (row as { user_id: string }).user_id),
+    ...(tokens.data ?? []).map((row) => (row as { user_id: string }).user_id),
   ]);
 
   const dialTargets: { userId: string; sipUsername: string }[] = [];

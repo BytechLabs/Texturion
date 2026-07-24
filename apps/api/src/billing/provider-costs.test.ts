@@ -9,7 +9,40 @@ import {
   decodeSessionCandidates,
   parseCallCost,
   parseCostUsd,
+  recordVoiceCost,
 } from "./provider-costs";
+
+/**
+ * A minimal fluent Supabase double for recordVoiceCost: the `calls` lookup
+ * (`.select().in().limit()`) and the `provider_costs` upsert. Each can be told
+ * to return a transient error so we can assert the transient-vs-skip signal.
+ */
+function fakeDb(opts: {
+  callsError?: boolean;
+  callsData?: { company_id: string }[];
+  upsertError?: boolean;
+}) {
+  return {
+    from(table: string) {
+      if (table === "calls") {
+        return {
+          select: () => ({
+            in: () => ({
+              limit: async () =>
+                opts.callsError
+                  ? { data: null, error: { message: "boom" } }
+                  : { data: opts.callsData ?? [{ company_id: "c1" }], error: null },
+            }),
+          }),
+        };
+      }
+      return {
+        upsert: async () =>
+          opts.upsertError ? { error: { message: "boom" } } : { error: null },
+      };
+    },
+  } as unknown as Parameters<typeof recordVoiceCost>[0];
+}
 
 // The real call.cost client_state from prod: base64 of
 // "op|724e6c88-c967-46c4-a33d-1ae057336584|4121d6eb-a2fc-42e5-a5f3-8e414a3824f1"
@@ -78,5 +111,42 @@ describe("parseCallCost", () => {
   it("returns null without a call_leg_id (nothing to key on)", () => {
     expect(parseCallCost({ total_cost: "0.05" })).toBeNull();
     expect(parseCallCost(null)).toBeNull();
+  });
+});
+
+describe("recordVoiceCost transient-vs-skip signal (#216 sweeper recovery)", () => {
+  const payload = {
+    call_leg_id: "leg-1",
+    client_state: REAL_CLIENT_STATE,
+    total_cost: "0.02",
+  };
+
+  it("returns FALSE on a transient calls-lookup error (caller must not stamp processed)", async () => {
+    expect(await recordVoiceCost(fakeDb({ callsError: true }), payload)).toBe(
+      false,
+    );
+  });
+
+  it("returns FALSE when the provider_costs upsert hits a transient error", async () => {
+    expect(
+      await recordVoiceCost(
+        fakeDb({ callsData: [{ company_id: "c1" }], upsertError: true }),
+        payload,
+      ),
+    ).toBe(false);
+  });
+
+  it("returns TRUE on a definite skip (untracked leg — no company row)", async () => {
+    expect(await recordVoiceCost(fakeDb({ callsData: [] }), payload)).toBe(true);
+  });
+
+  it("returns TRUE on a payload with no candidates (definite skip)", async () => {
+    expect(await recordVoiceCost(fakeDb({}), { total_cost: "0.02" })).toBe(true);
+  });
+
+  it("returns TRUE after a successful record", async () => {
+    expect(
+      await recordVoiceCost(fakeDb({ callsData: [{ company_id: "c1" }] }), payload),
+    ).toBe(true);
   });
 });

@@ -413,16 +413,24 @@ export async function reconcileVoiceEnablement(
   const companyIds = (companies ?? []).map((row) => (row as { id: string }).id);
   if (companyIds.length === 0) return summary;
 
-  const { data, error } = await db
-    .from("phone_numbers")
-    .select(VOICE_NUMBER_COLUMNS)
-    .in("company_id", companyIds)
-    .eq("status", "active")
-    .eq("voice_enabled", false);
-  if (error) throw new Error(`phone_numbers lookup failed: ${error.message}`);
+  // Chunk the company-id filter: a single .in() over every active company would
+  // build an over-long URL as the customer base grows (the same bound the CSV
+  // export + import use).
+  const RECONCILE_CHUNK = 200;
+  const numberRows: VoiceNumberRow[] = [];
+  for (let i = 0; i < companyIds.length; i += RECONCILE_CHUNK) {
+    const { data, error } = await db
+      .from("phone_numbers")
+      .select(VOICE_NUMBER_COLUMNS)
+      .in("company_id", companyIds.slice(i, i + RECONCILE_CHUNK))
+      .eq("status", "active")
+      .eq("voice_enabled", false);
+    if (error) throw new Error(`phone_numbers lookup failed: ${error.message}`);
+    numberRows.push(...((data ?? []) as unknown as VoiceNumberRow[]));
+  }
 
   const failures: unknown[] = [];
-  for (const row of (data ?? []) as unknown as VoiceNumberRow[]) {
+  for (const row of numberRows) {
     if (!row.telnyx_phone_number_id) continue; // hosted → never voice-bound
     summary.checked += 1;
     try {

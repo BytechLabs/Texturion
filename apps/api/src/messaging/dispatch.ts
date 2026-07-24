@@ -38,13 +38,21 @@ export async function dispatchTelnyxEvent(
     // path — a call.cost whose live record/stamp was lost (transient stamp
     // failure, isolate eviction → row left processed_at NULL) is re-recorded on
     // replay rather than mis-routed into the DO. MUST precede the call.* branch.
-    await recordVoiceCost(
+    const recorded = await recordVoiceCost(
       getDb(env),
       event.data?.payload,
       typeof event.data?.occurred_at === "string"
         ? event.data.occurred_at
         : null,
     );
+    // On the sweeper path a transient failure must not be swallowed either:
+    // throw so the row stays processed_at NULL and the next sweep re-drives it
+    // (idempotent via the provider_costs PK).
+    if (!recorded) {
+      throw new Error(
+        "call.cost recording hit a transient error; leaving unprocessed for sweeper retry",
+      );
+    }
     return;
   }
   if (eventType.startsWith("call.")) {

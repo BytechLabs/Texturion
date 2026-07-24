@@ -61,26 +61,34 @@ export function parseCallCost(payload: unknown): {
  * untracked leg, or a cost that raced ahead of the calls row, is skipped (the
  * projection's max(estimate, actual) absorbs the small under-count). #216.
  */
+/**
+ * Returns `true` when the cost was recorded OR the leg is a definite skip
+ * (untracked / raced ahead / no candidates), and `false` ONLY on a transient
+ * DB error — so the caller can leave the webhook_events row unprocessed and let
+ * the §11 sweeper re-drive it instead of permanently dropping the leg's cost.
+ */
 export async function recordVoiceCost(
   db: Db,
   payload: unknown,
   occurredAt?: string | null,
-): Promise<void> {
+): Promise<boolean> {
   const parsed = parseCallCost(payload);
-  if (!parsed || parsed.candidates.length === 0) return;
+  if (!parsed || parsed.candidates.length === 0) return true; // definite skip
   const { data, error } = await db
     .from("calls")
     .select("company_id")
     .in("call_session_id", parsed.candidates)
     .limit(1);
   if (error) {
+    // Transient: do NOT let the caller mark the event processed — a swallowed
+    // error here previously dropped the real per-leg cost forever.
     console.error(`call.cost company lookup failed: ${error.message}`);
-    return;
+    return false;
   }
   const companyId = (data?.[0] as { company_id: string } | undefined)
     ?.company_id;
-  if (!companyId) return;
-  await recordProviderCost(db, {
+  if (!companyId) return true; // untracked leg / cost raced ahead — legit skip
+  return recordProviderCost(db, {
     kind: "voice",
     ref: parsed.callLegId,
     companyId,
@@ -91,9 +99,11 @@ export async function recordVoiceCost(
 
 /**
  * Record one costed telecom event, idempotent per (kind, ref) so a webhook
- * REPLAY never double-counts. Best-effort: a failure logs but NEVER throws, so
- * it can't break the webhook path — a missed row slightly under-counts, which
- * the projection's max(estimate, actual) absorbs.
+ * REPLAY never double-counts. Never THROWS (it can't break the webhook path),
+ * but returns `false` on a transient upsert error so the caller can decline to
+ * mark the event processed and let the sweeper re-drive it; `true` on success
+ * or a definite skip. A permanently-missed row only slightly under-counts,
+ * which the projection's max(estimate, actual) absorbs.
  */
 export async function recordProviderCost(
   db: Db,
@@ -105,8 +115,8 @@ export async function recordProviderCost(
     costUsd: number;
     occurredAt?: string | null;
   },
-): Promise<void> {
-  if (!input.ref || !input.companyId) return;
+): Promise<boolean> {
+  if (!input.ref || !input.companyId) return true; // definite skip
   const row: Record<string, unknown> = {
     kind: input.kind,
     ref: input.ref,
@@ -121,7 +131,9 @@ export async function recordProviderCost(
     console.error(
       `provider_costs upsert failed (${input.kind}:${input.ref}): ${error.message}`,
     );
+    return false; // transient — caller should not stamp the event processed
   }
+  return true;
 }
 
 /**
