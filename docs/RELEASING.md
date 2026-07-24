@@ -1,6 +1,6 @@
 # Releasing
 
-**One version for the whole product.** Loonext 1.3.0 means the same thing in the
+**One version for the whole product.** Loonext 0.4.0 means the same thing in the
 web app, the API, and both store listings — because to a customer it *is* one
 product. Independent per-app versions would only make "what version are we on?"
 a question with several answers.
@@ -32,11 +32,20 @@ no stored state, and can't collide across branches. CI passes it automatically.
 The `1` committed in `build.gradle.kts` / `project.yml` is a local-dev fallback
 and is never what gets uploaded.
 
-**Which version bump.** Inferred from the commits: a `feat!:` or a
-`BREAKING CHANGE:` footer gives a major, any `feat` gives a minor, otherwise
-patch. To force one, add a `Release-As: 2.0.0` footer to any commit.
+**Which version bump.** Inferred from the commits: any `feat` gives a minor,
+otherwise patch.
 
-**Where releases start.** `v1.0.0` is tagged as the baseline. Without it the
+**We are pre-1.0, deliberately.** The product is not public yet, so it lives in
+`0.x` — where semver's contract is "anything may change". A breaking change
+(`feat!`, or a `BREAKING CHANGE:` footer) therefore bumps the **minor**
+(`0.1.0` → `0.2.0`) rather than jumping to `1.0.0`, which would announce a
+stability promise that isn't being made yet.
+
+Going 1.0.0 is a deliberate act: add a `Release-As: 1.0.0` footer to a commit
+when the product is genuinely ready for public consumption. The same footer
+forces any specific version.
+
+**Where releases start.** `v0.1.0` is tagged as the baseline. Without it the
 first release PR would sweep up all 506 commits of pre-launch history — whose PR
 body exceeds GitHub's 65,536-character limit, which is exactly how the first
 attempt failed. Releases begin from that tag.

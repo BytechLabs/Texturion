@@ -24,6 +24,21 @@
   ],
 
   "release-type": "simple",
+
+  "//pre-1.0": [
+    "The product is not public yet, so it lives in 0.x — where semver's contract",
+    "is 'anything may change'. bump-minor-pre-major keeps a breaking change on a",
+    "MINOR bump (0.1.0 -> 0.2.0) instead of letting it jump to 1.0.0, which would",
+    "otherwise happen the first time a `feat!` lands and would announce a",
+    "stability promise that isn't being made yet.",
+    "",
+    "1.0.0 therefore becomes a DELIBERATE act: add a `Release-As: 1.0.0` footer to",
+    "a commit when the product is actually ready for public consumption.",
+    "",
+    "feat -> minor, fix -> patch, as usual."
+  ],
+  "bump-minor-pre-major": true,
+
   "packages": {
     ".": {
       "package-name": "loonext",
