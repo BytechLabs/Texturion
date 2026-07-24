@@ -1,0 +1,187 @@
+import AVFoundation
+import SwiftUI
+
+/// A playable audio attachment in a thread bubble.
+///
+/// Founder report (live device): a customer sent a voice message and there was
+/// nowhere in the app to hear it. Worse than the web chip, the iOS bubble
+/// rendered only images, so an audio message was invisible: the thread showed
+/// an empty bubble. A voice message is a message and belongs in the bubble.
+///
+/// The signed URL is minted per view and never cached, exactly like
+/// `SignedAttachmentImage`. Playback streams from that URL, so nothing is
+/// downloaded until someone presses play.
+@MainActor
+struct SignedAudioAttachment: View {
+    let attachmentId: String
+    let sizeBytes: Int?
+    let mintUrl: @MainActor (String) async throws -> String
+
+    @State private var player: AVPlayer?
+    @State private var playing = false
+    @State private var progress: Double = 0
+    @State private var mintKey = 0
+    @State private var failed = false
+
+    /// Drives the progress bar. A half-second tick is plenty for a clip and
+    /// avoids a periodic time observer (which would have to hop actors).
+    private let tick = Timer.publish(every: 0.5, on: .main, in: .common)
+        .autoconnect()
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: toggle) {
+                Image(systemName: playing ? "pause.circle.fill" : "play.circle.fill")
+                    .font(.system(size: 30))
+                    .foregroundStyle(BrandColor.olive)
+            }
+            .buttonStyle(.plain)
+            .disabled(player == nil && !failed)
+            .accessibilityLabel(playing ? "Pause audio message" : "Play audio message")
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(failed ? "Audio unavailable, tap to retry" : "Audio message")
+                    .font(.golos(12.5, weight: .medium))
+                    .foregroundStyle(BrandColor.ink)
+                ProgressView(value: min(max(progress, 0), 1))
+                    .tint(BrandColor.olive)
+                    .frame(height: 2)
+                let size = formatBytes(sizeBytes)
+                if !size.isEmpty {
+                    Text(size)
+                        .font(.golos(10.5))
+                        .foregroundStyle(BrandColor.muted500)
+                }
+            }
+        }
+        .frame(maxWidth: 240, alignment: .leading)
+        .padding(.bottom, 4)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard failed else { return }
+            failed = false
+            player = nil
+            mintKey += 1
+        }
+        .task(id: "\(attachmentId)|\(mintKey)") {
+            guard player == nil, !failed else { return }
+            do {
+                let minted = try await mintUrl(attachmentId)
+                guard let url = URL(string: minted) else {
+                    failed = true
+                    return
+                }
+                player = AVPlayer(url: url)
+            } catch {
+                failed = true
+            }
+        }
+        .onReceive(tick) { _ in
+            guard playing, let player, let item = player.currentItem else { return }
+            let duration = item.duration.seconds
+            guard duration.isFinite, duration > 0 else { return }
+            progress = player.currentTime().seconds / duration
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: AVPlayerItem.didPlayToEndTimeNotification
+            )
+        ) { note in
+            // Only OUR item ending resets THIS row (a thread can hold several).
+            guard let item = note.object as? AVPlayerItem,
+                  item === player?.currentItem else { return }
+            playing = false
+            progress = 0
+            player?.seek(to: .zero)
+        }
+        .onDisappear {
+            player?.pause()
+            playing = false
+        }
+    }
+
+    private func toggle() {
+        guard let player else { return }
+        if playing {
+            player.pause()
+            playing = false
+            return
+        }
+        // Without .playback a clip is silenced by the ring/silent switch, which
+        // reads as "the player is broken". Never touch the session while a call
+        // owns it (.playAndRecord) — the softphone's audio comes first.
+        let session = AVAudioSession.sharedInstance()
+        if session.category != .playAndRecord {
+            try? session.setCategory(.playback, mode: .spokenAudio)
+            try? session.setActive(true)
+        }
+        player.play()
+        playing = true
+    }
+}
+
+/// A non-image, non-audio MMS attachment: a calm chip that opens the signed URL
+/// in the system viewer. Without this, a PDF or a contact card a customer sent
+/// simply did not appear in the thread.
+@MainActor
+struct AttachmentFileChip: View {
+    let attachment: AttachmentSummary
+    /// MMS media has no generic `Attachment` row behind it, so the chip mints
+    /// its own short-lived URL and hands it to the system viewer.
+    let mintUrl: @MainActor (String) async throws -> String
+
+    @Environment(\.openURL) private var openURL
+    @State private var opening = false
+
+    private var kind: MediaKind { MediaKind.of(attachment.content_type) }
+
+    var body: some View {
+        Button {
+            guard !opening else { return }
+            opening = true
+            Task {
+                defer { opening = false }
+                if let minted = try? await mintUrl(attachment.id),
+                   let url = URL(string: minted) {
+                    openURL(url)
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: kind.symbolName)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(BrandColor.muted700)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(attachmentLabel(kind: kind, count: 1))
+                        .font(.golos(12.5, weight: .medium))
+                        .foregroundStyle(BrandColor.ink)
+                    let size = formatBytes(attachment.size_bytes)
+                    if !size.isEmpty {
+                        Text(size)
+                            .font(.golos(10.5))
+                            .foregroundStyle(BrandColor.muted500)
+                    }
+                }
+                Spacer(minLength: 0)
+                if opening {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "arrow.down.circle")
+                        .font(.system(size: 13))
+                        .foregroundStyle(BrandColor.muted500)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: 240, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(BrandColor.cream)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open \(attachmentLabel(kind: kind, count: 1).lowercased())")
+        .padding(.bottom, 4)
+    }
+}

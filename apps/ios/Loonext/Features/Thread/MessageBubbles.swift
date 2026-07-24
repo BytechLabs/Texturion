@@ -76,6 +76,21 @@ struct MessageBubble: View {
                 SignedAttachmentImage(attachmentId: attachment.id, mintUrl: mintAttachmentUrl)
             }
 
+            // Audio plays inline. Everything else that is not an image gets a
+            // chip that opens it. Before this, the bubble rendered images only,
+            // so a voice message or a PDF a customer sent showed as an empty
+            // bubble with nothing in it at all.
+            ForEach(audioAttachments, id: \.id) { attachment in
+                SignedAudioAttachment(
+                    attachmentId: attachment.id,
+                    sizeBytes: attachment.size_bytes,
+                    mintUrl: mintAttachmentUrl
+                )
+            }
+            ForEach(otherAttachments, id: \.id) { attachment in
+                AttachmentFileChip(attachment: attachment, mintUrl: mintAttachmentUrl)
+            }
+
             if !message.body.isBlank {
                 Text(message.body)
                     .font(.golos(14))
@@ -113,7 +128,18 @@ struct MessageBubble: View {
     }
 
     private var imageAttachments: [AttachmentSummary] {
-        message.attachments.filter { $0.content_type.hasPrefix("image/") }
+        message.attachments.filter { MediaKind.of($0.content_type) == .image }
+    }
+
+    private var audioAttachments: [AttachmentSummary] {
+        message.attachments.filter { MediaKind.of($0.content_type) == .audio }
+    }
+
+    private var otherAttachments: [AttachmentSummary] {
+        message.attachments.filter {
+            let kind = MediaKind.of($0.content_type)
+            return kind != .image && kind != .audio
+        }
     }
 
     private var bodyColor: Color {
