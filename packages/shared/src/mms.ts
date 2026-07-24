@@ -73,7 +73,13 @@ export const MMS_TYPE_ALIASES: Readonly<Record<string, MmsMediaType>> = {
  */
 export function canonicalMmsType(raw: string): string {
   const cleaned = raw.split(";")[0]?.trim().toLowerCase() ?? "";
-  return MMS_TYPE_ALIASES[cleaned] ?? cleaned;
+  // Own-property lookup only: `cleaned` is an untrusted content-type, and a
+  // bare `MMS_TYPE_ALIASES[cleaned]` would resolve inherited keys like
+  // "constructor"/"__proto__"/"toString" to prototype members (a function/
+  // object), bypassing the `?? cleaned` fallback and returning a non-alias.
+  return Object.hasOwn(MMS_TYPE_ALIASES, cleaned)
+    ? MMS_TYPE_ALIASES[cleaned]
+    : cleaned;
 }
 
 /** True when `contentType` (already canonicalized or not) is deliverable. */

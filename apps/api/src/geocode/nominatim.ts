@@ -122,8 +122,17 @@ export async function geocodeAddress(
   const first = rows[0] as NominatimRow;
   const lat = Number(first.lat);
   const lng = Number(first.lon);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    // A row with no usable coordinate is a real "no location" answer.
+  // Range-validate, not just isFinite: a blank/garbage row (or a future API
+  // change) could yield an on-Earth-impossible coordinate that would then plot
+  // as a wrong pin. Out-of-range latitude/longitude is a real "no location".
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    lat < -90 ||
+    lat > 90 ||
+    lng < -180 ||
+    lng > 180
+  ) {
     return { status: "not_found" };
   }
   return { status: "ok", hit: { lat, lng } };

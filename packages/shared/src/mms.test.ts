@@ -61,6 +61,19 @@ describe("canonicalMmsType", () => {
       "application/octet-stream",
     );
   });
+
+  it("does not resolve Object.prototype keys to prototype members", () => {
+    // Untrusted content-types that collide with inherited property names must
+    // fall through to the cleaned string (and then be rejected), never return a
+    // function/object from the prototype.
+    for (const key of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
+      // Returns the cleaned (lowercased) string, never a prototype member.
+      const result = canonicalMmsType(key);
+      expect(typeof result).toBe("string");
+      expect(result).toBe(key.toLowerCase());
+      expect(isMmsMediaType(key)).toBe(false);
+    }
+  });
 });
 
 describe("mmsMediaTypeForFile", () => {

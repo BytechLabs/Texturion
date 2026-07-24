@@ -14,6 +14,15 @@ import type { Env } from "../env";
 
 export const TELNYX_API_BASE = "https://api.telnyx.com";
 
+/**
+ * Hard ceiling on a single Telnyx REST call. Without it a stalled Telnyx
+ * endpoint would hang the caller up to the Worker's own wall-clock limit —
+ * inside a webhook's waitUntil that silently burns the isolate; on a
+ * user-facing route it hangs the request. A timeout surfaces as a normal
+ * fetch abort the callers already handle (and, for provisioning, retry).
+ */
+export const TELNYX_TIMEOUT_MS = 20_000;
+
 /** One entry of a Telnyx `{ errors: [...] }` body (their JSON:API-ish shape). */
 export interface TelnyxErrorItem {
   code?: string;
@@ -100,6 +109,8 @@ export async function telnyxRequest<T = unknown>(
     method: options.method,
     headers,
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    // Bound the call so a stalled Telnyx endpoint can't hang the request/isolate.
+    signal: AbortSignal.timeout(TELNYX_TIMEOUT_MS),
   });
 
   const label = `${options.method} ${options.path}`;
