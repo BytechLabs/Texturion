@@ -178,6 +178,14 @@ export function MakeTaskForm({
     setAddrProvenance("manual");
   }
 
+  /** One-click dismissal of a suggested (or typed) address — wipes every field
+   *  and drops the provenance badge, so a wrong AI suggestion is gone in one tap. */
+  function clearAddress() {
+    setAddr(EMPTY_ADDRESS);
+    setAddrProvenance(null);
+  }
+  const hasAddressContent = Object.values(addr).some((v) => v.trim() !== "");
+
   const submit = async () => {
     const trimmed = title.trim();
     if (trimmed === "") {
@@ -281,13 +289,13 @@ export function MakeTaskForm({
       {/* #214 structured job address — collapsible; auto-opens when enrichment
           suggests one, with a provenance badge; any edit marks it manual. */}
       <div className="flex flex-col gap-1.5">
-        <button
-          type="button"
-          onClick={() => setAddrOpen((o) => !o)}
-          className="flex items-center justify-between rounded-md text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          aria-expanded={addrOpen}
-        >
-          <span className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAddrOpen((o) => !o)}
+            className="flex flex-1 items-center gap-2 rounded-md text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            aria-expanded={addrOpen}
+          >
             <MapPin className="size-4 text-muted-foreground" strokeWidth={1.75} />
             Address
             {enriching && (
@@ -302,15 +310,26 @@ export function MakeTaskForm({
                 {provLabel}
               </span>
             )}
-          </span>
-          <ChevronDown
-            className={cn(
-              "size-4 text-muted-foreground transition-transform",
-              addrOpen && "rotate-180",
-            )}
-            aria-hidden
-          />
-        </button>
+            <ChevronDown
+              className={cn(
+                "ml-auto size-4 text-muted-foreground transition-transform",
+                addrOpen && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </button>
+          {/* One-click clear — dismisses a wrong AI suggestion (or a typo) whole. */}
+          {hasAddressContent && (
+            <button
+              type="button"
+              onClick={clearAddress}
+              aria-label="Clear address"
+              className="shrink-0 rounded-md px-1.5 py-0.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              Clear
+            </button>
+          )}
+        </div>
         {addrOpen && (
           <div className="grid grid-cols-2 gap-2">
             <Input
