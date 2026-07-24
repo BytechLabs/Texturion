@@ -51,14 +51,23 @@ export function InlineTextField({
     setEditing(false);
     const trimmed = draft.trim();
     if (trimmed === (value ?? "")) return;
+    // Preserve exactly what was typed so a failed save can be recovered.
+    const attempted = draft;
     const patch: ContactPatch = { [field]: trimmed === "" ? null : trimmed };
     update.mutate(patch, {
-      onError: (error) =>
+      onError: (error) => {
+        // The save failed, and closing the editor reset the draft to the old
+        // server value — restore the attempted text and re-open the editor so
+        // the user can retry without retyping (the reset effect is gated on
+        // !editing, so re-opening keeps their text).
+        setDraft(attempted);
+        setEditing(true);
         toast.error(
           error instanceof ApiError
             ? error.message
             : `Couldn't save the ${field}. Try again.`,
-        ),
+        );
+      },
     });
   };
 
@@ -67,7 +76,10 @@ export function InlineTextField({
       <button
         type="button"
         onClick={() => setEditing(true)}
-        aria-label={`Edit ${label}`}
+        // Fold the current value into the accessible name so a screen reader
+        // announces it (a bare "Edit {label}" hid the value the button shows);
+        // the button role already conveys the click-to-edit affordance.
+        aria-label={value ? `${label}: ${value}` : `Add ${label.toLowerCase()}`}
         className={cn(
           "w-full rounded-md px-2 py-1 text-left text-sm transition-colors duration-150 ease-out hover:bg-secondary/60",
           wrap ? "line-clamp-2 break-words" : "truncate",

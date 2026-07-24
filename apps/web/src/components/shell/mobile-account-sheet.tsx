@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { NotificationFeed } from "@/components/notifications/notification-bell";
 import {
@@ -95,7 +96,15 @@ export function MobileAccountSheetBody({
   }
 
   async function signOut() {
-    await getSupabaseBrowser().auth.signOut();
+    // signOut() returns { error } (and can throw on a network failure) — a
+    // swallowed failure left the user still signed in with nothing on screen.
+    try {
+      const { error } = await getSupabaseBrowser().auth.signOut();
+      if (error) throw error;
+    } catch {
+      toast.error("Couldn't sign out. Check your connection and try again.");
+      return;
+    }
     queryClient.clear();
     router.push("/login");
   }

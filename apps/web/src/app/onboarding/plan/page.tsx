@@ -85,7 +85,16 @@ function PlanStep() {
   }
 
   if (state.status === "error") return <StepError onRetry={state.retry} />;
-  if (!ready || !state.snapshot || !state.company || !state.companyId) {
+  // Wait for the port status too: without it a port-in user briefly sees the
+  // non-port checkout copy + an editable number before it swaps (the gate
+  // short-circuits on !companyId first, so the query is always enabled here).
+  if (
+    !ready ||
+    !state.snapshot ||
+    !state.company ||
+    !state.companyId ||
+    ports.isPending
+  ) {
     return <StepLoading />;
   }
 

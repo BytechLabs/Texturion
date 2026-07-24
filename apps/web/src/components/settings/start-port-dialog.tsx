@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, X } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -303,10 +303,18 @@ function Field({
   value: string;
   onChange: (value: string) => void;
 }) {
+  // Associate the label with the input so a screen reader announces the field's
+  // name and a label click focuses it (Radix Label needs htmlFor to bind).
+  const id = useId();
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
-      <Input value={value} onChange={(e) => onChange(e.target.value)} autoComplete="off" />
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        autoComplete="off"
+      />
     </div>
   );
 }

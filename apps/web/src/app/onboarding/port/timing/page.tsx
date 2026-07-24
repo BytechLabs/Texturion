@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   PORT_CHECKOUT_TIMELINE,
@@ -44,6 +44,11 @@ export default function PortTimingPage() {
   const [wantsBridge, setWantsBridge] = useState(false);
   const [seeded, setSeeded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // One idempotency key per port ATTEMPT (this mounted flow): minted lazily on
+  // first submit and REUSED across retries so a retried submit replays the same
+  // row (§7) instead of creating a duplicate port. A genuinely new attempt is a
+  // fresh mount → a fresh key.
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!ready || seeded) return;
@@ -107,12 +112,15 @@ export default function PortTimingPage() {
         : {}),
     };
 
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = crypto.randomUUID();
+    }
     try {
       await createPort.mutateAsync({
         companyId,
         body,
         // Stable per port attempt so a retry replays the same row (§7).
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: idempotencyKeyRef.current,
       });
       // The port draft now exists (deferred to the paid webhook). Clear the
       // local draft and hand off to the dispatcher → registration or plan.

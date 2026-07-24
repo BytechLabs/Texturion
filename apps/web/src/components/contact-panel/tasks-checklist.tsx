@@ -116,17 +116,22 @@ function TaskRow({
         },
         // The hook already patched the caches with the server row; drop the
         // local override so we render the authoritative state.
-        onSuccess: () => setOptimisticDone(null),
+        onSuccess: () => {
+          setOptimisticDone(null);
+          // Reversible + routine → quiet 5s undo (the inverse PATCH is a D14
+          // no-op-safe route). Only offered on mark-done, and ONLY once the
+          // save landed — showing it optimistically left a contradictory "Task
+          // marked done / Undo" toast on screen next to the error when the
+          // toggle actually failed.
+          if (next) {
+            undoableToast({
+              message: "Task marked done",
+              onUndo: () => runToggle(false),
+            });
+          }
+        },
       },
     );
-    // Reversible + routine → quiet 5s undo (the inverse PATCH is a D14 no-op-safe
-    // route). Only offered on mark-done, matching the calm one-undo contract.
-    if (next) {
-      undoableToast({
-        message: "Task marked done",
-        onUndo: () => runToggle(false),
-      });
-    }
   };
 
   return (
