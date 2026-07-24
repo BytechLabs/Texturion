@@ -116,6 +116,12 @@ export interface Me {
   user_id: string;
   display_name: string;
   memberships: Membership[];
+  /**
+   * Whether the account has a password at all. The Supabase identities array
+   * cannot answer this: setting a password on a Google account creates no
+   * 'email' identity, so Settings must read this instead.
+   */
+  has_password?: boolean;
   company?: CompanyView;
 }
 

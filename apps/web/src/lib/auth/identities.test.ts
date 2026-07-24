@@ -63,3 +63,30 @@ describe("isApplePrivateRelay (D18 §1.8)", () => {
     expect(isApplePrivateRelay("not-an-email")).toBe(false);
   });
 });
+
+describe("a password set after an OAuth signup (founder report)", () => {
+  // Supabase creates an 'email' identity only when the account SIGNED UP with
+  // a password. Setting one later on a Google account creates none, so the
+  // identities array says google-only forever — confirmed in production.
+  const googleOnly = [{ provider: "google" }];
+
+  it("reports the password as linked when the server says there is one", () => {
+    const state = signInMethods(googleOnly, true);
+    expect(state.find((m) => m.method === "password")?.linked).toBe(true);
+    // Google stays identity-driven, where the array IS accurate.
+    expect(state.find((m) => m.method === "google")?.linked).toBe(true);
+    expect(state.find((m) => m.method === "apple")?.linked).toBe(false);
+  });
+
+  it("offers Change password, not Set a password, once one exists", () => {
+    expect(isOAuthOnly(googleOnly, true)).toBe(false);
+    expect(isOAuthOnly(googleOnly, false)).toBe(true);
+  });
+
+  it("falls back to the identity check when the server did not say", () => {
+    expect(signInMethods(googleOnly).find((m) => m.method === "password")?.linked)
+      .toBe(false);
+    expect(isOAuthOnly(googleOnly)).toBe(true);
+    expect(isOAuthOnly([{ provider: "email" }])).toBe(false);
+  });
+});

@@ -19,10 +19,14 @@ const METHOD_LABEL: Record<string, string> = {
  */
 export function AccountMethods({
   identities,
+  hasPassword,
 }: {
   identities: IdentityLike[] | null | undefined;
+  /** Server truth for the password row (GET /v1/me) — identities cannot see a
+   *  password added after an OAuth signup. */
+  hasPassword?: boolean;
 }) {
-  const methods = signInMethods(identities);
+  const methods = signInMethods(identities, hasPassword);
   return (
     <ul className="divide-y divide-border-subtle">
       {methods.map(({ method, linked }) => (

@@ -39,27 +39,47 @@ const PROVIDER_BY_METHOD: Record<SignInMethod, string> = {
  * Map the identities array to the three-row present/absent list the Account
  * screen renders (§1.8). Always returns all three methods, in order, each with
  * its linked state — a "status list, not a management console."
+ *
+ * `hasPassword` comes from the server (GET /v1/me), and it OVERRIDES the
+ * identities array for the password row. Supabase only creates an 'email'
+ * identity when the account SIGNED UP with a password: setting one later on a
+ * Google account sets a real password and creates no identity, so this list
+ * used to say "Not linked" forever for an account that had one. Google and
+ * Apple stay identity-driven, where the array is accurate.
+ *
+ * Undefined `hasPassword` (a /v1/me response predating the field) falls back to
+ * the old identity check rather than claiming anything either way.
  */
 export function signInMethods(
   identities: IdentityLike[] | null | undefined,
+  hasPassword?: boolean,
 ): SignInMethodState[] {
   const present = new Set(
     (identities ?? []).map((identity) => identity.provider),
   );
   return (["google", "apple", "password"] as const).map((method) => ({
     method,
-    linked: present.has(PROVIDER_BY_METHOD[method]),
+    linked:
+      method === "password" && hasPassword !== undefined
+        ? hasPassword
+        : present.has(PROVIDER_BY_METHOD[method]),
   }));
 }
 
 /**
- * True when the account has NO password identity — an OAuth-only account
- * (§1.6/§1.8). Drives whether the Account screen shows "Set a password" (turns
- * an SSO account into a dual-login account) vs the normal "Change password".
+ * True when the account has NO password — an OAuth-only account (§1.6/§1.8).
+ * Drives whether the Account screen shows "Set a password" (turns an SSO
+ * account into a dual-login account) vs the normal "Change password".
+ *
+ * Same correction as `signInMethods`: the identities array cannot see a
+ * password added after an OAuth signup, so the server's `hasPassword` wins when
+ * it is known.
  */
 export function isOAuthOnly(
   identities: IdentityLike[] | null | undefined,
+  hasPassword?: boolean,
 ): boolean {
+  if (hasPassword !== undefined) return !hasPassword;
   return !(identities ?? []).some(
     (identity) => identity.provider === PASSWORD_PROVIDER,
   );

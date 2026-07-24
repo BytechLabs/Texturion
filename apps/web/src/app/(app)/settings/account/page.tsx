@@ -12,6 +12,7 @@ import {
   SettingsPage,
 } from "@/components/settings/section";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMe } from "@/lib/api/me";
 import { isOAuthOnly } from "@/lib/auth/identities";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
@@ -30,6 +31,10 @@ type LoadState =
  */
 export default function AccountSettingsPage() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  // The password row cannot be read from the Supabase session (see
+  // lib/auth/identities): the server is the only place that knows.
+  const me = useMe();
+  const hasPassword = me.data?.has_password;
 
   function load() {
     setState({ status: "loading" });
@@ -69,7 +74,10 @@ export default function AccountSettingsPage() {
             title="Sign-in methods"
             description="How you can log in. Same email across methods stays one account."
           >
-            <AccountMethods identities={state.user.identities} />
+            <AccountMethods
+              identities={state.user.identities}
+              hasPassword={hasPassword}
+            />
           </SettingsCard>
 
           <ChangeEmailCard email={state.user.email ?? null} />
@@ -77,7 +85,9 @@ export default function AccountSettingsPage() {
           {/* OAuth-only accounts get "Set a password"; accounts that already
               have one get "Change password" (with reauth when the session is
               stale) — §1.6/§1.8. */}
-          <ChangePasswordCard oauthOnly={isOAuthOnly(state.user.identities)} />
+          <ChangePasswordCard
+            oauthOnly={isOAuthOnly(state.user.identities, hasPassword)}
+          />
         </div>
       )}
     </SettingsPage>

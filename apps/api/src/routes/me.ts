@@ -64,7 +64,7 @@ meRoutes.get("/me", async (c) => {
 
   // Both key only on userId — one parallel round-trip instead of two serial
   // (GET /v1/me is on every app load).
-  const [profilesRes, membershipRes] = await Promise.all([
+  const [profilesRes, membershipRes, hasPasswordRes] = await Promise.all([
     db.from("profiles").select("display_name").eq("user_id", userId).limit(1),
     db
       .from("company_members")
@@ -74,6 +74,10 @@ meRoutes.get("/me", async (c) => {
       .eq("user_id", userId)
       .is("deactivated_at", null)
       .is("companies.deleted_at", null),
+    // Settings, Account cannot infer this from `user.identities`: setting a
+    // password on an OAuth account creates no 'email' identity, so the array
+    // says google-only forever. auth.users is the only source that knows.
+    db.rpc("api_user_has_password", { p_user_id: userId }),
   ]);
   const profiles = unwrap<{ display_name: string }[]>(
     profilesRes,
@@ -95,6 +99,9 @@ meRoutes.get("/me", async (c) => {
     user_id: userId,
     display_name: profiles[0]?.display_name ?? "",
     memberships,
+    // A failed lookup reports false, which only ever offers "Set a password" —
+    // harmless, and it never claims a password the account may not have.
+    has_password: hasPasswordRes.data === true,
   };
 
   // Optional hydration for the X-Company-Id workspace. The route is exempt
