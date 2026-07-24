@@ -305,22 +305,24 @@ conversationsRoutes.get(
       "messages page",
     );
     const messagesPage = buildPage(messageRows, messageLimit, "created_at");
-    // D17/T5.1: annotate each embedded message with whether a live task rows
-    // over it, so the thread shows the stone task indicator (one batch query).
-    const promoted = await loadMessageTaskFlags(
-      db,
-      companyId,
-      messagesPage.data.map((message) => message.id),
-    );
-    // TASKS-V2 D-D: resolve the linked task { id, title } for task-linked notes
-    // so the thread renders the "on: <task title>" chip (one batch query).
-    const taskLinks = await loadNoteTaskLinks(
-      db,
-      companyId,
-      messagesPage.data
-        .map((message) => message.task_id)
-        .filter((v): v is string => typeof v === "string"),
-    );
+    // Both annotations derive from messagesPage.data and are independent of each
+    // other — one parallel round-trip, not two serial. D17/T5.1: which messages
+    // have a live task over them (the stone task indicator). TASKS-V2 D-D: the
+    // linked task { id, title } for task-linked notes (the "on: <title>" chip).
+    const [promoted, taskLinks] = await Promise.all([
+      loadMessageTaskFlags(
+        db,
+        companyId,
+        messagesPage.data.map((message) => message.id),
+      ),
+      loadNoteTaskLinks(
+        db,
+        companyId,
+        messagesPage.data
+          .map((message) => message.task_id)
+          .filter((v): v is string => typeof v === "string"),
+      ),
+    ]);
 
     const { contacts, conversation_tags, ...conversation } = row;
     return c.json({

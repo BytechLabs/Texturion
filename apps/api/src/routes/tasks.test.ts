@@ -278,6 +278,21 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     return stubRoute(restMatch(env, "GET", "tasks"), () => rows);
   }
 
+  it("rejects malformed filter params with 422 before touching the DB", async () => {
+    for (const q of [
+      "conversation_id=not-a-uuid",
+      "assigned_user_id=nope",
+      "due_before=today",
+      "due_after=2026-13-40",
+    ]) {
+      const list = listStub([]);
+      stubFetch(jwksRoute(auth), membersRoute(), list.route);
+      const response = await request("GET", `/v1/tasks?${q}`);
+      expect(response.status).toBe(422);
+      expect(list.calls).toHaveLength(0); // never reached PostgREST
+    }
+  });
+
   it("defaults to Open·Mine (status=open, assignee=me) with no params", async () => {
     const list = listStub([]);
     stubFetch(jwksRoute(auth), membersRoute(), list.route);

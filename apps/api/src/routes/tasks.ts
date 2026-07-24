@@ -677,6 +677,37 @@ tasksRoutes.get("/tasks", requireRole("member"), async (c) => {
   const unassigned = c.req.query("unassigned") === "true";
   const rawQ = c.req.query("q")?.trim();
 
+  // Validate the filter params before they reach PostgREST — a malformed
+  // uuid/timestamp otherwise raises a PostgREST type error (22P02) that surfaces
+  // as a 500 + Sentry noise instead of a clean 422 (matches GET /v1/conversations).
+  if (conversationId !== undefined && !z.uuid().safeParse(conversationId).success) {
+    throw new ApiError("validation_failed", "conversation_id must be a UUID.");
+  }
+  if (
+    rawAssignee !== undefined &&
+    rawAssignee !== "me" &&
+    !z.uuid().safeParse(rawAssignee).success
+  ) {
+    throw new ApiError(
+      "validation_failed",
+      "assigned_user_id must be a UUID or 'me'.",
+    );
+  }
+  for (const [name, value] of [
+    ["due_before", dueBefore],
+    ["due_after", dueAfter],
+  ] as const) {
+    if (
+      value !== undefined &&
+      !z.iso.datetime({ offset: true }).safeParse(value).success
+    ) {
+      throw new ApiError(
+        "validation_failed",
+        `${name} must be an ISO 8601 datetime.`,
+      );
+    }
+  }
+
   // Any explicit filter opts out of the "what needs me now" default. Only when
   // NO filter param at all is present does the default (status=open,
   // assignee=me) apply (T6.1 "one obvious view").

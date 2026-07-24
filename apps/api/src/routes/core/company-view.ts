@@ -164,29 +164,33 @@ export async function loadCompanyView(
   const company = companies[0];
   if (!company) return null;
 
-  const numbers = unwrap<unknown[]>(
-    await db
+  // These three depend only on companyId (not on the company row) and are merged
+  // at the end — run them in ONE parallel round-trip instead of three serial
+  // ones. This is the hottest hydration path (every /company load), so the
+  // saved latency is real and there's no ongoing cost.
+  const [numbersRes, registrationsRes, modulesRes] = await Promise.all([
+    db
       .from("phone_numbers")
       .select(NUMBER_COLUMNS)
       .eq("company_id", companyId)
       .order("created_at", { ascending: true }),
-    "phone_numbers lookup",
-  );
-
-  const registrations = unwrap<RegistrationRow[]>(
-    await db
+    db
       .from("messaging_registrations")
       .select(REGISTRATION_COLUMNS)
       .eq("company_id", companyId),
-    "messaging_registrations lookup",
-  );
-
-  const modules = unwrap<{ module: string }[]>(
-    await db
+    db
       .from("company_modules")
       .select("module")
       .eq("company_id", companyId)
       .is("disabled_at", null),
+  ]);
+  const numbers = unwrap<unknown[]>(numbersRes, "phone_numbers lookup");
+  const registrations = unwrap<RegistrationRow[]>(
+    registrationsRes,
+    "messaging_registrations lookup",
+  );
+  const modules = unwrap<{ module: string }[]>(
+    modulesRes,
     "company_modules lookup",
   );
 
