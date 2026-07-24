@@ -173,6 +173,14 @@ struct CallChip: View {
         Task {
             if await manager.requestMicPermission() {
                 manager.answer(id)
+            } else {
+                // A denial used to do NOTHING: the caller kept ringing, Answer
+                // kept looking tappable, and nothing said why. (The place-call
+                // paths already report this; the answer paths did not.)
+                manager.reportUiError(
+                    "Loonext needs the microphone to answer calls. "
+                        + "Allow it in Settings › Loonext."
+                )
             }
         }
     }

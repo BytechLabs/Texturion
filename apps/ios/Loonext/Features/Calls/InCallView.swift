@@ -249,6 +249,13 @@ struct InCallView: View {
         Task {
             if await manager.requestMicPermission() {
                 manager.answer(id)
+            } else {
+                // A denial used to do NOTHING — the caller kept ringing and
+                // Answer kept looking tappable, with no explanation.
+                manager.reportUiError(
+                    "Loonext needs the microphone to answer calls. "
+                        + "Allow it in Settings › Loonext."
+                )
             }
         }
     }
@@ -482,6 +489,11 @@ private struct OtherCallRow: View {
         Task {
             if await manager.requestMicPermission() {
                 manager.answer(call.id)
+            } else {
+                manager.reportUiError(
+                    "Loonext needs the microphone to answer calls. "
+                        + "Allow it in Settings › Loonext."
+                )
             }
         }
     }

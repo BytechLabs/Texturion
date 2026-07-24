@@ -111,6 +111,11 @@ final class CallsManager {
 
     func clearError() { core.clearError() }
 
+    /// Surface a client-side failure (mic permission, CallKit refusal) on the
+    /// same error surface InCallView already renders. Without this the mic
+    /// preflights had nowhere to report a denial and simply did nothing.
+    func reportUiError(_ message: String) { core.reportUiError(message) }
+
     var hasMicPermission: Bool {
         AVAudioApplication.shared.recordPermission == .granted
     }

@@ -70,7 +70,16 @@ struct ForYouTab: View {
         if refreshKey == 0 { state = .loading }
         do {
             state = .ready(try await graph.forYouApi.forYou(companyId: companyId))
+        } catch is CancellationError {
+            // A re-key (realtime tick, foreground resync) cancelled this pass;
+            // the replacement is already running. Never a user-visible failure.
         } catch {
+            // A BACKGROUND refetch failure must not replace a loaded queue with
+            // a full-screen error — the landing screen would blank out because a
+            // single revalidation blipped, even though good data was on screen.
+            // Only the true first load has nothing better to show. Mirrors
+            // reloadRecentCalls' quiet-refetch handling.
+            if case .ready = state { return }
             state = .failed(error.userMessage)
         }
     }
@@ -385,6 +394,9 @@ private struct PersonRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // Same as the inbox + notification rows: the AttentionDot is the only
+        // unread signal, and it is invisible to VoiceOver.
+        .accessibilityValue(unread ? "Unread" : "")
     }
 }
 

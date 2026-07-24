@@ -29,6 +29,20 @@ final class AuthViewModel {
     /// Password-reset email fired.
     private(set) var resetSent = false
 
+    /// Clear the per-screen terminal states when the user navigates between
+    /// auth screens.
+    ///
+    /// These live on the SHARED view model but each is the terminal state of ONE
+    /// screen, and nothing cleared them: send a reset link, tap "Back to sign
+    /// in", open "Forgot password" again, and the screen was still stuck on
+    /// "a reset link is on its way" with no form and no way to request another.
+    /// A stale error from the previous screen leaked across too.
+    func resetScreenState() {
+        confirmationSent = false
+        resetSent = false
+        error = nil
+    }
+
     /// Turnstile bridge sheet visibility (settable: the sheet binding writes
     /// false on swipe-down; onDismiss then routes a nil token here).
     var captchaVisible = false
@@ -238,6 +252,7 @@ struct AuthFlow: View {
             .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
+        .onChange(of: screen) { _, _ in model.resetScreenState() }
         .background(BrandColor.canvas.ignoresSafeArea())
         .sheet(
             isPresented: $model.captchaVisible,

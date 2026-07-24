@@ -169,8 +169,19 @@ actor ApiClient {
                 let next = try await auth.refresh(refreshToken: current.refreshToken).session
                 sessionStore.save(next)
                 return next
-            } catch let error as ApiError where error.code == ApiErrorCode.network {
-                throw error // Transient — keep the session.
+            } catch let error as ApiError where error.code == ApiErrorCode.network
+                || error.httpStatus == 429
+                || error.httpStatus >= 500 {
+                // Transient — keep the session. Only a network error was treated
+                // as transient before, so a Supabase 5xx or a 429 during a token
+                // refresh fell through to the clear() below and signed the user
+                // out of a session that was still perfectly valid. A refresh
+                // token is only actually dead when the server SAYS so (a 4xx),
+                // and losing it costs the user a full re-login.
+                throw error
+            } catch is CancellationError {
+                // A cancelled refresh says nothing about the token's validity.
+                throw CancellationError()
             } catch {
                 sessionStore.clear() // Refresh token rejected — the session is dead.
                 return nil
@@ -239,6 +250,16 @@ actor ApiClient {
         do {
             let (data, response) = try await transport.data(for: request)
             return RawResponse(status: (response as? HTTPURLResponse)?.statusCode ?? 0, data: data)
+        } catch is CancellationError {
+            // Cancellation is not a network failure. Folding it into the
+            // catch-all below turned every routine cancellation — a screen
+            // dismissed, a task re-keyed by a realtime tick — into a false
+            // "Can't reach Loonext. Check your connection.", which callers then
+            // rendered as a real error over perfectly healthy connectivity.
+            throw CancellationError()
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            // URLSession reports the same thing its own way.
+            throw CancellationError()
         } catch {
             throw ApiError(
                 code: ApiErrorCode.network,

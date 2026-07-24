@@ -1017,6 +1017,10 @@ private struct ConversationRow: View {
             .padding(.vertical, 5)
         }
         .buttonStyle(.plain)
+        // Announce read/unread to VoiceOver — the AttentionDot that conveys it
+        // to sighted users isn't otherwise exposed, so read and unread
+        // conversations sounded identical. Matches NotificationsView.
+        .accessibilityValue(row.unread ? "Unread" : "")
     }
 }
 
