@@ -327,7 +327,12 @@ function ActiveCard({ call }: { call: CallInfo }) {
           size="icon-sm"
           aria-label="Transfer this call"
           aria-expanded={transferOpen}
-          onClick={() => setTransferOpen((open) => !open)}
+          onClick={() => {
+            // Mutually exclusive with the keypad — they render in the same
+            // slot and would otherwise stack on top of each other.
+            setTransferOpen((open) => !open);
+            setKeypadOpen(false);
+          }}
         >
           <ArrowRightLeft className="size-4" strokeWidth={1.75} />
         </Button>
@@ -338,7 +343,10 @@ function ActiveCard({ call }: { call: CallInfo }) {
           size="icon-sm"
           aria-label="Keypad"
           aria-expanded={keypadOpen}
-          onClick={() => setKeypadOpen((open) => !open)}
+          onClick={() => {
+            setKeypadOpen((open) => !open);
+            setTransferOpen(false);
+          }}
         >
           <Grid3x3 className="size-4" strokeWidth={1.75} />
         </Button>

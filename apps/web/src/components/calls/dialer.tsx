@@ -102,12 +102,40 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
       }}
     >
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="max-w-xs">
+      <DialogContent
+        className="max-w-xs"
+        // Physical-keyboard parity with the on-screen keypad: type digits/*/#
+        // to enter, Backspace to delete, Enter to call. Enter is skipped when a
+        // <button> is focused so the focused control handles it (no double-fire).
+        onKeyDown={(e) => {
+          if (e.metaKey || e.ctrlKey || e.altKey) return;
+          if (/^[0-9*#]$/.test(e.key)) {
+            e.preventDefault();
+            press(e.key);
+          } else if (e.key === "Backspace") {
+            e.preventDefault();
+            setDigits((d) => d.slice(0, -1));
+          } else if (
+            e.key === "Enter" &&
+            canCall &&
+            !(e.target instanceof HTMLButtonElement)
+          ) {
+            e.preventDefault();
+            void call();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Dial a number</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="min-h-[2.25rem] text-center text-2xl font-medium tabular-nums tracking-wide">
+          <div
+            // Announce the number as it's entered — a purely visual display left
+            // keypad entry silent to screen-reader users.
+            aria-live="polite"
+            role="status"
+            className="min-h-[2.25rem] text-center text-2xl font-medium tabular-nums tracking-wide"
+          >
             {digits || (
               <span className="text-app-muted-2">Enter a number</span>
             )}

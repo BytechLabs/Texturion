@@ -105,7 +105,16 @@ function DowngradeBody({
         </Requirement>
         <Requirement met={seatsOk}>
           {activeMembers === null ? (
-            <>Couldn&apos;t check your member count. Try again.</>
+            <>
+              Couldn&apos;t check your member count.{" "}
+              <button
+                type="button"
+                onClick={() => void members.refetch()}
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Try again
+              </button>
+            </>
           ) : seatsOk ? (
             <>Up to {STARTER_LIMITS.seats} members; you have {activeMembers}.</>
           ) : (
