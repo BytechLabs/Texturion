@@ -113,6 +113,9 @@ export function AutoSaveNotes({
   const [draft, setDraft] = useState(value ?? "");
   const [saved, setSaved] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The "Saved" flash timer — tracked so it's cleared on unmount + before each
+  // new save (a stray fire would setState after unmount or clobber a fresh save).
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSaved = useRef(value ?? "");
 
   // Server-side changes (another teammate) refresh an idle editor only.
@@ -127,6 +130,7 @@ export function AutoSaveNotes({
     setDraft(next);
     setSaved(false);
     if (timer.current) clearTimeout(timer.current);
+    if (savedTimer.current) clearTimeout(savedTimer.current);
     timer.current = setTimeout(() => {
       const trimmed = next.trim() === "" ? null : next;
       if ((trimmed ?? "") === lastSaved.current) return;
@@ -136,7 +140,8 @@ export function AutoSaveNotes({
           onSuccess: () => {
             lastSaved.current = trimmed ?? "";
             setSaved(true);
-            setTimeout(() => setSaved(false), 2000);
+            if (savedTimer.current) clearTimeout(savedTimer.current);
+            savedTimer.current = setTimeout(() => setSaved(false), 2000);
           },
           onError: (error) =>
             toast.error(
@@ -151,6 +156,7 @@ export function AutoSaveNotes({
   useEffect(
     () => () => {
       if (timer.current) clearTimeout(timer.current);
+      if (savedTimer.current) clearTimeout(savedTimer.current);
     },
     [],
   );

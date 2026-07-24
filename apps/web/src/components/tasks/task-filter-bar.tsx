@@ -52,23 +52,58 @@ export function TaskFilterBar({
   // #113: only the tabs the active view actually applies (Board/Map organize
   // by status themselves, so Open/Done are a no-op there — show Mine | All).
   const visibleTabs = tabsForView(state.view);
+  const shownTabs = TASK_TABS.filter(({ id }) => visibleTabs.includes(id));
+  // WAI-ARIA tablist keyboard contract the role promises: Arrow/Home/End move
+  // selection AND focus (roving tabindex → one Tab stop). Mirrors the inbox
+  // FilterBar so the announced `role="tab"` isn't left with dead arrow keys.
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const onTabKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const current = shownTabs.findIndex(({ id }) => id === state.tab);
+    if (current === -1) return;
+    let next = current;
+    switch (event.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        next = (current + 1) % shownTabs.length;
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        next = (current - 1 + shownTabs.length) % shownTabs.length;
+        break;
+      case "Home":
+        next = 0;
+        break;
+      case "End":
+        next = shownTabs.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    onChange({ ...state, tab: shownTabs[next].id });
+    tabRefs.current[next]?.focus();
+  };
   return (
     <div className="space-y-2.5">
       <SearchField state={state} onChange={onChange} />
       <div
         role="tablist"
         aria-label="Task status"
+        onKeyDown={onTabKeyDown}
         className="flex max-w-md rounded-lg bg-app-line-soft p-0.5"
       >
-        {TASK_TABS.filter(({ id }) => visibleTabs.includes(id)).map(
-          ({ id, label }) => {
+        {shownTabs.map(({ id, label }, i) => {
             const selected = state.tab === id;
             return (
               <button
                 key={id}
+                ref={(el) => {
+                  tabRefs.current[i] = el;
+                }}
                 type="button"
                 role="tab"
                 aria-selected={selected}
+                tabIndex={selected ? 0 : -1}
                 onClick={() => onChange({ ...state, tab: id })}
                 className={cn(
                   "flex min-h-11 flex-1 items-center justify-center rounded-md px-2 py-1 text-[13px] font-medium transition-colors duration-150 ease-out md:min-h-0",
