@@ -214,6 +214,10 @@ export default function BusinessIdentityPage() {
         const { data: auth } = await getSupabaseBrowser().auth.getUser();
         email = auth.user?.email ?? "";
       }
+      // The form is interactive during the getUser() round-trip (~50-300ms); if
+      // the user already started typing, don't wipe their input with the seed
+      // reset (mirrors the name step's pristine guard).
+      if (form.formState.isDirty) return;
       form.reset({
         ...EMPTY_VALUES,
         hasEin: sole ? "no" : "yes",

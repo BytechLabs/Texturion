@@ -287,6 +287,15 @@ export function useMarkConversationRead() {
         listSetUnread(list, conversationId, false),
       );
     },
+    onError: () => {
+      // The optimistic unread-clear didn't reach the server — reconcile the
+      // badges from the source of truth so a failed read doesn't leave a thread
+      // permanently showing as read. (A snapshot restore would wrongly re-mark
+      // a thread that was already read; a refetch reflects the true state.)
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.lists(companyId),
+      });
+    },
   });
 }
 

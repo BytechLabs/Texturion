@@ -74,6 +74,10 @@ function TextBackCard({
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSaved = useRef(company.mctb_message ?? "");
+  // Latest typed value, so the unmount flush below reads the current draft
+  // (the cleanup closure would otherwise capture a stale `message`).
+  const latestMessage = useRef(message);
+  latestMessage.current = message;
 
   // Another admin's toggle flip always reflects; the message refreshes an
   // IDLE editor only (never clobber in-flight typing — the PATCH echo lands
@@ -92,9 +96,18 @@ function TextBackCard({
   }, [company.mctb_message, message]);
   useEffect(
     () => () => {
-      if (timer.current) clearTimeout(timer.current);
+      if (!timer.current) return;
+      clearTimeout(timer.current);
+      // Flush a pending autosave so navigating away within the debounce window
+      // doesn't silently drop the last edit. Fire-and-forget — the component is
+      // unmounting, so no success/error setState (the PATCH still completes via
+      // the app-level query client).
+      const trimmed = latestMessage.current.trim();
+      if (trimmed !== lastSaved.current) {
+        update.mutate({ mctb_message: trimmed.length > 0 ? trimmed : null });
+      }
     },
-    [],
+    [update],
   );
 
   function toggle(next: boolean) {
