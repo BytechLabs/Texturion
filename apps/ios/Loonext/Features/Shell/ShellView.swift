@@ -12,6 +12,19 @@ enum ShellTab: Hashable {
     case contacts
 }
 
+/// A full-screen surface pushed ABOVE the tab shell (#186). The pill nav lives
+/// only on the four tab roots; ANYTHING pushed (thread, task, contact) renders
+/// through the root `NavigationStack` as one of these routes, so a pushed
+/// surface with a visible pill is not constructible — the pushed route covers
+/// the whole tab shell (pill included). The iOS twin of Android's `routeStack`.
+enum ShellRoute: Hashable {
+    /// A thread; `highlightMessageId` is the search-result jump target (scroll
+    /// to + flash that message).
+    case thread(conversationId: String, highlightMessageId: String?)
+    case task(taskId: String)
+    case contact(contactId: String)
+}
+
 /// Live nav counts. The numeric counts feed screen headers and the app-icon
 /// badge — no numeral badges in the nav (docs/MOBILE-DESIGN.md). The avatar's
 /// coral dot is NOT here (#201): it reads the shared `CompanyReadState` the
@@ -25,7 +38,9 @@ struct ShellCounts: Equatable, Sendable {
 
 /// Surfaces the shell presents over the tabs — the Android ReadyShell
 /// Overlay twin, hosted in one swappable sheet (account entries swap the
-/// presented item in place instead of dismiss-then-present).
+/// presented item in place instead of dismiss-then-present). These are modal
+/// sheets (they cover the pill natively), distinct from the pushed
+/// `ShellRoute` surfaces.
 private enum ShellSheet: Identifiable {
     case account
     case notifications
@@ -49,9 +64,14 @@ private enum ShellSheet: Identifiable {
 /// paper circle; a coral dot on the avatar means unread notifications; a
 /// canvas gradient fades content out behind the pill. No labels, no numeral
 /// badges. Tapping the avatar opens the account sheet; Contacts is a
-/// nav-less destination reached from there. The shell also mounts the
-/// app-wide layers (call chip, inbound toast), consumes `AppRouter`
-/// commands, and wires the session-scoped device plumbing (push
+/// nav-less destination reached from there.
+///
+/// #186: the tab shell is the ROOT of a single `NavigationStack`. Thread /
+/// task / contact opens push a `ShellRoute` onto that stack — the pushed
+/// surface covers the whole shell (pill included), so the pill exists ONLY on
+/// the tab roots and is structurally absent on every pushed page. The shell
+/// also mounts the app-wide layers (call chip, inbound toast), consumes
+/// `AppRouter` commands, and wires the session-scoped device plumbing (push
 /// registration, deep-link router, call-wake hook) — the Android
 /// MainActivity ReadyShell's twin.
 @MainActor
@@ -63,6 +83,7 @@ struct ShellView: View {
     @ObservedObject private var router = AppRouter.shared
     @State private var hydratedMe: Me
     @State private var tab: ShellTab = .forYou
+    @State private var path: [ShellRoute] = []
     @State private var activeSheet: ShellSheet?
     @State private var counts = ShellCounts()
     @State private var countsKey = 0
@@ -81,6 +102,93 @@ struct ShellView: View {
     }
 
     var body: some View {
+        NavigationStack(path: $path) {
+            tabShell
+                .navigationBarBackButtonHidden(true)
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(for: ShellRoute.self) { route in
+                    routeView(route)
+                }
+        }
+        .tint(BrandColor.olive)
+        .sheet(item: $activeSheet) { sheet in
+            sheetContent(sheet)
+        }
+        // AppRouter commands: an open pushes the matching route ABOVE the tab
+        // shell (the pill is covered — structurally absent on pushed pages).
+        // Each command is consumed then cleared (deferred — never republish
+        // inside the publish). A live account/notifications sheet is dismissed
+        // so the pushed surface is revealed beneath it.
+        .onReceive(router.$openConversationId) { id in
+            guard let id else { return }
+            let highlight = router.pendingHighlightMessageId
+            activeSheet = nil
+            path.append(.thread(conversationId: id, highlightMessageId: highlight))
+            Task { @MainActor in
+                router.openConversationId = nil
+                router.pendingHighlightMessageId = nil
+            }
+        }
+        .onReceive(router.$openTaskId) { id in
+            guard let id else { return }
+            activeSheet = nil
+            path.append(.task(taskId: id))
+            Task { @MainActor in router.openTaskId = nil }
+        }
+        .onReceive(router.$openContactId) { id in
+            guard let id else { return }
+            activeSheet = nil
+            path.append(.contact(contactId: id))
+            Task { @MainActor in router.openContactId = nil }
+        }
+        .onReceive(router.$openCalls) { open in
+            guard open else { return }
+            router.openCalls = false
+            activeSheet = nil
+            path.removeAll()
+            tab = .calls
+        }
+        .onReceive(router.$openContacts) { open in
+            guard open else { return }
+            router.openContacts = false
+            activeSheet = nil
+            path.removeAll()
+            tab = .contacts
+        }
+        // The viewed thread (#165) is always the TOP route when it is a thread —
+        // the Android `routeStack.lastOrNull() as Thread` twin. Global surfaces
+        // (inbound toast, foreground push banners) stay quiet for it.
+        .onChange(of: path) { _, next in
+            if case .thread(let id, _)? = next.last {
+                router.viewedConversationId = id
+            } else {
+                router.viewedConversationId = nil
+            }
+        }
+        .task(id: countsKey) { await reloadCounts() }
+        .task(id: companyId) {
+            for await _ in await graph.realtime.events() {
+                countsKey &+= 1
+            }
+        }
+        // #215: reload the nav counts + avatar dot on a socket re-JOIN and on
+        // foreground return, so a badge derived from a missed frame corrects.
+        .task(id: companyId) {
+            for await _ in await graph.realtime.reconnected() {
+                countsKey &+= 1
+            }
+        }
+        .resyncOnForeground { countsKey &+= 1 }
+        .task(id: companyId) { await wireSessionDevice() }
+    }
+
+    // MARK: - The tab shell (root of the navigation stack)
+
+    /// The four tab roots + the floating pill and the app-wide overlays. This
+    /// is the NavigationStack root; a pushed `ShellRoute` renders over ALL of
+    /// it (pill, FAB, call chip, toast included) — the Android `Box` where the
+    /// route host draws above the shell.
+    private var tabShell: some View {
         TabView(selection: $tab) {
             Tab("For you", systemImage: "bolt", value: ShellTab.forYou) {
                 ForYouTab(
@@ -108,33 +216,17 @@ struct ShellView: View {
                 .toolbar(.hidden, for: .tabBar)
             }
             Tab("Tasks", systemImage: "checklist", value: ShellTab.tasks) {
-                TasksTab(
-                    graph: graph,
-                    companyId: companyId,
-                    me: hydratedMe,
-                    onOpenConversation: { conversationId, _ in
-                        AppRouter.shared.openConversationId = conversationId
-                    }
-                )
-                .safeAreaInset(edge: .bottom, spacing: 0) { navClearance }
-                .toolbar(.hidden, for: .tabBar)
+                TasksTab(graph: graph, companyId: companyId, me: hydratedMe)
+                    .safeAreaInset(edge: .bottom, spacing: 0) { navClearance }
+                    .toolbar(.hidden, for: .tabBar)
             }
             Tab("Contacts", systemImage: "person.2", value: ShellTab.contacts) {
-                ContactsTab(
-                    graph: graph,
-                    companyId: companyId,
-                    me: hydratedMe,
-                    onOpenConversation: { AppRouter.shared.openConversationId = $0 },
-                    onComposeNew: { activeSheet = .compose(prefillContactId: $0) }
-                )
-                .safeAreaInset(edge: .bottom, spacing: 0) { navClearance }
-                .toolbar(.hidden, for: .tabBar)
+                ContactsTab(graph: graph, companyId: companyId, me: hydratedMe)
+                    .safeAreaInset(edge: .bottom, spacing: 0) { navClearance }
+                    .toolbar(.hidden, for: .tabBar)
             }
         }
         .tint(BrandColor.olive)
-        .sheet(item: $activeSheet) { sheet in
-            sheetContent(sheet)
-        }
         .overlay { bottomFade }
         .overlay(alignment: .bottom) { pillNav.ignoresSafeArea(.keyboard, edges: .bottom) }
         .overlay(alignment: .bottomTrailing) {
@@ -146,41 +238,52 @@ struct ShellView: View {
             }
         }
         .overlay(alignment: .bottom) { globalLayers }
-        // AppRouter commands: a conversation open lands on the Inbox tab (the
-        // inbox consumes + clears the id); calls/contacts commands select
-        // their destinations (consumed + cleared here).
-        .onReceive(router.$openConversationId) { id in
-            guard id != nil else { return }
-            activeSheet = nil
-            tab = .inbox
+    }
+
+    // MARK: - Pushed routes (above the shell — no pill)
+
+    @ViewBuilder
+    private func routeView(_ route: ShellRoute) -> some View {
+        switch route {
+        case .thread(let conversationId, let highlightMessageId):
+            ThreadView(
+                graph: graph,
+                companyId: companyId,
+                me: hydratedMe,
+                conversationId: conversationId,
+                highlightMessageId: highlightMessageId,
+                onBack: { popRoute() }
+            )
+        case .task(let taskId):
+            TaskDetailView(
+                graph: graph,
+                companyId: companyId,
+                me: hydratedMe,
+                taskId: taskId,
+                onOpenConversation: { conversationId, _ in
+                    AppRouter.shared.openConversationId = conversationId
+                }
+            )
+        case .contact(let contactId):
+            ContactDetailView(
+                graph: graph,
+                companyId: companyId,
+                contactId: contactId,
+                onOpenConversation: { AppRouter.shared.openConversationId = $0 },
+                onComposeNew: { activeSheet = .compose(prefillContactId: $0) },
+                callerIdName: hydratedMe.display_name
+            )
+            // Edits/opt-outs/deletes made in the detail show on return to the
+            // contacts list (no realtime for contact mutations on iOS).
+            .onDisappear { AppRouter.shared.contactsRevision &+= 1 }
         }
-        .onReceive(router.$openCalls) { open in
-            guard open else { return }
-            router.openCalls = false
-            activeSheet = nil
-            tab = .calls
-        }
-        .onReceive(router.$openContacts) { open in
-            guard open else { return }
-            router.openContacts = false
-            activeSheet = nil
-            tab = .contacts
-        }
-        .task(id: countsKey) { await reloadCounts() }
-        .task(id: companyId) {
-            for await _ in await graph.realtime.events() {
-                countsKey &+= 1
-            }
-        }
-        // #215: reload the nav counts + avatar dot on a socket re-JOIN and on
-        // foreground return, so a badge derived from a missed frame corrects.
-        .task(id: companyId) {
-            for await _ in await graph.realtime.reconnected() {
-                countsKey &+= 1
-            }
-        }
-        .resyncOnForeground { countsKey &+= 1 }
-        .task(id: companyId) { await wireSessionDevice() }
+    }
+
+    /// Pop the top pushed route. The thread's custom header calls this (it
+    /// hides the system bar); task/contact use the system back button, which
+    /// keeps `path` in sync on its own.
+    private func popRoute() {
+        if !path.isEmpty { path.removeLast() }
     }
 
     // MARK: - The floating ink pill nav (the signature element)

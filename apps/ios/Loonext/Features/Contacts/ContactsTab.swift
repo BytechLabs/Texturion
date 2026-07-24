@@ -81,21 +81,18 @@ private struct CsvShareSheet: UIViewControllerRepresentable {
 /// owner/admin CSV + vCard imports (fileImporter) with a
 /// per-row skipped-rows report.
 ///
-/// `onOpenConversation`/`onComposeNew` are shell callbacks into #159's thread
-/// and compose screens; affordances that need them stay hidden until wired.
-/// `me` gates import to owner/admin — when the shell doesn't pass it, the tab
-/// resolves it once via GET /v1/me.
+/// A row tap routes `AppRouter.openContactId` up to the shell, which pushes
+/// `ContactDetailView` ABOVE the tab shell (#186 — no pill on the detail); the
+/// shell also wires the detail's thread/compose callbacks. `me` gates import to
+/// owner/admin — when the shell doesn't pass it, the tab resolves it once via
+/// GET /v1/me.
 @MainActor
 struct ContactsTab: View {
     let graph: AppGraph
     let companyId: String
     var me: Me? = nil
-    var onOpenConversation: ((_ conversationId: String) -> Void)? = nil
-    var onComposeNew: ((_ contactId: String) -> Void)? = nil
 
-    private struct ContactRoute: Hashable, Identifiable {
-        let id: String
-    }
+    @ObservedObject private var router = AppRouter.shared
 
     @State private var query = ""
     @State private var debouncedQ = ""
@@ -105,7 +102,6 @@ struct ContactsTab: View {
     @State private var loadingMore = false
     @State private var refreshKey = 0
     @State private var resolvedMe: Me?
-    @State private var openContact: ContactRoute?
 
     @State private var createOpen = false
     @State private var exporting = false
@@ -132,36 +128,27 @@ struct ContactsTab: View {
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                headerBar
-                searchField
-                if let notice {
-                    Text(notice)
-                        .font(.golos(11.5))
-                        .foregroundStyle(BrandColor.muted600)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 18)
-                        .padding(.top, 2)
-                }
-                content
-                actionsRow
+        // #186: a flat surface — a row tap routes UP to the shell's root stack
+        // (`AppRouter.openContactId`), so the contact detail renders ABOVE the
+        // tab shell with no pill (it used to push inside this tab).
+        VStack(spacing: 0) {
+            headerBar
+            searchField
+            if let notice {
+                Text(notice)
+                    .font(.golos(11.5))
+                    .foregroundStyle(BrandColor.muted600)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 2)
             }
-            .background(BrandColor.canvas.ignoresSafeArea())
-            .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(item: $openContact) { route in
-                ContactDetailView(
-                    graph: graph,
-                    companyId: companyId,
-                    contactId: route.id,
-                    onOpenConversation: onOpenConversation,
-                    onComposeNew: onComposeNew,
-                    // Caller-ID name for the detail's Call button, mirroring
-                    // the Android twin's resolvedMe?.display_name.orEmpty().
-                    callerIdName: (me ?? resolvedMe)?.display_name ?? ""
-                )
-            }
+            content
+            actionsRow
         }
+        .background(BrandColor.canvas.ignoresSafeArea())
+        // A pushed contact detail popped — refetch so edits/opt-outs/deletes
+        // made inside it show on return (the shell bumps this on pop).
+        .onChange(of: router.contactsRevision) { _, _ in refreshKey += 1 }
         .task(id: query) {
             // Debounce typing; an empty query applies immediately.
             if !query.isEmpty {
@@ -184,17 +171,12 @@ struct ContactsTab: View {
             if Task.isCancelled { return }
             notice = nil
         }
-        .onChange(of: openContact) { previous, next in
-            // Edits/opt-outs/deletes made in the detail show on return.
-            if previous != nil && next == nil {
-                refreshKey += 1
-            }
-        }
         .sheet(isPresented: $createOpen) {
             CreateContactSheet(mutations: mutations, companyId: companyId) { created in
                 createOpen = false
                 refreshKey += 1
-                openContact = ContactRoute(id: created.id)
+                // Open the freshly created contact ABOVE the shell.
+                AppRouter.shared.openContactId = created.id
             }
         }
         .sheet(item: $importReport) { report in
@@ -360,7 +342,7 @@ struct ContactsTab: View {
                                 }
                                 ContactRow(contact: contact)
                                     .contentShape(Rectangle())
-                                    .onTapGesture { openContact = ContactRoute(id: contact.id) }
+                                    .onTapGesture { AppRouter.shared.openContactId = contact.id }
                             }
                             if nextCursor != nil {
                                 RowDivider()
@@ -567,18 +549,34 @@ private struct ContactRow: View {
 /// pass), plus optional name/address/notes. POST /v1/contacts upserts on the
 /// phone, so re-adding an existing number just lands on the same row.
 @MainActor
-private struct CreateContactSheet: View {
+struct CreateContactSheet: View {
     let mutations: ContactMutations
     let companyId: String
+    /// Prefill the phone field (the dialer's "Add contact" for a typed,
+    /// unknown number, #186 item 5). Empty = a blank sheet.
+    var prefillPhone: String = ""
     let onCreated: @MainActor (Contact) -> Void
 
-    @State private var phone = ""
+    @State private var phone: String
     @State private var name = ""
     @State private var address = ""
     @State private var notes = ""
     @State private var saving = false
     @State private var error: String?
     @Environment(\.dismiss) private var dismiss
+
+    init(
+        mutations: ContactMutations,
+        companyId: String,
+        prefillPhone: String = "",
+        onCreated: @escaping @MainActor (Contact) -> Void
+    ) {
+        self.mutations = mutations
+        self.companyId = companyId
+        self.prefillPhone = prefillPhone
+        self.onCreated = onCreated
+        _phone = State(initialValue: Nanp.formatAsYouType(prefillPhone))
+    }
 
     private var normalized: String? { Nanp.normalize(phone) }
 

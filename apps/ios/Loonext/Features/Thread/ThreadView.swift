@@ -11,6 +11,9 @@ struct ThreadView: View {
     let companyId: String
     let me: Me
     let conversationId: String
+    /// Search-result jump target: scroll to + flash this message once it is in
+    /// the timeline (#186 item 2). Nil for an ordinary open.
+    var highlightMessageId: String? = nil
     let onBack: @MainActor () -> Void
 
     @State private var controller: ThreadController?
@@ -24,6 +27,7 @@ struct ThreadView: View {
                     controller: controller,
                     composer: composer,
                     me: me,
+                    highlightMessageId: highlightMessageId,
                     onBack: onBack
                 )
             } else {
@@ -71,25 +75,45 @@ struct ThreadView: View {
 }
 
 /// The loaded thread — split out so the controller is non-optional inside.
+/// The chained detail sheets off the thread header (#186 item 3). One
+/// `.sheet(item:)` swaps between them in place, so the conversation card's
+/// "View contact" / "Assign" rows can open the next sheet without the
+/// dismiss-then-present flicker two separate presentations would cause.
+private enum ThreadDetailSheet: Identifiable {
+    case conversation
+    case contactPanel
+    case assignee
+
+    var id: String {
+        switch self {
+        case .conversation: "conversation"
+        case .contactPanel: "contact"
+        case .assignee: "assignee"
+        }
+    }
+}
+
 @MainActor
 private struct ThreadBody: View {
     let graph: AppGraph
     @Bindable var controller: ThreadController
     let composer: ComposerState
     let me: Me
+    let highlightMessageId: String?
     let onBack: @MainActor () -> Void
 
     @State private var makeTaskFor: Message?
     @State private var makeTaskTitle = ""
-    @State private var assigneeSheetOpen = false
+    @State private var detailSheet: ThreadDetailSheet?
     @State private var confirmOptOut = false
     @State private var confirmRevoke = false
     @State private var showNewPill = false
     @State private var isAtBottom = true
     @State private var jumpToMessageId: String?
+    /// The message to FLASH (search-result indication); cleared after ~2.2s.
+    @State private var flashMessageId: String?
     @State private var visibleNotice: ThreadNotice?
     @State private var noticeDismissTask: Task<Void, Never>?
-    @State private var contactPanelOpen = false
     @State private var tagSheetOpen = false
     @State private var galleryOpen = false
     @State private var placingCall = false
@@ -160,12 +184,8 @@ private struct ThreadBody: View {
                     meUserId: me.user_id,
                     calling: placingCall,
                     onBack: onBack,
-                    onOpenContactPanel: { contactPanelOpen = true },
-                    onCall: { startCall(detail: detail, contactName: contactName) },
-                    onPickAssignee: { assigneeSheetOpen = true },
-                    onOpenGallery: { galleryOpen = true },
-                    onConfirmOptOut: { confirmOptOut = true },
-                    onConfirmRevoke: { confirmRevoke = true }
+                    onOpenSheet: { detailSheet = .conversation },
+                    onCall: { startCall(detail: detail, contactName: contactName) }
                 )
 
                 ThreadTagsRow(
@@ -188,28 +208,45 @@ private struct ThreadBody: View {
 
                 composerPane(detail: detail)
             }
-            .sheet(isPresented: $assigneeSheetOpen) {
-                AssigneePickerSheet(
-                    members: controller.members,
-                    meUserId: me.user_id,
-                    selectedUserId: detail.assigned_user_id
-                ) { userId in
-                    assigneeSheetOpen = false
-                    if userId != detail.assigned_user_id {
-                        controller.setAssignee(userId)
+            // One swappable sheet: the conversation card and the two surfaces it
+            // opens one tap deeper (contact panel, assignee picker).
+            .sheet(item: $detailSheet) { which in
+                switch which {
+                case .conversation:
+                    ConversationSheet(
+                        controller: controller,
+                        detail: detail,
+                        contactName: contactName,
+                        onOpenContactPanel: { detailSheet = .contactPanel },
+                        onAssign: { detailSheet = .assignee },
+                        onOpenGallery: { detailSheet = nil; galleryOpen = true },
+                        onOptOut: { detailSheet = nil; confirmOptOut = true },
+                        onRevokeOptOut: { detailSheet = nil; confirmRevoke = true },
+                        onRefresh: { detailSheet = nil; controller.refreshAfterReconnect() },
+                        onDismiss: { detailSheet = nil }
+                    )
+                case .contactPanel:
+                    ContactPanelSheet(
+                        controller: controller,
+                        members: controller.members,
+                        onOpenConversation: { conversationId in
+                            detailSheet = nil
+                            // The shell pushes the thread ABOVE the current one.
+                            AppRouter.shared.openConversationId = conversationId
+                        }
+                    )
+                case .assignee:
+                    AssigneePickerSheet(
+                        members: controller.members,
+                        meUserId: me.user_id,
+                        selectedUserId: detail.assigned_user_id
+                    ) { userId in
+                        detailSheet = nil
+                        if userId != detail.assigned_user_id {
+                            controller.setAssignee(userId)
+                        }
                     }
                 }
-            }
-            .sheet(isPresented: $contactPanelOpen) {
-                ContactPanelSheet(
-                    controller: controller,
-                    members: controller.members,
-                    onOpenConversation: { conversationId in
-                        contactPanelOpen = false
-                        // The inbox tab consumes the command and swaps threads.
-                        AppRouter.shared.openConversationId = conversationId
-                    }
-                )
             }
             .sheet(isPresented: $tagSheetOpen) {
                 TagManageSheet(
@@ -295,7 +332,17 @@ private struct ThreadBody: View {
                     ScrollView {
                         LazyVStack(spacing: 0) {
                             ForEach(Array(timeline.enumerated()), id: \.element.key) { index, item in
+                                let flashed = isFlashed(item)
                                 itemView(item, names: names, contactName: contactName)
+                                    // Search-result flash on the matched message
+                                    // (#186 item 2) — a brief lime wash.
+                                    .background(
+                                        flashed
+                                            ? BrandColor.lime.opacity(0.22)
+                                            : Color.clear,
+                                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    )
+                                    .animation(.easeInOut(duration: 0.3), value: flashed)
                                     .scaleEffect(x: 1, y: -1)
                                     .id(item.key)
                                     .onAppear { handleItemAppear(index: index, total: timeline.count) }
@@ -310,9 +357,20 @@ private struct ThreadBody: View {
                     }
                     .scaleEffect(x: 1, y: -1)
                     .scrollDismissesKeyboard(.interactively)
+                    // A new row (teammate message, note, task line): stick to
+                    // bottom when already there, otherwise surface the pill
+                    // instead of silently growing the list below the fold
+                    // (#186 item 4; the Android newestMessageId twin). The pill
+                    // is a "someone else added something" cue — your OWN send
+                    // (its newest row is self-authored) never pills, or every
+                    // reply-while-scrolled-up would nag you about your own text.
                     .onChange(of: controller.newestMessageId ?? "") { _, _ in
-                        if isAtBottom, let first = timeline.first {
-                            proxy.scrollTo(first.key, anchor: .bottom)
+                        if isAtBottom {
+                            if let first = timeline.first {
+                                proxy.scrollTo(first.key, anchor: .bottom)
+                            }
+                        } else if controller.messages.first?.sent_by_user_id != me.user_id {
+                            showNewPill = true
                         }
                     }
                     .onChange(of: controller.pendingSends.count) { _, _ in
@@ -331,11 +389,27 @@ private struct ThreadBody: View {
                             showNewPill = true
                         }
                     }
-                    // Pinned-banner jump: scroll once the message is loaded.
+                    // Pinned-banner / search-highlight jump: scroll once loaded.
                     .onChange(of: jumpToMessageId) { _, target in
                         guard let target else { return }
                         withAnimation { proxy.scrollTo("m:\(target)", anchor: .center) }
                         jumpToMessageId = nil
+                    }
+                    // Search-result highlight (#186 item 2): load the matched
+                    // message if it's beyond the first page, then jump + flash.
+                    .task(id: highlightMessageId) {
+                        guard let target = highlightMessageId, flashMessageId != target
+                        else { return }
+                        if await controller.ensureMessageLoaded(target) {
+                            jumpToMessageId = target
+                            flashMessageId = target
+                        }
+                    }
+                    // Clear the flash after it has played (~2.2s, Android parity).
+                    .task(id: flashMessageId) {
+                        guard flashMessageId != nil else { return }
+                        try? await Task.sleep(for: .milliseconds(2200))
+                        if !Task.isCancelled { flashMessageId = nil }
                     }
                     .overlay(alignment: .bottom) {
                         if showNewPill {
@@ -378,6 +452,13 @@ private struct ThreadBody: View {
 
     private func handleItemDisappear(index: Int) {
         if index == 0 { isAtBottom = false }
+    }
+
+    /// True when this timeline item is the search-highlight target currently
+    /// flashing (#186 item 2).
+    private func isFlashed(_ item: TimelineItem) -> Bool {
+        guard let flashMessageId, case .message(let message) = item else { return false }
+        return message.id == flashMessageId
     }
 
     @ViewBuilder
@@ -514,6 +595,12 @@ private struct ThreadBody: View {
 
 // MARK: - Header
 
+/// The paper pill header (#186 item 3): back · avatar · name + status line ·
+/// ink call circle. The avatar / name / status line all open the conversation
+/// info sheet (a bottom-sheet CARD, not a scatter of menus) — assign, pin,
+/// gallery, spam, opt-out, and timeline visibility live there, with the full
+/// contact panel one tap deeper. The Android ThreadHeader + ConversationSheet
+/// twin.
 @MainActor
 private struct ThreadHeader: View {
     @Bindable var controller: ThreadController
@@ -523,12 +610,21 @@ private struct ThreadHeader: View {
     let meUserId: String
     let calling: Bool
     let onBack: @MainActor () -> Void
-    let onOpenContactPanel: @MainActor () -> Void
+    let onOpenSheet: @MainActor () -> Void
     let onCall: @MainActor () -> Void
-    let onPickAssignee: @MainActor () -> Void
-    let onOpenGallery: @MainActor () -> Void
-    let onConfirmOptOut: @MainActor () -> Void
-    let onConfirmRevoke: @MainActor () -> Void
+
+    /// The one status line under the name: status · assignee (or number), plus
+    /// an opted-out tail — the Android header subtitle.
+    private var subtitle: String {
+        var parts = statusLabel(detail.status)
+        let assigneeName = controller.members
+            .first { $0.user_id == detail.assigned_user_id }?
+            .display_name
+        let trailing = (assigneeName?.isBlank == false) ? assigneeName! : phoneLabel
+        parts += " · \(trailing)"
+        if controller.contact?.opted_out == true { parts += " · Opted out" }
+        return parts
+    }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -540,8 +636,8 @@ private struct ThreadHeader: View {
             }
             .accessibilityLabel("Back")
 
-            // The identity block opens the contact panel sheet.
-            Button(action: onOpenContactPanel) {
+            // Avatar + name + status line all open the conversation info sheet.
+            Button(action: onOpenSheet) {
                 HStack(spacing: 8) {
                     InitialsAvatar(name: contactName, size: 38)
 
@@ -550,20 +646,21 @@ private struct ThreadHeader: View {
                             .font(.golos(14.5, weight: .semibold))
                             .foregroundStyle(BrandColor.ink)
                             .lineLimit(1)
-                        Text(
-                            controller.contact?.opted_out == true
-                                ? "\(phoneLabel) · Opted out"
-                                : phoneLabel
-                        )
-                        .font(.golos(11))
-                        .foregroundStyle(BrandColor.muted500)
-                        .lineLimit(1)
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(BrandColor.lime)
+                                .frame(width: 6, height: 6)
+                            Text(subtitle)
+                                .font(.golos(11))
+                                .foregroundStyle(BrandColor.muted500)
+                                .lineLimit(1)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Contact details for \(contactName)")
+            .accessibilityLabel("Conversation options for \(contactName)")
 
             // Call — enabled even for opted-out contacts (voice ≠ SMS
             // consent); #106: outreach like texting, so note-level viewers
@@ -585,133 +682,203 @@ private struct ThreadHeader: View {
                 .disabled(calling)
                 .accessibilityLabel("Call \(contactName)")
             }
-
-            // Status pill + menu (the single status control).
-            Menu {
-                ForEach(
-                    [
-                        ConversationStatus.new,
-                        ConversationStatus.open,
-                        ConversationStatus.waiting,
-                        ConversationStatus.closed,
-                    ],
-                    id: \.self
-                ) { status in
-                    Button {
-                        if status != detail.status { controller.setStatus(status) }
-                    } label: {
-                        if detail.status == status {
-                            Label(statusLabel(status), systemImage: "checkmark")
-                        } else {
-                            Text(statusLabel(status))
-                        }
-                    }
-                }
-            } label: {
-                Text(statusLabel(detail.status))
-                    .font(.golos(11.5, weight: .semibold))
-                    .foregroundStyle(BrandColor.muted900)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(BrandColor.avatarTint))
-            }
-
-            // Assignee control.
-            Button(action: onPickAssignee) {
-                if let assignee = controller.members.first(where: {
-                    $0.user_id == detail.assigned_user_id
-                }) {
-                    InitialsAvatar(
-                        name: assignee.display_name.isBlank ? nil : assignee.display_name,
-                        size: 28
-                    )
-                } else {
-                    Image(systemName: "person")
-                        .foregroundStyle(BrandColor.muted500)
-                        .frame(width: 28, height: 28)
-                }
-            }
-            .accessibilityLabel("Assign")
-
-            // Overflow.
-            Menu {
-                Button {
-                    controller.toggleConversationPin()
-                } label: {
-                    Label(
-                        detail.pinned_at == nil ? "Pin conversation" : "Unpin conversation",
-                        systemImage: "pin"
-                    )
-                }
-                Button {
-                    onOpenGallery()
-                } label: {
-                    Label("Photos & files", systemImage: "photo.on.rectangle")
-                }
-                // The flipped timeline can't host a sane pull-to-refresh, so
-                // the manual refetch lives here (same first-page reload as the
-                // reconnect path).
-                Button {
-                    controller.refreshAfterReconnect()
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-                Button {
-                    controller.setSpam(!detail.is_spam)
-                } label: {
-                    Label(
-                        detail.is_spam ? "Not spam" : "Mark as spam",
-                        systemImage: "exclamationmark.octagon"
-                    )
-                }
-                if controller.contact?.opted_out == true {
-                    Button {
-                        onConfirmRevoke()
-                    } label: {
-                        Label("Remove opt-out", systemImage: "hand.raised.slash")
-                    }
-                } else {
-                    Button {
-                        onConfirmOptOut()
-                    } label: {
-                        Label("Opt out of texts", systemImage: "hand.raised")
-                    }
-                }
-                Divider()
-                Toggle(
-                    "Show messages",
-                    isOn: Binding(
-                        get: { controller.filter.messages },
-                        set: { _ in controller.filter = controller.filter.toggledMessages() }
-                    )
-                )
-                Toggle(
-                    "Show notes",
-                    isOn: Binding(
-                        get: { controller.filter.notes },
-                        set: { _ in controller.filter = controller.filter.toggledNotes() }
-                    )
-                )
-                Toggle(
-                    "Show events",
-                    isOn: Binding(
-                        get: { controller.filter.events },
-                        set: { _ in controller.filter = controller.filter.toggledEvents() }
-                    )
-                )
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(BrandColor.muted700)
-                    .frame(width: 36, height: 36)
-            }
-            .accessibilityLabel("More")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         .padding(.horizontal, 14)
         .padding(.top, 4)
+    }
+}
+
+/// The conversation info sheet (#186 item 3) — a bottom-sheet CARD, the web/
+/// Android `ConversationSheet` twin: contact identity (→ full contact panel one
+/// tap deeper), the four status pills, the assign / pin / gallery / spam /
+/// opt-out actions (plus iOS's manual Refresh), and the timeline-visibility
+/// toggles. Every action either mutates through the controller and dismisses,
+/// or opens the next surface in place.
+@MainActor
+private struct ConversationSheet: View {
+    @Bindable var controller: ThreadController
+    let detail: ConversationDetail
+    let contactName: String
+    let onOpenContactPanel: @MainActor () -> Void
+    let onAssign: @MainActor () -> Void
+    let onOpenGallery: @MainActor () -> Void
+    let onOptOut: @MainActor () -> Void
+    let onRevokeOptOut: @MainActor () -> Void
+    let onRefresh: @MainActor () -> Void
+    let onDismiss: @MainActor () -> Void
+
+    private let statuses = [
+        ConversationStatus.new,
+        ConversationStatus.open,
+        ConversationStatus.waiting,
+        ConversationStatus.closed,
+    ]
+
+    private var assigneeLabel: String {
+        let name = controller.members
+            .first { $0.user_id == detail.assigned_user_id }?
+            .display_name
+        return (name?.isBlank == false) ? "Assigned to \(name!)" : "Assign to…"
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                identityRow
+                statusSection
+                actionsCard
+                timelineCard
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 16)
+            .padding(.bottom, 24)
+        }
+        .background(BrandColor.canvas)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    /// Identity → full contact panel (the one-tap-deeper contact info).
+    private var identityRow: some View {
+        Button(action: onOpenContactPanel) {
+            HStack(spacing: 11) {
+                InitialsAvatar(name: contactName, size: 40)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(contactName)
+                        .font(.golos(14, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                        .lineLimit(1)
+                    Text(formatPhone(detail.contact.phone_e164))
+                        .font(.golos(11.5))
+                        .monospacedDigit()
+                        .foregroundStyle(BrandColor.muted500)
+                }
+                Spacer(minLength: 8)
+                Text("View contact")
+                    .font(.golos(11.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.olive)
+            }
+            .padding(.horizontal, 15)
+            .padding(.vertical, 12)
+            .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var statusSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("STATUS")
+                .font(.golos(10.5, weight: .bold))
+                .kerning(0.6)
+                .foregroundStyle(BrandColor.muted500)
+                .padding(.leading, 6)
+            HStack(spacing: 7) {
+                ForEach(statuses, id: \.self) { status in
+                    let selected = detail.status == status
+                    Button {
+                        if !selected { controller.setStatus(status) }
+                        onDismiss()
+                    } label: {
+                        Text(statusLabel(status))
+                            .font(.golos(11.5, weight: .semibold))
+                            .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 8)
+                            .background(
+                                selected ? BrandColor.ink : BrandColor.paper,
+                                in: Capsule()
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private var actionsCard: some View {
+        VStack(spacing: 0) {
+            sheetRow(assigneeLabel, action: onAssign)
+            RowDivider()
+            sheetRow(detail.pinned_at == nil ? "Pin conversation" : "Unpin conversation") {
+                controller.toggleConversationPin()
+                onDismiss()
+            }
+            RowDivider()
+            sheetRow("Photos & files", action: onOpenGallery)
+            RowDivider()
+            sheetRow("Refresh") { onRefresh() }
+            RowDivider()
+            sheetRow(detail.is_spam ? "Not spam" : "Mark as spam") {
+                controller.setSpam(!detail.is_spam)
+                onDismiss()
+            }
+            RowDivider()
+            if controller.contact?.opted_out == true {
+                sheetRow("Remove opt-out", action: onRevokeOptOut)
+            } else {
+                sheetRow("Opt out of texts", action: onOptOut)
+            }
+        }
+        .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var timelineCard: some View {
+        VStack(spacing: 0) {
+            toggleRow("Show messages", on: controller.filter.messages) {
+                controller.filter = controller.filter.toggledMessages()
+            }
+            RowDivider()
+            toggleRow("Show notes", on: controller.filter.notes) {
+                controller.filter = controller.filter.toggledNotes()
+            }
+            RowDivider()
+            toggleRow("Show events", on: controller.filter.events) {
+                controller.filter = controller.filter.toggledEvents()
+            }
+        }
+        .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func sheetRow(_ label: String, action: @escaping @MainActor () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.golos(13.5, weight: .medium))
+                .foregroundStyle(BrandColor.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 15)
+                .padding(.vertical, 13)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func toggleRow(
+        _ label: String,
+        on: Bool,
+        action: @escaping @MainActor () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(label)
+                    .font(.golos(13.5, weight: .medium))
+                    .foregroundStyle(BrandColor.ink)
+                Spacer()
+                if on {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(BrandColor.olive)
+                }
+            }
+            .padding(.horizontal, 15)
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

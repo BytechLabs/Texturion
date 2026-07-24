@@ -4,21 +4,13 @@ import SwiftUI
 /// default-filter semantics, assignee/unassigned/due chips, debounced title
 /// search, sequential multi-arm cursor pagination, and a List ⇄ Board toggle.
 /// Done toggles ALWAYS write `PATCH /v1/messages/{message_id}` (derived done).
-/// Row tap pushes `TaskDetailView`.
-///
-/// `onOpenConversation` deep-links a task's source thread anchored to the
-/// promoted message — the shell wires it to the inbox thread screen (#159);
-/// until wired the affordance stays hidden.
+/// A row tap routes `AppRouter.openTaskId` up to the shell, which pushes
+/// `TaskDetailView` ABOVE the tab shell (#186 — no pill on the detail).
 @MainActor
 struct TasksTab: View {
     let graph: AppGraph
     let companyId: String
     let me: Me
-    var onOpenConversation: ((_ conversationId: String, _ messageId: String) -> Void)? = nil
-
-    private struct TaskRoute: Hashable, Identifiable {
-        let id: String
-    }
 
     @State private var tab: TasksTabKind = .open
     @State private var view: TaskViewKind = .list
@@ -30,7 +22,6 @@ struct TasksTab: View {
     @State private var refreshKey = 0
     @State private var members: [Member] = []
     @State private var pickerOpen = false
-    @State private var openTask: TaskRoute?
 
     @State private var state: LoadState<Void> = .loading
     @State private var rows: [TaskItem] = []
@@ -64,66 +55,57 @@ struct TasksTab: View {
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                headerRow
-                tabPills
-                searchField
-                filterChips
-                switch view {
-                case .list:
-                    listContent
-                case .board:
-                    TaskBoardView(
-                        graph: graph,
-                        companyId: companyId,
-                        tab: tab,
-                        assigneeChip: assigneeChip,
-                        unassignedChip: unassignedChip,
-                        dueChip: dueChip,
-                        q: debouncedQ,
-                        refreshKey: refreshKey,
-                        onOpenTask: { openTask = TaskRoute(id: $0) },
-                        onToggleDone: { task, done in toggleDone(task, done: done) }
-                    )
-                case .calendar:
-                    TaskCalendarView(
-                        graph: graph,
-                        companyId: companyId,
-                        me: me,
-                        members: members,
-                        tab: tab,
-                        assigneeChip: assigneeChip,
-                        unassignedChip: unassignedChip,
-                        dueChip: dueChip,
-                        q: debouncedQ,
-                        refreshKey: refreshKey,
-                        onOpenTask: { openTask = TaskRoute(id: $0) },
-                        onToggleDone: { task, done in toggleDone(task, done: done) }
-                    )
-                case .map:
-                    TaskMapView(
-                        graph: graph,
-                        companyId: companyId,
-                        assigneeChip: assigneeChip,
-                        unassignedChip: unassignedChip,
-                        refreshKey: refreshKey,
-                        onOpenTask: { openTask = TaskRoute(id: $0) }
-                    )
-                }
-            }
-            .background(BrandColor.canvas.ignoresSafeArea())
-            .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(item: $openTask) { route in
-                TaskDetailView(
+        // #186: a flat surface — a row tap routes UP to the shell's root stack
+        // (`AppRouter.openTaskId`), so the task detail renders ABOVE the tab
+        // shell with no pill (it used to push inside this tab, under the pill).
+        VStack(spacing: 0) {
+            headerRow
+            tabPills
+            searchField
+            filterChips
+            switch view {
+            case .list:
+                listContent
+            case .board:
+                TaskBoardView(
+                    graph: graph,
+                    companyId: companyId,
+                    tab: tab,
+                    assigneeChip: assigneeChip,
+                    unassignedChip: unassignedChip,
+                    dueChip: dueChip,
+                    q: debouncedQ,
+                    refreshKey: refreshKey,
+                    onOpenTask: { AppRouter.shared.openTaskId = $0 },
+                    onToggleDone: { task, done in toggleDone(task, done: done) }
+                )
+            case .calendar:
+                TaskCalendarView(
                     graph: graph,
                     companyId: companyId,
                     me: me,
-                    taskId: route.id,
-                    onOpenConversation: onOpenConversation
+                    members: members,
+                    tab: tab,
+                    assigneeChip: assigneeChip,
+                    unassignedChip: unassignedChip,
+                    dueChip: dueChip,
+                    q: debouncedQ,
+                    refreshKey: refreshKey,
+                    onOpenTask: { AppRouter.shared.openTaskId = $0 },
+                    onToggleDone: { task, done in toggleDone(task, done: done) }
+                )
+            case .map:
+                TaskMapView(
+                    graph: graph,
+                    companyId: companyId,
+                    assigneeChip: assigneeChip,
+                    unassignedChip: unassignedChip,
+                    refreshKey: refreshKey,
+                    onOpenTask: { AppRouter.shared.openTaskId = $0 }
                 )
             }
         }
+        .background(BrandColor.canvas.ignoresSafeArea())
         .task(id: search) {
             // Debounce typing; an empty query applies immediately.
             if !search.isEmpty {
@@ -393,7 +375,7 @@ struct TasksTab: View {
                                     toggleDone(task, done: done)
                                 }
                                 .contentShape(Rectangle())
-                                .onTapGesture { openTask = TaskRoute(id: task.id) }
+                                .onTapGesture { AppRouter.shared.openTaskId = task.id }
                                 if task.id != rows.last?.id {
                                     RowDivider()
                                 }

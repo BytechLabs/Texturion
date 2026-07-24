@@ -6,62 +6,44 @@ import SwiftUI
 /// (assignee/tag/unread/spam) + debounced global search (≥2 chars) + cursor
 /// infinite scroll + realtime re-sort + row swipe actions + pull-to-refresh.
 ///
-/// Structure: `NavigationSplitView` — sidebar is the conversation list,
-/// detail is the open `ThreadView` (or a calm empty state). On iPhone the
-/// split collapses to a stack (the list's selection binding drives the push);
-/// on iPad the two columns sit side by side. Compose keeps its own
-/// presentation (a full-screen cover). The Android InboxTab's twin.
+/// Structure (#186): a flat list — every open routes UP to the shell's root
+/// navigation stack (`AppRouter`), so the opened thread renders ABOVE the tab
+/// shell with no pill (the pushed thread used to sit inside the tab, under the
+/// pill overlay). Compose keeps its own full-screen cover. The Android
+/// InboxTab's twin.
 ///
-/// AppRouter: consumes `openConversationId` commands (deep links, pushes, the
-/// contact panel's prior-conversation rows) and reports the on-screen thread
-/// via `viewedConversationId` so notification routing can suppress the toast
-/// for the thread the user is already reading.
+/// Search routing (#186): a conversation/message hit opens the thread scrolled
+/// to + flashing the matched message; a TASK hit opens the TASK (not its
+/// conversation); a contact hit composes.
 @MainActor
 struct InboxTab: View {
     let graph: AppGraph
     let companyId: String
     let me: Me
-    var initialConversationId: String? = nil
 
-    @State private var openConversationId: String?
+    @State private var selection: String?
     @State private var composeOpen = false
     @State private var composeContactId: String?
-    @State private var appliedInitialId = false
 
     var body: some View {
-        NavigationSplitView {
-            InboxList(
-                graph: graph,
-                companyId: companyId,
-                me: me,
-                selection: $openConversationId,
-                onOpen: { openConversationId = $0 },
-                onTextContact: { contactId in
-                    composeContactId = contactId
-                    composeOpen = true
-                },
-                onCompose: { composeOpen = true }
-            )
-            .toolbar(.hidden, for: .navigationBar)
-        } detail: {
-            if let openId = openConversationId {
-                ThreadView(
-                    graph: graph,
-                    companyId: companyId,
-                    me: me,
-                    conversationId: openId,
-                    onBack: { openConversationId = nil }
-                )
-            } else {
-                // iPad's resting detail column; never visible on iPhone.
-                Text("Select a conversation to read it here.")
-                    .font(.golos(13))
-                    .foregroundStyle(BrandColor.muted600)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(BrandColor.canvas)
-            }
-        }
-        .navigationSplitViewStyle(.balanced)
+        InboxList(
+            graph: graph,
+            companyId: companyId,
+            me: me,
+            selection: $selection,
+            onOpen: { conversationId, highlightMessageId in
+                // Push the thread onto the shell's root stack. The highlight
+                // (search hit) is read by the shell alongside the open command.
+                AppRouter.shared.pendingHighlightMessageId = highlightMessageId
+                AppRouter.shared.openConversationId = conversationId
+            },
+            onOpenTask: { AppRouter.shared.openTaskId = $0 },
+            onTextContact: { contactId in
+                composeContactId = contactId
+                composeOpen = true
+            },
+            onCompose: { composeOpen = true }
+        )
         .fullScreenCover(isPresented: $composeOpen) {
             NewConversationView(
                 graph: graph,
@@ -71,44 +53,13 @@ struct InboxTab: View {
                 onCreated: { conversationId in
                     composeOpen = false
                     composeContactId = nil
-                    openConversationId = conversationId
+                    AppRouter.shared.openConversationId = conversationId
                 },
                 onBack: {
                     composeOpen = false
                     composeContactId = nil
                 }
             )
-        }
-        .onAppear {
-            if !appliedInitialId, let initialConversationId {
-                appliedInitialId = true
-                openConversationId = initialConversationId
-            }
-            reportViewed(openConversationId)
-        }
-        .onDisappear {
-            // Tab switched away — nothing is "on screen" anymore.
-            reportViewed(nil)
-        }
-        // Command channel: another surface asked for this thread. Consume,
-        // open, clear (deferred — never republish inside the publish).
-        .onReceive(AppRouter.shared.$openConversationId) { commanded in
-            guard let commanded else { return }
-            composeOpen = false
-            composeContactId = nil
-            openConversationId = commanded
-            Task { @MainActor in
-                AppRouter.shared.openConversationId = nil
-            }
-        }
-        .onChange(of: openConversationId) { _, next in
-            reportViewed(next)
-        }
-    }
-
-    private func reportViewed(_ id: String?) {
-        Task { @MainActor in
-            AppRouter.shared.viewedConversationId = id
         }
     }
 }
@@ -520,10 +471,11 @@ private struct InboxList: View {
     let graph: AppGraph
     let companyId: String
     let me: Me
-    /// The split view's selection — binding it to the sidebar lists is what
-    /// makes programmatic opens push the detail on iPhone (collapsed) too.
+    /// List highlight only (the split view is gone in #186); opens route up.
     @Binding var selection: String?
-    let onOpen: @MainActor (String) -> Void
+    /// (conversationId, highlightMessageId?) — the highlight rides search hits.
+    let onOpen: @MainActor (String, String?) -> Void
+    let onOpenTask: @MainActor (String) -> Void
     let onTextContact: @MainActor (String) -> Void
     let onCompose: @MainActor () -> Void
 
@@ -628,10 +580,11 @@ private struct InboxList: View {
                 SearchResultsPane(
                     controller: controller,
                     selection: $selection,
-                    onOpen: { id in
+                    onOpenConversation: { id, highlight in
                         controller.markLocallyRead(id)
-                        onOpen(id)
+                        onOpen(id, highlight)
                     },
+                    onOpenTask: onOpenTask,
                     onTextContact: onTextContact
                 )
             } else {
@@ -654,7 +607,7 @@ private struct InboxList: View {
                         selection: $selection,
                         onOpen: { id in
                             controller.markLocallyRead(id)
-                            onOpen(id)
+                            onOpen(id, nil)
                         },
                         onAssign: { assignFor = $0 }
                     )
@@ -1215,10 +1168,22 @@ private func stripHighlight(_ snippet: String) -> String {
 @MainActor
 private struct SearchResultsPane: View {
     let controller: InboxController
-    /// Bound so opening a hit pushes the collapsed split view's detail too.
+    /// List highlight only.
     @Binding var selection: String?
-    let onOpen: @MainActor (String) -> Void
+    /// (conversationId, highlightMessageId) — opens the thread scrolled to the
+    /// matched message with a flash (#186 item 2).
+    let onOpenConversation: @MainActor (String, String?) -> Void
+    /// A TASK hit opens the TASK, not its conversation (#186 item 2).
+    let onOpenTask: @MainActor (String) -> Void
     let onTextContact: @MainActor (String) -> Void
+
+    /// Dispatch a computed `SearchResultRoute` (the tested routing decision).
+    private func dispatch(_ route: SearchResultRoute) {
+        switch route {
+        case .thread(let id, let highlight): onOpenConversation(id, highlight)
+        case .task(let id): onOpenTask(id)
+        }
+    }
 
     var body: some View {
         switch controller.searchState {
@@ -1278,7 +1243,8 @@ private struct SearchResultsPane: View {
                     Section {
                         ForEach(result.tasks, id: \.id) { task in
                             Button {
-                                onOpen(task.conversation_id)
+                                // The TASK opens its detail — not its thread.
+                                dispatch(InboxSearchRouting.route(forTask: task))
                             } label: {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(task.title)
@@ -1337,7 +1303,8 @@ private struct SearchResultsPane: View {
     private func conversationHit(_ hit: SearchConversationHit) -> some View {
         let name = hit.contact.name ?? formatPhone(hit.contact.phone_e164)
         return Button {
-            onOpen(hit.id)
+            // Open the thread scrolled to + flashing the matched message.
+            dispatch(InboxSearchRouting.route(forConversation: hit))
         } label: {
             HStack(spacing: 11) {
                 InitialsAvatar(name: name, size: 38)
@@ -1398,7 +1365,7 @@ private struct SearchResultsPane: View {
         }
         if let conversationId = hit.conversation_id {
             Button {
-                onOpen(conversationId)
+                dispatch(InboxSearchRouting.route(forAttachment: conversationId))
             } label: {
                 content.foregroundStyle(.primary)
             }

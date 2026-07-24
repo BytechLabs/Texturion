@@ -2,9 +2,10 @@ import SwiftUI
 
 /// /for-you — the default landing: Triage (owner/admin), Waiting on you,
 /// My tasks, Unread, and Recent calls (D43: the mobile entry point into the
-/// Calls surface). Realtime events refetch the queue; every row deep-links
-/// into `ThreadView` in place (task rows open their conversation — task
-/// detail itself is the Tasks tab's surface, #160).
+/// Calls surface). Realtime events refetch the queue; every row routes its
+/// conversation UP to the shell (#186), which pushes `ThreadView` ABOVE the
+/// tab shell with no pill (task rows open their conversation — task detail
+/// itself is the Tasks tab's surface, #160).
 ///
 /// `onOpenCalls` is the shell's navigation to the full Calls surface — the
 /// "View all" affordance hides until the shell wires it.
@@ -19,37 +20,26 @@ struct ForYouTab: View {
     let me: Me
     var onOpenCalls: (() -> Void)? = nil
 
-    @State private var openConversationId: String?
     @State private var state: LoadState<ForYou> = .loading
     @State private var recentCalls: LoadState<[Call]> = .loading
     @State private var refreshKey = 0
 
     var body: some View {
         Group {
-            if let openId = openConversationId {
-                ThreadView(
-                    graph: graph,
-                    companyId: companyId,
-                    me: me,
-                    conversationId: openId,
-                    onBack: { openConversationId = nil }
+            switch state {
+            case .loading:
+                CenteredLoading()
+                    .background(BrandColor.canvas)
+            case .failed(let message):
+                CenteredError(message: message) { refreshKey += 1 }
+                    .background(BrandColor.canvas)
+            case .ready(let forYou):
+                ForYouList(
+                    forYou: forYou,
+                    recentCalls: recentCalls,
+                    onOpenConversation: { AppRouter.shared.openConversationId = $0 },
+                    onOpenCalls: onOpenCalls
                 )
-            } else {
-                switch state {
-                case .loading:
-                    CenteredLoading()
-                        .background(BrandColor.canvas)
-                case .failed(let message):
-                    CenteredError(message: message) { refreshKey += 1 }
-                        .background(BrandColor.canvas)
-                case .ready(let forYou):
-                    ForYouList(
-                        forYou: forYou,
-                        recentCalls: recentCalls,
-                        onOpenConversation: { openConversationId = $0 },
-                        onOpenCalls: onOpenCalls
-                    )
-                }
             }
         }
         .task(id: "\(companyId)#\(refreshKey)") { await reload() }

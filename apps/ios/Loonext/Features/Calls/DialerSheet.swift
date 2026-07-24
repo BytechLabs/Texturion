@@ -22,6 +22,11 @@ private let keypadLetters: [String: String] = [
 struct DialerSheet: View {
     let manager: CallsManager
     let numbers: [PhoneNumberSummary]
+    /// Resolve typed digits to a saved contact's name (nil = no match) — the
+    /// live correlation shown as you dial (#186 item 5).
+    var lookupContact: (@MainActor (String) async -> String?)?
+    /// Offer "Add contact" for a dialable, unmatched typed number (#186 item 5).
+    var onAddContact: (@MainActor (String) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -29,10 +34,19 @@ struct DialerSheet: View {
     @State private var fromId: String?
     @State private var calling = false
     @State private var errorText: String?
+    /// The saved contact's name matching the typed digits, or nil.
+    @State private var matchedName: String?
 
-    init(manager: CallsManager, numbers: [PhoneNumberSummary]) {
+    init(
+        manager: CallsManager,
+        numbers: [PhoneNumberSummary],
+        lookupContact: (@MainActor (String) async -> String?)? = nil,
+        onAddContact: (@MainActor (String) -> Void)? = nil
+    ) {
         self.manager = manager
         self.numbers = numbers
+        self.lookupContact = lookupContact
+        self.onAddContact = onAddContact
         _fromId = State(initialValue: numbers.first?.id)
     }
 
@@ -51,8 +65,16 @@ struct DialerSheet: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
+                .padding(.top, 12)
+                .padding(.bottom, 2)
                 .monospacedDigit()
+
+            // Live correlation (#186 item 5): the matched contact name while
+            // dialing, or an Add-contact affordance once the number is dialable
+            // and unknown. Fixed height so the keypad never jumps.
+            correlationRow
+                .frame(height: 26)
+                .padding(.bottom, 8)
 
             if numbers.count > 1 {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -162,8 +184,47 @@ struct DialerSheet: View {
             Spacer(minLength: 16)
         }
         .padding(.horizontal, 24)
+        // Opens FULLY EXPANDED (#186 item 5) — the single large detent.
         .presentationDetents([.large])
         .presentationBackground(BrandColor.canvas)
+        // Debounced live contact correlation as the digits change.
+        .task(id: digits) {
+            guard let lookupContact else { return }
+            let typed = digits.filter(\.isNumber)
+            if typed.count < 4 {
+                matchedName = nil
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(250)) // debounce keypad taps
+            if Task.isCancelled { return }
+            matchedName = await lookupContact(typed)
+        }
+    }
+
+    /// The matched contact name, or an "Add contact" pill for a dialable,
+    /// unknown number. Empty otherwise — the fixed-height slot holds the layout.
+    @ViewBuilder
+    private var correlationRow: some View {
+        if let matchedName {
+            Text(matchedName)
+                .font(.golos(13, weight: .semibold))
+                .foregroundStyle(BrandColor.olive)
+                .lineLimit(1)
+        } else if let onAddContact, let target = dialable {
+            Button {
+                onAddContact(target)
+            } label: {
+                Text("Add contact")
+                    .font(.golos(12.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.olive)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } else {
+            Color.clear
+        }
     }
 
     /// Mic first, then authorize — a denial never reserves the line.

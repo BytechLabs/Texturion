@@ -14,8 +14,10 @@ struct ProfileSectionView: View {
         ThemeCard(prefs: scope.graph.prefs)
         AccountCard(scope: scope)
         SettingsCard(title: "Sign out") {
-            Button("Sign out on this device") { onSignOut() }
+            // Destructive (red) — the founder-feedback sign-out styling (#186).
+            Button("Sign out on this device", role: .destructive) { onSignOut() }
                 .buttonStyle(.bordered)
+                .tint(BrandColor.destructive)
         }
     }
 }
@@ -85,13 +87,8 @@ private struct ThemeCard: View {
 
     var body: some View {
         SettingsCard(title: "Theme") {
-            Picker("Theme", selection: $prefs.theme) {
-                Text("System").tag(AppPrefs.Theme.system)
-                Text("Light").tag(AppPrefs.Theme.light)
-                Text("Dark").tag(AppPrefs.Theme.dark)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            // Styled segmented control (ink pill), matching Android/web (#186).
+            ThemeSegmentedControl(theme: $prefs.theme)
         }
     }
 }

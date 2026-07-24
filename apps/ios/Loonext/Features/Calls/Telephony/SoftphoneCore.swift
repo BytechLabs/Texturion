@@ -7,6 +7,21 @@ enum CoreEvent: Sendable, Equatable {
     case outgoingPlaced(CallSnapshot)
 }
 
+/// #186 item 6 — whether a transient Telnyx SDK error is worth surfacing to the
+/// user ("Calling is temporarily unavailable"). Only a PERSISTENT outage (3+
+/// consecutive errors without a `.ready` between) or an error while a call is
+/// actually live earns the message; a single socket error is routine mobile
+/// churn that `scheduleRecover` heals in seconds. The Android `worthTelling`
+/// gate; pure so it is unit-testable without the SDK.
+enum SoftphoneErrorGate {
+    /// Consecutive errors (no `.ready` between) that count as a real outage.
+    static let persistentThreshold = 3
+
+    static func shouldSurface(hasLiveCall: Bool, consecutiveErrors: Int) -> Bool {
+        hasLiveCall || consecutiveErrors >= persistentThreshold
+    }
+}
+
 /// The softphone's brain — registration lifecycle, the multi-call state, and
 /// every live-call op — with the Telnyx SDK behind `SoftphoneSdk` and the
 /// server behind `CallsBackend`, so the whole flow is unit-testable (fake SDK
@@ -78,6 +93,13 @@ final class SoftphoneCore {
 
     @ObservationIgnored private var connectTask: Task<Void, Error>?
     @ObservationIgnored private var recoverTask: Task<Void, Never>?
+
+    /// #186 item 6 — consecutive `SdkEvent.error`s since the last `.ready`. A
+    /// single socket error is routine mobile churn that `scheduleRecover` heals
+    /// in seconds; surfacing each one popped a phantom "Calling is temporarily
+    /// unavailable" while merely browsing. Mirrors the Android
+    /// `consecutiveSdkErrors`.
+    @ObservationIgnored private var consecutiveSdkErrors = 0
 
     /// #195 F2 — the single self-terminating ring-TTL sweep task (nil when no
     /// inbound ring is tracked).
@@ -289,6 +311,7 @@ final class SoftphoneCore {
     private func onSdkEvent(_ event: SdkEvent) {
         switch event {
         case .ready:
+            consecutiveSdkErrors = 0
             state = CallStateMachine.ready(state)
 
         case .disconnected:
@@ -304,10 +327,21 @@ final class SoftphoneCore {
             // Often an auth/token failure — the SDK's own reconnect can't fix
             // a dead token; a fresh mint + registration can. Deferred
             // automatically while a call is live.
-            state = CallStateMachine.error(
-                CallStateMachine.disconnected(state),
-                "Calling is temporarily unavailable."
+            //
+            // #186 item 6 — QUIET BY DEFAULT: a single socket error is routine
+            // mobile churn that `scheduleRecover` heals in seconds. The
+            // user-visible message is reserved for a PERSISTENT outage (3+
+            // consecutive errors without a `.ready` between) or an error while a
+            // call is actually live. Mirrors the Android `worthTelling` gate.
+            consecutiveSdkErrors += 1
+            let worthTelling = SoftphoneErrorGate.shouldSurface(
+                hasLiveCall: !state.liveCalls.isEmpty,
+                consecutiveErrors: consecutiveSdkErrors
             )
+            let down = CallStateMachine.disconnected(state)
+            state = worthTelling
+                ? CallStateMachine.error(down, "Calling is temporarily unavailable.")
+                : down
             scheduleRecover()
 
         case .incoming(let call, let callerName, let callerNumber, let sessionHeader):

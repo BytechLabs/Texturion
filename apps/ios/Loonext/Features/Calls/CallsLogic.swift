@@ -98,6 +98,22 @@ func dialableE164(_ raw: String) -> String? {
     return nil
 }
 
+/// The saved-contact name matching typed dialer digits (#186 item 5), or nil.
+/// The server `q` matches name AND phone, so we double-check the typed digits
+/// actually appear in the hit's number before lighting the correlation — a
+/// name-only match on unrelated digits must never mislabel the dial. A blank
+/// name falls back to the formatted number. The Android `lookupContact` twin;
+/// kept pure so the correlation is unit-testable without a device.
+func dialerContactName(matching typed: String, in contacts: [Contact]) -> String? {
+    let digits = typed.filter(\.isNumber)
+    guard !digits.isEmpty else { return nil }
+    guard let match = contacts.first(where: {
+        $0.phone_e164.filter(\.isNumber).contains(digits)
+    }) else { return nil }
+    if let name = match.name, !name.isBlank { return name }
+    return formatPhone(match.phone_e164)
+}
+
 /// "(415) 555-01…" progressive format while typing (NANP-shaped input).
 func formatAsYouDial(_ raw: String) -> String {
     let digits = raw.filter(\.isNumber)

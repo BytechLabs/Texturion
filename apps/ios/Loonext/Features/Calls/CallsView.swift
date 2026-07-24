@@ -37,7 +37,12 @@ struct CallsView: View {
     @State private var nextCursor: String?
     @State private var loadingMore = false
     @State private var refreshKey = 0
-    @State private var dialerOpen = false
+    /// The dialer and its "Add contact" create sheet share ONE presentation
+    /// (#186 item 5): the dialer swaps to `.addContact` IN PLACE, so the two
+    /// never toggle in the same runloop (dismiss-then-present on the same
+    /// anchor is dropped on iOS 15/16 and flaky on 17.x — "Add contact" would
+    /// do nothing / need a second tap).
+    @State private var activeSheet: CallsSheet?
 
     init(
         graph: AppGraph,
@@ -85,14 +90,57 @@ struct CallsView: View {
         // #215 Part A: a call.updated missed while backgrounded self-heals on
         // foreground — the same first-page refetch the re-JOIN runs.
         .resyncOnForeground { refreshKey += 1 }
-        .sheet(isPresented: $dialerOpen) {
-            DialerSheet(
-                manager: manager,
-                numbers: (me.company?.numbers ?? []).filter {
-                    $0.status == NumberStatus.active && $0.number_e164 != nil
+        // ONE presentation for the dialer and its "Add contact" create sheet:
+        // swapping the item swaps content in place, so B never presents while A
+        // is still dismissing (the dropped-second-sheet race).
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .dialer:
+                DialerSheet(
+                    manager: manager,
+                    numbers: (me.company?.numbers ?? []).filter {
+                        $0.status == NumberStatus.active && $0.number_e164 != nil
+                    },
+                    lookupContact: { typed in await lookupContact(typed) },
+                    onAddContact: { e164 in activeSheet = .addContact(prefill: e164) }
+                )
+            case .addContact(let prefill):
+                CreateContactSheet(
+                    mutations: ContactMutations(
+                        api: graph.api,
+                        multipart: MultipartClient(api: graph.api, sessionStore: graph.sessionStore)
+                    ),
+                    companyId: companyId,
+                    prefillPhone: prefill
+                ) { _ in
+                    activeSheet = nil
                 }
-            )
+            }
         }
+    }
+
+    /// The single calls-surface presentation (#186 item 5): the dialer and the
+    /// create sheet it swaps to — never two simultaneous `.sheet` toggles.
+    private enum CallsSheet: Identifiable {
+        case dialer
+        case addContact(prefill: String)
+
+        var id: String {
+            switch self {
+            case .dialer: "dialer"
+            case .addContact(let prefill): "add:\(prefill)"
+            }
+        }
+    }
+
+    /// Correlate typed digits with a saved contact (name shows live in the
+    /// dialer). The server `q` matches name + phone; double-check the digits
+    /// actually appear in the hit's number (the Android `lookupContact` twin).
+    private func lookupContact(_ typed: String) async -> String? {
+        guard let page = try? await graph.contactsApi.contacts(
+            companyId: companyId, q: typed, limit: 5
+        ) else { return nil }
+        return dialerContactName(matching: typed, in: page.data)
     }
 
     private var header: some View {
@@ -113,7 +161,7 @@ struct CallsView: View {
             }
             Spacer()
             Button {
-                dialerOpen = true
+                activeSheet = .dialer
             } label: {
                 Image(systemName: "circle.grid.3x3")
                     .font(.system(size: 17, weight: .medium))

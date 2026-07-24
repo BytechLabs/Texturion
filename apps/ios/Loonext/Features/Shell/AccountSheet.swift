@@ -167,14 +167,9 @@ struct AccountSheet: View {
                     .font(.golos(13.5, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
                 Spacer()
-                Picker("Theme", selection: $prefs.theme) {
-                    Text("System").tag(AppPrefs.Theme.system)
-                    Text("Light").tag(AppPrefs.Theme.light)
-                    Text("Dark").tag(AppPrefs.Theme.dark)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 220)
+                // Styled segmented control (ink pill), matching Android/web (#186).
+                ThemeSegmentedControl(theme: $prefs.theme)
+                    .frame(maxWidth: 230)
             }
             .padding(.horizontal, 15)
             .padding(.vertical, 11)
@@ -197,7 +192,12 @@ struct AccountSheet: View {
             RowDivider()
             linkRow(icon: "gearshape", label: "Settings", action: onOpenSettings)
             RowDivider()
-            linkRow(icon: "rectangle.portrait.and.arrow.right", label: "Sign out", muted: true) {
+            // Sign out styled destructive (red) — founder-feedback polish (#186).
+            linkRow(
+                icon: "rectangle.portrait.and.arrow.right",
+                label: "Sign out",
+                destructive: true
+            ) {
                 onSignOut()
                 dismiss()
             }
@@ -205,13 +205,14 @@ struct AccountSheet: View {
     }
 
     /// Spec-08 row: 36pt inset icon tile, 13.5 semibold label, olive count or
-    /// quiet chevron; coral dot on the icon marks unread.
+    /// quiet chevron; coral dot on the icon marks unread. A destructive row
+    /// tints the icon and label red (#186 item 7).
     private func linkRow(
         icon: String,
         label: String,
         trailing: String? = nil,
         showDot: Bool = false,
-        muted: Bool = false,
+        destructive: Bool = false,
         action: @escaping @MainActor () -> Void
     ) -> some View {
         Button(action: action) {
@@ -219,10 +220,12 @@ struct AccountSheet: View {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: icon)
                         .font(.system(size: 15))
-                        .foregroundStyle(muted ? BrandColor.muted500 : BrandColor.muted900)
+                        .foregroundStyle(destructive ? BrandColor.destructive : BrandColor.muted900)
                         .frame(width: 36, height: 36)
                         .background(
-                            BrandColor.inset,
+                            destructive
+                                ? AnyShapeStyle(BrandColor.destructive.opacity(0.1))
+                                : AnyShapeStyle(BrandColor.inset),
                             in: RoundedRectangle(cornerRadius: 12, style: .continuous)
                         )
                     if showDot {
@@ -232,14 +235,14 @@ struct AccountSheet: View {
                 }
                 Text(label)
                     .font(.golos(13.5, weight: .semibold))
-                    .foregroundStyle(muted ? BrandColor.muted500 : BrandColor.ink)
+                    .foregroundStyle(destructive ? BrandColor.destructive : BrandColor.ink)
                 Spacer()
                 if let trailing {
                     Text(trailing)
                         .font(.golos(11, weight: .bold))
                         .monospacedDigit()
                         .foregroundStyle(BrandColor.olive)
-                } else if !muted {
+                } else if !destructive {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(BrandColor.muted250)
