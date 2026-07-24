@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +30,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
@@ -211,6 +213,8 @@ fun ThreadComposer(
     onSaveNote: (body: String, files: List<StagedFile>) -> Unit,
     onNotice: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** Ask for AI-drafted replies. Null hides the affordance entirely. */
+    suggestReplies: (suspend (draft: String) -> List<String>)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -220,6 +224,27 @@ fun ThreadComposer(
 
     var templatePickerOpen by remember { mutableStateOf(false) }
     var attachMenuOpen by remember { mutableStateOf(false) }
+    // Drafts live only as long as the composer is looking at this thread: they
+    // are a momentary offer, never cached state.
+    var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var suggesting by remember { mutableStateOf(false) }
+
+    val askForSuggestions: () -> Unit = {
+        val ask = suggestReplies
+        if (ask != null && !suggesting) {
+            suggesting = true
+            suggestions = emptyList()
+            scope.launch {
+                val drafted = ask(state.text)
+                suggesting = false
+                if (drafted.isEmpty()) {
+                    onNotice("Nothing to suggest here yet.")
+                } else {
+                    suggestions = drafted
+                }
+            }
+        }
+    }
 
     val mediaPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
@@ -314,6 +339,19 @@ fun ThreadComposer(
                     },
                 )
             }
+        }
+
+        if (!isNote && (suggestions.isNotEmpty() || suggesting)) {
+            ReplySuggestionsRow(
+                suggestions = suggestions,
+                loading = suggesting,
+                onUse = { suggestion ->
+                    haptics.tap()
+                    state.onTextChange(suggestion)
+                    suggestions = emptyList()
+                },
+                onDismiss = { suggestions = emptyList() },
+            )
         }
 
         if (!isNote && state.photos.isNotEmpty()) {
@@ -419,6 +457,27 @@ fun ThreadComposer(
                                 templatePickerOpen = true
                             },
                         )
+                        if (suggestReplies != null) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (state.text.isBlank()) "Draft a reply"
+                                        else "Finish this reply",
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Outlined.AutoAwesome,
+                                        contentDescription = null,
+                                    )
+                                },
+                                enabled = !suggesting,
+                                onClick = {
+                                    attachMenuOpen = false
+                                    askForSuggestions()
+                                },
+                            )
+                        }
                     }
                 }
             } else {
@@ -494,6 +553,67 @@ fun ThreadComposer(
             },
             onDismiss = { templatePickerOpen = false },
         )
+    }
+}
+
+/**
+ * AI-drafted replies offered above the pill. Tapping one loads it into the
+ * composer to read and edit. NOTHING here sends — the person still presses
+ * send, every time, which is the whole safety model of the feature.
+ */
+@Composable
+private fun ReplySuggestionsRow(
+    suggestions: List<String>,
+    loading: Boolean,
+    onUse: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Outlined.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(13.dp),
+            )
+            Spacer(Modifier.width(5.dp))
+            Text(
+                if (loading) "Drafting…" else "Drafts, yours to edit",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.weight(1f))
+            if (!loading) {
+                Text(
+                    "Dismiss",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clickable(onClick = onDismiss),
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        suggestions.forEach { suggestion ->
+            Surface(
+                onClick = { onUse(suggestion) },
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 6.dp),
+            ) {
+                Text(
+                    suggestion,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                )
+            }
+        }
     }
 }
 

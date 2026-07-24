@@ -121,6 +121,22 @@ fun AiSection(scope: SettingsScope) {
                         },
                     )
                 }
+                Spacer(Modifier.height(12.dp))
+                SettingsCard(title = "When you reply to a customer") {
+                    LabeledSwitchRow(
+                        label = "Draft replies for me",
+                        supporting = "Offer a few short replies you can edit before " +
+                            "sending, drawn from the conversation so far. Start typing " +
+                            "and they finish what you started instead. Nothing is ever " +
+                            "sent for you, and drafts never quote prices, links, or " +
+                            "times the conversation did not already contain.",
+                        checked = settings.suggest_replies,
+                        enabled = canEdit,
+                        onCheckedChange = { checked ->
+                            toggle(settings, settings.copy(suggest_replies = checked))
+                        },
+                    )
+                }
                 if (!canEdit) {
                     ReadOnlyLine(
                         "Only owners and admins can change these.",

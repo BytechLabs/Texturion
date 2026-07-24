@@ -1,5 +1,6 @@
 package com.loonext.android.core.data
 
+import com.loonext.android.core.model.ReplySuggestions
 import com.loonext.android.core.model.CompanyAiSettings
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ConversationListItem
@@ -200,6 +201,35 @@ class AiRepository(private val api: ApiClient) {
         }
         if (key != null) enrichmentCache[key] = result
         return result
+    }
+
+    /**
+     * POST /v1/conversations/:id/reply-suggestions — drafted replies for the
+     * open thread. `draft` is whatever is already typed, so the server finishes
+     * that sentence instead of talking past it.
+     *
+     * NOT cached: each call is a metered request the person asked for, and a
+     * draft is only useful for the conversation as it stands right now. Never
+     * rejects — any network/decode failure resolves to no suggestions, so the
+     * composer degrades to exactly what it was before.
+     */
+    suspend fun suggestReplies(
+        companyId: String,
+        conversationId: String,
+        draft: String,
+    ): List<String> = try {
+        api.post<ReplySuggestions, JsonObject>(
+            "/v1/conversations/$conversationId/reply-suggestions",
+            buildJsonObject {
+                if (draft.isNotBlank()) put("draft", draft)
+            },
+            companyId = companyId,
+        ).suggestions
+    } catch (e: CancellationException) {
+        // The composer moved on mid-request: never swallow cancellation.
+        throw e
+    } catch (_: Exception) {
+        emptyList()
     }
 }
 

@@ -130,23 +130,56 @@ class AiRepositoryTest {
     }
 
     @Test
-    fun `updateAiSettings patches both toggles`() = runTest {
+    fun `updateAiSettings patches every toggle`() = runTest {
         server.enqueue(
-            MockResponse(body = """{"enrich_task_address":true,"enrich_task_due":true}"""),
+            MockResponse(
+                body = """{"enrich_task_address":true,"enrich_task_due":true,"suggest_replies":true}""",
+            ),
         )
         aiRepo.updateAiSettings(
             "c1",
             com.loonext.android.core.model.CompanyAiSettings(
                 enrich_task_address = true,
                 enrich_task_due = true,
+                suggest_replies = true,
             ),
         )
         val recorded = server.takeRequest()
         assertEquals("PATCH", recorded.method)
         assertEquals("/v1/company/ai-settings", recorded.url.encodedPath)
         assertEquals(
-            """{"enrich_task_address":true,"enrich_task_due":true}""",
+            """{"enrich_task_address":true,"enrich_task_due":true,"suggest_replies":true}""",
             recorded.body?.utf8(),
         )
+    }
+
+    @Test
+    fun `suggestReplies posts the typed draft and returns the drafts`() = runTest {
+        server.enqueue(
+            MockResponse(body = """{"suggestions":["We can come Thursday.","What time works?"]}"""),
+        )
+        val drafts = aiRepo.suggestReplies("c1", "conv-1", "We can")
+        assertEquals(listOf("We can come Thursday.", "What time works?"), drafts)
+
+        val recorded = server.takeRequest()
+        assertEquals("POST", recorded.method)
+        assertEquals(
+            "/v1/conversations/conv-1/reply-suggestions",
+            recorded.url.encodedPath,
+        )
+        assertEquals("""{"draft":"We can"}""", recorded.body?.utf8())
+    }
+
+    @Test
+    fun `suggestReplies omits an empty draft`() = runTest {
+        server.enqueue(MockResponse(body = """{"suggestions":[]}"""))
+        assertEquals(emptyList<String>(), aiRepo.suggestReplies("c1", "conv-1", "   "))
+        assertEquals("{}", server.takeRequest().body?.utf8())
+    }
+
+    @Test
+    fun `suggestReplies never throws — a failure is simply no drafts`() = runTest {
+        server.enqueue(MockResponse(code = 500, body = "boom"))
+        assertEquals(emptyList<String>(), aiRepo.suggestReplies("c1", "conv-1", ""))
     }
 }

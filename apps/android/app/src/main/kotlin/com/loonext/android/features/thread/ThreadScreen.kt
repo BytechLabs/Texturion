@@ -665,6 +665,9 @@ private fun ThreadLoaded(
                 }
             },
             onNotice = onNotice,
+            suggestReplies = { draft ->
+                graph.aiRepo.suggestReplies(companyId, detail.id, draft)
+            },
         )
     }
 

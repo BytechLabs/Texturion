@@ -217,6 +217,19 @@ data class TaskEnrichment(
 data class CompanyAiSettings(
     val enrich_task_address: Boolean = true,
     val enrich_task_due: Boolean = true,
+    /** Offer AI-drafted replies in the composer. Never sent for you. */
+    val suggest_replies: Boolean = true,
+)
+
+/**
+ * POST /v1/conversations/:id/reply-suggestions — up to three drafts the person
+ * reads and edits. An empty list is the normal "nothing to offer" answer
+ * (toggle off, nothing to reply to, over the monthly cap, model unavailable).
+ */
+@Serializable
+data class ReplySuggestions(
+    val suggestions: List<String> = emptyList(),
+    val suggestions_disabled: Boolean = false,
 )
 
 /**
