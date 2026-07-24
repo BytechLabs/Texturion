@@ -72,6 +72,11 @@ export function useForYouNotificationsRealtime() {
     };
 
     const unsubscribe = cache.subscribe((event) => {
+      // Only real data changes should trigger a refetch. 'updated' covers
+      // setQueryData patches AND fetch successes; skipping the rest drops the
+      // observerAdded/observerRemoved/observerResultsUpdated churn that fired on
+      // every mount/unmount and forced needless network round-trips.
+      if (event.type !== "updated") return;
       if (feedsForYouOrBell(event.query.queryKey as readonly unknown[], companyId)) {
         schedule();
       }

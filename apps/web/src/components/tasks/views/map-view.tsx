@@ -117,7 +117,11 @@ export function MapView({ state }: { state: TaskPageState }) {
           {locating ? "Locating…" : "Near me"}
         </Button>
       </div>
-      {geoError && <p className="text-[13px] text-warning">{geoError}</p>}
+      {geoError && (
+        <p role="alert" className="text-[13px] text-warning">
+          {geoError}
+        </p>
+      )}
       {located.length === 0 ? (
         <div className="flex h-[320px] flex-col items-center justify-center gap-2 rounded-xl border border-border bg-secondary/20 text-center">
           <MapPin className="size-6 text-muted-foreground" strokeWidth={1.75} aria-hidden />

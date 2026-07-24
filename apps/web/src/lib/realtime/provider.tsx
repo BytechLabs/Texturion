@@ -177,6 +177,15 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         patchConversationLists(queryClient, companyId, (list, filters) =>
           listApplyConversation(list, next, filters),
         );
+        // #5: the pinned-conversations banner is a SEPARATE query (not part of
+        // the paged lists this patch touches), so refresh it too when a live
+        // message hits a pinned thread — otherwise its preview + unread dot go
+        // stale. Only fires for the handful of pinned rows.
+        if (cachedRow.pinned_at) {
+          void queryClient.invalidateQueries({
+            queryKey: keys.conversations.pinnedRoot(companyId),
+          });
+        }
         contactName = contactDisplayName(cachedRow.contact);
       } else {
         // Brand-new conversation (INSERTs don't broadcast conversation.updated):
