@@ -1,59 +1,35 @@
 name: Release
 
-# One button. Pick a bump (or leave it on "auto" and let the commits decide),
-# run it, and this bumps the single product version, writes CHANGELOG.md, tags
-# v<version>, and publishes a GitHub Release with the generated notes.
+# release-please keeps a "chore(main): release X.Y.Z" PR open against main,
+# continuously restating what would ship: the CHANGELOG entries and the version
+# bump derived from the Conventional Commits landed since the last tag. Merging
+# it writes CHANGELOG.md, bumps version.txt plus the Android and iOS versions,
+# tags v<version>, and publishes the GitHub Release.
 #
-# It does NOT gate deployment: api/web already deployed when their commit went
-# green. The tag is the record of what shipped, not a gate in front of it. For
-# the store apps, the version this cuts is what you archive and upload, and the
-# release notes are the "What's new" text.
+# It does NOT gate deployment. api/web still deploy on every green CI exactly as
+# before — one version of a service exists at a time and nobody installs it, so
+# the tag is the RECORD of what shipped, not a gate in front of it. For the store
+# apps the merged version is what you archive and upload, and the generated notes
+# are the "What's new" text.
 on:
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: "Version bump (auto = infer from the commits)"
-        type: choice
-        default: auto
-        options: [auto, patch, minor, major]
-      dry_run:
-        description: "Print what would happen, change nothing"
-        type: boolean
-        default: false
+  push:
+    branches: [main]
 
 permissions:
   contents: write
+  pull-requests: write
+
+# The release PR is a running summary, so cancelling an in-flight run is safe:
+# the next push recomputes it from scratch.
+concurrency:
+  group: release-please
+  cancel-in-progress: true
 
 jobs:
-  release:
+  release-please:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: googleapis/release-please-action@v4
         with:
-          # Full history: the version bump is inferred from every commit since
-          # the previous tag, and a shallow clone has neither the tags nor them.
-          fetch-depth: 0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Cut the release
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          node scripts/release.mjs \
-            ${{ inputs.bump == 'auto' && ' ' || inputs.bump }} \
-            ${{ inputs.dry_run && '--dry-run' || ' ' }}
-
-      - name: Push and publish
-        if: ${{ !inputs.dry_run }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          git push origin HEAD:main --follow-tags
-          VERSION="$(cat version.txt)"
-          # The notes are the section release.mjs just prepended: everything
-          # between this version's heading and the next one.
-          awk "/^## ${VERSION} /{f=1;next} /^## /{f=0} f" CHANGELOG.md > notes.md
-          gh release create "v${VERSION}" --title "v${VERSION}" --notes-file notes.md
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

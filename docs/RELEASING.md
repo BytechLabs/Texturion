@@ -7,24 +7,19 @@ a question with several answers.
 
 ## The whole process
 
-Run the **Release** workflow in GitHub Actions. Leave the bump on `auto`.
+**Merge the release PR.** That's it.
 
-That's it. It reads the Conventional Commits since the last tag, works out the
-bump, writes `CHANGELOG.md`, updates the version everywhere, tags `v<version>`,
-and publishes a GitHub Release with the notes.
+`release-please` keeps a PR open against `main` titled
+`chore(main): release X.Y.Z`, and rewrites it on every push. It always shows the
+next version and the exact changelog that would ship, so the open PR *is* the
+preview — there is nothing to run to see what a release would contain.
 
-Locally, the same thing:
+Merging it writes `CHANGELOG.md`, bumps `version.txt` plus the Android
+`versionName` and iOS `MARKETING_VERSION`, tags `v<version>`, and publishes the
+GitHub Release.
 
-```bash
-node scripts/release.mjs --dry-run
-```
-
-```bash
-node scripts/release.mjs
-```
-
-`--dry-run` prints the next version and the exact changelog section without
-touching anything — worth doing first.
+If no release-worthy commits have landed (only `chore`/`ci`/`docs`/`test`), no
+PR appears — which is the correct answer, not a failure.
 
 ## What is automatic and never needs thinking about
 
@@ -39,7 +34,12 @@ and is never what gets uploaded.
 
 **Which version bump.** Inferred from the commits: a `feat!:` or a
 `BREAKING CHANGE:` footer gives a major, any `feat` gives a minor, otherwise
-patch. Override by picking `patch`/`minor`/`major` explicitly.
+patch. To force one, add a `Release-As: 2.0.0` footer to any commit.
+
+**Where releases start.** `v1.0.0` is tagged as the baseline. Without it the
+first release PR would sweep up all 506 commits of pre-launch history — whose PR
+body exceeds GitHub's 65,536-character limit, which is exactly how the first
+attempt failed. Releases begin from that tag.
 
 **Release traceability.** Deploy stamps the deployed commit into the API Worker
 (`--var GIT_SHA:<sha>`) and Sentry reports it as the release, so a production
