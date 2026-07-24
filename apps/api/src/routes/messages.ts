@@ -227,6 +227,19 @@ export async function loadAttachments(
   return map;
 }
 
+/**
+ * The message columns the API ever reads — every field of MessageRow, and
+ * deliberately NOT the generated `body_tsv` tsvector, which is search-only and
+ * can be large. `select("*")` would drag it over the PostgREST→Worker wire on
+ * every row only for messageJson to delete it again; naming the columns keeps
+ * the fetch lean. Keep in sync with MessageRow.
+ */
+export const MESSAGE_COLUMNS =
+  "id,company_id,conversation_id,direction,body,telnyx_message_id,status," +
+  "segments,encoding,sent_by_user_id,error_code,error_detail,idempotency_key," +
+  "provider_cost,done_at,done_by_user_id,pinned_at,pinned_by_user_id," +
+  "created_at,updated_at";
+
 /** SPEC §7 message object: row + attachments summary, tsv column dropped. */
 export function messageJson(
   row: MessageRow,
@@ -348,7 +361,7 @@ messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
   const rows = unwrap<MessageRow[]>(
     await db
       .from("messages")
-      .select("*")
+      .select(MESSAGE_COLUMNS)
       .eq("company_id", companyId)
       .eq("id", messageId)
       .limit(1),
@@ -472,7 +485,7 @@ messageRoutes.patch("/messages/:id", requireRole("member"), async (c) => {
   const rows = unwrap<MessageRow[]>(
     await db
       .from("messages")
-      .select("*")
+      .select(MESSAGE_COLUMNS)
       .eq("company_id", companyId)
       .eq("id", messageId)
       .limit(1),

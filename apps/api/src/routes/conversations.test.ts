@@ -172,11 +172,12 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
 
   it("#13: GET /conversations/:id/pinned returns the conversation's pinned messages", async () => {
     const sb = memberStub();
+    // Attachments ride the embedded message_attachments join (same as the
+    // thread list), not a separate lookup.
     sb.on("GET", "/rest/v1/messages", () => [
-      { id: "m2", conversation_id: CONV_ID, company_id: COMPANY_ID, body: "gate code 1234", pinned_at: "2026-07-02T10:00:00+00:00" },
-      { id: "m1", conversation_id: CONV_ID, company_id: COMPANY_ID, body: "5 Main St", pinned_at: "2026-07-01T10:00:00+00:00" },
+      { id: "m2", conversation_id: CONV_ID, body: "gate code 1234", pinned_at: "2026-07-02T10:00:00+00:00", message_attachments: [] },
+      { id: "m1", conversation_id: CONV_ID, body: "5 Main St", pinned_at: "2026-07-01T10:00:00+00:00", message_attachments: [] },
     ]);
-    sb.on("GET", "/rest/v1/message_attachments", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -194,11 +195,19 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
     expect(body.data[0].attachments).toEqual([]);
     expect(body.data[0]).not.toHaveProperty("body_tsv");
 
-    // The query filters pinned + orders pinned_at desc, company-scoped.
+    // The query filters pinned + orders pinned_at desc, company-scoped, and
+    // fetches a NAMED column set — never `*` (which would drag body_tsv over
+    // the wire) and never the internal COGS/idempotency columns the thread
+    // list also omits.
     const msgReq = sb.find("GET", "/rest/v1/messages").at(-1)!;
     expect(msgReq.url.searchParams.get("pinned_at")).toBe("not.is.null");
     expect(msgReq.url.searchParams.get("order")).toContain("pinned_at.desc");
     expect(msgReq.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    const select = msgReq.url.searchParams.get("select") ?? "";
+    expect(select).not.toBe("*");
+    expect(select).not.toContain("provider_cost");
+    expect(select).not.toContain("idempotency_key");
+    expect(select).toContain("message_attachments");
   });
 
   it("pages: limit+1 rows in → limit rows out with a next_cursor on the last row", async () => {

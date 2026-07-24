@@ -66,8 +66,6 @@ import {
   loadMessageTaskFlags,
   loadNoteTaskLinks,
 } from "./core/message-tasks";
-import { loadAttachments, messageJson } from "./messages";
-import type { MessageRow as MsgRow } from "../messaging/types";
 
 const MMS_BUCKET = "mms-media";
 const MMS_SIGNED_URL_TTL_SECONDS = 3600;
@@ -224,23 +222,29 @@ conversationsRoutes.get(
       need: "read",
     });
 
-    const rows = unwrap<MsgRow[]>(
+    // Same projection + serialization as the thread list (attachments embedded
+    // via PostgREST). `select("*")` here previously dragged the body_tsv
+    // tsvector over the wire AND — because messageJson spreads the whole row —
+    // leaked the internal columns the thread list deliberately omits
+    // (provider_cost COGS, company_id, idempotency_key). Naming the columns
+    // fixes both and makes the pinned message shape identical to the thread's.
+    const rows = unwrap<
+      (Record<string, unknown> & { id: string; message_attachments: unknown[] })[]
+    >(
       await db
         .from("messages")
-        .select("*")
+        .select(MESSAGE_COLUMNS)
         .eq("company_id", companyId)
         .eq("conversation_id", id)
         .not("pinned_at", "is", null)
         .order("pinned_at", { ascending: false }),
       "pinned messages",
     );
-    const attachments = await loadAttachments(
-      db,
-      companyId,
-      rows.map((row) => row.id),
-    );
     return c.json({
-      data: rows.map((row) => messageJson(row, attachments.get(row.id) ?? [])),
+      data: rows.map(({ message_attachments, ...message }) => ({
+        ...message,
+        attachments: message_attachments,
+      })),
     });
   },
 );

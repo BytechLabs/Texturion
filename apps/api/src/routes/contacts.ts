@@ -60,6 +60,17 @@ const CONTACT_COLUMNS =
   "consent_attested_by,created_by_user_id,updated_by_user_id," +
   "deleted_at,created_at,updated_at";
 
+/**
+ * The LIST projection — CONTACT_COLUMNS minus `notes`. Notes run up to 5000
+ * chars/row and are only ever rendered in the contact detail panel (GET
+ * /contacts/:id), never in the list table, so shipping them for a 100-row page
+ * was up to ~500 KB of payload the client throws away.
+ */
+const CONTACT_LIST_COLUMNS =
+  "id,phone_e164,name,address,consent_source,consent_at," +
+  "consent_attested_by,created_by_user_id,updated_by_user_id," +
+  "deleted_at,created_at,updated_at";
+
 const createSchema = z.object({
   phone_e164: z.string().trim().min(1).max(32),
   name: z.string().trim().min(1).max(200).optional(),
@@ -146,7 +157,7 @@ contactsRoutes.get("/contacts", requireRole("member"), async (c) => {
 
   let query = db
     .from("contacts")
-    .select(CONTACT_COLUMNS)
+    .select(CONTACT_LIST_COLUMNS)
     .eq("company_id", c.get("companyId"))
     .is("deleted_at", null);
   if (rawQ !== undefined && rawQ !== "") {

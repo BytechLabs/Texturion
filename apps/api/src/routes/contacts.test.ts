@@ -93,6 +93,8 @@ describe("GET /v1/contacts", () => {
       "(name.ilike.*smi*,phone_e164.ilike.*smi*)",
     );
     expect(call.url.searchParams.get("limit")).toBe("11");
+    // The list never fetches the (up-to-5000-char) notes column — it's detail-only.
+    expect(call.url.searchParams.get("select")).not.toContain("notes");
   });
 
   it("decorates rows with opted_out (G6 badge) and last_activity_at (conversation activity, never updated_at) via batched lookups", async () => {
