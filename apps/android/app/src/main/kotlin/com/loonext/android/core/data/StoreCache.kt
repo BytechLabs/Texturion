@@ -55,4 +55,5 @@ object CacheKeys {
     fun billing(companyId: String) = "billing/$companyId"
     fun workspace(companyId: String) = "workspace/$companyId"
     fun calling(companyId: String) = "calling/$companyId"
+    fun aiSettings(companyId: String) = "aiSettings/$companyId"
 }

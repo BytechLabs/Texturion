@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -111,6 +112,7 @@ enum class SettingsSection(val title: String, val blurb: String) {
     Usage("Usage", "Fair use, your spending cap, and the numbers"),
     Billing("Billing", "Plan, payment, and invoices"),
     Notifications("Notifications", "Email and push for new conversations"),
+    Ai("AI", "Suggest a task's address and due date from the message"),
     Profile("Profile & account", "Your name, theme, email, and password"),
 }
 
@@ -287,6 +289,8 @@ fun SettingsHome(
                             )
 
                             SettingsSection.Notifications -> NotificationsSection(settingsScope)
+
+                            SettingsSection.Ai -> AiSection(settingsScope)
 
                             SettingsSection.Profile -> ProfileSection(
                                 settingsScope, onSignOut = onSignOut,
@@ -725,6 +729,7 @@ private fun iconFor(section: SettingsSection): ImageVector = when (section) {
     SettingsSection.Usage -> Icons.Outlined.DataUsage
     SettingsSection.Billing -> Icons.Outlined.CreditCard
     SettingsSection.Notifications -> Icons.Outlined.Notifications
+    SettingsSection.Ai -> Icons.Outlined.AutoAwesome
     SettingsSection.Profile -> Icons.Outlined.Person
 }
 

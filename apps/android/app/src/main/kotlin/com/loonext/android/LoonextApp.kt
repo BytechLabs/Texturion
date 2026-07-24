@@ -5,6 +5,7 @@ import com.loonext.android.core.auth.AppPrefs
 import com.loonext.android.core.auth.AuthManager
 import com.loonext.android.core.auth.SessionStore
 import com.loonext.android.core.auth.SupabaseAuth
+import com.loonext.android.core.data.AiRepository
 import com.loonext.android.core.data.ContactsRepository
 import com.loonext.android.core.data.ForYouRepository
 import com.loonext.android.core.data.InboxRepository
@@ -103,6 +104,14 @@ class AppGraph(private val app: Application) {
     val contactsRepo = ContactsRepository(api)
     val notificationsRepo = NotificationsRepository(api)
     val searchRepo = SearchRepository(api)
+
+    /**
+     * #214 AI task enrichment + the per-company opt-in. Singleton so its
+     * per-(company, message) enrichment session cache is process-lifetime — a
+     * make-task sheet reopened for the same message reuses the suggestion
+     * instead of spending another AI call.
+     */
+    val aiRepo = AiRepository(api)
 
     /**
      * #183 part 3: the "Call with Loonext" deep-link bus. A tap on that row in

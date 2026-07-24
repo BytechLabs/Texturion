@@ -283,15 +283,82 @@ struct MessagingRepository: Sendable {
     }
 
     /// Promote a message into a task ("Make a task"). 409 = already promoted.
-    func createTask(companyId: String, messageId: String, title: String) async throws -> TaskItem {
+    /// #214: threads the optional confirmed due + structured address from the
+    /// make-task sheet through the shared, tested `taskCreateBody` builder.
+    func createTask(
+        companyId: String,
+        messageId: String,
+        title: String,
+        dueAt: String? = nil,
+        address: JSONValue? = nil
+    ) async throws -> TaskRowPatch {
+        // POST /v1/tasks returns to_jsonb(v_task) = TASK_COLUMNS, which has NO
+        // done/status column (completion derives from messages.done_at), so the
+        // 201 body must decode into TaskRowPatch (the projection of the raw row)
+        // — NOT TaskItem, whose non-optional done/status would throw keyNotFound
+        // and make every "Make a task" report a false failure. makeTask reads
+        // only id/title, both present on TaskRowPatch.
         try await api.post(
             "/v1/tasks",
-            body: JSONValue.object([
-                "message_id": .string(messageId),
-                "title": .string(title),
-            ]),
+            body: taskCreateBody(
+                messageId: messageId,
+                title: title,
+                assignedUserId: nil,
+                dueAt: dueAt,
+                address: address
+            ),
             companyId: companyId
         )
+    }
+
+    // MARK: - AI task enrichment (#214)
+
+    /// GET /v1/company/ai-settings — member-visible read of the per-company
+    /// enrichment opt-in (the make-task sheet needs it before calling enrich).
+    func aiSettings(companyId: String) async throws -> CompanyAiSettings {
+        try await api.get("/v1/company/ai-settings", companyId: companyId)
+    }
+
+    /// POST /v1/tasks/enrich — infer an address + due date/time from task text,
+    /// a pure SUGGESTION the user reviews before saving. NEVER throws to the
+    /// caller: any error resolves to the empty enrichment, so task creation is
+    /// never blocked by the AI path. Session-cached per (company, message):
+    /// reopening the make-task sheet for the same message reuses the result
+    /// instead of spending another AI call (mirrors task-enrichment.ts).
+    func enrichTask(
+        companyId: String,
+        messageId: String?,
+        conversationId: String?,
+        text: String
+    ) async -> TaskEnrichment {
+        if let messageId,
+           let cached = await TaskEnrichmentCache.shared.cached(
+               companyId: companyId, messageId: messageId
+           ) {
+            return cached
+        }
+        var body: [String: JSONValue] = ["text": .string(text)]
+        if let messageId { body["message_id"] = .string(messageId) }
+        if let conversationId { body["conversation_id"] = .string(conversationId) }
+
+        let result: TaskEnrichment
+        do {
+            result = try await api.post(
+                "/v1/tasks/enrich",
+                body: JSONValue.object(body),
+                companyId: companyId
+            )
+        } catch {
+            result = TaskEnrichment.empty
+        }
+        // Cache even the empty/failed result so a failed call doesn't re-fire
+        // within the session (the web caches unconditionally too).
+        if let messageId {
+            await TaskEnrichmentCache.shared.store(
+                result, companyId: companyId, messageId: messageId
+            )
+        }
+        return result
     }
 
     // MARK: - Supporting reads

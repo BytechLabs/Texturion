@@ -126,12 +126,11 @@ export function MakeTaskForm({
     })
       .then((res) => {
         if (res.enrichment_disabled) return;
+        // This effect runs once, right after settings load and before the user
+        // has typed a due, so a plain set is safe — no impure nested setState.
         if (settings.enrich_task_due && res.due_at) {
-          setDue((current) => {
-            if (current !== "") return current;
-            setDueSuggested(true);
-            return isoToLocalInput(res.due_at as string);
-          });
+          setDue(isoToLocalInput(res.due_at));
+          setDueSuggested(true);
         }
         if (settings.enrich_task_address && res.address) {
           setAddr({

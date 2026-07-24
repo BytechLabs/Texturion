@@ -1,10 +1,12 @@
 package com.loonext.android.features.tasks
 
+import com.loonext.android.core.data.taskAddressJson
 import com.loonext.android.core.model.AttachmentUrl
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.Task
+import com.loonext.android.core.model.TaskAddressInput
 import com.loonext.android.core.model.TaskDetail
 import com.loonext.android.core.net.ApiClient
 import kotlinx.serialization.json.JsonNull
@@ -64,6 +66,22 @@ class TaskMutations(private val api: ApiClient) {
             taskId,
             buildJsonObject {
                 if (dueAt == null) put("due_at", JsonNull) else put("due_at", dueAt)
+            },
+        )
+
+    /**
+     * #214: replace the task's whole structured address block. A non-null
+     * [address] sets it (provenance = the enrichment's value, or "manual" when
+     * hand-edited); null CLEARS it (an explicit top-level JSON null the RPC
+     * distinguishes from "leave untouched").
+     */
+    suspend fun setAddress(companyId: String, taskId: String, address: TaskAddressInput?): Task =
+        patch(
+            companyId,
+            taskId,
+            buildJsonObject {
+                if (address == null) put("address", JsonNull)
+                else put("address", taskAddressJson(address))
             },
         )
 
@@ -129,13 +147,17 @@ class TaskMutations(private val api: ApiClient) {
         companyId = companyId,
     )
 
-    /** Promote a message to a task ("Make a task"). 409 = already a task. */
+    /**
+     * Promote a message to a task ("Make a task"). 409 = already a task.
+     * #214: [address] carries the confirmed enriched/hand-entered job address.
+     */
     suspend fun create(
         companyId: String,
         messageId: String,
         title: String?,
         assignedUserId: String?,
         dueAt: String?,
+        address: TaskAddressInput? = null,
     ): Task = api.post(
         "/v1/tasks",
         buildJsonObject {
@@ -143,6 +165,7 @@ class TaskMutations(private val api: ApiClient) {
             if (title != null) put("title", title)
             if (assignedUserId != null) put("assigned_user_id", assignedUserId)
             if (dueAt != null) put("due_at", dueAt)
+            if (address != null) put("address", taskAddressJson(address))
         },
         companyId = companyId,
     )

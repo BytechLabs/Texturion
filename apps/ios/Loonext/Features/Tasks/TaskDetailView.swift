@@ -235,7 +235,17 @@ struct TaskDetailView: View {
             source_message: detail.source_message,
             attachments: detail.attachments,
             activity: detail.activity,
-            viewer_level: detail.viewer_level
+            viewer_level: detail.viewer_level,
+            // #214: the raw row (`to_jsonb(v_task)`) carries the current address
+            // after ANY mutation, so re-read it here — a rename/assign/due edit
+            // never drops the address, and an address save reflects the new one.
+            addr_street: row.addr_street,
+            addr_unit: row.addr_unit,
+            addr_city: row.addr_city,
+            addr_state: row.addr_state,
+            addr_postal_code: row.addr_postal_code,
+            addr_country: row.addr_country,
+            addr_provenance: row.addr_provenance
         )
     }
 
@@ -318,9 +328,13 @@ struct TaskDetailView: View {
                     createdLine(detail)
                     if noAccess {
                         noAccessCard
+                        // #214: the address is a task column (not conversation-
+                        // derived), so it shows even to a no-access viewer.
+                        addressSection(detail)
                     } else {
                         sourceCard(detail)
                         descriptionSection(detail)
+                        addressSection(detail)
                         if !detail.attachments.isEmpty {
                             attachmentsSection(detail)
                         }
@@ -540,6 +554,28 @@ struct TaskDetailView: View {
         }
     }
 
+    /// #214: the structured job address, editable inline. Keyed on updated_at
+    /// so a settled save (or realtime refresh) re-seeds it from the server row —
+    /// the same resync the title/description inline editors use.
+    private func addressSection(_ detail: TaskDetail) -> some View {
+        TaskAddressSection(detail: detail) { fields, provenance in
+            saveAddress(fields, provenance: provenance)
+        }
+        .id("\(detail.id)|\(detail.updated_at)|address")
+    }
+
+    private func saveAddress(_ fields: AddressFieldValues, provenance: String) {
+        guard let detail else { return }
+        runPatch {
+            try await mutations.updateAddress(
+                companyId: companyId,
+                taskId: detail.id,
+                fields: fields,
+                provenance: provenance
+            )
+        }
+    }
+
     private func descriptionSection(_ detail: TaskDetail) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             sectionLabel("Description")
@@ -717,6 +753,137 @@ private struct InlineEditField: View {
                     .foregroundStyle(BrandColor.destructive)
             }
         }
+    }
+}
+
+// MARK: - Address (#214)
+
+/// The task's structured job address, editable inline. Enriched values (an
+/// address suggested by AI at create time) carry a provenance badge; any edit
+/// marks the address user-authored ("manual"). Saves the whole block when
+/// focus leaves the group (never mid-field) or the section is dismissed, and
+/// the RPC no-ops an unchanged address. Mirrors the web TaskAddressSection.
+@MainActor
+private struct TaskAddressSection: View {
+    let detail: TaskDetail
+    let onSave: @MainActor (AddressFieldValues, String) -> Void
+
+    private enum AddrField: Hashable {
+        case street, unit, city, state, postal, country
+    }
+
+    @State private var fields: AddressFieldValues
+    @State private var provenance: String?
+    @State private var open: Bool
+    @FocusState private var focused: AddrField?
+
+    init(detail: TaskDetail, onSave: @escaping @MainActor (AddressFieldValues, String) -> Void) {
+        self.detail = detail
+        self.onSave = onSave
+        let initial = detail.addressFields
+        _fields = State(initialValue: initial)
+        _provenance = State(initialValue: detail.addr_provenance)
+        _open = State(initialValue: !initial.isEmpty)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                if open { commit() } // collapsing counts as leaving the group
+                open.toggle()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "mappin.and.ellipse")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(BrandColor.muted500)
+                    Text("Address")
+                        .font(.golos(13.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                    if let label = addressProvenanceLabel(provenance) {
+                        provenanceBadge(label)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(BrandColor.muted250)
+                        .rotationEffect(.degrees(open ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if open {
+                VStack(spacing: 8) {
+                    addrField("Street", text: $fields.street, field: .street)
+                    HStack(spacing: 8) {
+                        addrField("Unit / suite", text: $fields.unit, field: .unit)
+                        addrField("City", text: $fields.city, field: .city)
+                    }
+                    HStack(spacing: 8) {
+                        addrField("State / province", text: $fields.state, field: .state)
+                        addrField("Postal code", text: $fields.postalCode, field: .postal)
+                    }
+                    addrField("Country", text: $fields.country, field: .country)
+                }
+                // Editing any field marks the whole address user-authored.
+                .onChange(of: fields) { _, _ in provenance = AddressProvenance.manual }
+                // Focus leaving the whole group (keyboard dismiss / tap away) is
+                // the blur-out-of-group the web saves on.
+                .onChange(of: focused) { _, newValue in
+                    if newValue == nil { commit() }
+                }
+            }
+        }
+        .padding(.horizontal, 4)
+        // Safety net: a save-on-leave if the screen pops with the keyboard up.
+        .onDisappear { commit() }
+    }
+
+    private func provenanceBadge(_ label: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 9, weight: .semibold))
+            Text(label)
+                .font(.golos(10.5, weight: .semibold))
+        }
+        .foregroundStyle(BrandColor.muted600)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(BrandColor.inset, in: Capsule())
+    }
+
+    private func addrField(
+        _ placeholder: String,
+        text: Binding<String>,
+        field: AddrField
+    ) -> some View {
+        TextField(placeholder, text: text)
+            .font(.golos(13))
+            .foregroundStyle(BrandColor.ink)
+            .textInputAutocapitalization(.words)
+            .autocorrectionDisabled()
+            .focused($focused, equals: field)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                BrandColor.inset,
+                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            )
+    }
+
+    /// Save the block when the edited fields differ from the SERVER's current
+    /// address (the value this section was built from). Comparing against the
+    /// live row — not a "last attempted" value — is what makes a failed save
+    /// retryable: the server row stays stale on failure, so the next commit
+    /// still differs and re-sends; a successful save recreates this section
+    /// (it is keyed on updated_at) from the new server row, so it won't re-save.
+    /// Mirrors the web TaskAddressSection. (If focus-leave and onDisappear both
+    /// fire for one edit before the save returns, the second is an idempotent
+    /// no-op the server folds away — or a free retry if the first failed.)
+    private func commit() {
+        guard fields.trimmed != detail.addressFields.trimmed else { return }
+        onSave(fields, provenance ?? AddressProvenance.manual)
     }
 }
 

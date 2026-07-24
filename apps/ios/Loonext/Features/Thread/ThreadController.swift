@@ -576,13 +576,25 @@ final class ThreadController {
         }
     }
 
-    func makeTask(_ message: Message, title: String) {
+    /// #214: create the task with the make-task sheet's confirmed title, an
+    /// optional due (offset ISO), and an optional structured address. The
+    /// address block is null when the user left every field blank.
+    func makeTask(
+        _ message: Message,
+        title: String,
+        dueAt: String? = nil,
+        address: AddressFieldValues = AddressFieldValues(),
+        provenance: String = AddressProvenance.manual
+    ) {
+        let addressBody = taskAddressBody(address, provenance: provenance)
         Task {
             do {
                 let task = try await repo.createTask(
                     companyId: companyId,
                     messageId: message.id,
-                    title: title
+                    title: title,
+                    dueAt: dueAt,
+                    address: addressBody
                 )
                 replaceMessage(
                     message.replacingPromotedTask(MessageTaskLink(id: task.id, title: task.title))
@@ -597,6 +609,27 @@ final class ThreadController {
                 }
             }
         }
+    }
+
+    /// #214: the company's enrichment opt-in, for the make-task sheet. Keeps
+    /// `companyId` private (the sheet only ever reads through the controller).
+    /// Throws-free — a failed read degrades to all-off (no enrichment attempted).
+    func aiSettingsForTaskDraft() async -> CompanyAiSettings {
+        (try? await repo.aiSettings(companyId: companyId))
+            ?? CompanyAiSettings(enrich_task_address: false, enrich_task_due: false)
+    }
+
+    /// #214: enrich a make-task draft from the message text (session-cached,
+    /// throws-free — the empty enrichment on any failure or blank text).
+    func enrichTaskDraft(for message: Message) async -> TaskEnrichment {
+        let text = message.body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return TaskEnrichment.empty }
+        return await repo.enrichTask(
+            companyId: companyId,
+            messageId: message.id,
+            conversationId: conversationId,
+            text: text
+        )
     }
 
     // MARK: - Conversation controls
@@ -974,7 +1007,14 @@ extension TaskItem {
             done: done,
             status: done ? "done" : "open",
             contact: contact,
-            attachment_count: attachment_count
+            attachment_count: attachment_count,
+            addr_street: addr_street,
+            addr_unit: addr_unit,
+            addr_city: addr_city,
+            addr_state: addr_state,
+            addr_postal_code: addr_postal_code,
+            addr_country: addr_country,
+            addr_provenance: addr_provenance
         )
     }
 }

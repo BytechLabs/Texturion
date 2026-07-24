@@ -23,6 +23,17 @@ struct TaskItem: Codable, Sendable {
     let contact: TaskContactLocation?
     /// Present on checklist rows (GET /v1/conversations/:id/tasks).
     let attachment_count: Int?
+    /// #214 structured job address + provenance. All nil for a task without an
+    /// address and for every pre-#214 row (absent keys decode to nil). Optional
+    /// with a default so the memberwise init stays source-compatible with the
+    /// existing call sites.
+    var addr_street: String? = nil
+    var addr_unit: String? = nil
+    var addr_city: String? = nil
+    var addr_state: String? = nil
+    var addr_postal_code: String? = nil
+    var addr_country: String? = nil
+    var addr_provenance: String? = nil
 }
 
 struct TaskContactLocation: Codable, Sendable {
@@ -99,4 +110,26 @@ struct TaskDetail: Codable, Sendable {
     @Default<DefaultEmptyList<TaskAttachmentItem>> var attachments: [TaskAttachmentItem]
     @Default<DefaultEmptyList<TaskActivityItem>> var activity: [TaskActivityItem]
     @Default<DefaultViewerLevelText> var viewer_level: String
+    /// #214 structured job address + provenance (all nil for a task without an
+    /// address, and for every pre-#214 row). Optional with a default so the
+    /// memberwise init stays source-compatible with the existing call sites.
+    var addr_street: String? = nil
+    var addr_unit: String? = nil
+    var addr_city: String? = nil
+    var addr_state: String? = nil
+    var addr_postal_code: String? = nil
+    var addr_country: String? = nil
+    var addr_provenance: String? = nil
+
+    /// The 6 address columns as editable field values (nil columns → "").
+    var addressFields: AddressFieldValues {
+        AddressFieldValues(
+            street: addr_street ?? "",
+            unit: addr_unit ?? "",
+            city: addr_city ?? "",
+            state: addr_state ?? "",
+            postalCode: addr_postal_code ?? "",
+            country: addr_country ?? ""
+        )
+    }
 }

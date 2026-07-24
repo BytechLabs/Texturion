@@ -671,8 +671,11 @@ private fun ThreadLoaded(
             message = message,
             contactName = contactName,
             members = controller.members,
-            onCreate = { title, assignedUserId, dueAtIso ->
-                controller.makeTask(message, title, assignedUserId, dueAtIso)
+            aiRepo = graph.aiRepo,
+            companyId = companyId,
+            conversationId = controller.conversationId,
+            onCreate = { title, assignedUserId, dueAtIso, address ->
+                controller.makeTask(message, title, assignedUserId, dueAtIso, address)
                 makeTaskFor = null
             },
             onDismiss = { makeTaskFor = null },

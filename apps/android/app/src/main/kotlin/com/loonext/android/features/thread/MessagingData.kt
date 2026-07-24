@@ -17,8 +17,10 @@ import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.SearchResult
 import com.loonext.android.core.model.Tag
 import com.loonext.android.core.model.Task
+import com.loonext.android.core.model.TaskAddressInput
 import com.loonext.android.core.model.Template
 import com.loonext.android.core.model.Usage
+import com.loonext.android.core.data.taskAddressJson
 import com.loonext.android.core.net.ApiClient
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonNull
@@ -260,13 +262,18 @@ class MessagingRepository(private val api: ApiClient) {
         companyId = companyId,
     )
 
-    /** Promote a message into a task ("Make a task"). 409 = already promoted. */
+    /**
+     * Promote a message into a task ("Make a task"). 409 = already promoted.
+     * #214: [address] carries the confirmed enriched (or hand-entered) job
+     * address; null when the task has none.
+     */
     suspend fun createTask(
         companyId: String,
         messageId: String,
         title: String,
         assignedUserId: String? = null,
         dueAtIso: String? = null,
+        address: TaskAddressInput? = null,
     ): Task = api.post(
         "/v1/tasks",
         buildJsonObject {
@@ -274,6 +281,7 @@ class MessagingRepository(private val api: ApiClient) {
             put("title", title)
             if (assignedUserId != null) put("assigned_user_id", assignedUserId)
             if (dueAtIso != null) put("due_at", dueAtIso)
+            if (address != null) put("address", taskAddressJson(address))
         },
         companyId = companyId,
     )

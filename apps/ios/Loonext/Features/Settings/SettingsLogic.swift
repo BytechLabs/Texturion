@@ -34,6 +34,12 @@ enum SettingsRoleGate {
         MemberRole.atLeast(role, required: MemberRole.admin)
     }
 
+    /// #214 AI enrichment opt-in writes — admin+ (it spends money). Reads are
+    /// member-visible; only the toggles are gated.
+    static func canManageAiSettings(_ role: String?) -> Bool {
+        MemberRole.atLeast(role, required: MemberRole.admin)
+    }
+
     /// Overage cap — OWNER only.
     static func canChangeOverageCap(_ role: String?) -> Bool { role == MemberRole.owner }
 

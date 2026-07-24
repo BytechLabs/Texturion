@@ -103,7 +103,6 @@ private struct ThreadBody: View {
     let onBack: @MainActor () -> Void
 
     @State private var makeTaskFor: Message?
-    @State private var makeTaskTitle = ""
     @State private var detailSheet: ThreadDetailSheet?
     @State private var confirmOptOut = false
     @State private var confirmRevoke = false
@@ -292,17 +291,10 @@ private struct ThreadBody: View {
             ) {
                 if let message = makeTaskFor {
                     MakeTaskSheet(
+                        controller: controller,
                         message: message,
                         contactName: contactName,
-                        title: $makeTaskTitle,
-                        onCancel: { makeTaskFor = nil },
-                        onCreate: {
-                            let title = makeTaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-                            if !title.isEmpty {
-                                controller.makeTask(message, title: String(title.prefix(200)))
-                            }
-                            makeTaskFor = nil
-                        }
+                        onDismiss: { makeTaskFor = nil }
                     )
                 }
             }
@@ -486,10 +478,8 @@ private struct ThreadBody: View {
                     onTogglePin: { controller.togglePin(message) },
                     onRetry: { controller.retrySend(message.id) },
                     onMakeTask: {
-                        makeTaskTitle = String(
-                            message.body.trimmingCharacters(in: .whitespacesAndNewlines).prefix(120)
-                        )
-                        if makeTaskTitle.isEmpty { makeTaskTitle = "Follow up" }
+                        // The sheet seeds its own editable title from the body
+                        // (#214 also pre-fills a due + address via enrichment).
                         makeTaskFor = message
                     },
                     onCopied: { controller.markCopied() }
@@ -1027,110 +1017,411 @@ private struct ToastView: View {
     }
 }
 
-// MARK: - Make a task (spec 22)
+// MARK: - Make a task (spec 22 + #214 enrichment)
 
-/// "Make a task — from a message": quoted source message with a lime bar,
-/// title field on paper, ink Create bar with a lime check circle. Assign-to
-/// and due chips are OMITTED — createTask takes a title only (no data layer
-/// for assignee/due at creation).
+/// "Make a task — from a message": quoted source message with a lime bar, an
+/// editable title on paper, an optional due, and — when the company opted into
+/// AI enrichment (Settings → AI) — a pre-filled due and a collapsible
+/// structured address, each with a provenance badge and fully editable (any
+/// edit marks the address "manual"). The ink Create bar posts the confirmed
+/// task. Mirrors the web MakeTaskForm.
 @MainActor
 private struct MakeTaskSheet: View {
+    let controller: ThreadController
     let message: Message
     let contactName: String
-    @Binding var title: String
-    let onCancel: @MainActor () -> Void
-    let onCreate: @MainActor () -> Void
+    let onDismiss: @MainActor () -> Void
+
+    @State private var title: String
+    @State private var due: Date?
+    @State private var dueSuggested = false
+    @State private var duePickerOpen = false
+    @State private var addr = AddressFieldValues()
+    @State private var addrProvenance: String?
+    @State private var addrOpen = false
+    @State private var enriching = false
+    @State private var enrichStarted = false
+
+    private enum AddrField: Hashable {
+        case street, unit, city, state, postal, country
+    }
+
+    @FocusState private var addrFocus: AddrField?
+
+    init(
+        controller: ThreadController,
+        message: Message,
+        contactName: String,
+        onDismiss: @escaping @MainActor () -> Void
+    ) {
+        self.controller = controller
+        self.message = message
+        self.contactName = contactName
+        self.onDismiss = onDismiss
+        _title = State(initialValue: Self.seededTitle(message.body))
+    }
+
+    /// The web's message-snippet default title, editable: the trimmed body
+    /// (first 120 chars), or "Follow up" for a picture-only message.
+    private static func seededTitle(_ body: String) -> String {
+        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Follow up" : String(trimmed.prefix(120))
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("New task")
-                        .font(.golos(21, weight: .semibold))
-                        .foregroundStyle(BrandColor.ink)
-                    Text("From \(contactName)'s message · posts to the thread")
-                        .font(.golos(12))
-                        .foregroundStyle(BrandColor.muted500)
-                }
-                Spacer()
-                Button(action: onCancel) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(BrandColor.muted700)
-                        .frame(width: 34, height: 34)
-                        .background(Circle().fill(BrandColor.inset))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Cancel")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 15) {
+                header
+                if !message.body.isBlank { sourceQuote }
+                titleField
+                dueRow
+                addressBlock
+                createButton
+                Text("The thread shows the task line")
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted300)
+                    .frame(maxWidth: .infinity)
             }
+            .padding(20)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(BrandColor.canvas)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .task { await enrichIfNeeded() }
+        .sheet(isPresented: $duePickerOpen) {
+            MakeTaskDueSheet(initial: due) { picked in
+                due = picked
+                dueSuggested = false
+            }
+        }
+    }
 
-            if !message.body.isBlank {
-                HStack(alignment: .top, spacing: 9) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(BrandColor.lime)
-                        .frame(width: 3)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("\u{201C}\(message.body)\u{201D}")
-                            .font(.golos(12.5))
-                            .foregroundStyle(BrandColor.muted700)
-                            .lineLimit(4)
-                        Text("\(contactName) · \(bubbleTime(message.created_at))")
-                            .font(.golos(10.5, weight: .semibold))
-                            .foregroundStyle(BrandColor.muted300)
-                    }
-                }
-                .padding(13)
-                .frame(maxWidth: .infinity, alignment: .leading)
+    // MARK: Sections
+
+    private var header: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("New task")
+                    .font(.golos(21, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
+                Text("From \(contactName)'s message · posts to the thread")
+                    .font(.golos(12))
+                    .foregroundStyle(BrandColor.muted500)
+            }
+            Spacer()
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(BrandColor.muted700)
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(BrandColor.inset))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Cancel")
+        }
+    }
+
+    private var sourceQuote: some View {
+        HStack(alignment: .top, spacing: 9) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(BrandColor.lime)
+                .frame(width: 3)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("\u{201C}\(message.body)\u{201D}")
+                    .font(.golos(12.5))
+                    .foregroundStyle(BrandColor.muted700)
+                    .lineLimit(4)
+                Text("\(contactName) · \(bubbleTime(message.created_at))")
+                    .font(.golos(10.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.muted300)
+            }
+        }
+        .padding(13)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            BrandColor.inset,
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
+    }
+
+    private var titleField: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeader(label: "Title")
+            TextField("Task title", text: $title, axis: .vertical)
+                .font(.golos(14.5, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
+                .lineLimit(1 ... 3)
+                .padding(.horizontal, 15)
+                .padding(.vertical, 13)
                 .background(
-                    BrandColor.inset,
+                    BrandColor.paper,
                     in: RoundedRectangle(cornerRadius: 16, style: .continuous)
                 )
-            }
+        }
+    }
 
-            VStack(alignment: .leading, spacing: 0) {
-                SectionHeader(label: "Title")
-                TextField("Task title", text: $title, axis: .vertical)
-                    .font(.golos(14.5, weight: .semibold))
-                    .foregroundStyle(BrandColor.ink)
-                    .lineLimit(1 ... 3)
+    private var dueRow: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                SectionHeader(label: "Due (optional)")
+                if dueSuggested { suggestedHint }
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: 8) {
+                Button {
+                    duePickerOpen = true
+                } label: {
+                    HStack {
+                        Text(dueDisplayLabel)
+                            .font(.golos(14, weight: due == nil ? .regular : .semibold))
+                            .foregroundStyle(due == nil ? BrandColor.muted500 : BrandColor.ink)
+                        Spacer(minLength: 0)
+                        Image(systemName: "calendar")
+                            .font(.system(size: 13))
+                            .foregroundStyle(BrandColor.muted400)
+                    }
                     .padding(.horizontal, 15)
                     .padding(.vertical, 13)
                     .background(
                         BrandColor.paper,
                         in: RoundedRectangle(cornerRadius: 16, style: .continuous)
                     )
-            }
-
-            Button(action: onCreate) {
-                HStack(spacing: 10) {
-                    Text("Create task")
-                        .font(.golos(15, weight: .semibold))
-                        .foregroundStyle(BrandColor.canvas)
-                    Spacer()
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(BrandColor.onLime)
-                        .frame(width: 42, height: 42)
-                        .background(Circle().fill(BrandColor.lime))
                 }
-                .padding(.leading, 22)
-                .padding(.trailing, 8)
-                .padding(.vertical, 8)
-                .background(Capsule().fill(BrandColor.ink))
+                .buttonStyle(.plain)
+                if due != nil {
+                    Button {
+                        due = nil
+                        dueSuggested = false
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundStyle(BrandColor.muted300)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Clear due date")
+                }
+            }
+        }
+    }
+
+    private var suggestedHint: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 9, weight: .semibold))
+            Text("Suggested")
+                .font(.golos(10.5, weight: .semibold))
+        }
+        .foregroundStyle(BrandColor.muted500)
+    }
+
+    private var addressBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                addrOpen.toggle()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "mappin.and.ellipse")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(BrandColor.muted500)
+                    Text("Address")
+                        .font(.golos(13.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                    if enriching {
+                        ProgressView().controlSize(.mini)
+                    }
+                    if let label = addressProvenanceLabel(addrProvenance) {
+                        addrBadge(label)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(BrandColor.muted250)
+                        .rotationEffect(.degrees(addrOpen ? 180 : 0))
+                }
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Create task")
 
-            Text("The thread shows the task line")
-                .font(.golos(11))
-                .foregroundStyle(BrandColor.muted300)
-                .frame(maxWidth: .infinity)
+            if addrOpen {
+                VStack(spacing: 8) {
+                    addrField("Street", keyPath: \.street, field: .street)
+                    HStack(spacing: 8) {
+                        addrField("Unit / suite", keyPath: \.unit, field: .unit)
+                        addrField("City", keyPath: \.city, field: .city)
+                    }
+                    HStack(spacing: 8) {
+                        addrField("State / province", keyPath: \.state, field: .state)
+                        addrField("Postal code", keyPath: \.postalCode, field: .postal)
+                    }
+                    addrField("Country", keyPath: \.country, field: .country)
+                }
+            }
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(BrandColor.canvas)
-        .presentationDetents([.medium])
-        .presentationDragIndicator(.visible)
+    }
+
+    private func addrBadge(_ label: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 9, weight: .semibold))
+            Text(label)
+                .font(.golos(10.5, weight: .semibold))
+        }
+        .foregroundStyle(BrandColor.muted600)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(BrandColor.inset, in: Capsule())
+    }
+
+    /// A custom binding marks the address "manual" ONLY on a user keystroke —
+    /// an enrichment assigning `addr` directly bypasses this setter, so the
+    /// suggested provenance badge survives the pre-fill (the web's editAddr vs
+    /// setAddr split).
+    private func addrField(
+        _ placeholder: String,
+        keyPath: WritableKeyPath<AddressFieldValues, String>,
+        field: AddrField
+    ) -> some View {
+        let binding = Binding<String>(
+            get: { addr[keyPath: keyPath] },
+            set: { newValue in
+                addr[keyPath: keyPath] = newValue
+                addrProvenance = AddressProvenance.manual
+            }
+        )
+        return TextField(placeholder, text: binding)
+            .font(.golos(13))
+            .foregroundStyle(BrandColor.ink)
+            .textInputAutocapitalization(.words)
+            .autocorrectionDisabled()
+            .focused($addrFocus, equals: field)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                BrandColor.inset,
+                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            )
+    }
+
+    private var createButton: some View {
+        Button(action: create) {
+            HStack(spacing: 10) {
+                Text("Create task")
+                    .font(.golos(15, weight: .semibold))
+                    .foregroundStyle(BrandColor.canvas)
+                Spacer()
+                Image(systemName: "checkmark")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(BrandColor.onLime)
+                    .frame(width: 42, height: 42)
+                    .background(Circle().fill(BrandColor.lime))
+            }
+            .padding(.leading, 22)
+            .padding(.trailing, 8)
+            .padding(.vertical, 8)
+            .background(Capsule().fill(BrandColor.ink))
+        }
+        .buttonStyle(.plain)
+        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .accessibilityLabel("Create task")
+    }
+
+    // MARK: Logic
+
+    /// The due row's label: "today 3:00 PM" / "Jul 8 9:00 AM", or a placeholder.
+    /// Reuses the tested `dueSentenceTime` helper (round-trips through the same
+    /// offset-ISO encoder the create body uses).
+    private var dueDisplayLabel: String {
+        guard let due else { return "Add a due date" }
+        return dueSentenceTime(isoOffsetString(due, timeZone: .current))
+    }
+
+    private func create() {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        controller.makeTask(
+            message,
+            title: String(trimmed.prefix(taskTitleMax)),
+            dueAt: due.map { encodeDueAt($0) },
+            address: addr,
+            provenance: addrProvenance ?? AddressProvenance.manual
+        )
+        onDismiss()
+    }
+
+    /// #214: on open, if any enrichment toggle is on and the message has text,
+    /// enrich once and pre-fill the due (when empty) and the structured address
+    /// (auto-expanded, with a provenance badge). Every value stays editable.
+    private func enrichIfNeeded() async {
+        if enrichStarted { return }
+        enrichStarted = true
+        let settings = await controller.aiSettingsForTaskDraft()
+        guard settings.anyEnabled else { return }
+        guard !message.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+        enriching = true
+        let result = await controller.enrichTaskDraft(for: message)
+        enriching = false
+        if result.enrichment_disabled == true { return }
+
+        if settings.enrich_task_due, due == nil,
+           let iso = result.due_at, let date = parseWireTimestamp(iso) {
+            due = date
+            dueSuggested = true
+        }
+        if settings.enrich_task_address, let address = result.address {
+            let seeded = AddressFieldValues(address)
+            if !seeded.isEmpty {
+                addr = seeded
+                addrProvenance = result.address_provenance
+                addrOpen = true
+            }
+        }
+    }
+}
+
+/// A compact date + time picker for the make-task due. The caller encodes the
+/// picked Date as offset-bearing ISO via `encodeDueAt`.
+@MainActor
+private struct MakeTaskDueSheet: View {
+    let initial: Date?
+    let onSet: @MainActor (Date) -> Void
+
+    @State private var draft: Date
+    @Environment(\.dismiss) private var dismiss
+
+    init(initial: Date?, onSet: @escaping @MainActor (Date) -> Void) {
+        self.initial = initial
+        self.onSet = onSet
+        let fallback = Calendar.current.date(
+            bySettingHour: 9, minute: 0, second: 0, of: Date()
+        ) ?? Date()
+        _draft = State(initialValue: initial ?? fallback)
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            DatePicker(
+                "Due",
+                selection: $draft,
+                displayedComponents: [.date, .hourAndMinute]
+            )
+            .datePickerStyle(.graphical)
+            HStack {
+                Button("Cancel") { dismiss() }
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Set due date") {
+                    onSet(draft)
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(BrandColor.olive)
+            }
+        }
+        .padding(16)
+        .presentationDetents([.medium, .large])
     }
 }
 

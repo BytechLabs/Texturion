@@ -6,6 +6,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     case workspace
     case hours
     case calling
+    case ai
     case team
     case numbers
     case usage
@@ -20,6 +21,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .workspace: "Workspace"
         case .hours: "Business hours & away reply"
         case .calling: "Calling"
+        case .ai: "AI"
         case .team: "Team"
         case .numbers: "Numbers"
         case .usage: "Usage"
@@ -34,6 +36,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .workspace: "Name, business identification, timezone"
         case .hours: "When you're open, and what after-hours texters hear"
         case .calling: "Missed-call text-back, voicemail, screening, caller ID"
+        case .ai: "Pre-fill a task's address and due date from a message"
         case .team: "Who can see and answer your customers' texts"
         case .numbers: "Your numbers, ports, text-enablement, registration"
         case .usage: "Messages, minutes, and your overage cap"
@@ -49,6 +52,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .workspace: "building.2"
         case .hours: "clock"
         case .calling: "phone"
+        case .ai: "sparkles"
         case .team: "person.2"
         case .numbers: "number"
         case .usage: "chart.bar"
@@ -254,6 +258,8 @@ struct SettingsHome: View {
                     HoursSectionView(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
                 case .calling:
                     CallingSectionView(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
+                case .ai:
+                    AiSectionView(scope: scope)
                 case .team:
                     TeamSectionView(scope: scope, company: company)
                 case .numbers:

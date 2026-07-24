@@ -34,11 +34,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DatePicker
@@ -70,6 +72,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
@@ -88,11 +91,14 @@ import coil3.compose.AsyncImage
 import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.model.AddressProvenance
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
+import com.loonext.android.core.model.TaskAddressInput
 import com.loonext.android.core.model.TaskAttachmentItem
 import com.loonext.android.core.model.TaskDetail
+import com.loonext.android.core.model.addressProvenanceLabel
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.features.contacts.MultipartClient
@@ -385,6 +391,14 @@ private fun TaskDetailBody(
                 assigned_user_id = task.assigned_user_id,
                 due_at = task.due_at,
                 updated_at = task.updated_at,
+                // #214: reflect the saved (or cleared) structured address.
+                addr_street = task.addr_street,
+                addr_unit = task.addr_unit,
+                addr_city = task.addr_city,
+                addr_state = task.addr_state,
+                addr_postal_code = task.addr_postal_code,
+                addr_country = task.addr_country,
+                addr_provenance = task.addr_provenance,
             ),
         )
     }
@@ -686,6 +700,27 @@ private fun TaskDetailBody(
                         )
                     }
                 }
+            }
+
+            // #214 structured job address — task identity (a task column, not
+            // conversation-derived), so it shows even at 'none'. Editable inline;
+            // enriched values carry a provenance badge that clears on any edit.
+            item(key = "address") {
+                TaskAddressSection(
+                    detail = detail,
+                    enabled = !noAccess,
+                    onSave = { address ->
+                        try {
+                            applyTask(mutations.setAddress(companyId, detail.id, address))
+                            null
+                        } catch (cause: Exception) {
+                            cause.userMessage()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 18.dp, end = 18.dp, top = 14.dp),
+                )
             }
 
             if (noAccess) {
@@ -1008,6 +1043,278 @@ private fun MetaRow(
             )
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// #214 — the task's structured job address, editable inline. Enriched values
+// (an address suggested by AI at create time) carry a provenance badge; any
+// edit marks the address user-authored ("manual"). A Save affordance appears
+// only when the group differs from the saved row; saving no-ops server-side
+// when unchanged. Mirrors the web TaskAddressSection.
+// ---------------------------------------------------------------------------
+
+private data class AddrFields(
+    val street: String = "",
+    val unit: String = "",
+    val city: String = "",
+    val state: String = "",
+    val postalCode: String = "",
+    val country: String = "",
+) {
+    fun allBlank(): Boolean =
+        street.isBlank() && unit.isBlank() && city.isBlank() &&
+            state.isBlank() && postalCode.isBlank() && country.isBlank()
+
+    /** Same content as [other] once each field is trimmed? */
+    fun trimmedEquals(other: AddrFields): Boolean =
+        street.trim() == other.street.trim() && unit.trim() == other.unit.trim() &&
+            city.trim() == other.city.trim() && state.trim() == other.state.trim() &&
+            postalCode.trim() == other.postalCode.trim() &&
+            country.trim() == other.country.trim()
+}
+
+private fun addrFieldsOf(detail: TaskDetail) = AddrFields(
+    street = detail.addr_street.orEmpty(),
+    unit = detail.addr_unit.orEmpty(),
+    city = detail.addr_city.orEmpty(),
+    state = detail.addr_state.orEmpty(),
+    postalCode = detail.addr_postal_code.orEmpty(),
+    country = detail.addr_country.orEmpty(),
+)
+
+@Composable
+private fun TaskAddressSection(
+    detail: TaskDetail,
+    enabled: Boolean,
+    onSave: suspend (TaskAddressInput?) -> String?,
+    modifier: Modifier = Modifier,
+) {
+    val scope = rememberCoroutineScope()
+    // Re-key the whole group on the server row's address signature so a settled
+    // save (or a teammate's edit) re-syncs the fields, provenance, and dirty.
+    val saved = addrFieldsOf(detail)
+    val signature = listOf(
+        detail.addr_street, detail.addr_unit, detail.addr_city, detail.addr_state,
+        detail.addr_postal_code, detail.addr_country, detail.addr_provenance,
+    ).joinToString("|") { it.orEmpty() }
+
+    var fields by remember(signature) { mutableStateOf(saved) }
+    var provenance by remember(signature) { mutableStateOf(detail.addr_provenance) }
+    var open by remember(signature) { mutableStateOf(!saved.allBlank()) }
+    var error by remember(signature) { mutableStateOf<String?>(null) }
+    var saving by remember(signature) { mutableStateOf(false) }
+
+    // Editing any field marks the whole address user-authored ("manual").
+    fun edit(update: (AddrFields) -> AddrFields) {
+        fields = update(fields)
+        provenance = AddressProvenance.MANUAL
+        error = null
+    }
+
+    val dirty = !fields.trimmedEquals(saved)
+    val provLabel = addressProvenanceLabel(provenance)
+
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .clickable { open = !open }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                Icons.Outlined.Place,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                "Address",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            if (provLabel != null) AddressProvenanceBadge(provLabel)
+            Spacer(Modifier.weight(1f))
+            Icon(
+                Icons.Outlined.ExpandMore,
+                contentDescription = if (open) "Hide address" else "Show address",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .size(18.dp)
+                    .rotate(if (open) 180f else 0f),
+            )
+        }
+
+        if (open) {
+            AddressInput(
+                value = fields.street,
+                placeholder = "Street",
+                enabled = enabled,
+                onValue = { v -> edit { it.copy(street = v) } },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AddressInput(
+                    value = fields.unit,
+                    placeholder = "Unit / suite",
+                    enabled = enabled,
+                    onValue = { v -> edit { it.copy(unit = v) } },
+                    modifier = Modifier.weight(1f),
+                )
+                AddressInput(
+                    value = fields.city,
+                    placeholder = "City",
+                    enabled = enabled,
+                    onValue = { v -> edit { it.copy(city = v) } },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AddressInput(
+                    value = fields.state,
+                    placeholder = "State / province",
+                    enabled = enabled,
+                    onValue = { v -> edit { it.copy(state = v) } },
+                    modifier = Modifier.weight(1f),
+                )
+                AddressInput(
+                    value = fields.postalCode,
+                    placeholder = "Postal code",
+                    enabled = enabled,
+                    onValue = { v -> edit { it.copy(postalCode = v) } },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            AddressInput(
+                value = fields.country,
+                placeholder = "Country",
+                enabled = enabled,
+                onValue = { v -> edit { it.copy(country = v) } },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            if (enabled && dirty) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "Reset",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(enabled = !saving) {
+                                fields = saved
+                                provenance = detail.addr_provenance
+                                error = null
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
+                    Text(
+                        if (saving) "Saving…" else "Save address",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(enabled = !saving) {
+                                val address = if (fields.allBlank()) {
+                                    null
+                                } else {
+                                    TaskAddressInput(
+                                        street = fields.street.trim().ifEmpty { null },
+                                        unit = fields.unit.trim().ifEmpty { null },
+                                        city = fields.city.trim().ifEmpty { null },
+                                        state = fields.state.trim().ifEmpty { null },
+                                        postal_code = fields.postalCode.trim().ifEmpty { null },
+                                        country = fields.country.trim().ifEmpty { null },
+                                        provenance = provenance ?: AddressProvenance.MANUAL,
+                                    )
+                                }
+                                scope.launch {
+                                    saving = true
+                                    error = onSave(address)
+                                    saving = false
+                                }
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
+                }
+            }
+            if (error != null) {
+                Text(
+                    error!!,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+}
+
+/** #214 the provenance pill: sparkle + "From the message" / etc. */
+@Composable
+private fun AddressProvenanceBadge(label: String) {
+    Row(
+        Modifier
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Icon(
+            Icons.Outlined.AutoAwesome,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(11.dp),
+        )
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** One address input, styled to match the detail screen's inline-edit grammar. */
+@Composable
+private fun AddressInput(
+    value: String,
+    placeholder: String,
+    enabled: Boolean,
+    onValue: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = { onValue(it.take(200)) },
+        enabled = enabled,
+        singleLine = true,
+        placeholder = {
+            Text(
+                placeholder,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            )
+        },
+        textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
+        shape = MaterialTheme.shapes.medium,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            focusedBorderColor = MaterialTheme.colorScheme.outline,
+            unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
+        modifier = modifier,
+    )
 }
 
 /** The lime-barred source-message quote card (spec 22/23 grammar). */

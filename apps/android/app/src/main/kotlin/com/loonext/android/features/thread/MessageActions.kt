@@ -25,13 +25,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddTask
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
@@ -40,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -56,9 +62,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.data.AiRepository
+import com.loonext.android.core.model.AddressProvenance
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
+import com.loonext.android.core.model.TaskAddressInput
+import com.loonext.android.core.model.addressProvenanceLabel
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.pressScale
@@ -66,6 +76,7 @@ import com.loonext.android.ui.common.rememberHaptics
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -168,17 +179,52 @@ private data class DueChoice(val label: String, val iso: String?)
 
 private val pickedDueFormat = DateTimeFormatter.ofPattern("MMM d, h a")
 
+/** The 6 structured address fields as editable strings ("" = absent). */
+private data class AddressFields(
+    val street: String = "",
+    val unit: String = "",
+    val city: String = "",
+    val state: String = "",
+    val postalCode: String = "",
+    val country: String = "",
+) {
+    fun isEmpty(): Boolean =
+        street.isBlank() && unit.isBlank() && city.isBlank() &&
+            state.isBlank() && postalCode.isBlank() && country.isBlank()
+}
+
+/** A UTC/offset ISO instant → a short "MMM d, h a" label in [zone] for a chip. */
+private fun suggestedDueLabel(iso: String, zone: ZoneId): String =
+    runCatching { OffsetDateTime.parse(iso).toInstant() }
+        .recoverCatching { Instant.parse(iso) }
+        .getOrNull()
+        ?.atZone(zone)?.format(pickedDueFormat)
+        ?: "Suggested time"
+
 /**
  * "Make a task" sheet: prefilled title, the quoted source message, an
- * assignee chip row, due chips (Today · Tomorrow 9 AM · Pick a time…), and
- * the ink Create pill. Assignee + due ride the same POST /v1/tasks create.
+ * assignee chip row, due chips (Today · Tomorrow 9 AM · Pick a time…), a
+ * collapsible structured job address, and the ink Create pill. #214: when the
+ * company opted into AI enrichment (Settings → AI) and the message text is
+ * non-empty, the sheet infers a due date/time and/or a structured address from
+ * the text — each a SUGGESTION the user reviews and edits (any address edit
+ * marks it "manual"). Assignee + due + the confirmed address ride the same
+ * POST /v1/tasks create; enrichment never blocks it.
  */
 @Composable
 fun MakeTaskSheet(
     message: Message,
     contactName: String,
     members: List<Member>,
-    onCreate: (title: String, assignedUserId: String?, dueAtIso: String?) -> Unit,
+    aiRepo: AiRepository,
+    companyId: String,
+    conversationId: String,
+    onCreate: (
+        title: String,
+        assignedUserId: String?,
+        dueAtIso: String?,
+        address: TaskAddressInput?,
+    ) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var title by remember {
@@ -186,9 +232,57 @@ fun MakeTaskSheet(
     }
     var assigneeId by remember { mutableStateOf<String?>(null) }
     var due by remember { mutableStateOf<DueChoice?>(null) }
+    var dueSuggested by remember { mutableStateOf(false) }
     var pickerOpen by remember { mutableStateOf(false) }
     val zone = remember { ZoneId.systemDefault() }
     val haptics = rememberHaptics()
+
+    // #214 enrichment: the structured address + its provenance, the collapsible
+    // state, and the in-flight spinner. Editing any field marks it "manual".
+    var addr by remember { mutableStateOf(AddressFields()) }
+    var addrProvenance by remember { mutableStateOf<String?>(null) }
+    var addrOpen by remember { mutableStateOf(false) }
+    var enriching by remember { mutableStateOf(false) }
+
+    fun editAddr(update: (AddressFields) -> AddressFields) {
+        addr = update(addr)
+        addrProvenance = AddressProvenance.MANUAL
+    }
+
+    // Enrich once when the sheet opens: resolve the company's AI settings, and
+    // if a toggle is on and the message text is non-empty, pre-fill the due (if
+    // still empty) and/or the address. The enrich call is session-cached per
+    // (company, message), so reopening this sheet never re-spends an AI call.
+    LaunchedEffect(message.id) {
+        val settings = runCatching { aiRepo.getAiSettings(companyId) }.getOrNull()
+            ?: return@LaunchedEffect
+        if (!settings.enrich_task_address && !settings.enrich_task_due) return@LaunchedEffect
+        val text = message.body.trim()
+        if (text.isEmpty()) return@LaunchedEffect
+
+        enriching = true
+        val result = aiRepo.enrichTask(companyId, text, message.id, conversationId)
+        enriching = false
+        if (result.enrichment_disabled) return@LaunchedEffect
+
+        if (settings.enrich_task_due && result.due_at != null && due == null) {
+            due = DueChoice(suggestedDueLabel(result.due_at, zone), result.due_at)
+            dueSuggested = true
+        }
+        val suggested = result.address
+        if (settings.enrich_task_address && suggested != null) {
+            addr = AddressFields(
+                street = suggested.street.orEmpty(),
+                unit = suggested.unit.orEmpty(),
+                city = suggested.city.orEmpty(),
+                state = suggested.state.orEmpty(),
+                postalCode = suggested.postal_code.orEmpty(),
+                country = suggested.country.orEmpty(),
+            )
+            addrProvenance = result.address_provenance
+            addrOpen = true
+        }
+    }
 
     AppSheet(
         onDismissRequest = onDismiss,
@@ -304,7 +398,15 @@ fun MakeTaskSheet(
 
             // Due.
             Column {
-                TaskFieldLabel("Due")
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    TaskFieldLabel("Due")
+                    // #214: a due read out of the message text is flagged
+                    // "Suggested" until the user changes it.
+                    if (dueSuggested) SuggestedHint()
+                }
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -326,6 +428,7 @@ fun MakeTaskSheet(
                         selected = due?.label == "Today",
                         onClick = {
                             haptics.tap()
+                            dueSuggested = false
                             due = if (due?.label == "Today") null else today
                         },
                     )
@@ -334,6 +437,7 @@ fun MakeTaskSheet(
                         selected = due?.label == "Tomorrow 9 AM",
                         onClick = {
                             haptics.tap()
+                            dueSuggested = false
                             due = if (due?.label == "Tomorrow 9 AM") null else tomorrow
                         },
                     )
@@ -349,6 +453,21 @@ fun MakeTaskSheet(
                     )
                 }
             }
+
+            // #214 structured job address — collapsible; auto-opens when
+            // enrichment suggests one, with a provenance badge; any edit marks
+            // it "manual" (the badge clears).
+            AddressSection(
+                fields = addr,
+                provenance = addrProvenance,
+                open = addrOpen,
+                enriching = enriching,
+                onToggle = {
+                    haptics.tap()
+                    addrOpen = !addrOpen
+                },
+                onEdit = ::editAddr,
+            )
 
             // Create pill — gives under the finger like every other pill.
             val canCreate = title.isNotBlank()
@@ -369,7 +488,20 @@ fun MakeTaskSheet(
                         enabled = canCreate,
                     ) {
                         haptics.confirm()
-                        onCreate(title.trim(), assigneeId, due?.iso)
+                        val address = if (addr.isEmpty()) {
+                            null
+                        } else {
+                            TaskAddressInput(
+                                street = addr.street.trim().ifEmpty { null },
+                                unit = addr.unit.trim().ifEmpty { null },
+                                city = addr.city.trim().ifEmpty { null },
+                                state = addr.state.trim().ifEmpty { null },
+                                postal_code = addr.postalCode.trim().ifEmpty { null },
+                                country = addr.country.trim().ifEmpty { null },
+                                provenance = addrProvenance ?: AddressProvenance.MANUAL,
+                            )
+                        }
+                        onCreate(title.trim(), assigneeId, due?.iso, address)
                     }
                     .padding(start = 22.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -420,6 +552,7 @@ fun MakeTaskSheet(
                             label = instant.atZone(zone).format(pickedDueFormat),
                             iso = instant.toString(),
                         )
+                        dueSuggested = false
                     }
                     pickerOpen = false
                 }) { Text("Set due date") }
@@ -591,5 +724,196 @@ private fun DueChip(label: String, selected: Boolean, onClick: () -> Unit) {
             )
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
+    )
+}
+
+/** #214 the sparkle + "Suggested" micro hint next to the due label. */
+@Composable
+private fun SuggestedHint() {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Icon(
+            Icons.Outlined.AutoAwesome,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(11.dp),
+        )
+        Text(
+            "Suggested",
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** #214 the provenance pill: sparkle + "From the message" / etc. */
+@Composable
+private fun ProvenanceBadge(label: String) {
+    Row(
+        Modifier
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Icon(
+            Icons.Outlined.AutoAwesome,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(11.dp),
+        )
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * #214 the collapsible structured job-address group. The header carries the
+ * place icon, an in-flight spinner while enrichment runs, the provenance badge
+ * (only for AI sources), and a rotating chevron. Open reveals the 6 fields.
+ */
+@Composable
+private fun AddressSection(
+    fields: AddressFields,
+    provenance: String?,
+    open: Boolean,
+    enriching: Boolean,
+    onToggle: () -> Unit,
+    onEdit: ((AddressFields) -> AddressFields) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(onClick = onToggle)
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                Icons.Outlined.Place,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                "Address",
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            if (enriching) {
+                CircularProgressIndicator(
+                    strokeWidth = 1.5.dp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(12.dp),
+                )
+            }
+            addressProvenanceLabel(provenance)?.let { ProvenanceBadge(it) }
+            Spacer(Modifier.weight(1f))
+            Icon(
+                Icons.Outlined.ExpandMore,
+                contentDescription = if (open) "Hide address" else "Show address",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .size(18.dp)
+                    .rotate(if (open) 180f else 0f),
+            )
+        }
+        if (open) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AddressField(
+                    value = fields.street,
+                    placeholder = "Street",
+                    onValue = { v -> onEdit { it.copy(street = v) } },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AddressField(
+                        value = fields.unit,
+                        placeholder = "Unit / suite",
+                        onValue = { v -> onEdit { it.copy(unit = v) } },
+                        modifier = Modifier.weight(1f),
+                    )
+                    AddressField(
+                        value = fields.city,
+                        placeholder = "City",
+                        onValue = { v -> onEdit { it.copy(city = v) } },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AddressField(
+                        value = fields.state,
+                        placeholder = "State / province",
+                        onValue = { v -> onEdit { it.copy(state = v) } },
+                        modifier = Modifier.weight(1f),
+                    )
+                    AddressField(
+                        value = fields.postalCode,
+                        placeholder = "Postal code",
+                        onValue = { v -> onEdit { it.copy(postalCode = v) } },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                AddressField(
+                    value = fields.country,
+                    placeholder = "Country",
+                    onValue = { v -> onEdit { it.copy(country = v) } },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+/** One address input, styled like the sheet's title well (surface + hairline). */
+@Composable
+private fun AddressField(
+    value: String,
+    placeholder: String,
+    onValue: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    BasicTextField(
+        value = value,
+        onValueChange = { onValue(it.take(200)) },
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(
+            fontSize = 13.5.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+        ),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        decorationBox = { inner ->
+            Box(
+                Modifier
+                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+                    .border(
+                        1.5.dp,
+                        MaterialTheme.colorScheme.surfaceContainerHigh,
+                        RoundedCornerShape(12.dp),
+                    )
+                    .padding(horizontal = 13.dp, vertical = 11.dp),
+            ) {
+                if (value.isEmpty()) {
+                    Text(
+                        placeholder,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    )
+                }
+                inner()
+            }
+        },
+        modifier = modifier,
     )
 }

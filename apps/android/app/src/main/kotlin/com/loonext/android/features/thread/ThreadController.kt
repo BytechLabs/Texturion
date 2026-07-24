@@ -659,10 +659,12 @@ class ThreadController(
         title: String,
         assignedUserId: String? = null,
         dueAtIso: String? = null,
+        address: com.loonext.android.core.model.TaskAddressInput? = null,
     ) {
         scope.launch {
             try {
-                val task = repo.createTask(companyId, message.id, title, assignedUserId, dueAtIso)
+                val task =
+                    repo.createTask(companyId, message.id, title, assignedUserId, dueAtIso, address)
                 replaceMessage(
                     message.copy(
                         has_task = true,

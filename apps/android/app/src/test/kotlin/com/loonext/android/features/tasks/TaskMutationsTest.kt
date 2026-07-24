@@ -108,6 +108,64 @@ class TaskMutationsTest {
     }
 
     @Test
+    fun `create threads the confirmed address as a nested block with provenance`() = runTest {
+        server.enqueue(MockResponse(code = 201, body = taskBody))
+        mutations.create(
+            companyId = "c1",
+            messageId = "m1",
+            title = "Fix the sink",
+            assignedUserId = null,
+            dueAt = null,
+            address = com.loonext.android.core.model.TaskAddressInput(
+                street = "12 Elm St",
+                unit = null,
+                city = "Toronto",
+                state = null,
+                postal_code = null,
+                country = null,
+                provenance = "message",
+            ),
+        )
+        val recorded = server.takeRequest()
+        assertEquals("POST", recorded.method)
+        assertEquals("/v1/tasks", recorded.url.encodedPath)
+        assertEquals(
+            """{"message_id":"m1","title":"Fix the sink","address":""" +
+                """{"street":"12 Elm St","unit":null,"city":"Toronto","state":null,""" +
+                """"postal_code":null,"country":null,"provenance":"message"}}""",
+            recorded.body?.utf8(),
+        )
+    }
+
+    @Test
+    fun `setAddress sends the address object with provenance`() = runTest {
+        server.enqueue(MockResponse(body = taskBody))
+        mutations.setAddress(
+            "c1",
+            "t1",
+            com.loonext.android.core.model.TaskAddressInput(
+                city = "Ottawa",
+                provenance = "manual",
+            ),
+        )
+        val recorded = server.takeRequest()
+        assertEquals("PATCH", recorded.method)
+        assertEquals("/v1/tasks/t1", recorded.url.encodedPath)
+        assertEquals(
+            """{"address":{"street":null,"unit":null,"city":"Ottawa","state":null,""" +
+                """"postal_code":null,"country":null,"provenance":"manual"}}""",
+            recorded.body?.utf8(),
+        )
+    }
+
+    @Test
+    fun `clearing the address sends an explicit top-level null`() = runTest {
+        server.enqueue(MockResponse(body = taskBody))
+        mutations.setAddress("c1", "t1", null)
+        assertEquals("""{"address":null}""", server.takeRequest().body?.utf8())
+    }
+
+    @Test
     fun `delete is the task soft-delete route`() = runTest {
         server.enqueue(MockResponse(code = 204))
         mutations.delete("c1", "t1")

@@ -1767,3 +1767,31 @@ number-access audience gate is unchanged and now observed at the
 push-subscription lookup in tests. If a customer ever wants missed-call
 emails back, that's a per-TYPE notification-prefs feature to design
 deliberately — not a default.
+
+## D46
+
+**D46 — AI task enrichment is opt-in, suggestion-only, and cost-capped
+(2026-07-23, #214).** A task can now carry a structured job address, and when a
+teammate promotes a message to a task the app can infer that address + a due
+date/time from the message text via Cloudflare Workers AI
+(`@cf/meta/llama-3.2-1b-instruct`, the cheapest model). Binding posture:
+- **Opt-in, default OFF, per enrichment.** `company_ai_settings` toggles (task
+  address / due) gate the feature per company; nothing calls the AI until a
+  company turns a specific enrichment on (it costs money and the model sees
+  message text). Reads are member-visible, writes admin-only.
+- **Suggestion, never a side effect.** Model output is DATA: parsed as strict
+  JSON, schema-validated, rejected on ANY deviation. No tool use; the result
+  only pre-fills a form the user reviews and edits before saving. The task text
+  is fenced as untrusted data in the prompt (injection boundary), so even a
+  fully hijacked model can at worst suggest a wrong address the user corrects.
+- **Cost cap-and-drop (cost-protection mandate).** `POST /v1/tasks/enrich` never
+  blocks task creation and degrades to "no enrichment" on every failure path:
+  toggles off, no AI binding, per-company burst limit, a hard monthly cap
+  (`company_ai_usage`, atomic `ai_enrich_reserve`) with a one-shot ops alert at
+  80%, an 8s timeout, or malformed output. Reservation precedes the call so the
+  cap can never be over-spent.
+- **Provenance + fallback.** Address resolves text → linked contact's address →
+  area-code inference, each surfaced with a provenance badge; a user edit marks
+  it "manual". Session-cached per (company, message) so re-opening the composer
+  reuses the result instead of spending another call. Parity across
+  web / iOS / Android.

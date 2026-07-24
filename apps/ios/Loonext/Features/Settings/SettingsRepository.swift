@@ -29,6 +29,29 @@ struct SettingsRepository: Sendable {
         try await api.get("/v1/usage", companyId: companyId)
     }
 
+    // MARK: - AI enrichment settings (#214)
+
+    /// GET /v1/company/ai-settings — member-visible read.
+    func aiSettings(_ companyId: String) async throws -> CompanyAiSettings {
+        try await api.get("/v1/company/ai-settings", companyId: companyId)
+    }
+
+    /// PATCH /v1/company/ai-settings — admin-only; the server 403s a member.
+    func updateAiSettings(
+        _ companyId: String,
+        enrichAddress: Bool,
+        enrichDue: Bool
+    ) async throws -> CompanyAiSettings {
+        try await api.patch(
+            "/v1/company/ai-settings",
+            body: JSONValue.object([
+                "enrich_task_address": .bool(enrichAddress),
+                "enrich_task_due": .bool(enrichDue),
+            ]),
+            companyId: companyId
+        )
+    }
+
     // MARK: - Team
 
     func members(_ companyId: String) async throws -> Page<Member> {
