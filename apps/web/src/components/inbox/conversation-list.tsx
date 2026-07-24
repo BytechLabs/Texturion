@@ -213,6 +213,11 @@ export function ConversationList({
             <div
               key={item.key}
               role="listitem"
+              // Virtualization keeps only visible rows in the DOM, so tell
+              // screen readers the true list size + this row's position —
+              // otherwise they announce "N of <few>" instead of the real total.
+              aria-setsize={rows.length}
+              aria-posinset={item.index + 1}
               data-index={item.index}
               ref={(el) => {
                 if (el) rowElements.current.set(row.id, el);

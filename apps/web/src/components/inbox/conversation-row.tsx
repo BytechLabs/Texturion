@@ -140,7 +140,12 @@ export function ConversationRow({
     <Link
       href={`/inbox/${conversation.id}`}
       aria-current={active ? "page" : undefined}
-      aria-label={`Conversation with ${name}${unread ? ", unread" : ""}`}
+      // Fold the message preview into the label: an explicit aria-label
+      // overrides the row's inner text for screen readers, so without this the
+      // most important content — the latest message — was silent.
+      aria-label={`Conversation with ${name}${unread ? ", unread" : ""}${
+        previewText ? `. ${previewText}` : ""
+      }`}
       style={{ height: ROW_HEIGHT }}
       className={cn(
         "relative flex items-start gap-[11px] rounded-app-card border p-[11px] transition-[background,box-shadow,border-color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",

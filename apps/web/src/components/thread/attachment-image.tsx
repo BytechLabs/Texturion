@@ -28,6 +28,9 @@ export function AttachmentImage({
   const url = useAttachmentUrl(attachment.id);
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
+  // The lightbox's full-size <img> can also fail to render (expired signed URL,
+  // network blip) — without this the dialog is a blank frame.
+  const [lightboxFailed, setLightboxFailed] = useState(false);
   // The URL fetch can succeed yet the <img> still fail to render (expired/broken
   // signed URL, mid-flight network blip) — without this the thumbnail is a
   // permanent pulsing skeleton on a disabled button. Treat it like a url error.
@@ -82,19 +85,34 @@ export function AttachmentImage({
           />
         )}
       </button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (next) setLightboxFailed(false); // fresh attempt each open
+        }}
+      >
         <DialogContent
           className="max-w-[92vw] border-none bg-transparent p-0 shadow-none sm:max-w-3xl"
           showCloseButton
         >
           <DialogTitle className="sr-only">Photo</DialogTitle>
-          {url.data && (
+          {url.data && !lightboxFailed && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={url.data.url}
               alt={alt}
+              onError={() => setLightboxFailed(true)}
               className="max-h-[85vh] w-full rounded-lg object-contain"
             />
+          )}
+          {url.data && lightboxFailed && (
+            <div className="flex items-center justify-center rounded-lg bg-muted p-12">
+              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                <ImageOff className="size-6" strokeWidth={1.75} aria-hidden />
+                <span className="text-sm">This photo couldn&apos;t be loaded.</span>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>
