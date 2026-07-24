@@ -21,17 +21,11 @@ export interface LocatedTask extends Task {
   contactName: string | null;
 }
 
-/**
- * Extract usable coordinates from a task row, or null when the row has none.
- * Reads the optional embedded `contact` (the agreed located-row shape). Guards
- * against non-finite / out-of-range values so a bad geocode never plots.
- */
-export function taskCoords(
-  task: Task,
-): { lat: number; lng: number; name: string | null } | null {
-  const contact = task.contact;
-  if (!contact) return null;
-  const { lat, lng } = contact;
+/** Finite, on-Earth coordinates or null (a bad geocode must never plot). */
+function validCoords(
+  lat: number | null,
+  lng: number | null,
+): { lat: number; lng: number } | null {
   if (
     typeof lat !== "number" ||
     typeof lng !== "number" ||
@@ -42,5 +36,26 @@ export function taskCoords(
   ) {
     return null;
   }
-  return { lat, lng, name: contact.name };
+  return { lat, lng };
+}
+
+/**
+ * Extract usable coordinates from a task row, or null when it has none.
+ *
+ * PREFERS the task's OWN geocoded address (task_geocode) over the contact's
+ * cached geocode — a task names a job SITE ("CN Tower, Toronto") that often
+ * differs from where the contact lives (their Calgary address). Falls back to
+ * the contact's location when the task has no address of its own. Guards against
+ * non-finite / out-of-range values so a bad geocode never plots.
+ */
+export function taskCoords(
+  task: Task,
+): { lat: number; lng: number; name: string | null } | null {
+  const own = validCoords(task.lat ?? null, task.lng ?? null);
+  if (own) return { ...own, name: task.contact?.name ?? null };
+
+  const contact = task.contact;
+  if (!contact) return null;
+  const fallback = validCoords(contact.lat, contact.lng);
+  return fallback ? { ...fallback, name: contact.name } : null;
 }

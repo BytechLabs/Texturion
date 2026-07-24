@@ -520,6 +520,14 @@ export interface Task {
   addr_postal_code: string | null;
   addr_country: string | null;
   addr_provenance: AddressProvenance | null;
+  /**
+   * The task's OWN geocoded address (task_geocode cron), null until resolved.
+   * The Map view PREFERS this over the contact's geocode so a task pins at its
+   * job site, not where the contact lives. Optional (a mutation response may
+   * omit it); reads via TASK_COLUMNS carry it.
+   */
+  lat?: number | null;
+  lng?: number | null;
 }
 
 /** The located-contact embed a `has_location=true` task row MAY carry (Map view, D25). */

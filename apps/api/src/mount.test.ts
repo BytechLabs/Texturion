@@ -412,6 +412,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
         "0 * * * *", // usage re-reporter (+ 80%/100% usage alerts)
         "30 * * * *", // sole-prop OTP nudge
         "20 * * * *", // contact geocoding backfill (D25)
+        "40 * * * *", // task-address geocoding backfill (#214 Map fix)
         "0 13 * * *", // registration poller
         "10 13 * * *", // port reconcile & resume (PORTING.md §5.2)
         "0 14 * * *", // grace & release

@@ -183,7 +183,11 @@ const TASK_COLUMNS =
   "assigned_user_id,due_at,created_by_user_id,created_at,updated_at," +
   // #214 structured job address + provenance (null when the task has no address).
   "addr_street,addr_unit,addr_city,addr_state,addr_postal_code," +
-  "addr_country,addr_provenance";
+  "addr_country,addr_provenance," +
+  // Task's OWN geocode (task_geocode migration): the Map view PREFERS this over
+  // the contact's cached geocode, so a task pins at ITS address, not the
+  // contact's. Null until the geocode cron resolves the address.
+  "lat,lng";
 
 /**
  * Title column bound (T1.1). The default title (message-body snippet, ≤500,

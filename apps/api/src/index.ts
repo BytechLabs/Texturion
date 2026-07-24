@@ -14,6 +14,7 @@ import { runUsageAlertsJob } from "./billing/usage-alerts";
 import type { AppEnv } from "./context";
 import { getEnv, type Bindings, type Env } from "./env";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
+import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { ApiError, errorResponse } from "./http/errors";
 import {
   failStuckOutboundSends,
@@ -262,6 +263,11 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
   // rate-limited (1 req/s) and cached to contacts.lat/lng; skips already-
   // geocoded and not-found rows. Off-peak from the other hourly jobs.
   "20 * * * *": [geocodeContactsJob],
+  // Task geocoding backfill (#214 Map fix): geocode a task's OWN address via
+  // Nominatim, cached to tasks.lat/lng, so the Map pins a task at ITS location
+  // (not only its contact's). Same 1 req/s pace; off-peak from the contact
+  // geocoder (:20) so the two never share a Nominatim second.
+  "40 * * * *": [geocodeTasksJob],
   // Registration poller (webhooks are primary; this is the D2 fallback).
   "0 13 * * *": [pollRegistrations],
   // Port reconcile & resume (PORTING.md §5.2): poll in-flight porting orders,
