@@ -1,14 +1,17 @@
 import SwiftUI
 import UIKit
 
-/// The actions a message's context menu can fire (iOS idiom for the Android
-/// long-press sheet — same actions, same gating rules).
+/// The actions a message bubble can fire: the context-menu items (iOS idiom
+/// for the Android long-press sheet — same actions, same gating rules) plus
+/// opening the message's linked task from its tappable task indicator (#217).
 struct MessageBubbleActions {
     let onToggleDone: @MainActor () -> Void
     let onTogglePin: @MainActor () -> Void
     let onRetry: @MainActor () -> Void
     let onMakeTask: @MainActor () -> Void
     let onCopied: @MainActor () -> Void
+    /// Open the detail of the task this message links to (#217).
+    let onOpenTask: @MainActor (String) -> Void
 }
 
 /// One message bubble: inbound paper left, outbound ink right, internal note
@@ -33,7 +36,12 @@ struct MessageBubble: View {
         VStack(alignment: horizontalAlignment, spacing: 2) {
             bubble
                 .contextMenu { menuItems }
-            MessageMetaLine(message: message, doneByName: doneByName, onRetry: actions.onRetry)
+            MessageMetaLine(
+                message: message,
+                doneByName: doneByName,
+                onRetry: actions.onRetry,
+                onOpenTask: actions.onOpenTask
+            )
         }
         .frame(maxWidth: .infinity, alignment: frameAlignment)
         .padding(.horizontal, 16)
@@ -83,10 +91,17 @@ struct MessageBubble: View {
                     onOpenFile: onOpenFile
                 )
                 if let taskLink = message.task ?? message.promoted_task {
-                    Text("on: \(taskLink.title)")
-                        .font(.golos(11, weight: .semibold))
-                        .foregroundStyle(BrandColor.olive)
-                        .padding(.top, 2)
+                    Button {
+                        actions.onOpenTask(taskLink.id)
+                    } label: {
+                        Text("on: \(taskLink.title)")
+                            .font(.golos(11, weight: .semibold))
+                            .foregroundStyle(BrandColor.olive)
+                            .padding(.top, 2)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open task \(taskLink.title)")
                 }
             }
         }
@@ -182,6 +197,15 @@ private struct MessageMetaLine: View {
     let message: Message
     let doneByName: String?
     let onRetry: @MainActor () -> Void
+    let onOpenTask: @MainActor (String) -> Void
+
+    /// The stone task indicator (shared by the plain and tappable arms so the
+    /// visual is identical whether or not a link id resolved).
+    private var taskIcon: some View {
+        Image(systemName: "checklist")
+            .font(.system(size: 10))
+            .foregroundStyle(BrandColor.muted300)
+    }
 
     private var metaText: String {
         var parts = [bubbleTime(message.created_at)]
@@ -203,10 +227,23 @@ private struct MessageMetaLine: View {
                     .accessibilityLabel("Pinned")
             }
             if message.has_task || message.promoted_task != nil {
-                Image(systemName: "checklist")
-                    .font(.system(size: 10))
-                    .foregroundStyle(BrandColor.muted300)
-                    .accessibilityLabel("Has a task")
+                if let taskId = message.linkedTaskId {
+                    Button {
+                        onOpenTask(taskId)
+                    } label: {
+                        // Pad the 10pt glyph to a ~22pt hit target (a bare icon
+                        // is far under the 44pt HIG minimum); negative margin
+                        // keeps the visual footprint unchanged. Mirrors Android.
+                        taskIcon
+                            .padding(6)
+                            .contentShape(Rectangle())
+                            .padding(-6)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open task")
+                } else {
+                    taskIcon.accessibilityLabel("Has a task")
+                }
             }
             Text(metaText)
                 .font(.golos(10.5))

@@ -52,6 +52,7 @@ internal fun ContactPanelSheet(
     controller: ThreadController,
     members: List<Member>,
     onOpenConversation: ((conversationId: String) -> Unit)?,
+    onOpenTask: ((taskId: String) -> Unit)?,
     onDismiss: () -> Unit,
 ) {
     val detail = controller.conversation ?: return
@@ -142,6 +143,7 @@ internal fun ContactPanelSheet(
                 TasksChecklist(
                     state = controller.conversationTasks,
                     onToggle = { controller.toggleTaskDone(it) },
+                    onOpenTask = onOpenTask,
                 )
             }
 
@@ -174,6 +176,7 @@ private fun SheetSection(title: String, content: @Composable () -> Unit) {
 private fun TasksChecklist(
     state: LoadState<List<Task>>?,
     onToggle: (Task) -> Unit,
+    onOpenTask: ((taskId: String) -> Unit)?,
 ) {
     when (state) {
         null, is LoadState.Loading -> LoadingIndicator()
@@ -195,7 +198,15 @@ private fun TasksChecklist(
             Column {
                 state.value.forEach { task ->
                     Row(
-                        Modifier.fillMaxWidth(),
+                        Modifier
+                            .fillMaxWidth()
+                            // #217: tapping the ROW opens the task detail; the
+                            // Checkbox below stays a SEPARATE hit target so a
+                            // done toggle never navigates.
+                            .let { base ->
+                                if (onOpenTask != null) base.clickable { onOpenTask(task.id) }
+                                else base
+                            },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Checkbox(

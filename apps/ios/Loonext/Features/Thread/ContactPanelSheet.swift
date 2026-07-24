@@ -13,6 +13,9 @@ struct ContactPanelSheet: View {
     /// Navigation into ANOTHER thread; rows stay un-tappable until it's wired
     /// (a row that goes nowhere would be a lie).
     let onOpenConversation: (@MainActor (String) -> Void)?
+    /// Open a checklist task's detail (#217). The caller dismisses this sheet
+    /// and routes the task up to the shell.
+    let onOpenTask: @MainActor (String) -> Void
 
     var body: some View {
         Group {
@@ -102,9 +105,11 @@ struct ContactPanelSheet: View {
                 }
 
                 sheetSection("Tasks in this conversation") {
-                    TasksChecklistSection(state: controller.conversationTasks) { task in
-                        controller.toggleTaskDone(task)
-                    }
+                    TasksChecklistSection(
+                        state: controller.conversationTasks,
+                        onToggle: { controller.toggleTaskDone($0) },
+                        onOpenTask: onOpenTask
+                    )
                 }
 
                 sheetSection("Other conversations") {
@@ -141,6 +146,8 @@ struct ContactPanelSheet: View {
 private struct TasksChecklistSection: View {
     let state: LoadState<[TaskItem]>?
     let onToggle: @MainActor (TaskItem) -> Void
+    /// #217: tapping the ROW (not the checkbox) opens the task's detail.
+    let onOpenTask: @MainActor (String) -> Void
 
     var body: some View {
         switch state {
@@ -158,34 +165,51 @@ private struct TasksChecklistSection: View {
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(tasks, id: \.id) { task in
-                        Button {
-                            onToggle(task)
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: task.done ? "checkmark.square.fill" : "square")
-                                    .foregroundStyle(
-                                        task.done
-                                            ? AnyShapeStyle(BrandColor.olive)
-                                            : AnyShapeStyle(BrandColor.muted250)
-                                    )
-                                Text(task.title)
-                                    .font(.subheadline)
-                                    .strikethrough(task.done)
-                                    .foregroundStyle(task.done ? .secondary : .primary)
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.leading)
-                                Spacer(minLength: 0)
-                            }
-                            .padding(.vertical, 6)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(
-                            task.done ? "Reopen task \(task.title)" : "Mark task \(task.title) done"
-                        )
+                        taskRow(task)
                     }
                 }
             }
         }
+    }
+
+    /// Two separate hit targets (#217): the checkbox toggles done through the
+    /// source message (never navigates), the title area opens the task detail.
+    private func taskRow(_ task: TaskItem) -> some View {
+        HStack(spacing: 10) {
+            Button {
+                onToggle(task)
+            } label: {
+                Image(systemName: task.done ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(
+                        task.done
+                            ? AnyShapeStyle(BrandColor.olive)
+                            : AnyShapeStyle(BrandColor.muted250)
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                task.done ? "Reopen task \(task.title)" : "Mark task \(task.title) done"
+            )
+
+            Button {
+                onOpenTask(task.id)
+            } label: {
+                HStack(spacing: 0) {
+                    Text(task.title)
+                        .font(.subheadline)
+                        .strikethrough(task.done)
+                        .foregroundStyle(task.done ? .secondary : .primary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open task \(task.title)")
+        }
+        .padding(.vertical, 6)
     }
 }
 
@@ -384,7 +408,8 @@ private struct PanelAutosaveField: View {
                         attachment_count: nil
                     ),
                 ]),
-                onToggle: { _ in }
+                onToggle: { _ in },
+                onOpenTask: { _ in }
             )
             Divider()
             OtherConversationsSection(

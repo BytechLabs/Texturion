@@ -232,6 +232,12 @@ private struct ThreadBody: View {
                             detailSheet = nil
                             // The shell pushes the thread ABOVE the current one.
                             AppRouter.shared.openConversationId = conversationId
+                        },
+                        onOpenTask: { taskId in
+                            // #217: dismiss the panel, then push the task detail
+                            // ABOVE this thread (the shell's openTaskId route).
+                            detailSheet = nil
+                            AppRouter.shared.openTaskId = taskId
                         }
                     )
                 case .assignee:
@@ -482,7 +488,12 @@ private struct ThreadBody: View {
                         // (#214 also pre-fills a due + address via enrichment).
                         makeTaskFor = message
                     },
-                    onCopied: { controller.markCopied() }
+                    onCopied: { controller.markCopied() },
+                    // #217: the bubble's task indicator opens that task's detail
+                    // ABOVE this thread (the shell's existing openTaskId route,
+                    // which passes onOpenConversation so the task can jump back
+                    // to its source message).
+                    onOpenTask: { AppRouter.shared.openTaskId = $0 }
                 )
             )
         case .pending(let pending):
@@ -1470,7 +1481,8 @@ private func previewMessage(
         onTogglePin: {},
         onRetry: {},
         onMakeTask: {},
-        onCopied: {}
+        onCopied: {},
+        onOpenTask: { _ in }
     )
     return ScrollView {
         VStack(spacing: 0) {

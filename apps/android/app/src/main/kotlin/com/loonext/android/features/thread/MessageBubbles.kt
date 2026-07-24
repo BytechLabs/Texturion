@@ -125,6 +125,7 @@ fun MessageBubble(
     mintAttachmentUrl: suspend (String) -> String,
     onOpenFile: (Attachment) -> Unit,
     onOpenAttachment: (AttachmentSummary) -> Unit,
+    onOpenTask: ((taskId: String) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val outbound = message.direction == MessageDirection.OUTBOUND
@@ -240,6 +241,7 @@ fun MessageBubble(
             message = message,
             doneByName = doneByName,
             onRetry = onRetry,
+            onOpenTask = onOpenTask,
         )
     }
 }
@@ -250,6 +252,7 @@ private fun MessageMetaLine(
     message: Message,
     doneByName: String?,
     onRetry: () -> Unit,
+    onOpenTask: ((taskId: String) -> Unit)? = null,
 ) {
     val outbound = message.direction == MessageDirection.OUTBOUND
     val failed = message.status == MessageStatus.FAILED
@@ -270,12 +273,32 @@ private fun MessageMetaLine(
                 modifier = Modifier.size(12.dp),
             )
         }
-        if (message.has_task || message.promoted_task != null) {
+        // #217: the task indicator opens that message's task detail. The link
+        // id rides promoted_task / task / task_id; when present the icon becomes
+        // a tap target (olive-tinted to read as actionable). A has_task with no
+        // resolvable id (shouldn't happen) stays a static muted marker.
+        val taskId = message.promoted_task?.id ?: message.task?.id ?: message.task_id
+        if (message.has_task || message.promoted_task != null || taskId != null) {
+            val openTask: (() -> Unit)? =
+                if (taskId != null && onOpenTask != null) {
+                    { onOpenTask(taskId) }
+                } else {
+                    null
+                }
             Icon(
                 Icons.Outlined.TaskAlt,
-                contentDescription = "Has a task",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(12.dp),
+                contentDescription = if (openTask != null) "Open task" else "Has a task",
+                tint = if (openTask != null) MaterialTheme.colorScheme.secondary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = if (openTask != null) {
+                    Modifier
+                        .clip(CircleShape)
+                        .clickable(onClick = openTask)
+                        .padding(4.dp)
+                        .size(12.dp)
+                } else {
+                    Modifier.size(12.dp)
+                },
             )
         }
 

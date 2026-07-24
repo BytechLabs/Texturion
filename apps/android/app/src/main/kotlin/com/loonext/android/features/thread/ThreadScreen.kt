@@ -137,6 +137,8 @@ fun ThreadScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onOpenConversation: ((conversationId: String) -> Unit)? = null,
+    /** #217: open a message/checklist task's detail (MainActivity Overlay.Task). */
+    onOpenTask: ((taskId: String) -> Unit)? = null,
     /** Search-result jump: scroll to this message and flash it briefly. */
     highlightMessageId: String? = null,
 ) {
@@ -261,6 +263,7 @@ fun ThreadScreen(
                         onNotice = { scope.launch { snackbar.showSnackbar(it) } },
                         onOpenGallery = { galleryOpen = true },
                         onOpenConversation = onOpenConversation,
+                        onOpenTask = onOpenTask,
                     )
                 }
         }
@@ -286,6 +289,7 @@ private fun ThreadLoaded(
     onNotice: (String) -> Unit,
     onOpenGallery: () -> Unit,
     onOpenConversation: ((conversationId: String) -> Unit)?,
+    onOpenTask: ((taskId: String) -> Unit)?,
     highlightMessageId: String? = null,
 ) {
     val context = LocalContext.current
@@ -406,6 +410,17 @@ private fun ThreadLoaded(
 
     // Pinned-banner jump target: scroll once the message is in the timeline.
     var jumpToMessageId by remember { mutableStateOf<String?>(null) }
+
+    // #217 go-to-message: the highlight target (a task's source message, or a
+    // search hit) may sit deeper than the loaded window. Page back until it
+    // lands — keyed on the target ALONE so timeline growth never cancels the
+    // walk mid-page. The flash+jump effect below fires once it's present.
+    LaunchedEffect(highlightMessageId) {
+        val target = highlightMessageId ?: return@LaunchedEffect
+        if (controller.messages.none { it.id == target }) {
+            controller.ensureMessageLoaded(target)
+        }
+    }
 
     // The row to FLASH (search-result indication). Set when the highlight
     // target lands in the timeline; cleared after the flash animation.
@@ -543,6 +558,7 @@ private fun ThreadLoaded(
                                     },
                                     onOpenFile = onOpenFile,
                                     onOpenAttachment = onOpenAttachment,
+                                    onOpenTask = onOpenTask,
                                 )
                             }
 
@@ -690,6 +706,12 @@ private fun ThreadLoaded(
                 { conversationId ->
                     contactPanelOpen = false
                     open(conversationId)
+                }
+            },
+            onOpenTask = onOpenTask?.let { open ->
+                { taskId ->
+                    contactPanelOpen = false
+                    open(taskId)
                 }
             },
             onDismiss = { contactPanelOpen = false },

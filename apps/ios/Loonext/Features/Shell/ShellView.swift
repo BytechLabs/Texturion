@@ -271,7 +271,11 @@ struct ShellView: View {
                 companyId: companyId,
                 me: hydratedMe,
                 taskId: taskId,
-                onOpenConversation: { conversationId, _ in
+                // #217: "View in conversation" opens the source thread anchored
+                // to the promoted message — set the highlight before the open so
+                // the shell scrolls to + flashes it (the search-hit idiom).
+                onOpenConversation: { conversationId, messageId in
+                    AppRouter.shared.pendingHighlightMessageId = messageId
                     AppRouter.shared.openConversationId = conversationId
                 }
             )

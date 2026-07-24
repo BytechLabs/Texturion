@@ -607,6 +607,7 @@ private fun ReadyShell(
                         highlightMessageId = active.highlightMessageId,
                         onBack = { pop() },
                         onOpenConversation = { push(Overlay.Thread(it)) },
+                        onOpenTask = { push(Overlay.Task(it)) },
                     )
 
                     is Overlay.Task -> TaskDetailScreen(
@@ -616,8 +617,10 @@ private fun ReadyShell(
                         me = hydratedMe,
                         taskId = active.taskId,
                         onBack = { pop() },
-                        onOpenConversation = { conversationId, _ ->
-                            push(Overlay.Thread(conversationId))
+                        // #217: carry the source message id so the thread scrolls
+                        // to (and flashes) the original message, not just the top.
+                        onOpenConversation = { conversationId, messageId ->
+                            push(Overlay.Thread(conversationId, messageId))
                         },
                     )
 

@@ -128,6 +128,13 @@ struct Message: Codable, Sendable {
             telnyx_message_id == nil &&
             error_code != carrierOptOutErrorCode
     }
+
+    /// The task this message links to — the tap target for the thread's task
+    /// indicator (#217): a source message's promoted task, or a task-linked
+    /// note's task. Nil when the message carries no task.
+    var linkedTaskId: String? {
+        promoted_task?.id ?? task?.id ?? task_id
+    }
 }
 
 /// Contact embed on GET /v1/conversations/:id.
