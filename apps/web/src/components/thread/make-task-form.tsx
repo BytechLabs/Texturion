@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { CountryDatalist } from "@/components/ui/country-datalist";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -27,6 +28,14 @@ import { messageTaskTitle } from "./make-task-title";
 
 /** Sentinel <Select> value for "leave unassigned" (Radix forbids an empty string). */
 const UNASSIGNED = "__unassigned__";
+
+/**
+ * Delay before applying enrichment results to form state — long enough to clear
+ * the Popover's open transition + auto-focus, so a cached (instant) result never
+ * setStates mid-open and dismisses the popover on reopen. The fetch is NOT
+ * delayed (it overlaps the transition), only the state application.
+ */
+const ENRICH_APPLY_DELAY_MS = 300;
 
 /** The 6 structured address fields as editable strings ("" = absent). */
 interface AddressFields {
@@ -118,34 +127,49 @@ export function MakeTaskForm({
     if (!text) return;
 
     enrichedRef.current = true;
-    setEnriching(true);
-    void enrichTaskFromMessage(companyId, {
+    let cancelled = false;
+    // Kick the fetch off now (it overlaps the popover's open transition), but
+    // apply EVERY resulting setState only after the transition + auto-focus have
+    // settled. A synchronous session-cache hit (on reopen) would otherwise
+    // setState WHILE this popover is opening, which disrupts Radix's focus scope
+    // and dismisses it — the form "flashed open then vanished" on the 2nd open.
+    // Deferring the state (never the fetch) fixes reopen with no first-open lag.
+    const pending = enrichTaskFromMessage(companyId, {
       message_id: message.id,
       conversation_id: conversationId,
       text,
-    })
-      .then((res) => {
-        if (res.enrichment_disabled) return;
-        // This effect runs once, right after settings load and before the user
-        // has typed a due, so a plain set is safe — no impure nested setState.
-        if (settings.enrich_task_due && res.due_at) {
-          setDue(isoToLocalInput(res.due_at));
-          setDueSuggested(true);
-        }
-        if (settings.enrich_task_address && res.address) {
-          setAddr({
-            street: res.address.street ?? "",
-            unit: res.address.unit ?? "",
-            city: res.address.city ?? "",
-            state: res.address.state ?? "",
-            postal_code: res.address.postal_code ?? "",
-            country: res.address.country ?? "",
-          });
-          setAddrProvenance(res.address_provenance);
-          setAddrOpen(true);
-        }
-      })
-      .finally(() => setEnriching(false));
+    });
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      setEnriching(true);
+      void pending
+        .then((res) => {
+          if (cancelled || res.enrichment_disabled) return;
+          if (settings.enrich_task_due && res.due_at) {
+            setDue(isoToLocalInput(res.due_at));
+            setDueSuggested(true);
+          }
+          if (settings.enrich_task_address && res.address) {
+            setAddr({
+              street: res.address.street ?? "",
+              unit: res.address.unit ?? "",
+              city: res.address.city ?? "",
+              state: res.address.state ?? "",
+              postal_code: res.address.postal_code ?? "",
+              country: res.address.country ?? "",
+            });
+            setAddrProvenance(res.address_provenance);
+            setAddrOpen(true);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setEnriching(false);
+        });
+    }, ENRICH_APPLY_DELAY_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [aiSettings.data, companyId, conversationId, message.id, message.body]);
 
   /** Editing any address field marks the whole address user-authored ("manual"). */
@@ -324,9 +348,12 @@ export function MakeTaskForm({
               aria-label="Country"
               className="col-span-2"
               placeholder="Country"
+              list="make-task-countries"
+              autoComplete="country-name"
               value={addr.country}
               onChange={(e) => editAddr("country", e.target.value)}
             />
+            <CountryDatalist id="make-task-countries" />
           </div>
         )}
       </div>

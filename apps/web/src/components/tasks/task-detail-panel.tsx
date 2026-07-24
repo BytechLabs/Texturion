@@ -25,6 +25,7 @@ import {
 import { useStagedFiles } from "@/components/attachments/use-staged-files";
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { Button } from "@/components/ui/button";
+import { CountryDatalist } from "@/components/ui/country-datalist";
 import {
   Dialog,
   DialogContent,
@@ -862,10 +863,13 @@ function TaskAddressSection({
               aria-label={f.label}
               placeholder={f.label}
               className={cn(f.full && "col-span-2")}
+              list={f.key === "country" ? "task-detail-countries" : undefined}
+              autoComplete={f.key === "country" ? "country-name" : undefined}
               value={fields[f.key]}
               onChange={(e) => edit(f.key, e.target.value)}
             />
           ))}
+          <CountryDatalist id="task-detail-countries" />
         </div>
       )}
     </section>

@@ -274,8 +274,9 @@ companiesRoutes.get(
         .limit(1),
       "ai settings lookup",
     );
+    // Default ON when the company has never set it (founder #214 follow-up).
     return c.json(
-      rows[0] ?? { enrich_task_address: false, enrich_task_due: false },
+      rows[0] ?? { enrich_task_address: true, enrich_task_due: true },
     );
   },
 );

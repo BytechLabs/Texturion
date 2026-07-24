@@ -251,13 +251,13 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
     );
   }
 
-  it("GET defaults to all-off when never set", async () => {
+  it("GET defaults to all-ON when never set (founder #214 follow-up)", async () => {
     stubFetch(jwksRoute(auth), membersRoute("member"), settingsRoute(null).route);
     const res = await req("GET", "/v1/company/ai-settings");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      enrich_task_address: false,
-      enrich_task_due: false,
+      enrich_task_address: true,
+      enrich_task_due: true,
     });
   });
 
