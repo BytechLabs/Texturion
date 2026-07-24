@@ -157,13 +157,23 @@ function FitBounds({
   nearMe: { lat: number; lng: number } | null;
 }) {
   const map = useMap();
+  // A CONTENT key for the pin set. `bounds` is memoized but keyed on `tasks`,
+  // which flattenPages() returns as a fresh array every render, so depending on
+  // `bounds` refit on EVERY render — discarding the user's pan/zoom. Keying on
+  // the actual coordinates refits only when the pins genuinely change.
+  const boundsKey = Array.isArray(bounds)
+    ? (bounds as [number, number][])
+        .map(([lat, lng]) => `${lat},${lng}`)
+        .sort()
+        .join("|")
+    : "";
   useEffect(() => {
     if (bounds && Array.isArray(bounds) && bounds.length > 0) {
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
     }
-    // Fit only when the pin set changes, not on every render.
+    // Fit only when the pin CONTENT changes, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bounds]);
+  }, [boundsKey]);
   useEffect(() => {
     if (nearMe) map.setView([nearMe.lat, nearMe.lng], 12);
   }, [nearMe, map]);
