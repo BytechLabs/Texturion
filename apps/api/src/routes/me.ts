@@ -16,7 +16,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import type { AppEnv } from "../context";
+import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
@@ -118,7 +118,11 @@ meRoutes.get("/me", async (c) => {
         "Not an active member of this company.",
       );
     }
-    const company = await loadCompanyView(db, parsed.data, env);
+    const company = await loadCompanyView(db, parsed.data, env, {
+      userId,
+      // company_members.role is DB-constrained to the MemberRole union.
+      role: membership.role as MemberRole,
+    });
     if (!company) {
       return errorResponse(c, "not_found", "No such company.");
     }

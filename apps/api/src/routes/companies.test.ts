@@ -266,6 +266,7 @@ describe("GET /v1/company", () => {
     sb.on("GET", "/rest/v1/phone_numbers", () => []);
     sb.on("GET", "/rest/v1/messaging_registrations", () => []);
     sb.on("GET", "/rest/v1/company_modules", () => []); // #133 enabled_modules
+    sb.on("GET", "/rest/v1/number_access", () => []); // #106 gate → unrestricted
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
@@ -284,6 +285,39 @@ describe("GET /v1/company", () => {
     });
   });
 
+  it("#106: filters numbers hidden from a restricted member out of the view", async () => {
+    const VISIBLE = "11111111-0000-4000-8000-000000000001";
+    const HIDDEN = "22222222-0000-4000-8000-000000000002";
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/companies", () => [
+      { id: COMPANY_ID, name: "Acme", plan: "pro" },
+    ]);
+    sb.on("GET", "/rest/v1/phone_numbers", () => [
+      { id: VISIBLE, number_e164: "+14165550111", status: "active" },
+      { id: HIDDEN, number_e164: "+14165550222", status: "active" },
+    ]);
+    sb.on("GET", "/rest/v1/messaging_registrations", () => []);
+    sb.on("GET", "/rest/v1/company_modules", () => []);
+    // One admins-only rule the member can't match → HIDDEN resolves to 'none';
+    // the un-ruled VISIBLE number stays visible.
+    sb.on("GET", "/rest/v1/number_access", () => [
+      {
+        phone_number_id: HIDDEN,
+        principal_kind: "role",
+        principal: "admin",
+        level: "text",
+      },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { numbers: { id: string }[] };
+    expect(body.numbers.map((n) => n.id)).toEqual([VISIBLE]);
+  });
+
   it("selects cancel_at_period_end (and only customer-safe columns) for the view", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/companies", () => [
@@ -292,6 +326,7 @@ describe("GET /v1/company", () => {
     sb.on("GET", "/rest/v1/phone_numbers", () => []);
     sb.on("GET", "/rest/v1/messaging_registrations", () => []);
     sb.on("GET", "/rest/v1/company_modules", () => []); // #133 enabled_modules
+    sb.on("GET", "/rest/v1/number_access", () => []); // #106 gate → unrestricted
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/company", {

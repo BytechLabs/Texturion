@@ -10,6 +10,8 @@ import type { Env } from "../../env";
 import { effectiveCnamDisplayName } from "../../telnyx/voice";
 
 import { unwrap } from "./http";
+import { resolveNumberAccess } from "../../auth/number-access";
+import type { MemberRole } from "../../context";
 
 /** Customer-visible company columns (SPEC §10: internals stay server-side). */
 export const COMPANY_COLUMNS =
@@ -151,6 +153,11 @@ export async function loadCompanyView(
   db: SupabaseClient,
   companyId: string,
   env: Env,
+  // #106: the caller's identity, so a restricted member's hidden numbers are
+  // filtered out of the returned list (this view is embedded in GET /v1/company
+  // AND GET /v1/me — the hottest hydration path). Owners/admins + no-rules
+  // companies resolve unrestricted, so there's no extra query for them.
+  caller: { userId: string; role: MemberRole },
 ): Promise<CompanyView | null> {
   const companies = unwrap<Record<string, unknown>[]>(
     await db
@@ -168,7 +175,7 @@ export async function loadCompanyView(
   // at the end — run them in ONE parallel round-trip instead of three serial
   // ones. This is the hottest hydration path (every /company load), so the
   // saved latency is real and there's no ongoing cost.
-  const [numbersRes, registrationsRes, modulesRes] = await Promise.all([
+  const [numbersRes, registrationsRes, modulesRes, access] = await Promise.all([
     db
       .from("phone_numbers")
       .select(NUMBER_COLUMNS)
@@ -183,8 +190,16 @@ export async function loadCompanyView(
       .select("module")
       .eq("company_id", companyId)
       .is("disabled_at", null),
+    resolveNumberAccess(db, { companyId, userId: caller.userId, role: caller.role }),
   ]);
-  const numbers = unwrap<unknown[]>(numbersRes, "phone_numbers lookup");
+  const allNumbers = unwrap<unknown[]>(numbersRes, "phone_numbers lookup");
+  // #106: drop numbers hidden from this member (mirrors GET /v1/numbers). Null
+  // hiddenNumberIds = unrestricted (owner/admin, or no access rules) → no-op.
+  const hidden = access.hiddenNumberIds;
+  const numbers =
+    hidden === null
+      ? allNumbers
+      : allNumbers.filter((n) => !hidden.includes((n as { id: string }).id));
   const registrations = unwrap<RegistrationRow[]>(
     registrationsRes,
     "messaging_registrations lookup",

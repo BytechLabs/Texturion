@@ -248,7 +248,10 @@ companiesRoutes.post("/companies", async (c) => {
 companiesRoutes.get("/company", requireRole("member"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
-  const company = await loadCompanyView(db, c.get("companyId"), env);
+  const company = await loadCompanyView(db, c.get("companyId"), env, {
+    userId: c.get("userId"),
+    role: c.get("role"),
+  });
   if (!company) {
     return errorResponse(c, "not_found", "No such company.");
   }
