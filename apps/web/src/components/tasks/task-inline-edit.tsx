@@ -111,7 +111,13 @@ export function InlineDue({ task }: { task: Task }) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={task.due_at ? "Change due date" : "Set due date"}
+          aria-label={
+            task.due_at
+              ? overdue
+                ? "Change due date (overdue)"
+                : "Change due date"
+              : "Set due date"
+          }
           onClick={(e) => e.stopPropagation()}
           className={cn(
             "tap-target inline-flex items-center gap-1 rounded-app-ctrl px-1.5 py-1 text-[12px] tabular-nums transition-colors hover:bg-app-stone-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",

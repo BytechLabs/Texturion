@@ -218,7 +218,12 @@ export function ConversationRow({
               <TagChip key={tag.id} tag={tag} emphasis={i === 0 && !spamView} />
             ))}
             {assigneeName && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-app-line bg-app-stone-0 px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted dark:text-app-muted">
+              <span
+                title={`Assigned to ${assigneeName}`}
+                className="inline-flex items-center gap-1 rounded-full border border-app-line bg-app-stone-0 px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted dark:text-app-muted"
+              >
+                {/* The chip shows only initials — give SR users the full name. */}
+                <span className="sr-only">Assigned to {assigneeName}: </span>
                 {avatarInitials(assigneeName)}
               </span>
             )}
