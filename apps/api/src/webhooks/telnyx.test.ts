@@ -432,12 +432,16 @@ describe("inbound pipeline — opt-out keywords (§5)", () => {
     expect(events.calls[0].body).toMatchObject({ type: "opt_out_revoked" });
   });
 
-  it("skips keyword side effects on a duplicate delivery (created=false)", async () => {
+  it("on a replay (created=false) STILL mirrors the opt-out but skips the timeline event", async () => {
+    // A first-delivery failure leaves processed_at NULL; the §11 sweeper replays
+    // the event with created=false. The idempotent opt_outs upsert must re-run
+    // (so a dropped STOP is recovered — the send gate reads this mirror), while
+    // the non-idempotent conversation_events insert is skipped (no double-log).
     const { optOutUpsert, events } = await deliverKeyword("STOP", {
       created: false,
       opted_out: true,
     });
-    expect(optOutUpsert.calls).toHaveLength(0);
+    expect(optOutUpsert.calls).toHaveLength(1);
     expect(events.calls).toHaveLength(0);
   });
 });

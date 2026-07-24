@@ -168,10 +168,13 @@ export function keysetFilter(timestampColumn: string, cursor: Cursor): string {
 
 /**
  * Escape LIKE/ILIKE wildcards in user-supplied search text so `q` matches
- * literally (used by the trgm-backed ilike filters).
+ * literally (used by the trgm-backed ilike filters). Strips PostgREST's `*`
+ * wildcard first — PostgREST maps `*`→`%` at the URL layer BEFORE SQL, so a
+ * backslash can't escape it; leaving it in let a user `*` over-match — then
+ * backslash-escapes the SQL LIKE metacharacters.
  */
 export function escapeLike(q: string): string {
-  return q.replace(/[\\%_]/g, "\\$&");
+  return q.replace(/\*/g, "").replace(/[\\%_]/g, "\\$&");
 }
 
 /**
@@ -182,5 +185,7 @@ export function escapeLike(q: string): string {
  * matches literally.
  */
 export function orIlikeValue(q: string): string {
-  return q.replace(/["\\%_(),]/g, "");
+  // Includes `*` — PostgREST's URL-level ilike wildcard (maps to `%`) — so a
+  // user `*` can't over-match through the `name.ilike.*<q>*` filter.
+  return q.replace(/["\\%_(),*]/g, "");
 }

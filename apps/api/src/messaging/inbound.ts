@@ -94,16 +94,22 @@ export async function handleInboundMessage(
     throw new Error("thread_inbound_message returned no message");
   }
 
-  // Opt-out keyword handling — only on the first delivery of this message
-  // (duplicate webhooks must not double-write events).
-  if (threaded.created) {
-    await handleOptOutKeywords(db, {
-      companyId: number.company_id,
-      conversationId: threaded.conversation_id,
-      fromE164,
-      body: payload.text ?? "",
-    });
-  }
+  // Opt-out keyword handling runs on EVERY delivery. The opt_outs mirror is the
+  // source of truth the send gate + inbox rely on, so a first-delivery failure
+  // must be recoverable: the §11 sweeper replays the event (created=false), and
+  // gating the WHOLE handler on `created` would drop the STOP forever — we'd
+  // keep texting someone who opted out (a compliance miss). The mirror writes
+  // are idempotent (upsert / revoke-if-active); only the conversation_events
+  // timeline insert is gated on the first delivery so a replay can't double-log.
+  // Genuine duplicate webhooks never reach here — they're deduped at the
+  // webhook_events ledger — so `created` is false only on a failure replay.
+  await handleOptOutKeywords(db, {
+    companyId: number.company_id,
+    conversationId: threaded.conversation_id,
+    fromE164,
+    body: payload.text ?? "",
+    recordEvent: threaded.created,
+  });
 
   // After-hours away auto-reply (FEATURE-GAPS Step 1) — only on the first
   // delivery. Best-effort: a failure here (e.g. a not-ready send gate) must
@@ -258,6 +264,13 @@ async function handleOptOutKeywords(
     conversationId: string;
     fromE164: string;
     body: string;
+    /**
+     * Whether to write the conversation_events timeline entry. The idempotent
+     * opt_outs mirror always runs (so a sweeper replay recovers a failed
+     * first delivery); the non-idempotent event insert runs only on the first
+     * delivery (`threaded.created`) so a replay can't double-log it.
+     */
+    recordEvent: boolean;
   },
 ): Promise<void> {
   const keyword = args.body.trim().toUpperCase();
@@ -275,6 +288,7 @@ async function handleOptOutKeywords(
     );
     if (error) throw new Error(`opt_outs upsert failed: ${error.message}`);
 
+    if (!args.recordEvent) return;
     const { error: eventError } = await db.from("conversation_events").insert({
       company_id: args.companyId,
       conversation_id: args.conversationId,
@@ -301,6 +315,7 @@ async function handleOptOutKeywords(
     if (error) throw new Error(`opt_outs revoke failed: ${error.message}`);
     if ((data ?? []).length === 0) return;
 
+    if (!args.recordEvent) return;
     const { error: eventError } = await db.from("conversation_events").insert({
       company_id: args.companyId,
       conversation_id: args.conversationId,
