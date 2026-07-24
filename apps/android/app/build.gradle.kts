@@ -14,6 +14,22 @@ plugins {
     alias(libs.plugins.crashlytics)
 }
 
+/**
+ * Google Play REJECTS any upload whose versionCode is not strictly greater than
+ * the last one it accepted, so a hardcoded `1` lets exactly ONE build ever ship.
+ * CI passes the git commit count (`-PloonextVersionCode=$(git rev-list --count
+ * HEAD)`) — monotonic by construction, needs no stored state, and never collides
+ * across branches the way a manually-bumped number does. Local builds fall back
+ * to 1; they are never uploaded.
+ *
+ * Read through `providers` (not a raw `project.property`) so the values stay
+ * configuration-cache safe.
+ */
+val loonextVersionCode = providers.gradleProperty("loonextVersionCode")
+    .orNull?.toIntOrNull() ?: 1
+val loonextVersionName = providers.gradleProperty("loonextVersionName")
+    .orNull ?: "1.0.0" // x-release-please-version
+
 android {
     namespace = "com.loonext.android"
     compileSdk = 37
@@ -22,8 +38,8 @@ android {
         applicationId = "com.loonext.android"
         minSdk = 28
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = loonextVersionCode
+        versionName = loonextVersionName
 
         // Public client-side values (same values the web bundle ships).
         buildConfigField("String", "API_URL", "\"https://api.loonext.com\"")

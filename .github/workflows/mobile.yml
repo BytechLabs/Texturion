@@ -50,8 +50,12 @@ jobs:
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest
 
+      # Google Play rejects a versionCode that is not strictly greater than the
+      # last accepted one, so it cannot stay hardcoded at 1. The git commit count
+      # is monotonic by construction and needs no stored state — the same source
+      # the iOS build number uses, so the platforms stay in step.
       - name: Assemble debug APK
-        run: ./gradlew :app:assembleDebug
+        run: ./gradlew :app:assembleDebug -PloonextVersionCode="$(git rev-list --count HEAD)"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -100,12 +104,23 @@ jobs:
           fi
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
+      # App Store Connect rejects an upload whose CFBundleVersion repeats one it
+      # already accepted, so the build number cannot stay hardcoded at 1. The git
+      # commit count is monotonic by construction and needs no stored state — the
+      # same source Android's versionCode uses, so the two platforms stay in step.
+      # project.yml keeps 1/1.0.0 as the local-dev fallback; archives should pass
+      # the same override (see docs/RELEASING.md).
+      - name: Compute build number
+        id: build_number
+        run: echo "value=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Build
         run: |
           xcodebuild build \
             -project Loonext.xcodeproj \
             -scheme Loonext \
             -destination "id=${{ steps.sim.outputs.udid }}" \
+            CURRENT_PROJECT_VERSION="${{ steps.build_number.outputs.value }}" \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Unit tests

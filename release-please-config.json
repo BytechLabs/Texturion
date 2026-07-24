@@ -1,0 +1,64 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+
+  "//": [
+    "Release automation, driven by the Conventional Commits already in use.",
+    "",
+    "Commits are routed to a package by the FILES they touch, not by the commit",
+    "scope — so the existing mix of component scopes (web/api/android) and issue",
+    "scopes (#214) all land in the right changelog with no change to how commits",
+    "are written.",
+    "",
+    "The four deployables deliberately do NOT share a version. api/web are",
+    "continuously deployed services where exactly one version exists at a time and",
+    "semver communicates nothing to anyone; their releases exist for traceability",
+    "(a tag + changelog answering 'what shipped when'). android/ios are INSTALLED",
+    "artifacts: old versions live on user devices for months, so their semver is",
+    "real and their release notes are user-facing.",
+    "",
+    "Build NUMBERS are not managed here — versionCode / CURRENT_PROJECT_VERSION",
+    "come from the git commit count at build time (monotonic by construction, see",
+    "mobile.yml). This file owns only the human-facing marketing version."
+  ],
+
+  "separate-pull-requests": false,
+  "include-component-in-tag": true,
+  "pull-request-title-pattern": "chore: release${component}",
+  "changelog-sections": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Bug Fixes" },
+    { "type": "perf", "section": "Performance" },
+    { "type": "revert", "section": "Reverts" },
+    { "type": "refactor", "section": "Refactoring", "hidden": true },
+    { "type": "docs", "section": "Documentation", "hidden": true },
+    { "type": "test", "section": "Tests", "hidden": true },
+    { "type": "ci", "section": "CI", "hidden": true },
+    { "type": "build", "section": "Build", "hidden": true },
+    { "type": "chore", "section": "Chores", "hidden": true }
+  ],
+
+  "packages": {
+    "apps/api": {
+      "release-type": "node",
+      "component": "api"
+    },
+    "apps/web": {
+      "release-type": "node",
+      "component": "web"
+    },
+    "packages/shared": {
+      "release-type": "node",
+      "component": "shared"
+    },
+    "apps/android": {
+      "release-type": "simple",
+      "component": "android",
+      "extra-files": [{ "type": "generic", "path": "app/build.gradle.kts" }]
+    },
+    "apps/ios": {
+      "release-type": "simple",
+      "component": "ios",
+      "extra-files": [{ "type": "generic", "path": "project.yml" }]
+    }
+  }
+}

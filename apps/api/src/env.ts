@@ -85,6 +85,15 @@ const envSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
   RESEND_API_KEY: z.string().min(1),
   SENTRY_DSN: z.url(),
+  /**
+   * The git SHA this Worker was built from — stamped by the Deploy workflow
+   * (`wrangler deploy --var GIT_SHA:<head_sha>`) and reported to Sentry as the
+   * release, so a production error maps to the exact commit that shipped it
+   * (and Sentry can flag regressions + suspect commits). Optional: local dev,
+   * tests, and a manual `wrangler deploy` boot without it, and Sentry simply
+   * falls back to an untagged release rather than the Worker failing to start.
+   */
+  GIT_SHA: z.string().min(1).optional(),
   APP_ORIGIN: originUrl(),
   /** Public origin of THIS Worker (webhook callback URLs, e.g. Telnyx profiles). */
   API_ORIGIN: originUrl(),

@@ -125,6 +125,16 @@ export function sentryOptions(bindings: Bindings): CloudflareOptions {
     dsn: env.SENTRY_DSN,
     sendDefaultPii: false,
     tracesSampleRate: 0,
+    // RELEASE TRACEABILITY: without this every production error was untagged —
+    // you could see that something broke but not which deploy introduced it.
+    // The Deploy workflow stamps the deployed commit (`--var GIT_SHA:<sha>`),
+    // which is what makes Sentry's regression detection and suspect-commits
+    // work. Undefined locally / on a manual deploy, which Sentry treats as an
+    // untagged release rather than an error.
+    release: env.GIT_SHA,
+    // Keeps a local or preview Worker's noise out of the production issue
+    // stream; without it every environment shared one bucket.
+    environment: env.GIT_SHA ? "production" : "development",
     beforeSend: scrubEvent,
     beforeBreadcrumb: scrubBreadcrumb,
   };

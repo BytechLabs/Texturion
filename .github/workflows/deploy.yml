@@ -74,8 +74,14 @@ jobs:
           supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
           supabase db push
 
+      # GIT_SHA is the Sentry release: it maps a production error back to the
+      # exact commit that shipped it (and drives Sentry's regression detection
+      # + suspect commits). head_sha is the commit CI went green on, which is
+      # the one checked out above — not necessarily the branch tip.
       - name: Deploy api Worker
-        run: pnpm --filter @loonext/api exec wrangler deploy
+        run: |
+          pnpm --filter @loonext/api exec wrangler deploy \
+            --var GIT_SHA:"${{ github.event.workflow_run.head_sha }}"
 
       - name: Deploy web Worker (OpenNext build + deploy)
         run: pnpm --filter @loonext/web run deploy

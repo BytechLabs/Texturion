@@ -1,0 +1,32 @@
+name: Release
+
+# Keeps a "chore: release" PR open against main, continuously restating what
+# would ship: per-package CHANGELOG entries and version bumps derived from the
+# Conventional Commits landed since the last tag. Merging it tags the release.
+#
+# This does NOT gate deployment. api/web still deploy on every green CI exactly
+# as before — the tag and changelog are the RECORD of what shipped, not a gate
+# in front of it. For android/ios the merged version is the one that goes to the
+# stores, and the generated notes are the "What's new" text.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# A release PR is a running summary, so an in-flight run is safe to cancel:
+# the next push recomputes it from scratch.
+concurrency:
+  group: release-please
+  cancel-in-progress: true
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
