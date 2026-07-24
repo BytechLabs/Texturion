@@ -57,6 +57,9 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
@@ -381,6 +384,16 @@ fun MainShell(
                                 ) {
                                     haptics.tap()
                                     onOpenAccountSheet()
+                                }
+                                // Name the account button + surface the unread
+                                // dot to screen readers (it was purely visual).
+                                .semantics {
+                                    contentDescription =
+                                        if (unreadNotifications > 0) {
+                                            "Account, $unreadNotifications unread notifications"
+                                        } else {
+                                            "Account"
+                                        }
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
@@ -435,7 +448,10 @@ private fun NavSlot(
         interactionSource = interaction,
         modifier = modifier
             .size(46.dp)
-            .pressScale(interaction),
+            .pressScale(interaction)
+            // Announce the active tab's selected state to accessibility
+            // (this.selected = the SemanticsPropertyReceiver property).
+            .semantics { this.selected = selected },
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(20.dp))

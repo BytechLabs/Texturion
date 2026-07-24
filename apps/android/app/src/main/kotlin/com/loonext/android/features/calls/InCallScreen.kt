@@ -558,7 +558,10 @@ internal fun RingActionCircle(
                 .pressScale(interaction),
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(26.dp))
+                // The label Text sits OUTSIDE the Surface, so the button itself
+                // had no accessible name — name it from the icon (Answer /
+                // Decline / Mute …) so screen readers announce the action.
+                Icon(icon, contentDescription = label, modifier = Modifier.size(26.dp))
             }
         }
         Text(label, fontSize = 11.sp, fontWeight = labelWeight, color = labelColor)
