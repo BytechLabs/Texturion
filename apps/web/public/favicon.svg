@@ -1,12 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <!--
-    Loonext favicon (default - no unread). The double-o mark (#206) on the
-    INK tile (brand/loonext-tile-dark.svg): first ring paper, second ring
-    lime - the dark pair is the shipped icon everywhere (founder direction
-    2026-07-22). The two thick rings stay legible at tab size (16-32px).
-    The unread variant lives in favicon-unread.svg; use-unread-title.ts
-    swaps between the two (G9) - both files must stay the same tile so
-    only the dot changes.
+    Loonext app tile (#206): the double-o mark on the INK tile - the dark
+    pair is the shipped icon everywhere (founder direction 2026-07-22).
+    Favicon / app-icon base; loonext-tile-dark.svg is the same treatment
+    kept for explicit dark-context references.
   -->
   <rect x="0" y="0" width="512" height="512" rx="116" ry="116" fill="#191B14"/>
   <circle cx="172" cy="256" r="60" fill="none" stroke="#F0F1E5" stroke-width="36"/>
