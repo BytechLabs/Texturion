@@ -120,6 +120,32 @@ const modelOutputSchema = z.object({
 export type EnrichmentModelOutput = z.infer<typeof modelOutputSchema>;
 
 /**
+ * Cheap, deterministic pre-filter: does the text PLAUSIBLY contain an address
+ * or a date/time worth spending an AI call on? Most promoted messages ("call
+ * the customer back", "send the quote") have neither — enriching them is pure
+ * cost for an empty result. So the endpoint only calls the model when the
+ * relevant signal is present ("only when needed"). Tuned to favor recall: a
+ * false positive just wastes one cheap call; a false negative silently skips a
+ * real suggestion, so the patterns are generous. A missed edge still enriches
+ * on the next, clearer message.
+ */
+const ADDRESS_SIGNAL =
+  /\b(st|street|ave|avenue|rd|road|blvd|boulevard|ln|lane|dr|drive|ct|court|way|pl|place|ter|terrace|hwy|highway|cir|circle|sq|square|pkwy|parkway|trail|trl|cres|crescent|close|unit|suite|apt|apartment|floor|fl)\b|\b\d{1,6}\s+[a-z]|\b\d{5}(-\d{4})?\b|\b[a-z]\d[a-z]\s?\d[a-z]\d\b/i;
+
+const DUE_SIGNAL =
+  /\b(today|tonight|tomorrow|tmrw|tmr|yesterday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|wed|thur?s?|fri|sat|sun|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec|noon|midnight|asap|eod|eow|weekend)\b|\b(next|this|by|end of|before|after|due)\s+\w|\b\d{1,2}\s*(:\d{2})?\s*(am|pm)\b|\b\d{1,2}[/-]\d{1,2}([/-]\d{2,4})?\b|\bin\s+\d+\s+(day|days|week|weeks|hour|hours|month|months)\b/i;
+
+export function detectEnrichmentSignals(text: string): {
+  address: boolean;
+  due: boolean;
+} {
+  return {
+    address: ADDRESS_SIGNAL.test(text),
+    due: DUE_SIGNAL.test(text),
+  };
+}
+
+/**
  * The token-minimal, injection-hardened system prompt. It names the output
  * schema, marks the task text as untrusted data, and forbids inventing a
  * street. Kept terse to minimize input tokens (cost).

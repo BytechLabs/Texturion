@@ -32,6 +32,7 @@ import { companiesRoutes } from "./companies";
 import { tasksRoutes } from "./tasks";
 
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
+const CONVERSATION_ID = "bbbbbbbb-0000-4000-8000-00000000000b";
 
 let auth: TestAuth;
 const baseEnv = completeEnv();
@@ -172,10 +173,12 @@ describe("POST /v1/tasks/enrich", () => {
       jwksRoute(auth),
       membersRoute(),
       settingsRoute({ enrich_task_address: true, enrich_task_due: true }).route,
+      companyRoute().route,
       reserveRoute({ count: 1001, over_cap: true, should_alert: false }).route,
     );
 
-    const res = await enrich({ text: "fix sink" }, env);
+    // Signal-bearing text so it reaches the cap (a no-signal task skips earlier).
+    const res = await enrich({ text: "fix sink at 5 King St by Friday" }, env);
     expect(res.status).toBe(200);
     const json = (await res.json()) as { address: unknown };
     expect(json.address).toBeNull();
@@ -193,7 +196,7 @@ describe("POST /v1/tasks/enrich", () => {
       companyRoute().route,
     );
 
-    const res = await enrich({ text: "fix sink" }, env);
+    const res = await enrich({ text: "fix sink at 5 King St by Friday" }, env);
     expect(res.status).toBe(200);
     const json = (await res.json()) as {
       address: unknown;
@@ -214,11 +217,74 @@ describe("POST /v1/tasks/enrich", () => {
       jwksRoute(auth),
       membersRoute(),
       settingsRoute({ enrich_task_address: true, enrich_task_due: true }).route,
+      companyRoute().route,
       reserve.route,
     );
 
-    const res = await enrich({ text: "fix sink" }, env);
+    const res = await enrich({ text: "fix at 5 King St Friday" }, env);
     expect(res.status).toBe(200);
+    expect(reserve.calls.length).toBe(0);
+  });
+
+  it("no address/date signal → skips the AI AND the cap entirely (cost)", async () => {
+    const { ai, run } = mockAi({ response: '{"city":"Toronto"}' });
+    const env: Env = { ...baseEnv, AI: ai };
+    const reserve = reserveRoute({
+      count: 1,
+      over_cap: false,
+      should_alert: false,
+    });
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute(),
+      settingsRoute({ enrich_task_address: true, enrich_task_due: true }).route,
+      companyRoute().route,
+      reserve.route,
+    );
+
+    const res = await enrich({ text: "call the customer back" }, env);
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { address: unknown; due_at: unknown };
+    expect(json.address).toBeNull();
+    expect(json.due_at).toBeNull();
+    expect(run).not.toHaveBeenCalled();
+    expect(reserve.calls.length).toBe(0);
+  });
+
+  it("no signal but a linked contact has an address → free contact fallback, no AI", async () => {
+    const { ai, run } = mockAi({ response: "{}" });
+    const env: Env = { ...baseEnv, AI: ai };
+    const reserve = reserveRoute({
+      count: 1,
+      over_cap: false,
+      should_alert: false,
+    });
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute(),
+      settingsRoute({ enrich_task_address: true, enrich_task_due: true }).route,
+      companyRoute().route,
+      stubRoute(restMatch(baseEnv, "GET", "conversations"), () => [
+        { contact_id: "cont-1" },
+      ]).route,
+      stubRoute(restMatch(baseEnv, "GET", "contacts"), () => [
+        { address: "88 Bay St, Toronto" },
+      ]).route,
+      reserve.route,
+    );
+
+    const res = await enrich(
+      { text: "paint the house", conversation_id: CONVERSATION_ID },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as {
+      address: { street: string } | null;
+      address_provenance: string | null;
+    };
+    expect(json.address?.street).toBe("88 Bay St, Toronto");
+    expect(json.address_provenance).toBe("contact");
+    expect(run).not.toHaveBeenCalled();
     expect(reserve.calls.length).toBe(0);
   });
 

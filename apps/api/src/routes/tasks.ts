@@ -69,6 +69,7 @@ import {
   buildEnrichmentResult,
   type CompanyAiSettings,
   DEFAULT_AI_SETTINGS,
+  detectEnrichmentSignals,
   ENRICHMENT_ALERT_THRESHOLD,
   ENRICHMENT_MAX_INPUT_CHARS,
   ENRICHMENT_MAX_OUTPUT_TOKENS,
@@ -549,8 +550,43 @@ tasksRoutes.post("/tasks/enrich", requireRole("member"), async (c) => {
   if (!settings.enrich_task_address && !settings.enrich_task_due) {
     return c.json({ ...EMPTY_ENRICHMENT, enrichment_disabled: true });
   }
-  // No binding (local dev/tests) → honest no-enrichment.
-  if (!env.AI) return c.json(EMPTY_ENRICHMENT);
+
+  const text = body.text.slice(0, ENRICHMENT_MAX_INPUT_CHARS);
+  const ctx = await loadEnrichmentContext(db, companyId, {
+    conversationId: body.conversation_id,
+    messageId: body.message_id,
+  });
+  const contactAddress = ctx.contactAddress?.trim() || null;
+
+  // "Only when needed" (cost): call the model ONLY when the text plausibly holds
+  // the enrichment we're permitted to make. A no-signal task ("call back", "send
+  // the quote") never spends an AI call or a cap unit.
+  const signals = detectEnrichmentSignals(text);
+  const wantAddress = settings.enrich_task_address && signals.address;
+  const wantDue = settings.enrich_task_due && signals.due;
+
+  // The contact's address on file — offered as a FREE (no-model) fallback for a
+  // task whose text names no address of its own.
+  const contactFallback = () =>
+    settings.enrich_task_address && contactAddress
+      ? c.json({
+          address: {
+            street: contactAddress,
+            unit: null,
+            city: null,
+            state: null,
+            postal_code: null,
+            country: null,
+          },
+          address_provenance: "contact" as const,
+          due_at: null,
+        })
+      : c.json(EMPTY_ENRICHMENT);
+
+  // Nothing worth a model call — the single biggest cost saver.
+  if (!wantAddress && !wantDue) return contactFallback();
+  // No binding (local dev/tests): degrade to the free fallback, never the model.
+  if (!env.AI) return contactFallback();
 
   // Per-company burst limiter (absent in dev/tests → skipped).
   if (env.AI_ENRICH_RATE_LIMITER) {
@@ -582,13 +618,8 @@ tasksRoutes.post("/tasks/enrich", requireRole("member"), async (c) => {
       sendEnrichmentCapAlert(env, companyId, reserve.count).catch(() => {}),
     );
   }
-  if (reserve.over_cap) return c.json(EMPTY_ENRICHMENT);
+  if (reserve.over_cap) return contactFallback();
 
-  const text = body.text.slice(0, ENRICHMENT_MAX_INPUT_CHARS);
-  const ctx = await loadEnrichmentContext(db, companyId, {
-    conversationId: body.conversation_id,
-    messageId: body.message_id,
-  });
   const messages = buildEnrichmentMessages({
     text,
     now: new Date(),
@@ -625,7 +656,9 @@ tasksRoutes.post("/tasks/enrich", requireRole("member"), async (c) => {
 
   const result = buildEnrichmentResult(output, {
     enableAddress: settings.enrich_task_address,
-    enableDue: settings.enrich_task_due,
+    // Gate on the date SIGNAL, not just the toggle: never surface an inferred
+    // due when the text stated no date (belt-and-suspenders with the prompt).
+    enableDue: wantDue,
     timezone: ctx.timezone,
     contactAddress: ctx.contactAddress,
   });

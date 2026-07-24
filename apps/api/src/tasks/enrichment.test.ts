@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildEnrichmentMessages,
   buildEnrichmentResult,
+  detectEnrichmentSignals,
   type EnrichmentContext,
   parseEnrichmentOutput,
   resolveDueAt,
@@ -169,6 +170,48 @@ describe("buildEnrichmentResult", () => {
       opts,
     );
     expect(r.address).toBeNull();
+  });
+});
+
+describe("detectEnrichmentSignals (the 'only when needed' cost pre-filter)", () => {
+  it("founder example: an address + an explicit due are both detected", () => {
+    const s = detectEnrichmentSignals(
+      "Hey can you paint the house at 32 West Avenue with green color by end of month?",
+    );
+    expect(s.address).toBe(true);
+    expect(s.due).toBe(true);
+  });
+
+  it("founder example: an address with NO date detects address only (no phantom due)", () => {
+    const s = detectEnrichmentSignals("hey can you paint 32 alora avenue please");
+    expect(s.address).toBe(true);
+    expect(s.due).toBe(false);
+  });
+
+  it("a task with neither signals nothing — the AI call is skipped", () => {
+    expect(detectEnrichmentSignals("call the customer back")).toEqual({
+      address: false,
+      due: false,
+    });
+    expect(detectEnrichmentSignals("send over the quote")).toEqual({
+      address: false,
+      due: false,
+    });
+  });
+
+  it("detects a bare street, a unit, a US zip, and a CA postal code", () => {
+    expect(detectEnrichmentSignals("meet at 5 King St W").address).toBe(true);
+    expect(detectEnrichmentSignals("apt 4B, buzz twice").address).toBe(true);
+    expect(detectEnrichmentSignals("ship to 90210").address).toBe(true);
+    expect(detectEnrichmentSignals("it's M5V 2T6").address).toBe(true);
+  });
+
+  it("detects times, weekdays, and relative dates", () => {
+    expect(detectEnrichmentSignals("callback at 2pm").due).toBe(true);
+    expect(detectEnrichmentSignals("finish by Tuesday").due).toBe(true);
+    expect(detectEnrichmentSignals("do it tomorrow").due).toBe(true);
+    expect(detectEnrichmentSignals("in 3 days").due).toBe(true);
+    expect(detectEnrichmentSignals("on 7/15").due).toBe(true);
   });
 });
 
