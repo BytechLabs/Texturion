@@ -276,7 +276,10 @@ describe("/settings/usage capped status (#178)", () => {
       baseUsage({ status: "capped", used_segments: 1500, cap_segments: 1500 }),
     );
     expect(html).toContain("A spending cap you control");
-    expect(html).toContain('aria-label="Spending cap"');
+    // The control is a slider now: the owner drags it and watches the pause
+    // point move, instead of picking one of four presets blind.
+    expect(html).toContain('type="range"');
+    expect(html).toContain("Sending pauses at");
   });
 });
 

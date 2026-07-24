@@ -1,20 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  CAP_PRESETS,
   MAX_CAP_MULTIPLIER,
   capLabel,
   capSegments,
   describeCapChange,
   normalizeMultiplier,
 } from "./cap-control";
-
-describe("CAP_PRESETS (#42)", () => {
-  it("offers no uncapped option — the top preset is the 10× hard ceiling", () => {
-    expect(CAP_PRESETS).toEqual([2, 3, 5, 10]);
-    expect(CAP_PRESETS.at(-1)).toBe(MAX_CAP_MULTIPLIER);
-  });
-});
 
 describe("normalizeMultiplier", () => {
   it("passes numbers through and parses Postgres numeric strings", () => {

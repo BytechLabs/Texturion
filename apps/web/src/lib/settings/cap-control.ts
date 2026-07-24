@@ -1,7 +1,7 @@
 /**
- * Overage-cap control logic for /settings/usage (G8, SPEC §2): presets
- * 2×/3×/5×/Maximum (10×), owner-only, every change confirmed with a plain
- * sentence describing what will happen. Pure logic — the component renders it.
+ * Overage-cap control logic for /settings/usage (G8, SPEC §2): owner-only, and
+ * every change described in a plain sentence before it is saved. Pure logic —
+ * the component renders it as a slider over (0, 10].
  *
  * #42 honesty: there is no "no cap" any more. The API clamps a null cap to 10
  * (PATCH /v1/company) and the DB rejects anything outside (0, 10]
@@ -13,9 +13,6 @@
 
 /** The un-defeatable ceiling — mirrors the API clamp + DB CHECK ((0, 10]). */
 export const MAX_CAP_MULTIPLIER = 10;
-
-/** The G8 preset multipliers; the last one is the hard ceiling (SPEC §2). */
-export const CAP_PRESETS: readonly number[] = [2, 3, 5, MAX_CAP_MULTIPLIER];
 
 /**
  * `companies.overage_cap_multiplier` arrives as a Postgres numeric — the API
