@@ -89,19 +89,36 @@ export function CapControl({
     );
   }
 
+  // How far along the rail the thumb sits, so the CSS can paint the filled
+  // portion behind it (a native range gives no way to do this).
+  const fillPercent =
+    ((proposed - MIN_CAP_MULTIPLIER) /
+      (MAX_CAP_MULTIPLIER - MIN_CAP_MULTIPLIER)) *
+    100;
+
   return (
-    <div className="space-y-3">
-      <label
-        htmlFor={sliderId}
-        className="flex items-baseline justify-between gap-3"
-      >
-        <span className="text-sm font-medium text-foreground">
-          Spending cap
-        </span>
-        <span className="text-sm font-semibold tabular-nums text-foreground">
+    <div className="rounded-app-card border border-app-line bg-app-white p-4">
+      {/* The consequence, at the top and in the largest type on the card: the
+          multiplier is the mechanism, the pause point is the decision. */}
+      <div className="flex items-end justify-between gap-4">
+        <label htmlFor={sliderId} className="min-w-0">
+          <span className="block text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
+            Sending pauses at
+          </span>
+          <span
+            className="mt-1 block text-[28px] font-semibold leading-none tabular-nums tracking-[-0.02em] text-app-ink"
+            aria-live="polite"
+          >
+            {pauseAt.toLocaleString()}
+          </span>
+          <span className="mt-1 block text-[12px] text-app-muted">
+            messages this period
+          </span>
+        </label>
+        <span className="shrink-0 rounded-full bg-app-tint px-2.5 py-1 text-[12px] font-semibold tabular-nums text-app-petrol-deep">
           {capLabel(proposed)}
         </span>
-      </label>
+      </div>
 
       <input
         id={sliderId}
@@ -114,26 +131,28 @@ export function CapControl({
         disabled={update.isPending}
         // Screen readers hear the consequence, not the raw multiplier.
         aria-valuetext={`${capLabel(proposed)} your included messages, pausing at ${pauseAt.toLocaleString()} messages`}
-        className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-app-line accent-[var(--app-petrol)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+        style={{ "--cap-fill": `${fillPercent}%` } as React.CSSProperties}
+        className="cap-slider mt-4"
       />
-      <div className="flex justify-between text-[11px] tabular-nums text-muted-foreground">
-        <span>{MIN_CAP_MULTIPLIER}×</span>
+      <div className="flex justify-between text-[11px] tabular-nums text-app-muted-2">
+        <span>{MIN_CAP_MULTIPLIER}× included</span>
         <span>{MAX_CAP_MULTIPLIER}× max</span>
       </div>
 
-      {/* The number the decision is actually about, updating as you drag. */}
-      <p className="text-sm text-muted-foreground" aria-live="polite">
-        Sending pauses at{" "}
-        <span className="font-medium tabular-nums text-foreground">
-          {pauseAt.toLocaleString()}
-        </span>{" "}
-        messages this period.
-        {proposed >= MAX_CAP_MULTIPLIER && " That's the highest the cap goes."}
-      </p>
+      {proposed >= MAX_CAP_MULTIPLIER && (
+        <p className="mt-2 text-[12px] text-app-muted">
+          That&apos;s the highest the cap goes.
+        </p>
+      )}
 
+      {/* Moving the slider proposes; it does not save. The confirm strip only
+          exists once the value actually differs, so the card stays quiet in the
+          state it spends almost all its time in. */}
       {dirty && (
-        <div className="space-y-2 rounded-app-card border border-app-line bg-app-stone-0 p-3">
-          <p className="text-sm text-foreground">{change.summary}</p>
+        <div className="mt-4 space-y-2.5 rounded-app-ctrl bg-app-stone-1 p-3">
+          <p className="text-[13px] leading-[1.5] text-app-ink">
+            {change.summary}
+          </p>
           <div className="flex gap-2">
             <Button size="sm" disabled={update.isPending} onClick={save}>
               {update.isPending ? "Saving…" : "Save cap"}
@@ -154,12 +173,12 @@ export function CapControl({
       )}
 
       {error && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="mt-3 text-sm text-destructive">
           {error}
         </p>
       )}
 
-      <p className="text-xs text-muted-foreground">
+      <p className="mt-4 border-t border-app-line-soft pt-3 text-[12px] leading-[1.5] text-app-muted">
         The cap is a multiple of what your plan includes. If a month ever hits
         it, sending pauses until you raise it, and nothing is billed past it.
       </p>

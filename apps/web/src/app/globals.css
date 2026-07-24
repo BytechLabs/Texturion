@@ -1324,3 +1324,112 @@
     opacity: 0.85;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   THE SPENDING-CAP SLIDER (components/settings/cap-control.tsx)
+
+   A native range input styled to belong to Paper & Olive rather than to the
+   browser. The track is a quiet stone rail; the part you have claimed fills
+   petrol; the thumb is a white disc on a petrol ring with a soft lift, sized
+   for a fingertip.
+
+   Both vendor prefixes are written out because there is still no shared
+   pseudo-element for a range thumb, and a half-styled slider looks worse than
+   an unstyled one.
+--------------------------------------------------------------------------- */
+.cap-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 28px; /* a comfortable hit area; the visible rail is drawn below */
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Track — the rail. The filled portion is painted with a gradient whose stop
+   is set from the component (--cap-fill), so the fill follows the thumb. */
+.cap-slider::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--app-petrol) 0%,
+    var(--app-petrol) var(--cap-fill, 0%),
+    var(--app-line-soft) var(--cap-fill, 0%),
+    var(--app-line-soft) 100%
+  );
+}
+.cap-slider::-moz-range-track {
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--app-line-soft);
+}
+.cap-slider::-moz-range-progress {
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--app-petrol);
+}
+
+/* Thumb — a white disc on a petrol ring, lifted just off the rail. */
+.cap-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 22px;
+  width: 22px;
+  margin-top: -7px; /* centers the 22px thumb on the 8px track */
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid var(--app-petrol);
+  box-shadow:
+    0 1px 2px rgb(15 23 20 / 0.16),
+    0 4px 10px rgb(15 23 20 / 0.1);
+  transition:
+    transform 140ms ease-out,
+    box-shadow 140ms ease-out;
+}
+.cap-slider::-moz-range-thumb {
+  height: 22px;
+  width: 22px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 2px solid var(--app-petrol);
+  box-shadow:
+    0 1px 2px rgb(15 23 20 / 0.16),
+    0 4px 10px rgb(15 23 20 / 0.1);
+  transition:
+    transform 140ms ease-out,
+    box-shadow 140ms ease-out;
+}
+
+.cap-slider:hover::-webkit-slider-thumb,
+.cap-slider:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.08);
+}
+.cap-slider:hover::-moz-range-thumb,
+.cap-slider:focus-visible::-moz-range-thumb {
+  transform: scale(1.08);
+}
+.cap-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 4px var(--app-tint),
+    0 4px 10px rgb(15 23 20 / 0.1);
+}
+.cap-slider:focus-visible::-moz-range-thumb {
+  box-shadow:
+    0 0 0 4px var(--app-tint),
+    0 4px 10px rgb(15 23 20 / 0.1);
+}
+.cap-slider:focus-visible {
+  outline: none;
+}
+.cap-slider:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cap-slider::-webkit-slider-thumb,
+  .cap-slider::-moz-range-thumb {
+    transition: none;
+  }
+}

@@ -90,9 +90,7 @@ struct AiSectionView: View {
                     label: "Let Lou draft replies",
                     supporting: "Offer a few short replies you can edit before "
                         + "sending, drawn from the conversation so far. Start typing "
-                        + "and they finish what you started instead. Nothing is ever "
-                        + "sent for you, and drafts never quote prices, links, or "
-                        + "times the conversation did not already contain.",
+                        + "and they finish what you started instead.",
                     isOn: settings.suggest_replies,
                     enabled: canEdit && !saving,
                     onChange: {
