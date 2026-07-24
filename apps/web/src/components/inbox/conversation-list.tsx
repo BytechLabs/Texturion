@@ -253,7 +253,11 @@ export function ConversationList({
         ))}
       </div>
       {query.isFetchingNextPage && (
-        <p className="p-3 text-center text-xs text-muted-foreground">
+        <p
+          role="status"
+          aria-live="polite"
+          className="p-3 text-center text-xs text-muted-foreground"
+        >
           Loading more…
         </p>
       )}

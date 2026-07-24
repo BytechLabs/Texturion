@@ -383,6 +383,7 @@ function ScreeningCard({
 }) {
   const update = useUpdateCompany();
   const [error, setError] = useState<string | null>(null);
+  const radioRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   function choose(value: CompanyView["call_screening"]) {
     if (value === company.call_screening) return;
@@ -401,6 +402,32 @@ function ScreeningCard({
     );
   }
 
+  // WAI-ARIA radiogroup keyboard contract: Arrow keys move focus AND selection
+  // across the options (with roving tabindex, one Tab stop for the whole group).
+  const currentIndex = SCREENING_CHOICES.findIndex(
+    (choice) => choice.value === company.call_screening,
+  );
+  function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (!canEdit) return;
+    const from = currentIndex === -1 ? 0 : currentIndex;
+    let next = from;
+    switch (event.key) {
+      case "ArrowDown":
+      case "ArrowRight":
+        next = (from + 1) % SCREENING_CHOICES.length;
+        break;
+      case "ArrowUp":
+      case "ArrowLeft":
+        next = (from - 1 + SCREENING_CHOICES.length) % SCREENING_CHOICES.length;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    radioRefs.current[next]?.focus();
+    choose(SCREENING_CHOICES[next].value);
+  }
+
   return (
     <SettingsCard
       title="Call screening"
@@ -409,16 +436,21 @@ function ScreeningCard({
       <div
         role="radiogroup"
         aria-label="Call screening"
+        onKeyDown={onKeyDown}
         className="space-y-2"
       >
-        {SCREENING_CHOICES.map((choice) => {
+        {SCREENING_CHOICES.map((choice, i) => {
           const selected = company.call_screening === choice.value;
           return (
             <button
               key={choice.value}
+              ref={(el) => {
+                radioRefs.current[i] = el;
+              }}
               type="button"
               role="radio"
               aria-checked={selected}
+              tabIndex={selected || (currentIndex === -1 && i === 0) ? 0 : -1}
               disabled={!canEdit || update.isPending}
               onClick={() => choose(choice.value)}
               className={

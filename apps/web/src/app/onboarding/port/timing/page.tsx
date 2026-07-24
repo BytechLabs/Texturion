@@ -150,6 +150,9 @@ export default function PortTimingPage() {
             id="foc-date"
             type="date"
             value={focDate}
+            // A switch-over date can only be today or later — a past date is
+            // never a valid port request.
+            min={new Date().toISOString().slice(0, 10)}
             onChange={(e) => setFocDate(e.target.value)}
             className="tabular-nums"
           />
