@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 import createMDX from "@next/mdx";
 import type { NextConfig } from "next";
@@ -5,7 +7,23 @@ import rehypeSlug from "rehype-slug";
 
 import { SECURITY_HEADERS } from "./src/lib/observability/security-headers";
 
+/**
+ * The shipped version, read from this package at build time. release-please
+ * bumps package.json on every release, so the string a user reads in Settings
+ * is exactly the release that built the bundle — nothing to keep in sync by
+ * hand. Read from disk rather than an npm_* env var so it is correct however
+ * the build is invoked (next build, the OpenNext adapter, CI).
+ */
+const APP_VERSION: string = (
+  JSON.parse(
+    readFileSync(new URL("./package.json", import.meta.url), "utf8"),
+  ) as { version: string }
+).version;
+
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_APP_VERSION: APP_VERSION,
+  },
   // Optional isolated build output dir (LOONEXT_DIST_DIR) so a production build
   // can run without colliding with a concurrently-running `next dev` that shares
   // the default `.next`. No effect when the env var is unset.

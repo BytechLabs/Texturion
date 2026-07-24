@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 
 import { SettingsNav } from "@/components/settings/settings-nav";
+import { VersionFooter } from "@/components/settings/version-footer";
 import { cn } from "@/lib/utils";
 
 /**
@@ -39,6 +40,11 @@ export function SettingsShell({
             <SettingsNav asList />
           </div>
         )}
+        {/* What you are actually running, for when something needs reporting.
+            Sits under the desktop nav, and under the mobile index list so it
+            never floats mid-screen on a sub-page. */}
+        <VersionFooter className="mt-6 px-3 hidden lg:block" />
+        {atIndex && <VersionFooter className="mt-6 px-3 lg:hidden" />}
       </aside>
       <div className={cn("min-w-0 flex-1", atIndex ? "hidden lg:block" : "block")}>
         {children}
