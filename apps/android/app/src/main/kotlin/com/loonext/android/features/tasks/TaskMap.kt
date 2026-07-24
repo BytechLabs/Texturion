@@ -72,6 +72,7 @@ import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.rememberShimmerBrush
+import com.loonext.android.ui.theme.BrandColor
 import kotlin.math.abs
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
@@ -581,8 +582,14 @@ private fun OsmTaskMap(
     onPickGroup: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val pinColor = MaterialTheme.colorScheme.primary.toArgb()
-    val dotColor = MaterialTheme.colorScheme.tertiary.toArgb()
+    // #219: the OSM tiles stay STANDARD (light) in both themes (see the file
+    // header). Theme roles (primary/tertiary) resolve to the pale dark-scheme
+    // values in dark mode, which wash out on the light tiles. Pin + locate-dot
+    // colors are therefore theme-INDEPENDENT, high-contrast palette constants:
+    // near-black ink for the teardrop and the warm coral attention dot — both
+    // read clearly on the light tiles in light AND dark.
+    val pinColor = BrandColor.Ink.toArgb()
+    val dotColor = BrandColor.Coral.toArgb()
     val pick = rememberUpdatedState(onPickGroup)
     val lifecycleOwner = LocalLifecycleOwner.current
     var mapRef by remember { mutableStateOf<MapView?>(null) }

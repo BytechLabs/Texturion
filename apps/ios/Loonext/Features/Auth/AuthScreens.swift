@@ -366,6 +366,11 @@ private struct SsoButtons: View {
             }
             .buttonStyle(.plain)
             .background(BrandColor.paper, in: Capsule())
+            // #218: in Paper & Olive LIGHT mode `paper` (#FDFDF9) and `canvas`
+            // (#F3F3EE) are nearly identical, so a bare paper fill vanishes
+            // against the auth canvas. A hairline (the same the email fields
+            // carry) gives the button an edge that reads in BOTH themes.
+            .overlay(Capsule().strokeBorder(BrandColor.insetDeep, lineWidth: 1.5))
             .disabled(model.busy)
 
             HStack(spacing: 10) {
@@ -619,6 +624,20 @@ struct PrimaryButton: View {
 // #180 responsive matrix — the auth column already scrolls and caps at 440;
 // fixed frames prove the login form stays reachable at each ratio (nothing
 // here touches the network until a button is tapped).
+
+// #218 — both themes must be legible. The signed-out surface has no theme
+// picker, so it follows the scheme; these pin light AND dark so a regression
+// (a fixed dark surface, a control that blends into the near-identical
+// paper/canvas pair) shows in the canvas.
+#Preview("Auth · light") {
+    AuthFlow(authManager: AppGraph().authManager)
+        .preferredColorScheme(.light)
+}
+
+#Preview("Auth · dark") {
+    AuthFlow(authManager: AppGraph().authManager)
+        .preferredColorScheme(.dark)
+}
 
 #Preview("Auth · tall phone") {
     AuthFlow(authManager: AppGraph().authManager)

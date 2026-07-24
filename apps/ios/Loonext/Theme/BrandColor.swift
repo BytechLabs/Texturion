@@ -55,6 +55,14 @@ enum BrandColor {
     /// Ink on a lime fill (fixed — lime is light in both themes).
     static let onLime = Color(hex: 0x191B14)
 
+    /// Task-map marker — theme-INDEPENDENT deep olive (#219). The map pin must
+    /// stay legible on the raster tiles in BOTH themes: the adaptive `olive`
+    /// turns pale lime (`0xB9CF57`) in dark mode, which washes out against the
+    /// tiles and drops the contrast of the marker's white pin glyph. A fixed
+    /// deep olive keeps the balloon AND its glyph readable regardless of scheme
+    /// (mirrors Android pinning the marker to a high-contrast color).
+    static let mapPin = Color(hex: 0x66801F)
+
     /// Pale lime chip ("New lead").
     static let limeChip = adaptive(light: 0xE3EFA3, dark: 0x39421A)
     static let onLimeChip = adaptive(light: 0x3A430F, dark: 0xD6E77E)

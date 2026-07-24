@@ -220,8 +220,13 @@ private struct TaskMapContent: View {
         ZStack {
             Map(position: $camera, selection: $selectedGroupId) {
                 ForEach(model.groups) { group in
+                    // #219: the marker is pinned to a theme-INDEPENDENT deep
+                    // olive (BrandColor.mapPin), never the adaptive `olive` —
+                    // that turns pale lime in dark mode and the pin (balloon +
+                    // white glyph) goes illegible on the tiles. Deep olive reads
+                    // in BOTH themes.
                     Marker(markerTitle(group), coordinate: group.coordinate)
-                        .tint(BrandColor.olive)
+                        .tint(BrandColor.mapPin)
                         .tag(group.id)
                 }
             }

@@ -788,29 +788,50 @@ private struct TaskAddressSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Button {
-                if open { commit() } // collapsing counts as leaving the group
-                open.toggle()
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "mappin.and.ellipse")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(BrandColor.muted500)
-                    Text("Address")
-                        .font(.golos(13.5, weight: .semibold))
-                        .foregroundStyle(BrandColor.ink)
-                    if let label = addressProvenanceLabel(provenance) {
-                        provenanceBadge(label)
+            HStack(spacing: 8) {
+                Button {
+                    if open { commit() } // collapsing counts as leaving the group
+                    open.toggle()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "mappin.and.ellipse")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(BrandColor.muted500)
+                        Text("Address")
+                            .font(.golos(13.5, weight: .semibold))
+                            .foregroundStyle(BrandColor.ink)
+                        if let label = addressProvenanceLabel(provenance) {
+                            provenanceBadge(label)
+                        }
                     }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(BrandColor.muted250)
-                        .rotationEffect(.degrees(open ? 180 : 0))
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 0)
+
+                // #220: one-tap clear — shown whenever the address has content.
+                // Clearing commits (an empty address PATCHes `{"address": null}`),
+                // consistent with the section's commit-on-change contract.
+                if !fields.isEmpty {
+                    Button("Clear", action: clearAddress)
+                        .font(.golos(12.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.muted500)
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear address")
+                }
+
+                // The disclosure chevron stays the trailing affordance (parity
+                // with Android/web); tapping it toggles like the label.
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(BrandColor.muted250)
+                    .rotationEffect(.degrees(open ? 180 : 0))
+                    .onTapGesture {
+                        if open { commit() }
+                        open.toggle()
+                    }
             }
-            .buttonStyle(.plain)
 
             if open {
                 VStack(spacing: 8) {
@@ -892,6 +913,18 @@ private struct TaskAddressSection: View {
     private func commit() {
         guard fields.trimmed != detail.addressFields.trimmed else { return }
         onSave(fields, provenance ?? AddressProvenance.manual)
+    }
+
+    /// #220: wipe every field, drop the provenance badge, and commit so the
+    /// cleared address saves. An all-empty `fields` makes `taskAddressPatchBody`
+    /// send `{"address": null}` (clear); `commit()`'s guard still fires because
+    /// empty differs from the server's current (non-empty) address. Mirrors the
+    /// web TaskAddressSection's clear. (When there was nothing to clear the
+    /// guard no-ops — the Clear button only shows when a field has content.)
+    private func clearAddress() {
+        fields = AddressFieldValues()
+        provenance = nil
+        commit()
     }
 }
 

@@ -324,7 +324,18 @@ private fun Root(graph: AppGraph, deepLinks: MutableStateFlow<DeepLink?>) {
  */
 @Composable
 private fun PreShellHost(content: @Composable () -> Unit) {
-    Box(Modifier.fillMaxSize().imeHost("pre-shell")) { content() }
+    // #218: paint the Compose-theme background here. The window background
+    // (android:windowBackground) is resolved by the SYSTEM dark/light config
+    // (values-night), while LoonextTheme follows the user's app theme
+    // preference — so when they disagree (e.g. device dark, app forced light)
+    // a bare Box let the mismatched dark window bg show through under
+    // light-mode dark ink text, and the signed-out auth/gate screens were
+    // unreadable. A Surface with the themed background (as the Ready route
+    // host already does) makes the pre-shell always match its own text colors.
+    Surface(
+        Modifier.fillMaxSize().imeHost("pre-shell"),
+        color = MaterialTheme.colorScheme.background,
+    ) { content() }
 }
 
 /**

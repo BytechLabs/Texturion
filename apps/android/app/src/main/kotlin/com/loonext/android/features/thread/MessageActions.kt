@@ -250,6 +250,14 @@ fun MakeTaskSheet(
         addrProvenance = AddressProvenance.MANUAL
     }
 
+    // #220: wipe every field and drop the provenance badge in one tap — a wrong
+    // AI suggestion (or a typo) is gone whole. Create-time, so this just resets
+    // local state; nothing is persisted until Create.
+    fun clearAddr() {
+        addr = AddressFields()
+        addrProvenance = null
+    }
+
     // Enrich once when the sheet opens: resolve the company's AI settings, and
     // if a toggle is on and the message text is non-empty, pre-fill the due (if
     // still empty) and/or the address. The enrich call is session-cached per
@@ -468,6 +476,10 @@ fun MakeTaskSheet(
                     addrOpen = !addrOpen
                 },
                 onEdit = ::editAddr,
+                onClear = {
+                    haptics.tap()
+                    clearAddr()
+                },
             )
 
             // Create pill — gives under the finger like every other pill.
@@ -787,6 +799,7 @@ private fun AddressSection(
     enriching: Boolean,
     onToggle: () -> Unit,
     onEdit: ((AddressFields) -> AddressFields) -> Unit,
+    onClear: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
@@ -821,6 +834,24 @@ private fun AddressSection(
             }
             addressProvenanceLabel(provenance)?.let { ProvenanceBadge(it) }
             Spacer(Modifier.weight(1f))
+            // #220: one-click dismissal of a suggested (or typed) address —
+            // shown whenever any field has content, so it covers every AI
+            // suggestion. Its own clickable consumes the tap, so it never
+            // toggles the section. Here it just resets local sheet state.
+            if (!fields.isEmpty()) {
+                Text(
+                    "Clear",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onClear)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
             Icon(
                 Icons.Outlined.ExpandMore,
                 contentDescription = if (open) "Hide address" else "Show address",

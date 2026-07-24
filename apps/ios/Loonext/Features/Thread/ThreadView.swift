@@ -1228,31 +1228,48 @@ private struct MakeTaskSheet: View {
 
     private var addressBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Button {
-                addrOpen.toggle()
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "mappin.and.ellipse")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(BrandColor.muted500)
-                    Text("Address")
-                        .font(.golos(13.5, weight: .semibold))
-                        .foregroundStyle(BrandColor.ink)
-                    if enriching {
-                        ProgressView().controlSize(.mini)
+            HStack(spacing: 8) {
+                Button {
+                    addrOpen.toggle()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "mappin.and.ellipse")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(BrandColor.muted500)
+                        Text("Address")
+                            .font(.golos(13.5, weight: .semibold))
+                            .foregroundStyle(BrandColor.ink)
+                        if enriching {
+                            ProgressView().controlSize(.mini)
+                        }
+                        if let label = addressProvenanceLabel(addrProvenance) {
+                            addrBadge(label)
+                        }
                     }
-                    if let label = addressProvenanceLabel(addrProvenance) {
-                        addrBadge(label)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(BrandColor.muted250)
-                        .rotationEffect(.degrees(addrOpen ? 180 : 0))
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 0)
+
+                // #220: one-tap clear of a suggested/typed address — shown
+                // whenever the address has content (mirrors the web MakeTaskForm).
+                if !addr.isEmpty {
+                    Button("Clear", action: clearAddress)
+                        .font(.golos(12.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.muted500)
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear address")
+                }
+
+                // Disclosure chevron stays the trailing affordance (parity with
+                // Android/web); tapping it toggles like the label.
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(BrandColor.muted250)
+                    .rotationEffect(.degrees(addrOpen ? 180 : 0))
+                    .onTapGesture { addrOpen.toggle() }
             }
-            .buttonStyle(.plain)
 
             if addrOpen {
                 VStack(spacing: 8) {
@@ -1351,6 +1368,15 @@ private struct MakeTaskSheet: View {
     private var dueDisplayLabel: String {
         guard let due else { return "Add a due date" }
         return dueSentenceTime(isoOffsetString(due, timeZone: .current))
+    }
+
+    /// #220: wipe every address field and drop the provenance badge in one tap
+    /// (the web MakeTaskForm's clearAddress). This is a draft — nothing persists
+    /// until Create — so it only resets local state. Assigning `addr` whole
+    /// bypasses the per-field binding that would re-mark it "manual".
+    private func clearAddress() {
+        addr = AddressFieldValues()
+        addrProvenance = nil
     }
 
     private func create() {

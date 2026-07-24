@@ -52,6 +52,12 @@ struct RootView: View {
                     .id(companyId) // workspace switch = fresh shell state
             }
         }
+        // #218: the adaptive Paper & Olive canvas sits behind EVERY gate state,
+        // so the loading spinner and the error retry (which draw no surface of
+        // their own) are legible in both themes instead of falling back to the
+        // bare system background. AuthFlow / ExternalStepView paint their own
+        // canvas; the ready shell draws edge-to-edge over this.
+        .background(BrandColor.canvas.ignoresSafeArea())
         .task { model.start() }
     }
 }

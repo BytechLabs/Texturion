@@ -1139,6 +1139,38 @@ private fun TaskAddressSection(
             )
             if (provLabel != null) AddressProvenanceBadge(provLabel)
             Spacer(Modifier.weight(1f))
+            // #220: one-click clear of a suggested (or typed) address — shown
+            // whenever any field has content. Unlike the make-task sheet, this
+            // wipes the fields + provenance into local state and marks the
+            // section dirty (empty ≠ the saved row), so the Save affordance
+            // appears and persisting writes the cleared (null) address. Opens
+            // the group so that Save row is reachable even if it was collapsed.
+            // Its own clickable consumes the tap, so it never toggles.
+            if (enabled && !fields.allBlank()) {
+                Text(
+                    "Clear",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(enabled = !saving) {
+                            // Commit the clear in ONE tap (like the Due "X" +
+                            // iOS/web) — staging it behind a second "Save" tap
+                            // reads as "cleared" while the server still holds the
+                            // address, and is silently lost on navigate-away.
+                            fields = AddrFields()
+                            provenance = null
+                            error = null
+                            scope.launch {
+                                saving = true
+                                error = onSave(null)
+                                saving = false
+                            }
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
             Icon(
                 Icons.Outlined.ExpandMore,
                 contentDescription = if (open) "Hide address" else "Show address",

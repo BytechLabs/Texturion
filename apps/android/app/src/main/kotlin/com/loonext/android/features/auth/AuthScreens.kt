@@ -1,6 +1,7 @@
 package com.loonext.android.features.auth
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -786,24 +788,41 @@ private fun ErrorLine(error: String?) {
 @ResponsivePreviews
 @Composable
 private fun AuthFlowPreview() {
-    PreviewHarness {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .contentMaxWidth(460.dp)
-                .statusBarsPadding()
-                .padding(horizontal = 24.dp)
-                .padding(top = 18.dp, bottom = 24.dp),
-        ) {
-            LoginForm(
-                busy = false,
-                error = null,
-                onSubmit = { _, _ -> },
-                onGoogle = {},
-                onForgot = {},
-                onSignUp = {},
-            )
-        }
+    PreviewHarness { AuthFrontDoorPreviewBody() }
+}
+
+/**
+ * #218 contrast proof: the signed-out front door in BOTH themes. The founder
+ * saw dark ink text on a dark background in light mode because the pre-shell
+ * host painted no background of its own (fixed in MainActivity's PreShellHost).
+ * PreviewHarness paints the themed background the same way, so a regression in
+ * either scheme's text-on-background contrast is visible here at a glance.
+ */
+@Preview(name = "Auth · light", uiMode = Configuration.UI_MODE_NIGHT_NO, showBackground = true, heightDp = 900)
+@Preview(name = "Auth · dark", uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true, heightDp = 900)
+@Composable
+private fun AuthFlowThemePreview() {
+    PreviewHarness { AuthFrontDoorPreviewBody() }
+}
+
+@Composable
+private fun AuthFrontDoorPreviewBody() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .contentMaxWidth(460.dp)
+            .statusBarsPadding()
+            .padding(horizontal = 24.dp)
+            .padding(top = 18.dp, bottom = 24.dp),
+    ) {
+        LoginForm(
+            busy = false,
+            error = null,
+            onSubmit = { _, _ -> },
+            onGoogle = {},
+            onForgot = {},
+            onSignUp = {},
+        )
     }
 }
