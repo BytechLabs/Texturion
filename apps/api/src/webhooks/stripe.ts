@@ -919,6 +919,14 @@ async function handlePaymentActionRequired(
   const subscriptionId = invoiceSubscriptionId(invoice);
   if (!subscriptionId) return;
 
+  // Re-fetch the invoice for the TRUTH: a stored-payload replay or out-of-order
+  // delivery carries a stale 'open' status, so only email when it STILL needs
+  // action (skip once it's paid/void/uncollectible).
+  if (typeof invoice.id === "string") {
+    const fresh = await getStripe(env).invoices.retrieve(invoice.id);
+    if (fresh.status !== "open") return;
+  }
+
   const db = getDb(env);
   const { data, error } = await db
     .from("companies")

@@ -214,11 +214,20 @@ export async function runGraceJob(
   now: Date = new Date(),
 ): Promise<void> {
   const db = getDb(env);
+  // Bound the scan to the ACTIONABLE window: the day-30 release notice is the
+  // last grace action, so a company canceled longer ago than that (+ a few
+  // days' margin) has no remaining work — every notice already ledgered. Without
+  // this lower bound the scan grows with the ENTIRE churn history forever and
+  // could silently truncate recent cancellations behind a large row cap.
+  const graceCutoff = new Date(
+    now.getTime() - (GRACE_RELEASED_NOTICE_DAY + 3) * DAY_MS,
+  ).toISOString();
   const { data, error } = await db
     .from("companies")
     .select("id,name,canceled_at")
     .eq("subscription_status", "canceled")
     .not("canceled_at", "is", null)
+    .gte("canceled_at", graceCutoff)
     .is("deleted_at", null);
   if (error) {
     throw new Error(`canceled companies lookup failed: ${error.message}`);

@@ -173,8 +173,16 @@ interface UnreportedUsageRow {
   id: string;
   quantity: number;
   meter_identifier: string | null;
+  created_at: string;
   companies: { stripe_customer_id: string | null } | null;
 }
+
+/**
+ * The re-reporter runs hourly, so a revenue row still unstamped after this long
+ * has failed many retries — Sentry-alert it (ids only) so silent revenue
+ * leakage surfaces instead of being retried invisibly forever.
+ */
+const STUCK_METER_ROW_MS = 6 * 60 * 60 * 1000;
 
 /**
  * #53: does this meter-event failure mean Stripe ALREADY accepted the
@@ -207,7 +215,7 @@ export async function reportUnreportedUsage(env: Env): Promise<void> {
   const db = getDb(env);
   const { data, error } = await db
     .from("usage_events")
-    .select("id,quantity,meter_identifier,companies(stripe_customer_id)")
+    .select("id,quantity,meter_identifier,created_at,companies(stripe_customer_id)")
     .is("stripe_reported_at", null)
     .order("created_at", { ascending: true })
     .limit(REPORT_BATCH);
@@ -230,6 +238,14 @@ export async function reportUnreportedUsage(env: Env): Promise<void> {
           `usage re-report failed for ${row.id}:`,
           cause instanceof Error ? cause.message : String(cause),
         );
+        // Surface a chronically-stuck revenue row (ids only, no payload) so
+        // silent revenue leakage becomes visible instead of retrying forever.
+        if (Date.now() - new Date(row.created_at).getTime() > STUCK_METER_ROW_MS) {
+          Sentry.captureMessage(
+            `usage re-report stuck >6h for row ${row.id} (identifier ${row.meter_identifier ?? row.id})`,
+            "error",
+          );
+        }
         continue; // stays unstamped; next hourly run retries
       }
       // #53: identifier already accepted by Stripe (a reported-but-unstamped

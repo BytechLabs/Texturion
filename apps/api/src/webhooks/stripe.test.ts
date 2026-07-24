@@ -938,6 +938,12 @@ describe("§9 event → state table", () => {
   it("invoice.payment_action_required: SCA email only, NO state change", async () => {
     const harness = makeHarness([
       ...ledgerEndpoints(),
+      // Re-fetch confirms it still needs action (status 'open').
+      endpoint("GET", /api\.stripe\.com\/v1\/invoices\/in_1/, () => ({
+        id: "in_1",
+        status: "open",
+        hosted_invoice_url: "https://invoice.stripe.test/i/in_1",
+      })),
       endpoint("GET", /\/rest\/v1\/companies/, () => [
         { id: COMPANY_ID, name: "Acme Plumbing" },
       ]),
@@ -953,6 +959,26 @@ describe("§9 event → state table", () => {
     expect((emails[0].json() as { text: string }).text).toContain(
       "https://invoice.stripe.test/i/in_1",
     );
+  });
+
+  it("invoice.payment_action_required: no SCA email when the re-fetched invoice is already paid", async () => {
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      // Out-of-order / replay: the invoice was confirmed since — status 'paid'.
+      endpoint("GET", /api\.stripe\.com\/v1\/invoices\/in_1/, () => ({
+        id: "in_1",
+        status: "paid",
+      })),
+      endpoint("GET", /\/rest\/v1\/companies/, () => [
+        { id: COMPANY_ID, name: "Acme Plumbing" },
+      ]),
+      ...recipientEndpoints(),
+    ]);
+    await deliver(
+      eventOf("invoice.payment_action_required", invoiceFixture()),
+      harness,
+    );
+    expect(harness.callsTo("POST", /api\.resend\.com/)).toHaveLength(0);
   });
 
   it("a processing failure records attempts + last_error for the sweeper cron", async () => {
