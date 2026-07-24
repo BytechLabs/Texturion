@@ -87,7 +87,7 @@ struct ThreadComposerView: View {
     let onSaveNote: @MainActor (String, [StagedFile]) -> Void
     let onNotice: @MainActor (String) -> Void
     /// Ask for AI-drafted replies. Nil hides the affordance entirely.
-    var suggestReplies: (@MainActor (String) async -> [String])?
+    var suggestReplies: (@MainActor (String) async -> ReplySuggestions)?
 
     @State private var templatePickerOpen = false
     // Drafts live only while the composer is looking at this thread: they are a
@@ -199,10 +199,10 @@ struct ThreadComposerView: View {
         Task {
             let drafted = await ask(state.text)
             suggesting = false
-            if drafted.isEmpty {
-                onNotice("Nothing to suggest here yet.")
+            if drafted.suggestions.isEmpty {
+                onNotice(replyDraftMessage(drafted.reason))
             } else {
-                suggestions = drafted
+                suggestions = drafted.suggestions
             }
         }
     }
@@ -216,7 +216,7 @@ struct ThreadComposerView: View {
                 Image(systemName: "sparkles")
                     .font(.system(size: 11))
                     .foregroundStyle(BrandColor.muted500)
-                Text(suggesting ? "Drafting…" : "Drafts, yours to edit")
+                Text(suggesting ? "Drafting…" : "Lou's drafts")
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted500)
                 Spacer()
@@ -278,7 +278,7 @@ struct ThreadComposerView: View {
                             askForSuggestions()
                         } label: {
                             Label(
-                                state.text.isBlank ? "Draft a reply" : "Finish this reply",
+                                state.text.isBlank ? "Draft with Lou" : "Finish with Lou",
                                 systemImage: "sparkles"
                             )
                         }

@@ -217,19 +217,19 @@ class AiRepository(private val api: ApiClient) {
         companyId: String,
         conversationId: String,
         draft: String,
-    ): List<String> = try {
+    ): ReplySuggestions = try {
         api.post<ReplySuggestions, JsonObject>(
             "/v1/conversations/$conversationId/reply-suggestions",
             buildJsonObject {
                 if (draft.isNotBlank()) put("draft", draft)
             },
             companyId = companyId,
-        ).suggestions
+        )
     } catch (e: CancellationException) {
         // The composer moved on mid-request: never swallow cancellation.
         throw e
     } catch (_: Exception) {
-        emptyList()
+        ReplySuggestions(reason = "model_error")
     }
 }
 

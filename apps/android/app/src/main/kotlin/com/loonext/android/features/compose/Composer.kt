@@ -75,6 +75,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.loonext.android.core.model.ReplySuggestions
+import com.loonext.android.core.model.replyDraftMessage
 import com.loonext.android.core.model.Template
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.LoadState
@@ -214,7 +216,7 @@ fun ThreadComposer(
     onNotice: (String) -> Unit,
     modifier: Modifier = Modifier,
     /** Ask for AI-drafted replies. Null hides the affordance entirely. */
-    suggestReplies: (suspend (draft: String) -> List<String>)? = null,
+    suggestReplies: (suspend (draft: String) -> ReplySuggestions)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -237,10 +239,10 @@ fun ThreadComposer(
             scope.launch {
                 val drafted = ask(state.text)
                 suggesting = false
-                if (drafted.isEmpty()) {
-                    onNotice("Nothing to suggest here yet.")
+                if (drafted.suggestions.isEmpty()) {
+                    onNotice(replyDraftMessage(drafted.reason))
                 } else {
-                    suggestions = drafted
+                    suggestions = drafted.suggestions
                 }
             }
         }
@@ -461,8 +463,8 @@ fun ThreadComposer(
                             DropdownMenuItem(
                                 text = {
                                     Text(
-                                        if (state.text.isBlank()) "Draft a reply"
-                                        else "Finish this reply",
+                                        if (state.text.isBlank()) "Draft with Lou"
+                                        else "Finish with Lou",
                                     )
                                 },
                                 leadingIcon = {
@@ -582,7 +584,7 @@ private fun ReplySuggestionsRow(
             )
             Spacer(Modifier.width(5.dp))
             Text(
-                if (loading) "Drafting…" else "Drafts, yours to edit",
+                if (loading) "Drafting…" else "Lou's drafts",
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

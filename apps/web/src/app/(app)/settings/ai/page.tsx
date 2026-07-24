@@ -45,8 +45,8 @@ export default function AiSettingsPage() {
 
   return (
     <SettingsPage
-      title="AI"
-      description="Let the app pre-fill task details from a message. Every suggestion is yours to review and edit before you save — nothing is sent or applied on its own."
+      title="Lou"
+      description="Lou is the assistant built into Loonext. It drafts replies and fills in task details from what a customer already wrote. Every suggestion is yours to review and edit — Lou never sends anything, and never applies anything on its own."
     >
       {settings.isPending ? (
         <div className="space-y-4" aria-label="Loading AI settings">
@@ -105,7 +105,7 @@ export default function AiSettingsPage() {
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-0.5">
                 <Label htmlFor="ai-replies" className="text-sm font-medium">
-                  Draft replies for me
+                  Let Lou draft replies
                 </Label>
                 <p className="text-sm text-muted-foreground">
                   Offer a few short replies you can edit before sending, drawn

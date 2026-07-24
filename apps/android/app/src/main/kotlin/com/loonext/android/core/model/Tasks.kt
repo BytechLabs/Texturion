@@ -230,7 +230,25 @@ data class CompanyAiSettings(
 data class ReplySuggestions(
     val suggestions: List<String> = emptyList(),
     val suggestions_disabled: Boolean = false,
+    /** Why the list is empty; absent on success. See replyDraftMessage. */
+    val reason: String? = null,
 )
+
+/**
+ * Plain-language copy for an empty result. One blanket "nothing to suggest"
+ * hid real breakage behind what looked like a shrug, so each reason says what
+ * happened and whether trying again will help. Mirrors
+ * suggestionFailureMessage in apps/web/src/lib/api/reply-suggestions.ts.
+ */
+fun replyDraftMessage(reason: String?): String = when (reason) {
+    "disabled" -> "Drafting is turned off for this workspace. Settings, AI turns it back on."
+    "nothing_to_reply" -> "Nothing to draft from yet. Type a few words and try again."
+    "over_cap" -> "This month's drafting is used up. It starts again next month."
+    "rate_limited" -> "That was a lot of drafts at once. Try again in a moment."
+    "model_error", "unavailable" -> "Couldn't reach Lou just now. Try again."
+    "unusable_output" -> "Nothing came back worth sending. Try again, or add a few words first."
+    else -> "No drafts this time. Try again."
+}
 
 /**
  * #214 the confirmed (enriched or hand-entered) job address a create/update

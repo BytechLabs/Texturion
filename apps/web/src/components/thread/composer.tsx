@@ -161,7 +161,7 @@ export function ReplySuggestionChips({
   return (
     <div className="mx-auto max-w-[42rem] px-1 pb-2">
       <div className="mb-1 flex items-center gap-1.5">
-        <AiStatus state="done" label="Drafts, yours to edit" />
+        <AiStatus state="done" label="Lou's drafts" />
         <button
           type="button"
           onClick={onDismiss}
@@ -695,9 +695,7 @@ export function Composer({
                     variant="ghost"
                     size="icon-sm"
                     aria-label={
-                      text.trim() === ""
-                        ? "Draft a reply"
-                        : "Finish what you started typing"
+                      text.trim() === "" ? "Draft with Lou" : "Finish with Lou"
                     }
                     onClick={askForSuggestions}
                     disabled={suggestReplies.isPending}
@@ -710,9 +708,7 @@ export function Composer({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {text.trim() === ""
-                    ? "Draft a reply you can edit before sending"
-                    : "Finish what you started typing"}
+                  {text.trim() === "" ? "Draft with Lou" : "Finish with Lou"}
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -762,7 +758,7 @@ export function Composer({
                       state={suggestReplies.isPending ? "thinking" : "idle"}
                       size={16}
                     />
-                    {text.trim() === "" ? "Draft a reply" : "Finish this reply"}
+                    {text.trim() === "" ? "Draft with Lou" : "Finish with Lou"}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

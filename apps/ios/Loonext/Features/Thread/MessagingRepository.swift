@@ -331,18 +331,17 @@ struct MessagingRepository: Sendable {
         companyId: String,
         conversationId: String,
         draft: String
-    ) async -> [String] {
+    ) async -> ReplySuggestions {
         var body: [String: JSONValue] = [:]
         if !draft.isBlank { body["draft"] = .string(draft) }
         do {
-            let result: ReplySuggestions = try await api.post(
+            return try await api.post(
                 "/v1/conversations/\(conversationId)/reply-suggestions",
                 body: JSONValue.object(body),
                 companyId: companyId
             )
-            return result.suggestions
         } catch {
-            return []
+            return ReplySuggestions(suggestions: [], reason: "model_error")
         }
     }
 

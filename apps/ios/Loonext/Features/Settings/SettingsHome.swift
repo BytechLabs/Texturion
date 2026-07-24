@@ -21,7 +21,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .workspace: "Workspace"
         case .hours: "Business hours & away reply"
         case .calling: "Calling"
-        case .ai: "AI"
+        case .ai: "Lou"
         case .team: "Team"
         case .numbers: "Numbers"
         case .usage: "Usage"
@@ -164,6 +164,7 @@ struct SettingsHome: View {
                         .buttonStyle(.plain)
                     }
                 }
+                VersionFooter()
             }
             .padding(.horizontal, 18)
             .padding(.top, 8)
@@ -404,4 +405,41 @@ private struct SettingsIndexPreview: View {
 #Preview("Settings index · iPad width") {
     SettingsIndexPreview()
         .frame(width: 900, height: 820)
+}
+
+/// The shipped version at the foot of Settings.
+///
+/// A crew reporting a problem, and whoever answers them, both need to know
+/// what they are actually running — Android has said so for a while and iOS
+/// said nothing. Read from the bundle, so it is exactly what was built.
+///
+/// The wordmark rule holds (brand/README.md): the SECOND o in the accent, as
+/// text, never an image.
+@MainActor
+struct VersionFooter: View {
+    private var version: String {
+        let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        switch (short, build) {
+        case let (short?, build?) where short != build: return "\(short) (\(build))"
+        case let (short?, _): return short
+        case let (_, build?): return build
+        default: return ""
+        }
+    }
+
+    var body: some View {
+        if !version.isEmpty {
+            HStack(spacing: 0) {
+                Text("Lo")
+                Text("o").foregroundStyle(BrandColor.olive)
+                Text("next \(version)")
+            }
+            .font(.golos(11))
+            .foregroundStyle(BrandColor.muted400)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 8)
+            .textSelection(.enabled)
+        }
+    }
 }

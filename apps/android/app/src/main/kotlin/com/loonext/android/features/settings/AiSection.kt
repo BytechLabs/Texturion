@@ -124,7 +124,7 @@ fun AiSection(scope: SettingsScope) {
                 Spacer(Modifier.height(12.dp))
                 SettingsCard(title = "When you reply to a customer") {
                     LabeledSwitchRow(
-                        label = "Draft replies for me",
+                        label = "Let Lou draft replies",
                         supporting = "Offer a few short replies you can edit before " +
                             "sending, drawn from the conversation so far. Start typing " +
                             "and they finish what you started instead. Nothing is ever " +

@@ -158,8 +158,8 @@ class AiRepositoryTest {
         server.enqueue(
             MockResponse(body = """{"suggestions":["We can come Thursday.","What time works?"]}"""),
         )
-        val drafts = aiRepo.suggestReplies("c1", "conv-1", "We can")
-        assertEquals(listOf("We can come Thursday.", "What time works?"), drafts)
+        val drafted = aiRepo.suggestReplies("c1", "conv-1", "We can")
+        assertEquals(listOf("We can come Thursday.", "What time works?"), drafted.suggestions)
 
         val recorded = server.takeRequest()
         assertEquals("POST", recorded.method)
@@ -173,13 +173,17 @@ class AiRepositoryTest {
     @Test
     fun `suggestReplies omits an empty draft`() = runTest {
         server.enqueue(MockResponse(body = """{"suggestions":[]}"""))
-        assertEquals(emptyList<String>(), aiRepo.suggestReplies("c1", "conv-1", "   "))
+        assertEquals(emptyList<String>(), aiRepo.suggestReplies("c1", "conv-1", "   ").suggestions)
         assertEquals("{}", server.takeRequest().body?.utf8())
     }
 
     @Test
-    fun `suggestReplies never throws — a failure is simply no drafts`() = runTest {
+    fun `suggestReplies never throws — a failure says so instead of shrugging`() = runTest {
         server.enqueue(MockResponse(code = 500, body = "boom"))
-        assertEquals(emptyList<String>(), aiRepo.suggestReplies("c1", "conv-1", ""))
+        val drafted = aiRepo.suggestReplies("c1", "conv-1", "")
+        assertEquals(emptyList<String>(), drafted.suggestions)
+        // The reason is what lets the composer say "couldn't reach the
+        // assistant" instead of implying there was simply nothing to say.
+        assertEquals("model_error", drafted.reason)
     }
 }

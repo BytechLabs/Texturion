@@ -26,7 +26,7 @@ export function suggestionFailureMessage(
       return "That was a lot of drafts at once. Try again in a moment.";
     case "model_error":
     case "unavailable":
-      return "Couldn't reach the assistant just now. Try again.";
+      return "Couldn't reach Lou just now. Try again.";
     case "unusable_output":
       return "Nothing came back worth sending. Try again, or add a few words first.";
     default:

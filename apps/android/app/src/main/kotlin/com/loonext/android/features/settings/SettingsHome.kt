@@ -112,7 +112,7 @@ enum class SettingsSection(val title: String, val blurb: String) {
     Usage("Usage", "Fair use, your spending cap, and the numbers"),
     Billing("Billing", "Plan, payment, and invoices"),
     Notifications("Notifications", "Email and push for new conversations"),
-    Ai("AI", "Suggest a task's address and due date from the message"),
+    Ai("Lou", "Loonext's assistant: drafts replies and fills in task details"),
     Profile("Profile & account", "Your name, theme, email, and password"),
 }
 

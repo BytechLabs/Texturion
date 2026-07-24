@@ -88,6 +88,31 @@ struct CompanyAiSettings: Codable, Sendable {
 /// (toggle off, nothing to reply to, over the monthly cap, model unavailable).
 struct ReplySuggestions: Codable, Sendable {
     @Default<DefaultEmptyList<String>> var suggestions: [String]
+    /// Why the list is empty; absent on success. See `replyDraftMessage`.
+    var reason: String?
+}
+
+/// Plain-language copy for an empty result. One blanket "nothing to suggest"
+/// hid real breakage behind what looked like a shrug, so each reason says what
+/// happened and whether trying again will help. Mirrors
+/// suggestionFailureMessage in apps/web/src/lib/api/reply-suggestions.ts.
+func replyDraftMessage(_ reason: String?) -> String {
+    switch reason {
+    case "disabled":
+        return "Drafting is turned off for this workspace. Settings, AI turns it back on."
+    case "nothing_to_reply":
+        return "Nothing to draft from yet. Type a few words and try again."
+    case "over_cap":
+        return "This month's drafting is used up. It starts again next month."
+    case "rate_limited":
+        return "That was a lot of drafts at once. Try again in a moment."
+    case "model_error", "unavailable":
+        return "Couldn't reach Lou just now. Try again."
+    case "unusable_output":
+        return "Nothing came back worth sending. Try again, or add a few words first."
+    default:
+        return "No drafts this time. Try again."
+    }
 }
 
 /// The 6 editable address fields as strings ("" = absent). Shared by the

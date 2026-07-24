@@ -77,7 +77,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     // #214 — opt-in AI enrichment (task address + due date from message text).
     slug: "ai",
-    label: "AI",
+    label: "Lou",
     description: "Pre-fill task address and due date from messages",
     icon: Sparkles,
   },

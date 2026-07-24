@@ -37,9 +37,10 @@ struct AiSectionView: View {
     private func content(_ settings: CompanyAiSettings) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(
-                "Let the app pre-fill task details from a message. Every suggestion "
-                    + "is yours to review and edit before you save — nothing is sent "
-                    + "or applied on its own."
+                "Lou is the assistant built into Loonext. It drafts replies and "
+                    + "fills in task details from what a customer already wrote. "
+                    + "Every suggestion is yours to review and edit; Lou never sends "
+                    + "anything on its own."
             )
             .font(.golos(12.5))
             .foregroundStyle(BrandColor.muted600)
@@ -86,7 +87,7 @@ struct AiSectionView: View {
 
             SettingsCard(title: "When you reply to a customer") {
                 LabeledToggleRow(
-                    label: "Draft replies for me",
+                    label: "Let Lou draft replies",
                     supporting: "Offer a few short replies you can edit before "
                         + "sending, drawn from the conversation so far. Start typing "
                         + "and they finish what you started instead. Nothing is ever "
