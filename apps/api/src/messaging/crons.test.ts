@@ -114,6 +114,61 @@ describe("sweepWebhookEvents", () => {
     expect(ledgerPatch.calls[1].url.searchParams.get("event_id")).toBe("eq.evt-1");
   });
 
+  it("#216 replays a call.cost row: records the leg cost (recovery), never routes it to the DO", async () => {
+    const COMPANY = "cccccccc-0000-4000-8000-00000000000c";
+    // base64 of "op|<sessionId>|<userId>" — the real prod client_state.
+    const clientState =
+      "b3B8NzI0ZTZjODgtYzk2Ny00NmM0LWEzM2QtMWFlMDU3MzM2NTg0fDQxMjFkNmViLWEyZmMtNDJlNS1hNWYzLThlNDE0YTM4MjRmMQ==";
+    const sweepQuery = stubRoute(restMatch(env, "GET", "webhook_events"), () => [
+      {
+        provider: "telnyx",
+        event_id: "evt-cost-1",
+        event_type: "call.cost",
+        payload: {
+          data: {
+            event_type: "call.cost",
+            id: "evt-cost-1",
+            occurred_at: "2026-07-24T03:54:31Z",
+            payload: {
+              call_leg_id: "leg-sweep-1",
+              client_state: clientState,
+              total_cost: "0.0180",
+            },
+          },
+        },
+        attempts: 0,
+      },
+    ]);
+    const callsLookup = stubRoute(restMatch(env, "GET", "calls"), () => [
+      { company_id: COMPANY },
+    ]);
+    const costUpsert = stubRoute(restMatch(env, "POST", "provider_costs"));
+    const ledgerPatch = ledgerPatchStub();
+    stubFetch(
+      sweepQuery.route,
+      callsLookup.route,
+      costUpsert.route,
+      ledgerPatch.route,
+    );
+
+    await sweepWebhookEvents(env);
+
+    // The sweep RECORDED the leg cost (the recovery path) rather than routing the
+    // billing event into the Durable Object.
+    expect(costUpsert.calls).toHaveLength(1);
+    const body = costUpsert.calls[0].body as
+      | Record<string, unknown>
+      | Record<string, unknown>[];
+    const row = Array.isArray(body) ? body[0] : body;
+    expect(row.kind).toBe("voice");
+    expect(row.ref).toBe("leg-sweep-1");
+    expect(row.company_id).toBe(COMPANY);
+    // ...and was stamped processed after its atomic claim.
+    expect(ledgerPatch.calls[ledgerPatch.calls.length - 1].body).toMatchObject({
+      processed_at: expect.any(String),
+    });
+  });
+
   it("skips a row whose claim it loses — no dispatch, no stamp (#22)", async () => {
     const sweepQuery = stubRoute(
       restMatch(env, "GET", "webhook_events"),

@@ -48,6 +48,7 @@ function endpoints(state: State): StubEndpoint[] {
     endpoint("POST", /\/rpc\/api_period_forward_seconds/, () => 0),
     endpoint("POST", /\/rpc\/api_period_forwarded_calls/, () => 0),
     endpoint("POST", /\/rpc\/api_period_egress_bytes/, () => 0),
+    endpoint("POST", /\/rpc\/api_period_provider_cost/, () => 0),
     endpoint("POST", /\/rpc\/api_storage_usage/, () => ({
       attachments_bytes: 0,
       mms_bytes: 0,

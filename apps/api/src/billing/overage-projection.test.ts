@@ -34,9 +34,43 @@ function usage(over: Partial<PeriodUsage> = {}): PeriodUsage {
     forwardedCalls: 0,
     egressBytes: 0,
     storageBytes: 0,
+    actualTelecomCostCents: 0,
     ...over,
   };
 }
+
+describe("#216 telecom cost = max(estimate, actual × multiplier)", () => {
+  it("uses the ACTUAL telecom cost when it exceeds the estimate", () => {
+    // 100 outbound segments ≈ 85¢ estimate; actual telecom 500¢ dominates.
+    const p = projectUsage(
+      usage({ outboundSegments: 100, actualTelecomCostCents: 500 }),
+      "starter",
+      null,
+      1,
+    );
+    expect(p.costCents).toBeCloseTo(500, 5);
+  });
+
+  it("keeps the ESTIMATE when it exceeds the actual (cost-webhook lag)", () => {
+    const p = projectUsage(
+      usage({ outboundSegments: 100, actualTelecomCostCents: 10 }),
+      "starter",
+      null,
+      1,
+    );
+    expect(p.costCents).toBeCloseTo(85, 5); // 100 × 0.85¢ > 10¢
+  });
+
+  it("extrapolates the actual on the SAME multiplier as the estimate", () => {
+    const p = projectUsage(
+      usage({ actualTelecomCostCents: 100 }),
+      "starter",
+      null,
+      3,
+    );
+    expect(p.costCents).toBeCloseTo(300, 5); // 100¢ actual × 3
+  });
+});
 
 describe("periodTiming", () => {
   it("derives period + elapsed days from the Stripe window", () => {
@@ -340,6 +374,12 @@ describe("decideOverage (DB orchestrator)", () => {
         () => u.forwardedCalls,
       ),
       endpoint("POST", /\/rpc\/api_period_egress_bytes/, () => u.egressBytes),
+      // #216: actual telecom cost RPC returns USD dollars (reader ×100 → cents).
+      endpoint(
+        "POST",
+        /\/rpc\/api_period_provider_cost/,
+        () => u.actualTelecomCostCents / 100,
+      ),
       endpoint("POST", /\/rpc\/api_storage_usage/, () => ({
         attachments_bytes: 0,
         mms_bytes: u.storageBytes,

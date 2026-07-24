@@ -24,6 +24,7 @@ import {
   shouldRouteToDO,
   warnIfEchoDropped,
 } from "../calls/webhook-router";
+import { recordVoiceCost } from "../billing/provider-costs";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
@@ -69,6 +70,25 @@ telnyxWebhookRoute.post("/", async (c) => {
   if (error) {
     throw new Error(`webhook_events insert failed: ${error.message}`);
   }
+
+  // #216: call.cost is a BILLING event (fired per leg at call end), not a
+  // call-STATE event — it must never reach the DO. Record the actual per-leg
+  // cost (idempotent via provider_costs PK; recordVoiceCost is best-effort) and
+  // ACK. Only on the fresh ledger insert; a duplicate POST already recorded it.
+  if (eventType === "call.cost") {
+    if (data && data.length > 0) {
+      await recordVoiceCost(
+        db,
+        event.data?.payload,
+        typeof event.data?.occurred_at === "string"
+          ? event.data.occurred_at
+          : null,
+      );
+      await stampProcessed(db, eventId);
+    }
+    return c.json({ received: true });
+  }
+
   // Calls v3 (#170 §7.2): inbound-family call.* events are ADMITTED to the DO
   // in the REQUEST PATH before the ACK — a lost event then rides Telnyx's own
   // fast retry ladder instead of our ≥2-min sweeper (an admitted call.answered

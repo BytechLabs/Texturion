@@ -59,6 +59,7 @@ import {
   UNIT_COST_CENTS,
 } from "./costs";
 import { enabledModuleFlags } from "./company-modules";
+import { periodProviderCostCents } from "./provider-costs";
 import {
   desiredExtraQuantity,
   EXTRA_NUMBER_MONTHLY_CENTS,
@@ -104,6 +105,11 @@ export interface PeriodUsage {
   egressBytes: number;
   /** Current stored bytes, both pools combined (api_storage_usage) — a STOCK. */
   storageBytes: number;
+  /** #216: ACTUAL Telnyx telecom cost so far this period, in CENTS (voice
+   *  ledger + message COGS, api_period_provider_cost). The projection prices
+   *  telecom as max(estimate, this × multiplier) so ground truth catches
+   *  estimate misses without ever under-counting during the cost-webhook lag. */
+  actualTelecomCostCents: number;
 }
 
 export interface OverageDecision {
@@ -220,12 +226,23 @@ export function projectUsage(
   const projectedEgressBytes = usage.egressBytes * multiplier;
 
   // #103: no MMS term — each MMS is already 3 of outboundSegments (see header).
-  const costCents =
+  // Estimated telecom (SMS + voice) from usage units × assumed rates.
+  const estimatedTelecomCents =
     projectedOutbound * UNIT_COST_CENTS.outboundSegment +
     projectedInbound * UNIT_COST_CENTS.inboundSegment +
     (projectedVoiceSeconds / 60) * UNIT_COST_CENTS.voiceMinute +
-    projectedForwardedCalls * UNIT_COST_CENTS.voiceTransfer +
-    (projectedEgressBytes / GB) * UNIT_COST_CENTS.egressGb;
+    projectedForwardedCalls * UNIT_COST_CENTS.voiceTransfer;
+  // #216: actual Telnyx telecom cost so far, extrapolated to month-end on the
+  // SAME multiplier. Take the HIGHER of estimate vs actual: ground truth catches
+  // estimate misses (e.g. Canada SMS costs more than our per-segment estimate),
+  // while the estimate covers the lag before a call/message is costed — so the
+  // never-lose-money model can never UNDER-count telecom.
+  const telecomCents = Math.max(
+    estimatedTelecomCents,
+    usage.actualTelecomCostCents * multiplier,
+  );
+  const costCents =
+    telecomCents + (projectedEgressBytes / GB) * UNIT_COST_CENTS.egressGb;
 
   const projectedVoiceOverageMinutes = Math.max(
     0,
@@ -349,6 +366,7 @@ export async function readPeriodUsage(
     voiceSeconds,
     forwardedCalls,
     egressBytes,
+    actualTelecomCostCents,
     storage,
   ] = await Promise.all([
     rpcNumber(db, "api_period_segments", windowed),
@@ -356,6 +374,7 @@ export async function readPeriodUsage(
     rpcNumber(db, "api_period_forward_seconds", windowed),
     rpcNumber(db, "api_period_forwarded_calls", windowed),
     rpcNumber(db, "api_period_egress_bytes", windowed),
+    periodProviderCostCents(db, company.id, company.current_period_start),
     (async () => {
       const { data, error } = await db.rpc("api_storage_usage", {
         p_company_id: company.id,
@@ -375,6 +394,7 @@ export async function readPeriodUsage(
     forwardedCalls,
     egressBytes,
     storageBytes: storage,
+    actualTelecomCostCents,
   };
 }
 

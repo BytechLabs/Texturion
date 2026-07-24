@@ -3,10 +3,12 @@
  * Shared by the /webhooks/telnyx route (waitUntil path) and the §11 webhook
  * sweeper (ledger replay path), so both run the exact same logic.
  */
+import { recordVoiceCost } from "../billing/provider-costs";
 import {
   dispatchInboundCallEvent,
   shouldRouteToDO,
 } from "../calls/webhook-router";
+import { getDb } from "../db";
 import type { Env } from "../env";
 import { handlePortingEvent } from "../telnyx/porting";
 import { handle10dlcEvent } from "../telnyx/registration";
@@ -27,6 +29,23 @@ export async function dispatchTelnyxEvent(
   }
   if (eventType === "message.sent" || eventType === "message.finalized") {
     return handleStatusEvent(env, event);
+  }
+  if (eventType === "call.cost") {
+    // #216: a BILLING event, not a call-state event — it must NEVER route to the
+    // Durable Object (it would only wake/instantiate it for a no-op). The live
+    // edge (webhooks/telnyx.ts) records it on the fast path; recording here too
+    // (idempotent via the provider_costs PK) makes the §11 sweeper a RECOVERY
+    // path — a call.cost whose live record/stamp was lost (transient stamp
+    // failure, isolate eviction → row left processed_at NULL) is re-recorded on
+    // replay rather than mis-routed into the DO. MUST precede the call.* branch.
+    await recordVoiceCost(
+      getDb(env),
+      event.data?.payload,
+      typeof event.data?.occurred_at === "string"
+        ? event.data.occurred_at
+        : null,
+    );
+    return;
   }
   if (eventType.startsWith("call.")) {
     // Calls v3 (#170 §7.2): every inbound and outbound CALL is a CallSessionDO

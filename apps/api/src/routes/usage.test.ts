@@ -81,6 +81,8 @@ function usageStub(
   sb.on("GET", "/rest/v1/company_modules", () => []);
   // #85/#93: decideOverage also reads egress + the non-released number count.
   sb.on("POST", "/rest/v1/rpc/api_period_egress_bytes", () => 0);
+  // #216: actual telecom cost RPC (USD dollars); 0 → projection keeps the estimate.
+  sb.on("POST", "/rest/v1/rpc/api_period_provider_cost", () => 0);
   sb.on("HEAD", "/rest/v1/phone_numbers", () => countResponse(1));
   return sb;
 }

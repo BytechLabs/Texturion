@@ -233,6 +233,49 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
     expect(ledger.stamp.calls).toHaveLength(1);
   });
 
+  it("#216 records a call.cost leg to provider_costs and never routes it to the DO", async () => {
+    // base64 of "op|<sessionId>|<userId>" — the real prod client_state shape.
+    const clientState =
+      "b3B8NzI0ZTZjODgtYzk2Ny00NmM0LWEzM2QtMWFlMDU3MzM2NTg0fDQxMjFkNmViLWEyZmMtNDJlNS1hNWYzLThlNDE0YTM4MjRmMQ==";
+    const ledger = ledgerStubs();
+    const callsLookup = stubRoute(restMatch(env, "GET", "calls"), () => [
+      { company_id: COMPANY_ID },
+    ]);
+    const costUpsert = stubRoute(restMatch(env, "POST", "provider_costs"));
+    serve(ledger.insert, ledger.stamp, callsLookup, costUpsert);
+
+    const { response, flush } = await deliver({
+      data: {
+        event_type: "call.cost",
+        id: "e4e4e4e4-0000-4000-8000-000000000004",
+        occurred_at: "2026-07-24T03:54:31Z",
+        payload: {
+          call_leg_id: "leg-cost-1",
+          call_session_id: "telnyx-session-1",
+          client_state: clientState,
+          total_cost: "0.0180",
+          status: "success",
+        },
+      },
+    });
+    expect(response.status).toBe(200);
+    await flush();
+
+    // Resolved company via the calls row, recorded to the ledger, stamped —
+    // and no call-control/DO stub was needed because it was intercepted early.
+    expect(callsLookup.calls).toHaveLength(1);
+    expect(costUpsert.calls).toHaveLength(1);
+    const body = costUpsert.calls[0].body as
+      | Record<string, unknown>
+      | Record<string, unknown>[];
+    const row = Array.isArray(body) ? body[0] : body;
+    expect(row.kind).toBe("voice");
+    expect(row.ref).toBe("leg-cost-1");
+    expect(row.company_id).toBe(COMPANY_ID);
+    expect(Number(row.cost_usd)).toBeCloseTo(0.018, 6);
+    expect(ledger.stamp.calls).toHaveLength(1);
+  });
+
   it("forwards 10dlc.* events to the registration contract", async () => {
     const ledger = ledgerStubs();
     serve(ledger.insert, ledger.stamp);
