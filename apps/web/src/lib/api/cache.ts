@@ -163,26 +163,6 @@ export function pinMutationPatch(
 }
 
 /**
- * #3: order conversation rows PINNED-FIRST for display (pinned by pinned_at
- * desc, then the rest in their existing keyset order). A stable, non-mutating
- * re-sort — the query's pagination cursor is unaffected (it lives in the query
- * pages, not this flattened array), so this only changes what the eye sees.
- * Pinned threads stay reachable at the top of the inbox from the loaded pages.
- */
-export function sortPinnedFirst(
-  rows: readonly ConversationListItem[],
-): ConversationListItem[] {
-  return rows.slice().sort((a, b) => {
-    const ap = a.pinned_at;
-    const bp = b.pinned_at;
-    if (ap && bp) return ap < bp ? 1 : ap > bp ? -1 : 0;
-    if (ap) return -1;
-    if (bp) return 1;
-    return 0;
-  });
-}
-
-/**
  * Patch one message inside a detail response's embedded first page (the
  * GET /v1/conversations/:id cache). Same reference when nothing changed.
  */

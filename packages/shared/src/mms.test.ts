@@ -111,6 +111,14 @@ describe("mmsMediaTypeForFile", () => {
     ).toBeNull();
     expect(mmsMediaTypeForFile({ name: "archive.zip", type: "application/zip" })).toBeNull();
   });
+
+  it("returns null for a filename extension that collides with a prototype key", () => {
+    // An untrusted extension like "constructor"/"__proto__"/"toString" must not
+    // resolve to an Object.prototype member — it's not a real media type.
+    for (const ext of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
+      expect(mmsMediaTypeForFile({ name: `x.${ext}`, type: "" })).toBeNull();
+    }
+  });
 });
 
 describe("mmsMediaKind", () => {

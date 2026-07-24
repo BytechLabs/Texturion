@@ -204,6 +204,19 @@ export function NotificationFeed({
             </div>
           ))}
         </div>
+      ) : feed.isError ? (
+        <div className="px-6 py-10 text-center">
+          <p className="text-sm text-muted-foreground">
+            We couldn&apos;t load your notifications.
+          </p>
+          <button
+            type="button"
+            onClick={() => void feed.refetch()}
+            className="mt-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Try again
+          </button>
+        </div>
       ) : items.length === 0 ? (
         <div className="px-6 py-10 text-center">
           <p className="text-sm text-muted-foreground">You&apos;re all caught up.</p>

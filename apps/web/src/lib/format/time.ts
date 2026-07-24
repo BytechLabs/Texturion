@@ -1,5 +1,5 @@
 import {
-  differenceInDays,
+  differenceInCalendarDays,
   differenceInHours,
   differenceInMinutes,
   format,
@@ -57,7 +57,11 @@ export function formatRelativeTime(iso: string, now: Date = new Date()): string 
   if (minutes < 60) return `${minutes}m`;
   const hours = differenceInHours(now, date);
   if (hours < 24) return `${hours}h`;
-  const days = differenceInDays(now, date);
+  // Calendar days, not truncated 24h periods: a message from last <weekday>
+  // exactly 7 calendar days back is ~6d10h → differenceInDays truncates to 6 →
+  // would render today's weekday ("Mon" for both). Calendar-days gates it to
+  // the absolute date instead, so the weekday window never repeats today's.
+  const days = differenceInCalendarDays(now, date);
   if (days < 7) return format(date, "EEE");
   if (isSameYear(date, now)) return format(date, "MMM d");
   return format(date, "MMM d yyyy");

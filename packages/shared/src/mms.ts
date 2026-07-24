@@ -130,7 +130,12 @@ export function mmsMediaTypeForFile(file: {
     return declared as MmsMediaType;
   }
   const extension = (file.name ?? "").split(".").pop()?.toLowerCase() ?? "";
-  return MMS_EXTENSION_TYPES[extension] ?? null;
+  // Own-property lookup only: `extension` is untrusted (from a file name), and
+  // a bare index would resolve inherited keys like "constructor"/"__proto__" to
+  // prototype members instead of falling through to null.
+  return Object.hasOwn(MMS_EXTENSION_TYPES, extension)
+    ? MMS_EXTENSION_TYPES[extension]
+    : null;
 }
 
 /** Coarse kind for icons/labels — drives the file-chip rendering. */
