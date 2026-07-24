@@ -2,7 +2,9 @@ package com.loonext.android.features.tasks
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.graphics.drawable.ShapeDrawable
 import android.graphics.drawable.shapes.OvalShape
 import android.location.LocationManager
@@ -241,6 +243,24 @@ internal fun buildTaskMapModel(rows: List<Task>): TaskMapModel {
     return TaskMapModel(groups, located.size, rows.size - located.size)
 }
 
+/**
+ * Web-parity (map-types.ts `mapsDirectionsHref`) keyless Google Maps directions
+ * URL to the pin's exact coordinate — no API key, no per-request cost. Launched
+ * via ACTION_VIEW it deep-links the Google Maps app (or any maps handler / the
+ * browser), giving a field crew turn-by-turn to the job site.
+ */
+internal fun mapsDirectionsUrl(lat: Double, lng: Double): String =
+    "https://www.google.com/maps/dir/?api=1&destination=$lat,$lng"
+
+/** Fire the maps-directions intent; a no-op if nothing can handle it. */
+private fun openDirections(context: Context, lat: Double, lng: Double) {
+    runCatching {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, Uri.parse(mapsDirectionsUrl(lat, lng))),
+        )
+    }
+}
+
 @Composable
 private fun TaskMapContent(
     rows: List<Task>,
@@ -403,6 +423,7 @@ private fun PinPeekCard(
     modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
+    val context = LocalContext.current
     val single = group.tasks.singleOrNull()
     Surface(
         shape = MaterialTheme.shapes.large,
@@ -455,19 +476,39 @@ private fun PinPeekCard(
                 }
             }
             if (single != null) {
-                TextButton(
-                    onClick = {
-                        haptics.tap()
-                        onOpenTask(single.id)
-                    },
-                    modifier = Modifier.padding(start = 7.dp, bottom = 4.dp),
+                Row(
+                    Modifier.padding(start = 7.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        "Open task",
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+                    TextButton(
+                        onClick = {
+                            haptics.tap()
+                            onOpenTask(single.id)
+                        },
+                    ) {
+                        Text(
+                            "Open task",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    // Field-crew convenience: navigate straight to the job site
+                    // (keyless Maps deep-link, web parity). Uses the pin's exact
+                    // coordinate so it lands on the site, not an address guess.
+                    TextButton(
+                        onClick = {
+                            haptics.tap()
+                            openDirections(context, group.lat, group.lng)
+                        },
+                    ) {
+                        Text(
+                            "Directions",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             } else {
                 RowDivider(Modifier.padding(top = 10.dp))

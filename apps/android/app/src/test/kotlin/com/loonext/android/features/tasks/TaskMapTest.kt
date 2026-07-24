@@ -110,6 +110,19 @@ class TaskMapTest {
     }
 
     @Test
+    fun `mapsDirectionsUrl builds a keyless directions URL to the exact coordinate`() {
+        assertEquals(
+            "https://www.google.com/maps/dir/?api=1&destination=43.6426,-79.3871",
+            mapsDirectionsUrl(torontoLat, torontoLng),
+        )
+        // Western-hemisphere longitude (the whole market) carried verbatim.
+        assertEquals(
+            "https://www.google.com/maps/dir/?api=1&destination=51.0447,-114.0719",
+            mapsDirectionsUrl(calgaryLat, calgaryLng),
+        )
+    }
+
+    @Test
     fun `tasks without any location surface as the missing count, not pins`() {
         val model = buildTaskMapModel(
             listOf(
