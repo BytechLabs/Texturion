@@ -85,6 +85,10 @@ export function NewConversation() {
   const company = useCompany();
   const usage = useUsage();
   const start = useStartConversation();
+  // Re-entrancy guard: submit() awaits an async media read before start.mutate,
+  // so start.isPending doesn't cover that window — a double-click would create
+  // two conversations + bill two SMS. This ref blocks the second entry.
+  const submittingRef = useRef(false);
 
   // --- Recipient -------------------------------------------------------------
   const [recipient, setRecipient] = useState<Recipient | null>(null);
@@ -223,6 +227,8 @@ export function NewConversation() {
 
   const submit = async (quietConfirmed: boolean) => {
     if (!destinationE164 || numberId === null) return;
+    if (submittingRef.current) return; // one send in flight at a time
+    submittingRef.current = true;
     // Read the staged files into base64 up front. Attachments are never
     // cleared here, so they survive a quiet-hours 409 — the dialog's re-submit
     // (submit(true)) carries the same media.
@@ -237,6 +243,7 @@ export function NewConversation() {
         );
       }
     } catch {
+      submittingRef.current = false;
       toast.error("Couldn't read that file. Try attaching it again.");
       return;
     }
@@ -254,6 +261,9 @@ export function NewConversation() {
         router.push(`/inbox/${conversation.id}`);
       },
       onError: (error) => {
+        // Clear the guard so the quiet-hours dialog's submit(true) re-entry and
+        // ordinary retries can proceed. (Success navigates away — no reset.)
+        submittingRef.current = false;
         if (
           error instanceof ApiError &&
           error.code === "quiet_hours_confirmation_required"

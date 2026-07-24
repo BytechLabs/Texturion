@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useLeaveTransition } from "@/components/ui/motion";
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatDue } from "@/components/tasks/task-format";
 import { useCalls } from "@/lib/api/calls";
 import { ApiError } from "@/lib/api/error";
 import { useCompleteForYouTask, useForYou } from "@/lib/api/for-you";
@@ -183,7 +184,10 @@ function TaskRow({ task }: { task: ForYouTask }) {
   const why = task.overdue
     ? "Overdue task"
     : task.due_at
-      ? `Due ${formatRelativeTime(task.due_at)}`
+      ? // formatDue (forward-looking: Today / Tomorrow / MMM d), NOT
+        // formatRelativeTime — the latter is an ELAPSED-time helper for PAST
+        // timestamps, so a future due_at collapsed to "Due now" for every task.
+        `Due ${formatDue(task.due_at)}`
       : "Open task";
 
   return (

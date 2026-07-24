@@ -117,6 +117,10 @@ export function AutoSaveNotes({
   // new save (a stray fire would setState after unmount or clobber a fresh save).
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSaved = useRef(value ?? "");
+  // Latest draft, so the unmount flush below reads the current text (the
+  // cleanup closure would otherwise capture a stale `draft`).
+  const latestDraft = useRef(draft);
+  latestDraft.current = draft;
 
   // Server-side changes (another teammate) refresh an idle editor only.
   useEffect(() => {
@@ -155,10 +159,19 @@ export function AutoSaveNotes({
   };
   useEffect(
     () => () => {
-      if (timer.current) clearTimeout(timer.current);
       if (savedTimer.current) clearTimeout(savedTimer.current);
+      if (!timer.current) return;
+      clearTimeout(timer.current);
+      // Flush a pending debounced save so closing the panel within the 800ms
+      // window doesn't silently drop the last note edit (fire-and-forget — the
+      // component is unmounting, so no success/error setState).
+      const trimmed =
+        latestDraft.current.trim() === "" ? null : latestDraft.current;
+      if ((trimmed ?? "") !== lastSaved.current) {
+        update.mutate({ notes: trimmed });
+      }
     },
-    [],
+    [update],
   );
 
   return (
