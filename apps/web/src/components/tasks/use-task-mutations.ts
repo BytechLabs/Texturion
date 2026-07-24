@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { apiFetch } from "@/lib/api/client";
 import { keys } from "@/lib/api/keys";
@@ -81,6 +82,9 @@ export function useTaskDone() {
       for (const [key, data] of context?.snapshots ?? []) {
         queryClient.setQueryData(key, data);
       }
+      // The card visibly rolls back to its old column — say why, or the move
+      // silently undoing itself reads as a bug.
+      toast.error("Couldn't move that task. Try again.");
     },
     onSettled: (_data, _error, input) => {
       // The lists re-read the derived done; the affected thread + checklist +
@@ -151,6 +155,8 @@ export function useTaskReschedule() {
       for (const [key, data] of context?.snapshots ?? []) {
         queryClient.setQueryData(key, data);
       }
+      // The chip visibly jumps back to its old day — say why.
+      toast.error("Couldn't reschedule that task. Try again.");
     },
     onSettled: (_data, _error, input) => {
       void queryClient.invalidateQueries({ queryKey: keys.tasks.lists(companyId) });

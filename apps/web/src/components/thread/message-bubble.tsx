@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+
 import {
   Check,
   CheckCheck,
@@ -221,7 +223,10 @@ function NoteTaskChip({ task }: { task: { id: string; title: string } }) {
  * its edge; done messages render the text struck through at 55% opacity plus
  * the petrol check badge on the action row.
  */
-export function MessageBubble({
+// Memoized: the thread virtualizer re-renders on every scroll, but the cached
+// `message` object + primitive props are referentially stable, so a shallow
+// compare skips re-rendering every visible bubble.
+export const MessageBubble = memo(function MessageBubble({
   message,
   isLastOfCluster,
   conversationId,
@@ -393,4 +398,4 @@ export function MessageBubble({
       <MessageActions message={message} conversationId={conversationId} />
     </div>
   );
-}
+});

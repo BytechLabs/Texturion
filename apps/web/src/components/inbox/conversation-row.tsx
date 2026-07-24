@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { Lock, Pin } from "lucide-react";
 import Link from "next/link";
@@ -110,7 +111,10 @@ function TagChip({ tag, emphasis }: { tag: Tag; emphasis: boolean }) {
  * lifts to a white card with a solid hairline border (NOT a left accent bar).
  * All behavior (the /inbox/:id link, active state, spam view) is preserved.
  */
-export function ConversationRow({
+// Memoized: the virtualized inbox list re-renders on every scroll + #11 FLIP
+// animation, but each cached `conversation` object + the boolean props are
+// referentially stable, so a shallow compare skips re-rendering every row.
+export const ConversationRow = memo(function ConversationRow({
   conversation,
   active,
   spamView,
@@ -245,4 +249,4 @@ export function ConversationRow({
       )}
     </Link>
   );
-}
+});
