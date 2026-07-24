@@ -29,6 +29,7 @@ import { NoteAttachments } from "@/components/attachments/note-attachments";
 
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 
+import { AttachmentAudio } from "./attachment-audio";
 import { AttachmentFileChip } from "./attachment-file";
 import { AttachmentImage } from "./attachment-image";
 import { doneBadgeLabel, isDone } from "./done";
@@ -250,9 +251,15 @@ export const MessageBubble = memo(function MessageBubble({
   const imageAttachments = attachments.filter(
     (attachment) => mmsMediaKind(attachment.content_type) === "image",
   );
-  const fileAttachments = attachments.filter(
-    (attachment) => mmsMediaKind(attachment.content_type) !== "image",
+  // Audio is playable IN the thread (a voice message is a message, not a
+  // download); everything else that is not an image stays a file chip.
+  const audioAttachments = attachments.filter(
+    (attachment) => mmsMediaKind(attachment.content_type) === "audio",
   );
+  const fileAttachments = attachments.filter((attachment) => {
+    const kind = mmsMediaKind(attachment.content_type);
+    return kind !== "image" && kind !== "audio";
+  });
   const failed = message.status === "failed";
   const done = isDone(message);
   const hasTask = message.has_task === true;
@@ -290,6 +297,24 @@ export const MessageBubble = memo(function MessageBubble({
                 key={attachment.id}
                 attachment={attachment}
                 alt={`Photo ${outbound ? "sent to" : "from"} ${contactName}`}
+              />
+            ))}
+          </div>
+        )}
+        {/* Audio plays inline, right where the message is. */}
+        {audioAttachments.length > 0 && (
+          <div
+            className={cn(
+              "flex max-w-full flex-col gap-1.5 transition-opacity duration-150 ease-out",
+              outbound ? "items-end" : "items-start",
+              done && "opacity-55",
+            )}
+          >
+            {audioAttachments.map((attachment) => (
+              <AttachmentAudio
+                key={attachment.id}
+                attachment={attachment}
+                fromLabel={outbound ? `sent to ${contactName}` : `from ${contactName}`}
               />
             ))}
           </div>
