@@ -156,6 +156,7 @@ function SearchField({
 }) {
   const [searchText, setSearchText] = useState(filters.q ?? "");
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
 
@@ -195,6 +196,7 @@ function SearchField({
         strokeWidth={1.75}
       />
       <Input
+        ref={inputRef}
         type="search"
         value={searchText}
         onChange={(e) => setSearch(e.target.value)}
@@ -205,7 +207,12 @@ function SearchField({
       {searchText !== "" && (
         <button
           type="button"
-          onClick={() => setSearch("")}
+          onClick={() => {
+            setSearch("");
+            // The clear button unmounts once the field is empty — move focus
+            // back to the input so keyboard users don't get dropped to <body>.
+            inputRef.current?.focus();
+          }}
           aria-label="Clear search"
           className="tap-target absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >

@@ -6,7 +6,7 @@ import { ImageResponse } from "next/og";
  * 1200×630, dark petrol ground #041F1C (never neutral black, spec §9), ONE
  * amber-lit inbound bubble carrying the deck's verbatim bubble text, a petrol
  * reply on its way back (the alt text's promise), the Loonext wordmark, the
- * 9:47 PM clock stamp, and the footer line "One inbox. The whole crew. $29
+ * 9:04 PM clock stamp, and the footer line "One inbox. The whole crew. $29
  * flat."
  *
  * Built with next/og's ImageResponse (Satori: inline flexbox only). We do NOT
@@ -23,7 +23,7 @@ import { ImageResponse } from "next/og";
 
 // Alt text verbatim from the copy deck FINAL metadata block.
 export const alt =
-  "A text message glowing warm out of a dark petrol screen at 9:47 pm, with a reply on its way back.";
+  "A text message glowing warm out of a dark petrol screen at 9:04 pm, with a reply on its way back.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -109,7 +109,7 @@ export default function OpengraphImage() {
             letterSpacing: "0.08em",
           }}
         >
-          9:47 PM
+          9:04 PM
         </div>
 
         {/* The thread: one amber-lit inbound bubble, one reply on its way. */}

@@ -309,6 +309,12 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             role="separator"
             aria-orientation="vertical"
             aria-label="Resize contact panel"
+            // A focusable, arrow-key-operable separator behaves like a slider —
+            // expose its current/min/max width so screen readers announce it.
+            aria-valuenow={Math.round(panelWidth)}
+            aria-valuemin={PANEL_MIN_WIDTH}
+            aria-valuemax={PANEL_MAX_WIDTH}
+            aria-valuetext={`${Math.round(panelWidth)} pixels`}
             tabIndex={0}
             onPointerDown={startResize}
             onDoubleClick={() => {
