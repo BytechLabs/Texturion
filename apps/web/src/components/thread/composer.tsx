@@ -2,9 +2,11 @@
 
 import {
   FileText,
+  Loader2,
   Paperclip,
   Plus,
   Send as SendIcon,
+  Sparkles,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -28,6 +30,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { useCreateNote } from "@/lib/api/conversations";
+import { useReplySuggestions } from "@/lib/api/reply-suggestions";
 import { ApiError } from "@/lib/api/error";
 import {
   attachmentSignature,
@@ -134,6 +137,60 @@ export function AttachmentChips({
           </span>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * AI-drafted replies, offered above the pill. Each is a full message: tapping
+ * one loads it into the composer to read and edit. NOTHING here sends — the
+ * person still presses send, every time, which is the whole safety model of
+ * the feature.
+ */
+export function ReplySuggestionChips({
+  suggestions,
+  onUse,
+  onDismiss,
+}: {
+  suggestions: string[];
+  onUse: (suggestion: string) => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="mx-auto max-w-[42rem] px-1 pb-2">
+      <div className="mb-1 flex items-center gap-1.5">
+        <Sparkles
+          className="size-3 text-muted-foreground"
+          strokeWidth={1.75}
+          aria-hidden
+        />
+        <span className="text-[11px] text-muted-foreground">
+          Drafts, yours to edit
+        </span>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="ml-auto rounded-md px-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Dismiss
+        </button>
+      </div>
+      <div
+        className="flex flex-col gap-1.5"
+        role="group"
+        aria-label="Suggested replies"
+      >
+        {suggestions.map((suggestion, index) => (
+          <button
+            key={index}
+            type="button"
+            onClick={() => onUse(suggestion)}
+            className="rounded-app-card border border-app-line bg-app-white px-3 py-2 text-left text-[13px] leading-[1.45] text-app-ink transition-colors duration-150 ease-out hover:border-app-petrol hover:bg-app-tint/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            {suggestion}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -282,6 +339,11 @@ export function Composer({
   const [mediaErrors, setMediaErrors] = useState<string[]>([]);
   const noteStage = useStagedFiles();
   const [pickerOpen, setPickerOpen] = useState(false);
+  // AI-drafted replies for THIS thread. Held in component state, never cached:
+  // they are a momentary offer, and a stale draft attached to a moved-on
+  // conversation would be worse than none.
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const suggestReplies = useReplySuggestions(conversationId);
   const textareaRef = useAutoGrow(text);
   const fileRef = useRef<HTMLInputElement>(null);
   const noteFileRef = useRef<HTMLInputElement>(null);
@@ -316,6 +378,37 @@ export function Composer({
       : text.trim() !== "" || attachments.length > 0);
 
   const openFilePicker = () => fileRef.current?.click();
+
+  /**
+   * Ask for drafts. Sends whatever is typed so far, so the server can finish
+   * the sentence rather than talk past it. An empty result is stated plainly:
+   * silence after a tap reads as broken.
+   */
+  const askForSuggestions = useCallback(() => {
+    if (suggestReplies.isPending) return;
+    setSuggestions([]);
+    suggestReplies.mutate(text, {
+      onSuccess: (result) => {
+        if (result.suggestions.length > 0) {
+          setSuggestions(result.suggestions);
+          return;
+        }
+        toast(
+          result.suggestions_disabled
+            ? "Suggested replies are turned off for this workspace."
+            : "Nothing to suggest here yet.",
+        );
+      },
+      onError: () => toast.error("Couldn't draft a reply. Try again."),
+    });
+  }, [suggestReplies, text]);
+
+  /** Take a draft into the composer to read, edit, and send. Never auto-sent. */
+  const useSuggestion = (suggestion: string) => {
+    setText(suggestion);
+    setSuggestions([]);
+    textareaRef.current?.focus();
+  };
   const insertTemplate = (body: string) => {
     setText((current) =>
       current === ""
@@ -535,6 +628,13 @@ export function Composer({
           ))}
         </div>
       )}
+      {!isNote && suggestions.length > 0 && (
+        <ReplySuggestionChips
+          suggestions={suggestions}
+          onUse={useSuggestion}
+          onDismiss={() => setSuggestions([])}
+        />
+      )}
       {!isNote && <MediaErrors errors={mediaErrors} />}
       {!isNote && (
         <AttachmentChips attachments={attachments} onRemove={removeAttachment} />
@@ -597,6 +697,34 @@ export function Composer({
                 </TooltipTrigger>
                 <TooltipContent>Saved replies, or type “/”</TooltipContent>
               </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={
+                      text.trim() === ""
+                        ? "Draft a reply"
+                        : "Finish what you started typing"
+                    }
+                    onClick={askForSuggestions}
+                    disabled={suggestReplies.isPending}
+                    className="rounded-full text-muted-foreground"
+                  >
+                    {suggestReplies.isPending ? (
+                      <Loader2 className="size-5 animate-spin" strokeWidth={1.75} />
+                    ) : (
+                      <Sparkles className="size-5" strokeWidth={1.75} />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {text.trim() === ""
+                    ? "Draft a reply you can edit before sending"
+                    : "Finish what you started typing"}
+                </TooltipContent>
+              </Tooltip>
             </div>
 
             {/* Mobile `+` action menu — Attach · Template. */}
@@ -635,6 +763,13 @@ export function Composer({
                   <DropdownMenuItem onSelect={() => setPickerOpen(true)}>
                     <FileText className="size-4" strokeWidth={1.75} aria-hidden />
                     Saved reply
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={askForSuggestions}
+                    disabled={suggestReplies.isPending}
+                  >
+                    <Sparkles className="size-4" strokeWidth={1.75} aria-hidden />
+                    {text.trim() === "" ? "Draft a reply" : "Finish this reply"}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

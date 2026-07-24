@@ -18,6 +18,7 @@
  *     content between them is data to extract from, never commands to follow.
  *   - Only the acting company's / linked contact's data ever enters the prompt.
  */
+import { formatZonedStamp } from "@loonext/shared";
 import { z } from "zod";
 
 /** The cheapest Workers AI text model (SPEC #214). */
@@ -60,22 +61,8 @@ export interface EnrichmentResult {
   due_at: string | null;
 }
 
-/** Per-company enrichment opt-in (company_ai_settings). */
-export interface CompanyAiSettings {
-  enrich_task_address: boolean;
-  enrich_task_due: boolean;
-}
-
-/**
- * Default when a company has never set toggles. Founder decision (#214
- * follow-up): enrichment is ON by default — the model output is a reviewed
- * suggestion and the monthly cost cap-and-drop bounds spend, so the value is
- * worth the default-on cost. A company can still turn either off in Settings.
- */
-export const DEFAULT_AI_SETTINGS: CompanyAiSettings = {
-  enrich_task_address: true,
-  enrich_task_due: true,
-};
+/** The usage-ledger key for this cost center (company_ai_usage.feature). */
+export const ENRICHMENT_FEATURE = "enrich";
 
 export interface EnrichmentContext {
   /** The task/message text to extract from (already length-checked). */
@@ -169,7 +156,7 @@ const SYSTEM_PROMPT = [
 export function buildEnrichmentMessages(
   ctx: EnrichmentContext,
 ): { role: "system" | "user"; content: string }[] {
-  const localNow = formatLocal(ctx.now, ctx.timezone);
+  const localNow = formatZonedStamp(ctx.timezone, ctx.now) ?? "unknown";
   // Deliberately NO area code / phone hint: it only tempted the model to invent
   // a city/postal code. Location must come from the text or the contact address.
   const user = [
@@ -378,23 +365,4 @@ function zoneOffsetMs(instantMs: number, timeZone: string): number {
   if (hour === 24) hour = 0; // some ICU builds render midnight as 24 in hour12:false
   const asIfUtc = Date.UTC(g("year"), g("month") - 1, g("day"), hour, g("minute"), g("second"));
   return asIfUtc - instantMs;
-}
-
-/** Human-readable local timestamp for the prompt (YYYY-MM-DD HH:MM, zone-local). */
-function formatLocal(now: Date, timeZone: string): string {
-  const dtf = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    weekday: "short",
-  });
-  const parts = dtf.formatToParts(now);
-  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  let hour = g("hour");
-  if (hour === "24") hour = "00";
-  return `${g("weekday")} ${g("year")}-${g("month")}-${g("day")} ${hour}:${g("minute")}`;
 }

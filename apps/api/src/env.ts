@@ -257,6 +257,14 @@ const envSchema = z.object({
    * applies).
    */
   AI_ENRICH_RATE_LIMITER: rateLimiterSchema.optional(),
+  /**
+   * Per-company burst limiter on the reply-suggestion endpoint (POST
+   * /v1/conversations/:id/reply-suggestions). Suggestions also have a hard
+   * monthly cap in the DB (company_ai_usage); this bounds bursts. OPTIONAL:
+   * absent in local dev/tests → the burst gate is skipped (the cap still
+   * applies).
+   */
+  AI_REPLY_RATE_LIMITER: rateLimiterSchema.optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

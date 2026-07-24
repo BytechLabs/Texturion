@@ -51,6 +51,11 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
+import {
+  loadAiSettings,
+  reserveAiUsage,
+  sendAiCapAlert,
+} from "../ai/settings";
 import { requireRole } from "../auth/company";
 import {
   requireConversationAccess,
@@ -59,18 +64,15 @@ import {
 } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { renderEmailHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
-import { getEnv, type Env } from "../env";
+import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { decodeCursor, encodeCursor } from "../http/pagination";
 import {
   buildEnrichmentMessages,
   buildEnrichmentResult,
-  type CompanyAiSettings,
-  DEFAULT_AI_SETTINGS,
   detectEnrichmentSignals,
   ENRICHMENT_ALERT_THRESHOLD,
+  ENRICHMENT_FEATURE,
   ENRICHMENT_MAX_INPUT_CHARS,
   ENRICHMENT_MAX_OUTPUT_TOKENS,
   ENRICHMENT_MODEL,
@@ -429,22 +431,6 @@ const EMPTY_ENRICHMENT = {
   due_at: null,
 } as const;
 
-/** Company AI toggles (defaults to all-off when the row is absent). */
-async function loadAiSettings(
-  db: Db,
-  companyId: string,
-): Promise<CompanyAiSettings> {
-  const rows = unwrap<CompanyAiSettings[]>(
-    await db
-      .from("company_ai_settings")
-      .select("enrich_task_address,enrich_task_due")
-      .eq("company_id", companyId)
-      .limit(1),
-    "ai settings lookup",
-  );
-  return rows[0] ?? DEFAULT_AI_SETTINGS;
-}
-
 /**
  * Company + linked-contact context for the prompt, tenant-scoped. The contact
  * address (resolved via conversation → contact) is the address fallback source.
@@ -514,25 +500,6 @@ async function loadEnrichmentContext(
   };
 }
 
-/** One-shot ops alert when a company crosses the enrichment alert threshold. */
-async function sendEnrichmentCapAlert(
-  env: Env,
-  companyId: string,
-  count: number,
-): Promise<void> {
-  const text =
-    `Company ${companyId} has used ${count} of ${ENRICHMENT_MONTHLY_CAP} AI ` +
-    `task-enrichment calls this month (alerting at ${ENRICHMENT_ALERT_THRESHOLD}). ` +
-    `At the cap, enrichment silently stops for the rest of the month — task ` +
-    `creation is unaffected. Review if this volume looks abusive.`;
-  await sendEmail(env, {
-    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
-    subject: `AI task-enrichment nearing monthly cap — company ${companyId}`,
-    text,
-    html: renderEmailHtml(text),
-  });
-}
-
 tasksRoutes.post("/tasks/enrich", requireRole("member"), async (c) => {
   const body = await parseJsonBody(c, enrichSchema);
   const companyId = c.get("companyId");
@@ -591,25 +558,25 @@ tasksRoutes.post("/tasks/enrich", requireRole("member"), async (c) => {
   }
 
   // Monthly cap-and-drop: reserve one unit atomically; over cap → skip the call.
-  const { data: reserveData, error: reserveErr } = await db.rpc(
-    "ai_enrich_reserve",
-    {
-      p_company_id: companyId,
-      p_cap: ENRICHMENT_MONTHLY_CAP,
-      p_alert_threshold: ENRICHMENT_ALERT_THRESHOLD,
-    },
-  );
-  if (reserveErr) {
-    throw new Error(`ai_enrich_reserve failed: ${reserveErr.message}`);
-  }
-  const reserve = reserveData as {
-    count: number;
-    over_cap: boolean;
-    should_alert: boolean;
-  };
+  // An unreachable ledger reserves as over-cap, so enrichment degrades to the
+  // free fallback instead of failing a request that was only ever a suggestion.
+  const reserve = await reserveAiUsage(db, {
+    companyId,
+    feature: ENRICHMENT_FEATURE,
+    cap: ENRICHMENT_MONTHLY_CAP,
+    alertThreshold: ENRICHMENT_ALERT_THRESHOLD,
+  });
   if (reserve.should_alert) {
     c.executionCtx.waitUntil(
-      sendEnrichmentCapAlert(env, companyId, reserve.count).catch(() => {}),
+      sendAiCapAlert(env, {
+        companyId,
+        label: "task-enrichment",
+        count: reserve.count,
+        cap: ENRICHMENT_MONTHLY_CAP,
+        alertThreshold: ENRICHMENT_ALERT_THRESHOLD,
+        stops:
+          "enrichment silently stops for the rest of the month — task creation is unaffected.",
+      }).catch(() => {}),
     );
   }
   if (reserve.over_cap) return contactFallback();

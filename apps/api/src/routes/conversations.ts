@@ -27,9 +27,15 @@
  *          (create-on-attach).
  *   DELETE /v1/conversations/:id/tags/:tag_id detach.
  */
+import type { BusinessHours } from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 
+import {
+  loadAiSettings,
+  reserveAiUsage,
+  sendAiCapAlert,
+} from "../ai/settings";
 import { assertEgressWithinAllowance } from "../attachments/egress";
 import { requireRole } from "../auth/company";
 import {
@@ -42,6 +48,22 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { buildPage, encodeCursor, type Cursor } from "../http/pagination";
+import {
+  buildSuggestionMessages,
+  parseSuggestionOutput,
+  sanitizeSuggestions,
+  shouldSuggest,
+  SUGGEST_REPLY_ALERT_THRESHOLD,
+  SUGGEST_REPLY_CONTEXT_MESSAGES,
+  SUGGEST_REPLY_FEATURE,
+  SUGGEST_REPLY_MAX_DRAFT_CHARS,
+  SUGGEST_REPLY_MAX_OUTPUT_TOKENS,
+  SUGGEST_REPLY_MODEL,
+  SUGGEST_REPLY_MONTHLY_CAP,
+  SUGGEST_REPLY_TIMEOUT_MS,
+  type SuggestionMessage,
+  threadTextOf,
+} from "../messaging/reply-suggestions";
 import {
   ATTACHMENTS_BUCKET,
   ATTACHMENT_SIGNED_URL_TTL_SECONDS,
@@ -120,6 +142,15 @@ const noteSchema = z.object({
   // Validated below to belong to the same conversation + company (422 else).
   task_id: z.uuid().optional(),
 });
+
+// The composer's in-progress text, so the drafts can FINISH what the person
+// started rather than talk past it. Optional: an empty composer asks for a
+// reply from scratch. Generous ceiling; truncated to the model input cap.
+const replySuggestionSchema = z
+  .object({
+    draft: z.string().max(4096).optional(),
+  })
+  .strict();
 
 const attachTagSchema = z
   .object({
@@ -565,6 +596,185 @@ conversationsRoutes.post(
     // A task-linked note carries its `task` { id, title } so the thread renders
     // the "on: <task title>" chip immediately, without a refetch (D-D).
     return c.json({ ...note, attachments: [], task: taskLink }, 201);
+  },
+);
+
+// --------------------------------------------------------------------------
+// POST /v1/conversations/:id/reply-suggestions — AI-drafted replies.
+//
+// A pure SUGGESTION endpoint, exactly like POST /v1/tasks/enrich: it writes no
+// message, queues nothing, and never touches the customer. It hands back up to
+// three short drafts for the composer, where a person reads, edits, and sends.
+// Everything degrades to an empty list — toggle off, no AI binding, nothing to
+// reply to, rate-limited, over the monthly cap, model timeout, or output that
+// fails validation. See src/messaging/reply-suggestions.ts for the safety rules
+// applied to each draft.
+//
+// Sending requires the 'text' level on the number (#106): a notes-only member
+// cannot text this customer, so drafting them a reply would be a dead end.
+// --------------------------------------------------------------------------
+conversationsRoutes.post(
+  "/conversations/:id/reply-suggestions",
+  requireRole("member"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const body = await parseJsonBody(c, replySuggestionSchema);
+    const draft = body.draft?.slice(0, SUGGEST_REPLY_MAX_DRAFT_CHARS) ?? null;
+    const companyId = c.get("companyId");
+    const env = getEnv(c.env);
+    const db = getDb(env);
+
+    const conversation = await findConversation(db, companyId, id);
+    if (!conversation) {
+      return errorResponse(c, "not_found", "No such conversation.");
+    }
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: conversation.phone_number_id as string | null,
+      need: "text",
+    });
+
+    const settings = await loadAiSettings(db, companyId);
+    if (!settings.suggest_replies) {
+      return c.json({ suggestions: [], suggestions_disabled: true });
+    }
+
+    // Customer-visible history only, oldest-first. INTERNAL NOTES ARE EXCLUDED
+    // BY THIS FILTER and that is load-bearing: a note is where a crew writes
+    // things the customer must never read, so it never reaches the model.
+    const history = unwrap<{ direction: string; body: string | null }[]>(
+      await db
+        .from("messages")
+        .select("direction,body,created_at")
+        .eq("company_id", companyId)
+        .eq("conversation_id", id)
+        .in("direction", ["inbound", "outbound"])
+        .order("created_at", { ascending: false })
+        .limit(SUGGEST_REPLY_CONTEXT_MESSAGES),
+      "reply suggestion history",
+    );
+    const messages: SuggestionMessage[] = history
+      .slice()
+      .reverse()
+      .map((row) => ({
+        direction: row.direction === "inbound" ? "inbound" : "outbound",
+        body: row.body ?? "",
+      }));
+
+    // "Only when needed" (cost): with nothing typed and nothing unanswered,
+    // there is nothing to draft. No model call, no unit spent.
+    if (!shouldSuggest(messages, draft)) {
+      return c.json({ suggestions: [] });
+    }
+    // No binding (local dev/tests): offer nothing rather than pretend.
+    if (!env.AI) return c.json({ suggestions: [] });
+
+    // Per-company burst limiter (absent in dev/tests → skipped).
+    if (env.AI_REPLY_RATE_LIMITER) {
+      const { success } = await env.AI_REPLY_RATE_LIMITER.limit({
+        key: companyId,
+      });
+      if (!success) return c.json({ suggestions: [] });
+    }
+
+    // Monthly cap-and-drop: reserve one unit atomically; over cap → no call.
+    const reserve = await reserveAiUsage(db, {
+      companyId,
+      feature: SUGGEST_REPLY_FEATURE,
+      cap: SUGGEST_REPLY_MONTHLY_CAP,
+      alertThreshold: SUGGEST_REPLY_ALERT_THRESHOLD,
+    });
+    if (reserve.should_alert) {
+      c.executionCtx.waitUntil(
+        sendAiCapAlert(env, {
+          companyId,
+          label: "reply-suggestion",
+          count: reserve.count,
+          cap: SUGGEST_REPLY_MONTHLY_CAP,
+          alertThreshold: SUGGEST_REPLY_ALERT_THRESHOLD,
+          stops:
+            "suggested replies stop for the rest of the month — texting is unaffected.",
+        }).catch(() => {}),
+      );
+    }
+    if (reserve.over_cap) return c.json({ suggestions: [] });
+
+    const [company, contact] = await Promise.all([
+      db
+        .from("companies")
+        .select("name,timezone,business_hours")
+        .eq("id", companyId)
+        .limit(1)
+        .then(
+          (r) =>
+            (r.data?.[0] as
+              | {
+                  name: string | null;
+                  timezone: string | null;
+                  business_hours: BusinessHours | null;
+                }
+              | undefined) ?? null,
+        ),
+      db
+        .from("contacts")
+        .select("first_name,last_name")
+        .eq("company_id", companyId)
+        .eq("id", conversation.contact_id as string)
+        .limit(1)
+        .then(
+          (r) =>
+            (r.data?.[0] as
+              | { first_name: string | null; last_name: string | null }
+              | undefined) ?? null,
+        ),
+    ]);
+    const contactName =
+      [contact?.first_name, contact?.last_name]
+        .filter((part) => !!part && part.trim() !== "")
+        .join(" ")
+        .trim() || null;
+
+    const prompt = buildSuggestionMessages({
+      companyName: company?.name ?? "",
+      contactName,
+      messages,
+      timezone: company?.timezone ?? "America/Toronto",
+      now: new Date(),
+      // Only a company that has actually set hours gets them in the prompt; the
+      // default is an empty jsonb map, which reads as unset.
+      businessHours: company?.business_hours ?? null,
+      draft,
+    });
+
+    // Never leave the composer hanging: race the model against a timeout.
+    let raw: unknown;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    try {
+      raw = await Promise.race([
+        env.AI.run(SUGGEST_REPLY_MODEL, {
+          messages: prompt,
+          max_tokens: SUGGEST_REPLY_MAX_OUTPUT_TOKENS,
+        }),
+        new Promise((_, reject) => {
+          timeoutId = setTimeout(
+            () => reject(new Error("reply suggestion timeout")),
+            SUGGEST_REPLY_TIMEOUT_MS,
+          );
+        }),
+      ]);
+    } catch {
+      return c.json({ suggestions: [] });
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+
+    const suggestions = sanitizeSuggestions(parseSuggestionOutput(raw), {
+      threadText: threadTextOf(messages),
+      draft,
+    });
+    return c.json({ suggestions });
   },
 );
 

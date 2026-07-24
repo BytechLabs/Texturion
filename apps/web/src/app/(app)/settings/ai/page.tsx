@@ -101,6 +101,30 @@ export default function AiSettingsPage() {
               </div>
             </div>
           </SettingsCard>
+          <SettingsCard title="When you reply to a customer">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="ai-replies" className="text-sm font-medium">
+                  Draft replies for me
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Offer a few short replies you can edit before sending, drawn
+                  from the conversation so far. Start typing and they finish
+                  what you started instead. Nothing is ever sent for you, and
+                  drafts never quote prices, links, or times the conversation
+                  did not already contain.
+                </p>
+              </div>
+              <Switch
+                id="ai-replies"
+                checked={settings.data.suggest_replies}
+                disabled={!canEdit || update.isPending}
+                onCheckedChange={(checked) =>
+                  toggle("suggest_replies", checked)
+                }
+              />
+            </div>
+          </SettingsCard>
           {!canEdit && (
             <p className="text-sm text-muted-foreground">
               Only owners and admins can change these.

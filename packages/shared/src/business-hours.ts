@@ -112,6 +112,53 @@ export function companyLocalMoment(
   return { weekday, minutes: Number(hour) * 60 + Number(minute) };
 }
 
+const stampFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * An instant as a human-readable company-local stamp: "Wed 2026-07-15 12:00".
+ *
+ * Used to tell an AI prompt what "now" is, so relative words in a customer's
+ * message ("tonight", "tomorrow", "Tuesday") resolve against the right clock.
+ * Returns null for an unknown IANA zone, so callers can omit the line rather
+ * than state a time they cannot place.
+ */
+export function formatZonedStamp(
+  timezone: string,
+  atUtc: Date,
+): string | null {
+  if (Number.isNaN(atUtc.getTime())) return null;
+  let fmt = stampFormatters.get(timezone);
+  if (!fmt) {
+    try {
+      fmt = new Intl.DateTimeFormat("en-CA", {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        weekday: "short",
+      });
+    } catch {
+      return null;
+    }
+    stampFormatters.set(timezone, fmt);
+  }
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = fmt.formatToParts(atUtc);
+  } catch {
+    return null;
+  }
+  const get = (type: string) =>
+    parts.find((p) => p.type === type)?.value ?? "";
+  // Some ICU builds render midnight as 24 under hour12:false.
+  let hour = get("hour");
+  if (hour === "24") hour = "00";
+  return `${get("weekday")} ${get("year")}-${get("month")}-${get("day")} ${hour}:${get("minute")}`;
+}
+
 /**
  * True when `atUtc`, rendered in the company `timezone`, falls OUTSIDE the
  * shop's open window for that weekday — i.e. the away-reply clock says

@@ -484,6 +484,15 @@ export interface TaskEnrichment {
 export interface CompanyAiSettings {
   enrich_task_address: boolean;
   enrich_task_due: boolean;
+  /** Offer AI-drafted replies in the composer. Drafts are never sent for you. */
+  suggest_replies: boolean;
+}
+
+/** POST /v1/conversations/:id/reply-suggestions — up to three reviewed drafts. */
+export interface ReplySuggestions {
+  suggestions: string[];
+  /** True when the company turned suggestions off (hide the affordance). */
+  suggestions_disabled?: boolean;
 }
 
 export interface Task {

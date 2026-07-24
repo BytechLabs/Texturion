@@ -85,6 +85,20 @@
         "type": "ratelimit",
         "namespace_id": "1003",
         "simple": { "limit": 10, "period": 60 }
+      },
+      {
+        // AI reply suggestions: per-company burst limiter on the composer's
+        // suggest endpoint (routes/conversations.ts POST
+        // /conversations/:id/reply-suggestions), keyed on company_id. Drafting
+        // is a metered AI cost center with a hard monthly cap in the DB
+        // (company_ai_usage); this bounds short bursts. 20 per 60s covers a
+        // dispatcher working down a full inbox thread by thread while stopping
+        // a scripted flood. Optional in src/env.ts → local dev/tests skip the
+        // burst gate (the monthly cap still applies).
+        "name": "AI_REPLY_RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1004",
+        "simple": { "limit": 20, "period": 60 }
       }
     ]
   },

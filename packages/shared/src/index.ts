@@ -61,6 +61,7 @@ export {
   parseHhmm,
   isValidBusinessHours,
   companyLocalMoment,
+  formatZonedStamp,
   isAfterHours,
   type Weekday,
   type DayHours,

@@ -72,7 +72,11 @@ function membersRoute(role: "member" | "admin" | "owner" = "member"): FetchRoute
 
 /** company_ai_settings GET → the given toggles (empty array = defaults/off). */
 function settingsRoute(
-  toggles: { enrich_task_address: boolean; enrich_task_due: boolean } | null,
+  toggles: {
+    enrich_task_address: boolean;
+    enrich_task_due: boolean;
+    suggest_replies?: boolean;
+  } | null,
 ): Stub {
   return stubRoute(restMatch(baseEnv, "GET", "company_ai_settings"), () =>
     toggles ? [toggles] : [],
@@ -86,11 +90,11 @@ function companyRoute(): Stub {
   ]);
 }
 
-/** ai_enrich_reserve RPC → the reservation verdict. */
+/** ai_usage_reserve RPC → the reservation verdict. */
 function reserveRoute(
   verdict: { count: number; over_cap: boolean; should_alert: boolean },
 ): Stub {
-  return stubRoute(rpcMatch(baseEnv, "ai_enrich_reserve"), () => verdict);
+  return stubRoute(rpcMatch(baseEnv, "ai_usage_reserve"), () => verdict);
 }
 
 beforeAll(async () => {
@@ -324,6 +328,7 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
     expect(await res.json()).toEqual({
       enrich_task_address: true,
       enrich_task_due: true,
+      suggest_replies: true,
     });
   });
 
@@ -334,6 +339,7 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
         company_id: COMPANY_ID,
         enrich_task_address: true,
         enrich_task_due: false,
+        suggest_replies: false,
         updated_at: "2026-07-23T00:00:00.000Z",
       }),
     );
@@ -341,11 +347,13 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
     const res = await req("PATCH", "/v1/company/ai-settings", {
       enrich_task_address: true,
       enrich_task_due: false,
+      suggest_replies: false,
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       enrich_task_address: true,
       enrich_task_due: false,
+      suggest_replies: false,
     });
     expect(upsert.calls.length).toBe(1);
   });
@@ -355,6 +363,7 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
     const res = await req("PATCH", "/v1/company/ai-settings", {
       enrich_task_address: true,
       enrich_task_due: true,
+      suggest_replies: true,
     });
     expect(res.status).toBe(403);
   });

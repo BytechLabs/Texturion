@@ -24,6 +24,7 @@ import {
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { type CompanyAiSettings, loadAiSettings } from "../ai/settings";
 import { requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -267,20 +268,8 @@ companiesRoutes.get(
   requireRole("member"),
   async (c) => {
     const db = getDb(getEnv(c.env));
-    const rows = unwrap<
-      { enrich_task_address: boolean; enrich_task_due: boolean }[]
-    >(
-      await db
-        .from("company_ai_settings")
-        .select("enrich_task_address,enrich_task_due")
-        .eq("company_id", c.get("companyId"))
-        .limit(1),
-      "ai settings lookup",
-    );
-    // Default ON when the company has never set it (founder #214 follow-up).
-    return c.json(
-      rows[0] ?? { enrich_task_address: true, enrich_task_due: true },
-    );
+    // Defaults ON when the company has never set them (founder #214 follow-up).
+    return c.json(await loadAiSettings(db, c.get("companyId")));
   },
 );
 
@@ -288,6 +277,7 @@ const aiSettingsSchema = z
   .object({
     enrich_task_address: z.boolean(),
     enrich_task_due: z.boolean(),
+    suggest_replies: z.boolean(),
   })
   .strict();
 
@@ -301,17 +291,16 @@ companiesRoutes.patch(
       p_company_id: c.get("companyId"),
       p_enrich_task_address: body.enrich_task_address,
       p_enrich_task_due: body.enrich_task_due,
+      p_suggest_replies: body.suggest_replies,
     });
     if (error) {
       throw new Error(`upsert_company_ai_settings failed: ${error.message}`);
     }
-    const row = data as {
-      enrich_task_address: boolean;
-      enrich_task_due: boolean;
-    };
+    const row = data as CompanyAiSettings;
     return c.json({
       enrich_task_address: row.enrich_task_address,
       enrich_task_due: row.enrich_task_due,
+      suggest_replies: row.suggest_replies,
     });
   },
 );
