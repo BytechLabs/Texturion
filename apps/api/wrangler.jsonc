@@ -70,9 +70,27 @@
         "type": "ratelimit",
         "namespace_id": "1002",
         "simple": { "limit": 3, "period": 60 }
+      },
+      {
+        // #214 task enrichment: per-company burst limiter on the Workers AI
+        // enrichment endpoint (routes/tasks.ts POST /tasks/enrich), keyed on
+        // company_id. Enrichment is a metered AI cost center; a hard monthly cap
+        // lives in the DB (company_ai_usage), and this bounds short bursts —
+        // 10 per 60s comfortably covers a person promoting several messages in a
+        // row while stopping a scripted flood. Optional in src/env.ts → local
+        // dev/tests skip the burst gate (the monthly cap still applies).
+        "name": "AI_ENRICH_RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1003",
+        "simple": { "limit": 10, "period": 60 }
       }
     ]
   },
+  // #214 task enrichment: Cloudflare Workers AI. The enrichment endpoint runs
+  // the cheapest text model (@cf/meta/llama-3.2-1b-instruct) to extract a
+  // structured address + due date/time from task text. Optional in src/env.ts —
+  // absent (local dev/tests) the endpoint returns "no enrichment".
+  "ai": { "binding": "AI" },
   // Calls v3 (#170, docs/CALLS-V3.md §2.1): one CallSessionDO per inbound call
   // session owns the ring/answer/voicemail state machine, serialized by an
   // explicit per-object FIFO. SQLite-backed storage (Workers Paid — already

@@ -255,6 +255,63 @@ companiesRoutes.get("/company", requireRole("member"), async (c) => {
   return c.json(company);
 });
 
+// #214: per-company AI enrichment opt-in. Reads are member-visible (the task
+// composer needs to know which enrichments are on before calling /tasks/enrich);
+// writes are admin-only — it is company config that spends money. Defaults to
+// all-off when the company has never set it.
+companiesRoutes.get(
+  "/company/ai-settings",
+  requireRole("member"),
+  async (c) => {
+    const db = getDb(getEnv(c.env));
+    const rows = unwrap<
+      { enrich_task_address: boolean; enrich_task_due: boolean }[]
+    >(
+      await db
+        .from("company_ai_settings")
+        .select("enrich_task_address,enrich_task_due")
+        .eq("company_id", c.get("companyId"))
+        .limit(1),
+      "ai settings lookup",
+    );
+    return c.json(
+      rows[0] ?? { enrich_task_address: false, enrich_task_due: false },
+    );
+  },
+);
+
+const aiSettingsSchema = z
+  .object({
+    enrich_task_address: z.boolean(),
+    enrich_task_due: z.boolean(),
+  })
+  .strict();
+
+companiesRoutes.patch(
+  "/company/ai-settings",
+  requireRole("admin"),
+  async (c) => {
+    const body = await parseJsonBody(c, aiSettingsSchema);
+    const db = getDb(getEnv(c.env));
+    const { data, error } = await db.rpc("upsert_company_ai_settings", {
+      p_company_id: c.get("companyId"),
+      p_enrich_task_address: body.enrich_task_address,
+      p_enrich_task_due: body.enrich_task_due,
+    });
+    if (error) {
+      throw new Error(`upsert_company_ai_settings failed: ${error.message}`);
+    }
+    const row = data as {
+      enrich_task_address: boolean;
+      enrich_task_due: boolean;
+    };
+    return c.json({
+      enrich_task_address: row.enrich_task_address,
+      enrich_task_due: row.enrich_task_due,
+    });
+  },
+);
+
 companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   const body = await parseJsonBody(c, patchSchema);
 

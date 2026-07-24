@@ -59,9 +59,24 @@ import {
 } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { getEnv } from "../env";
+import { renderEmailHtml } from "../email/html";
+import { sendEmail } from "../email/resend";
+import { getEnv, type Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { decodeCursor, encodeCursor } from "../http/pagination";
+import {
+  buildEnrichmentMessages,
+  buildEnrichmentResult,
+  type CompanyAiSettings,
+  DEFAULT_AI_SETTINGS,
+  ENRICHMENT_ALERT_THRESHOLD,
+  ENRICHMENT_MAX_INPUT_CHARS,
+  ENRICHMENT_MAX_OUTPUT_TOKENS,
+  ENRICHMENT_MODEL,
+  ENRICHMENT_MONTHLY_CAP,
+  ENRICHMENT_TIMEOUT_MS,
+  parseEnrichmentOutput,
+} from "../tasks/enrichment";
 import {
   escapeLike,
   keysetFilter,
@@ -164,7 +179,10 @@ function dueKeysetFilter(cursor: DueCursor): string {
 /** Columns of the tasks row the API returns (T1.1). No status/done column. */
 const TASK_COLUMNS =
   "id,company_id,message_id,conversation_id,title,description," +
-  "assigned_user_id,due_at,created_by_user_id,created_at,updated_at";
+  "assigned_user_id,due_at,created_by_user_id,created_at,updated_at," +
+  // #214 structured job address + provenance (null when the task has no address).
+  "addr_street,addr_unit,addr_city,addr_state,addr_postal_code," +
+  "addr_country,addr_provenance";
 
 /**
  * Title column bound (T1.1). The default title (message-body snippet, ≤500,
@@ -174,6 +192,40 @@ const TASK_COLUMNS =
  */
 const TITLE_MAX = 500;
 
+/**
+ * #214: a structured task address in a create/update body. Every field
+ * optional/nullable — a partial address is legitimate (city-only inference,
+ * street-only quick entry). `provenance` records where it came from for the UI
+ * badge: the client sends the enrichment's own provenance ('message'/'contact'/
+ * 'company') for a confirmed suggestion, or 'manual' for a hand-typed/edited
+ * address. The RPC forces provenance to null when every field is empty.
+ */
+const addressSchema = z.object({
+  street: z.string().trim().max(200).nullable().optional(),
+  unit: z.string().trim().max(60).nullable().optional(),
+  city: z.string().trim().max(120).nullable().optional(),
+  state: z.string().trim().max(120).nullable().optional(),
+  postal_code: z.string().trim().max(20).nullable().optional(),
+  country: z.string().trim().max(80).nullable().optional(),
+  provenance: z
+    .enum(["message", "contact", "company", "manual"])
+    .nullable()
+    .optional(),
+});
+
+/** Address body → the create_task/update_task RPC address params. */
+function addressParams(a: z.infer<typeof addressSchema> | null | undefined) {
+  return {
+    p_addr_street: a?.street ?? null,
+    p_addr_unit: a?.unit ?? null,
+    p_addr_city: a?.city ?? null,
+    p_addr_state: a?.state ?? null,
+    p_addr_postal_code: a?.postal_code ?? null,
+    p_addr_country: a?.country ?? null,
+    p_addr_provenance: a?.provenance ?? null,
+  };
+}
+
 const createSchema = z.object({
   // message_id REQUIRED — every task promotes a real message (T0.1: standalone
   // tasks are cut from MVP; completion always derives from messages.done_at).
@@ -182,6 +234,8 @@ const createSchema = z.object({
   description: z.string().max(5000).optional(),
   assigned_user_id: z.uuid().nullable().optional(),
   due_at: z.iso.datetime({ offset: true }).nullable().optional(),
+  // #214: the confirmed enriched (or hand-entered) job address.
+  address: addressSchema.nullable().optional(),
 });
 
 const patchSchema = z
@@ -193,6 +247,8 @@ const patchSchema = z
     description: z.string().max(5000).optional(),
     assigned_user_id: z.uuid().nullable().optional(),
     due_at: z.iso.datetime({ offset: true }).nullable().optional(),
+    // #214: replace the whole address block (null clears it).
+    address: addressSchema.nullable().optional(),
   })
   .strict()
   .refine(
@@ -200,7 +256,8 @@ const patchSchema = z
       body.title !== undefined ||
       body.description !== undefined ||
       "assigned_user_id" in body ||
-      "due_at" in body,
+      "due_at" in body ||
+      "address" in body,
     { message: "Provide at least one field to update." },
   );
 
@@ -318,6 +375,8 @@ tasksRoutes.post("/tasks", requireRole("member"), async (c) => {
     p_assigned_user_id: body.assigned_user_id ?? null,
     p_due_at: body.due_at ?? null,
     p_actor_user_id: userId,
+    // #214: the confirmed job address (all-null when the task has none).
+    ...addressParams(body.address),
   });
   if (error) throw new Error(`create_task failed: ${error.message}`);
   const result = parseTaskOutcome(data);
@@ -339,6 +398,238 @@ tasksRoutes.post("/tasks", requireRole("member"), async (c) => {
   }
   if (!result.task) throw new Error("create_task returned no row");
   return c.json(result.task, 201);
+});
+
+// --------------------------------------------------------------------------
+// #214 — task enrichment (Cloudflare Workers AI). A pure SUGGESTION endpoint:
+// it never writes a task and never blocks task creation. The client posts the
+// task text, pre-fills the create form with what comes back, and the user
+// reviews + saves. Everything degrades to the empty result — toggles off, no AI
+// binding, rate-limited, over the monthly cap, AI timeout/error, or malformed
+// output. The model output is DATA (parsed + schema-validated), never an
+// instruction; no tool use, no side effect. See src/tasks/enrichment.ts.
+// --------------------------------------------------------------------------
+const enrichSchema = z.object({
+  // Generous ceiling (reject only the absurd); truncated to the model input cap
+  // before the AI call.
+  text: z.string().trim().min(1).max(20000),
+  // Either locates the linked contact whose address is the fallback source.
+  message_id: z.uuid().optional(),
+  conversation_id: z.uuid().optional(),
+});
+
+const EMPTY_ENRICHMENT = {
+  address: null,
+  address_provenance: null,
+  due_at: null,
+} as const;
+
+/** Company AI toggles (defaults to all-off when the row is absent). */
+async function loadAiSettings(
+  db: Db,
+  companyId: string,
+): Promise<CompanyAiSettings> {
+  const rows = unwrap<CompanyAiSettings[]>(
+    await db
+      .from("company_ai_settings")
+      .select("enrich_task_address,enrich_task_due")
+      .eq("company_id", companyId)
+      .limit(1),
+    "ai settings lookup",
+  );
+  return rows[0] ?? DEFAULT_AI_SETTINGS;
+}
+
+/**
+ * Company + linked-contact context for the prompt, tenant-scoped. The contact
+ * address (resolved via conversation → contact) is the address fallback source.
+ * Best-effort: a missing company/contact just narrows the prompt.
+ */
+async function loadEnrichmentContext(
+  db: Db,
+  companyId: string,
+  opts: { conversationId?: string; messageId?: string },
+): Promise<{
+  timezone: string;
+  areaCode: string | null;
+  country: string | null;
+  contactAddress: string | null;
+}> {
+  const companyRows = unwrap<
+    {
+      timezone: string | null;
+      requested_area_code: string | null;
+      country: string | null;
+    }[]
+  >(
+    await db
+      .from("companies")
+      .select("timezone,requested_area_code,country")
+      .eq("id", companyId)
+      .limit(1),
+    "enrichment company lookup",
+  );
+  const company = companyRows[0];
+
+  let conversationId = opts.conversationId ?? null;
+  if (!conversationId && opts.messageId) {
+    const msgRows = unwrap<{ conversation_id: string }[]>(
+      await db
+        .from("messages")
+        .select("conversation_id")
+        .eq("company_id", companyId)
+        .eq("id", opts.messageId)
+        .limit(1),
+      "enrichment message lookup",
+    );
+    conversationId = msgRows[0]?.conversation_id ?? null;
+  }
+
+  let contactAddress: string | null = null;
+  if (conversationId) {
+    const convRows = unwrap<{ contact_id: string }[]>(
+      await db
+        .from("conversations")
+        .select("contact_id")
+        .eq("company_id", companyId)
+        .eq("id", conversationId)
+        .limit(1),
+      "enrichment conversation lookup",
+    );
+    const contactId = convRows[0]?.contact_id ?? null;
+    if (contactId) {
+      const contactRows = unwrap<{ address: string | null }[]>(
+        await db
+          .from("contacts")
+          .select("address")
+          .eq("company_id", companyId)
+          .eq("id", contactId)
+          .limit(1),
+        "enrichment contact lookup",
+      );
+      contactAddress = contactRows[0]?.address ?? null;
+    }
+  }
+
+  return {
+    timezone: company?.timezone ?? "America/Toronto",
+    areaCode: company?.requested_area_code ?? null,
+    country: company?.country ?? null,
+    contactAddress,
+  };
+}
+
+/** One-shot ops alert when a company crosses the enrichment alert threshold. */
+async function sendEnrichmentCapAlert(
+  env: Env,
+  companyId: string,
+  count: number,
+): Promise<void> {
+  const text =
+    `Company ${companyId} has used ${count} of ${ENRICHMENT_MONTHLY_CAP} AI ` +
+    `task-enrichment calls this month (alerting at ${ENRICHMENT_ALERT_THRESHOLD}). ` +
+    `At the cap, enrichment silently stops for the rest of the month — task ` +
+    `creation is unaffected. Review if this volume looks abusive.`;
+  await sendEmail(env, {
+    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+    subject: `AI task-enrichment nearing monthly cap — company ${companyId}`,
+    text,
+    html: renderEmailHtml(text),
+  });
+}
+
+tasksRoutes.post("/tasks/enrich", requireRole("member"), async (c) => {
+  const body = await parseJsonBody(c, enrichSchema);
+  const companyId = c.get("companyId");
+  const env = getEnv(c.env);
+  const db = getDb(env);
+
+  // Settings gate — never call the AI unless the company opted a type in.
+  const settings = await loadAiSettings(db, companyId);
+  if (!settings.enrich_task_address && !settings.enrich_task_due) {
+    return c.json({ ...EMPTY_ENRICHMENT, enrichment_disabled: true });
+  }
+  // No binding (local dev/tests) → honest no-enrichment.
+  if (!env.AI) return c.json(EMPTY_ENRICHMENT);
+
+  // Per-company burst limiter (absent in dev/tests → skipped).
+  if (env.AI_ENRICH_RATE_LIMITER) {
+    const { success } = await env.AI_ENRICH_RATE_LIMITER.limit({
+      key: companyId,
+    });
+    if (!success) return c.json(EMPTY_ENRICHMENT);
+  }
+
+  // Monthly cap-and-drop: reserve one unit atomically; over cap → skip the call.
+  const { data: reserveData, error: reserveErr } = await db.rpc(
+    "ai_enrich_reserve",
+    {
+      p_company_id: companyId,
+      p_cap: ENRICHMENT_MONTHLY_CAP,
+      p_alert_threshold: ENRICHMENT_ALERT_THRESHOLD,
+    },
+  );
+  if (reserveErr) {
+    throw new Error(`ai_enrich_reserve failed: ${reserveErr.message}`);
+  }
+  const reserve = reserveData as {
+    count: number;
+    over_cap: boolean;
+    should_alert: boolean;
+  };
+  if (reserve.should_alert) {
+    c.executionCtx.waitUntil(
+      sendEnrichmentCapAlert(env, companyId, reserve.count).catch(() => {}),
+    );
+  }
+  if (reserve.over_cap) return c.json(EMPTY_ENRICHMENT);
+
+  const text = body.text.slice(0, ENRICHMENT_MAX_INPUT_CHARS);
+  const ctx = await loadEnrichmentContext(db, companyId, {
+    conversationId: body.conversation_id,
+    messageId: body.message_id,
+  });
+  const messages = buildEnrichmentMessages({
+    text,
+    now: new Date(),
+    timezone: ctx.timezone,
+    areaCode: ctx.areaCode,
+    country: ctx.country,
+    contactAddress: ctx.contactAddress,
+  });
+
+  // Never block on the AI: race the call against a timeout, degrade on failure.
+  let raw: unknown;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    raw = await Promise.race([
+      env.AI.run(ENRICHMENT_MODEL, {
+        messages,
+        max_tokens: ENRICHMENT_MAX_OUTPUT_TOKENS,
+      }),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error("ai enrichment timeout")),
+          ENRICHMENT_TIMEOUT_MS,
+        );
+      }),
+    ]);
+  } catch {
+    return c.json(EMPTY_ENRICHMENT);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+
+  const output = parseEnrichmentOutput(raw);
+  if (!output) return c.json(EMPTY_ENRICHMENT);
+
+  const result = buildEnrichmentResult(output, {
+    enableAddress: settings.enrich_task_address,
+    enableDue: settings.enrich_task_due,
+    timezone: ctx.timezone,
+    contactAddress: ctx.contactAddress,
+  });
+  return c.json(result);
 });
 
 /**
@@ -1072,7 +1363,8 @@ tasksRoutes.patch("/tasks/:id", requireRole("member"), async (c) => {
   const touchesMeta =
     body.title !== undefined ||
     body.description !== undefined ||
-    "due_at" in body;
+    "due_at" in body ||
+    "address" in body;
   const touchesAssignee = "assigned_user_id" in body;
 
   // Track the freshest task row an RPC returned, and whether the task exists.
@@ -1091,6 +1383,10 @@ tasksRoutes.patch("/tasks/:id", requireRole("member"), async (c) => {
       p_due_at: clearDue ? null : body.due_at ?? null,
       p_clear_due: clearDue,
       p_actor_user_id: userId,
+      // #214: only overwrite the address block when the client sent `address`
+      // (null clears it); absent → the RPC leaves the address untouched.
+      p_set_address: "address" in body,
+      ...addressParams(body.address),
     });
     if (error) throw new Error(`update_task failed: ${error.message}`);
     const result = parseTaskOutcome(data);

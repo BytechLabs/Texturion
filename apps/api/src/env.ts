@@ -29,6 +29,25 @@ const callSessionsSchema = z.custom<DurableObjectNamespace>(
 );
 
 /**
+ * #214: the Cloudflare Workers AI binding surface — the narrow slice the
+ * task-enrichment path uses (a single text-generation `run`). Typed locally (not
+ * from the strict global `Ai` union) so we depend only on `.run(model, inputs)`
+ * and treat every model output as untrusted `unknown` (parsed + schema-validated
+ * downstream). The envSchema strips unknown keys, so the z.custom is required.
+ */
+export interface WorkersAi {
+  run(
+    model: string,
+    inputs: Record<string, unknown>,
+    options?: Record<string, unknown>,
+  ): Promise<unknown>;
+}
+
+const workersAiSchema = z.custom<WorkersAi>(
+  (value) => typeof (value as WorkersAi | null | undefined)?.run === "function",
+);
+
+/**
  * Every binding the api Worker requires (SPEC §10). All of these are Worker
  * encrypted secrets in production (`wrangler secret put`) and `.dev.vars`
  * entries locally — see .dev.vars.example.
@@ -204,6 +223,21 @@ const envSchema = z.object({
    * presence and fails loudly in production (§2.1).
    */
   CALL_SESSIONS: callSessionsSchema.optional(),
+  /**
+   * #214 task enrichment: the Cloudflare Workers AI binding (wrangler.jsonc
+   * `"ai": { "binding": "AI" }`). OPTIONAL so every existing test fixture and
+   * local dev boot without it — the enrichment endpoint degrades to "no
+   * enrichment" when absent and NEVER blocks task creation.
+   */
+  AI: workersAiSchema.optional(),
+  /**
+   * #214: per-company burst limiter on the AI enrichment endpoint (a
+   * "ratelimit" unsafe binding like SEND_RATE_LIMITER). Enrichment also has a
+   * hard monthly cap in the DB (company_ai_usage); this bounds bursts. OPTIONAL:
+   * absent in local dev/tests → the burst gate is skipped (the monthly cap still
+   * applies).
+   */
+  AI_ENRICH_RATE_LIMITER: rateLimiterSchema.optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
