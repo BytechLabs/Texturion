@@ -185,6 +185,10 @@ export async function telnyxUpload<T = unknown>(
       // No Content-Type: fetch sets multipart/form-data + boundary.
     },
     body: form,
+    // Bound the upload like telnyxRequest does — without a signal a hung
+    // Telnyx connection would pin the Worker request until the platform kills
+    // it, never surfacing an honest failure.
+    signal: AbortSignal.timeout(TELNYX_TIMEOUT_MS),
   });
 
   const label = `POST ${options.path}`;

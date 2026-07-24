@@ -88,7 +88,11 @@ async function deliverCallEnd(
     .from("push_subscriptions")
     .select("id,user_id,endpoint,p256dh,auth")
     .in("user_id", input.userIds)
-    .contains("caps", [CALL_END_CAP]);
+    .contains("caps", [CALL_END_CAP])
+    // Bound the fan-out like every sibling (the native branch below,
+    // inbound/missed-call/incoming-call): newest 50 across the audience.
+    .order("created_at", { ascending: false })
+    .limit(50);
   if (!subError) {
     const subscriptions = (subData ?? []) as SubscriptionRow[];
     await Promise.all(

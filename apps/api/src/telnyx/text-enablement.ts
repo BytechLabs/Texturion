@@ -76,6 +76,7 @@ import {
   telnyxRequest,
   TelnyxApiError,
   TELNYX_API_BASE,
+  TELNYX_TIMEOUT_MS,
   type TelnyxErrorItem,
 } from "./client";
 import {
@@ -426,7 +427,10 @@ async function downloadTelnyxDocument(
   const label = `GET /v2/documents/${documentId}/download`;
   const response = await fetch(
     new URL(`/v2/documents/${documentId}/download`, TELNYX_API_BASE).toString(),
-    { headers: { Authorization: `Bearer ${env.TELNYX_API_KEY}` } },
+    {
+      headers: { Authorization: `Bearer ${env.TELNYX_API_KEY}` },
+      signal: AbortSignal.timeout(TELNYX_TIMEOUT_MS),
+    },
   );
   if (!response.ok) throw await telnyxApiErrorFrom(response, label);
   return response.arrayBuffer();
@@ -471,6 +475,7 @@ export async function attachHostedOrderDocuments(
       // No Content-Type: fetch sets multipart/form-data + boundary.
     },
     body: form,
+    signal: AbortSignal.timeout(TELNYX_TIMEOUT_MS),
   });
   if (!response.ok) throw await telnyxApiErrorFrom(response, `POST ${path}`);
 }

@@ -204,9 +204,15 @@ export async function notifyInboundMessage(
       const to: string[] = [];
       for (const { userId, result } of lookups) {
         if (result.error) {
-          throw new Error(
-            `auth admin lookup failed for member ${userId}: ${result.error.message}`,
+          // One member's lookup failing must NOT drop the email for the whole
+          // team — record it as a soft failure and skip just that recipient,
+          // exactly as an unresolvable member is treated as un-notifiable.
+          failures.push(
+            new Error(
+              `auth admin lookup failed for member ${userId}: ${result.error.message}`,
+            ),
           );
+          continue;
         }
         if (result.data.user?.email) to.push(result.data.user.email);
       }

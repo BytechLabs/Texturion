@@ -796,6 +796,15 @@ export class CallSessionDO extends DurableObject<Env> {
       return;
     }
     try {
+      // A queued retry can be STALE: the machine advanced while this mirror
+      // waited, and call state only moves forward (terminal is absorbing). So
+      // the machine's state is always >= any queued one — pin the retry's state
+      // to the machine's, or a late non-terminal retry would revert a resolved
+      // call back to a live one in the DB (and it also lands ended_missed ->
+      // ended_voicemail-style upgrades).
+      if (pending.set.state && pending.set.state !== machine.state) {
+        pending.set.state = machine.state;
+      }
       await this.rt.mirror(machine.callSessionId, pending.set);
       await this.clearPendingMirror();
     } catch (cause) {

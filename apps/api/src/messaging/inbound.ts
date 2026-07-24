@@ -150,12 +150,23 @@ export async function handleInboundMessage(
     threaded.notification_alert === 80 ||
     threaded.notification_alert === 100
   ) {
-    await sendNotificationBudgetAlert(
-      env,
-      db,
-      number.company_id,
-      threaded.notification_alert,
-    );
+    // Swallow a send failure (like the away-reply block above): the alert is
+    // ledger-stamped once and unrecoverable on replay, so a Resend outage here
+    // must NOT abort the handler before the create-gated customer notification
+    // below — otherwise the actual new-message alert is dropped forever.
+    try {
+      await sendNotificationBudgetAlert(
+        env,
+        db,
+        number.company_id,
+        threaded.notification_alert,
+      );
+    } catch (cause) {
+      console.error(
+        `notification-budget alert for company ${number.company_id} failed:`,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
   }
 
   // Notification pipeline (§8). Runs BEFORE the MMS media download below: the
