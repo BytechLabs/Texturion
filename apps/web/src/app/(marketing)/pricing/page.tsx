@@ -51,6 +51,7 @@ import {
   buildMetadata,
   softwareApplicationJsonLd,
 } from "@/lib/marketing/seo";
+import { absoluteUrl } from "@/lib/marketing/site";
 import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
 
 import { LazySegmentCounter } from "./lazy-segment-counter";
@@ -70,12 +71,35 @@ import { SegmentCounterStatic } from "./segment-counter-static";
 
 const PATH = LIVE_ROUTES.pricing;
 
-export const metadata: Metadata = buildMetadata({
-  title: "Pricing, $29/mo flat for the whole crew",
-  description:
-    "Build your plan and see the total before you pay: Starter $29/mo for up to 3 people, Pro $79/mo for up to 15. Texting, pictures, and calling included under automated fair use, storage free. One-time $29 US registration fee. No per-user fees, no quote calls.",
-  path: PATH,
-});
+const OG_TITLE = "Pricing: $29/mo flat for the whole crew";
+const OG_DESCRIPTION =
+  "Starter $29/mo for up to 3 people, Pro $79/mo for up to 15. Texting, pictures, and calling included under automated fair use, storage free. No per-user fees, no quote calls.";
+
+export const metadata: Metadata = {
+  ...buildMetadata({
+    title: "Pricing, $29/mo flat for the whole crew",
+    description:
+      "Build your plan and see the total before you pay: Starter $29/mo for up to 3 people, Pro $79/mo for up to 15. Texting, pictures, and calling included under automated fair use, storage free. One-time $29 US registration fee. No per-user fees, no quote calls.",
+    path: PATH,
+  }),
+  // Override openGraph WITHOUT `images` so Next serves the page's own
+  // file-convention card (pricing/opengraph-image.tsx — the "$29/mo flat"
+  // truth chip). buildMetadata always injects the generic default card, which
+  // SHADOWS the file convention (seo.ts precedence note); omitting images here
+  // is exactly how the home page wires its own card.
+  openGraph: {
+    type: "website",
+    siteName: "Loonext",
+    url: absoluteUrl(PATH),
+    title: OG_TITLE,
+    description: OG_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: OG_TITLE,
+    description: OG_DESCRIPTION,
+  },
+};
 
 function GuaranteeTick() {
   return (
