@@ -340,6 +340,9 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
         money: 0,
         duplicate: 0,
       },
+      // Zero candidates with nothing dropped means the envelope itself was not
+      // recognised, so its key names ride along to say which one arrived.
+      envelope: "response",
     });
   });
 

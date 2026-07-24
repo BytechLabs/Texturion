@@ -441,13 +441,44 @@ function stringArrayFrom(value: unknown): string[] | null {
  * accepted here; `sanitizeSuggestions` is the gate that decides what is safe to
  * show. A last-resort line parse covers a model that ignored JSON entirely.
  */
+export function modelText(raw: unknown): string | null {
+  if (typeof raw === "string") return raw;
+  if (!raw || typeof raw !== "object") return null;
+  const envelope = raw as Record<string, unknown>;
+
+  // The documented Workers AI text shape.
+  if (typeof envelope.response === "string") return envelope.response;
+  // Some models answer in the OpenAI shape instead, where the text lives under
+  // choices[0].message.content. Production returned zero candidates on every
+  // real thread precisely because only `response` was read, so an envelope we
+  // did not recognise looked exactly like a model with nothing to say.
+  const choices = envelope.choices;
+  if (Array.isArray(choices) && choices.length > 0) {
+    const first = choices[0] as Record<string, unknown> | undefined;
+    const message = first?.message as Record<string, unknown> | undefined;
+    if (typeof message?.content === "string") return message.content;
+    if (typeof first?.text === "string") return first.text;
+  }
+  // A REST-style wrapper around either of the above.
+  if (envelope.result && typeof envelope.result === "object") {
+    return modelText(envelope.result);
+  }
+  for (const key of ["output_text", "text", "content", "generated_text"]) {
+    const value = envelope[key];
+    if (typeof value === "string") return value;
+  }
+  return null;
+}
+
+/** The envelope's own key names, for diagnosing an unrecognised shape. */
+export function envelopeShape(raw: unknown): string {
+  if (typeof raw === "string") return "string";
+  if (!raw || typeof raw !== "object") return typeof raw;
+  return Object.keys(raw as Record<string, unknown>).sort().join(",") || "{}";
+}
+
 export function parseSuggestionOutput(raw: unknown): string[] {
-  const text =
-    typeof raw === "string"
-      ? raw
-      : typeof (raw as { response?: unknown } | null)?.response === "string"
-        ? (raw as { response: string }).response
-        : null;
+  const text = modelText(raw);
   if (!text) return [];
 
   const candidates: string[] = [text];

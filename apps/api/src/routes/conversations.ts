@@ -50,6 +50,7 @@ import { ApiError, errorResponse } from "../http/errors";
 import { buildPage, encodeCursor, type Cursor } from "../http/pagination";
 import {
   buildSuggestionMessages,
+  envelopeShape,
   parseSuggestionOutput,
   sanitizeWithReport,
   shouldSuggest,
@@ -815,6 +816,10 @@ conversationsRoutes.post(
         suggestions: [],
         reason: "unusable_output" as const,
         dropped: { candidates: parsed.length, ...report.dropped },
+        // The envelope's KEY NAMES only (never its contents). Zero candidates
+        // with nothing dropped means we did not recognise the shape at all,
+        // and this is what names it.
+        envelope: envelopeShape(raw),
       });
     }
     return c.json({ suggestions });

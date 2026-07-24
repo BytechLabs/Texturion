@@ -11,6 +11,7 @@ import type { BusinessHours } from "@loonext/shared";
 
 import {
   buildSuggestionMessages,
+  envelopeShape,
   formatBusinessHours,
   hasBusinessHours,
   hasReplyableInbound,
@@ -336,6 +337,28 @@ describe("parseSuggestionOutput", () => {
       [],
     );
     expect(parseSuggestionOutput({ response: '{"other":[1,2]}' })).toEqual([]);
+  });
+
+  it("reads the OpenAI-shaped envelope some models answer with", () => {
+    // Production returned zero candidates on every real thread: only
+    // `response` was read, so an unrecognised envelope looked exactly like a
+    // model with nothing to say.
+    expect(
+      parseSuggestionOutput({
+        choices: [
+          { message: { content: '{"replies":["We can come Thursday."]}' } },
+        ],
+      }),
+    ).toEqual(["We can come Thursday."]);
+
+    expect(
+      parseSuggestionOutput({ result: { response: '{"replies":["On our way."]}' } }),
+    ).toEqual(["On our way."]);
+  });
+
+  it("names an unrecognised envelope by its keys, never its contents", () => {
+    expect(envelopeShape({ zzz: "secret text", aaa: 1 })).toBe("aaa,zzz");
+    expect(envelopeShape("plain")).toBe("string");
   });
 
   it("returns nothing for absent or non-text output", () => {
