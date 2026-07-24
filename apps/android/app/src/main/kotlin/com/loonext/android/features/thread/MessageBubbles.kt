@@ -67,6 +67,7 @@ import com.loonext.android.core.model.CARRIER_OPT_OUT_ERROR_CODE
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.MessageStatus
+import com.loonext.android.features.compose.MmsKind
 import com.loonext.android.features.compose.icon
 import com.loonext.android.features.compose.mmsKindOf
 import com.loonext.android.ui.common.LoadState
@@ -193,9 +194,24 @@ fun MessageBubble(
                     )
                 }
 
-            // #189 non-image MMS media: one calm tappable file chip per item.
+            // Audio plays inline, right where the message is — a voice message
+            // is a message, not a hand-off to another app.
             message.attachments
-                .filterNot { it.content_type.startsWith("image/") }
+                .filter { mmsKindOf(it.content_type) == MmsKind.Audio }
+                .forEach { attachment ->
+                    AttachmentAudio(
+                        attachment = attachment,
+                        mintUrl = mintAttachmentUrl,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
+                }
+
+            // #189 remaining non-image MMS media: one calm tappable file chip.
+            message.attachments
+                .filter {
+                    val kind = mmsKindOf(it.content_type)
+                    kind != MmsKind.Image && kind != MmsKind.Audio
+                }
                 .forEach { attachment ->
                     AttachmentFileChip(
                         attachment = attachment,
