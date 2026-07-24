@@ -7,7 +7,12 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import {
+  LastUsedBadge,
+  useLastUsedMethod,
+} from "@/components/auth/last-used-badge";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
+import { rememberSignInMethod } from "@/lib/auth/last-used";
 import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,6 +58,7 @@ function LoginForm() {
     }
   }, [searchParams]);
 
+  const lastUsed = useLastUsedMethod();
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { email: "", password: "" },
@@ -72,6 +78,9 @@ function LoginForm() {
       setServerError(authErrorMessage(error));
       return;
     }
+    // Remembered only on success, so the hint always names something that
+    // actually worked on this device.
+    rememberSignInMethod("password");
     router.replace(safeNextPath(searchParams.get("next")));
     router.refresh();
   }
@@ -161,6 +170,7 @@ function LoginForm() {
             }
           >
             {form.formState.isSubmitting ? "Logging in…" : "Log in"}
+            {lastUsed === "password" && <LastUsedBadge className="ml-auto" />}
           </Button>
         </form>
       </Form>

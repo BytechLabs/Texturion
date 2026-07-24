@@ -2,9 +2,14 @@
 
 import { useState } from "react";
 
+import {
+  LastUsedBadge,
+  useLastUsedMethod,
+} from "@/components/auth/last-used-badge";
 import { Button } from "@/components/ui/button";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { oauthRedirectTo, type OAuthProvider } from "@/lib/auth/oauth";
+import { rememberSignInMethod } from "@/lib/auth/last-used";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 /**
@@ -25,10 +30,15 @@ import { getSupabaseBrowser } from "@/lib/supabase/browser";
 export function OAuthButtons({ next }: { next?: string | null }) {
   const [pending, setPending] = useState<OAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const lastUsed = useLastUsedMethod();
 
   async function signIn(provider: OAuthProvider) {
     setError(null);
     setPending(provider);
+    // Recorded before the redirect: signInWithOAuth navigates away on success,
+    // so there is no "after" on this page to record it in. A failed attempt
+    // rewrites nothing that matters — the hint names a method, not an outcome.
+    rememberSignInMethod("google");
     // signInWithOAuth navigates away on success; on failure it returns an
     // error and we stay on the page.
     const { error: oauthError } = await getSupabaseBrowser().auth.signInWithOAuth(
@@ -55,6 +65,7 @@ export function OAuthButtons({ next }: { next?: string | null }) {
         >
           <GoogleMark />
           {pending === "google" ? "Opening Google…" : "Continue with Google"}
+          {lastUsed === "google" && <LastUsedBadge className="ml-auto" />}
         </Button>
       </div>
       {error && (
