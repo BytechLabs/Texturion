@@ -199,12 +199,15 @@ export function blogPostingJsonLd({
   path,
   datePublishedIso,
   dateModifiedIso,
+  imagePath,
 }: {
   headline: string;
   description: string;
   path: string;
   datePublishedIso: string;
   dateModifiedIso?: string;
+  /** Path to the post's OG card (/og/blog/<slug>) → schema.org `image`. */
+  imagePath: string;
 }) {
   const url = absoluteUrl(path);
   return {
@@ -215,6 +218,9 @@ export function blogPostingJsonLd({
     description,
     url,
     mainEntityOfPage: url,
+    // The per-post OG card — the same stable image the share tags point at.
+    // Rich results / social previews read `image` from the article JSON-LD.
+    image: absoluteUrl(imagePath),
     datePublished: datePublishedIso,
     dateModified: dateModifiedIso ?? datePublishedIso,
     author: { "@id": ORG_ID },

@@ -74,6 +74,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <SoftphoneProvider>
       <div className="flex h-svh overflow-hidden app-ground">
+        {/* Skip-to-content: the first tab stop, so keyboard users can jump past
+          the whole sidebar to the page. `focus:fixed` escapes the overflow-
+          hidden shell so the link is visible when focused. */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-app-white focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-app-ink focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          Skip to content
+        </a>
         {/* Full-height sidebar on the left is the whole desktop shell; the content
           column (status banner + destination) fills the rest. */}
         <Sidebar collapsed={collapsed} onToggleSidebar={toggleSidebar} />
@@ -87,8 +96,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             renders null when there's nothing to say. */}
           <WorkspaceStatusBanner />
           <main
+            id="main-content"
+            tabIndex={-1}
             className={cn(
-              "flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0",
+              "flex min-w-0 flex-1 flex-col pb-[calc(3.5rem+env(safe-area-inset-bottom))] outline-none lg:pb-0",
               fixedFrame ? "overflow-hidden" : "overflow-y-auto",
             )}
           >

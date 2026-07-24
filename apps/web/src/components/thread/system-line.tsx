@@ -47,8 +47,12 @@ export function eventSentence(
       if (event.payload.from === "closed") {
         return `${by} reopened this conversation`;
       }
-      return to
-        ? `${by} marked this ${statusLabel(to).toLowerCase()}`
+      // `to` is an unsafe cast of an untrusted event payload; an unmapped
+      // status would make statusLabel(...) undefined and .toLowerCase() throw,
+      // tearing down the entire thread render. Fall back to the generic line.
+      const label = to ? (statusLabel(to) as string | undefined) : undefined;
+      return label
+        ? `${by} marked this ${label.toLowerCase()}`
         : `${by} changed the status`;
     }
     case "assigned": {

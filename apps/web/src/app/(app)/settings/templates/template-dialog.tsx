@@ -152,7 +152,7 @@ export function TemplateDialog({
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input maxLength={100} placeholder="On my way" {...field} />
+                    <Input maxLength={120} placeholder="On my way" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
