@@ -32,6 +32,7 @@ import {
 } from "@/lib/api/registration";
 import type { Country, RegistrationRow } from "@/lib/api/types";
 import { normalizeNanpPhone } from "@/lib/contacts/csv-import";
+import { normalizeWebsite } from "@/app/onboarding/normalize";
 
 /**
  * The §4.4 fix-and-resubmit form (G8 Numbers): edits the wizard data of
@@ -98,13 +99,14 @@ function str(data: Record<string, unknown> | undefined, key: string): string {
   return typeof value === "string" ? value : "";
 }
 
-function isHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
+/**
+ * A website is valid when blank (optional on EVERY brand path — matches the API
+ * + onboarding) or resolves to a real URL after normalization (a bare domain
+ * like "mikesplumbing.com" is accepted, exactly as onboarding accepts it).
+ */
+function isValidOptionalWebsite(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed === "" || z.url().safeParse(normalizeWebsite(trimmed)).success;
 }
 
 const CONTACT_PHONE_RE = /^\+?[0-9()\-. ]{10,20}$/;
@@ -215,11 +217,11 @@ export function RegistrationFixForm({
               message: "Enter a US or Canadian mobile number; it gets the verification text.",
             });
           }
-          if (v.website.trim() !== "" && !isHttpUrl(v.website.trim())) {
+          if (!isValidOptionalWebsite(v.website)) {
             ctx.addIssue({
               code: "custom",
               path: ["website"],
-              message: "Enter a full web address (https://…) or leave it blank.",
+              message: "Enter a web address (e.g. mikesplumbing.com) or leave it blank.",
             });
           }
         } else {
@@ -234,11 +236,15 @@ export function RegistrationFixForm({
                   : "Enter your CRA business number.",
             });
           }
-          if (!isHttpUrl(v.website.trim())) {
+          // Website is OPTIONAL on the EIN path too (matches the API +
+          // onboarding); only validate a non-blank value, and accept a bare
+          // domain (normalized). Requiring it here blocked resubmission for a
+          // standard brand that legitimately has no website.
+          if (!isValidOptionalWebsite(v.website)) {
             ctx.addIssue({
               code: "custom",
               path: ["website"],
-              message: "Enter a full web address (https://…).",
+              message: "Enter a web address (e.g. mikesplumbing.com) or leave it blank.",
             });
           }
         }
@@ -329,14 +335,18 @@ export function RegistrationFixForm({
               ein: values.ein.trim(),
               mobilePhone: normalizeNanpPhone(values.mobilePhone) as string,
               ...(values.website.trim() !== ""
-                ? { website: values.website.trim() }
+                ? { website: normalizeWebsite(values.website) }
                 : {}),
             }
           : {
               ...common,
               companyName: values.companyName.trim(),
               ein: values.ein.trim(),
-              website: values.website.trim(),
+              // Optional + normalized (bare domain → https://…); omit when blank
+              // so the API's optional website accepts it.
+              ...(values.website.trim() !== ""
+                ? { website: normalizeWebsite(values.website) }
+                : {}),
             };
       }
       if (editCampaign) {

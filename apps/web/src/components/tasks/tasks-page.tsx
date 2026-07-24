@@ -2,7 +2,7 @@
 
 import { CalendarDays, LayoutGrid, List, MapPin } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -86,22 +86,57 @@ function ViewSwitcher({
   view: TaskView;
   onChange: (view: TaskView) => void;
 }) {
+  // WAI-ARIA tablist keyboard contract: Arrow/Home/End move focus AND selection
+  // with a roving tabindex (one Tab stop) — the role="tab" markup promised it
+  // but the arrows were dead.
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const currentIndex = TASK_VIEWS.findIndex((v) => v.id === view);
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const from = currentIndex === -1 ? 0 : currentIndex;
+    let next = from;
+    switch (event.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        next = (from + 1) % TASK_VIEWS.length;
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        next = (from - 1 + TASK_VIEWS.length) % TASK_VIEWS.length;
+        break;
+      case "Home":
+        next = 0;
+        break;
+      case "End":
+        next = TASK_VIEWS.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    onChange(TASK_VIEWS[next].id);
+    tabRefs.current[next]?.focus();
+  };
   return (
     <div
       role="tablist"
       aria-label="Task view"
+      onKeyDown={onKeyDown}
       className="flex rounded-lg bg-muted p-0.5"
     >
-      {TASK_VIEWS.map(({ id, label }) => {
+      {TASK_VIEWS.map(({ id, label }, i) => {
         const Icon = VIEW_ICONS[id];
         const selected = view === id;
         return (
           <button
             key={id}
+            ref={(el) => {
+              tabRefs.current[i] = el;
+            }}
             type="button"
             role="tab"
             aria-selected={selected}
             aria-label={label}
+            tabIndex={selected ? 0 : -1}
             onClick={() => onChange(id)}
             className={cn(
               "flex min-h-9 items-center gap-1.5 rounded-md px-3 py-1 text-[13px] font-medium transition-colors duration-150 ease-out",

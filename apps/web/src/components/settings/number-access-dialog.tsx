@@ -208,7 +208,10 @@ export function NumberAccessDialog({
               ).map(([value, label]) => (
                 <label
                   key={value}
-                  className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-md border p-2 text-sm has-[input:checked]:border-primary"
+                  // The radio itself is sr-only, so surface keyboard focus on
+                  // the label (has-[input:focus-visible]) — without it there was
+                  // no visible focus indicator when tabbing the group.
+                  className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-md border p-2 text-sm has-[input:checked]:border-primary has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-ring has-[input:focus-visible]:ring-offset-2"
                 >
                   <input
                     type="radio"

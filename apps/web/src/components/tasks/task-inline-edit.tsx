@@ -137,6 +137,7 @@ export function InlineDue({ task }: { task: Task }) {
         <div className="flex flex-col gap-2">
           <input
             type="datetime-local"
+            aria-label="Due date and time"
             defaultValue={toLocalInput(task.due_at)}
             onChange={(e) =>
               update.mutate(
