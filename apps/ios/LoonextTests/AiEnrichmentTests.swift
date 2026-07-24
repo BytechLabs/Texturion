@@ -151,6 +151,7 @@ final class AiEnrichmentTests: XCTestCase {
         let settings: CompanyAiSettings = try decode("{}")
         XCTAssertTrue(settings.enrich_task_address)
         XCTAssertTrue(settings.enrich_task_due)
+        XCTAssertTrue(settings.suggest_replies)
         XCTAssertTrue(settings.anyEnabled)
     }
 
@@ -161,6 +162,21 @@ final class AiEnrichmentTests: XCTestCase {
         XCTAssertTrue(settings.enrich_task_address)
         XCTAssertFalse(settings.enrich_task_due)
         XCTAssertTrue(settings.anyEnabled)
+    }
+
+    func testReplySuggestionsDecode() throws {
+        let drafted: ReplySuggestions = try decode(
+            #"{"suggestions":["We can come Thursday.","What time works?"]}"#
+        )
+        XCTAssertEqual(drafted.suggestions.count, 2)
+        XCTAssertEqual(drafted.suggestions.first, "We can come Thursday.")
+
+        // "Nothing to offer" is the normal answer, and an older/leaner body
+        // (no key at all) must decode to the same empty list, never throw.
+        let none: ReplySuggestions = try decode(#"{"suggestions":[]}"#)
+        XCTAssertTrue(none.suggestions.isEmpty)
+        let absent: ReplySuggestions = try decode("{}")
+        XCTAssertTrue(absent.suggestions.isEmpty)
     }
 
     func testEnrichmentDecodesAddressAndDue() throws {

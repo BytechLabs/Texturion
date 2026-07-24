@@ -319,6 +319,33 @@ struct MessagingRepository: Sendable {
         try await api.get("/v1/company/ai-settings", companyId: companyId)
     }
 
+    /// POST /v1/conversations/:id/reply-suggestions — drafted replies for the
+    /// open thread. `draft` is whatever is already typed, so the server finishes
+    /// that sentence instead of talking past it.
+    ///
+    /// NOT cached: each call is a metered request the person asked for, and a
+    /// draft is only useful for the conversation as it stands right now. NEVER
+    /// throws — any failure resolves to no suggestions, so the composer degrades
+    /// to exactly what it was before.
+    func suggestReplies(
+        companyId: String,
+        conversationId: String,
+        draft: String
+    ) async -> [String] {
+        var body: [String: JSONValue] = [:]
+        if !draft.isBlank { body["draft"] = .string(draft) }
+        do {
+            let result: ReplySuggestions = try await api.post(
+                "/v1/conversations/\(conversationId)/reply-suggestions",
+                body: JSONValue.object(body),
+                companyId: companyId
+            )
+            return result.suggestions
+        } catch {
+            return []
+        }
+    }
+
     /// POST /v1/tasks/enrich — infer an address + due date/time from task text,
     /// a pure SUGGESTION the user reviews before saving. NEVER throws to the
     /// caller: any error resolves to the empty enrichment, so task creation is

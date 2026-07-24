@@ -66,14 +66,28 @@ struct TaskEnrichment: Codable, Sendable {
 struct CompanyAiSettings: Codable, Sendable {
     @Default<DefaultTrue> var enrich_task_address: Bool
     @Default<DefaultTrue> var enrich_task_due: Bool
+    /// Offer AI-drafted replies in the composer. Never sent for you.
+    @Default<DefaultTrue> var suggest_replies: Bool
 
-    init(enrich_task_address: Bool, enrich_task_due: Bool) {
+    init(
+        enrich_task_address: Bool,
+        enrich_task_due: Bool,
+        suggest_replies: Bool = true
+    ) {
         self.enrich_task_address = enrich_task_address
         self.enrich_task_due = enrich_task_due
+        self.suggest_replies = suggest_replies
     }
 
     /// Any enrichment on → the make-task sheet should call /tasks/enrich.
     var anyEnabled: Bool { enrich_task_address || enrich_task_due }
+}
+
+/// POST /v1/conversations/:id/reply-suggestions — up to three drafts the person
+/// reads and edits. An empty list is the normal "nothing to offer" answer
+/// (toggle off, nothing to reply to, over the monthly cap, model unavailable).
+struct ReplySuggestions: Codable, Sendable {
+    @Default<DefaultEmptyList<String>> var suggestions: [String]
 }
 
 /// The 6 editable address fields as strings ("" = absent). Shared by the

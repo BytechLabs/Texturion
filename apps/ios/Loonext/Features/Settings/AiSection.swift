@@ -57,7 +57,13 @@ struct AiSectionView: View {
                             + "edit or clear it before saving.",
                         isOn: settings.enrich_task_address,
                         enabled: canEdit && !saving,
-                        onChange: { save(address: $0, due: settings.enrich_task_due) }
+                        onChange: {
+                            save(
+                                address: $0,
+                                due: settings.enrich_task_due,
+                                replies: settings.suggest_replies
+                            )
+                        }
                     )
                     RowDivider()
                     LabeledToggleRow(
@@ -67,9 +73,35 @@ struct AiSectionView: View {
                             + "workspace's timezone. Always editable before you save.",
                         isOn: settings.enrich_task_due,
                         enabled: canEdit && !saving,
-                        onChange: { save(address: settings.enrich_task_address, due: $0) }
+                        onChange: {
+                            save(
+                                address: settings.enrich_task_address,
+                                due: $0,
+                                replies: settings.suggest_replies
+                            )
+                        }
                     )
                 }
+            }
+
+            SettingsCard(title: "When you reply to a customer") {
+                LabeledToggleRow(
+                    label: "Draft replies for me",
+                    supporting: "Offer a few short replies you can edit before "
+                        + "sending, drawn from the conversation so far. Start typing "
+                        + "and they finish what you started instead. Nothing is ever "
+                        + "sent for you, and drafts never quote prices, links, or "
+                        + "times the conversation did not already contain.",
+                    isOn: settings.suggest_replies,
+                    enabled: canEdit && !saving,
+                    onChange: {
+                        save(
+                            address: settings.enrich_task_address,
+                            due: settings.enrich_task_due,
+                            replies: $0
+                        )
+                    }
+                )
             }
 
             if !canEdit {
@@ -98,14 +130,23 @@ struct AiSectionView: View {
 
     /// Optimistic flip + PATCH (the whole pair is sent). On failure, roll back
     /// and surface the server's message.
-    private func save(address: Bool, due: Bool) {
+    private func save(address: Bool, due: Bool, replies: Bool) {
         guard case .ready(let previous) = state else { return }
-        state = .ready(CompanyAiSettings(enrich_task_address: address, enrich_task_due: due))
+        state = .ready(
+            CompanyAiSettings(
+                enrich_task_address: address,
+                enrich_task_due: due,
+                suggest_replies: replies
+            )
+        )
         saving = true
         Task {
             do {
                 let saved = try await scope.repo.updateAiSettings(
-                    scope.companyId, enrichAddress: address, enrichDue: due
+                    scope.companyId,
+                    enrichAddress: address,
+                    enrichDue: due,
+                    suggestReplies: replies
                 )
                 state = .ready(saved)
             } catch {

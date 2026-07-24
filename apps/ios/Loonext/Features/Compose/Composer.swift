@@ -86,8 +86,14 @@ struct ThreadComposerView: View {
     let onSendText: @MainActor (String, [StagedPhoto]) -> Void
     let onSaveNote: @MainActor (String, [StagedFile]) -> Void
     let onNotice: @MainActor (String) -> Void
+    /// Ask for AI-drafted replies. Nil hides the affordance entirely.
+    var suggestReplies: (@MainActor (String) async -> [String])?
 
     @State private var templatePickerOpen = false
+    // Drafts live only while the composer is looking at this thread: they are a
+    // momentary offer, never cached state.
+    @State private var suggestions: [String] = []
+    @State private var suggesting = false
     @State private var photosPickerOpen = false
     @State private var fileImporterOpen = false
     @State private var photoSelection: [PhotosPickerItem] = []
@@ -126,6 +132,10 @@ struct ThreadComposerView: View {
                 }
                 .padding(.leading, 16)
                 .padding(.top, 4)
+            }
+
+            if !isNote, !suggestions.isEmpty || suggesting {
+                replySuggestionsRow
             }
 
             if !isNote, !state.photos.isEmpty {
@@ -179,6 +189,73 @@ struct ThreadComposerView: View {
         }
     }
 
+    /// Ask for drafts, sending whatever is typed so far so the server finishes
+    /// the sentence rather than talking past it. Silence after a tap reads as
+    /// broken, so an empty result says so out loud.
+    private func askForSuggestions() {
+        guard let ask = suggestReplies, !suggesting else { return }
+        suggesting = true
+        suggestions = []
+        Task {
+            let drafted = await ask(state.text)
+            suggesting = false
+            if drafted.isEmpty {
+                onNotice("Nothing to suggest here yet.")
+            } else {
+                suggestions = drafted
+            }
+        }
+    }
+
+    /// AI-drafted replies above the pill. Tapping one loads it into the composer
+    /// to read and edit. NOTHING here sends — the person still presses send,
+    /// every time, which is the whole safety model of the feature.
+    private var replySuggestionsRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 11))
+                    .foregroundStyle(BrandColor.muted500)
+                Text(suggesting ? "Drafting…" : "Drafts, yours to edit")
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted500)
+                Spacer()
+                if !suggesting {
+                    Button("Dismiss") { suggestions = [] }
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.muted500)
+                        .buttonStyle(.plain)
+                }
+            }
+            ForEach(suggestions, id: \.self) { suggestion in
+                Button {
+                    state.text = suggestion
+                    suggestions = []
+                } label: {
+                    Text(suggestion)
+                        .font(.golos(13))
+                        .foregroundStyle(BrandColor.ink)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(BrandColor.paper)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(BrandColor.insetDeep, lineWidth: 1)
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 6)
+    }
+
     private var composerPill: some View {
         HStack(alignment: .bottom, spacing: 4) {
             if !isNote {
@@ -193,6 +270,17 @@ struct ThreadComposerView: View {
                         templatePickerOpen = true
                     } label: {
                         Label("Saved reply", systemImage: "text.badge.plus")
+                    }
+                    if suggestReplies != nil {
+                        Button {
+                            askForSuggestions()
+                        } label: {
+                            Label(
+                                state.text.isBlank ? "Draft a reply" : "Finish this reply",
+                                systemImage: "sparkles"
+                            )
+                        }
+                        .disabled(suggesting)
                     }
                 } label: {
                     Image(systemName: "plus")

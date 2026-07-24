@@ -589,7 +589,14 @@ private struct ThreadBody: View {
                     composer.restore(body: body, photos: [], files: files)
                 }
             },
-            onNotice: { controller.notifyExternally($0) }
+            onNotice: { controller.notifyExternally($0) },
+            suggestReplies: { [repo = controller.repo, companyId = detail.company_id] draft in
+                await repo.suggestReplies(
+                    companyId: companyId,
+                    conversationId: detail.id,
+                    draft: draft
+                )
+            }
         )
     }
 }

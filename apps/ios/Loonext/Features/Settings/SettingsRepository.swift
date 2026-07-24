@@ -40,13 +40,15 @@ struct SettingsRepository: Sendable {
     func updateAiSettings(
         _ companyId: String,
         enrichAddress: Bool,
-        enrichDue: Bool
+        enrichDue: Bool,
+        suggestReplies: Bool
     ) async throws -> CompanyAiSettings {
         try await api.patch(
             "/v1/company/ai-settings",
             body: JSONValue.object([
                 "enrich_task_address": .bool(enrichAddress),
                 "enrich_task_due": .bool(enrichDue),
+                "suggest_replies": .bool(suggestReplies),
             ]),
             companyId: companyId
         )
