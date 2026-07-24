@@ -2,9 +2,11 @@
 
 import { memo } from "react";
 import { skipToken, useQuery } from "@tanstack/react-query";
-import { Lock, Pin } from "lucide-react";
+import { Lock, Paperclip, Pin } from "lucide-react";
 import Link from "next/link";
 
+import { mmsMediaKind, type MmsMediaKind } from "@loonext/shared";
+import { attachmentLabel, sharedMediaKind } from "@/lib/attachments/media-label";
 import type { ThreadData } from "@/lib/api/cache";
 import { keys } from "@/lib/api/keys";
 import type {
@@ -30,6 +32,9 @@ interface Snippet {
   direction: MessageDirection;
   body: string;
   hasAttachments: boolean;
+  /** Shared kind of the attachments, 'file' when mixed, null when there are none. */
+  attachmentKind: MmsMediaKind | null;
+  attachmentCount: number;
 }
 
 /**
@@ -60,10 +65,17 @@ function useSnippet(conversation: ConversationListItem): Snippet | null {
     cached &&
     (!row || Date.parse(cached.created_at) >= Date.parse(row.created_at))
   ) {
+    // The cached message carries the attachments themselves, so the kind is
+    // derived the same way the server derives it for the snippet.
+    const kinds = (cached.attachments ?? []).map((a) =>
+      mmsMediaKind(a.content_type),
+    );
     return {
       direction: cached.direction,
       body: cached.body,
-      hasAttachments: (cached.attachments?.length ?? 0) > 0,
+      hasAttachments: kinds.length > 0,
+      attachmentKind: kinds.length > 0 ? (sharedMediaKind(kinds) ?? "file") : null,
+      attachmentCount: kinds.length,
     };
   }
   if (row) {
@@ -71,6 +83,9 @@ function useSnippet(conversation: ConversationListItem): Snippet | null {
       direction: row.direction,
       body: row.body,
       hasAttachments: row.has_attachments,
+      attachmentKind: row.attachment_kind ?? null,
+      // A server that has not shipped the count yet still reports the boolean.
+      attachmentCount: row.attachment_count ?? (row.has_attachments ? 1 : 0),
     };
   }
   return null;
@@ -79,9 +94,11 @@ function useSnippet(conversation: ConversationListItem): Snippet | null {
 function snippetText(snippet: Snippet): string {
   const body = snippet.body.trim();
   if (body === "") {
-    // #189: MMS media is not photos-only anymore — the row only knows "has
-    // attachments", so the neutral word is the honest one.
-    return snippet.hasAttachments ? "Attachment" : "";
+    // Name what actually arrived — a voice message is not a "Photo" (founder
+    // report), and "Attachment" told a crew nothing worth scanning for.
+    return snippet.hasAttachments
+      ? attachmentLabel(snippet.attachmentKind, snippet.attachmentCount)
+      : "";
   }
   return body;
 }
@@ -139,6 +156,13 @@ export const ConversationRow = memo(function ConversationRow({
     : conversation.contact.name
       ? formatPhone(conversation.contact.phone_e164)
       : "";
+  // With a caption, the preview shows the text and the clip icon carries the
+  // media — so the attachment has to be spelled out for screen readers, which
+  // never see the icon.
+  const attachmentNote =
+    snippet?.hasAttachments && snippet.body.trim() !== ""
+      ? `, with ${attachmentLabel(snippet.attachmentKind, snippet.attachmentCount).toLowerCase()}`
+      : "";
 
   return (
     <Link
@@ -153,7 +177,7 @@ export const ConversationRow = memo(function ConversationRow({
         pinned ? ", pinned" : ""
       }${snippet?.direction === "note" ? ", internal note" : ""}${
         assigneeName ? `, assigned to ${assigneeName}` : ""
-      }${spamView ? ", spam" : ""}${previewText ? `. ${previewText}` : ""}`}
+      }${spamView ? ", spam" : ""}${attachmentNote}${previewText ? `. ${previewText}` : ""}`}
       style={{ height: ROW_HEIGHT }}
       className={cn(
         "relative flex items-start gap-[11px] rounded-app-card border p-[11px] transition-[background,box-shadow,border-color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
@@ -213,6 +237,17 @@ export const ConversationRow = memo(function ConversationRow({
               className="mt-0.5 size-3 shrink-0 text-app-amber"
               strokeWidth={1.75}
               aria-label="Note"
+            />
+          )}
+          {/* A message carrying media reads differently at a glance from one
+              that is only text (founder report). The clip shows whenever there
+              is an attachment — including alongside a caption, where the label
+              alone would be invisible. The row's aria-label already names it. */}
+          {snippet?.hasAttachments && (
+            <Paperclip
+              className="mt-0.5 size-3 shrink-0 text-app-muted-2"
+              strokeWidth={1.75}
+              aria-hidden
             />
           )}
           <span className="line-clamp-2 min-w-0 break-words">

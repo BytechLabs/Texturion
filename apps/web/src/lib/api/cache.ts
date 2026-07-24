@@ -1,5 +1,7 @@
 import type { InfiniteData } from "@tanstack/react-query";
 
+import { mmsMediaKind } from "@loonext/shared";
+import { sharedMediaKind } from "@/lib/attachments/media-label";
 import {
   conversationMatchesFilters,
   type ConversationFilters,
@@ -39,12 +41,23 @@ function byKeyDesc(
 
 /** Shape a full message into the list row's `last_message` embed (G4). */
 export function snippetFromMessage(message: Message): ConversationSnippet {
+  // Derive the kind exactly as the server does for the snippet (migration
+  // 20260724080000), so a row seeded from a just-sent message and the same row
+  // after a list refetch read identically.
+  const kinds = (message.attachments ?? []).map((a) =>
+    mmsMediaKind(a.content_type),
+  );
   return {
     id: message.id,
     direction: message.direction,
     body: message.body,
     created_at: message.created_at,
-    has_attachments: (message.attachments?.length ?? 0) > 0,
+    has_attachments: kinds.length > 0,
+    attachment_count: kinds.length,
+    attachment_kind:
+      kinds.length === 0
+        ? null
+        : (sharedMediaKind(kinds) ?? "file"),
   };
 }
 

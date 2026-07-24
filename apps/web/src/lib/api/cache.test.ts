@@ -94,6 +94,8 @@ function listItem(
       body: `snippet-${id}`,
       created_at: lastMessageAt,
       has_attachments: false,
+      attachment_count: 0,
+      attachment_kind: null,
     },
     ...overrides,
   };
@@ -335,6 +337,8 @@ describe("snippetFromMessage", () => {
       body: "check the valves",
       created_at: T1,
       has_attachments: false,
+      attachment_count: 0,
+      attachment_kind: null,
     });
   });
 
@@ -344,10 +348,31 @@ describe("snippetFromMessage", () => {
       attachments: [{ id: "a1", content_type: "image/jpeg", size_bytes: 100 }],
     });
     expect(snippetFromMessage(withMedia).has_attachments).toBe(true);
+    expect(snippetFromMessage(withMedia).attachment_kind).toBe("image");
+    expect(snippetFromMessage(withMedia).attachment_count).toBe(1);
 
     const bare = message("m3", T1);
     delete bare.attachments;
     expect(snippetFromMessage(bare).has_attachments).toBe(false);
+    expect(snippetFromMessage(bare).attachment_kind).toBeNull();
+  });
+
+  it("reports the shared kind, and 'file' for a mixed set", () => {
+    const audio = message("m4", T1, {
+      body: "",
+      attachments: [{ id: "a1", content_type: "audio/mp4", size_bytes: 900 }],
+    });
+    expect(snippetFromMessage(audio).attachment_kind).toBe("audio");
+
+    const mixed = message("m5", T1, {
+      body: "",
+      attachments: [
+        { id: "a1", content_type: "audio/mp4", size_bytes: 900 },
+        { id: "a2", content_type: "image/jpeg", size_bytes: 100 },
+      ],
+    });
+    expect(snippetFromMessage(mixed).attachment_kind).toBe("file");
+    expect(snippetFromMessage(mixed).attachment_count).toBe(2);
   });
 });
 

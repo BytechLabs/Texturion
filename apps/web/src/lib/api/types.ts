@@ -2,6 +2,7 @@
  * API resource shapes, derived by reading apps/api/src/routes/*.ts (never
  * guessed — SPEC §7 is the contract, the route files are the truth).
  */
+import type { MmsMediaKind } from "@loonext/shared";
 
 export type SubscriptionStatus =
   | "incomplete"
@@ -308,6 +309,11 @@ export interface ConversationSnippet {
   body: string;
   created_at: string;
   has_attachments: boolean;
+  /** How many attachments ride the last message (0 when none). */
+  attachment_count: number;
+  /** The kind they all share, 'file' for a mixed set, null when there are none.
+   * The inbox labels from THIS instead of guessing (migration 20260724080000). */
+  attachment_kind: MmsMediaKind | null;
 }
 
 /** GET /v1/conversations row (api_list_conversations RPC). */

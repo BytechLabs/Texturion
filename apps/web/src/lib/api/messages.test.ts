@@ -77,6 +77,8 @@ function listItem(
       body: `snippet-${id}`,
       created_at: lastMessageAt,
       has_attachments: false,
+      attachment_count: 0,
+      attachment_kind: null,
     },
     ...overrides,
   };
@@ -100,6 +102,8 @@ describe("sentConversationPatch", () => {
       body: "On my way!",
       created_at: T2,
       has_attachments: false,
+      attachment_count: 0,
+      attachment_kind: null,
     });
   });
 
