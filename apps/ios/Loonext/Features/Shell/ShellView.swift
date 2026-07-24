@@ -400,7 +400,13 @@ struct ShellView: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("You")
+        // Surface the unread-notification dot to VoiceOver (it was a purely
+        // visual coral dot before).
+        .accessibilityLabel(
+            notifReadState.unreadCount > 0
+                ? "You, \(notifReadState.unreadCount) unread notifications"
+                : "You"
+        )
     }
 
     // MARK: - Overlays above the nav

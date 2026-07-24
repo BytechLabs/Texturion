@@ -723,6 +723,8 @@ private struct InboxList: View {
                 .background(selected ? BrandColor.ink : BrandColor.paper, in: Capsule())
         }
         .buttonStyle(.plain)
+        // Expose selected state so VoiceOver announces the active status tab.
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 

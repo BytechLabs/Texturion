@@ -357,6 +357,9 @@ private struct ControlToggle: View {
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.4)
         .accessibilityLabel(label)
+        // Announce the on/off state (e.g. "Speaker, selected") — the toggle was
+        // otherwise a silent icon flip for VoiceOver.
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
 

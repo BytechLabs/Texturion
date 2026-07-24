@@ -141,9 +141,15 @@ class RealtimeClient(
                 val ws = open(closed)
                 socket = ws
                 if (ws != null) {
-                    // A JOIN reply resets the backoff; see handle().
-                    attempt = if (_state.value == RealtimeState.Joined) 0 else attempt
                     closed.await()
+                    // A JOIN reply during THIS connection resets the backoff.
+                    // open()/newWebSocket() returns BEFORE the async Phoenix JOIN
+                    // reply lands, so checking before await() always saw
+                    // Connecting and never reset — the backoff grew toward 30s
+                    // even while joins kept succeeding. Check AFTER the socket
+                    // closes (state is still Joined here; the loop sets
+                    // Disconnected on the next line).
+                    if (_state.value == RealtimeState.Joined) attempt = 0
                 }
                 _state.value = RealtimeState.Disconnected
                 attempt++
