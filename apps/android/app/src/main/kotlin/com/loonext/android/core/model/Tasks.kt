@@ -48,6 +48,16 @@ data class Task(
     val addr_postal_code: String? = null,
     val addr_country: String? = null,
     val addr_provenance: String? = null,
+    /**
+     * #214/Map: the task's OWN geocoded coordinates (from its addr_* address,
+     * cached by the geocode-tasks cron; projected by TASK_COLUMNS). Null until
+     * geocoded or when the task has no address. The Map view prefers these over
+     * the contact's saved location so a job pins at its SITE, not where the
+     * customer lives — the founder-reported wrong-pin fix, web parity with
+     * apps/web/src/components/tasks/views/map-types.ts.
+     */
+    val lat: Double? = null,
+    val lng: Double? = null,
 )
 
 @Serializable

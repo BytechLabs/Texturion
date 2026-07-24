@@ -198,13 +198,18 @@ internal data class TaskMapModel(
 )
 
 /**
- * The web's `taskCoords` guard, ported exactly: only finite, in-range
+ * The web's `taskCoords`, ported exactly (map-types.ts): PREFER the task's OWN
+ * geocoded address (a job SITE — "CN Tower, Toronto") over the contact's saved
+ * location (where the customer lives — "Calgary"), falling back to the contact
+ * only when the task has no coordinate of its own. Only finite, in-range
  * coordinates plot; everything else counts as "without a location".
  */
-internal fun taskPinCoords(task: Task): Pair<Double, Double>? {
-    val contact = task.contact ?: return null
-    val lat = contact.lat ?: return null
-    val lng = contact.lng ?: return null
+internal fun taskPinCoords(task: Task): Pair<Double, Double>? =
+    validPin(task.lat, task.lng) ?: task.contact?.let { validPin(it.lat, it.lng) }
+
+/** Finite, on-Earth coordinates or null (a bad geocode must never plot). */
+private fun validPin(lat: Double?, lng: Double?): Pair<Double, Double>? {
+    if (lat == null || lng == null) return null
     if (!lat.isFinite() || !lng.isFinite() || abs(lat) > 90.0 || abs(lng) > 180.0) return null
     return lat to lng
 }
@@ -216,8 +221,13 @@ internal fun buildTaskMapModel(rows: List<Task>): TaskMapModel {
     val located = rows.mapNotNull { task ->
         taskPinCoords(task)?.let { (lat, lng) -> Located(task, lat, lng) }
     }
+    // Fuse by the RESOLVED coordinate, not the contact: a task now pins at its
+    // OWN site, so two jobs for the same customer at different addresses must be
+    // two pins (grouping by contact.id would collapse them onto the first one's
+    // location). Tasks that share an exact coordinate — same job address, or the
+    // same contact-fallback location — still fuse into one pin.
     val groups = located
-        .groupBy { it.task.contact?.id ?: "${it.lat},${it.lng}" }
+        .groupBy { "${it.lat},${it.lng}" }
         .map { (key, pins) ->
             val first = pins.first()
             TaskPinGroup(
