@@ -395,6 +395,31 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
     expect(cap.status).toBe(403);
   });
 
+  it("echoes the billing kill switch, so a merge cannot restore billing controls", async () => {
+    // The switch is a runtime setting rather than a column, so it is absent
+    // from the updated row. Clients merge this echo into their cached company,
+    // and a missing flag decodes to enabled: saving an unrelated setting would
+    // silently bring back the in-app plan and module controls it exists to
+    // hide.
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [
+      { id: COMPANY_ID, name: "New Name" },
+    ]);
+    sb.on("GET", "/rest/v1/phone_numbers", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      { ...env, BILLING_WRITES_DISABLED: "1" },
+      await auth.token(),
+      "/v1/company",
+      { method: "PATCH", companyId: COMPANY_ID, body: { name: "New Name" } },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { billing_writes_enabled: boolean };
+    expect(body.billing_writes_enabled).toBe(false);
+  });
+
   it("lets the owner change the pending area code before checkout", async () => {
     const sb = stubWithRole("owner");
     // Pre-checkout precheck: incomplete company in the US.

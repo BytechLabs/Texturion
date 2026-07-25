@@ -36,6 +36,7 @@ import {
   syncCallSettingsForCompany,
 } from "../telnyx/voice";
 import {
+  billingWritesEnabled,
   COMPANY_COLUMNS,
   loadCompanyView,
   withCallerIdDerived,
@@ -604,7 +605,16 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
 
   // #192/#193: the PATCH echo carries the same derived fields as the GET
   // view (clients merge this straight into their cached company).
-  return c.json(withCallerIdDerived(withMctbDerived(company)));
+  //
+  // billing_writes_enabled rides along for the same reason. It is a runtime
+  // switch rather than a column, so it is absent from the updated row, and a
+  // client merging this echo would fall back to its decode default of true.
+  // That silently restores the in-app plan-change and module controls the
+  // switch exists to hide, after nothing more than saving a business hour.
+  return c.json({
+    ...withCallerIdDerived(withMctbDerived(company)),
+    billing_writes_enabled: billingWritesEnabled(env),
+  });
 });
 
 /** Hono's `c.executionCtx` throws when there is no runtime context; probe it. */
