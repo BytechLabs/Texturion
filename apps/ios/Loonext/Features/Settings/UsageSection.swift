@@ -130,11 +130,13 @@ struct UsageSectionView: View {
                     case .quiet:
                         QuietCard()
                     }
-                    // The owner's cap control is reachable in every status.
-                    // Members only meet the cap when it actually matters
-                    // (pacing/capped); in the quiet state they see nothing that
-                    // reads like a limit.
-                    if isOwner || usage.status != UsageStatus.quiet {
+                    // Reachable in every status, for every role, as on the web.
+                    // #178 says usage is never a wall, and this is not one: it
+                    // is a plain line saying what the cap is and who can change
+                    // it. Hiding it from members until they were already pacing
+                    // meant the one question a member has about the bill had no
+                    // answer on the calm day.
+                    Group {
                         CapCard(
                             scope: scope,
                             company: company,
