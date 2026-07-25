@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { StepError, StepLoading } from "../step-shell";
 import { hasPaid, owesUsRegistration } from "../steps";
 import { useOnboardingState } from "../use-onboarding-state";
+import { setupHeadline } from "./headline";
 import {
   PORT_CHECKLIST_COPY,
   resolvePortChecklistItem,
@@ -531,6 +532,16 @@ function SettingUp() {
   // exclamation mark (G10) and the number reveals below. Until then it stays a
   // calm, honest present-tense status line.
   const numberReady = Boolean(activeNumber?.number_e164);
+  // The number landing is not the whole checklist. Carrier registration runs
+  // for days after it, so claiming every row is live the moment the number
+  // arrives contradicts the row right underneath, which is still counting
+  // business days (and, on the OTP path, is waiting on the reader).
+  const everyRowDone =
+    numberStatus === "done" &&
+    registrationStatus === "done" &&
+    inboxStatus === "done";
+  const aRowNeedsYou =
+    numberActionNeeded || portItem?.actionNeeded || otpPending;
 
   return (
     <div className="space-y-10">
@@ -541,13 +552,7 @@ function SettingUp() {
           {numberReady ? "Your number is ready!" : "Setting up your number"}
         </h1>
         <p className="text-sm text-muted-foreground">
-          {numberReady
-            ? "Everything below is live. Text your new number to see it land."
-            : numberActionNeeded || portItem?.actionNeeded || otpPending
-              ? // "Updates itself" would be a lie while it waits on the user —
-                // say so instead.
-                "One step below needs you. The rest updates itself."
-              : "This screen updates itself. No refreshing needed."}
+          {setupHeadline({ numberReady, everyRowDone, aRowNeedsYou })}
         </p>
       </div>
 
