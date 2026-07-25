@@ -26,6 +26,7 @@ import {
   useNotificationsUnreadCount,
 } from "@/lib/api/notifications";
 import { flattenPages } from "@/lib/api/pagination";
+import { usePushSubscription } from "@/lib/push/use-push-subscription";
 import type { NotificationItem, NotificationType } from "@/lib/api/types";
 import { contactDisplayName } from "@/lib/format/phone";
 import { formatRelativeTime } from "@/lib/format/time";
@@ -143,6 +144,46 @@ function NotificationRow({
  * never loads pages. Selecting an item marks it (and everything older) read,
  * deep-links to its thread, and asks the host to dismiss via `onNavigate`.
  */
+/**
+ * The offer to turn on browser notifications, made where someone is already
+ * looking for them.
+ *
+ * The permission prompt can only follow a deliberate tap (G8), and it lived
+ * solely on the notifications settings page, which almost nobody opens. Until
+ * it is granted, an alert reaches a member only while the app is open in front
+ * of them, which is the case where they needed no alert. Opening this list is
+ * the moment that gap is felt.
+ */
+function PushOffer() {
+  const push = usePushSubscription();
+
+  if (push.phase === "idle") {
+    return (
+      <div className="flex items-center justify-between gap-3 border-b border-border bg-accent/40 px-4 py-2.5">
+        <p className="text-xs text-muted-foreground">
+          Get these when Loonext isn&rsquo;t open.
+        </p>
+        <Button size="xs" onClick={() => void push.subscribe()}>
+          Turn on
+        </Button>
+      </div>
+    );
+  }
+
+  // Denied is the browser's to undo, not ours: say where, and offer nothing
+  // that cannot work. Every other phase is either fine or still settling.
+  if (push.phase === "denied") {
+    return (
+      <p className="border-b border-border bg-accent/40 px-4 py-2.5 text-xs text-muted-foreground">
+        Notifications are blocked for this site. Your browser&rsquo;s site
+        settings can allow them again.
+      </p>
+    );
+  }
+
+  return null;
+}
+
 export function NotificationFeed({
   active,
   onNavigate,
@@ -189,6 +230,8 @@ export function NotificationFeed({
           Mark all read
         </Button>
       </div>
+
+      <PushOffer />
 
       {feed.isPending ? (
         <div className="space-y-1 p-3" aria-hidden>
