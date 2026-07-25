@@ -8,6 +8,7 @@ import {
   VOICEMAIL_TRANSCRIPT_MAX_CHARS,
   VOICEMAIL_TRANSCRIPT_MAX_SECONDS,
   VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
+  transcriptInput,
 } from "./voicemail-transcript";
 
 describe("shouldTranscribe", () => {
@@ -87,5 +88,26 @@ describe("cost posture", () => {
       VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
     );
     expect(VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD).toBeGreaterThan(0);
+  });
+});
+
+describe("transcriptInput", () => {
+  it("passes the audio as base64, not a byte array", () => {
+    // A five-minute recording is about a million array elements otherwise,
+    // built inside a 128 MB Worker that is already holding the raw buffer.
+    const input = transcriptInput("AAAA");
+    expect(input.audio).toBe("AAAA");
+    expect(typeof input.audio).toBe("string");
+  });
+
+  it("turns off conditioning on previous text", () => {
+    // Left on, Whisper loops on near-silence and emits the same phrase over
+    // and over, which would read as a real message rather than as nothing.
+    expect(transcriptInput("x").condition_on_previous_text).toBe(false);
+  });
+
+  it("pins the language rather than detecting it from noise", () => {
+    expect(transcriptInput("x").language).toBe("en");
+    expect(transcriptInput("x").task).toBe("transcribe");
   });
 });

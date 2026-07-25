@@ -23,8 +23,18 @@
  *     it; it is stored and displayed.
  */
 
-/** Workers AI speech-to-text. $0.00045 per audio minute at the time of writing. */
-export const VOICEMAIL_TRANSCRIPT_MODEL = "@cf/openai/whisper";
+/**
+ * Workers AI speech-to-text, $0.00051 per audio minute at the time of writing.
+ *
+ * The turbo model over the base one for two reasons that both matter here. It
+ * takes its audio as BASE64 rather than an array of byte numbers: a 5-minute
+ * recording is roughly a million array elements otherwise, built inside a
+ * 128 MB Worker that is simultaneously holding the raw buffer and uploading it.
+ * And voicemail is the hard case for transcription — phone-quality audio, a
+ * running compressor, an accent — which is exactly where the better model earns
+ * the extra six thousandths of a cent per minute.
+ */
+export const VOICEMAIL_TRANSCRIPT_MODEL = "@cf/openai/whisper-large-v3-turbo";
 
 /** The per-feature key in the shared monthly AI ledger (`ai_usage_reserve`). */
 export const VOICEMAIL_TRANSCRIPT_FEATURE = "voicemail_transcript";
@@ -65,6 +75,26 @@ export const VOICEMAIL_TRANSCRIPT_MAX_CHARS = 4000;
  */
 export function shouldTranscribe(seconds: number): boolean {
   return seconds > 0 && seconds <= VOICEMAIL_TRANSCRIPT_MAX_SECONDS;
+}
+
+/**
+ * The model inputs, in one place so the caller stays about I/O.
+ *
+ * `language: "en"` pins it rather than letting language detection wander on a
+ * few seconds of noisy audio. `vad_filter` drops silence before the model sees
+ * it, which is most of a hang-up. `condition_on_previous_text: false` is the
+ * important one: left on, Whisper loops on near-silence and emits the same
+ * phrase over and over ("Thank you. Thank you. Thank you."), which would read
+ * as a real message rather than as the nothing it is.
+ */
+export function transcriptInput(audioBase64: string): Record<string, unknown> {
+  return {
+    audio: audioBase64,
+    task: "transcribe",
+    language: "en",
+    vad_filter: "true",
+    condition_on_previous_text: false,
+  };
 }
 
 /**

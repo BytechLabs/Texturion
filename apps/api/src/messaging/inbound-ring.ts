@@ -39,6 +39,7 @@ import {
 import {
   sanitizeTranscript,
   shouldTranscribe,
+  transcriptInput,
   VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD,
   VOICEMAIL_TRANSCRIPT_FEATURE,
   VOICEMAIL_TRANSCRIPT_MODEL,
@@ -365,10 +366,12 @@ async function transcribeVoicemail(
     }
     if (reservation.over_cap) return null;
 
+    // Base64, not an array of byte numbers: a five-minute recording is about a
+    // million array elements, and this runs inside a 128 MB Worker that is
+    // already holding the raw buffer.
+    const audioBase64 = Buffer.from(args.audio).toString("base64");
     const raw = await Promise.race([
-      env.AI.run(VOICEMAIL_TRANSCRIPT_MODEL, {
-        audio: [...new Uint8Array(args.audio)],
-      }),
+      env.AI.run(VOICEMAIL_TRANSCRIPT_MODEL, transcriptInput(audioBase64)),
       new Promise<null>((resolve) =>
         setTimeout(() => resolve(null), VOICEMAIL_TRANSCRIPT_TIMEOUT_MS),
       ),
