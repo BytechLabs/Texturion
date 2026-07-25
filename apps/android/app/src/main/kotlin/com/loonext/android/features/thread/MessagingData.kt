@@ -291,6 +291,38 @@ class MessagingRepository(private val api: ApiClient) {
     suspend fun templates(companyId: String): Page<Template> =
         api.get("/v1/templates", companyId = companyId)
 
+    // --- Saved replies (Settings → Templates) ---------------------------------
+    // Member-level for every operation (routes/templates.ts): any active
+    // teammate may write them, so these carry no extra role check.
+
+    suspend fun createTemplate(companyId: String, name: String, body: String): Template =
+        api.post(
+            "/v1/templates",
+            buildJsonObject {
+                put("name", name)
+                put("body", body)
+            },
+            companyId = companyId,
+        )
+
+    suspend fun updateTemplate(
+        companyId: String,
+        templateId: String,
+        name: String,
+        body: String,
+    ): Template = api.patch(
+        "/v1/templates/$templateId",
+        buildJsonObject {
+            put("name", name)
+            put("body", body)
+        },
+        companyId = companyId,
+    )
+
+    suspend fun deleteTemplate(companyId: String, templateId: String) {
+        api.delete("/v1/templates/$templateId", companyId = companyId)
+    }
+
     suspend fun tags(companyId: String): Page<Tag> =
         api.get("/v1/tags", companyId = companyId)
 

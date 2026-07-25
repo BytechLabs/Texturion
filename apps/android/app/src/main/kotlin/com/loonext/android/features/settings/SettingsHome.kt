@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.DataUsage
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Quickreply
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.Tag
@@ -107,6 +108,7 @@ enum class SettingsSection(val title: String, val blurb: String) {
     Workspace("Workspace", "Name, business identification, timezone"),
     Hours("Business hours & away reply", "When you're open, and what after-hours texters hear"),
     Calling("Calling", "Missed-call text-back, voicemail, screening, caller ID"),
+    Templates("Templates", "Saved replies your team can send in one tap"),
     Team("Team", "Who can see and answer your customers' texts"),
     Numbers("Numbers", "Your numbers, ports, text-enablement, registration"),
     Usage("Usage", "Fair use, your spending cap, and the numbers"),
@@ -127,7 +129,7 @@ class SettingsScope(
 )
 
 /**
- * Settings entry (#157): the workspace hub (screen 28) and its nine sections.
+ * Settings entry (#157): the workspace hub (screen 28) and its sections.
  * The company view loads once here and refreshes on `number.updated` /
  * `registration.updated` realtime events; sections patch it back via
  * [onCompanyUpdated]-style merges.
@@ -273,6 +275,8 @@ fun SettingsHome(
                             SettingsSection.Calling -> CallingSection(
                                 settingsScope, company, onCompanyUpdated,
                             )
+
+                            SettingsSection.Templates -> TemplatesSection(settingsScope, company)
 
                             SettingsSection.Team -> TeamSection(settingsScope, company)
 
@@ -724,6 +728,7 @@ private fun iconFor(section: SettingsSection): ImageVector = when (section) {
     SettingsSection.Workspace -> Icons.Outlined.Storefront
     SettingsSection.Hours -> Icons.Outlined.Schedule
     SettingsSection.Calling -> Icons.Outlined.Call
+    SettingsSection.Templates -> Icons.Outlined.Quickreply
     SettingsSection.Team -> Icons.Outlined.Group
     SettingsSection.Numbers -> Icons.Outlined.Tag
     SettingsSection.Usage -> Icons.Outlined.DataUsage

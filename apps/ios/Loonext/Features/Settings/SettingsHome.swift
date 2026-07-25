@@ -1,11 +1,12 @@
 import SwiftUI
 
-/// The stacked settings index (#163) — mirrors the Android twin's nine
-/// sections and the web's mobile section list.
+/// The stacked settings index (#163) — mirrors the Android twin's sections
+/// and the web's mobile section list.
 enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     case workspace
     case hours
     case calling
+    case templates
     case ai
     case team
     case numbers
@@ -21,6 +22,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .workspace: "Workspace"
         case .hours: "Business hours & away reply"
         case .calling: "Calling"
+        case .templates: "Templates"
         case .ai: "Lou"
         case .team: "Team"
         case .numbers: "Numbers"
@@ -36,6 +38,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .workspace: "Name, business identification, timezone"
         case .hours: "When you're open, and what after-hours texters hear"
         case .calling: "Missed-call text-back, voicemail, screening, caller ID"
+        case .templates: "Saved replies your team can send in one tap"
         case .ai: "Pre-fill a task's address and due date from a message"
         case .team: "Who can see and answer your customers' texts"
         case .numbers: "Your numbers, ports, text-enablement, registration"
@@ -52,6 +55,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .workspace: "building.2"
         case .hours: "clock"
         case .calling: "phone"
+        case .templates: "text.bubble"
         case .ai: "circle.hexagongrid"
         case .team: "person.2"
         case .numbers: "number"
@@ -75,7 +79,7 @@ struct SettingsScope {
 }
 
 /// Settings entry (#163): a stacked index list navigating (NavigationStack)
-/// into the nine sections. The company view loads once here and refreshes on
+/// into its sections. The company view loads once here and refreshes on
 /// `number.updated` / `registration.updated` realtime events (payloads are
 /// ID-only by design — always refetch, never patch from the event); sections
 /// patch it back via the onCompanyUpdated merge.
@@ -259,6 +263,8 @@ struct SettingsHome: View {
                     HoursSectionView(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
                 case .calling:
                     CallingSectionView(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
+                case .templates:
+                    TemplatesSectionView(scope: scope, company: company)
                 case .ai:
                     AiSectionView(scope: scope)
                 case .team:
@@ -366,7 +372,7 @@ private struct SettingsSectionRow: View {
 
 // MARK: - Previews
 
-/// The settings index grammar (title + all nine section rows), rendered from
+/// The settings index grammar (title + every section row), rendered from
 /// the real `SettingsSection` metadata inside the app's card + scroll shell.
 /// #180 responsive matrix — fixed frames prove every row stays reachable via
 /// scroll at each ratio.

@@ -394,6 +394,35 @@ struct MessagingRepository: Sendable {
         try await api.get("/v1/templates", companyId: companyId)
     }
 
+    // MARK: - Saved replies (Settings → Templates)
+    // Member-level for every operation (routes/templates.ts): any active
+    // teammate may write them, so these carry no extra role check.
+
+    func createTemplate(companyId: String, name: String, body: String) async throws -> Template {
+        try await api.post(
+            "/v1/templates",
+            body: JSONValue.object(["name": .string(name), "body": .string(body)]),
+            companyId: companyId
+        )
+    }
+
+    func updateTemplate(
+        companyId: String,
+        templateId: String,
+        name: String,
+        body: String
+    ) async throws -> Template {
+        try await api.patch(
+            "/v1/templates/\(templateId)",
+            body: JSONValue.object(["name": .string(name), "body": .string(body)]),
+            companyId: companyId
+        )
+    }
+
+    func deleteTemplate(companyId: String, templateId: String) async throws {
+        try await api.delete("/v1/templates/\(templateId)", companyId: companyId)
+    }
+
     func tags(companyId: String) async throws -> Page<Tag> {
         try await api.get("/v1/tags", companyId: companyId)
     }
