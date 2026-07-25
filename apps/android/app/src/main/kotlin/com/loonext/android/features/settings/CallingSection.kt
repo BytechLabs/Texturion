@@ -24,6 +24,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.features.compose.usSendApproved
+import com.loonext.android.features.compose.usTextingOff
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.Usage
@@ -161,6 +163,18 @@ private fun TextBackCard(
             },
             enabled = canEdit,
         )
+        // The send gates refuse a US destination until the campaign is
+        // approved, and the text-back is skipped without a trace when they do.
+        // A caller who is never texted back is the whole point of the feature.
+        if (enabled && !usSendApproved(company)) {
+            ReachNote(
+                if (usTextingOff(company)) {
+                    "Callers with US numbers won't get this text: US texting isn't on for this workspace. Canadian callers get it now."
+                } else {
+                    "Callers with US numbers won't get this text until your registration is approved. Canadian callers get it now."
+                },
+            )
+        }
         if (enabled) {
             if (canEdit) {
                 OutlinedTextField(

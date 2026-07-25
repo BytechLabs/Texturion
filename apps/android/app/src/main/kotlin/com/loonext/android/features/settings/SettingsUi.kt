@@ -229,3 +229,25 @@ fun openExternal(context: Context, url: String) {
         Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
     )
 }
+
+/**
+ * A quiet amber line under a switch, for a feature that is ON but cannot reach
+ * every customer yet. Says which destinations it will not reach and why, so a
+ * switch never reads as working when it is not.
+ */
+@Composable
+fun ReachNote(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .background(
+                MaterialTheme.colorScheme.surfaceContainerHigh,
+                RoundedCornerShape(10.dp),
+            )
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    )
+}

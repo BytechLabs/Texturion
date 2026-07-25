@@ -23,6 +23,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.features.compose.usSendApproved
+import com.loonext.android.features.compose.usTextingOff
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.DayHours
 import com.loonext.android.ui.common.userMessage
@@ -247,6 +249,19 @@ private fun AwayReplyCard(
             onCheckedChange = { enabled = it },
             enabled = canEdit && !saving,
         )
+        // The send gates refuse a US destination until the campaign is
+        // approved, and the away reply is best-effort: a refusal is swallowed
+        // so it never breaks inbound ingest. A switch reading ON while every
+        // US customer gets silence is the first week of every US workspace.
+        if (enabled && !usSendApproved(company)) {
+            ReachNote(
+                if (usTextingOff(company)) {
+                    "Customers with US numbers won't get this reply: US texting isn't on for this workspace. Canadian numbers get it now."
+                } else {
+                    "Customers with US numbers won't get this reply until your registration is approved. Canadian numbers get it now."
+                },
+            )
+        }
         if (canEdit) {
             OutlinedTextField(
                 value = message,
