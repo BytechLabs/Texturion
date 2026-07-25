@@ -260,12 +260,57 @@ export function hasReplyableInbound(messages: SuggestionMessage[]): boolean {
  * nothing to write from. Cost stays bounded the way it always was: the button
  * is a deliberate tap, and the burst limiter and monthly cap sit behind it.
  */
+/**
+ * How much of our own words counts as something to follow up ON.
+ *
+ * A thread whose only message is an outbound "hi" gives the model nothing, and
+ * a model given nothing does not stay quiet — it fills the gap. A real
+ * production thread with exactly that one word produced a draft about a
+ * "custom PC build" and the customer's "budget", neither of which had ever
+ * been mentioned to anyone. Every sentence of it was invented, and it was
+ * offered to send to a customer.
+ */
+const GREETING_ONLY =
+  /^(?:hi|hey|hello|yo|hiya|howdy|good (?:morning|afternoon|evening)|morning|hi there|hey there)[\s!.,]*$/i;
+
+/** Nothing but a wave: no information to follow up on. */
+function isGreetingOnly(text: string): boolean {
+  return GREETING_ONLY.test(text.trim());
+}
+
+/**
+ * Is there anything real to work from?
+ *
+ * Exactly three things can ground a draft, and at least one must be present:
+ *   - something the person has already typed (the draft finishes THEIR
+ *     sentence, so their words are the ground),
+ *   - something the CUSTOMER said (there is a message to reply to), or
+ *   - something we said that carries information and they have not answered
+ *     (a genuine follow-up, e.g. "Can you confirm Tuesday at 9?"). Our own
+ *     bare "hi" does not count; a CUSTOMER's does, because "hi" from them is
+ *     still a message waiting for an answer.
+ *
+ * With none of those, there is no reply to draft, and asking anyway buys an
+ * invention. Refusing here also means the AI unit is never spent on it.
+ */
 export function shouldSuggest(
   messages: SuggestionMessage[],
   draft: string | null,
 ): boolean {
   if ((draft ?? "").trim() !== "") return true;
-  return messages.some((message) => message.body.trim() !== "");
+  const said = (m: SuggestionMessage) => m.body.trim();
+  if (messages.some((m) => m.direction === "inbound" && said(m) !== "")) {
+    return true;
+  }
+  // Outbound only: a follow-up needs something to follow up ON. Our own "hi"
+  // is a wave, not a conversation — that exact thread is what produced the
+  // invented one.
+  return messages.some(
+    (m) =>
+      m.direction === "outbound" &&
+      said(m) !== "" &&
+      !isGreetingOnly(said(m)),
+  );
 }
 
 /**
@@ -283,6 +328,7 @@ const SYSTEM_PROMPT = [
   "",
   "Write as the business, in the first person plural (we). Plain, warm, direct. Match the tone of the business's own earlier messages in the thread. Under 300 characters each. No emoji, no greeting block, no signature, no subject line, no markdown, no em dashes.",
   "",
+  "ONLY EVER REFER TO WHAT IS IN THE CONVERSATION BELOW. Never name a product, a service, a project, a job, an appointment, an amount, or anything previously agreed unless it appears there in words. If the conversation is thin, write something short and general that would be true of any customer; a vague reply is fine, an invented one is not.",
   "NEVER INVENT FACTS. The business is held to whatever you write:",
   "- No prices, quotes, discounts, or dollar amounts unless that exact amount already appears in the conversation. When someone asks what it costs and no figure has been given, do NOT invent one: say you will confirm the price and ask for what you need in order to quote.",
   "- No links, website addresses, or email addresses. No phone numbers.",

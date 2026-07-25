@@ -782,6 +782,20 @@ describe("shouldSuggest", () => {
     expect(shouldSuggest([], "We can also")).toBe(true);
   });
 
+  it("refuses when our own wave is the whole conversation (founder report)", () => {
+    // A real thread whose only message was an outbound "hi" produced a draft
+    // about a "custom PC build" and the customer's "budget" — neither had ever
+    // been mentioned to anyone. Given nothing, the model does not stay quiet,
+    // it fills the gap, and the invention was offered to send to a customer.
+    expect(shouldSuggest([outbound("hi")], null)).toBe(false);
+    expect(shouldSuggest([outbound("Hey!")], "")).toBe(false);
+    expect(shouldSuggest([outbound("Good morning")], null)).toBe(false);
+    // But a CUSTOMER's "hi" is a message waiting for an answer.
+    expect(shouldSuggest([inbound("hi")], null)).toBe(true);
+    // And our own message that carries information can be followed up on.
+    expect(shouldSuggest([outbound("On our way")], null)).toBe(true);
+  });
+
   it("is TRUE on a thread the crew already replied to (founder report)", () => {
     // The old gate required the newest message to be inbound, so any thread
     // you had just answered refused to draft — which is most threads, most of
