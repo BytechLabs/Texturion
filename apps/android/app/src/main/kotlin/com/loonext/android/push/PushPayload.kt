@@ -138,6 +138,9 @@ fun normalizeDeepLink(raw: String?): String {
  * - calls tag per call SESSION (#149: two concurrent calls ring as two
  *   notifications; repeats for one call replace each other; the matching
  *   `call_end` revocation cancels by this exact tag, calls-v3 §9.2)
+ * - task reminders tag per TASK, not per conversation: the reminder deep-links
+ *   to the job over its customer's thread, and tagging on the thread would let
+ *   a reminder and an incoming text replace one another
  * - thread pushes tag per conversation (repeat texts in one thread coalesce)
  * - anything else tags per deep link
  */
@@ -145,6 +148,10 @@ fun coalescingTag(kind: String?, normalizedUrl: String): String {
     if (kind == PushKind.CALL || kind == PushKind.CALL_END) {
         val session = queryParam(normalizedUrl, "call")
         return if (session != null) "call:$session" else "call:$normalizedUrl"
+    }
+    if (kind == PushKind.TASK_DUE) {
+        val task = queryParam(normalizedUrl, "task")
+        return if (task != null) "task:$task" else "task:$normalizedUrl"
     }
     val conversation = Regex("^${Regex.escape(APP_ORIGIN)}/inbox/([^/?#]+)")
         .find(normalizedUrl)?.groupValues?.get(1)

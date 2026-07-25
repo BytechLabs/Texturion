@@ -110,6 +110,26 @@ class PushPayloadTest {
     }
 
     @Test
+    fun `a task reminder never replaces a text from the same customer`() {
+        // The reminder deep-links to the job over its customer's thread, so a
+        // conversation-keyed tag would let the two cancel each other out.
+        val reminder = parsePush(
+            mapOf(
+                "kind" to "task_due",
+                "title" to "Replace the outdoor tap",
+                "body" to "Due in 30 min",
+                "url" to "/inbox/conv-7?task=task-3",
+            ),
+        )
+        val text = parsePush(
+            mapOf("title" to "Dana", "body" to "On my way", "url" to "/inbox/conv-7"),
+        )
+
+        assertEquals("task:task-3", reminder.tag)
+        assertEquals("conversation:conv-7", text.tag)
+    }
+
+    @Test
     fun `an unknown kind still lands somewhere rather than being dropped`() {
         // A newer server than this build: render it on the general channel.
         val content = parsePush(
