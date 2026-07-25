@@ -559,8 +559,9 @@ function TaskNoteComposer({
     // the same note (the empty-body check alone doesn't cover the window
     // between clearing the body and the response landing).
     if (create.isPending) return;
+    // Text OR at least one staged file — the server's documented client rule.
     const trimmed = body.trim();
-    if (trimmed === "") return;
+    if (trimmed === "" && stage.files.length === 0) return;
 
     // Snapshot + clear synchronously (fast by feel); restore on failure.
     const draftBody = body;
@@ -608,13 +609,6 @@ function TaskNoteComposer({
         onRemove={stage.remove}
         className="pb-2"
       />
-      {/* A note needs a line of text to save (files ride the note). Say so
-          quietly when files are staged but the body is still empty (#8). */}
-      {stage.files.length > 0 && body.trim() === "" && (
-        <p className="pb-2 text-xs text-app-muted">
-          Add a line of text to save these files
-        </p>
-      )}
       <div className="flex items-end gap-2">
         <Button
           type="button"
@@ -674,7 +668,13 @@ function TaskNoteComposer({
           type="button"
           size="sm"
           onClick={() => void submit()}
-          disabled={create.isPending || body.trim() === ""}
+          // Text OR at least one staged file, which is the rule the server
+          // documents and both phone apps already follow. Web demanded a line
+          // of text as well, so dropping a photo of a part on a task and
+          // pressing Post did nothing.
+          disabled={
+            create.isPending || (body.trim() === "" && stage.files.length === 0)
+          }
         >
           {create.isPending ? (
             <Loader2 className="size-4 animate-spin" aria-hidden />
