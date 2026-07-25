@@ -2,6 +2,26 @@
 
 Researched 2026-07-03. Lens: what a plumber / HVAC / landscaper / cleaner / salon owner
 actually needs day-to-day from a business texting tool that Loonext does not provide today.
+
+> **Status since this was researched. Read this before acting on anything below.**
+>
+> - **#1 missed-call text-back and #2 after-hours auto-reply SHIPPED.** Both are live,
+>   settings-controlled, and honest about which destinations they cannot reach. Calling
+>   shipped far past reception: a browser softphone, inbound ring, voicemail with
+>   transcription, screening, hold and transfer.
+> - **#6 review requests must NOT be built. `docs/DECISIONS.md` D32 removed the feature
+>   entirely, twice, on owner direction** ("remove the Reviews section completely, we don't
+>   need that"). The settings page, the `companies.google_review_link` column and the
+>   `{review_link}` merge field were all dropped by migration. This section is kept as the
+>   research that was overtaken, not as a proposal. D32 is binding and outranks it.
+> - **#7's on-call point was wrong.** The copy promises that push notifications are
+>   per person, and `notification_prefs` is per member, so an evening buzz can be left on
+>   for one tech and off for everyone else. The product keeps that promise. The @mentions
+>   half of #7 is still genuinely absent.
+> - **#5 text-to-pay is the one load-bearing gap still open**, and it is not a normal
+>   build: collecting on a tradesperson's behalf means Stripe Connect, onboarding their
+>   bank details, and platform liability for money movement. That is an owner decision
+>   about regulatory exposure before it is an engineering task.
 Grounded in the trade (reviews/forums/trade sources + competitor behavior), constrained to
 Loonext's lowest-upkeep rule (reuse Supabase / Telnyx / Stripe / Workers-cron; no new vendors).
 
@@ -63,7 +83,7 @@ an amount → Loonext mints a payment link → sends it in-thread → webhook ma
 a truck rolls, balance on completion. No new vendor, and it's the feature most likely to make a
 $29/mo tool feel like it prints money.
 
-### 6. Get a REVIEW  [LOAD-BEARING for a small shop's survival]
+### 6. Get a REVIEW  [WITHDRAWN — removed by D32, do not build]
 Reviews are existential for local trades, and SMS review requests beat email 3:1 and routinely
 *double* Google review volume. Loonext ships this only as saved-reply #6 ("a Google review goes a
 long way: {link}") — a human must paste a link and remember to send it. The gap is **automation +
@@ -75,18 +95,22 @@ completion — a short cron delay, not a new pipeline.
 
 ### 7. Coordinate the crew  [MOSTLY COVERED — small edges]
 Assignment, internal notes, /for-you queue, tasks, and the Map view already serve this well; it's
-Loonext's strongest area. Remaining small edges: **@mentions** in notes (flagged as "if/when it
-ships" in D24 — the crew wants to tag a specific tech, not just assign the whole thread) and a
-light **on-call / who-gets-after-hours-pings** rule so evening notifications hit one person, not
-everyone (copy already promises "only the on-call tech gets buzzed" but there's no on-call setting
-behind it — a promise the product doesn't yet keep).
+Loonext's strongest area. The one real edge left is **@mentions** in notes (flagged as "if/when
+it ships" in D24 — the crew wants to tag a specific tech, not just assign the whole thread).
+
+The on-call point this section used to make was wrong and is withdrawn: the copy claims push
+notifications are *per person*, `notification_prefs` is a per-member row, and each member
+controls their own delivery. A shop can already leave the evening buzz on for one tech and off
+for everyone else, which is exactly what the copy describes. No on-call rotation setting was
+ever promised.
 
 ## Load-bearing vs. nice-to-have (retention call)
-- **Load-bearing (churn if absent):** missed-call text-back (#1), after-hours auto-reply (#2),
-  text-to-pay (#5), review-request automation (#6). These are the four every serious rival has and
-  that map directly to money won/collected/reputation — the reasons a solo owner keeps paying.
+- **Load-bearing (churn if absent):** missed-call text-back (#1) and after-hours auto-reply (#2),
+  both now shipped; text-to-pay (#5), still open and gated on an owner decision about Stripe
+  Connect and money-movement liability. Review-request automation (#6) was load-bearing by this
+  research and was then removed by owner direction (D32); it is not a gap to close.
 - **Nice-to-have (delight, low cost):** structured address/detail capture (#3), booking-confirm +
-  reminder + on-my-way as features (#4), @mentions + on-call rule (#7 edges).
+  reminder + on-my-way as features (#4), @mentions in notes (#7).
 - **Do NOT build (scope/upkeep discipline):** a full scheduler/calendar-booking system, mass-text
   blasts (D4/D11 exclude for compliance), voice as a phone system. Missed-call text-back needs only
   voice *reception*, not a full IVR.
