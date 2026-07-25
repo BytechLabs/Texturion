@@ -480,9 +480,10 @@ registrationRoutes.post("/enable-us", requireRole("owner"), async (c) => {
   // in-flight nor paid) lets exactly ONE request create the invoice; the marker
   // is cleared on invoice.payment_failed (webhooks/stripe.ts) so a genuine retry
   // after a decline is never blocked.
+  const startedAt = new Date().toISOString();
   const { data: claimed, error: claimError } = await db
     .from("companies")
-    .update({ registration_fee_charge_started_at: new Date().toISOString() })
+    .update({ registration_fee_charge_started_at: startedAt })
     .eq("id", companyId)
     .is("registration_fee_charge_started_at", null)
     .is("registration_fee_paid_at", null)
@@ -502,9 +503,18 @@ registrationRoutes.post("/enable-us", requireRole("owner"), async (c) => {
   }
 
   const stripe = getStripe(env);
-  // Stable keys (backstop): if this request crashes between the claim and the
-  // POSTs and is retried, Stripe replays the same invoice instead of a second.
-  const feeKey = idempotencyKey(companyId, "us_registration_fee");
+  // Keyed on THIS attempt, not on the company. The key exists so that one
+  // request which crashes between the claim and the POSTs replays its own
+  // invoice instead of creating a second, and the claim timestamp is stable
+  // for exactly that span.
+  //
+  // A key that was stable per company outlived the attempt. Stripe keeps a key
+  // for about a day, and a declined fee is rolled back so the owner can try
+  // again within minutes: the second attempt replayed the FIRST attempt's
+  // response, so no new invoice was created and no payment was attempted,
+  // while the route reported success and left US texting on. The owner ended up
+  // enabled, never charged, and never registered with the carriers.
+  const feeKey = idempotencyKey(companyId, "us_registration_fee", startedAt);
   try {
     const invoice = await stripe.invoices.create(
       {

@@ -738,16 +738,22 @@ describe("POST /v1/registration/enable-us", () => {
     expect(body.us_texting_enabled).toBe(true);
     expect(body.invoice_id).toBe("in_1");
 
-    // §2 double-charge fail-safe: a stable, company-derived Idempotency-Key on
-    // the invoice so a retry replays the one $29 charge rather than a second.
+    // §2 double-charge fail-safe: an Idempotency-Key scoped to THIS attempt, so
+    // a request that crashes between the claim and the POSTs replays its own
+    // invoice rather than creating a second. It carries the claim timestamp,
+    // which is stable for exactly that span: a key stable per COMPANY outlived
+    // the attempt, so a re-attempt after a decline replayed the first response
+    // and never charged at all.
+    const startedAt = harness.rest.rows("companies")[0]
+      .registration_fee_charge_started_at as string;
+    // The charge was claimed atomically before invoicing (the marker is set).
+    expect(startedAt).toEqual(expect.any(String));
     const invoiceHeaderKey = stripeCalls
       .find((call) => call.path === "/v1/invoices")
       ?.headers.get("Idempotency-Key");
-    expect(invoiceHeaderKey).toBe(`${COMPANY_ID}:us_registration_fee`);
-    // The charge was claimed atomically before invoicing (the marker is set).
-    expect(
-      harness.rest.rows("companies")[0].registration_fee_charge_started_at,
-    ).toEqual(expect.any(String));
+    expect(invoiceHeaderKey).toBe(
+      `${COMPANY_ID}:us_registration_fee:${startedAt}`,
+    );
 
     expect(harness.rest.rows("companies")[0].us_texting_enabled).toBe(true);
 
