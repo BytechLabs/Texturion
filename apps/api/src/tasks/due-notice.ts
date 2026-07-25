@@ -99,16 +99,16 @@ export async function notifyDueTasksJob(
   // have no `done` field), so the join is what tells a finished job from a live
   // one. An inner join also drops any task whose message went away.
   //
-  // The relationship MUST be named. Two foreign keys connect these tables
-  // (`messages.task_id` for a task's own messages, `tasks.message_id` for the
-  // message a task was promoted from), so a bare `messages!inner` is ambiguous
-  // and PostgREST refuses the whole request with PGRST201. The one that carries
-  // completion is the promoted message, `tasks_message_id_fkey`.
+  // The relationship MUST be named, exactly as the /v1/tasks reads do. Two
+  // foreign keys connect these tables (`messages.task_id` for a task's own
+  // messages, `tasks.message_id` for the message a task was promoted from), so
+  // a bare `messages!inner` is ambiguous and PostgREST refuses the whole
+  // request with PGRST201. Completion lives on the promoted message.
   const { data, error } = await db
     .from("tasks")
     .select(
       "id,company_id,conversation_id,title,due_at,assigned_user_id," +
-        "messages!tasks_message_id_fkey!inner(done_at)",
+        "messages!message_id!inner(done_at)",
     )
     .lte("due_at", new Date(now.getTime() + TASK_DUE_LEAD_MINUTES * 60_000).toISOString())
     .is("due_notified_at", null)

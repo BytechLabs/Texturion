@@ -102,7 +102,7 @@ describe("notifyDueTasksJob", () => {
     // Two foreign keys connect tasks and messages, so the embed has to name
     // which one. A bare `messages!inner` is refused outright (PGRST201) and no
     // reminder would ever go out. The stub cannot catch that, so pin it here.
-    expect(params.get("select")).toContain("messages!tasks_message_id_fkey!inner");
+    expect(params.get("select")).toContain("messages!message_id!inner");
     expect(params.get("limit")).toBe(String(TASK_DUE_BATCH));
   });
 
