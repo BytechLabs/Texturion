@@ -12,6 +12,7 @@
  * so re-runs and overlaps can never double-send.
  */
 import * as Sentry from "@sentry/cloudflare";
+import { storedBytes, type StorageUsageRow } from "./stored-bytes";
 
 import { billingRecipients } from "./recipients";
 import { EGRESS_ALLOWANCE_BYTES } from "../attachments/egress";
@@ -365,11 +366,7 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
       if (storageError) {
         throw new Error(`storage usage failed: ${storageError.message}`);
       }
-      const s = storage as {
-        attachments_bytes: number | string;
-        mms_bytes: number | string;
-      };
-      const totalStoredBytes = Number(s.attachments_bytes) + Number(s.mms_bytes);
+      const totalStoredBytes = storedBytes(storage as StorageUsageRow);
       for (const tierGb of STORAGE_ABUSE_TIERS_GB) {
         if (totalStoredBytes >= tierGb * 1024 ** 3) {
           const abuse = storageAbuseCopy(company, tierGb, totalStoredBytes, env);

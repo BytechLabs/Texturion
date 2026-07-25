@@ -51,6 +51,7 @@
  *   passed, because a one-day extrapolation (x30) is noise, not signal.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { storedBytes, type StorageUsageRow } from "./stored-bytes";
 
 import {
   companyRevenueCents,
@@ -385,11 +386,7 @@ export async function readPeriodUsage(
         p_company_id: company.id,
       });
       if (error) throw new Error(`api_storage_usage failed: ${error.message}`);
-      const s = data as {
-        attachments_bytes: number | string;
-        mms_bytes: number | string;
-      };
-      return Number(s.attachments_bytes) + Number(s.mms_bytes);
+      return storedBytes(data as StorageUsageRow);
     })(),
   ]);
   return {
