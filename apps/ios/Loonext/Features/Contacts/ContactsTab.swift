@@ -382,7 +382,14 @@ struct ContactsTab: View {
             nextCursor = page.next_cursor
             state = .ready(())
         } catch {
-            if rows.isEmpty {
+            // A FAILED search must never fall through to the rows already on
+            // screen: that renders every contact in the workspace as though it
+            // matched the query, with only a toast that clears itself to say
+            // otherwise. Holding the previous rows while a search is merely in
+            // flight is still right — that is the typing behaviour.
+            if rows.isEmpty || !debouncedQ.isEmpty {
+                rows = []
+                nextCursor = nil
                 state = .failed(error.userMessage)
             } else {
                 notice = error.userMessage
