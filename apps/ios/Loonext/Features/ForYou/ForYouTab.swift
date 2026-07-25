@@ -38,7 +38,11 @@ struct ForYouTab: View {
                     forYou: forYou,
                     recentCalls: recentCalls,
                     onOpenConversation: { AppRouter.shared.openConversationId = $0 },
-                    onOpenCalls: onOpenCalls
+                    onOpenCalls: onOpenCalls,
+                    onRefresh: {
+                        await reload()
+                        await reloadRecentCalls()
+                    }
                 )
             }
         }
@@ -108,6 +112,9 @@ private struct ForYouList: View {
     let recentCalls: LoadState<[Call]>
     let onOpenConversation: @MainActor (String) -> Void
     let onOpenCalls: (() -> Void)?
+    /// Both loaders, awaited together, so the pull-to-refresh spinner settles
+    /// when the screen is actually current rather than when the gesture ends.
+    let onRefresh: @MainActor () async -> Void
 
     private var total: Int {
         forYou.waiting_on_you.count + forYou.my_tasks.count + forYou.unread.count +
@@ -142,12 +149,8 @@ private struct ForYouList: View {
             .padding(.bottom, 28)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        // Pull to refresh, matching Android. Awaiting both loaders settles the
-        // spinner when the screen is actually current.
-        .refreshable {
-            await reload()
-            await reloadRecentCalls()
-        }
+        // Pull to refresh, matching Android.
+        .refreshable { await onRefresh() }
         .background(BrandColor.canvas)
     }
 
@@ -509,7 +512,8 @@ private func previewCall(
             ),
         ]),
         onOpenConversation: { _ in },
-        onOpenCalls: {}
+        onOpenCalls: {},
+        onRefresh: {}
     )
 }
 
@@ -518,6 +522,7 @@ private func previewCall(
         forYou: ForYou(waiting_on_you: [], my_tasks: [], unread: [], triage: nil),
         recentCalls: .failed("Something went wrong."),
         onOpenConversation: { _ in },
-        onOpenCalls: {}
+        onOpenCalls: {},
+        onRefresh: {}
     )
 }
