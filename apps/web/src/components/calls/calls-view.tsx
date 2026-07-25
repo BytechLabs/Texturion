@@ -94,7 +94,10 @@ export function CallsView() {
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6">
-      <div className="flex items-center justify-between gap-3">
+      {/* Wraps on a phone: the title, the phone status, Dial and the three
+          filters do not fit on one 390px line, and without this the filter
+          group ran off the right edge with "Voicemail" cut in half. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <h1 className="text-[17px] font-semibold text-app-ink">Calls</h1>
           <SoftphoneStatus />
