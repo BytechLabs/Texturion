@@ -24,14 +24,23 @@ export function VoicemailPlayer({
 
   if (open && voicemail.data?.url) {
     return (
-      <audio
-        src={voicemail.data.url}
-        controls
-        autoPlay
-        preload="auto"
-        className="h-8 w-full max-w-[280px]"
-        aria-label="Voicemail recording"
-      />
+      <span className="block w-full">
+        <audio
+          src={voicemail.data.url}
+          controls
+          autoPlay
+          preload="auto"
+          className="h-8 w-full max-w-[280px]"
+          aria-label="Voicemail recording"
+        />
+        {/* A recording from before transcription existed, or one whose
+            transcription failed at the time, gets its words on first open. */}
+        {voicemail.data.transcript && (
+          <span className="mt-1.5 block text-[12.5px] leading-[1.45] text-app-muted">
+            {voicemail.data.transcript}
+          </span>
+        )}
+      </span>
     );
   }
 

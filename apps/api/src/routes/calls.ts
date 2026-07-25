@@ -19,6 +19,15 @@
  * cannot see a hidden number's calls by asking for the contact directly.
  */
 import { Hono, type Context } from "hono";
+import type { Env } from "../env";
+import { loadAiSettings, reserveAiUsage } from "../ai/settings";
+import {
+  shouldTranscribe,
+  VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD,
+  VOICEMAIL_TRANSCRIPT_FEATURE,
+  VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
+} from "../calls/voicemail-transcript";
+import { runTranscription } from "../messaging/inbound-ring";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
@@ -145,18 +154,22 @@ callsRoutes.get("/calls", requireRole("member"), async (c) => {
  */
 callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) => {
   const sessionId = c.req.param("sessionId");
-  const db = getDb(getEnv(c.env));
+  const env = getEnv(c.env);
+  const db = getDb(env);
 
   const rows = unwrap<
     {
       phone_number_id: string | null;
       voicemail_path: string | null;
       voicemail_seconds: number | null;
+      voicemail_transcript: string | null;
     }[]
   >(
     await db
       .from("calls")
-      .select("phone_number_id,voicemail_path,voicemail_seconds")
+      .select(
+        "phone_number_id,voicemail_path,voicemail_seconds,voicemail_transcript",
+      )
       .eq("company_id", c.get("companyId"))
       .eq("call_session_id", sessionId)
       .limit(1),
@@ -182,11 +195,78 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) 
       `voicemail sign failed: ${signed.error?.message ?? "no URL"}`,
     );
   }
+  // Words, if this recording never got them: every voicemail from before the
+  // feature existed, and any whose transcription failed at the time. Done here
+  // because this is the moment someone is actually looking at the voicemail,
+  // and it happens ONCE per recording — the result is stored, so the next open
+  // is free. Same gates as the ingest path, so it cannot become a way around
+  // the company's setting or the monthly cap, and same posture: a failure just
+  // means the audio without the words, never a broken response.
+  const transcript =
+    call.voicemail_transcript ??
+    (await backfillVoicemailTranscript(env, db, {
+      companyId: c.get("companyId"),
+      sessionId,
+      path: call.voicemail_path,
+      seconds: call.voicemail_seconds ?? 0,
+    }));
+
   return c.json({
     url: signed.data.signedUrl,
     seconds: call.voicemail_seconds ?? 0,
+    transcript,
   });
 });
+
+/**
+ * Transcribe a stored recording that has no transcript yet and keep it.
+ * Returns null whenever anything is not right — the caller still gets its
+ * audio, which is the part that matters.
+ */
+async function backfillVoicemailTranscript(
+  env: Env,
+  db: ReturnType<typeof getDb>,
+  args: {
+    companyId: string;
+    sessionId: string;
+    path: string;
+    seconds: number;
+  },
+): Promise<string | null> {
+  try {
+    if (!env.AI || !shouldTranscribe(args.seconds)) return null;
+
+    const settings = await loadAiSettings(db, args.companyId);
+    if (!settings.transcribe_voicemail) return null;
+
+    const reservation = await reserveAiUsage(db, {
+      companyId: args.companyId,
+      feature: VOICEMAIL_TRANSCRIPT_FEATURE,
+      cap: VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
+      alertThreshold: VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD,
+    });
+    if (reservation.over_cap) return null;
+
+    const download = await db.storage.from(VOICEMAILS_BUCKET).download(args.path);
+    if (download.error || !download.data) return null;
+
+    const text = await runTranscription(env, await download.data.arrayBuffer());
+    if (text === null) return null;
+
+    await db
+      .from("calls")
+      .update({ voicemail_transcript: text })
+      .eq("company_id", args.companyId)
+      .eq("call_session_id", args.sessionId);
+    return text;
+  } catch (cause) {
+    console.error(
+      `voicemail transcript backfill failed for ${args.sessionId}:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+    return null;
+  }
+}
 
 // A browser call can start from an existing THREAD (conversation_id), a CONTACT
 // with no thread yet (contact_id — the fresh-import case), or a raw NUMBER typed

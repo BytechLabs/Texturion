@@ -8,6 +8,7 @@ import {
   VOICEMAIL_TRANSCRIPT_MAX_CHARS,
   VOICEMAIL_TRANSCRIPT_MAX_SECONDS,
   VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
+  fallbackTranscriptInput,
   transcriptInput,
 } from "./voicemail-transcript";
 
@@ -100,14 +101,22 @@ describe("transcriptInput", () => {
     expect(typeof input.audio).toBe("string");
   });
 
-  it("turns off conditioning on previous text", () => {
-    // Left on, Whisper loops on near-silence and emits the same phrase over
-    // and over, which would read as a real message rather than as nothing.
-    expect(transcriptInput("x").condition_on_previous_text).toBe(false);
+  it("sends nothing but the audio", () => {
+    // Every optional knob is another way for the call to be rejected, and a
+    // rejected body is indistinguishable from a bad transcription here because
+    // the whole thing is wrapped so it can never break the voicemail. The
+    // first production voicemail after the richer input shipped came back with
+    // no words at all.
+    expect(Object.keys(transcriptInput("AAAA"))).toEqual(["audio"]);
   });
+});
 
-  it("pins the language rather than detecting it from noise", () => {
-    expect(transcriptInput("x").language).toBe("en");
-    expect(transcriptInput("x").task).toBe("transcribe");
+describe("fallbackTranscriptInput", () => {
+  it("sends the raw bytes, which is the older model's shape", () => {
+    // A second shape to fall back on, because the AI REST API refuses our
+    // deploy token: production is the first place this binding is ever
+    // exercised, so one input contract being wrong must not mean no words.
+    const bytes = new Uint8Array([1, 2, 3]).buffer;
+    expect(fallbackTranscriptInput(bytes)).toEqual({ audio: [1, 2, 3] });
   });
 });

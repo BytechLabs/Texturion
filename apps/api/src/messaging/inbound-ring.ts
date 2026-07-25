@@ -37,9 +37,11 @@ import {
   sendAiCapAlert,
 } from "../ai/settings";
 import {
+  fallbackTranscriptInput,
   sanitizeTranscript,
   shouldTranscribe,
   transcriptInput,
+  VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL,
   VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD,
   VOICEMAIL_TRANSCRIPT_FEATURE,
   VOICEMAIL_TRANSCRIPT_MODEL,
@@ -335,6 +337,49 @@ export async function storeVoicemailRecording(
 }
 
 /**
+ * Ask the model, with a second shape to fall back on.
+ *
+ * Each attempt is raced against the timeout and its failure is logged rather
+ * than swallowed: the first production voicemail after this feature shipped
+ * stored nothing, and "the reservation was spent and no words came back" was
+ * all anyone could tell from the outside.
+ */
+export async function runTranscription(
+  env: Env,
+  audio: ArrayBuffer,
+): Promise<string | null> {
+  if (!env.AI) return null;
+  // Base64 first: a five-minute recording is about a million array elements
+  // otherwise, inside a 128 MB Worker already holding the raw buffer.
+  const attempts: [string, Record<string, unknown>][] = [
+    [VOICEMAIL_TRANSCRIPT_MODEL, transcriptInput(Buffer.from(audio).toString("base64"))],
+    [VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL, fallbackTranscriptInput(audio)],
+  ];
+  for (const [model, input] of attempts) {
+    try {
+      const raw = await Promise.race([
+        env.AI.run(model, input),
+        new Promise<null>((resolve) =>
+          setTimeout(() => resolve(null), VOICEMAIL_TRANSCRIPT_TIMEOUT_MS),
+        ),
+      ]);
+      const text = sanitizeTranscript(raw);
+      if (text !== null) return text;
+      console.error(
+        `voicemail transcript: ${model} returned nothing usable`,
+        JSON.stringify(raw)?.slice(0, 300) ?? "null",
+      );
+    } catch (cause) {
+      console.error(
+        `voicemail transcript: ${model} threw:`,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
+  }
+  return null;
+}
+
+/**
  * Speech-to-text over a stored voicemail, or null. Never throws: the caller is
  * mid-way through durably recording a customer's message, and no part of that
  * may depend on an AI call succeeding.
@@ -375,17 +420,7 @@ async function transcribeVoicemail(
     }
     if (reservation.over_cap) return null;
 
-    // Base64, not an array of byte numbers: a five-minute recording is about a
-    // million array elements, and this runs inside a 128 MB Worker that is
-    // already holding the raw buffer.
-    const audioBase64 = Buffer.from(args.audio).toString("base64");
-    const raw = await Promise.race([
-      env.AI.run(VOICEMAIL_TRANSCRIPT_MODEL, transcriptInput(audioBase64)),
-      new Promise<null>((resolve) =>
-        setTimeout(() => resolve(null), VOICEMAIL_TRANSCRIPT_TIMEOUT_MS),
-      ),
-    ]);
-    return sanitizeTranscript(raw);
+    return await runTranscription(env, args.audio);
   } catch (cause) {
     console.error(
       `voicemail transcript failed for company ${args.companyId}:`,

@@ -36,6 +36,19 @@
  */
 export const VOICEMAIL_TRANSCRIPT_MODEL = "@cf/openai/whisper-large-v3-turbo";
 
+/**
+ * The older model, kept as a fallback with a DIFFERENT input shape (an array of
+ * byte numbers rather than base64).
+ *
+ * Not belt-and-braces for its own sake: the AI REST API refuses our deploy
+ * token, so the binding cannot be exercised anywhere but production, and the
+ * first real voicemail after this shipped stored no words at all — the unit was
+ * reserved, the call was made, and nothing came back. When one model's input
+ * contract is the suspect, having a second shape to fall back on is the
+ * difference between a transcript and a shrug.
+ */
+export const VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL = "@cf/openai/whisper";
+
 /** The per-feature key in the shared monthly AI ledger (`ai_usage_reserve`). */
 export const VOICEMAIL_TRANSCRIPT_FEATURE = "voicemail_transcript";
 
@@ -78,23 +91,22 @@ export function shouldTranscribe(seconds: number): boolean {
 }
 
 /**
- * The model inputs, in one place so the caller stays about I/O.
+ * The turbo model's input: base64 audio and nothing else.
  *
- * `language: "en"` pins it rather than letting language detection wander on a
- * few seconds of noisy audio. `vad_filter` drops silence before the model sees
- * it, which is most of a hang-up. `condition_on_previous_text: false` is the
- * important one: left on, Whisper loops on near-silence and emits the same
- * phrase over and over ("Thank you. Thank you. Thank you."), which would read
- * as a real message rather than as the nothing it is.
+ * Deliberately minimal. The first version passed task / language / vad_filter /
+ * condition_on_previous_text as well, and the first production voicemail after
+ * it shipped produced no transcript — a rejected input body is indistinguishable
+ * from a bad one here, because the call is wrapped so it can never break the
+ * voicemail. Every optional knob is a way for the whole thing to return
+ * nothing, so the documented minimum is what we send.
  */
 export function transcriptInput(audioBase64: string): Record<string, unknown> {
-  return {
-    audio: audioBase64,
-    task: "transcribe",
-    language: "en",
-    vad_filter: "true",
-    condition_on_previous_text: false,
-  };
+  return { audio: audioBase64 };
+}
+
+/** The fallback model's input: the raw bytes as an array of numbers. */
+export function fallbackTranscriptInput(audio: ArrayBuffer): Record<string, unknown> {
+  return { audio: [...new Uint8Array(audio)] };
 }
 
 /**

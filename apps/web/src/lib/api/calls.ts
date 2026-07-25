@@ -208,7 +208,12 @@ export function useVoicemailUrl(callSessionId: string, enabled: boolean) {
   return useQuery({
     queryKey: [companyId, "calls", "voicemail", callSessionId] as const,
     queryFn: () =>
-      apiFetch<{ url: string; seconds: number }>(
+      apiFetch<{
+        url: string;
+        seconds: number;
+        // Filled in on first open for a recording that never got words.
+        transcript: string | null;
+      }>(
         `/v1/calls/${encodeURIComponent(callSessionId)}/voicemail`,
         { companyId },
       ),
