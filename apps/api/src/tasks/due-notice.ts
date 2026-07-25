@@ -6,6 +6,11 @@
  * out a job was due by opening the app, which is exactly when they are not
  * holding it. This sends ONE push per task as it comes due.
  *
+ * AHEAD of the deadline, not on it. A tradesperson told at 2pm that a 2pm job
+ * is due has already missed it: the reminder has to arrive while there is
+ * still time to drive, call, or reschedule. The window is deliberately short,
+ * because an alert far in advance is one that gets dismissed and forgotten.
+ *
  * WHO: the assignee, and only the assignee. An unassigned task with a due date
  * is a triage problem rather than a reminder problem, and it already surfaces
  * in the lead's For You triage strip; waking the whole crew for it would train
@@ -40,11 +45,41 @@ export const TASK_DUE_BATCH = 100;
 /** Keep the body to a notification-shade line rather than a wall of text. */
 const TITLE_LENGTH = 80;
 
+/**
+ * How far ahead of the deadline the reminder goes out. Long enough to act on
+ * (a phone call, a change of plan, the drive across town), short enough that
+ * the task is still the next thing on the person's mind.
+ */
+export const TASK_DUE_LEAD_MINUTES = 30;
+
+/**
+ * What the alert says under the task title. Relative rather than a clock time,
+ * so it needs no timezone and cannot contradict the reader's own phone.
+ *
+ * A backlog matters here: the first run after an outage, or a bulk import of
+ * past-due work, reminds about tasks that are long overdue. Telling someone a
+ * job from last Tuesday is "due in 30 minutes" would be a lie, so how late it
+ * already is gets said plainly.
+ */
+export function dueNoticeBody(dueAt: Date, now: Date): string {
+  const minutes = Math.round((dueAt.getTime() - now.getTime()) / 60_000);
+  if (minutes >= 1) return `Due in ${minutes} min`;
+  if (minutes > -1) return "Due now";
+
+  const late = -minutes;
+  if (late < 60) return `${late} min overdue`;
+  const hours = Math.round(late / 60);
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} overdue`;
+  const days = Math.round(hours / 24);
+  return `${days} ${days === 1 ? "day" : "days"} overdue`;
+}
+
 interface DueTaskRow {
   id: string;
   company_id: string;
   conversation_id: string | null;
   title: string | null;
+  due_at: string;
   assigned_user_id: string;
   messages: { done_at: string | null } | null;
 }
@@ -66,9 +101,9 @@ export async function notifyDueTasksJob(
   const { data, error } = await db
     .from("tasks")
     .select(
-      "id,company_id,conversation_id,title,assigned_user_id,messages!inner(done_at)",
+      "id,company_id,conversation_id,title,due_at,assigned_user_id,messages!inner(done_at)",
     )
-    .lte("due_at", now.toISOString())
+    .lte("due_at", new Date(now.getTime() + TASK_DUE_LEAD_MINUTES * 60_000).toISOString())
     .is("due_notified_at", null)
     .is("deleted_at", null)
     .not("assigned_user_id", "is", null)
@@ -117,7 +152,11 @@ export async function notifyDueTasksJob(
     const link = task.conversation_id
       ? `${env.APP_ORIGIN}/inbox/${task.conversation_id}`
       : `${env.APP_ORIGIN}/tasks`;
-    const alert = { title, body: "Due now", url: link };
+    const alert = {
+      title,
+      body: dueNoticeBody(new Date(task.due_at), now),
+      url: link,
+    };
 
     await deliverPush(env, db, {
       userIds: [task.assigned_user_id],

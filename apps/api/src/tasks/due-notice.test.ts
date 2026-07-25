@@ -7,7 +7,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
-import { notifyDueTasksJob, TASK_DUE_BATCH } from "./due-notice";
+import {
+  dueNoticeBody,
+  notifyDueTasksJob,
+  TASK_DUE_BATCH,
+  TASK_DUE_LEAD_MINUTES,
+} from "./due-notice";
 
 const env = completeEnv();
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
@@ -26,6 +31,7 @@ function dueTask(overrides: Record<string, unknown> = {}) {
     company_id: COMPANY_ID,
     conversation_id: CONVERSATION_ID,
     title: "Replace the outdoor tap at 5 King St",
+    due_at: NOW.toISOString(),
     assigned_user_id: ASSIGNEE,
     messages: { done_at: null },
     ...overrides,
@@ -50,6 +56,29 @@ function world(
   return sb;
 }
 
+describe("dueNoticeBody", () => {
+  const at = (minutesFromNow: number) =>
+    new Date(NOW.getTime() + minutesFromNow * 60_000);
+
+  it("counts down to a deadline that has not passed", () => {
+    expect(dueNoticeBody(at(25), NOW)).toBe("Due in 25 min");
+    expect(dueNoticeBody(at(1), NOW)).toBe("Due in 1 min");
+  });
+
+  it("says so plainly at the deadline", () => {
+    expect(dueNoticeBody(at(0), NOW)).toBe("Due now");
+  });
+
+  it("never tells someone that overdue work is still ahead of them", () => {
+    // The first run after an outage, or a bulk import of past-due work, is
+    // where this matters: "due in 30 min" for last Tuesday's job is a lie.
+    expect(dueNoticeBody(at(-20), NOW)).toBe("20 min overdue");
+    expect(dueNoticeBody(at(-90), NOW)).toBe("2 hours overdue");
+    expect(dueNoticeBody(at(-60), NOW)).toBe("1 hour overdue");
+    expect(dueNoticeBody(at(-60 * 24 * 3), NOW)).toBe("3 days overdue");
+  });
+});
+
 describe("notifyDueTasksJob", () => {
   it("asks only for work that is due, live, and someone's to do", async () => {
     const sb = world();
@@ -58,7 +87,11 @@ describe("notifyDueTasksJob", () => {
     await notifyDueTasksJob(env, NOW);
 
     const params = sb.find("GET", "/rest/v1/tasks")[0].url.searchParams;
-    expect(params.get("due_at")).toBe(`lte.${NOW.toISOString()}`);
+    // The window reaches AHEAD of now: a reminder that arrives on the deadline
+    // has already missed it.
+    expect(params.get("due_at")).toBe(
+      `lte.${new Date(NOW.getTime() + TASK_DUE_LEAD_MINUTES * 60_000).toISOString()}`,
+    );
     // Reminded already, deleted, or unassigned: none of those is owed a push.
     expect(params.get("due_notified_at")).toBe("is.null");
     expect(params.get("deleted_at")).toBe("is.null");
