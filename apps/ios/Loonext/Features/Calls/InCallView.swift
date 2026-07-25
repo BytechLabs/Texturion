@@ -28,6 +28,11 @@ struct InCallView: View {
     /// the same shape as Android's pendingRoute.
     @State private var speakerPending: Bool?
     @State private var conversationId: String?
+    /// #211: whether the server can actually address this call. A successful
+    /// live read is the proof; a session id alone is not. An outbound call that
+    /// fell to the legacy webhook path still carries a session id but has no
+    /// live record behind it, so transferring it would fail after the tap.
+    @State private var serverAddressable = false
 
     /// #180: in landscape / square viewports the vertical size class is compact
     /// — collapse the identity block's rhythm so the controls and End-call pill
@@ -88,11 +93,22 @@ struct InCallView: View {
                 if !Task.isCancelled { onClose() }
             }
         }
-        // The notes deep-link: resolve live facts once the session is known.
+        // The notes deep-link AND the transfer gate: one live read answers both.
+        // Brief retries because the live record can land a beat after the SDK
+        // reports the call active (the same reasoning as Android's retry loop).
         .task(id: featured?.sessionId) {
             conversationId = nil
+            serverAddressable = false
             guard let session = featured?.sessionId else { return }
-            conversationId = try? await manager.liveFacts(sessionId: session).conversation_id
+            for attempt in 0 ..< 4 {
+                if let facts = try? await manager.liveFacts(sessionId: session) {
+                    conversationId = facts.conversation_id
+                    serverAddressable = true
+                    return
+                }
+                if Task.isCancelled { return }
+                if attempt < 3 { try? await Task.sleep(for: .milliseconds(1_200)) }
+            }
         }
         .sheet(isPresented: $dtmfOpen) {
             if let featured {
@@ -327,8 +343,9 @@ struct InCallView: View {
                     label: "Transfer",
                     title: "Transfer",
                     // Transfer needs the CUSTOMER session — resolved via
-                    // by-leg for inbound answers; disabled until it lands.
-                    enabled: featured.sessionId != nil && featured.phase == .active
+                    // by-leg for inbound answers — AND a live record the server
+                    // can address; disabled until both land.
+                    enabled: serverAddressable && featured.phase == .active
                 ) {
                     transferOpen = true
                 }
