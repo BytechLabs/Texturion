@@ -1,5 +1,8 @@
 import Foundation
 
+/// The customer texted STOP: a carrier block only they can lift.
+let optOutSourceStop = "stop_keyword"
+
 /// Contact rows. Detail + list share the shape; `opted_out` rides every read,
 /// `last_activity_at` only on list rows (conversation activity, never edits).
 struct Contact: Codable, Sendable {
@@ -15,6 +18,12 @@ struct Contact: Codable, Sendable {
     let created_at: String
     let updated_at: String
     @Default<DefaultFalse> var opted_out: Bool
+    /// Which kind of opt-out this is, because only one of them can be undone
+    /// from inside the app. "stop_keyword" is a CARRIER block the customer
+    /// created by texting STOP: clearing our record would not clear theirs, so
+    /// every send would still be rejected. "manual" is a note someone in the
+    /// office made, with no carrier involved. Nil when not opted out.
+    var opt_out_source: String?
     let last_activity_at: String?
     /// #191 record attribution — who created (or resurrected) and who last
     /// edited this contact. The detail + list reads resolve each actor to a

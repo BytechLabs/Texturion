@@ -455,10 +455,10 @@ contactsRoutes.get("/contacts/:id", requireRole("member"), async (c) => {
   if (!contact) {
     return errorResponse(c, "not_found", "No such contact.");
   }
-  const optOuts = unwrap<{ id: string }[]>(
+  const optOuts = unwrap<{ id: string; source: string }[]>(
     await db
       .from("opt_outs")
-      .select("id")
+      .select("id,source")
       .eq("company_id", companyId)
       .eq("phone_e164", contact.phone_e164 as string)
       .is("revoked_at", null)
@@ -473,6 +473,10 @@ contactsRoutes.get("/contacts/:id", requireRole("member"), async (c) => {
   return c.json({
     ...contact,
     opted_out: optOuts.length > 0,
+    // Which kind of opt-out it is, because only one of them can be undone from
+    // in here: 'stop_keyword' is a carrier-level block the customer created and
+    // only the customer can clear. Null when they are not opted out.
+    opt_out_source: (optOuts[0]?.source as string | undefined) ?? null,
     created_by_name: createdBy ? actorNames.get(createdBy) ?? null : null,
     updated_by_name: updatedBy ? actorNames.get(updatedBy) ?? null : null,
   });
@@ -1055,6 +1059,35 @@ async function revokeOptOut(c: Context<AppEnv>) {
     return errorResponse(c, "not_found", "No such contact.");
   }
   const phone = contact.phone_e164 as string;
+
+  // A STOP the customer sent is a CARRIER block, not a row in our table.
+  // Clearing our row would not clear theirs: the next send still comes back
+  // 40300, while the contact page says the person can be texted. That
+  // contradiction was reachable in production (revoke at 08:38:44, send
+  // rejected at 08:38:53), and no amount of retrying resolves it, because the
+  // only thing that lifts a carrier block is the customer texting START.
+  // Refusing here is what makes the contradiction impossible.
+  const active = unwrap<{ id: string; source: string }[]>(
+    await db
+      .from("opt_outs")
+      .select("id,source")
+      .eq("company_id", companyId)
+      .eq("phone_e164", phone)
+      .is("revoked_at", null)
+      .limit(1),
+    "opt-out lookup",
+  );
+  if (active.length === 0) {
+    return errorResponse(c, "not_found", "Contact is not opted out.");
+  }
+  if (active[0].source === "stop_keyword") {
+    return errorResponse(
+      c,
+      "conflict",
+      "This customer texted STOP, so their carrier is blocking your texts. " +
+        "Only they can undo it, by texting START to your number.",
+    );
+  }
 
   const rows = unwrap<Record<string, unknown>[]>(
     await db

@@ -81,7 +81,11 @@ export function useCreateContact() {
     onSuccess: (contact) => {
       queryClient.setQueryData<ContactDetail>(
         keys.contacts.detail(companyId, contact.id),
-        (existing) => ({ opted_out: existing?.opted_out ?? false, ...contact }),
+        (existing) => ({
+          opted_out: existing?.opted_out ?? false,
+          opt_out_source: existing?.opt_out_source ?? null,
+          ...contact,
+        }),
       );
       queryClient.invalidateQueries({
         queryKey: keys.contacts.lists(companyId),
@@ -113,7 +117,11 @@ export function useUpdateContact(contactId: string) {
     onSuccess: (contact) => {
       queryClient.setQueryData<ContactDetail>(
         keys.contacts.detail(companyId, contactId),
-        (existing) => ({ opted_out: existing?.opted_out ?? false, ...contact }),
+        (existing) => ({
+          opted_out: existing?.opted_out ?? false,
+          opt_out_source: existing?.opt_out_source ?? null,
+          ...contact,
+        }),
       );
       queryClient.invalidateQueries({
         queryKey: keys.contacts.lists(companyId),

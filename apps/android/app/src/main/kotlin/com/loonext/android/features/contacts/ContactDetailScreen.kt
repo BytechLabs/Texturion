@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.model.OPT_OUT_SOURCE_STOP
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.Member
@@ -431,23 +432,37 @@ private fun ContactDetailBody(
                         "This customer opted out of texting. Sends to them are blocked.",
                         style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
                     )
-                    TextButton(
-                        enabled = !working,
-                        onClick = {
-                            haptics.confirm()
-                            runAction {
-                                mutations.revokeOptOut(companyId, contact.id)
-                                onChanged()
-                            }
-                        },
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-                    ) { Text(if (working) "Working…" else "Mark opted in again") }
-                    Text(
-                        "If they texted STOP, they also need to text START before " +
-                            "messages will deliver.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    // Which kind of opt-out decides whether there is anything
+                    // to press. A STOP is a carrier block: undoing our record
+                    // would not lift it, and the next send comes back rejected
+                    // anyway, which is what used to happen.
+                    if (contact.opt_out_source == OPT_OUT_SOURCE_STOP) {
+                        Text(
+                            "They texted STOP, so their carrier is blocking your texts. " +
+                                "Only they can undo it, by texting START to your number.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        TextButton(
+                            enabled = !working,
+                            onClick = {
+                                haptics.confirm()
+                                runAction {
+                                    mutations.revokeOptOut(companyId, contact.id)
+                                    onChanged()
+                                }
+                            },
+                            contentPadding =
+                                androidx.compose.foundation.layout.PaddingValues(0.dp),
+                        ) { Text(if (working) "Working…" else "Mark opted in again") }
+                        Text(
+                            "Someone recorded this by hand, so undoing it here is all " +
+                                "it takes.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }

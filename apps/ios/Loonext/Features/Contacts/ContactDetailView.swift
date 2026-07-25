@@ -224,7 +224,7 @@ struct ContactDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
                 if contact.opted_out {
-                    optedOutCard
+                    optedOutCard(contact)
                 }
                 consentCard(contact)
                 detailsCard(contact)
@@ -353,29 +353,39 @@ struct ContactDetailView: View {
         .background(BrandColor.ink, in: Capsule())
     }
 
-    private var optedOutCard: some View {
+    private func optedOutCard(_ contact: Contact) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("This customer opted out of texting. Sends to them are blocked.")
                 .font(.golos(12.5))
                 .foregroundStyle(BrandColor.muted900)
-            Button(working ? "Working…" : "Mark opted in again") {
-                runAction {
-                    _ = try await mutations.revokeOptOut(
-                        companyId: companyId, contactId: contactId
-                    )
-                    refreshKey += 1
+            // Which kind of opt-out decides whether there is anything to press.
+            // A STOP is a carrier block: undoing our record would not lift it,
+            // and the next send comes back rejected anyway, which is what used
+            // to happen.
+            if contact.opt_out_source == optOutSourceStop {
+                Text(
+                    "They texted STOP, so their carrier is blocking your texts. "
+                        + "Only they can undo it, by texting START to your number."
+                )
+                .font(.golos(10.5))
+                .foregroundStyle(BrandColor.muted500)
+            } else {
+                Button(working ? "Working…" : "Mark opted in again") {
+                    runAction {
+                        _ = try await mutations.revokeOptOut(
+                            companyId: companyId, contactId: contactId
+                        )
+                        refreshKey += 1
+                    }
                 }
+                .font(.golos(12.5, weight: .semibold))
+                .foregroundStyle(BrandColor.olive)
+                .buttonStyle(.plain)
+                .disabled(working)
+                Text("Someone recorded this by hand, so undoing it here is all it takes.")
+                    .font(.golos(10.5))
+                    .foregroundStyle(BrandColor.muted500)
             }
-            .font(.golos(12.5, weight: .semibold))
-            .foregroundStyle(BrandColor.olive)
-            .buttonStyle(.plain)
-            .disabled(working)
-            Text(
-                "If they texted STOP, they also need to text START before "
-                    + "messages will deliver."
-            )
-            .font(.golos(10.5))
-            .foregroundStyle(BrandColor.muted500)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)

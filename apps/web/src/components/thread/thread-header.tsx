@@ -455,17 +455,27 @@ export function ThreadHeader({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {contact?.opted_out ? (
-              <DropdownMenuItem
-                onSelect={() =>
-                  revokeOptOut.mutate(conversation.contact_id, {
-                    onSuccess: () => toast.success("Marked opted in again."),
-                    onError: (e) => onApiError(e, "Couldn't update opt-out."),
-                  })
-                }
-              >
-                <Undo2 className="size-4" strokeWidth={1.75} />
-                Mark opted in again
-              </DropdownMenuItem>
+              // A STOP the customer sent is a carrier block, and only they can
+              // lift it. Offering to undo it here promised something the next
+              // send would immediately contradict.
+              contact.opt_out_source === "stop_keyword" ? (
+                <DropdownMenuLabel className="max-w-64 whitespace-normal text-xs font-normal text-muted-foreground">
+                  This customer texted STOP. Only they can undo it, by texting
+                  START to your number.
+                </DropdownMenuLabel>
+              ) : (
+                <DropdownMenuItem
+                  onSelect={() =>
+                    revokeOptOut.mutate(conversation.contact_id, {
+                      onSuccess: () => toast.success("Marked opted in again."),
+                      onError: (e) => onApiError(e, "Couldn't update opt-out."),
+                    })
+                  }
+                >
+                  <Undo2 className="size-4" strokeWidth={1.75} />
+                  Mark opted in again
+                </DropdownMenuItem>
+              )
             ) : (
               <DropdownMenuItem
                 variant="destructive"

@@ -237,30 +237,40 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
           <p className="text-sm">
             This customer opted out of texting. Sends to them are blocked.
           </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={revoke.isPending}
-              onClick={() =>
-                revoke.mutate(contact.id, {
-                  onSuccess: () => toast.success("Marked opted in again."),
-                  onError: (cause) =>
-                    toast.error(
-                      cause instanceof ApiError
-                        ? cause.message
-                        : "Couldn't opt them back in. Try again.",
-                    ),
-                })
-              }
-            >
-              {revoke.isPending ? "Working…" : "Mark opted in again"}
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              If they texted STOP, they also need to text START before
-              messages will deliver.
+          {/* Which kind of opt-out decides whether there is anything to press.
+              A STOP is a carrier block: undoing our record would not lift it,
+              and the very next send would come back rejected anyway. */}
+          {contact.opt_out_source === "stop_keyword" ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              They texted STOP, so their carrier is blocking your texts. Only
+              they can undo it, by texting START to your number.
             </p>
-          </div>
+          ) : (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={revoke.isPending}
+                onClick={() =>
+                  revoke.mutate(contact.id, {
+                    onSuccess: () => toast.success("Marked opted in again."),
+                    onError: (cause) =>
+                      toast.error(
+                        cause instanceof ApiError
+                          ? cause.message
+                          : "Couldn't opt them back in. Try again.",
+                      ),
+                  })
+                }
+              >
+                {revoke.isPending ? "Working…" : "Mark opted in again"}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Someone recorded this by hand, so undoing it here is all it
+                takes.
+              </p>
+            </div>
+          )}
         </div>
       )}
 

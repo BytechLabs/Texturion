@@ -853,6 +853,11 @@ describe("opt-out mark/revoke (SPEC §5)", () => {
     ] as const) {
       const sb = stubWithRole("member");
       sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+      // A manually recorded opt-out: someone in the office wrote it down, so
+      // there is no carrier block and undoing it here is the whole truth.
+      sb.on("GET", "/rest/v1/opt_outs", () => [
+        { id: "0abc0abc-1111-4222-8333-444444444444", source: "manual" },
+      ]);
       sb.on("PATCH", "/rest/v1/opt_outs", (call) => [
         { id: "0abc0abc-1111-4222-8333-444444444444", ...(call.body as object) },
       ]);
@@ -878,7 +883,7 @@ describe("opt-out mark/revoke (SPEC §5)", () => {
 
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
-    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
     stubFetch(jwksRoute(auth), sb.route);
     const res = await apiRequest(
       app,
@@ -888,6 +893,61 @@ describe("opt-out mark/revoke (SPEC §5)", () => {
       { method: "POST", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(404);
+  });
+
+  it("refuses to revoke a STOP the customer sent, and writes nothing", async () => {
+    // A STOP is a CARRIER block. Clearing our row would not clear theirs: the
+    // next send still comes back 40300 while the contact page says the person
+    // can be texted. Production hit exactly that (revoke at 08:38:44, send
+    // rejected at 08:38:53), so the revoke is refused instead.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("GET", "/rest/v1/opt_outs", () => [
+      { id: "0abc0abc-1111-4222-8333-444444444444", source: "stop_keyword" },
+    ]);
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/opt-out/revoke`,
+      { method: "POST", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("texting START");
+    // The ledger and the timeline are both untouched — a refusal that still
+    // wrote would leave the same contradiction it exists to prevent.
+    expect(sb.find("PATCH", "/rest/v1/opt_outs")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
+  });
+
+  it("reports which kind of opt-out a contact has", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("GET", "/rest/v1/opt_outs", () => [
+      { id: "0abc0abc-1111-4222-8333-444444444444", source: "stop_keyword" },
+    ]);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      opted_out: boolean;
+      opt_out_source: string | null;
+    };
+    expect(body.opted_out).toBe(true);
+    expect(body.opt_out_source).toBe("stop_keyword");
   });
 });
 

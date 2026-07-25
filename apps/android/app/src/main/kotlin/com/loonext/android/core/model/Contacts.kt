@@ -2,6 +2,9 @@ package com.loonext.android.core.model
 
 import kotlinx.serialization.Serializable
 
+/** The customer texted STOP: a carrier block only they can lift. */
+const val OPT_OUT_SOURCE_STOP = "stop_keyword"
+
 /**
  * Contact rows. Detail + list share the shape; `opted_out` rides every read,
  * `last_activity_at` only on list rows (conversation activity, never edits).
@@ -25,6 +28,14 @@ data class Contact(
     val created_at: String,
     val updated_at: String,
     val opted_out: Boolean = false,
+    /**
+     * Which kind of opt-out this is, because only one of them can be undone
+     * from inside the app. "stop_keyword" is a CARRIER block the customer
+     * created by texting STOP: clearing our record would not clear theirs, so
+     * every send would still be rejected. "manual" is a note someone in the
+     * office made, with no carrier involved. Null when not opted out.
+     */
+    val opt_out_source: String? = null,
     val last_activity_at: String? = null,
     val created_by_user_id: String? = null,
     val created_by_name: String? = null,

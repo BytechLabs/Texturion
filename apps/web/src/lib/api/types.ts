@@ -701,6 +701,14 @@ export interface Contact {
  */
 export interface ContactDetail extends Contact {
   opted_out: boolean;
+  /**
+   * Which kind of opt-out this is, because only one of them can be undone from
+   * inside the app. "stop_keyword" is a CARRIER block the customer created by
+   * texting STOP: clearing our record would not clear theirs, so every send
+   * would still be rejected. "manual" is a note someone in the office made,
+   * with no carrier involved. Null when the contact is not opted out.
+   */
+  opt_out_source: "stop_keyword" | "manual" | null;
 }
 
 /**
