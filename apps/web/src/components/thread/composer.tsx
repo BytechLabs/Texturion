@@ -276,8 +276,14 @@ export function MediaErrors({ errors }: { errors: string[] }) {
  * N parts", turns amber only at ≥4 parts. It is TEXT, not a control — there is
  * no stepper, no +/−. Tabular numerals.
  */
-export function SegmentMeterLabel({ text }: { text: string }) {
-  const meter = segmentMeter(text);
+export function SegmentMeterLabel({
+  text,
+  hasMedia = false,
+}: {
+  text: string;
+  hasMedia?: boolean;
+}) {
+  const meter = segmentMeter(text, hasMedia);
   if (!meter.visible) return null;
   return (
     <Tooltip>
@@ -864,7 +870,12 @@ export function Composer({
         />
 
         <div className="flex items-center gap-2 self-end pb-1 pr-0.5">
-          {!isNote && <SegmentMeterLabel text={text} />}
+          {!isNote && (
+            <SegmentMeterLabel
+              text={text}
+              hasMedia={attachments.length > 0}
+            />
+          )}
           {/* The single petrol control in this region (mockup .btn-primary.send)
               — a petrol pill with the send glyph and a soft petrol shadow. Active
               only when the field is non-empty. Notes reuse the amber accent. */}

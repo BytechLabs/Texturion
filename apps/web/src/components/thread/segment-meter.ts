@@ -12,6 +12,9 @@ import { estimateSegments, type SmsEncoding } from "@loonext/shared";
 
 export const METER_WARN_AT_SEGMENTS = 4;
 
+/** MMS is metered at a flat 3 segments (SPEC §7) regardless of body length. */
+export const MMS_SEGMENTS = 3;
+
 export interface SegmentMeterState {
   visible: boolean;
   /** Underlying SMS part count (kept as `segments` for the shared estimator). */
@@ -23,7 +26,23 @@ export interface SegmentMeterState {
   warn: boolean;
 }
 
-export function segmentMeter(text: string): SegmentMeterState {
+export function segmentMeter(
+  text: string,
+  hasMedia = false,
+): SegmentMeterState {
+  // Attaching anything makes this an MMS, billed at a flat 3 parts whatever
+  // the body says. Counting the text alone told people a photo with "ok" on
+  // it cost nothing, which is three times off, so the media case answers
+  // first and always shows.
+  if (hasMedia) {
+    return {
+      visible: true,
+      segments: MMS_SEGMENTS,
+      encoding: "GSM-7",
+      label: `MMS · sent in ${MMS_SEGMENTS} parts`,
+      warn: false,
+    };
+  }
   const estimate = estimateSegments(text);
   return {
     visible: estimate.segments >= 2,

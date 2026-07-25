@@ -654,7 +654,7 @@ export function NewConversation() {
             ) : (
               <span aria-hidden />
             )}
-            <SegmentMeterLabel text={body} />
+            <SegmentMeterLabel text={body} hasMedia={attachments.length > 0} />
           </div>
         </div>
 

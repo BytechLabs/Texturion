@@ -43,3 +43,24 @@ describe("segmentMeter", () => {
     expect(long.segments).toBe(2);
   });
 });
+
+describe("segmentMeter with media", () => {
+  it("an attachment makes it MMS: always visible, flat 3 parts", () => {
+    // Counting the text alone said a photo captioned "ok" cost nothing.
+    const meter = segmentMeter("ok", true);
+    expect(meter.visible).toBe(true);
+    expect(meter.segments).toBe(3);
+    expect(meter.label).toBe("MMS · sent in 3 parts");
+    expect(meter.warn).toBe(false);
+  });
+
+  it("a long body with media is still the flat MMS count, never amber", () => {
+    const meter = segmentMeter("x".repeat(700), true);
+    expect(meter.segments).toBe(3);
+    expect(meter.warn).toBe(false);
+  });
+
+  it("without media nothing changes", () => {
+    expect(segmentMeter("ok", false).visible).toBe(false);
+  });
+});
