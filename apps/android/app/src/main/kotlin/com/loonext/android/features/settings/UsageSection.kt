@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -53,6 +52,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import androidx.compose.material3.Button
+import androidx.compose.material3.Slider
 
 private val PERIOD_FORMAT = DateTimeFormatter.ofPattern("MMM d")
 
@@ -238,24 +239,100 @@ private fun CapCard(
                     "Only the account owner can change it.",
             )
         } else {
-            val presets =
-                if (CAP_PRESETS.contains(current)) CAP_PRESETS
-                else listOf(current) + CAP_PRESETS
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                presets.forEach { preset ->
-                    FilterChip(
-                        selected = preset == current,
-                        onClick = {
-                            if (preset != current) haptics.tap()
-                            val change =
-                                describeCapChange(current, preset, usage.included_segments)
-                            if (change.requiresConfirmation) {
+            // A slider, matching the web: the multiple is the mechanism but the
+            // pause point is the decision, so it reads largest and counts as
+            // you drag. Presets could not express 4.5x at all, which is the
+            // parity gap this closes.
+            var pending by remember(current) { mutableStateOf(current) }
+            val pauseAt = capSegments(usage.included_segments, pending)
+            val dirty = pending != current
+
+            Column {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column {
+                        Text(
+                            "SENDING PAUSES AT",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            groupDigits(pauseAt),
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            "messages this period",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Text(
+                        capLabel(pending),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+
+                Slider(
+                    value = pending.toFloat(),
+                    onValueChange = { value -> pending = Math.round(value * 2.0) / 2.0 },
+                    valueRange = 1f..MAX_CAP_MULTIPLIER.toFloat(),
+                    // Half-multiples: fine enough to land where you want,
+                    // coarse enough to aim at with a thumb.
+                    steps = ((MAX_CAP_MULTIPLIER - 1.0) * 2).toInt() - 1,
+                    enabled = !saving,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        "1x included",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        "${capLabel(MAX_CAP_MULTIPLIER)} max",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                // Dragging proposes; it never saves. Money changes on purpose.
+                if (dirty) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        describeCapChange(current, pending, usage.included_segments).summary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                haptics.tap()
                                 error = null
-                                proposed = preset
-                            }
-                        },
-                        label = { Text(capLabel(preset)) },
-                        enabled = !saving,
+                                proposed = pending
+                            },
+                            enabled = !saving,
+                        ) { Text(if (saving) "Saving…" else "Save cap") }
+                        TextButton(
+                            onClick = { pending = current },
+                            enabled = !saving,
+                        ) { Text("Cancel") }
+                    }
+                }
+                error?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
                     )
                 }
             }

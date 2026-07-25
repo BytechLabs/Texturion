@@ -120,7 +120,6 @@ func isValidCnam(_ value: String) -> Bool {
 
 let maxCapMultiplier = 10.0
 
-let capPresets: [Double] = [2.0, 3.0, 5.0, maxCapMultiplier]
 
 func normalizeCapMultiplier(_ value: Double?) -> Double {
     if let value, value.isFinite, value > 0 { return min(value, maxCapMultiplier) }

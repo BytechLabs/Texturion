@@ -247,7 +247,7 @@ private struct CapCard: View {
     let usage: Usage
     let onCompanyUpdated: @MainActor (CompanyView) -> Void
 
-    @State private var proposed: Double?
+    @State private var pending: Double = 1
     @State private var saving = false
     @State private var error: String?
 
@@ -267,66 +267,79 @@ private struct CapCard: View {
                         + "Only the account owner can change it."
                 )
             } else {
-                let presets = capPresets.contains(current) ? capPresets : [current] + capPresets
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(presets, id: \.self) { preset in
-                            let selected = preset == current
-                            Button {
-                                let change = describeCapChange(
-                                    current: current,
-                                    next: preset,
-                                    includedSegments: usage.included_segments
-                                )
-                                if change.requiresConfirmation {
-                                    error = nil
-                                    proposed = preset
-                                }
-                            } label: {
-                                Text(capLabel(preset))
-                                    .font(.subheadline)
-                                    .foregroundStyle(
-                                        selected
-                                            ? AnyShapeStyle(BrandColor.muted900)
-                                            : AnyShapeStyle(Color.primary)
-                                    )
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 7)
-                                    .background(
-                                        selected
-                                            ? AnyShapeStyle(BrandColor.avatarTint)
-                                            : AnyShapeStyle(Color(.secondarySystemFill)),
-                                        in: Capsule()
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(saving)
+                // A slider, matching the web and Android: the multiple is the
+                // mechanism but the pause point is the decision, so it reads
+                // largest and counts as you drag. Presets could not express
+                // 4.5x at all, which is the parity gap this closes.
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .bottom) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("SENDING PAUSES AT")
+                                .font(.golos(10.5, weight: .semibold))
+                                .foregroundStyle(BrandColor.muted500)
+                            Text(groupDigits(capSegments(
+                                includedSegments: usage.included_segments,
+                                multiplier: pending
+                            )))
+                            .font(.golos(26, weight: .semibold))
+                            .foregroundStyle(BrandColor.ink)
+                            Text("messages this period")
+                                .font(.golos(12))
+                                .foregroundStyle(BrandColor.muted500)
+                        }
+                        Spacer()
+                        Text(capLabel(pending))
+                            .font(.golos(12.5, weight: .semibold))
+                            .foregroundStyle(BrandColor.olive)
+                    }
+
+                    // Half-multiples: fine enough to land where you want,
+                    // coarse enough to aim at with a thumb.
+                    Slider(
+                        value: $pending,
+                        in: 1...maxCapMultiplier,
+                        step: 0.5
+                    )
+                    .tint(BrandColor.olive)
+                    .disabled(saving)
+
+                    HStack {
+                        Text("1x included")
+                        Spacer()
+                        Text("\(capLabel(maxCapMultiplier)) max")
+                    }
+                    .font(.golos(10.5))
+                    .foregroundStyle(BrandColor.muted500)
+
+                    // Dragging proposes; it never saves. Money changes on purpose.
+                    if pending != current {
+                        Text(describeCapChange(
+                            current: current,
+                            next: pending,
+                            includedSegments: usage.included_segments
+                        ).summary)
+                        .font(.golos(12.5))
+                        .foregroundStyle(BrandColor.ink)
+
+                        HStack(spacing: 10) {
+                            Button(saving ? "Saving…" : "Save cap") { save(pending) }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(saving)
+                            Button("Cancel") { pending = current }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(BrandColor.muted700)
+                                .disabled(saving)
                         }
                     }
+
+                    if let error {
+                        Text(error)
+                            .font(.golos(12.5))
+                            .foregroundStyle(BrandColor.destructive)
+                    }
                 }
-            }
-        }
-        .sheet(isPresented: Binding(
-            get: { proposed != nil },
-            set: { open in
-                if !open { proposed = nil }
-            }
-        )) {
-            if let next = proposed {
-                let change = describeCapChange(
-                    current: current,
-                    next: next,
-                    includedSegments: usage.included_segments
-                )
-                ConfirmSheet(
-                    title: change.title,
-                    message: change.summary,
-                    confirmLabel: "Set the cap",
-                    pending: saving,
-                    error: error,
-                    onConfirm: { save(next) },
-                    onDismiss: { proposed = nil }
-                )
+                .onAppear { pending = current }
+                .onChange(of: current) { _, value in pending = value }
             }
         }
     }
@@ -341,7 +354,6 @@ private struct CapCard: View {
                     patch: .object(["overage_cap_multiplier": .number(next)])
                 )
                 onCompanyUpdated(updated)
-                proposed = nil
                 scope.showMessage("Spending cap set to \(capLabel(next)).")
             } catch {
                 self.error = error.userMessage

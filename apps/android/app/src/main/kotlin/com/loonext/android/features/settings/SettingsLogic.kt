@@ -144,7 +144,6 @@ fun cnamChangePending(submittedAtIso: String?, now: Instant = Instant.now()): Bo
 
 const val MAX_CAP_MULTIPLIER = 10.0
 
-val CAP_PRESETS: List<Double> = listOf(2.0, 3.0, 5.0, MAX_CAP_MULTIPLIER)
 
 fun normalizeCapMultiplier(value: Double?): Double =
     if (value != null && value.isFinite() && value > 0) minOf(value, MAX_CAP_MULTIPLIER)
