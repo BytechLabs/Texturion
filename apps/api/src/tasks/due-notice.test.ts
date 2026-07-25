@@ -13,6 +13,7 @@ import {
   notifyDueTasksJob,
   TASK_DUE_BATCH,
   TASK_DUE_LEAD_MINUTES,
+  TASK_DUE_MAX_LATE_MINUTES,
 } from "./due-notice";
 
 const env = completeEnv();
@@ -188,6 +189,35 @@ describe("notifyDueTasksJob", () => {
     expect(params.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(params.get("user_id")).toBe(`eq.${ASSIGNEE}`);
     expect(params.get("deactivated_at")).toBe("is.null");
+  });
+
+  it("claims long-overdue work without waking anyone for it", async () => {
+    // A deadline from last month is not worth a push, and the first run after
+    // any gap (a new column with no history stamped, a restored backup, a bulk
+    // import of dated work) would otherwise fire one alert per historical
+    // task. Stamping it anyway is what empties the queue for good.
+    const longAgo = new Date(
+      NOW.getTime() - (TASK_DUE_MAX_LATE_MINUTES + 60) * 60_000,
+    ).toISOString();
+    const sb = world({ tasks: [dueTask({ due_at: longAgo })] });
+    stubFetch(sb.route);
+
+    await notifyDueTasksJob(env, NOW);
+
+    expect(sb.find("PATCH", "/rest/v1/tasks")).toHaveLength(1);
+    expect(sb.find("GET", "/rest/v1/push_subscriptions")).toHaveLength(0);
+  });
+
+  it("still reminds about work that came due during an outage", async () => {
+    // The scan has no lower bound on purpose: a few hours late is exactly when
+    // the reminder is still worth having.
+    const hoursLate = new Date(NOW.getTime() - 4 * 60 * 60_000).toISOString();
+    const sb = world({ tasks: [dueTask({ due_at: hoursLate })] });
+    stubFetch(sb.route);
+
+    await notifyDueTasksJob(env, NOW);
+
+    expect(sb.find("GET", "/rest/v1/push_subscriptions")).toHaveLength(1);
   });
 
   it("respects a member who turned push off", async () => {

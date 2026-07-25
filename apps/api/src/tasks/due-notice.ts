@@ -63,6 +63,18 @@ const TITLE_LENGTH = 80;
 export const TASK_DUE_LEAD_MINUTES = 30;
 
 /**
+ * How late a deadline can be and still be worth a push.
+ *
+ * The scan has no lower bound by design: work that came due during an outage
+ * still deserves its reminder once the job runs again. But a deadline from last
+ * month does not, and without a ceiling the first run after ANY gap (a new
+ * column with no history stamped, a restored backup, a bulk import of dated
+ * work) fires one alert per historical task. Anything older is claimed and
+ * passed over, which also keeps it out of the pending index for good.
+ */
+export const TASK_DUE_MAX_LATE_MINUTES = 24 * 60;
+
+/**
  * What the alert says under the task title. Relative rather than a clock time,
  * so it needs no timezone and cannot contradict the reader's own phone.
  *
@@ -198,6 +210,11 @@ export async function notifyDueTasksJob(
     const prefs = (prefRows.data ?? []) as PrefsRow[];
     // A missing row reads as the §6 defaults, which have push on.
     if (prefs[0]?.push_enabled === false) continue;
+
+    // Claimed above, so it leaves the queue either way. Whether it is still
+    // worth waking someone for is a separate question.
+    const lateMinutes = (now.getTime() - new Date(task.due_at).getTime()) / 60_000;
+    if (lateMinutes > TASK_DUE_MAX_LATE_MINUTES) continue;
 
     const title = (task.title ?? "").trim().slice(0, TITLE_LENGTH) || "A task";
     const link = dueNoticeLink(env.APP_ORIGIN, task);
