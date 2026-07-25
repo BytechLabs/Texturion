@@ -33,6 +33,10 @@ import { cn } from "@/lib/utils";
 const FILTERS: { label: string; value: CallOutcomeFilter | undefined }[] = [
   { label: "All", value: undefined },
   { label: "Missed", value: "missed" },
+  // Both phone apps have had this pill since the calls screen shipped. Without
+  // it, finding the voicemails on web meant scrolling the whole log looking for
+  // the ones with a recording on them.
+  { label: "Voicemail", value: "voicemail" },
 ];
 
 export function CallsView() {
@@ -177,17 +181,19 @@ export function CallsView() {
               title={
                 outcome === "missed"
                   ? "No missed calls. Nice."
-                  : "Calls to your business number will show up here."
+                  : outcome === "voicemail"
+                    ? "No voicemails."
+                    : "Calls to your business number will show up here."
               }
               description={
-                outcome === "missed"
+                outcome !== undefined
                   ? undefined
                   : // D43: the browser is the phone — say what happens and
                     // where the voicemail/screening knobs live.
                     "Calls ring right here in the app; unanswered ones go to your voicemail and land in this log. Your greeting, call screening, and the missed-call text-back live in Settings › Calling."
               }
               action={
-                outcome === "missed" ? undefined : (
+                outcome !== undefined ? undefined : (
                   <Button asChild variant="outline">
                     <Link href="/settings/missed-calls">Set up calls</Link>
                   </Button>
