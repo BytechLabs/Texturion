@@ -1043,7 +1043,7 @@ export async function computeRingContext(
   dialTargets: { userId: string; sipUsername: string }[];
   pushAudience: string[];
 }> {
-  const [credentials, members, rules, prefs, subs, tokens] = await Promise.all([
+  const [credentials, members, rules, prefs] = await Promise.all([
     db
       .from("member_telephony_credentials")
       .select("user_id,sip_username")
@@ -1063,14 +1063,30 @@ export async function computeRingContext(
       .from("notification_prefs")
       .select("user_id,push_enabled")
       .eq("company_id", companyId),
-    db.from("push_subscriptions").select("user_id"),
-    db.from("device_push_tokens").select("user_id"),
+  ]);
+  if (members.error) {
+    throw new Error(`member list failed: ${members.error.message}`);
+  }
+
+  // Neither push table carries a company, so the only correct bound is the
+  // people who could actually be rung. Read unscoped they return every row in
+  // the project, which PostgREST truncates at its max-rows ceiling: past that,
+  // whether a given member appears depends on an arbitrary page and their phone
+  // is simply never woken. Scoping to this company's members also keeps the
+  // read proportional to the crew rather than to the whole platform.
+  const memberIds = (members.data ?? []).map(
+    (member) => member.user_id as string,
+  );
+  const [subs, tokens] = await Promise.all([
+    memberIds.length === 0
+      ? { data: [], error: null }
+      : db.from("push_subscriptions").select("user_id").in("user_id", memberIds),
+    memberIds.length === 0
+      ? { data: [], error: null }
+      : db.from("device_push_tokens").select("user_id").in("user_id", memberIds),
   ]);
   if (credentials.error) {
     throw new Error(`credential list failed: ${credentials.error.message}`);
-  }
-  if (members.error) {
-    throw new Error(`member list failed: ${members.error.message}`);
   }
   if (rules.error) {
     throw new Error(`number_access read failed: ${rules.error.message}`);
