@@ -195,9 +195,14 @@ describe("OngoingCalls (#210)", () => {
     expect(html).toContain("With Sam Mason");
   });
 
-  it("isOngoingCall keys on outcome null alone", () => {
-    expect(isOngoingCall({ outcome: null })).toBe(true);
-    expect(isOngoingCall({ outcome: "missed" })).toBe(false);
-    expect(isOngoingCall({ outcome: "answered" })).toBe(false);
+  it("isOngoingCall pins an unstamped row and drops a resolved one", () => {
+    expect(isOngoingCall({ outcome: null, state: null })).toBe(true);
+    expect(isOngoingCall({ outcome: null, state: "answered" })).toBe(true);
+    expect(isOngoingCall({ outcome: "missed", state: null })).toBe(false);
+    expect(isOngoingCall({ outcome: "answered", state: null })).toBe(false);
+    // Mirror lag: the hangup landed in `state` before the outcome stamp did.
+    // Pinning this leaves a ghost call on the card after everyone hung up.
+    expect(isOngoingCall({ outcome: null, state: "ended_answered" })).toBe(false);
+    expect(isOngoingCall({ outcome: null, state: "ended_missed" })).toBe(false);
   });
 });

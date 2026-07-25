@@ -35,9 +35,15 @@ import type { Call } from "@/lib/api/types";
 import { formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
 
-/** outcome=null IS the live-call signal (D43/#208 — binding for readers). */
-export function isOngoingCall(call: Pick<Call, "outcome">): boolean {
-  return call.outcome === null;
+/**
+ * A row still holding the line: outcome unstamped AND the #208 state mirror
+ * does not already say the call ended. An outcome-null row whose state is
+ * terminal is mirror lag — the outcome stamp trails the hangup by seconds —
+ * and pinning it would leave a ghost call on the card after everyone has hung
+ * up. Both phone apps read it this way.
+ */
+export function isOngoingCall(call: Pick<Call, "outcome" | "state">): boolean {
+  return call.outcome === null && !call.state?.startsWith("ended");
 }
 
 /** "0:07" / "4:32" / "61:05" — the live mm:ss tick. Pure: (anchor, now) in,
