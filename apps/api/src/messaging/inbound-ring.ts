@@ -297,17 +297,26 @@ export async function storeVoicemailRecording(
   // Words, if we can get them. Best effort by construction: every failure
   // path below leaves the voicemail exactly as it is without one — stored,
   // threaded, playable — so a model outage can never cost a customer message.
-  const transcript = await transcribeVoicemail(env, db, {
+  const attempt = await transcribeVoicemail(env, db, {
     companyId: resolved.companyId,
     audio,
     seconds,
   });
+  const transcript = attempt.text;
 
   const { error: stampError } = await db
     .from("calls")
     .update({
       voicemail_path: path,
       voicemail_seconds: seconds,
+      // Record the attempt here too, or a recording that answered with nothing
+      // is bought a second time the first time anyone plays it: the playback
+      // backfill reads this column to decide, and would otherwise see a
+      // recording that had never been tried. Only a run that reached a model
+      // counts, for the same reason it does there.
+      ...(attempt.reached
+        ? { voicemail_transcript_attempted_at: new Date().toISOString() }
+        : {}),
       ...(transcript === null ? {} : { voicemail_transcript: transcript }),
     })
     .eq("call_session_id", sessionId);
@@ -390,11 +399,11 @@ async function transcribeVoicemail(
   env: Env,
   db: SupabaseClient,
   args: { companyId: string; audio: ArrayBuffer; seconds: number },
-): Promise<string | null> {
+): Promise<TranscriptionOutcome> {
   // The only check that is ours rather than the gate's: a recording of nothing,
   // or one that ran away, is not worth paying per audio minute for.
-  if (!shouldTranscribe(args.seconds)) return null;
-  return (await runTranscription(env, db, args.companyId, args.audio)).text;
+  if (!shouldTranscribe(args.seconds)) return { reached: false, text: null };
+  return await runTranscription(env, db, args.companyId, args.audio);
 }
 
 /** Replay recovery: a voicemail already stored in OUR bucket (voicemail_path
