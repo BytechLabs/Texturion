@@ -37,14 +37,31 @@ function feedsForYouOrBell(key: readonly unknown[], companyId: string): boolean 
   return key[1] === "conversations" || key[1] === "messages" || key[1] === "tasks";
 }
 
+/**
+ * How long one refetch covers everything that follows it.
+ *
+ * A microtask was not enough. Cache updates arrive on their OWN macrotasks —
+ * one per query settling, and an app boot settles a lot of them (several
+ * conversation lists, tasks, plus whatever the prefetched routes mount) — so
+ * every single one got its own refetch. A page refresh made 27 identical
+ * /for-you calls and 27 unread-count calls in 1.6 seconds, each with its own
+ * CORS preflight: 108 requests where 2 would do.
+ *
+ * This window is long enough to swallow a boot or a burst of broadcasts, and
+ * short enough that a badge still moves while you are looking at it.
+ */
+const COALESCE_MS = 400;
+
 export function useForYouNotificationsRealtime() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
 
   useEffect(() => {
     const cache = queryClient.getQueryCache();
-    let scheduled = false;
     let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let coolingDown = false;
+    let missedDuringCooldown = false;
 
     const invalidate = () => {
       queryClient.invalidateQueries({
@@ -60,15 +77,30 @@ export function useForYouNotificationsRealtime() {
       });
     };
 
-    // Cache events fire synchronously (often mid-render of a list component);
-    // defer to a microtask both to stay out of render and to coalesce bursts.
+    /**
+     * Leading edge, then a quiet window. The first change refetches straight
+     * away so the queue and the badge stay responsive; anything that lands
+     * during the window is collapsed into at most ONE further refetch when it
+     * closes. Cache events fire synchronously, often mid-render of a list, so
+     * the leading call is deferred to a microtask to stay out of render.
+     */
     const schedule = () => {
-      if (scheduled) return;
-      scheduled = true;
+      if (coolingDown) {
+        missedDuringCooldown = true;
+        return;
+      }
+      coolingDown = true;
       queueMicrotask(() => {
-        scheduled = false;
         if (!disposed) invalidate();
       });
+      timer = setTimeout(() => {
+        coolingDown = false;
+        timer = null;
+        if (missedDuringCooldown) {
+          missedDuringCooldown = false;
+          if (!disposed) schedule();
+        }
+      }, COALESCE_MS);
     };
 
     const unsubscribe = cache.subscribe((event) => {
@@ -84,6 +116,7 @@ export function useForYouNotificationsRealtime() {
 
     return () => {
       disposed = true;
+      if (timer !== null) clearTimeout(timer);
       unsubscribe();
     };
   }, [companyId, queryClient]);
