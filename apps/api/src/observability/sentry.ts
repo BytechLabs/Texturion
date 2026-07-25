@@ -163,7 +163,14 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
 export function sentryOptions(bindings: Bindings): CloudflareOptions {
   const env = getEnv(bindings);
   return {
-    dsn: env.SENTRY_DSN,
+    // A laptop reports nothing. Local failures are already on the terminal in
+    // front of whoever caused them, and a developer running against a database
+    // that is mid-migration raises errors indistinguishable from a production
+    // incident on a customer-facing route. The marker is set in `.dev.vars`,
+    // which only `wrangler dev` reads, so a deployed Worker cannot silence
+    // itself: no marker means report. The DSN is still REQUIRED to boot, so a
+    // Worker missing the secret fails loudly instead of going quietly dark.
+    dsn: env.LOCAL_DEV === "1" ? undefined : env.SENTRY_DSN,
     sendDefaultPii: false,
     tracesSampleRate: 0,
     // RELEASE TRACEABILITY: without this every production error was untagged —

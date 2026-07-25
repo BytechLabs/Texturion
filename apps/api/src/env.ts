@@ -94,6 +94,19 @@ const envSchema = z.object({
    * falls back to an untagged release rather than the Worker failing to start.
    */
   GIT_SHA: z.string().min(1).optional(),
+  /**
+   * Set to "1" only in `.dev.vars`, which nothing but `wrangler dev` loads, to
+   * mark this Worker as somebody's laptop. It silences crash reporting: a local
+   * failure is already on the terminal in front of the person causing it, and a
+   * developer mid-migration produces errors that read exactly like a production
+   * incident in the issue stream.
+   *
+   * Deliberately a POSITIVE marker rather than inferring local from a missing
+   * GIT_SHA: a manual `wrangler deploy` also has no SHA, and inferring would
+   * silently take production's error reporting down with it. Absent means
+   * report.
+   */
+  LOCAL_DEV: z.literal("1").optional(),
   APP_ORIGIN: originUrl(),
   /** Public origin of THIS Worker (webhook callback URLs, e.g. Telnyx profiles). */
   API_ORIGIN: originUrl(),

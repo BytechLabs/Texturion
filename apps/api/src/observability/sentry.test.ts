@@ -174,4 +174,26 @@ describe("sentryOptions", () => {
     delete env.SENTRY_DSN;
     expect(() => sentryOptions(env)).toThrowError(/SENTRY_DSN/);
   });
+
+  it("sends nothing from a Worker marked as local", () => {
+    const options = sentryOptions({ ...completeEnv(), LOCAL_DEV: "1" });
+    expect(options.dsn).toBeUndefined();
+  });
+
+  it("reports from every deployed Worker, stamped or not", () => {
+    // Silencing is driven by the PRESENCE of the local marker, never by the
+    // absence of a release stamp: a manual `wrangler deploy` carries no GIT_SHA
+    // and must still report, or production goes dark the one time someone
+    // deploys by hand.
+    const manual: Record<string, unknown> = { ...completeEnv() };
+    delete manual.GIT_SHA;
+    const options = sentryOptions(manual);
+    expect(options.dsn).toBe(completeEnv().SENTRY_DSN);
+    expect(options.environment).toBe("development");
+  });
+
+  it("refuses a local marker that is not exactly the documented value", () => {
+    // A typo must not read as "somewhat local" and quietly disable reporting.
+    expect(() => sentryOptions({ ...completeEnv(), LOCAL_DEV: "true" })).toThrow();
+  });
 });

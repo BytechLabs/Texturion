@@ -47,3 +47,9 @@ STRIPE_SMS_METER_EVENT_NAME=sms_segments
 # OPTIONAL — PostHog Cloud project API key (SPEC §12 step 18). Leave unset to
 # disable product analytics entirely (captures become silent no-ops).
 POSTHOG_API_KEY=
+# Marks this Worker as a local one. Silences crash reporting: a local failure is
+# already on the terminal in front of you, and running against a database that is
+# mid-migration raises errors that read exactly like a production incident.
+# Only `wrangler dev` loads this file, so a deployed Worker never sees it and
+# always reports. Must be exactly "1".
+LOCAL_DEV=1
