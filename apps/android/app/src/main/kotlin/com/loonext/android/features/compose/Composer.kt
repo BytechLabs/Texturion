@@ -220,6 +220,12 @@ fun ThreadComposer(
     /** Ask for AI-drafted replies. Null hides the affordance entirely. */
     suggestReplies: (suspend (draft: String) -> ReplySuggestions)? = null,
     /**
+     * Open the AI settings, offered under the drafts when Lou has not been
+     * told what the business does. Null withholds the offer rather than
+     * printing a sentence with nothing behind it.
+     */
+    onOpenAiSettings: (() -> Unit)? = null,
+    /**
      * Identifies this thread AT ITS CURRENT POINT, so drafts already paid for
      * are reused until a message in either direction retires them. Null skips
      * the cache entirely (a compose screen with no thread behind it yet).
@@ -238,6 +244,10 @@ fun ThreadComposer(
     // call, so closing the strip and opening it again, or leaving and coming
     // back, must not spend again (see DraftSuggestionsCache).
     var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
+    // Reported with the drafts: Lou was never told what this business does.
+    // Held for the life of the composer rather than re-fetched, since it only
+    // changes when someone writes the line.
+    var businessUnknown by remember { mutableStateOf(false) }
     var suggesting by remember { mutableStateOf(false) }
 
     val askForSuggestions: () -> Unit = {
@@ -257,6 +267,7 @@ fun ThreadComposer(
                     onNotice(replyDraftMessage(drafted.reason))
                 } else {
                     suggestions = drafted.suggestions
+                    businessUnknown = drafted.business_unknown
                     draftCacheKey?.let { DraftSuggestionsCache.write(it, drafted.suggestions) }
                 }
             }
@@ -362,6 +373,8 @@ fun ThreadComposer(
             ReplySuggestionsRow(
                 suggestions = suggestions,
                 loading = suggesting,
+                businessUnknown = businessUnknown,
+                onTellLou = onOpenAiSettings,
                 onUse = { suggestion ->
                     haptics.tap()
                     state.onTextChange(suggestion)
@@ -584,6 +597,8 @@ fun ThreadComposer(
 private fun ReplySuggestionsRow(
     suggestions: List<String>,
     loading: Boolean,
+    businessUnknown: Boolean,
+    onTellLou: (() -> Unit)?,
     onUse: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -650,6 +665,19 @@ private fun ReplySuggestionsRow(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
                 )
             }
+        }
+        // Offered here rather than only in Settings, because this is the moment
+        // the gap is felt: the drafts are on screen and vaguer than they need
+        // to be. The setting exists either way; almost nobody goes looking.
+        if (!loading && businessUnknown && onTellLou != null) {
+            Text(
+                "Lou doesn't know what you do yet. Tell it, and drafts get specific.",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .clickable(onClick = onTellLou),
+            )
         }
     }
 }

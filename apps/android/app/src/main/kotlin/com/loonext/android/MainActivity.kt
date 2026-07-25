@@ -361,7 +361,10 @@ private sealed interface Overlay {
         val prefillPhone: String? = null,
     ) : Overlay
     data object Notifications : Overlay
-    data object Settings : Overlay
+
+    /** [section] opens straight at one section, for a surface that is offering
+     *  a specific setting as the fix for what the reader is looking at. */
+    data class Settings(val section: SettingsSection? = null) : Overlay
 
     /** #198: the dev Diagnostics surface, reached from the settings hub's
      *  easter-egg row only — never from primary navigation. */
@@ -619,6 +622,9 @@ private fun ReadyShell(
                         onBack = { pop() },
                         onOpenConversation = { push(Overlay.Thread(it)) },
                         onOpenTask = { push(Overlay.Task(it)) },
+                        onOpenAiSettings = {
+                            push(Overlay.Settings(SettingsSection.Ai))
+                        },
                     )
 
                     is Overlay.Task -> TaskDetailScreen(
@@ -675,13 +681,13 @@ private fun ReadyShell(
                         )
                     }
 
-                    Overlay.Settings -> {
+                    is Overlay.Settings -> {
                         // #200: the section state lives HERE so the host's ONE
                         // header slot can carry the section title. SettingsHome
                         // renders zero chrome, so the second stacked header
                         // (hub back + section back) is not constructible.
                         var section by rememberSaveable(companyId) {
-                            mutableStateOf<SettingsSection?>(null)
+                            mutableStateOf<SettingsSection?>(active.section)
                         }
                         // Composed AFTER the host's pop BackHandler, so system
                         // back returns a section to the hub before popping the
@@ -723,7 +729,7 @@ private fun ReadyShell(
             unreadNotifications = unreadNotifications ?: 0,
             onOpenContacts = { tab = ShellTab.Contacts },
             onOpenNotifications = { push(Overlay.Notifications) },
-            onOpenSettings = { push(Overlay.Settings) },
+            onOpenSettings = { push(Overlay.Settings()) },
             onSwitchWorkspace = root::switchWorkspace,
             onSignOut = root::signOut,
             onDismiss = { sheetOpen = false },

@@ -143,6 +143,8 @@ fun ThreadScreen(
     onOpenTask: ((taskId: String) -> Unit)? = null,
     /** Search-result jump: scroll to this message and flash it briefly. */
     highlightMessageId: String? = null,
+    /** Open the AI settings, offered under the drafts (MainActivity Overlay.Settings). */
+    onOpenAiSettings: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -240,6 +242,7 @@ fun ThreadScreen(
                         companyId = companyId,
                         me = me,
                         highlightMessageId = highlightMessageId,
+                        onOpenAiSettings = onOpenAiSettings,
                         onBack = onBack,
                         onOpenFile = { attachment ->
                             scope.launch {
@@ -292,6 +295,7 @@ private fun ThreadLoaded(
     onOpenGallery: () -> Unit,
     onOpenConversation: ((conversationId: String) -> Unit)?,
     onOpenTask: ((taskId: String) -> Unit)?,
+    onOpenAiSettings: (() -> Unit)?,
     highlightMessageId: String? = null,
 ) {
     val context = LocalContext.current
@@ -672,6 +676,7 @@ private fun ThreadLoaded(
                 detail.last_message_at,
             ),
             loadTemplates = { repo.templates(companyId).data },
+            onOpenAiSettings = onOpenAiSettings,
             onSendText = { body, photos ->
                 controller.sendText(body, photos) {
                     composer.restore(body, photos, emptyList())

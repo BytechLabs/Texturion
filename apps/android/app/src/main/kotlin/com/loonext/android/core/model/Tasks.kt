@@ -243,6 +243,12 @@ const val BUSINESS_DESCRIPTION_MAX = 280
 data class ReplySuggestions(
     val suggestions: List<String> = emptyList(),
     val suggestions_disabled: Boolean = false,
+    /**
+     * Lou has not been told what this business does. The prompt refuses to say
+     * anything about the trade without that line, so every draft is thinner
+     * until someone writes it.
+     */
+    val business_unknown: Boolean = false,
     /** Why the list is empty; absent on success. See replyDraftMessage. */
     val reason: String? = null,
 )
