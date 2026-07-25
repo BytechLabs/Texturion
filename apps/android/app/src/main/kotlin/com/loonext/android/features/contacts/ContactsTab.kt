@@ -792,7 +792,9 @@ private fun ListFooter(
                         if (importing) {
                             "Importing…"
                         } else {
-                            "Import from CSV or your phone's contacts"
+                            // Says what the menu below it actually offers:
+                            // there is no device-address-book item here.
+                            "Import CSV or vCard"
                         },
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
