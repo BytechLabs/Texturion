@@ -1,3 +1,5 @@
+import AVFAudio
+import Combine
 import SwiftUI
 import AVKit
 
@@ -18,7 +20,13 @@ struct InCallView: View {
 
     @State private var dtmfOpen = false
     @State private var transferOpen = false
-    @State private var speakerOn = false
+    /// The route the OS says we are on. It owns routing — the picker in this
+    /// same bar, a headset being plugged in, or CarPlay can all change it — so
+    /// the old standalone bool went stale and lit the wrong button.
+    @State private var routeIsSpeaker = false
+    /// A tap holds an OPTIMISTIC choice only until the OS confirms or reverts,
+    /// the same shape as Android's pendingRoute.
+    @State private var speakerPending: Bool?
     @State private var conversationId: String?
 
     /// #180: in landscape / square viewports the vertical size class is compact
@@ -54,6 +62,25 @@ struct InCallView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(BrandColor.insetDeep.ignoresSafeArea())
+        .onAppear { routeIsSpeaker = currentRouteIsSpeaker() }
+        // The OS spoke: confirm, or revert a request it never honoured. This
+        // also catches route changes nobody asked for here, such as plugging in
+        // a headset or the picker in this same bar.
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: AVAudioSession.routeChangeNotification
+            )
+        ) { _ in
+            routeIsSpeaker = currentRouteIsSpeaker()
+            speakerPending = nil
+        }
+        // A request the OS never answered: drop the optimism rather than keep a
+        // lit button that is lying about where the sound is going.
+        .task(id: speakerPending) {
+            guard speakerPending != nil else { return }
+            try? await Task.sleep(for: .seconds(4))
+            if !Task.isCancelled { speakerPending = nil }
+        }
         .task(id: snapshot.liveCalls.isEmpty) {
             if snapshot.liveCalls.isEmpty {
                 // A brief beat so "Call ended" registers, then close.
@@ -317,13 +344,14 @@ struct InCallView: View {
                 }
                 .frame(maxWidth: .infinity)
                 ControlToggle(
-                    on: speakerOn,
+                    on: speakerPending ?? routeIsSpeaker,
                     systemImage: "speaker.wave.2",
                     label: "Speaker",
                     title: "Speaker"
                 ) {
-                    speakerOn.toggle()
-                    manager.setAudioRoute(speakerOn ? .speaker : .earpiece)
+                    let next = !(speakerPending ?? routeIsSpeaker)
+                    speakerPending = next
+                    manager.setAudioRoute(next ? .speaker : .earpiece)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -715,6 +743,14 @@ private struct TransferSheet: View {
             }
         }
     }
+}
+
+/// Whether sound is currently coming out of the loudspeaker. Read from the
+/// session rather than remembered, because the OS is the one that decides.
+@MainActor
+private func currentRouteIsSpeaker() -> Bool {
+    AVAudioSession.sharedInstance().currentRoute.outputs
+        .contains { $0.portType == .builtInSpeaker }
 }
 
 /// System audio-route picker (AirPods / Bluetooth / CarPlay) — routing is
