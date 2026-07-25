@@ -12,6 +12,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { lookupAreaCode } from "@loonext/shared";
 
 import { capture } from "../analytics/posthog";
+import { getDb } from "../db";
 import type { Env } from "../env";
 import { TELNYX_TIMEOUT_MS } from "../telnyx/client";
 import { ApiError } from "../http/errors";
@@ -55,6 +56,30 @@ export async function runPreSendGates(
     throw new ApiError(
       "registration_pending",
       "Texting Canadian numbers is not enabled for this company yet.",
+    );
+  }
+
+  // Opted out is the LAST gate and it lives here, in the shared pre-send path,
+  // rather than in one route. Only the retry route used to check it, so a first
+  // send to someone who had texted STOP was handed to the carrier, rejected,
+  // and landed in the thread as a failed message — a delivery attempt we should
+  // never have made, and one wasted provider call per press. Every send path
+  // (compose, thread, retry, away reply, missed-call text-back) funnels through
+  // this function, so gating here is what makes the attempt impossible rather
+  // than merely unlikely.
+  const db = getDb(env);
+  const { data, error } = await db
+    .from("opt_outs")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("phone_e164", destinationE164)
+    .is("revoked_at", null)
+    .limit(1);
+  if (error) throw new Error(`opt-out lookup failed: ${error.message}`);
+  if ((data?.length ?? 0) > 0) {
+    throw new ApiError(
+      "recipient_opted_out",
+      "This recipient has opted out of receiving texts.",
     );
   }
 }

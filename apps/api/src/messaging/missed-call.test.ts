@@ -188,7 +188,10 @@ function sendGateStubs(): Stub[] {
     restMatch(env, "GET", "messaging_registrations"),
     () => [],
   );
-  return [gatesCompany, registrations];
+  // The pre-send gates end with the opt-out check: nobody in these fixtures
+  // has opted out.
+  const optOuts = stubRoute(restMatch(env, "GET", "opt_outs"), () => []);
+  return [gatesCompany, registrations, optOuts];
 }
 
 function telnyxStub(): Stub {

@@ -411,24 +411,10 @@ messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
   });
   const fromNumber = requireActiveSendingNumber(view);
 
-  // Gates re-run: the world may have changed since the failed attempt.
+  // Gates re-run: the world may have changed since the failed attempt. The
+  // opt-out check used to be duplicated here; it now lives inside
+  // runPreSendGates so every send path gets it, not just this one.
   await runPreSendGates(env, companyId, view.contacts.phone_e164);
-  const optOuts = unwrap<{ id: string }[]>(
-    await db
-      .from("opt_outs")
-      .select("id")
-      .eq("company_id", companyId)
-      .eq("phone_e164", view.contacts.phone_e164)
-      .is("revoked_at", null)
-      .limit(1),
-    "opt-out lookup",
-  );
-  if (optOuts.length > 0) {
-    throw new ApiError(
-      "recipient_opted_out",
-      "This recipient has opted out of receiving texts.",
-    );
-  }
 
   // Stored outbound media, loaded up front so its signed URLs can be re-minted
   // BEFORE the atomic claim (below). #97: a picture re-send is ungated — it

@@ -155,6 +155,8 @@ function sendGateStubs(): Stub[] {
       ],
     ),
     stubRoute(restMatch(env, "GET", "messaging_registrations"), () => []),
+    // The pre-send gates end with the opt-out check.
+    stubRoute(restMatch(env, "GET", "opt_outs"), () => []),
   ];
 }
 

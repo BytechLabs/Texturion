@@ -109,6 +109,7 @@ interface SendStubs {
   attachmentInsert: Stub;
   sign: Stub;
   companyPlan: Stub;
+  optOuts: Stub;
   all: FetchRoute[];
 }
 
@@ -185,6 +186,8 @@ function sendStubs(options: {
   ]);
   // #106: no access rules → the member caller is unrestricted.
   const numberAccess = stubRoute(restMatch(env, "GET", "number_access"), () => []);
+  // The pre-send gates end with the opt-out check; these fixtures are opted in.
+  const optOuts = stubRoute(restMatch(env, "GET", "opt_outs"), () => []);
 
   return {
     conversationView,
@@ -196,6 +199,7 @@ function sendStubs(options: {
     attachmentInsert,
     sign,
     companyPlan,
+    optOuts,
     all: [
       jwksRoute(auth),
       companyMembersRoute(env, [
@@ -212,6 +216,7 @@ function sendStubs(options: {
       modulesLookup.route,
       companyPlan.route,
       numberAccess.route,
+      optOuts.route,
     ],
   };
 }
@@ -344,6 +349,30 @@ describe("POST /v1/messages/send — gate order (§7)", () => {
       expect(stubs.telnyx.calls).toHaveLength(0); // rejected before Telnyx
     },
   );
+
+  it("refuses a send to someone who texted STOP, before Telnyx (§5)", async () => {
+    // The opt-out check used to live only in the RETRY route, so a FIRST send
+    // to someone who had opted out was handed to the carrier, rejected 40300,
+    // and landed in the thread as a failed message. That is a delivery attempt
+    // we should never make. It now runs in the shared pre-send gate.
+    const stubs = sendStubs();
+    stubFetch(
+      ...stubs.all.filter((route) => route !== stubs.optOuts.route),
+      stubRoute(restMatch(env, "GET", "opt_outs"), () => [
+        { id: "0abc0abc-1111-4222-8333-444444444444" },
+      ]).route,
+    );
+
+    const response = await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "hi",
+    });
+    expect(response.status).toBe(403);
+    expect(await errorCode(response)).toBe("recipient_opted_out");
+    // Never reached the provider, and never wrote a message row to fail out.
+    expect(stubs.telnyx.calls).toHaveLength(0);
+    expect(stubs.gateRpc.calls).toHaveLength(0);
+  });
 
   it("409s when the conversation's number is not active (#46)", async () => {
     // Released numbers keep their e164 forever and old threads still
@@ -505,6 +534,7 @@ describe("POST /v1/messages/send — happy path + idempotency (§7, §8)", () =>
       failingTelnyx.route,
       stubs.persist.route,
       stubs.attachmentsLookup.route,
+      stubs.optOuts.route,
       stubRoute(restMatch(env, "GET", "number_access"), () => []).route,
     );
 
