@@ -46,13 +46,21 @@ function world(
     prefs?: Record<string, unknown>[];
     /** Active members of the task's company; [] means the assignee was removed. */
     members?: Record<string, unknown>[];
+    /** Another run claimed the task first. */
+    claimLost?: boolean;
     stampFails?: boolean;
   } = {},
 ): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on("GET", "/rest/v1/tasks", () => options.tasks ?? [dueTask()]);
+  // The claim returns the row it changed; an empty array means another run
+  // already owns this task.
   sb.on("PATCH", "/rest/v1/tasks", () =>
-    options.stampFails ? new Response("boom", { status: 500 }) : [],
+    options.stampFails
+      ? new Response("boom", { status: 500 })
+      : options.claimLost
+        ? []
+        : [{ id: TASK_ID }],
   );
   sb.on("GET", "/rest/v1/company_members", () =>
     options.members ?? [{ user_id: ASSIGNEE }],
@@ -218,6 +226,19 @@ describe("notifyDueTasksJob", () => {
     await notifyDueTasksJob(env, NOW);
 
     expect(sb.find("GET", "/rest/v1/push_subscriptions")).toHaveLength(1);
+  });
+
+  it("sends nothing when another run claimed the task first", async () => {
+    // Two runs can overlap when a batch is still going as the next quarter
+    // hour fires. The claim is what settles it, so the row count has to be
+    // read: an update that changed nothing means someone else owns this one.
+    const sb = world({ claimLost: true });
+    stubFetch(sb.route);
+
+    await notifyDueTasksJob(env, NOW);
+
+    expect(sb.find("GET", "/rest/v1/company_members")).toHaveLength(0);
+    expect(sb.find("GET", "/rest/v1/push_subscriptions")).toHaveLength(0);
   });
 
   it("respects a member who turned push off", async () => {

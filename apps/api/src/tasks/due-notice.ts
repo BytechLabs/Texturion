@@ -164,19 +164,25 @@ export async function notifyDueTasksJob(
 
   const failures: unknown[] = [];
   for (const task of tasks) {
-    // Stamp FIRST. A crash between sending and stamping would otherwise remind
-    // the same person every quarter hour until someone finished the task.
-    const { error: stampError } = await db
+    // Claim FIRST, and only send if the claim was won. A crash between sending
+    // and stamping would otherwise remind the same person every quarter hour
+    // until someone finished the task, and two runs that overlap (a slow batch
+    // still going when the next quarter hour fires) would both send. The guard
+    // is the whole point of the claim, so the row count has to be read: an
+    // update that changed nothing means another run already owns this one.
+    const { data: claimed, error: stampError } = await db
       .from("tasks")
       .update({ due_notified_at: new Date().toISOString() })
       .eq("id", task.id)
-      .is("due_notified_at", null);
+      .is("due_notified_at", null)
+      .select("id");
     if (stampError) {
       failures.push(
         new Error(`due notice stamp failed for task ${task.id}: ${stampError.message}`),
       );
       continue;
     }
+    if ((claimed ?? []).length === 0) continue;
 
     // Still one of the crew? Deactivation leaves the assignment in place, so
     // this is the only thing standing between a removed member and a workspace
