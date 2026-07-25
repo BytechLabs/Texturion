@@ -4,8 +4,8 @@
  * #210 — the Ongoing card: who is holding the line, right now. A live call is
  * a GET /v1/calls row with outcome=null (D43 mints the row at call.initiated);
  * post-#208 `state` distinguishes the mirror phases and answered_by_user_id
- * stamps who picked up. The founder's gap: the log said "In progress" but
- * never WHO was on the busy line.
+ * stamps who picked up, so the log can say WHO is on the busy line rather
+ * than only that one is.
  *
  * Grammar: pinned above the call log in the app card shape (uppercase 11px
  * header, one bordered card, hairline row separators — the Recent calls

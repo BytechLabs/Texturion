@@ -240,9 +240,9 @@ export const ConversationRow = memo(function ConversationRow({
             />
           )}
           {/* A message carrying media reads differently at a glance from one
-              that is only text (founder report). The clip shows whenever there
-              is an attachment — including alongside a caption, where the label
-              alone would be invisible. The row's aria-label already names it. */}
+              that is only text. The clip shows whenever there is an
+              attachment — including alongside a caption, where the label alone
+              would be invisible. The row's aria-label already names it. */}
           {snippet?.hasAttachments && (
             <Paperclip
               className="mt-0.5 size-3 shrink-0 text-app-muted-2"

@@ -535,13 +535,10 @@ contactsRoutes.patch("/contacts/:id", requireRole("member"), async (c) => {
   }
 
   // The SAME shape GET /v1/contacts/:id returns, opt-out state included.
-  // It used to answer with the bare table row, and a client that writes the
-  // response into the cache its detail screen renders from (Android does,
-  // deliberately, so a reopen never shows the pre-edit value) silently lost
-  // `opted_out`: the red chip and the "sends are blocked" card vanished after
-  // an ordinary name edit, and the screen went back to OFFERING to opt out
-  // someone who already had. Editing a note must never change consent state,
-  // even in appearance.
+  // A client that writes this response into the cache its detail screen renders
+  // from would otherwise lose `opted_out` on an ordinary edit, and start
+  // offering to opt out someone who already had. Editing a note must not change
+  // consent state, even in appearance.
   const optOuts = unwrap<{ id: string; source: string }[]>(
     await db
       .from("opt_outs")

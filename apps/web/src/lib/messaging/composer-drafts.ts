@@ -1,10 +1,8 @@
 /**
  * Client-side composer drafts, one per conversation (SPEC: the server keeps NO
- * drafts, so cross-open persistence is purely ours). Both phone apps have kept
- * these since the composer shipped; on web a half-typed reply died the moment
- * you opened another thread to check something, and worse, the composer is
- * remounted with the same React state across conversations, so the draft you
- * were writing to one customer appeared in the box for the next one.
+ * drafts, so cross-open persistence is purely ours). Keyed per conversation
+ * because the composer is reused across threads, and a half-typed reply to one
+ * customer must never appear in the box for the next.
  *
  * Text only: staged attachments are File handles that cannot outlive the tab,
  * and restoring dead chips would be a lie about what is about to be sent.

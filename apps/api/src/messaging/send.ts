@@ -60,13 +60,11 @@ export async function runPreSendGates(
   }
 
   // Opted out is the LAST gate and it lives here, in the shared pre-send path,
-  // rather than in one route. Only the retry route used to check it, so a first
-  // send to someone who had texted STOP was handed to the carrier, rejected,
-  // and landed in the thread as a failed message — a delivery attempt we should
-  // never have made, and one wasted provider call per press. Every send path
-  // (compose, thread, retry, away reply, missed-call text-back) funnels through
-  // this function, so gating here is what makes the attempt impossible rather
-  // than merely unlikely.
+  // rather than in any one route. Attempting delivery to someone who sent STOP
+  // is a compliance problem as well as a wasted provider call, and every send
+  // path (compose, thread, retry, away reply, missed-call text-back) funnels
+  // through this function — so gating here is what makes the attempt
+  // impossible rather than merely unlikely.
   const db = getDb(env);
   const { data, error } = await db
     .from("opt_outs")

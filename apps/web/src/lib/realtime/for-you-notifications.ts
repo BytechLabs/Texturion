@@ -40,12 +40,10 @@ function feedsForYouOrBell(key: readonly unknown[], companyId: string): boolean 
 /**
  * How long one refetch covers everything that follows it.
  *
- * A microtask was not enough. Cache updates arrive on their OWN macrotasks —
- * one per query settling, and an app boot settles a lot of them (several
- * conversation lists, tasks, plus whatever the prefetched routes mount) — so
- * every single one got its own refetch. A page refresh made 27 identical
- * /for-you calls and 27 unread-count calls in 1.6 seconds, each with its own
- * CORS preflight: 108 requests where 2 would do.
+ * A microtask is not enough: cache updates arrive on their OWN macrotasks, one
+ * per query settling, and an app boot settles a lot of them — so each would
+ * otherwise buy its own refetch of the queue and the badge, with a CORS
+ * preflight apiece.
  *
  * This window is long enough to swallow a boot or a burst of broadcasts, and
  * short enough that a badge still moves while you are looking at it.

@@ -379,7 +379,7 @@ export function MakeTaskForm({
             {/* Clear lives INSIDE the expanded panel, at the far end of the
                 fields. It used to sit in the header beside the collapse
                 chevron, where reaching to fold the section away wiped the
-                address instead (founder report). Reaching it now takes opening
+                address instead. Reaching it now takes opening
                 the section and travelling past every field, and it is undoable
                 even then. */}
             {hasAddressContent && (

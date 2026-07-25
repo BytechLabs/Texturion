@@ -13,10 +13,9 @@
  * dropping leaves a live, billable channel connected that has no call row, no
  * ledger entry and no cap — the whole cost lands on the business.
  *
- * This lives in its own module because the bypass existed precisely BECAUSE two
- * places needed the test and only one had it: the legacy webhook path enforced
- * it, then the session Durable Object took over routing for the same tags and
- * dropped them silently. A shared predicate is what makes forgetting it hard.
+ * It lives in its own module because two separate paths need it — the webhook
+ * router and the session Durable Object — and a test that only one of them
+ * applies is a test that does not exist.
  */
 
 /**

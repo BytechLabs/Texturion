@@ -29,16 +29,11 @@ function isNameKey(key: string): boolean {
 /**
  * The only request headers worth keeping on a crash report.
  *
- * An ALLOWLIST, deliberately, because the alternative failed: the scrubber
- * redacted phone numbers and names but passed every other header through, so
- * `authorization` — the caller's live Supabase access token, good for up to an
- * hour — was written in plaintext into the Sentry issue for every 500 on an
- * authenticated route. Anyone who could read that project could replay it and
- * act as that user.
- *
- * With a denylist, the next credential header someone adds leaks until a human
- * remembers to add it. With this, it is redacted until a human decides it is
- * safe.
+ * An ALLOWLIST, deliberately. `authorization` carries the caller's live access
+ * token, good for up to an hour, and anyone who can read the error tracker
+ * could replay it as that user. With a denylist the next credential header
+ * anyone adds leaks until a human remembers it; with this it is redacted until
+ * a human decides it is safe.
  */
 const SAFE_REQUEST_HEADERS = new Set([
   "accept",
