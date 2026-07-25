@@ -163,6 +163,48 @@ describe("runAiFeature", () => {
       .toHaveLength(1);
   });
 
+  it("reaches the fallback when the first model REJECTS", async () => {
+    // A wrong input contract rejects, it does not answer with something
+    // unusable, so a rejection is the main reason a second shape exists. A
+    // shared catch around both attempts skipped the fallback in exactly that
+    // case and every answer was lost.
+    const run = vi.fn(async (model: string) => {
+      if (model === "primary") throw new Error("InferenceUpstreamError");
+      return { text: "Leaking tap upstairs." };
+    });
+
+    const result = await runAiFeature(envWith(run), fakeDb(), {
+      companyId: "c1",
+      spec: SPEC,
+      model: "primary",
+      input: {},
+      settings: SETTINGS,
+      fallback: { model: "fallback", input: {} },
+      accept: (raw) => ((raw as { text?: string }).text ?? "") !== "",
+    });
+
+    expect(result).toEqual({ ok: true, raw: { text: "Leaking tap upstairs." } });
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports a model error when every shape fails", async () => {
+    const run = vi.fn(async () => {
+      throw new Error("InferenceUpstreamError");
+    });
+
+    const result = await runAiFeature(envWith(run), fakeDb(), {
+      companyId: "c1",
+      spec: SPEC,
+      model: "primary",
+      input: {},
+      settings: SETTINGS,
+      fallback: { model: "fallback", input: {} },
+    });
+
+    expect(result).toEqual({ ok: false, reason: "model_error" });
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
   it("does not reach for the fallback when the first answer is usable", async () => {
     const run = vi.fn(async () => ({ text: "Leaking tap upstairs." }));
 

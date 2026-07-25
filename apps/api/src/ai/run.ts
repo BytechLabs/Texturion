@@ -132,22 +132,36 @@ export async function runAiFeature(
     const attempts = args.fallback
       ? [{ model: args.model, input: args.input }, args.fallback]
       : [{ model: args.model, input: args.input }];
-    let lastFailure: AiRunFailure = "model_error";
     for (const [index, attempt] of attempts.entries()) {
-      const raw = await Promise.race([
-        env.AI.run(attempt.model, attempt.input),
-        new Promise<typeof TIMED_OUT>((resolve) =>
-          setTimeout(() => resolve(TIMED_OUT), spec.timeoutMs),
-        ),
-      ]);
+      const last = index === attempts.length - 1;
+      // Each attempt catches its OWN failure. A model that REJECTS is the main
+      // reason a second shape exists (a wrong input contract rejects, it does
+      // not answer with something unusable), so letting a rejection escape to
+      // the outer catch would skip the fallback in exactly the case it was
+      // added for.
+      let raw: unknown;
+      try {
+        raw = await Promise.race([
+          env.AI.run(attempt.model, attempt.input),
+          new Promise<typeof TIMED_OUT>((resolve) =>
+            setTimeout(() => resolve(TIMED_OUT), spec.timeoutMs),
+          ),
+        ]);
+      } catch (cause) {
+        console.error(
+          `ai ${spec.key}: ${attempt.model} threw:`,
+          cause instanceof Error ? cause.message : String(cause),
+        );
+        if (last) return { ok: false, reason: "model_error" };
+        continue;
+      }
       if (raw === TIMED_OUT) {
         console.error(
           `ai ${spec.key}: ${attempt.model} timed out after ${spec.timeoutMs}ms`,
         );
-        lastFailure = "model_error";
+        if (last) return { ok: false, reason: "model_error" };
         continue;
       }
-      const last = index === attempts.length - 1;
       if (last || args.accept === undefined || args.accept(raw)) {
         return { ok: true, raw };
       }
@@ -156,7 +170,7 @@ export async function runAiFeature(
         JSON.stringify(raw)?.slice(0, 300) ?? "null",
       );
     }
-    return { ok: false, reason: lastFailure };
+    return { ok: false, reason: "model_error" };
   } catch (cause) {
     console.error(
       `ai ${spec.key}: ${args.model} threw:`,
