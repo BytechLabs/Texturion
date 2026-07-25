@@ -578,62 +578,38 @@ private struct ThreadBody: View {
             usTextingOff: controller.company.map(usTextingOff) ?? false,
             usage: controller.usage
         )
-        // Every closure below is bound to a local with an EXPLICIT type. The
-        // composer takes seven of them, and inferring that many at once in one
-        // initialiser exhausts the type checker: the build fails with "failed
-        // to produce diagnostic for expression", which is the checker giving up
-        // rather than a real complaint. Annotated one at a time, each resolves
-        // on its own.
-        let callContactName = detail.contact.name
-            ?? formatPhone(detail.contact.phone_e164)
-        // #106: calling is outreach like texting, so a notes-only member gets
-        // no control the API would refuse.
-        let onCallInstead: (@MainActor () -> Void)? =
-            detail.viewer_level == "text"
-                ? { startCall(detail: detail, contactName: callContactName) }
-                : nil
-        let repo = controller.repo
-        let companyId = detail.company_id
-        let conversationId = detail.id
-        let loadTemplates: @MainActor () async throws -> [Template] = {
-            try await repo.templates(companyId: companyId).data
-        }
-        let suggestReplies: @MainActor (String) async -> ReplySuggestions = { draft in
-            await repo.suggestReplies(
-                companyId: companyId,
-                conversationId: conversationId,
-                draft: draft
-            )
-        }
-        let onSendText: @MainActor (String, [StagedPhoto]) -> Void = { body, photos in
-            controller.sendText(body: body, photos: photos) {
-                composer.restore(body: body, photos: photos, files: [])
-            }
-        }
-        let onSaveNote: @MainActor (String, [StagedFile]) -> Void = { body, files in
-            controller.saveNote(body: body, files: files) {
-                composer.restore(body: body, photos: [], files: files)
-            }
-        }
-        let onNotice: @MainActor (String) -> Void = { controller.notifyExternally($0) }
-        // Reuse drafts already paid for until a message moves the thread.
-        let draftCacheKey = DraftSuggestionsCache.key(
-            conversationId: detail.id,
-            lastActivityAt: detail.last_message_at
-        )
         ThreadComposerView(
             state: composer,
             noteOnly: detail.viewer_level == "note",
             banner: banner,
             contactName: detail.contact.name,
             businessName: controller.company?.name,
-            loadTemplates: loadTemplates,
-            onSendText: onSendText,
-            onSaveNote: onSaveNote,
-            onNotice: onNotice,
-            suggestReplies: suggestReplies,
-            onCallInstead: onCallInstead,
-            draftCacheKey: draftCacheKey
+            loadTemplates: { [repo = controller.repo, companyId = detail.company_id] in
+                try await repo.templates(companyId: companyId).data
+            },
+            onSendText: { body, photos in
+                controller.sendText(body: body, photos: photos) {
+                    composer.restore(body: body, photos: photos, files: [])
+                }
+            },
+            onSaveNote: { body, files in
+                controller.saveNote(body: body, files: files) {
+                    composer.restore(body: body, photos: [], files: files)
+                }
+            },
+            onNotice: { controller.notifyExternally($0) },
+            suggestReplies: { [repo = controller.repo, companyId = detail.company_id] draft in
+                await repo.suggestReplies(
+                    companyId: companyId,
+                    conversationId: detail.id,
+                    draft: draft
+                )
+            },
+            // Reuse drafts already paid for until a message moves the thread.
+            draftCacheKey: DraftSuggestionsCache.key(
+                conversationId: detail.id,
+                lastActivityAt: detail.last_message_at
+            )
         )
     }
 }
