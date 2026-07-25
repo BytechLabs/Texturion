@@ -99,6 +99,10 @@ describe("notifyDueTasksJob", () => {
     // Completion lives on the promoted message, so a finished job is excluded
     // by the join rather than by a column on the task.
     expect(params.get("messages.done_at")).toBe("is.null");
+    // Two foreign keys connect tasks and messages, so the embed has to name
+    // which one. A bare `messages!inner` is refused outright (PGRST201) and no
+    // reminder would ever go out. The stub cannot catch that, so pin it here.
+    expect(params.get("select")).toContain("messages!tasks_message_id_fkey!inner");
     expect(params.get("limit")).toBe(String(TASK_DUE_BATCH));
   });
 
