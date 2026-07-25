@@ -18,6 +18,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { LoadError } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { useAllTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
@@ -173,9 +174,10 @@ export function CalendarView({ state }: { state: TaskPageState }) {
         </div>
       </div>
       {query.isError && (
-        <p className="text-sm text-muted-foreground">
-          We couldn&apos;t load your scheduled tasks. Try again.
-        </p>
+        <LoadError
+          message="We couldn't load your scheduled tasks. Check your connection and try again."
+          onRetry={() => void query.refetch()}
+        />
       )}
       {/* Teach the calendar rather than leave it reading as broken: when no
           task in the visible window has a due date, explain how they appear. */}

@@ -4,6 +4,7 @@ import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { LoadError } from "@/components/settings/section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAllTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
@@ -50,9 +51,15 @@ export function BoardView({ state }: { state: TaskPageState }) {
 
   if (isError) {
     return (
-      <p className="px-1 py-8 text-sm text-muted-foreground">
-        We couldn&apos;t load your tasks. Check your connection and try again.
-      </p>
+      <div className="px-1 py-8">
+        <LoadError
+          message="We couldn't load your tasks. Check your connection and try again."
+          onRetry={() => {
+            void todoQuery.refetch();
+            void doneQuery.refetch();
+          }}
+        />
+      </div>
     );
   }
 

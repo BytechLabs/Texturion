@@ -3,6 +3,7 @@
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
+import { LoadError } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAllTasks, useTasks } from "@/lib/api/tasks";
@@ -66,9 +67,18 @@ export function ListView({ state }: { state: TaskPageState }) {
 
   if (isError) {
     return (
-      <p className="px-1 py-8 text-sm text-muted-foreground">
-        We couldn&apos;t load your tasks. Check your connection and try again.
-      </p>
+      <div className="px-1 py-8">
+        <LoadError
+          message="We couldn't load your tasks. Check your connection and try again."
+          onRetry={() => {
+            if (hasStatus) void single.refetch();
+            else {
+              void openQuery.refetch();
+              void doneQuery.refetch();
+            }
+          }}
+        />
+      </div>
     );
   }
 

@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/settings/section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAllTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
@@ -86,9 +87,12 @@ export function MapView({ state }: { state: TaskPageState }) {
 
   if (query.isError) {
     return (
-      <p className="px-1 py-8 text-sm text-muted-foreground">
-        We couldn&apos;t load the map. Check your connection and try again.
-      </p>
+      <div className="px-1 py-8">
+        <LoadError
+          message="We couldn't load the map. Check your connection and try again."
+          onRetry={() => void query.refetch()}
+        />
+      </div>
     );
   }
 
