@@ -57,6 +57,7 @@ import com.loonext.android.AppGraph
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.ForYou
 import com.loonext.android.core.model.Me
+import com.loonext.android.features.tasks.formatDue
 import com.loonext.android.features.calls.CallsRepository
 import com.loonext.android.features.calls.callOutcomeLabel
 import com.loonext.android.features.calls.callerDisplayName
@@ -545,7 +546,9 @@ private fun TaskQueueRow(title: String, overdue: Boolean, dueAt: String?, onClic
             Text(
                 when {
                     overdue -> "Overdue task"
-                    dueAt != null -> "Due ${relativeTime(dueAt)}"
+                    // formatDue, NOT relativeTime: relativeTime measures time
+                    // ELAPSED, so every future due date came out as "Due now".
+                    dueAt != null -> "Due ${formatDue(dueAt)}"
                     else -> "Open task"
                 },
                 style = MaterialTheme.typography.bodySmall.copy(

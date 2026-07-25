@@ -438,7 +438,9 @@ private struct TaskLineRow: View {
 
     private var subtitle: String {
         if overdue { return "Overdue task" }
-        if let dueAt { return "Due \(relativeTime(dueAt))" }
+        // formatDue, NOT relativeTime: relativeTime measures time ELAPSED, so
+        // every future due date came out as "Due now".
+        if let dueAt { return "Due \(formatDue(dueAt))" }
         return "Open task"
     }
 }
