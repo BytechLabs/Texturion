@@ -52,6 +52,23 @@ data class ComposeBody(
 data class NoteBody(
     val body: String,
     val task_id: String? = null,
+    /**
+     * Teammates named in the body. Omitted when empty so an older server, and
+     * the no-mention case, send exactly what they always did.
+     */
+    val mention_user_ids: List<String>? = null,
+)
+
+/**
+ * A teammate who may be named on a note in ONE conversation. The server
+ * answers this, not the client: number access decides who can see a thread,
+ * and a note quotes the customer.
+ */
+@Serializable
+data class MentionableMember(
+    val user_id: String,
+    val role: String = "member",
+    val display_name: String = "",
 )
 
 /**
@@ -237,11 +254,26 @@ class MessagingRepository(private val api: ApiClient) {
         conversationId: String,
         body: String,
         taskId: String? = null,
+        mentionUserIds: List<String> = emptyList(),
     ): Message = api.post(
         "/v1/conversations/$conversationId/notes",
-        NoteBody(body = body, task_id = taskId),
+        NoteBody(
+            body = body,
+            task_id = taskId,
+            mention_user_ids = mentionUserIds.ifEmpty { null },
+        ),
         companyId = companyId,
     )
+
+    /** Who this member may name on a note here (already number-access filtered). */
+    suspend fun mentionableMembers(
+        companyId: String,
+        conversationId: String,
+    ): List<MentionableMember> =
+        api.get<Page<MentionableMember>>(
+            "/v1/conversations/$conversationId/mentionable-members",
+            companyId = companyId,
+        ).data
 
     // --- Per-message facets --------------------------------------------------
 

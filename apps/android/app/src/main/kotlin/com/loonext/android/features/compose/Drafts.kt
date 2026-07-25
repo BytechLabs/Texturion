@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.loonext.android.features.thread.PickedMention
 import kotlinx.coroutines.flow.first
+import kotlinx.serialization.json.Json
 
 private val Context.composerDraftStore by preferencesDataStore(name = "composer-drafts")
 
@@ -34,6 +36,39 @@ class ComposerDrafts(private val context: Context) {
     }
 
     suspend fun clear(conversationId: String) {
-        context.composerDraftStore.edit { it.remove(key(conversationId)) }
+        context.composerDraftStore.edit {
+            it.remove(key(conversationId))
+            it.remove(mentionKey(conversationId))
+        }
+    }
+
+    // --- Note mentions ------------------------------------------------------
+    //
+    // The teammates named on a note draft ride WITH the text. Persisting only
+    // the words restored a draft that still read "@Sam" and notified nobody,
+    // which is worse than losing the draft: the note on screen was evidence of
+    // something that would not happen.
+    //
+    // JSON under a separate key, so a draft written by an older build still
+    // loads and a value we cannot parse costs the picks rather than the draft.
+
+    private fun mentionKey(conversationId: String) =
+        stringPreferencesKey("draft-mentions:$conversationId")
+
+    suspend fun loadMentions(conversationId: String): List<PickedMention> {
+        val raw = context.composerDraftStore.data.first()[mentionKey(conversationId)]
+        if (raw.isNullOrEmpty()) return emptyList()
+        return runCatching { Json.decodeFromString<List<PickedMention>>(raw) }
+            .getOrDefault(emptyList())
+    }
+
+    suspend fun saveMentions(conversationId: String, mentions: List<PickedMention>) {
+        context.composerDraftStore.edit { prefs ->
+            if (mentions.isEmpty()) {
+                prefs.remove(mentionKey(conversationId))
+            } else {
+                prefs[mentionKey(conversationId)] = Json.encodeToString(mentions)
+            }
+        }
     }
 }

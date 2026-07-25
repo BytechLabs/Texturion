@@ -75,6 +75,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.loonext.android.features.thread.MentionLogic
+import com.loonext.android.features.thread.MentionableMember
+import com.loonext.android.features.thread.PickedMention
 import com.loonext.android.core.model.ReplySuggestions
 import com.loonext.android.core.model.replyDraftMessage
 import com.loonext.android.core.model.Template
@@ -144,6 +147,15 @@ class ComposerState(
      */
     var mediaInfo by mutableStateOf(mapOf<String, StagedMediaInfo>())
 
+    /**
+     * Teammates named on a NOTE draft. Ids come from what was picked, never
+     * from re-reading the draft for "@name": display names are neither unique
+     * nor prefix-free, so parsing notifies the wrong people. Deleting a name
+     * from the text still withdraws that mention at send time.
+     */
+    var picked by mutableStateOf(listOf<PickedMention>())
+        private set
+
     private var draftLoaded = false
     private var saveJob: Job? = null
 
@@ -157,6 +169,14 @@ class ComposerState(
         draftLoaded = true
         val saved = drafts.load(draftKey)
         if (text.isEmpty() && saved.isNotEmpty()) text = saved
+        // The picks ride with the words; restoring one without the other makes
+        // the draft lie about who it will notify.
+        if (picked.isEmpty()) picked = drafts.loadMentions(draftKey)
+    }
+
+    fun addMention(mention: PickedMention) {
+        picked = picked + mention
+        queueDraftSave()
     }
 
     private fun queueDraftSave() {
@@ -164,6 +184,7 @@ class ComposerState(
         saveJob = scope.launch {
             delay(400)
             drafts.save(draftKey, text)
+            drafts.saveMentions(draftKey, picked)
         }
     }
 
@@ -172,15 +193,22 @@ class ComposerState(
         text = ""
         photos = emptyList()
         files = emptyList()
+        picked = emptyList()
         saveJob?.cancel()
         scope.launch { drafts.clear(draftKey) }
     }
 
     /** Failed send: put the draft back exactly as it was. */
-    fun restore(body: String, photos: List<StagedPhoto>, files: List<StagedFile>) {
+    fun restore(
+        body: String,
+        photos: List<StagedPhoto>,
+        files: List<StagedFile>,
+        picked: List<PickedMention> = emptyList(),
+    ) {
         text = body
         this.photos = photos
         this.files = files
+        this.picked = picked
         queueDraftSave()
     }
 }
@@ -214,7 +242,7 @@ fun ThreadComposer(
     businessName: String?,
     loadTemplates: suspend () -> List<Template>,
     onSendText: (body: String, photos: List<StagedPhoto>) -> Unit,
-    onSaveNote: (body: String, files: List<StagedFile>) -> Unit,
+    onSaveNote: (body: String, files: List<StagedFile>, mentionUserIds: List<String>) -> Unit,
     onNotice: (String) -> Unit,
     modifier: Modifier = Modifier,
     /** Ask for AI-drafted replies. Null hides the affordance entirely. */
@@ -232,6 +260,11 @@ fun ThreadComposer(
      */
     onCallInstead: (() -> Unit)? = null,
     /**
+     * Who may be named on a note here. Null withholds mentions entirely rather
+     * than opening a picker with nothing behind it.
+     */
+    loadMentionableMembers: (suspend () -> List<MentionableMember>)? = null,
+    /**
      * Identifies this thread AT ITS CURRENT POINT, so drafts already paid for
      * are reused until a message in either direction retires them. Null skips
      * the cache entirely (a compose screen with no thread behind it yet).
@@ -245,6 +278,8 @@ fun ThreadComposer(
     val isNote = textBlocked || state.mode == ComposerMode.Note
 
     var templatePickerOpen by remember { mutableStateOf(false) }
+    var mentionPickerOpen by remember { mutableStateOf(false) }
+    var mentionRows by remember { mutableStateOf(listOf<MentionableMember>()) }
     var attachMenuOpen by remember { mutableStateOf(false) }
     // Drafts are kept per conversation until it moves: asking costs a real AI
     // call, so closing the strip and opening it again, or leaving and coming
@@ -334,8 +369,9 @@ fun ThreadComposer(
         val body = state.text.trim()
         if (isNote) {
             val files = state.files
+            val mentionIds = MentionLogic.resolveMentions(body, state.picked)
             state.clearForSend()
-            onSaveNote(body, files)
+            onSaveNote(body, files, mentionIds)
         } else {
             val photos = state.photos
             state.clearForSend()
@@ -535,6 +571,20 @@ fun ThreadComposer(
                         templatePickerOpen = true
                     } else {
                         state.onTextChange(value)
+                        // "@" at the start of a note or after a space names a
+                        // teammate. Mid-word it belongs to an email address or
+                        // a rate like "2 hrs @ $95", so the picker stays shut
+                        // and the character is always kept.
+                        // A single appended character, so a stale "@" already
+                        // sitting at the end cannot re-open the picker on an
+                        // unrelated edit.
+                        if (isNote &&
+                            value.length == state.text.length + 1 &&
+                            value.startsWith(state.text) &&
+                            MentionLogic.isMentionTrigger(value, value.length)
+                        ) {
+                            mentionPickerOpen = true
+                        }
                         // Drafts were written for what was typed a moment ago;
                         // once that changes they are stale, so they go rather
                         // than sit there offering to overwrite newer words.
@@ -591,6 +641,82 @@ fun ThreadComposer(
             },
             onDismiss = { templatePickerOpen = false },
         )
+    }
+
+    if (mentionPickerOpen) {
+        MentionPickerSheet(
+            loadMembers = loadMentionableMembers ?: { emptyList() },
+            onPick = { member ->
+                haptics.tap()
+                mentionPickerOpen = false
+                val name = member.display_name.trim().ifEmpty { "Teammate" }
+                val next = MentionLogic.insertMention(state.text, state.text.length, name)
+                state.onTextChange(next.text)
+                state.addMention(PickedMention(member.user_id, name))
+            },
+            onDismiss = { mentionPickerOpen = false },
+        )
+    }
+}
+
+/**
+ * Names a teammate on an internal note. The list is the SERVER's answer to who
+ * may be named here, never a filter over the whole team: a teammate who cannot
+ * open this thread must not be offered, because the note quotes the customer.
+ */
+@Composable
+private fun MentionPickerSheet(
+    loadMembers: suspend () -> List<MentionableMember>,
+    onPick: (MentionableMember) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var rows by remember { mutableStateOf<List<MentionableMember>?>(null) }
+    LaunchedEffect(Unit) { rows = loadMembers() }
+
+    AppSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.background,
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+        ) {
+            Text(
+                "Mention a teammate",
+                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 21.sp),
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            val current = rows
+            when {
+                current == null -> SkeletonList(
+                    modifier = Modifier.padding(top = 10.dp),
+                    rows = 3,
+                    avatar = false,
+                )
+
+                current.isEmpty() -> Text(
+                    "No teammates can see this conversation.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 16.dp),
+                )
+
+                else -> Column(Modifier.padding(top = 6.dp, bottom = 12.dp)) {
+                    for (member in current) {
+                        Text(
+                            member.display_name.trim().ifEmpty { "Teammate" },
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onPick(member) }
+                                .padding(vertical = 14.dp),
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

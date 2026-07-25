@@ -685,11 +685,15 @@ private fun ThreadLoaded(
                     composer.restore(body, photos, emptyList())
                 }
             },
-            onSaveNote = { body, files ->
-                controller.saveNote(body, files) {
-                    composer.restore(body, emptyList(), files)
+            onSaveNote = { body, files, mentionUserIds ->
+                val picked = composer.picked
+                controller.saveNote(body, files, mentionUserIds) {
+                    // Put the picks back with the words: a restored draft that
+                    // still reads "@Sam" must still be able to tell Sam.
+                    composer.restore(body, emptyList(), files, picked)
                 }
             },
+            loadMentionableMembers = { controller.mentionableMembers() },
             onNotice = onNotice,
             suggestReplies = { draft ->
                 graph.aiRepo.suggestReplies(companyId, detail.id, draft)

@@ -573,11 +573,20 @@ class ThreadController(
         }
     }
 
+    /** Who this member may name on a note here; the server owns the answer. */
+    suspend fun mentionableMembers(): List<MentionableMember> =
+        runCatching { repo.mentionableMembers(companyId, conversationId) }.getOrDefault(emptyList())
+
     /** D28 chain: the note row first, then each staged file against its id. */
-    fun saveNote(body: String, files: List<StagedFile>, onRestore: () -> Unit) {
+    fun saveNote(
+        body: String,
+        files: List<StagedFile>,
+        mentionUserIds: List<String> = emptyList(),
+        onRestore: () -> Unit,
+    ) {
         scope.launch {
             val note = try {
-                repo.createNote(companyId, conversationId, body)
+                repo.createNote(companyId, conversationId, body, mentionUserIds = mentionUserIds)
             } catch (cause: Exception) {
                 onRestore()
                 notify(cause.userMessage())
