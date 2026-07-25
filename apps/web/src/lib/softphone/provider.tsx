@@ -101,6 +101,14 @@ interface TelnyxClient {
 /** At most one active + one waiting/held — a third concurrent call declines. */
 const MAX_CONCURRENT_CALLS = 2;
 
+/**
+ * Recorded when the softphone cannot register at all: the token mint was
+ * refused (browser calling unconfigured, subscription lapsed) or the SDK never
+ * came up. Distinct from a registration that is merely slow, which is what the
+ * status indicator shows while `error` is still null.
+ */
+const REGISTRATION_FAILED = "Your browser can't receive calls right now.";
+
 /** #213: how long to wait for the server-dialed placer (op) INVITE after
  *  authorize before giving up on a placement. Set just PAST the server's 45s ring
  *  window (RING_TIMEOUT_SECS) so a late op INVITE can never arrive after the
@@ -539,7 +547,9 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       /* already gone */
     }
     void ensureClient().catch(() => {
-      /* stays down; the next visibility/online tick retries */
+      // Stays down until the next visibility/online tick retries. Recording it
+      // is what stops the indicator claiming the phone is still connecting.
+      dispatch({ type: "error", message: REGISTRATION_FAILED });
     });
   }, [ensureClient, hasLiveCall]);
 
@@ -564,7 +574,11 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   // Eager registration: an open app is a phone that can ring.
   useEffect(() => {
     void ensureClient().catch(() => {
-      /* no toast — texting is unaffected; the Call button retries on use */
+      // No toast: texting is unaffected and the Call button retries on use. The
+      // failure is still RECORDED, because the status indicator otherwise reads
+      // "Connecting…" for the rest of the session and a member is left believing
+      // their browser will ring when it never will.
+      dispatch({ type: "error", message: REGISTRATION_FAILED });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once on mount
   }, []);
