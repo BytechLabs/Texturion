@@ -1,6 +1,13 @@
 "use client";
 
-import { ChevronDown, Download, FileText, Smartphone, Upload } from "lucide-react";
+import {
+  ChevronDown,
+  Download,
+  FileText,
+  Smartphone,
+  Upload,
+  UserPlus,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -15,6 +22,7 @@ import { ApiError } from "@/lib/api/error";
 import { contactsPickerSupported } from "@/lib/contacts/contacts-picker";
 
 import { ImportWizard } from "./import-wizard";
+import { NewContactDialog } from "./new-contact-dialog";
 import { PhonePickerDialog } from "./phone-picker-dialog";
 import { VCardImportDialog } from "./vcard-import-dialog";
 
@@ -53,6 +61,7 @@ export function ContactsActions({
   // Feature-detect the Web Contacts Picker on the client only — server render
   // has no `navigator`, and detecting after mount avoids a hydration mismatch
   // (the phone item is simply absent until the effect runs).
+  const [creating, setCreating] = useState(false);
   const [pickerSupported, setPickerSupported] = useState(false);
   useEffect(() => {
     setPickerSupported(contactsPickerSupported());
@@ -73,6 +82,14 @@ export function ContactsActions({
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-2">
+        {/* Writing down a number a customer gave you over the phone used to
+            mean building a CSV for it. Any member can add one, matching both
+            phone apps; import stays owner/admin. */}
+        <Button variant="outline" onClick={() => setCreating(true)}>
+          <UserPlus strokeWidth={1.75} aria-hidden />
+          New contact
+        </Button>
+
         <Button
           variant="outline"
           onClick={runExport}
@@ -116,6 +133,8 @@ export function ContactsActions({
           {exportError}
         </p>
       )}
+
+      <NewContactDialog open={creating} onOpenChange={setCreating} />
 
       {canImport && (
         <>
