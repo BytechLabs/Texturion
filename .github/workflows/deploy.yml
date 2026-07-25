@@ -62,9 +62,13 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # Pinned, not "latest": resolving "latest" costs an unauthenticated
+      # GitHub API call, and when that rate-limits the whole job dies before it
+      # runs anything (it took a deploy down on 2026-07-24). A pinned version
+      # downloads straight from the release asset. Bump it deliberately.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.109.1
 
       - name: Push database migrations
         env:
