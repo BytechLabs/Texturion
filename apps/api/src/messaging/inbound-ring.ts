@@ -337,6 +337,18 @@ export async function storeVoicemailRecording(
  * transcribed, not how many encodings it took to read one, and reserving per
  * attempt halved the cap for every recording the first shape could not read.
  */
+export interface TranscriptionOutcome {
+  /**
+   * Whether the recording actually got as far as a model. A refusal about the
+   * COMPANY (opted out, over the monthly cap, no binding, a ledger the gate
+   * could not read) spends nothing and says nothing about this recording, so a
+   * caller must not record it as an attempt.
+   */
+  reached: boolean;
+  /** The words, or null when there were none worth keeping. */
+  text: string | null;
+}
+
 export async function runTranscription(
   env: Env,
   db: SupabaseClient,
@@ -344,7 +356,7 @@ export async function runTranscription(
   audio: ArrayBuffer,
   /** Already-loaded settings, so the gate does not read them a second time. */
   settings?: CompanyAiSettings,
-): Promise<string | null> {
+): Promise<TranscriptionOutcome> {
   // Base64 first: a five-minute recording is about a million array elements
   // otherwise, inside a 128 MB Worker already holding the raw buffer.
   const result = await runAiFeature(env, db, {
@@ -359,8 +371,8 @@ export async function runTranscription(
     },
     accept: (raw) => sanitizeTranscript(raw) !== null,
   });
-  if (!result.ok) return null;
-  return sanitizeTranscript(result.raw);
+  if (!result.ok) return { reached: result.reason === "model_error", text: null };
+  return { reached: true, text: sanitizeTranscript(result.raw) };
 }
 
 /**
@@ -382,7 +394,7 @@ async function transcribeVoicemail(
   // The only check that is ours rather than the gate's: a recording of nothing,
   // or one that ran away, is not worth paying per audio minute for.
   if (!shouldTranscribe(args.seconds)) return null;
-  return await runTranscription(env, db, args.companyId, args.audio);
+  return (await runTranscription(env, db, args.companyId, args.audio)).text;
 }
 
 /** Replay recovery: a voicemail already stored in OUR bucket (voicemail_path

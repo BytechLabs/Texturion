@@ -291,7 +291,7 @@ async function backfillVoicemailTranscript(
     const download = await db.storage.from(VOICEMAILS_BUCKET).download(args.path);
     if (download.error || !download.data) return null;
 
-    const text = await runTranscription(
+    const outcome = await runTranscription(
       env,
       db,
       args.companyId,
@@ -299,19 +299,27 @@ async function backfillVoicemailTranscript(
       args.settings,
     );
 
-    // Stamped whether or not anything came back. The model has been paid for by
-    // this point, so the answer stands: a recording with nothing in it must not
-    // be bought again on the next tap. A download that never got this far
-    // leaves the attempt unspent, so a storage blip still gets another try.
+    // Recorded only once a model has actually answered, whatever it said. That
+    // is what makes the answer stand: a recording with nothing in it must not
+    // be bought again on the next tap.
+    //
+    // A refusal that never reached a model is a fact about the COMPANY, not
+    // about this recording: over the monthly cap, no binding, or a ledger the
+    // gate could not read and so treated as over cap. Recording those as an
+    // attempt would strand the recording permanently, unreadable even after
+    // the cap resets, over a moment's trouble that cost nothing. A download
+    // that never got this far leaves the attempt unspent for the same reason.
+    if (!outcome.reached) return null;
+
     await db
       .from("calls")
       .update({
         voicemail_transcript_attempted_at: new Date().toISOString(),
-        ...(text === null ? {} : { voicemail_transcript: text }),
+        ...(outcome.text === null ? {} : { voicemail_transcript: outcome.text }),
       })
       .eq("company_id", args.companyId)
       .eq("call_session_id", args.sessionId);
-    return text;
+    return outcome.text;
   } catch (cause) {
     console.error(
       `voicemail transcript backfill failed for ${args.sessionId}:`,

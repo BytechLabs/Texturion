@@ -873,4 +873,20 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     expect((claim.body as { p_bytes: number }).p_bytes).toBe(26_374);
     expect(await res.json()).toMatchObject({ transcript: null });
   });
+  it("does not mark a recording tried when nothing was ever spent on it", async () => {
+    // Over the monthly cap, or a ledger the gate could not read and so treated
+    // as over cap, says nothing about this recording. Recording it as an
+    // attempt would strand it permanently, unreadable even after the cap
+    // resets, over a moment's trouble that cost nothing.
+    const sb = voicemailStub({ transcript: null });
+    sb.on("POST", "/rest/v1/rpc/ai_usage_reserve", () => ({
+      count: 501,
+      over_cap: true,
+      should_alert: false,
+    }));
+    const res = await play(sb, [listRoute(), signRoute()]);
+
+    expect(res.status).toBe(200);
+    expect(sb.find("PATCH", "/rest/v1/calls")).toHaveLength(0);
+  });
 });
