@@ -31,6 +31,7 @@ import {
   destinationCountry,
   selectComposerBanner,
   usSendApproved,
+  usTextingOff,
 } from "./composer-banner";
 import { ComposerBannerCard } from "./composer-banners";
 import { Composer } from "./composer";
@@ -256,6 +257,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             conversation.contact.phone_e164,
           ),
           usApproved: usSendApproved(company.data),
+          usTextingOff: usTextingOff(company.data),
           usage: usage.data ?? null,
         })
       : null;

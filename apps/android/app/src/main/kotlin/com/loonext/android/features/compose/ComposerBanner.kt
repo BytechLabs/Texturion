@@ -39,6 +39,14 @@ sealed interface ComposerBanner {
     data class OptedOut(val carrierBlocked: Boolean) : ComposerBanner
     data class Subscription(val status: String) : ComposerBanner
     data object RegistrationPending : ComposerBanner
+
+    /**
+     * A US destination in a workspace that does not do US texting at all: a
+     * Canadian company that never added it. Split out of RegistrationPending
+     * because no registration exists to approve, so the wait copy promised an
+     * outcome that could not arrive however long the reader waited.
+     */
+    data object UsTextingOff : ComposerBanner
     data object UsageCap : ComposerBanner
 }
 
@@ -48,6 +56,7 @@ fun selectComposerBanner(
     subscriptionStatus: String,
     destinationCountry: String?,
     usApproved: Boolean,
+    usTextingOff: Boolean,
     usage: Usage?,
 ): ComposerBanner? {
     if (contactOptedOut) {
@@ -56,7 +65,9 @@ fun selectComposerBanner(
     if (subscriptionStatus != SubscriptionStatus.ACTIVE) {
         return ComposerBanner.Subscription(subscriptionStatus)
     }
-    if (destinationCountry == "US" && !usApproved) return ComposerBanner.RegistrationPending
+    if (destinationCountry == "US" && !usApproved) {
+        return if (usTextingOff) ComposerBanner.UsTextingOff else ComposerBanner.RegistrationPending
+    }
     val cap = usage?.cap_segments
     if (usage != null && cap != null && usage.used_segments >= cap) {
         return ComposerBanner.UsageCap
@@ -75,6 +86,14 @@ fun usSendApproved(company: CompanyView): Boolean {
         campaign.status == "approved" &&
         campaign.deactivated_at == null
 }
+
+/**
+ * The workspace does not do US texting at all, so [usSendApproved] is false for
+ * a reason no amount of waiting fixes. Only Canadian companies can be in this
+ * state: US texting is inherent to a US company.
+ */
+fun usTextingOff(company: CompanyView): Boolean =
+    company.country == "CA" && !company.us_texting_enabled
 
 /** Honest, calm one-liner copy per banner (Loonext voice — no hype). */
 fun bannerCopy(banner: ComposerBanner): Pair<String, String> = when (banner) {
@@ -96,6 +115,10 @@ fun bannerCopy(banner: ComposerBanner): Pair<String, String> = when (banner) {
     ComposerBanner.RegistrationPending ->
         "US texting isn't approved yet" to
             "Carriers are still reviewing your registration. Texts to US numbers will send once it's approved. Internal notes still work."
+
+    ComposerBanner.UsTextingOff ->
+        "US texting isn't on for this workspace" to
+            "This is a US number, and texting US numbers is an add-on your workspace hasn't turned on. An owner can add it in settings. Calls to this customer still work, and internal notes still work."
 
     ComposerBanner.UsageCap ->
         "You've hit this month's cap" to

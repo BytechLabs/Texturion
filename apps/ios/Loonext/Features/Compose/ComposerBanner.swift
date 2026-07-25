@@ -20,6 +20,11 @@ enum ComposerBanner: Equatable, Sendable {
     case optedOut(carrierBlocked: Bool)
     case subscription(String)
     case registrationPending
+    /// A US destination in a workspace that does not do US texting at all: a
+    /// Canadian company that never added it. Split out of registrationPending
+    /// because no registration exists to approve, so the wait copy promised an
+    /// outcome that could not arrive however long the reader waited.
+    case usTextingOff
     case usageCap
 }
 
@@ -29,6 +34,7 @@ func selectComposerBanner(
     subscriptionStatus: String,
     destinationCountry: String?,
     usApproved: Bool,
+    usTextingOff: Bool,
     usage: Usage?
 ) -> ComposerBanner? {
     if contactOptedOut {
@@ -37,7 +43,9 @@ func selectComposerBanner(
     if subscriptionStatus != SubscriptionStatus.active {
         return .subscription(subscriptionStatus)
     }
-    if destinationCountry == "US" && !usApproved { return .registrationPending }
+    if destinationCountry == "US" && !usApproved {
+        return usTextingOff ? .usTextingOff : .registrationPending
+    }
     if let usage, let cap = usage.cap_segments, usage.used_segments >= cap {
         return .usageCap
     }
@@ -51,6 +59,13 @@ func usSendApproved(_ company: CompanyView) -> Bool {
     return (company.country == "US" || company.us_texting_enabled) &&
         campaign.status == "approved" &&
         campaign.deactivated_at == nil
+}
+
+/// The workspace does not do US texting at all, so `usSendApproved` is false
+/// for a reason no amount of waiting fixes. Only Canadian companies can be in
+/// this state: US texting is inherent to a US company.
+func usTextingOff(_ company: CompanyView) -> Bool {
+    company.country == "CA" && !company.us_texting_enabled
 }
 
 /// Honest, calm one-liner copy per banner (Loonext voice — no hype).
@@ -77,6 +92,11 @@ func bannerCopy(_ banner: ComposerBanner) -> (title: String, body: String) {
         return (
             "US texting isn't approved yet",
             "Carriers are still reviewing your registration. Texts to US numbers will send once it's approved. Internal notes still work."
+        )
+    case .usTextingOff:
+        return (
+            "US texting isn't on for this workspace",
+            "This is a US number, and texting US numbers is an add-on your workspace hasn't turned on. An owner can add it in settings. Calls to this customer still work, and internal notes still work."
         )
     case .usageCap:
         return (

@@ -65,6 +65,7 @@ import {
   destinationCountry,
   selectComposerBanner,
   usSendApproved,
+  usTextingOff,
 } from "@/components/thread/composer-banner";
 import { ComposerBannerCard } from "@/components/thread/composer-banners";
 import {
@@ -245,6 +246,7 @@ export function NewConversation() {
           subscriptionStatus: company.data.subscription_status,
           destinationCountry: destinationCountry(destinationE164),
           usApproved: usSendApproved(company.data),
+          usTextingOff: usTextingOff(company.data),
           usage: usage.data ?? null,
         })
       : null;

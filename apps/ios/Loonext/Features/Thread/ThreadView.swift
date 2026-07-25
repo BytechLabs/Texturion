@@ -575,6 +575,7 @@ private struct ThreadBody: View {
                 ?? SubscriptionStatus.active,
             destinationCountry: Nanp.destinationCountry(detail.contact.phone_e164),
             usApproved: controller.company.map(usSendApproved) ?? true,
+            usTextingOff: controller.company.map(usTextingOff) ?? false,
             usage: controller.usage
         )
         ThreadComposerView(

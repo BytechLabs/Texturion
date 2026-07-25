@@ -96,6 +96,28 @@ export function ComposerBannerCard({
         }
       }
       break;
+    case "us_texting_off":
+      // No registration is pending here, so promising an approval would be a
+      // wait that never ends. Name the switch that is actually off.
+      sentence = isAdminUp
+        ? "This is a US number, and US texting isn't on for this workspace."
+        : "This is a US number, and US texting isn't on for this workspace. An owner can add it.";
+      if (isAdminUp) {
+        action = (
+          <Button size="sm" asChild>
+            <a href="/settings/numbers">Add US texting</a>
+          </Button>
+        );
+      } else if (thread?.canCall) {
+        action = (
+          <CallButton
+            conversationId={thread.conversationId}
+            contactName={thread.contactName}
+            label="Call them instead"
+          />
+        );
+      }
+      break;
     case "registration_pending":
       sentence =
         "US texting activates once your registration is approved. Usually 3 to 7 business days.";

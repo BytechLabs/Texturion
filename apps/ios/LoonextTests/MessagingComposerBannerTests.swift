@@ -21,6 +21,35 @@ final class MessagingComposerBannerTests: XCTestCase {
         )
     }
 
+    func testWorkspaceWithoutUsTextingIsToldWhatIsOff() {
+        // No registration exists to approve, so the pending copy would promise
+        // an outcome that cannot arrive however long the reader waits.
+        XCTAssertEqual(
+            selectComposerBanner(
+                contactOptedOut: false,
+                contactOptOutSource: nil,
+                subscriptionStatus: SubscriptionStatus.active,
+                destinationCountry: "US",
+                usApproved: false,
+                usTextingOff: true,
+                usage: usage(used: 10, cap: 100)
+            ),
+            .usTextingOff
+        )
+        XCTAssertEqual(
+            selectComposerBanner(
+                contactOptedOut: false,
+                contactOptOutSource: nil,
+                subscriptionStatus: SubscriptionStatus.active,
+                destinationCountry: "US",
+                usApproved: false,
+                usTextingOff: false,
+                usage: usage(used: 10, cap: 100)
+            ),
+            .registrationPending
+        )
+    }
+
     func testNoGatesMeansNoBanner() {
         XCTAssertNil(
             selectComposerBanner(
@@ -29,6 +58,7 @@ final class MessagingComposerBannerTests: XCTestCase {
                 subscriptionStatus: SubscriptionStatus.active,
                 destinationCountry: "CA",
                 usApproved: false,
+                usTextingOff: false,
                 usage: usage(used: 10, cap: 100)
             )
         )
@@ -42,6 +72,7 @@ final class MessagingComposerBannerTests: XCTestCase {
                 subscriptionStatus: SubscriptionStatus.canceled,
                 destinationCountry: "US",
                 usApproved: false,
+                usTextingOff: false,
                 usage: usage(used: 200, cap: 100)
             ),
             .optedOut(carrierBlocked: true)
@@ -59,6 +90,7 @@ final class MessagingComposerBannerTests: XCTestCase {
                 subscriptionStatus: SubscriptionStatus.active,
                 destinationCountry: "CA",
                 usApproved: true,
+                usTextingOff: false,
                 usage: usage(used: 10, cap: 100)
             ),
             .optedOut(carrierBlocked: false)
@@ -73,6 +105,7 @@ final class MessagingComposerBannerTests: XCTestCase {
                 subscriptionStatus: SubscriptionStatus.pastDue,
                 destinationCountry: "US",
                 usApproved: false,
+                usTextingOff: false,
                 usage: usage(used: 200, cap: 100)
             ),
             .subscription(SubscriptionStatus.pastDue)
@@ -87,6 +120,7 @@ final class MessagingComposerBannerTests: XCTestCase {
                 subscriptionStatus: SubscriptionStatus.active,
                 destinationCountry: "US",
                 usApproved: false,
+                usTextingOff: false,
                 usage: nil
             ),
             .registrationPending
@@ -101,6 +135,7 @@ final class MessagingComposerBannerTests: XCTestCase {
                 subscriptionStatus: SubscriptionStatus.active,
                 destinationCountry: "CA",
                 usApproved: false,
+                usTextingOff: false,
                 usage: nil
             )
         )
@@ -114,6 +149,7 @@ final class MessagingComposerBannerTests: XCTestCase {
                 subscriptionStatus: SubscriptionStatus.active,
                 destinationCountry: "CA",
                 usApproved: true,
+                usTextingOff: false,
                 usage: usage(used: 100, cap: 100)
             ),
             .usageCap
@@ -128,6 +164,7 @@ final class MessagingComposerBannerTests: XCTestCase {
                 subscriptionStatus: SubscriptionStatus.active,
                 destinationCountry: "CA",
                 usApproved: true,
+                usTextingOff: false,
                 usage: usage(used: 1_000_000, cap: nil)
             )
         )
@@ -141,6 +178,7 @@ final class MessagingComposerBannerTests: XCTestCase {
                 subscriptionStatus: SubscriptionStatus.active,
                 destinationCountry: "CA",
                 usApproved: true,
+                usTextingOff: false,
                 usage: nil
             )
         )

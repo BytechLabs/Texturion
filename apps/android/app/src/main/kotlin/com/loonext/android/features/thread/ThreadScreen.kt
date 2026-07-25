@@ -102,6 +102,7 @@ import com.loonext.android.features.compose.Nanp
 import com.loonext.android.features.compose.rememberComposerState
 import com.loonext.android.features.compose.selectComposerBanner
 import com.loonext.android.features.compose.usSendApproved
+import com.loonext.android.features.compose.usTextingOff
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.InitialsAvatar
@@ -656,6 +657,7 @@ private fun ThreadLoaded(
                 ?: com.loonext.android.core.model.SubscriptionStatus.ACTIVE,
             destinationCountry = Nanp.destinationCountry(detail.contact.phone_e164),
             usApproved = controller.company?.let { usSendApproved(it) } ?: true,
+            usTextingOff = controller.company?.let { usTextingOff(it) } ?: false,
             usage = controller.usage,
         )
         ThreadComposer(

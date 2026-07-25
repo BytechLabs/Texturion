@@ -29,6 +29,13 @@ export type ComposerBanner =
   | { kind: "opted_out"; carrierBlocked: boolean }
   | { kind: "subscription"; status: SubscriptionStatus }
   | { kind: "registration_pending" }
+  /**
+   * A US destination in a workspace that does not do US texting at all: a
+   * Canadian company that never added it. Split out of `registration_pending`
+   * because no registration exists to approve, so the wait copy promised an
+   * outcome that could not arrive however long the reader waited.
+   */
+  | { kind: "us_texting_off" }
   | { kind: "usage_cap" }
   | null;
 
@@ -43,6 +50,8 @@ export interface ComposerGateInput {
   destinationCountry: "US" | "CA" | null;
   /** Mirror of the API's getSendGates usApproved flag (see usSendApproved). */
   usApproved: boolean;
+  /** This workspace does not do US texting at all (see usTextingOff). */
+  usTextingOff: boolean;
   /** GET /v1/usage — null while loading (cap banner needs real data). */
   usage: Pick<Usage, "used_segments" | "cap_segments"> | null;
 }
@@ -58,7 +67,9 @@ export function selectComposerBanner(input: ComposerGateInput): ComposerBanner {
     return { kind: "subscription", status: input.subscriptionStatus };
   }
   if (input.destinationCountry === "US" && !input.usApproved) {
-    return { kind: "registration_pending" };
+    return input.usTextingOff
+      ? { kind: "us_texting_off" }
+      : { kind: "registration_pending" };
   }
   if (
     input.usage !== null &&
@@ -85,6 +96,17 @@ export function usSendApproved(
     campaign.status === "approved" &&
     campaign.deactivated_at === null
   );
+}
+
+/**
+ * The workspace does not do US texting at all, so `usSendApproved` is false
+ * for a reason no amount of waiting fixes. Only Canadian companies can be in
+ * this state: US texting is inherent to a US company (§4.2).
+ */
+export function usTextingOff(
+  company: Pick<CompanyView, "country" | "us_texting_enabled">,
+): boolean {
+  return company.country === "CA" && !company.us_texting_enabled;
 }
 
 /** Destination country for a contact number, via the shared NANP table. */

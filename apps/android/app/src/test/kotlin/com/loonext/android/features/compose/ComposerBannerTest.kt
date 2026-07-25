@@ -10,6 +10,36 @@ import com.loonext.android.core.model.OPT_OUT_SOURCE_STOP
 /** Banner precedence: opted_out > subscription > registration > cap > none. */
 class ComposerBannerTest {
 
+    @Test
+    fun `a workspace without US texting is told what is off, not to wait`() {
+        // No registration exists to approve, so the pending copy would promise
+        // an outcome that cannot arrive however long the reader waits.
+        assertEquals(
+            ComposerBanner.UsTextingOff,
+            selectComposerBanner(
+                contactOptedOut = false,
+                contactOptOutSource = null,
+                subscriptionStatus = SubscriptionStatus.ACTIVE,
+                destinationCountry = "US",
+                usApproved = false,
+                usTextingOff = true,
+                usage = usage(10, 100),
+            ),
+        )
+        assertEquals(
+            ComposerBanner.RegistrationPending,
+            selectComposerBanner(
+                contactOptedOut = false,
+                contactOptOutSource = null,
+                subscriptionStatus = SubscriptionStatus.ACTIVE,
+                destinationCountry = "US",
+                usApproved = false,
+                usTextingOff = false,
+                usage = usage(10, 100),
+            ),
+        )
+    }
+
     private fun usage(used: Long, cap: Long?) =
         Usage(used_segments = used, cap_segments = cap)
 
@@ -22,6 +52,7 @@ class ComposerBannerTest {
                 subscriptionStatus = SubscriptionStatus.ACTIVE,
                 destinationCountry = "CA",
                 usApproved = false,
+                usTextingOff = false,
                 usage = usage(10, 100),
             ),
         )
@@ -37,6 +68,7 @@ class ComposerBannerTest {
                 subscriptionStatus = SubscriptionStatus.CANCELED,
                 destinationCountry = "US",
                 usApproved = false,
+                usTextingOff = false,
                 usage = usage(200, 100),
             ),
         )
@@ -52,6 +84,7 @@ class ComposerBannerTest {
                 subscriptionStatus = SubscriptionStatus.PAST_DUE,
                 destinationCountry = "US",
                 usApproved = false,
+                usTextingOff = false,
                 usage = usage(200, 100),
             ),
         )
@@ -67,6 +100,7 @@ class ComposerBannerTest {
                 subscriptionStatus = SubscriptionStatus.ACTIVE,
                 destinationCountry = "US",
                 usApproved = false,
+                usTextingOff = false,
                 usage = null,
             ),
         )
@@ -81,6 +115,7 @@ class ComposerBannerTest {
                 subscriptionStatus = SubscriptionStatus.ACTIVE,
                 destinationCountry = "CA",
                 usApproved = false,
+                usTextingOff = false,
                 usage = null,
             ),
         )
@@ -96,6 +131,7 @@ class ComposerBannerTest {
                 subscriptionStatus = SubscriptionStatus.ACTIVE,
                 destinationCountry = "CA",
                 usApproved = true,
+                usTextingOff = false,
                 usage = usage(100, 100),
             ),
         )
@@ -110,6 +146,7 @@ class ComposerBannerTest {
                 subscriptionStatus = SubscriptionStatus.ACTIVE,
                 destinationCountry = "CA",
                 usApproved = true,
+                usTextingOff = false,
                 usage = usage(1_000_000, null),
             ),
         )
@@ -124,6 +161,7 @@ class ComposerBannerTest {
                 subscriptionStatus = SubscriptionStatus.ACTIVE,
                 destinationCountry = "CA",
                 usApproved = true,
+                usTextingOff = false,
                 usage = null,
             ),
         )
@@ -142,6 +180,7 @@ class ComposerBannerTest {
                 subscriptionStatus = SubscriptionStatus.ACTIVE,
                 destinationCountry = "CA",
                 usApproved = true,
+                usTextingOff = false,
                 usage = usage(10, 100),
             ),
         )

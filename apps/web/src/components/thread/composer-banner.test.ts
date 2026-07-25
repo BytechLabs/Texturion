@@ -13,10 +13,39 @@ const clear: ComposerGateInput = {
   subscriptionStatus: "active",
   destinationCountry: "US",
   usApproved: true,
+  usTextingOff: false,
   usage: { used_segments: 100, cap_segments: 1500 },
 };
 
 describe("selectComposerBanner precedence", () => {
+  it("names the switch that is off rather than an approval that isn't coming", () => {
+    // A Canadian workspace that never added US texting has no registration to
+    // approve, so "usually 3 to 7 business days" describes a wait that never
+    // ends. Same blocked composer, a different thing to do about it.
+    expect(
+      selectComposerBanner({
+        ...clear,
+        usApproved: false,
+        usTextingOff: true,
+      }),
+    ).toEqual({ kind: "us_texting_off" });
+
+    expect(
+      selectComposerBanner({ ...clear, usApproved: false, usTextingOff: false }),
+    ).toEqual({ kind: "registration_pending" });
+  });
+
+  it("leaves a Canadian destination alone whatever US texting says", () => {
+    expect(
+      selectComposerBanner({
+        ...clear,
+        destinationCountry: "CA",
+        usApproved: false,
+        usTextingOff: true,
+      }),
+    ).toBeNull();
+  });
+
   it("returns null when every gate is open", () => {
     expect(selectComposerBanner(clear)).toBeNull();
   });
