@@ -363,6 +363,7 @@ private fun ContactCallRow(
                 companyId = companyId,
                 sessionId = call.call_session_id,
                 seconds = call.voicemail_seconds ?: 0,
+                storedTranscript = call.voicemail_transcript?.takeIf { it.isNotBlank() },
             )
         }
     }
@@ -388,7 +389,10 @@ private fun ContactVoicemailPlayerRow(
     companyId: String,
     sessionId: String,
     seconds: Int,
+    /** The words already on the call row, when it has them. */
+    storedTranscript: String?,
 ) {
+    var backfilledTranscript by remember(sessionId) { mutableStateOf<String?>(null) }
     var player by remember(sessionId) { mutableStateOf<MediaPlayer?>(null) }
     var preparing by remember(sessionId) { mutableStateOf(false) }
     var playing by remember(sessionId) { mutableStateOf(false) }
@@ -416,12 +420,18 @@ private fun ContactVoicemailPlayerRow(
         error = null
         preparing = true
         scope.launch {
-            val url = try {
-                mutations.voicemail(companyId, sessionId).url
+            val playback = try {
+                mutations.voicemail(companyId, sessionId)
             } catch (cause: Exception) {
                 error = cause.userMessage()
                 preparing = false
                 return@launch
+            }
+            // Recordings from before transcription existed, and any whose
+            // transcription failed at the time, are written down by the server
+            // on this request and get their words on first play.
+            if (storedTranscript == null) {
+                backfilledTranscript = playback.transcript?.takeIf { it.isNotBlank() }
             }
             runCatching { player?.release() }
             val next = MediaPlayer()
@@ -433,7 +443,7 @@ private fun ContactVoicemailPlayerRow(
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                         .build(),
                 )
-                next.setDataSource(url)
+                next.setDataSource(playback.url)
                 next.setOnPreparedListener {
                     durationMs = if (it.duration > 0) it.duration else seconds * 1000
                     it.start()
@@ -594,6 +604,20 @@ private fun ContactVoicemailPlayerRow(
             Text(
                 it,
                 fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        // What it says, for the times playing it is not an option: on a roof,
+        // in a truck, next to a running compressor. The player stays above it:
+        // the recording is the record, this is the shortcut.
+        (storedTranscript ?: backfilledTranscript)?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.5.sp,
+                    lineHeight = 18.sp,
+                ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )

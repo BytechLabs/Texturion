@@ -996,6 +996,7 @@ private fun CallRow(
                 companyId = companyId,
                 sessionId = call.call_session_id,
                 seconds = call.voicemail_seconds ?: 0,
+                transcriptShown = !call.voicemail_transcript.isNullOrBlank(),
             )
             // What it says, for the times playing it is not an option: on a
             // roof, in a truck, next to a running compressor. The player stays
@@ -1058,7 +1059,10 @@ private fun VoicemailPlayerRow(
     companyId: String,
     sessionId: String,
     seconds: Int,
+    /** The row above already prints the words, so the player must not repeat them. */
+    transcriptShown: Boolean,
 ) {
+    var backfilledTranscript by remember(sessionId) { mutableStateOf<String?>(null) }
     var player by remember(sessionId) { mutableStateOf<MediaPlayer?>(null) }
     var preparing by remember(sessionId) { mutableStateOf(false) }
     var playing by remember(sessionId) { mutableStateOf(false) }
@@ -1086,12 +1090,15 @@ private fun VoicemailPlayerRow(
         error = null
         preparing = true
         scope.launch {
-            val url = try {
-                repo.voicemail(companyId, sessionId).url
+            val playback = try {
+                repo.voicemail(companyId, sessionId)
             } catch (cause: Exception) {
                 error = cause.userMessage()
                 preparing = false
                 return@launch
+            }
+            if (!transcriptShown) {
+                backfilledTranscript = playback.transcript?.takeIf { it.isNotBlank() }
             }
             runCatching { player?.release() }
             val next = MediaPlayer()
@@ -1103,7 +1110,7 @@ private fun VoicemailPlayerRow(
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                         .build(),
                 )
-                next.setDataSource(url)
+                next.setDataSource(playback.url)
                 next.setOnPreparedListener {
                     durationMs = if (it.duration > 0) it.duration else seconds * 1000
                     it.start()
@@ -1263,6 +1270,17 @@ private fun VoicemailPlayerRow(
             Text(
                 it,
                 fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        backfilledTranscript?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.5.sp,
+                    lineHeight = 18.sp,
+                ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )

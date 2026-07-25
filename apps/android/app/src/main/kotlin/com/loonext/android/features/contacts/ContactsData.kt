@@ -163,6 +163,14 @@ class ContactMutations(private val api: ApiClient, baseUrl: String) {
 data class ContactVoicemailPlayback(
     val url: String,
     val seconds: Int = 0,
+    /**
+     * The words, written down. Carried on the playback response as well as the
+     * call row, because the server transcribes a recording that has no
+     * transcript yet on this very request: recordings from before
+     * transcription existed, and any whose transcription failed at the time,
+     * get their words on first play.
+     */
+    val transcript: String? = null,
 )
 
 object ConsentSource {
