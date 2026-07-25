@@ -9,7 +9,11 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import type { MmsMediaType } from "@loonext/shared";
+import {
+  applyMergeFields,
+  hasMergeFields,
+  type MmsMediaType,
+} from "@loonext/shared";
 
 import { StagedFileChips } from "@/components/attachments/staged-file-chips";
 import { DropOverlay, useFileDrop } from "@/components/attachments/use-file-drop";
@@ -27,7 +31,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useUploadNoteFiles } from "@/lib/api/attachments";
-import { useCreateNote } from "@/lib/api/conversations";
+import { useCompany } from "@/lib/api/companies";
+import {
+  useConversation,
+  useCreateNote,
+} from "@/lib/api/conversations";
 import {
   suggestionFailureMessage,
   useReplySuggestions,
@@ -308,6 +316,30 @@ export function SegmentMeterLabel({
   );
 }
 
+/**
+ * The live send-time substitution, shown only while the draft actually holds a
+ * {token}. Both phone apps have shown this since the merge fields shipped;
+ * without it the web composer was the one place you typed {first_name} and
+ * could not tell what the customer would read, including when an unresolvable
+ * token gets dropped and the sentence closes up around it.
+ */
+export function MergeFieldPreview({
+  text,
+  contactName,
+  businessName,
+}: {
+  text: string;
+  contactName?: string | null;
+  businessName?: string | null;
+}) {
+  if (!hasMergeFields(text)) return null;
+  return (
+    <p className="truncate text-xs text-muted-foreground">
+      Sends as: {applyMergeFields(text, { contactName, businessName })}
+    </p>
+  );
+}
+
 /** Auto-grow: 1 → 6 rows (§3.1), then internal scroll. */
 export function useAutoGrow(value: string) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -375,6 +407,10 @@ export function Composer({
   // conversation would be worse than none.
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const suggestReplies = useReplySuggestions(conversationId);
+  // Read-only, for the merge-field preview: both are already in cache from the
+  // thread header and the shell, so this costs no extra request.
+  const conversation = useConversation(conversationId);
+  const company = useCompany();
   const textareaRef = useAutoGrow(text);
   const fileRef = useRef<HTMLInputElement>(null);
   const noteFileRef = useRef<HTMLInputElement>(null);
@@ -665,6 +701,15 @@ export function Composer({
         />
       )}
       {!isNote && <MediaErrors errors={mediaErrors} />}
+      {!isNote && (
+        <div className="mx-auto max-w-[42rem] px-1 pb-1">
+          <MergeFieldPreview
+            text={text}
+            contactName={conversation.data?.contact?.name}
+            businessName={company.data?.name}
+          />
+        </div>
+      )}
       {!isNote && (
         <AttachmentChips attachments={attachments} onRemove={removeAttachment} />
       )}

@@ -12,6 +12,7 @@ import {
   AttachmentChips,
   fileToBase64,
   MediaErrors,
+  MergeFieldPreview,
   SegmentMeterLabel,
   useAutoGrow,
   type DraftAttachment,
@@ -656,6 +657,13 @@ export function NewConversation() {
             )}
             <SegmentMeterLabel text={body} hasMedia={attachments.length > 0} />
           </div>
+          <MergeFieldPreview
+            text={body}
+            contactName={
+              recipient?.kind === "contact" ? recipient.contact.name : null
+            }
+            businessName={company.data?.name}
+          />
         </div>
 
         {banner && <ComposerBannerCard banner={banner} />}
