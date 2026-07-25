@@ -477,14 +477,42 @@ private struct VoiceDetail: View {
 private struct StorageDetail: View {
     let usage: Usage
 
+    private var storageRows: [(label: String, bytes: Int)] {
+        let storage = usage.storage
+        var rows: [(label: String, bytes: Int)] = [
+            ("Attachments received", storage.received_media_bytes),
+            ("Attachments sent", storage.sent_media_bytes),
+            ("Files on notes", storage.attachments_bytes),
+            ("Voicemail recordings", storage.voicemail_bytes),
+        ]
+        if storage.other_bytes > 0 {
+            rows.append(("Other files", storage.other_bytes))
+        }
+        return rows
+    }
+
     var body: some View {
+        // The old line added two figures together and called the result
+        // "photos and attachments", which left voicemail recordings out of the
+        // total entirely and called an audio message a photo. Every kind is
+        // named now, with a catch-all that appears only when something is
+        // unaccounted for. Deliberately not a meter: storage is free and
+        // capless, so there is no maximum to fill.
         VStack(alignment: .leading, spacing: 2) {
             DetailHeader("Storage")
             DetailLine(
-                "Photos and attachments use "
-                    + "\(formatBytes(usage.storage.attachments_bytes + usage.storage.mms_bytes)). "
-                    + "Storage is free and never adds to your bill."
+                "\(formatBytes(usage.storage.totalStored)) stored. "
+                    + "Free on every plan, no caps."
             )
+            ForEach(storageRows, id: \.label) { row in
+                HStack {
+                    Text(row.label)
+                    Spacer()
+                    Text(formatBytes(row.bytes))
+                }
+                .font(.golos(12.5))
+                .foregroundStyle(BrandColor.muted600)
+            }
         }
     }
 }

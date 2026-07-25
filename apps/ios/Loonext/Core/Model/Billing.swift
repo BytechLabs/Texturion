@@ -13,8 +13,23 @@ struct UsageMonth: Codable, Sendable {
 struct UsageStorage: Codable, Sendable {
     @Default<DefaultZero> var attachments_bytes: Int
     @Default<DefaultZero> var mms_bytes: Int
-    @Default<DefaultZero> var attachment_budget_bytes: Int
-    @Default<DefaultZero> var mms_budget_bytes: Int
+    /// Media a customer sent us.
+    @Default<DefaultZero> var received_media_bytes: Int
+    /// Media we sent out.
+    @Default<DefaultZero> var sent_media_bytes: Int
+    /// Voicemail recordings we keep in our own bucket.
+    @Default<DefaultZero> var voicemail_bytes: Int
+    /// Anything stored that the named kinds do not account for.
+    @Default<DefaultZero> var other_bytes: Int
+    /// Every byte this workspace holds, measured from the buckets themselves.
+    @Default<DefaultZero> var total_bytes: Int
+
+    /// What is really stored. The old line added two figures together and so
+    /// left voicemail recordings out entirely; the server measures the buckets
+    /// now, and the sum is only a fallback for a response that predates it.
+    var totalStored: Int {
+        total_bytes > 0 ? total_bytes : attachments_bytes + mms_bytes
+    }
 
     init(
         attachments_bytes: Int = 0,

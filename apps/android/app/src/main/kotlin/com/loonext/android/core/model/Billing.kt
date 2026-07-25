@@ -13,9 +13,27 @@ data class UsageMonth(val month: String, val segments: Long)
 data class UsageStorage(
     val attachments_bytes: Long = 0,
     val mms_bytes: Long = 0,
+    /** Media a customer sent us. */
+    val received_media_bytes: Long = 0,
+    /** Media we sent out. */
+    val sent_media_bytes: Long = 0,
+    /** Voicemail recordings we keep in our own bucket. */
+    val voicemail_bytes: Long = 0,
+    /** Anything stored that the named kinds do not account for. */
+    val other_bytes: Long = 0,
+    /** Every byte this workspace holds, measured from the buckets themselves. */
+    val total_bytes: Long = 0,
     val attachment_budget_bytes: Long = 0,
     val mms_budget_bytes: Long = 0,
-)
+) {
+    /**
+     * What is really stored. The old line added two figures together and so
+     * left voicemail recordings out entirely; the server measures the buckets
+     * now, and the sum is only a fallback for a response that predates it.
+     */
+    val totalStored: Long
+        get() = if (total_bytes > 0) total_bytes else attachments_bytes + mms_bytes
+}
 
 @Serializable
 data class UsageVoice(

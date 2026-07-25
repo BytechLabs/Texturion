@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.model.UsageStorage
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Usage
 import com.loonext.android.core.model.UsageMonth
@@ -374,6 +375,51 @@ private fun CapCard(
 }
 
 /**
+ * What the workspace is storing, named by kind.
+ *
+ * The old line added two figures together and called the result "photos and
+ * attachments", which left voicemail recordings out of the total entirely and
+ * called an audio message a photo. Every kind is listed now, including a
+ * catch-all that only appears when something is unaccounted for, so the parts
+ * can never quietly add up to less than what is really held.
+ *
+ * Deliberately NOT a meter: storage is free and capless, so there is no maximum
+ * to fill and no remaining to run out of.
+ */
+@Composable
+private fun StorageBreakdown(storage: UsageStorage) {
+    val rows = listOf(
+        "Attachments received" to storage.received_media_bytes,
+        "Attachments sent" to storage.sent_media_bytes,
+        "Files on notes" to storage.attachments_bytes,
+        "Voicemail recordings" to storage.voicemail_bytes,
+        "Other files" to storage.other_bytes,
+    ).filter { (label, bytes) -> bytes > 0 || label != "Other files" }
+
+    DetailLine(
+        "${formatBytes(storage.totalStored)} stored. Free on every plan, no caps.",
+    )
+    Spacer(Modifier.height(6.dp))
+    rows.forEach { (label, bytes) ->
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                formatBytes(bytes),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
  * The owner-only "Details" affordance (#178): a quiet expandable row,
  * collapsed by default in every status, holding the raw numbers, the 6-month
  * history bars, storage, and the counting explainer. Explicitly opened, so
@@ -427,11 +473,7 @@ private fun DetailsCard(usage: Usage) {
                 VoiceDetail(usage)
                 Spacer(Modifier.height(14.dp))
                 DetailHeader("Storage")
-                DetailLine(
-                    "Photos and attachments use " +
-                        "${formatBytes(usage.storage.attachments_bytes + usage.storage.mms_bytes)}. " +
-                        "Storage is free and never adds to your bill.",
-                )
+                StorageBreakdown(usage.storage)
                 if (usage.history.isNotEmpty()) {
                     Spacer(Modifier.height(14.dp))
                     DetailHeader("Last 6 months")
