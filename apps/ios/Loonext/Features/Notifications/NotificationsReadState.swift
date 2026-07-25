@@ -93,12 +93,20 @@ final class CompanyReadState {
         unreadCount = max(count, 0)
     }
 
-    /// Re-apply this process's forward-only watermark over a fetched page.
-    /// Watermark-only (no per-item id set): the iOS feed marks a tapped item
-    /// AND everything older read by advancing the watermark to its timestamp,
-    /// so the watermark already captures every optimistic read.
+    /// Items this process has marked read one at a time. Kept separately from
+    /// the watermark because a per-item read is NOT a watermark advance — the
+    /// items around it stay unread — so a refetch racing the POST would
+    /// otherwise resurrect a dot the user already cleared.
+    var localReadIds: Set<String> = []
+
+    /// Re-apply this process's optimistic reads over a fetched page: the
+    /// forward-only watermark (mark-all-read) and then the per-item id set.
     func withLocalReads(_ fetched: [NotificationItem]) -> [NotificationItem] {
-        guard let localWatermark else { return fetched }
-        return applyWatermark(items: fetched, lastSeenAt: localWatermark)
+        var result = fetched
+        if let localWatermark {
+            result = applyWatermark(items: result, lastSeenAt: localWatermark)
+        }
+        guard !localReadIds.isEmpty else { return result }
+        return applyReadIds(items: result, readIds: localReadIds)
     }
 }

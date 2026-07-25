@@ -21,7 +21,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useMarkAllNotificationsRead,
-  useMarkNotificationRead,
+  useMarkNotificationReadItem,
   useNotificationsFeed,
   useNotificationsUnreadCount,
 } from "@/lib/api/notifications";
@@ -154,18 +154,16 @@ export function NotificationFeed({
   const unread = useNotificationsUnreadCount();
   const feed = useNotificationsFeed(active);
   const markAllRead = useMarkAllNotificationsRead();
-  const markRead = useMarkNotificationRead();
+  const markRead = useMarkNotificationReadItem();
 
   const count = unread.data?.count ?? 0;
   const items = useMemo(() => flattenPages(feed.data), [feed.data]);
 
   const onSelect = (item: NotificationItem) => {
-    // Opening ONE notification marks just it (and everything older) read via the
-    // per-item endpoint — newer notifications stay unread. The host closes (not
-    // through its dismiss path, so this never also trips mark-all-read), then
-    // we deep-link to the thread.
+    // Opening ONE notification marks just that one read — everything else,
+    // newer AND older, keeps its dot. The host closes, then we deep-link.
     if (item.unread) {
-      markRead.mutate(item.created_at);
+      markRead.mutate({ id: item.id, created_at: item.created_at });
     }
     onNavigate();
     const href = deepLink(item);
@@ -275,20 +273,13 @@ export function NotificationBell({
   useForYouNotificationsRealtime();
 
   const unread = useNotificationsUnreadCount();
-  const markAllRead = useMarkAllNotificationsRead();
 
   const count = unread.data?.count ?? 0;
 
-  const onOpenChange = (next: boolean) => {
-    setOpen(next);
-    // Mark ALL read on DISMISS (ESC / click-away), not open: the unread dots
-    // stay visible while the user reads the list (so they can see what's new),
-    // then the watermark advances — "I've seen everything" — as they dismiss
-    // it. Guarded so a close with nothing unread never fires a needless write.
-    if (!next && count > 0 && !markAllRead.isPending) {
-      markAllRead.mutate();
-    }
-  };
+  // Opening and dismissing the popover changes nothing. Marking read is
+  // something you do — tap an item, or the explicit Mark all read — because a
+  // glance here used to clear the badge on the user's phone too.
+  const onOpenChange = (next: boolean) => setOpen(next);
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>

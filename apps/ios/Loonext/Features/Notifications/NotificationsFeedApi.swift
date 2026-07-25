@@ -1,11 +1,16 @@
 import Foundation
 
-/// POST /v1/notifications/mark-read body — the tapped item's `created_at`
-/// (ISO-8601 with offset). The watermark RPC keeps the greatest value, so this
-/// marks the item and everything older read; newer items stay unread
-/// (apps/api/src/routes/notifications.ts markReadSchema).
-struct MarkReadBody: Encodable, Sendable {
-    let before: String
+/// POST /v1/notifications/:id/read body — the tapped item's `created_at`
+/// exactly as the feed returned it (re-serializing it would drop the
+/// milliseconds the server matches on, #188).
+struct MarkReadItemBody: Encodable, Sendable {
+    let created_at: String
+}
+
+/// POST /v1/notifications/:id/read result: whether this call was the one that
+/// flipped the dot.
+struct NewlyRead: Decodable, Sendable {
+    let newly_read: Bool
 }
 
 /// The notifications feature's own /v1 surface: derived feed + watermark
@@ -31,11 +36,16 @@ struct NotificationsFeedApi: Sendable {
         try await api.get("/v1/notifications/unread-count", companyId: companyId)
     }
 
-    /// Advance the watermark to one item's `created_at` (it + older = read).
-    func markRead(companyId: String, before: String) async throws -> MarkReadResult {
+    /// Mark ONE item read (#188). Everything else, newer AND older, keeps its
+    /// unread dot.
+    func markReadItem(
+        companyId: String,
+        id: String,
+        createdAt: String
+    ) async throws -> NewlyRead {
         try await api.post(
-            "/v1/notifications/mark-read",
-            body: MarkReadBody(before: before),
+            "/v1/notifications/\(id)/read",
+            body: MarkReadItemBody(created_at: createdAt),
             companyId: companyId
         )
     }

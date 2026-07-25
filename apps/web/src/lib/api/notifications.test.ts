@@ -10,7 +10,7 @@ vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://stub.supabase.local");
 vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "stub-publishable-key");
 vi.stubEnv("NEXT_PUBLIC_API_URL", "https://stub-api.local");
 
-const { feedUnreadAtOrBefore, markFeedReadBefore } = await import(
+const { markFeedAllRead, markFeedReadItem } = await import(
   "./notifications"
 );
 
@@ -53,74 +53,77 @@ function feed(items: NotificationItem[]): InfiniteData<Page<NotificationItem>> {
 }
 
 // ---------------------------------------------------------------------------
-// markFeedReadBefore — the optimistic mirror of the mark-read watermark advance
+// markFeedReadItem — the optimistic mirror of the per-item read (#188)
 // ---------------------------------------------------------------------------
 
-describe("markFeedReadBefore", () => {
-  it("clears the dot on the target and everything older, leaving newer unread", () => {
+describe("markFeedReadItem", () => {
+  it("clears the dot on exactly one item, leaving newer AND older unread", () => {
     const data = feed([
       item("a", T.newest, true),
       item("b", T.mid, true),
       item("c", T.old, true),
     ]);
 
-    const next = markFeedReadBefore(data, T.mid);
-    const flat = next!.pages.flatMap((page) => page.data);
+    const flat = markFeedReadItem(data, "b")!.pages.flatMap((p) => p.data);
 
+    // The whole reason this replaced the watermark advance: reading one thing
+    // must not bury the ones under it.
     expect(flat.map((i) => [i.id, i.unread])).toEqual([
-      ["a", true], // newer than the watermark: still unread
-      ["b", false], // the clicked item
-      ["c", false], // older than the watermark: reaches into page 2
+      ["a", true],
+      ["b", false],
+      ["c", true],
     ]);
   });
 
-  it("null watermark (mark-all) clears every unread dot", () => {
+  it("reaches items on later loaded pages", () => {
     const data = feed([
       item("a", T.newest, true),
-      item("b", T.mid, false),
+      item("b", T.mid, true),
       item("c", T.old, true),
     ]);
-
-    const flat = markFeedReadBefore(data, null)!.pages.flatMap((p) => p.data);
-    expect(flat.every((i) => !i.unread)).toBe(true);
+    const flat = markFeedReadItem(data, "c")!.pages.flatMap((p) => p.data);
+    expect(flat.find((i) => i.id === "c")!.unread).toBe(false);
   });
 
   it("does not mutate the input data or its items", () => {
     const data = feed([item("a", T.newest, true), item("b", T.mid, true)]);
-    markFeedReadBefore(data, T.newest);
+    markFeedReadItem(data, "a");
     expect(data.pages[0].data[0].unread).toBe(true);
-    expect(data.pages[0].data[1].unread).toBe(true);
+  });
+
+  it("an unknown id changes nothing", () => {
+    const data = feed([item("a", T.newest, true)]);
+    const flat = markFeedReadItem(data, "nope")!.pages.flatMap((p) => p.data);
+    expect(flat[0].unread).toBe(true);
   });
 
   it("returns undefined untouched when there is no cache entry", () => {
-    expect(markFeedReadBefore(undefined, T.mid)).toBeUndefined();
+    expect(markFeedReadItem(undefined, "a")).toBeUndefined();
   });
 });
 
 // ---------------------------------------------------------------------------
-// feedUnreadAtOrBefore — the optimistic badge decrement
+// markFeedAllRead — the optimistic mirror of the watermark advance to now
 // ---------------------------------------------------------------------------
 
-describe("feedUnreadAtOrBefore", () => {
-  it("counts only unread items at or older than the watermark", () => {
-    const data = feed([
-      item("a", T.newest, true), // newer: excluded
-      item("b", T.mid, true), // at watermark: counted
-      item("c", T.old, false), // older but already read: excluded
-    ]);
-    expect(feedUnreadAtOrBefore(data, T.mid)).toBe(1);
-  });
-
-  it("null watermark counts every unread item across pages", () => {
+describe("markFeedAllRead", () => {
+  it("clears every unread dot across every loaded page", () => {
     const data = feed([
       item("a", T.newest, true),
       item("b", T.mid, false),
       item("c", T.old, true),
     ]);
-    expect(feedUnreadAtOrBefore(data, null)).toBe(2);
+    const flat = markFeedAllRead(data)!.pages.flatMap((p) => p.data);
+    expect(flat.every((i) => !i.unread)).toBe(true);
   });
 
-  it("is zero when the cache is empty", () => {
-    expect(feedUnreadAtOrBefore(undefined, T.mid)).toBe(0);
+  it("does not mutate the input data or its items", () => {
+    const data = feed([item("a", T.newest, true)]);
+    markFeedAllRead(data);
+    expect(data.pages[0].data[0].unread).toBe(true);
+  });
+
+  it("returns undefined untouched when there is no cache entry", () => {
+    expect(markFeedAllRead(undefined)).toBeUndefined();
   });
 });

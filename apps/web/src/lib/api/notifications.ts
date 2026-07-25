@@ -135,15 +135,11 @@ export function useNotificationsFeed(enabled: boolean) {
 type NotificationFeedData = InfiniteData<Page<NotificationItem>>;
 
 /**
- * Watermark advance to `before`: return feed data with the `unread` dot cleared
- * on every item AT OR OLDER than `before` (created_at <= before), leaving newer
- * items untouched. Pure — the optimistic mirror of the mark-read RPC, which
- * marks a notification and everything older read. Passing `null` clears every
- * item (the mark-ALL-read case: no item is newer than "now").
+ * Mark-all-read: return feed data with every `unread` dot cleared. Pure — the
+ * optimistic mirror of the watermark advance to now.
  */
-export function markFeedReadBefore(
+export function markFeedAllRead(
   data: NotificationFeedData | undefined,
-  before: string | null,
 ): NotificationFeedData | undefined {
   if (!data) return data;
   return {
@@ -151,41 +147,17 @@ export function markFeedReadBefore(
     pages: data.pages.map((page) => ({
       ...page,
       data: page.data.map((item) =>
-        item.unread && (before === null || item.created_at <= before)
-          ? { ...item, unread: false }
-          : item,
+        item.unread ? { ...item, unread: false } : item,
       ),
     })),
   };
-}
-
-/**
- * How many LOADED feed items `markFeedReadBefore(data, before)` would flip —
- * the amount to drop the badge by optimistically. It can undercount when unread
- * items older than `before` sit past the loaded pages; the onSettled re-read of
- * the count reconciles those, so the badge only ever briefly reads high.
- */
-export function feedUnreadAtOrBefore(
-  data: NotificationFeedData | undefined,
-  before: string | null,
-): number {
-  if (!data) return 0;
-  return data.pages.reduce(
-    (total, page) =>
-      total +
-      page.data.filter(
-        (item) =>
-          item.unread && (before === null || item.created_at <= before),
-      ).length,
-    0,
-  );
 }
 
 /** Flip every cached feed item's `unread` dot to false (watermark advanced). */
 function clearFeedUnread(companyId: string, queryClient: QueryClient) {
   queryClient.setQueryData<NotificationFeedData>(
     keys.notifications.feed(companyId),
-    (data) => markFeedReadBefore(data, null),
+    (data) => markFeedAllRead(data),
   );
 }
 
@@ -232,49 +204,70 @@ export function useMarkAllNotificationsRead() {
 }
 
 /**
- * POST /v1/notifications/mark-read — advance the watermark to ONE notification's
- * timestamp, marking it and everything older read (D24: the derived read-model
- * has no per-row state, so "read this one" is a watermark advance to its
- * created_at). Newer notifications stay unread. Optimistic: the clicked item's
- * dot and every older loaded dot clear, and the badge drops by that many; the
- * onSettled re-read of the count reconciles anything past the loaded feed. The
- * argument is the notification's `created_at`.
+ * Per-item read: return feed data with the `unread` dot cleared on the ONE item
+ * with this id, leaving every other item — newer AND older — exactly as it was.
+ * Pure — the optimistic mirror of POST /v1/notifications/:id/read.
  */
-export function useMarkNotificationRead() {
+export function markFeedReadItem(
+  data: NotificationFeedData | undefined,
+  id: string,
+): NotificationFeedData | undefined {
+  if (!data) return data;
+  return {
+    ...data,
+    pages: data.pages.map((page) => ({
+      ...page,
+      data: page.data.map((item) =>
+        item.id === id && item.unread ? { ...item, unread: false } : item,
+      ),
+    })),
+  };
+}
+
+/**
+ * POST /v1/notifications/:id/read — mark ONE notification read (#188). Older
+ * notifications stay unread, which is the whole point: opening the newest thing
+ * in the list must not silently bury the three below it you have not looked at.
+ * Both phone apps already read this way; this is the same behaviour on web.
+ *
+ * `created_at` rides along exactly as the feed returned it — the server matches
+ * on it, and re-serializing a Date drops the milliseconds that make it match.
+ * Optimistic: the tapped dot clears and the badge drops by one.
+ */
+export function useMarkNotificationReadItem() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (before: string) =>
-      apiFetch<MarkReadResult>("/v1/notifications/mark-read", {
-        method: "POST",
-        companyId,
-        body: { before },
-      }),
-    onMutate: async (before) => {
+    mutationFn: (item: { id: string; created_at: string }) =>
+      apiFetch<MarkReadResult>(
+        `/v1/notifications/${encodeURIComponent(item.id)}/read`,
+        {
+          method: "POST",
+          companyId,
+          body: { created_at: item.created_at },
+        },
+      ),
+    onMutate: async (item) => {
       const countKey = keys.notifications.unreadCount(companyId);
       const feedKey = keys.notifications.feed(companyId);
       await queryClient.cancelQueries({ queryKey: countKey });
       const previousCount = queryClient.getQueryData<UnreadCount>(countKey);
-      const cleared = feedUnreadAtOrBefore(
-        queryClient.getQueryData<NotificationFeedData>(feedKey),
-        before,
-      );
       queryClient.setQueryData<UnreadCount>(countKey, (current) =>
-        current ? { count: Math.max(0, current.count - cleared) } : current,
+        current ? { count: Math.max(0, current.count - 1) } : current,
       );
       queryClient.setQueryData<NotificationFeedData>(feedKey, (data) =>
-        markFeedReadBefore(data, before),
+        markFeedReadItem(data, item.id),
       );
       return { previousCount };
     },
-    onError: (_error, _before, context) => {
+    onError: (_error, _item, context) => {
       if (context?.previousCount) {
         queryClient.setQueryData(
           keys.notifications.unreadCount(companyId),
           context.previousCount,
         );
       }
-      // Re-read the feed so the dots we optimistically cleared come back right.
+      // Re-read the feed so the dot we optimistically cleared comes back right.
       queryClient.invalidateQueries({
         queryKey: keys.notifications.feed(companyId),
       });
@@ -286,4 +279,3 @@ export function useMarkNotificationRead() {
     },
   });
 }
-

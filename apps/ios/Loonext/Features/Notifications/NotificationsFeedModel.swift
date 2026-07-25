@@ -81,31 +81,22 @@ final class NotificationsFeedModel {
         guard item.unread else { return }
         let previousItems = items
         let previousCount = readState.unreadCount
-        let previousWatermark = readState.localWatermark
-        readState.localWatermark = advanceWatermark(
-            current: readState.localWatermark, candidate: item.created_at
-        )
-        // The watermark advance marks the tapped item AND everything older
-        // read; decrement the shared server total by however many loaded rows
-        // it actually flipped (the reconcile refetch on settle corrects any
-        // drift from unloaded older rows).
-        let before = items.filter { $0.unread }.count
-        items = applyWatermark(items: items, lastSeenAt: item.created_at)
-        let flipped = before - items.filter { $0.unread }.count
-        readState.setUnreadCount(previousCount - flipped)
+        // #188: truly per-item — flip ONLY the tapped row. Advancing the
+        // watermark instead marked everything older read too, so opening the
+        // newest thing in the list quietly buried the ones below it.
+        readState.localReadIds.insert(item.id)
+        items = applyReadIds(items: items, readIds: [item.id])
+        readState.setUnreadCount(previousCount - 1)
         readState.beginMark()
         Task {
             do {
-                let result = try await api.markRead(companyId: companyId, before: item.created_at)
-                // The server may be further ahead (another device read more).
-                readState.localWatermark = advanceWatermark(
-                    current: readState.localWatermark, candidate: result.last_seen_at
+                _ = try await api.markReadItem(
+                    companyId: companyId, id: item.id, createdAt: item.created_at
                 )
-                items = applyWatermark(items: items, lastSeenAt: result.last_seen_at)
             } catch {
+                readState.localReadIds.remove(item.id)
                 items = previousItems
                 readState.setUnreadCount(previousCount)
-                readState.localWatermark = previousWatermark
                 showToast("Couldn't mark that read.")
             }
             // The last mark to settle runs one guarded reconcile — no realtime

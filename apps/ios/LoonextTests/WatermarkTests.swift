@@ -112,4 +112,33 @@ final class WatermarkTests: XCTestCase {
             parseWireTimestamp("2026-07-15T12:00:00Z")
         )
     }
+// MARK: applyReadIds — the per-item read (#188)
+
+    func testReadIdsFlipOnlyTheNamedItems() {
+        let items = [
+            item("newer", createdAt: "2026-07-15T12:00:01Z"),
+            item("tapped", createdAt: "2026-07-15T12:00:00Z"),
+            item("older", createdAt: "2026-07-15T11:59:59Z"),
+        ]
+        let applied = applyReadIds(items: items, readIds: ["tapped"])
+        // The whole point: the ones around it keep their dots.
+        XCTAssertTrue(applied[0].unread)
+        XCTAssertFalse(applied[1].unread)
+        XCTAssertTrue(applied[2].unread)
+    }
+
+    func testReadIdsLeaveAlreadyReadAndUnknownIdsAlone() {
+        let items = [
+            item("read", createdAt: "2026-07-15T12:00:00Z", unread: false),
+            item("kept", createdAt: "2026-07-15T11:00:00Z"),
+        ]
+        let applied = applyReadIds(items: items, readIds: ["read", "absent"])
+        XCTAssertFalse(applied[0].unread)
+        XCTAssertTrue(applied[1].unread)
+    }
+
+    func testEmptyReadIdsChangeNothing() {
+        let items = [item("a", createdAt: "2026-07-15T12:00:00Z")]
+        XCTAssertTrue(applyReadIds(items: items, readIds: []).allSatisfy(\.unread))
+    }
 }

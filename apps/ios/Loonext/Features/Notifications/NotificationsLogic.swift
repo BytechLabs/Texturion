@@ -29,6 +29,22 @@ func applyWatermark(items: [NotificationItem], lastSeenAt: String) -> [Notificat
     }
 }
 
+/// Optimistically clear the dot on exactly the items in `readIds` — the
+/// per-item read (#188), which leaves every other item, newer AND older,
+/// untouched. The twin of Android's NotificationsReadState.withLocalReads.
+func applyReadIds(
+    items: [NotificationItem],
+    readIds: Set<String>
+) -> [NotificationItem] {
+    guard !readIds.isEmpty else { return items }
+    return items.map { item in
+        guard item.unread, readIds.contains(item.id) else { return item }
+        var read = item
+        read.unread = false
+        return read
+    }
+}
+
 /// Forward-only merge of watermark candidates: returns the later of the two
 /// (server semantics — the RPC keeps the greatest, never moves backwards).
 /// An unparseable candidate never displaces a valid current value.
