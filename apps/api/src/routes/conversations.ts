@@ -717,6 +717,19 @@ conversationsRoutes.post(
       return c.json({ suggestions: [], reason: "over_cap" as const });
     }
 
+    // Both reads are best effort — a draft is worth offering with less
+    // context — but NOT silent. Discarding the error is what let a select
+    // against a column that never existed run for weeks: every draft was
+    // generated against "unknown name" and nothing anywhere said so.
+    const firstRowOrNull = <T>(label: string) =>
+      (r: { data: unknown[] | null; error: { message: string } | null }): T | null => {
+        if (r.error) {
+          console.error(`reply-suggestions ${label} lookup failed:`, r.error.message);
+          return null;
+        }
+        return ((r.data?.[0] as T | undefined) ?? null);
+      };
+
     const [company, contact] = await Promise.all([
       db
         .from("companies")
@@ -724,33 +737,28 @@ conversationsRoutes.post(
         .eq("id", companyId)
         .limit(1)
         .then(
-          (r) =>
-            (r.data?.[0] as
-              | {
-                  name: string | null;
-                  timezone: string | null;
-                  business_hours: BusinessHours | null;
-                }
-              | undefined) ?? null,
+          firstRowOrNull<{
+            name: string | null;
+            timezone: string | null;
+            business_hours: BusinessHours | null;
+          }>("company"),
         ),
       db
+        // `name`, singular — the contacts table has never had first_name /
+        // last_name (those exist only as merge-field TOKENS in the composer).
+        // PostgREST answered the old select with "column does not exist", the
+        // error was discarded, and every draft was generated against
+        // "Customer: unknown name" — on the paid path, since the AI unit is
+        // reserved before this runs. Lou could never once greet a customer by
+        // name, which is the strongest signal a reply has.
         .from("contacts")
-        .select("first_name,last_name")
+        .select("name")
         .eq("company_id", companyId)
         .eq("id", conversation.contact_id as string)
         .limit(1)
-        .then(
-          (r) =>
-            (r.data?.[0] as
-              | { first_name: string | null; last_name: string | null }
-              | undefined) ?? null,
-        ),
+        .then(firstRowOrNull<{ name: string | null }>("contact")),
     ]);
-    const contactName =
-      [contact?.first_name, contact?.last_name]
-        .filter((part) => !!part && part.trim() !== "")
-        .join(" ")
-        .trim() || null;
+    const contactName = contact?.name?.trim() || null;
 
     const prompt = buildSuggestionMessages({
       companyName: company?.name ?? "",

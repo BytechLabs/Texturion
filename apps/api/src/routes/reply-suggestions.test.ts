@@ -115,9 +115,10 @@ function stubs(options: StubOptions = {}): SupabaseStub {
       business_hours: options.businessHours ?? {},
     },
   ]);
-  sb.on("GET", "/rest/v1/contacts", () => [
-    { first_name: "Dana", last_name: "Reyes" },
-  ]);
+  // `name`, singular — the real contacts schema. The old fixture returned
+  // first_name/last_name, which is exactly why nothing caught the route asking
+  // PostgREST for columns that have never existed.
+  sb.on("GET", "/rest/v1/contacts", () => [{ name: "Dana Reyes" }]);
   sb.on("POST", "/rest/v1/rpc/ai_usage_reserve", () =>
     options.reserve ?? { count: 1, over_cap: false, should_alert: false },
   );
@@ -148,6 +149,33 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     expect(await res.json()).toEqual({
       suggestions: ["We can come by Thursday.", "What time suits you?"],
     });
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("tells the model who the customer is", async () => {
+    // The strongest signal a reply has. The route used to select columns that
+    // do not exist, swallow the error, and hand the model "unknown name" for
+    // every draft it ever generated — on the paid path, since the AI unit is
+    // reserved before the lookup runs.
+    const { ai, run } = mockAi(TWO_REPLIES);
+    await suggest(stubs(), { ...env, AI: ai });
+
+    expect(run).toHaveBeenCalledTimes(1);
+    const prompt = JSON.stringify(run.mock.calls[0]?.[1] ?? {});
+    expect(prompt).toContain("Dana Reyes");
+    expect(prompt).not.toContain("unknown name");
+  });
+
+  it("still drafts when the customer lookup fails, without inventing a name", async () => {
+    const { ai, run } = mockAi(TWO_REPLIES);
+    const sb = stubs();
+    sb.on("GET", "/rest/v1/contacts", () => {
+      throw new Error("postgrest is having a day");
+    });
+    const res = await suggest(sb, { ...env, AI: ai });
+
+    // Best effort: a draft with less context beats no draft at all.
+    expect(res.status).toBe(200);
     expect(run).toHaveBeenCalledTimes(1);
   });
 
