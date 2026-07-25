@@ -757,13 +757,18 @@ conversationsRoutes.post(
       return c.json({ suggestions: [], reason: run.reason });
     }
 
+    // Drafting without a description is drafting blind: the prompt forbids
+    // saying anything about the trade, so a workspace that never filled it in
+    // gets thinner drafts forever with nothing anywhere to say why. Reported
+    // alongside the drafts so it can be offered where it is felt.
+    const businessUnknown = !settings.business_description?.trim();
     const parsed = parseSuggestionOutput(run.raw);
     const report = sanitizeWithReport(parsed, {
       threadText: threadTextOf(messages),
       draft,
       // Only a company that really set hours may have them stated back.
       hoursKnown: hasBusinessHours(company?.business_hours ?? null),
-      descriptionKnown: !!settings.business_description?.trim(),
+      descriptionKnown: !businessUnknown,
     });
     const suggestions = report.kept;
     if (suggestions.length === 0) {
@@ -796,9 +801,10 @@ conversationsRoutes.post(
     return discarded > 0
       ? c.json({
           suggestions,
+          business_unknown: businessUnknown,
           dropped: { candidates: parsed.length, ...report.dropped },
         })
-      : c.json({ suggestions });
+      : c.json({ suggestions, business_unknown: businessUnknown });
   },
 );
 

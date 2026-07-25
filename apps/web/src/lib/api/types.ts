@@ -507,6 +507,12 @@ export interface CompanyAiSettings {
 /** POST /v1/conversations/:id/reply-suggestions — up to three reviewed drafts. */
 export interface ReplySuggestions {
   suggestions: string[];
+  /**
+   * Lou has not been told what this business does. The prompt forbids it from
+   * saying anything about the trade without that line, so every draft is
+   * thinner until someone writes it.
+   */
+  business_unknown?: boolean;
   /** True when the company turned suggestions off (hide the affordance). */
   suggestions_disabled?: boolean;
   /**

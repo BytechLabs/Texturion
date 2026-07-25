@@ -61,7 +61,10 @@ const TWO_REPLIES = {
 
 interface StubOptions {
   /** Settings row; null = the row is absent (defaults apply). */
-  settings?: { suggest_replies: boolean } | null;
+  settings?: {
+    suggest_replies: boolean;
+    business_description?: string | null;
+  } | null;
   /** Thread rows, NEWEST FIRST (the route reverses them). */
   messages?: { direction: string; body: string | null }[];
   /** Ledger answer, or a Response to stand in for an unreachable ledger. */
@@ -105,6 +108,7 @@ function stubs(options: StubOptions = {}): SupabaseStub {
             enrich_task_address: true,
             enrich_task_due: true,
             suggest_replies: options.settings.suggest_replies,
+            business_description: options.settings.business_description ?? null,
           },
         ],
   );
@@ -151,6 +155,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       suggestions: ["We can come by Thursday.", "What time suits you?"],
+      business_unknown: true,
     });
     expect(run).toHaveBeenCalledTimes(1);
   });
@@ -211,6 +216,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
 
     expect(await res.json()).toEqual({
       suggestions: ["We can come by Thursday.", "What time suits you?"],
+      business_unknown: true,
     });
     expect(run).toHaveBeenCalledTimes(1);
   });
@@ -240,6 +246,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
 
     expect(await res.json()).toEqual({
       suggestions: ["We can also bring the part."],
+      business_unknown: true,
     });
     expect(run).toHaveBeenCalledTimes(1);
   });
@@ -263,6 +270,27 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ suggestions: [], reason: "over_cap" });
     expect(run).not.toHaveBeenCalled();
+  });
+
+  it("reports that Lou has not been told what the business does", async () => {
+    // The prompt forbids saying anything about the trade without it, so a
+    // workspace that never filled it in gets thinner drafts every time. The
+    // flag is what lets the composer offer the fix where it is felt.
+    const { ai } = mockAi(TWO_REPLIES);
+    const res = await suggest(stubs(), { ...env, AI: ai });
+
+    expect(await res.json()).toMatchObject({ business_unknown: true });
+  });
+
+  it("says nothing about the description once it is set", async () => {
+    const { ai } = mockAi(TWO_REPLIES);
+    const sb = stubs({
+      settings: { suggest_replies: true, business_description: "Plumbing" },
+    });
+
+    expect(await (await suggest(sb, { ...env, AI: ai })).json()).toMatchObject({
+      business_unknown: false,
+    });
   });
 
   it("reserves exactly one unit per request", async () => {
@@ -320,6 +348,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     const res = await suggest(stubs(), { ...env, AI: ai });
     expect(await res.json()).toEqual({
       suggestions: ["We can come by Thursday."],
+      business_unknown: true,
       // A thinner-than-expected set says which rule fired, same as an empty one.
       dropped: {
         candidates: 3,
