@@ -119,15 +119,18 @@ export function NewConversation() {
   const [activeIndex, setActiveIndex] = useState(-1);
   const isPhone = looksLikePhoneInput(input);
   const displayInput = isPhone ? formatNanpAsYouType(input) : input;
-  const contacts = useContacts(isPhone ? "" : input.trim());
+  // A typed number is searched SERVER-side on its digits. Asking for every
+  // contact and matching in the browser only ever looked at the first page, so
+  // a workspace with more contacts than that could not find one by number.
+  const typedDigits = isPhone ? displayInput.replace(/\D/g, "") : "";
+  const contacts = useContacts(isPhone ? typedDigits : input.trim());
   const contactRows = useMemo(() => {
     const rows = flattenPages(contacts.data).filter((c) => c.deleted_at === null);
     if (!isPhone) return rows.slice(0, 6);
-    const digits = displayInput.replace(/\D/g, "");
     return rows
-      .filter((c) => c.phone_e164.replace(/\D/g, "").includes(digits))
+      .filter((c) => c.phone_e164.replace(/\D/g, "").includes(typedDigits))
       .slice(0, 6);
-  }, [contacts.data, isPhone, displayInput]);
+  }, [contacts.data, isPhone, typedDigits]);
 
   // ?contact={id} prefill (search results, contact pages) — resolved by the
   // PrefillContact child so the hook only mounts with a real id.
