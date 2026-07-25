@@ -454,6 +454,8 @@ private fun TaskListScreen(
                     companyId = companyId,
                     assigneeUserId = assigneeChip,
                     unassigned = unassignedChip,
+                    due = dueChip,
+                    q = debouncedQ,
                     onOpenTask = onOpenTask,
                     modifier = Modifier.fillMaxSize(),
                 )

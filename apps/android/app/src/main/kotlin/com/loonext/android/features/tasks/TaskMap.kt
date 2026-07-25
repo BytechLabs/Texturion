@@ -116,6 +116,8 @@ fun TaskMapView(
     companyId: String,
     assigneeUserId: String? = null,
     unassigned: Boolean = false,
+    due: DueChip? = null,
+    q: String = "",
     onOpenTask: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -136,13 +138,16 @@ fun TaskMapView(
     // backgrounded/blurred by revalidating on return to the foreground.
     ResyncOnResume(companyId) { refreshKey++ }
 
-    val cacheKey = CacheKeys.tasks(companyId, taskMapFilterKey(assigneeUserId, unassigned))
+    val cacheKey = CacheKeys.tasks(
+        companyId,
+        taskMapFilterKey(assigneeUserId, unassigned, due, q),
+    )
     val state = rememberCacheFirst(
         cache = graph.storeCache,
         key = cacheKey,
         refreshKey = refreshKey,
     ) {
-        drainLocatedTasks(mutations, companyId, assigneeUserId, unassigned)
+        drainLocatedTasks(mutations, companyId, assigneeUserId, unassigned, due, q)
     }
 
     when (val current = state) {
@@ -166,13 +171,20 @@ fun TaskMapView(
  * shape (a drained located list) never shares an entry with the list/board
  * snapshots (the same guard [taskBoardFilterKey] applies for the board).
  */
-internal fun taskMapFilterKey(assigneeUserId: String?, unassigned: Boolean): String =
+internal fun taskMapFilterKey(
+    assigneeUserId: String?,
+    unassigned: Boolean,
+    due: DueChip? = null,
+    q: String = "",
+): String =
     listOf(
         "map",
         // ASSIGNEE_ALL and null both mean "no assignee pin" on the wire — key
         // them identically so the sugar can never split the cache.
         assigneeUserId?.takeUnless { it == ASSIGNEE_ALL } ?: "-",
         if (unassigned) "unassigned" else "-",
+        due?.name ?: "-",
+        q.trim().ifEmpty { "-" },
     ).joinToString("|")
 
 // Web-parity camera constants (map-island.tsx): continental-US fallback view,

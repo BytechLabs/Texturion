@@ -112,6 +112,8 @@ struct TaskMapView: View {
     let companyId: String
     let assigneeChip: String?
     let unassignedChip: Bool
+    let dueChip: DueChip?
+    let q: String
     let refreshKey: Int
     let onOpenTask: @MainActor (String) -> Void
 
@@ -119,8 +121,15 @@ struct TaskMapView: View {
     @State private var localRefresh = 0
 
     private var fetchToken: String {
-        [companyId, assigneeChip ?? "-", unassignedChip ? "u" : "", String(refreshKey), String(localRefresh)]
-            .joined(separator: "|")
+        [
+            companyId,
+            assigneeChip ?? "-",
+            unassignedChip ? "u" : "",
+            dueChip?.rawValue ?? "-",
+            q,
+            String(refreshKey),
+            String(localRefresh),
+        ].joined(separator: "|")
     }
 
     var body: some View {
@@ -147,6 +156,11 @@ struct TaskMapView: View {
     /// Open·Mine default never re-applies here — both statuses arrive. This
     /// query is not in the TaskListFilters model (it has no `has_location`
     /// arm), so it is built directly against the shared ApiClient.
+    ///
+    /// The due chips and the search box refine it, the way they refine every
+    /// other view. They used to be ignored here: the chips stayed lit and the
+    /// map quietly plotted every located task regardless, which reads as "these
+    /// are the ones due today" when it is not.
     private func reload() async {
         if case .ready = state {} else { state = .loading }
         // `assigneeAll` is UI sugar meaning "no assignee pin"; normalize it away
@@ -154,6 +168,9 @@ struct TaskMapView: View {
         // matches the Android drain exactly).
         let assignee = assigneeChip == assigneeAll ? nil : assigneeChip
         let unassigned = unassignedChip && assigneeChip == nil
+        let dueFilters = dueChip.map { dueChipFilters($0) } ?? TaskListFilters()
+        let trimmedQuery = q.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query: String? = trimmedQuery.isEmpty ? nil : trimmedQuery
         var accumulated: [TaskItem] = []
         var cursor: String?
         var pages = 0
@@ -165,6 +182,10 @@ struct TaskMapView: View {
                         "has_location": "true",
                         "assigned_user_id": assignee,
                         "unassigned": unassigned ? "true" : nil,
+                        "due_before": dueFilters.dueBefore,
+                        "due_after": dueFilters.dueAfter,
+                        "overdue": dueFilters.overdue ? "true" : nil,
+                        "q": query,
                         "cursor": cursor,
                         "limit": "100",
                     ],

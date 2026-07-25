@@ -100,6 +100,8 @@ struct TasksTab: View {
                     companyId: companyId,
                     assigneeChip: assigneeChip,
                     unassignedChip: unassignedChip,
+                    dueChip: dueChip,
+                    q: debouncedQ,
                     refreshKey: refreshKey,
                     onOpenTask: { AppRouter.shared.openTaskId = $0 }
                 )

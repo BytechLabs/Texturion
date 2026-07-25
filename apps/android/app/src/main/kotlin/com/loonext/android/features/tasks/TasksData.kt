@@ -133,6 +133,8 @@ class TaskMutations(private val api: ApiClient) {
         companyId: String,
         assigneeUserId: String?,
         unassigned: Boolean,
+        due: TaskListFilters,
+        q: String?,
         cursor: String?,
         limit: Int = 100,
     ): Page<Task> = api.get(
@@ -141,6 +143,10 @@ class TaskMutations(private val api: ApiClient) {
             "has_location" to "true",
             "assigned_user_id" to assigneeUserId,
             "unassigned" to if (unassigned) "true" else null,
+            "due_before" to due.dueBefore,
+            "due_after" to due.dueAfter,
+            "overdue" to if (due.overdue) "true" else null,
+            "q" to q,
             "cursor" to cursor,
             "limit" to limit.toString(),
         ),
@@ -227,6 +233,8 @@ suspend fun drainLocatedTasks(
     companyId: String,
     assigneeUserId: String?,
     unassigned: Boolean,
+    due: DueChip? = null,
+    q: String? = null,
 ): List<Task> {
     // ASSIGNEE_ALL is UI sugar meaning "no assignee pin" (taskQueryParams
     // parity) — normalize it away before it reaches the wire.
@@ -235,7 +243,14 @@ suspend fun drainLocatedTasks(
     var cursor: String? = null
     var pages = 0
     do {
-        val page = mutations.listLocated(companyId, assignee, unassigned, cursor)
+        val page = mutations.listLocated(
+            companyId,
+            assignee,
+            unassigned,
+            due?.let { dueChipFilters(it) } ?: TaskListFilters(),
+            q?.trim()?.ifEmpty { null },
+            cursor,
+        )
         acc += page.data
         cursor = page.next_cursor
         pages++
