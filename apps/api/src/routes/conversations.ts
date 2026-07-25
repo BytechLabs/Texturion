@@ -825,7 +825,16 @@ conversationsRoutes.post(
         envelope: envelopeShape(raw),
       });
     }
-    return c.json({ suggestions });
+    // The tally rides along whenever anything was discarded, not only when
+    // everything was: a set that came back thinner than it should have is the
+    // same question ("which rule fired?") asked more quietly.
+    const discarded = Object.values(report.dropped).reduce((a, b) => a + b, 0);
+    return discarded > 0
+      ? c.json({
+          suggestions,
+          dropped: { candidates: parsed.length, ...report.dropped },
+        })
+      : c.json({ suggestions });
   },
 );
 

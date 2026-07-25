@@ -624,7 +624,7 @@ const HOURS_CLAIM =
  * prompt forbids it; this is the part that holds, exactly as with hours.
  */
 const SELF_DESCRIPTION =
-  /\b(?:we(?:'re| are)\s+(?:a|an)\s+\w+|we\s+specialali?ze|we\s+specialize|our\s+specialty|we\s+(?:only\s+)?do(?:n't| not)?\s+(?:large|small|residential|commercial))\b/i;
+  /\b(?:we(?:'re| are)\s+(?:a|an)\s+(?:\w+\s+){0,2}(?:business|company|firm|team|shop|contractor|service|agency)|we\s+specialize|we\s+specialise|our\s+specialty|our\s+speciality)\b/i;
 
 /** Money, in the shapes a model writes it. */
 const MONEY = /(\$\s?\d[\d,]*(?:\.\d{1,2})?|\b\d[\d,]*(?:\.\d{1,2})?\s?(?:dollars|bucks|usd|cad)\b)/gi;

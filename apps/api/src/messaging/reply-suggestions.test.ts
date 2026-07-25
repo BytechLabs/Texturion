@@ -535,6 +535,17 @@ describe("sanitizeSuggestions", () => {
     ]);
   });
 
+  it("does not mistake ordinary phrasing for a description of the business", () => {
+    // The first cut of this rule matched "we're a <anything>", which threw
+    // away perfectly good drafts and left one dismissive line behind.
+    expect(clean(["We're a bit behind today, but we can still come by."])).toEqual([
+      "We're a bit behind today, but we can still come by.",
+    ]);
+    expect(clean(["We're running late, sorry about that."])).toEqual([
+      "We're running late, sorry about that.",
+    ]);
+  });
+
   it("drops invented opening hours when the company set none", () => {
     // The prompt already forbids this and the model did it anyway: a workspace
     // with no hours configured was offered "We're open until 6 PM today".

@@ -310,6 +310,18 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     const res = await suggest(stubs(), { ...env, AI: ai });
     expect(await res.json()).toEqual({
       suggestions: ["We can come by Thursday."],
+      // A thinner-than-expected set says which rule fired, same as an empty one.
+      dropped: {
+        candidates: 3,
+        empty: 0,
+        tooLong: 0,
+        link: 1,
+        phone: 0,
+        money: 1,
+        hours: 0,
+        selfDescription: 0,
+        duplicate: 0,
+      },
     });
   });
 
