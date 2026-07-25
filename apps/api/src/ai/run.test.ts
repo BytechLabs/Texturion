@@ -138,4 +138,44 @@ describe("runAiFeature", () => {
     );
     expect(result).toEqual({ ok: false, reason: "model_error" });
   });
+
+  it("spends one unit when a fallback shape is needed, not two", async () => {
+    // The cap counts what a person asked for, not how many encodings it took
+    // to answer once. Reserving per attempt halves every cap with a fallback.
+    const run = vi.fn(async (model: string) =>
+      model === "primary" ? { text: "" } : { text: "Leaking tap upstairs." },
+    );
+    const db = fakeDb();
+
+    const result = await runAiFeature(envWith(run), db, {
+      companyId: "c1",
+      spec: SPEC,
+      model: "primary",
+      input: {},
+      settings: SETTINGS,
+      fallback: { model: "fallback", input: {} },
+      accept: (raw) => ((raw as { text?: string }).text ?? "") !== "",
+    });
+
+    expect(result).toEqual({ ok: true, raw: { text: "Leaking tap upstairs." } });
+    expect(run).toHaveBeenCalledTimes(2);
+    expect((db as unknown as { rpc: { mock: { calls: unknown[] } } }).rpc.mock.calls)
+      .toHaveLength(1);
+  });
+
+  it("does not reach for the fallback when the first answer is usable", async () => {
+    const run = vi.fn(async () => ({ text: "Leaking tap upstairs." }));
+
+    await runAiFeature(envWith(run), fakeDb(), {
+      companyId: "c1",
+      spec: SPEC,
+      model: "primary",
+      input: {},
+      settings: SETTINGS,
+      fallback: { model: "fallback", input: {} },
+      accept: (raw) => ((raw as { text?: string }).text ?? "") !== "",
+    });
+
+    expect(run).toHaveBeenCalledTimes(1);
+  });
 });

@@ -332,9 +332,9 @@ export async function storeVoicemailRecording(
 /**
  * Ask the model, with a second shape to fall back on.
  *
- * Each attempt is raced against the timeout and its failure is logged rather
- * than swallowed: without that, a spent reservation and no words back is
- * indistinguishable from a recording with nothing in it.
+ * Both shapes ride ONE reservation. The monthly cap counts voicemails
+ * transcribed, not how many encodings it took to read one, and reserving per
+ * attempt halved the cap for every recording the first shape could not read.
  */
 export async function runTranscription(
   env: Env,
@@ -344,31 +344,19 @@ export async function runTranscription(
 ): Promise<string | null> {
   // Base64 first: a five-minute recording is about a million array elements
   // otherwise, inside a 128 MB Worker already holding the raw buffer.
-  const attempts: [string, Record<string, unknown>][] = [
-    [VOICEMAIL_TRANSCRIPT_MODEL, transcriptInput(Buffer.from(audio).toString("base64"))],
-    [VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL, fallbackTranscriptInput(audio)],
-  ];
-  for (const [model, input] of attempts) {
-    const result = await runAiFeature(env, db, {
-      companyId,
-      spec: VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
-      model,
-      input,
-    });
-    // A refusal is about the COMPANY (off, over cap, no binding), so trying the
-    // other model would only spend again for the same answer.
-    if (!result.ok) {
-      if (result.reason !== "model_error") return null;
-      continue;
-    }
-    const text = sanitizeTranscript(result.raw);
-    if (text !== null) return text;
-    console.error(
-      `voicemail transcript: ${model} returned nothing usable`,
-      JSON.stringify(result.raw)?.slice(0, 300) ?? "null",
-    );
-  }
-  return null;
+  const result = await runAiFeature(env, db, {
+    companyId,
+    spec: VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
+    model: VOICEMAIL_TRANSCRIPT_MODEL,
+    input: transcriptInput(Buffer.from(audio).toString("base64")),
+    fallback: {
+      model: VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL,
+      input: fallbackTranscriptInput(audio),
+    },
+    accept: (raw) => sanitizeTranscript(raw) !== null,
+  });
+  if (!result.ok) return null;
+  return sanitizeTranscript(result.raw);
 }
 
 /**

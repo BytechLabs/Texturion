@@ -84,6 +84,18 @@ export async function runAiFeature(
     input: Record<string, unknown>;
     /** Pre-loaded settings, when the caller already fetched them. */
     settings?: CompanyAiSettings;
+    /**
+     * A second model to try when the first answers with nothing the caller can
+     * use. It runs inside the SAME reservation: the monthly cap counts requests
+     * a person asked for, not how many shapes it took to answer one, and
+     * reserving per attempt would halve every cap that has a fallback.
+     */
+    fallback?: { model: string; input: Record<string, unknown> };
+    /**
+     * Whether a raw answer is usable. Only consulted to decide on the
+     * fallback; the caller still parses the value it gets back.
+     */
+    accept?: (raw: unknown) => boolean;
   },
 ): Promise<AiRunResult> {
   const { companyId, spec } = args;
@@ -117,19 +129,34 @@ export async function runAiFeature(
     }
     if (reservation.over_cap) return { ok: false, reason: "over_cap" };
 
-    const raw = await Promise.race([
-      env.AI.run(args.model, args.input),
-      new Promise<typeof TIMED_OUT>((resolve) =>
-        setTimeout(() => resolve(TIMED_OUT), spec.timeoutMs),
-      ),
-    ]);
-    if (raw === TIMED_OUT) {
+    const attempts = args.fallback
+      ? [{ model: args.model, input: args.input }, args.fallback]
+      : [{ model: args.model, input: args.input }];
+    let lastFailure: AiRunFailure = "model_error";
+    for (const [index, attempt] of attempts.entries()) {
+      const raw = await Promise.race([
+        env.AI.run(attempt.model, attempt.input),
+        new Promise<typeof TIMED_OUT>((resolve) =>
+          setTimeout(() => resolve(TIMED_OUT), spec.timeoutMs),
+        ),
+      ]);
+      if (raw === TIMED_OUT) {
+        console.error(
+          `ai ${spec.key}: ${attempt.model} timed out after ${spec.timeoutMs}ms`,
+        );
+        lastFailure = "model_error";
+        continue;
+      }
+      const last = index === attempts.length - 1;
+      if (last || args.accept === undefined || args.accept(raw)) {
+        return { ok: true, raw };
+      }
       console.error(
-        `ai ${spec.key}: ${args.model} timed out after ${spec.timeoutMs}ms`,
+        `ai ${spec.key}: ${attempt.model} returned nothing usable`,
+        JSON.stringify(raw)?.slice(0, 300) ?? "null",
       );
-      return { ok: false, reason: "model_error" };
     }
-    return { ok: true, raw };
+    return { ok: false, reason: lastFailure };
   } catch (cause) {
     console.error(
       `ai ${spec.key}: ${args.model} threw:`,
