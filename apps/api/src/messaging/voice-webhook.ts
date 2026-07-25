@@ -25,6 +25,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { reportVoiceSeconds } from "../billing/meter";
+import { requiresUnauthorizedHangup } from "../calls/outbound-leg-gate";
 import {
   PLAN_VOICE_MINUTES,
   type PlanId,
@@ -323,6 +324,15 @@ export async function handleCallEvent(
   // journey line; a MISSED transfer auto-recovers (snap back to the sender,
   // voicemail at the hop cap). These legs never bill or thread themselves.
   if (leg === "transfer_target") {
+    // Same forgery surface as the tagged-drop above: these branches return
+    // before the outgoing gate, so a crafted brt/brc tag on a PSTN leg would
+    // slip past. Check the dial target before trusting the tag at all.
+    if (eventType === "call.initiated" && requiresUnauthorizedHangup(payload)) {
+      if (payload.call_control_id) {
+        await telnyxRejectLeg(env, payload.call_control_id);
+      }
+      return;
+    }
     const state = parseTransferState(payload.client_state);
     if (!state) return;
     if (eventType === "call.answered") {
@@ -344,6 +354,12 @@ export async function handleCallEvent(
   // Answer marks the ledger and bridges when both sides are up; hangup
   // dismisses the sibling. Never bills, never threads.
   if (leg === "consult") {
+    if (eventType === "call.initiated" && requiresUnauthorizedHangup(payload)) {
+      if (payload.call_control_id) {
+        await telnyxRejectLeg(env, payload.call_control_id);
+      }
+      return;
+    }
     const state = parseConsultState(payload.client_state);
     if (!state || !payload.call_control_id) return;
     if (eventType === "call.answered" || eventType === "call.hangup") {
@@ -372,12 +388,10 @@ export async function handleCallEvent(
   // member with a WebRTC credential could place uncapped, cross-tenant
   // caller-ID, non-NANP calls by crafting client_state.
   if (eventType === "call.initiated" && payload.direction === "outgoing") {
-    const to = payload.to ?? "";
-    const isCredentialUri =
-      to.startsWith("sip:") &&
-      to.includes("@sip.telnyx.com") &&
-      !/^sip:\+?\d/.test(to);
-    if (!isCredentialUri && payload.call_control_id) {
+    // The dial-target test now lives in calls/outbound-leg-gate.ts so the
+    // session Durable Object applies exactly the same rule: the bypass existed
+    // because two paths needed this and only one had it.
+    if (requiresUnauthorizedHangup(payload) && payload.call_control_id) {
       await telnyxRejectLeg(env, payload.call_control_id);
     }
     return;

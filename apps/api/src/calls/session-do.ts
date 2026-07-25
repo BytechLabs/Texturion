@@ -34,6 +34,7 @@ import {
 } from "../messaging/voice-webhook";
 
 import { createSessionRuntime, type AdoptionRow, type SessionRuntime } from "./runtime";
+import { requiresUnauthorizedHangup } from "./outbound-leg-gate";
 import {
   type AlarmKind,
   type CallState,
@@ -933,7 +934,19 @@ export class CallSessionDO extends DurableObject<Env> {
 
       // T0: a tagged initiated (our own leg family / forgery) or an unowned
       // number is dropped by loadInitiatedContext.
+      //
+      // Dropping is only safe for a leg WE dialed. The softphone controls its
+      // own client_state, so a member holding a WebRTC token can craft a
+      // session-family tag and dial any PSTN number; that leg reaches here,
+      // matches `memberState`, and used to be dropped with no Telnyx command —
+      // leaving a live, billable channel up with no call row, no ledger entry
+      // and no cap, so the whole cost landed on the business. The legacy
+      // webhook path enforced the dial-target test, and routing these tags to
+      // this object is what stopped it running. Same test, applied here.
       if (memberState || (payload.client_state && payload.direction === "incoming")) {
+        if (requiresUnauthorizedHangup(payload) && payload.call_control_id) {
+          await this.rt.telnyx.hangup(payload.call_control_id);
+        }
         return null;
       }
       const context = await this.rt.loadInitiatedContext({
