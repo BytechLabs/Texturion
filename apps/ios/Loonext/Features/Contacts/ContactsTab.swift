@@ -362,6 +362,10 @@ struct ContactsTab: View {
                     .padding(.top, 6)
                     .padding(.bottom, 12)
                 }
+                // Pull to refresh, matching Android. Awaiting the real reload
+                // settles the spinner when the data lands, not when the gesture
+                // ends.
+                .refreshable { await reload() }
             }
         }
     }

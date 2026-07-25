@@ -142,6 +142,12 @@ private struct ForYouList: View {
             .padding(.bottom, 28)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // Pull to refresh, matching Android. Awaiting both loaders settles the
+        // spinner when the screen is actually current.
+        .refreshable {
+            await reload()
+            await reloadRecentCalls()
+        }
         .background(BrandColor.canvas)
     }
 

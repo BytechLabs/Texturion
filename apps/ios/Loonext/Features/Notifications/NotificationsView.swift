@@ -145,6 +145,9 @@ struct NotificationsView: View {
                     .padding(.horizontal, 18)
                     .padding(.bottom, 24)
                 }
+                // Pull to refresh, matching Android. Awaiting the real refresh
+                // settles the spinner when the feed lands.
+                .refreshable { await model.refresh() }
             }
         }
     }

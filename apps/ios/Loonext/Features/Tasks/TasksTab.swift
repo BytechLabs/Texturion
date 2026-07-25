@@ -406,6 +406,11 @@ struct TasksTab: View {
                     .padding(.top, 8)
                     .padding(.bottom, 24)
                 }
+                // Pull to refresh, matching Android and the inbox. Awaiting the
+                // real reload means the spinner settles when the data actually
+                // lands rather than the instant the gesture ends. Only the list
+                // arm gets it: on the map a downward pan would become a refresh.
+                .refreshable { await reload() }
             }
         }
     }
