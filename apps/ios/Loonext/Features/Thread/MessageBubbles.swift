@@ -353,15 +353,28 @@ struct PendingBubble: View {
 struct EventLine: View {
     let text: String
     let timeIso: String
+    /// A transcribed voicemail's words, shown under the line. Nil otherwise.
+    var transcript: String?
 
     var body: some View {
-        Text("\(text) · \(bubbleTime(timeIso))")
-            .font(.golos(11))
-            .foregroundStyle(BrandColor.muted400)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 24)
-            .padding(.vertical, 6)
+        VStack(spacing: 3) {
+            Text("\(text) · \(bubbleTime(timeIso))")
+                .font(.golos(11))
+                .foregroundStyle(BrandColor.muted400)
+            // The voicemail's words, right where the message is. Without them
+            // this line only says a voicemail exists, which still leaves the
+            // reader having to go and play it.
+            if let transcript {
+                Text(transcript)
+                    .font(.golos(12.5))
+                    .foregroundStyle(BrandColor.muted700)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 6)
     }
 }
 

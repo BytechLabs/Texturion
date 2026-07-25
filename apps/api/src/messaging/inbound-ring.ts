@@ -236,6 +236,14 @@ export interface StoredVoicemail {
   callSessionId: string;
   caller: string | null;
   seconds: number;
+  /**
+   * The words, when we got them. Carried out of the store step so the timeline
+   * line can show them WITHOUT a second read per voicemail: transcription runs
+   * before the event is written, so by the time the line exists we already
+   * know. Null whenever there is no transcript, which is never a reason to
+   * hide the audio.
+   */
+  transcript: string | null;
 }
 
 /**
@@ -322,6 +330,7 @@ export async function storeVoicemailRecording(
     callSessionId: sessionId,
     caller,
     seconds,
+    transcript,
   };
 }
 
@@ -395,6 +404,7 @@ export function recoverStoredVoicemail(
   sessionId: string,
   caller: string | null,
   voicemailSeconds: number | null,
+  voicemailTranscript: string | null = null,
 ): StoredVoicemail {
   return {
     companyId: resolved.companyId,
@@ -402,6 +412,9 @@ export function recoverStoredVoicemail(
     callSessionId: sessionId,
     caller,
     seconds: voicemailSeconds ?? 0,
+    // A replay reuses the transcript the first pass already paid for rather
+    // than transcribing the same audio twice.
+    transcript: voicemailTranscript,
   };
 }
 
@@ -446,6 +459,7 @@ export async function insertVoicemailEvent(
     callSessionId: string;
     caller: string | null;
     seconds: number;
+    transcript?: string | null;
   },
 ): Promise<void> {
   const { data: existing, error: scanError } = await db
@@ -468,6 +482,10 @@ export async function insertVoicemailEvent(
     type: "call_completed",
     payload: {
       kind: "voicemail",
+      // Written into the line itself so the thread can show the words with no
+      // extra read. Omitted rather than null when absent, so an older line and
+      // an untranscribed one look identical to every client.
+      ...(input.transcript ? { transcript: input.transcript } : {}),
       call_session_id: input.callSessionId,
       outcome: "voicemail",
       voicemail_seconds: input.seconds,

@@ -9,6 +9,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.serialization.json.JsonPrimitive
+import com.loonext.android.features.calls.formatCallDuration
 
 /**
  * Pure thread-timeline assembly: messages + optimistic pending sends + audit
@@ -175,6 +176,17 @@ private fun ConversationEvent.payloadString(key: String): String? =
     (payload[key] as? JsonPrimitive)?.content
 
 /**
+ * What a voicemail on this timeline line SAYS, when it was transcribed. Null
+ * for every other event, for an older line written before transcription
+ * existed, and whenever there was nothing worth writing down.
+ */
+fun voicemailTranscriptOf(event: ConversationEvent): String? {
+    if (event.type != "call_completed") return null
+    if (event.payloadString("kind") != "voicemail") return null
+    return event.payloadString("transcript")?.takeIf { it.isNotBlank() }
+}
+
+/**
  * Human line for an audit event. Unknown types fall back to a plain reading of
  * the type name so a lagging app build never renders raw snake_case.
  */
@@ -227,7 +239,20 @@ fun eventLine(
         "task_attachment_added" -> "$actor attached a file to a task"
         "task_attachment_removed" -> "$actor removed a file from a task"
         "missed_call" -> "Missed call from $contactName"
-        "call_completed" -> "Call with $contactName ended"
+        // A voicemail is a MESSAGE, not just a call that ended. Read as the
+        // generic line it looked identical to a call nobody left anything on,
+        // which is how a customer's message goes unheard.
+        "call_completed" ->
+            if (event.payloadString("kind") == "voicemail") {
+                val seconds = event.payloadString("voicemail_seconds")?.toIntOrNull() ?: 0
+                if (seconds > 0) {
+                    "Left a voicemail · ${formatCallDuration(seconds)}"
+                } else {
+                    "Left a voicemail"
+                }
+            } else {
+                "Call with $contactName ended"
+            }
         "auto_reply_sent" -> "Away auto-reply sent"
         else -> event.type.replace('_', ' ').replaceFirstChar { it.uppercase() }
     }

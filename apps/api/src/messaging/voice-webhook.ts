@@ -419,19 +419,23 @@ export async function handleVoicemailSaved(
   // on the payload here silently killed the whole voicemail pipeline.
   const { data: callRows, error: callError } = await db
     .from("calls")
-    .select("company_id,phone_number_id,caller_e164,voicemail_path,voicemail_seconds")
+    .select(
+      "company_id,phone_number_id,caller_e164,voicemail_path,voicemail_seconds," +
+        "voicemail_transcript",
+    )
     .eq("call_session_id", sessionId)
     .limit(1);
   if (callError) {
     throw new Error(`voicemail calls lookup failed: ${callError.message}`);
   }
-  const row = callRows?.[0] as
+  const row = callRows?.[0] as unknown as
     | {
         company_id: string;
         phone_number_id: string | null;
         caller_e164: string | null;
         voicemail_path: string | null;
         voicemail_seconds: number | null;
+        voicemail_transcript: string | null;
       }
     | undefined;
   if (!row?.phone_number_id) return; // unknown/released number → drop
@@ -462,6 +466,7 @@ export async function handleVoicemailSaved(
         sessionId,
         row.caller_e164,
         row.voicemail_seconds,
+        row.voicemail_transcript,
       )
     : await storeVoicemailRecording(env, db, payload, resolved, row.caller_e164);
   if (!stored) {
@@ -501,6 +506,7 @@ export async function handleVoicemailSaved(
       callSessionId: sessionId,
       caller: call?.caller_e164 ?? stored.caller,
       seconds: stored.seconds,
+      transcript: stored.transcript,
     });
   }
 

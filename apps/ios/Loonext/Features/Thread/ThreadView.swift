@@ -506,7 +506,8 @@ private struct ThreadBody: View {
         case .event(let event):
             EventLine(
                 text: eventLine(event, memberNames: names, contactName: contactName),
-                timeIso: event.created_at
+                timeIso: event.created_at,
+                transcript: voicemailTranscript(of: event)
             )
         case .dayDivider(let label, _):
             DayDividerLine(label: label)

@@ -226,6 +226,18 @@ func deliveryLabel(_ message: Message) -> String? {
     }
 }
 
+/// What a voicemail on this timeline line SAYS, when it was transcribed. Nil
+/// for every other event, for an older line written before transcription
+/// existed, and whenever there was nothing worth writing down.
+func voicemailTranscript(of event: ConversationEvent) -> String? {
+    guard event.type == "call_completed",
+          event.payload["kind"]?.stringValue == "voicemail",
+          let text = event.payload["transcript"]?.stringValue,
+          !text.isBlank
+    else { return nil }
+    return text
+}
+
 // MARK: - System event lines
 
 /// Human line for an audit event. Unknown types fall back to a plain reading
@@ -276,7 +288,17 @@ func eventLine(
     case "task_attachment_added": return "\(actor) attached a file to a task"
     case "task_attachment_removed": return "\(actor) removed a file from a task"
     case "missed_call": return "Missed call from \(contactName)"
-    case "call_completed": return "Call with \(contactName) ended"
+    // A voicemail is a MESSAGE, not just a call that ended. Read as the generic
+    // line it looked identical to a call nobody left anything on, which is how
+    // a customer's message goes unheard.
+    case "call_completed":
+        guard event.payload["kind"]?.stringValue == "voicemail" else {
+            return "Call with \(contactName) ended"
+        }
+        let seconds = Int(event.payload["voicemail_seconds"]?.stringValue ?? "") ?? 0
+        return seconds > 0
+            ? "Left a voicemail · \(formatCallDuration(seconds))"
+            : "Left a voicemail"
     case "auto_reply_sent": return "Away auto-reply sent"
     default:
         let plain = event.type.replacingOccurrences(of: "_", with: " ")

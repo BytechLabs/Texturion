@@ -460,6 +460,8 @@ fun EventLine(
     timeIso: String,
     modifier: Modifier = Modifier,
     eventType: String? = null,
+    /** A transcribed voicemail's words, shown under the line. Null otherwise. */
+    transcript: String? = null,
 ) {
     Row(
         modifier
@@ -481,15 +483,30 @@ fun EventLine(
             )
         }
         Spacer(Modifier.width(9.dp))
-        Text(
-            "$text · ${bubbleTime(timeIso)}",
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontSize = 12.sp,
-                lineHeight = 18.sp,
-            ),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 2.dp),
-        )
+        Column(Modifier.padding(top = 2.dp)) {
+            Text(
+                "$text · ${bubbleTime(timeIso)}",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            // The voicemail's words, right where the message is. Without them
+            // this line only says a voicemail exists, which still leaves the
+            // reader having to go and play it.
+            if (transcript != null) {
+                Text(
+                    transcript,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 12.5.sp,
+                        lineHeight = 18.sp,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
+            }
+        }
     }
 }
 

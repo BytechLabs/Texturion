@@ -220,6 +220,11 @@ export function SystemLine({
       ? event.payload.call_session_id
       : null;
   if (voicemailSession) {
+    const transcript =
+      typeof event.payload.transcript === "string" &&
+      event.payload.transcript.trim() !== ""
+        ? event.payload.transcript
+        : null;
     return (
       <div className="space-y-1.5 py-1 text-center">
         <p className="text-xs text-muted-foreground">{sentence}</p>
@@ -229,6 +234,14 @@ export function SystemLine({
             seconds={Number(event.payload.voicemail_seconds ?? 0) || null}
           />
         </div>
+        {/* The words, right where the message is. Without them the line only
+            says a voicemail exists, which still leaves the reader having to
+            stop and play it. */}
+        {transcript && (
+          <p className="mx-auto max-w-[36rem] text-[12.5px] leading-[1.45] text-app-muted">
+            {transcript}
+          </p>
+        )}
       </div>
     );
   }

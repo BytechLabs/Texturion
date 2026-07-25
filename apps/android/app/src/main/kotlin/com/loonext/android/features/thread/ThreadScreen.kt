@@ -576,6 +576,7 @@ private fun ThreadLoaded(
                                 text = eventLine(item.event, names, contactName),
                                 timeIso = item.event.created_at,
                                 eventType = item.event.type,
+                                transcript = voicemailTranscriptOf(item.event),
                             )
 
                             is TimelineItem.DayDivider -> DayDividerLine(item.label)
