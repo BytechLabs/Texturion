@@ -34,8 +34,6 @@ import { z } from "zod";
 
 import {
   loadAiSettings,
-  reserveAiUsage,
-  sendAiCapAlert,
 } from "../ai/settings";
 import { assertEgressWithinAllowance } from "../attachments/egress";
 import { requireRole } from "../auth/company";
@@ -56,14 +54,11 @@ import {
   parseSuggestionOutput,
   sanitizeWithReport,
   shouldSuggest,
-  SUGGEST_REPLY_ALERT_THRESHOLD,
   SUGGEST_REPLY_CONTEXT_MESSAGES,
-  SUGGEST_REPLY_FEATURE,
   SUGGEST_REPLY_MAX_DRAFT_CHARS,
   SUGGEST_REPLY_MAX_OUTPUT_TOKENS,
   SUGGEST_REPLY_FEATURE_SPEC,
   SUGGEST_REPLY_MODEL,
-  SUGGEST_REPLY_MONTHLY_CAP,
   type SuggestionMessage,
   threadTextOf,
 } from "../messaging/reply-suggestions";
@@ -692,30 +687,6 @@ conversationsRoutes.post(
       if (!success) {
         return c.json({ suggestions: [], reason: "rate_limited" as const });
       }
-    }
-
-    // Monthly cap-and-drop: reserve one unit atomically; over cap → no call.
-    const reserve = await reserveAiUsage(db, {
-      companyId,
-      feature: SUGGEST_REPLY_FEATURE,
-      cap: SUGGEST_REPLY_MONTHLY_CAP,
-      alertThreshold: SUGGEST_REPLY_ALERT_THRESHOLD,
-    });
-    if (reserve.should_alert) {
-      c.executionCtx.waitUntil(
-        sendAiCapAlert(env, {
-          companyId,
-          label: "reply-suggestion",
-          count: reserve.count,
-          cap: SUGGEST_REPLY_MONTHLY_CAP,
-          alertThreshold: SUGGEST_REPLY_ALERT_THRESHOLD,
-          stops:
-            "suggested replies stop for the rest of the month — texting is unaffected.",
-        }).catch(() => {}),
-      );
-    }
-    if (reserve.over_cap) {
-      return c.json({ suggestions: [], reason: "over_cap" as const });
     }
 
     // Both reads are best effort — a draft is worth offering with less

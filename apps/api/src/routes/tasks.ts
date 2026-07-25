@@ -54,8 +54,6 @@ import { z } from "zod";
 
 import {
   loadAiSettings,
-  reserveAiUsage,
-  sendAiCapAlert,
 } from "../ai/settings";
 import { requireRole } from "../auth/company";
 import {
@@ -72,13 +70,10 @@ import {
   buildEnrichmentMessages,
   buildEnrichmentResult,
   detectEnrichmentSignals,
-  ENRICHMENT_ALERT_THRESHOLD,
-  ENRICHMENT_FEATURE,
   ENRICHMENT_MAX_INPUT_CHARS,
   ENRICHMENT_FEATURE_SPEC,
   ENRICHMENT_MAX_OUTPUT_TOKENS,
   ENRICHMENT_MODEL,
-  ENRICHMENT_MONTHLY_CAP,
   parseEnrichmentOutput,
 } from "../tasks/enrichment";
 import {
@@ -557,30 +552,6 @@ tasksRoutes.post("/tasks/enrich", requireRole("member"), async (c) => {
     });
     if (!success) return c.json(EMPTY_ENRICHMENT);
   }
-
-  // Monthly cap-and-drop: reserve one unit atomically; over cap → skip the call.
-  // An unreachable ledger reserves as over-cap, so enrichment degrades to the
-  // free fallback instead of failing a request that was only ever a suggestion.
-  const reserve = await reserveAiUsage(db, {
-    companyId,
-    feature: ENRICHMENT_FEATURE,
-    cap: ENRICHMENT_MONTHLY_CAP,
-    alertThreshold: ENRICHMENT_ALERT_THRESHOLD,
-  });
-  if (reserve.should_alert) {
-    c.executionCtx.waitUntil(
-      sendAiCapAlert(env, {
-        companyId,
-        label: "task-enrichment",
-        count: reserve.count,
-        cap: ENRICHMENT_MONTHLY_CAP,
-        alertThreshold: ENRICHMENT_ALERT_THRESHOLD,
-        stops:
-          "enrichment silently stops for the rest of the month — task creation is unaffected.",
-      }).catch(() => {}),
-    );
-  }
-  if (reserve.over_cap) return contactFallback();
 
   const messages = buildEnrichmentMessages({
     text,

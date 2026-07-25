@@ -64,7 +64,10 @@ interface StubOptions {
   settings?: { suggest_replies: boolean } | null;
   /** Thread rows, NEWEST FIRST (the route reverses them). */
   messages?: { direction: string; body: string | null }[];
-  reserve?: { count: number; over_cap: boolean; should_alert: boolean };
+  /** Ledger answer, or a Response to stand in for an unreachable ledger. */
+  reserve?:
+    | { count: number; over_cap: boolean; should_alert: boolean }
+    | Response;
   businessHours?: Record<string, { open: string; close: string }> | null;
 }
 
@@ -194,7 +197,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     expect(sb.find("POST", "/rest/v1/rpc/ai_usage_reserve")).toHaveLength(0);
   });
 
-  it("still drafts on a thread the crew already replied to (founder report)", async () => {
+  it("still drafts on a thread the crew already replied to", async () => {
     // Speaking last is not a reason to withhold a follow-up: the old gate
     // refused here, which is most threads most of the time.
     const { ai, run } = mockAi(TWO_REPLIES);
@@ -254,44 +257,23 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
 
   it("an unreachable usage ledger fails CLOSED (no spend, no error)", async () => {
     const { ai, run } = mockAi(TWO_REPLIES);
-    const sb = supabaseStub(env);
-    sb.on(
-      "GET",
-      "/rest/v1/company_members",
-      membershipResponder(MEMBER_ID, "member"),
-    );
-    sb.on("GET", "/rest/v1/number_access", () => []);
-    sb.on("GET", "/rest/v1/conversations", () => [
-      {
-        id: CONV_ID,
-        company_id: COMPANY_ID,
-        contact_id: CONTACT_ID,
-        phone_number_id: "eeeeeeee-1111-4222-8333-444444444444",
-        status: "open",
-        is_spam: false,
-        assigned_user_id: null,
-        pinned_at: null,
-        pinned_by_user_id: null,
-        last_message_at: "2026-07-01T10:00:00+00:00",
-        closed_at: null,
-        created_at: "2026-06-30T10:00:00+00:00",
-        updated_at: "2026-07-01T10:00:00+00:00",
-      },
-    ]);
-    sb.on("GET", "/rest/v1/company_ai_settings", () => []);
-    sb.on("GET", "/rest/v1/messages", () => [
-      { direction: "inbound", body: "How much for a drain?" },
-    ]);
-    sb.on(
-      "POST",
-      "/rest/v1/rpc/ai_usage_reserve",
-      () => new Response("boom", { status: 500 }),
-    );
+    const sb = stubs({ reserve: new Response("boom", { status: 500 }) });
 
     const res = await suggest(sb, { ...env, AI: ai });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ suggestions: [], reason: "over_cap" });
     expect(run).not.toHaveBeenCalled();
+  });
+
+  it("reserves exactly one unit per request", async () => {
+    // The cap is a monthly count of drafts. Counting a request twice halves
+    // it, and moves the alert that warns before it to the wrong place.
+    const { ai } = mockAi(TWO_REPLIES);
+    const sb = stubs();
+
+    await suggest(sb, { ...env, AI: ai });
+
+    expect(sb.find("POST", "/rest/v1/rpc/ai_usage_reserve")).toHaveLength(1);
   });
 
   it("NEVER sends internal notes to the model", async () => {

@@ -90,11 +90,16 @@ function companyRoute(): Stub {
   ]);
 }
 
-/** ai_usage_reserve RPC → the reservation verdict. */
+/** ai_usage_reserve RPC → the reservation verdict, and how often it was asked. */
 function reserveRoute(
   verdict: { count: number; over_cap: boolean; should_alert: boolean },
-): Stub {
-  return stubRoute(rpcMatch(baseEnv, "ai_usage_reserve"), () => verdict);
+): Stub & { calls: () => number } {
+  let calls = 0;
+  const stub = stubRoute(rpcMatch(baseEnv, "ai_usage_reserve"), () => {
+    calls += 1;
+    return verdict;
+  });
+  return Object.assign(stub, { calls: () => calls });
 }
 
 beforeAll(async () => {
@@ -168,6 +173,31 @@ describe("POST /v1/tasks/enrich", () => {
     expect(json.address_provenance).toBe("message");
     // 2026-07-16 14:00 America/Toronto (EDT) → 18:00 UTC.
     expect(json.due_at).toBe("2026-07-16T18:00:00.000Z");
+  });
+
+  it("reserves exactly one unit per enrichment", async () => {
+    // The cap is a monthly count of enrichments. Counting a request twice
+    // halves it, and moves the alert that warns before it to the wrong place.
+    const { ai } = mockAi({ response: '{"city":"Toronto"}' });
+    const reserve = reserveRoute({
+      count: 1,
+      over_cap: false,
+      should_alert: false,
+    });
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute(),
+      settingsRoute({ enrich_task_address: true, enrich_task_due: true }).route,
+      reserve.route,
+      companyRoute().route,
+    );
+
+    await enrich({ text: "fix sink at 5 King St W tomorrow 2pm" }, {
+      ...baseEnv,
+      AI: ai,
+    });
+
+    expect(reserve.calls()).toBe(1);
   });
 
   it("over the monthly cap → empty result, AI never called (cap-and-drop)", async () => {
@@ -321,7 +351,7 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
     );
   }
 
-  it("GET defaults to all-ON when never set (founder #214 follow-up)", async () => {
+  it("GET defaults to all-ON when never set", async () => {
     stubFetch(jwksRoute(auth), membersRoute("member"), settingsRoute(null).route);
     const res = await req("GET", "/v1/company/ai-settings");
     expect(res.status).toBe(200);
