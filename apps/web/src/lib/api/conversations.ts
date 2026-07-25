@@ -299,6 +299,37 @@ export function useMarkConversationRead() {
   });
 }
 
+/**
+ * DELETE /v1/conversations/:id/read — put a thread back in the unread pile.
+ * Both phone apps have had this as an inbox swipe since #185; on web, opening
+ * a thread to glance at it marked it read with no way to undo, so a message
+ * you meant to come back to lost the only mark that said so.
+ */
+export function useMarkConversationUnread() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (conversationId: string) =>
+      apiFetch<ReadReceipt>(`/v1/conversations/${conversationId}/read`, {
+        method: "DELETE",
+        companyId,
+      }),
+    onMutate: (conversationId) => {
+      // The dot returns instantly; the server delete follows.
+      patchConversationLists(queryClient, companyId, (list) =>
+        listSetUnread(list, conversationId, true),
+      );
+    },
+    onError: () => {
+      // Same reasoning as the read path: refetch rather than restore, so the
+      // badges come back from the source of truth.
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.lists(companyId),
+      });
+    },
+  });
+}
+
 /** POST /v1/conversations/:id/notes — internal note (amber card, G5). */
 export function useCreateNote(conversationId: string) {
   const companyId = useCompanyId();

@@ -7,6 +7,7 @@ import {
   Copy,
   Images,
   Info,
+  MailOpen,
   MoreHorizontal,
   OctagonAlert,
   Pin,
@@ -42,7 +43,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useOptOutContact, useRevokeOptOut } from "@/lib/api/contacts";
-import { useUpdateConversation } from "@/lib/api/conversations";
+import {
+  useMarkConversationUnread,
+  useUpdateConversation,
+} from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
 import { useMembers } from "@/lib/api/team";
 import type {
@@ -100,6 +104,7 @@ export function ThreadHeader({
   onFilterChange: (next: ThreadFilter) => void;
 }) {
   const update = useUpdateConversation(conversation.id);
+  const unread = useMarkConversationUnread();
   const optOut = useOptOutContact();
   const revokeOptOut = useRevokeOptOut();
   const members = useMembers();
@@ -158,6 +163,13 @@ export function ThreadHeader({
   // #3: pin/unpin the whole conversation to the top of the inbox. Trivially
   // reversible from the same menu, so a plain confirm toast (no undo affordance).
   const pinned = conversation.pinned_at !== null;
+  const markUnread = () => {
+    unread.mutate(conversation.id, {
+      onError: (e) => onApiError(e, "Couldn't mark this unread."),
+      onSuccess: () => toast.success("Marked unread"),
+    });
+  };
+
   const togglePin = () => {
     update.mutate(
       { pinned: !pinned },
@@ -417,6 +429,13 @@ export function ThreadHeader({
                 <DropdownMenuSeparator />
               </>
             )}
+            {/* Opening a thread marks it read, so glancing at one you meant
+                to come back to used to lose the only mark that said so. Both
+                phone apps have had this as an inbox swipe since #185. */}
+            <DropdownMenuItem onSelect={markUnread}>
+              <MailOpen className="size-4" strokeWidth={1.75} />
+              Mark unread
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={togglePin}>
               {pinned ? (
                 <PinOff className="size-4" strokeWidth={1.75} />
