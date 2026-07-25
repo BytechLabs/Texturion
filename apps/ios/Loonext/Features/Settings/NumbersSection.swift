@@ -581,8 +581,21 @@ private struct AddNumberCard: View {
            let facts = planFacts(company.plan) {
             let liveCount = numbers.filter { $0.status != NumberStatus.released }.count
             let starterAtCap = company.plan == "starter" && liveCount >= 2
-            if !starterAtCap {
-                let nextIsExtra = liveCount >= facts.numbers
+            let nextIsExtra = liveCount >= facts.numbers
+            // Extra numbers are US numbers, and only once US texting is on.
+            // Offering the picker anyway sold something the server would
+            // refuse; a Canadian workspace tapping Add got an error instead of
+            // an answer.
+            let extraBlocked = nextIsExtra
+                && !(company.country == "US" && company.us_texting_enabled)
+            if !starterAtCap, extraBlocked {
+                SettingsCard(title: "Add a number") {
+                    ReadOnlyLine(
+                        "Your plan's numbers are all in use. An extra number is "
+                            + "a US number, so it needs US texting enabled first."
+                    )
+                }
+            } else if !starterAtCap {
                 let extraPrice = company.plan == "pro" ? "$4/mo" : "$5/mo"
                 SettingsCard(
                     title: "Add a number",

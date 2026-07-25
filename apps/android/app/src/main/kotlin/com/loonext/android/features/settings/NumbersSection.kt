@@ -686,6 +686,18 @@ private fun AddNumberCard(
     val starterAtCap = company.plan == "starter" && liveCount >= 2
     if (starterAtCap) return
     val nextIsExtra = liveCount >= facts.numbers
+    // Extra numbers are US numbers, and only once US texting is on. Offering
+    // the picker anyway sold something the server would refuse; a Canadian
+    // workspace tapping Add got an error instead of an answer.
+    if (nextIsExtra && !(company.country == "US" && company.us_texting_enabled)) {
+        SettingsCard(title = "Add a number") {
+            ReadOnlyLine(
+                "Your plan's numbers are all in use. An extra number is a US " +
+                    "number, so it needs US texting enabled first.",
+            )
+        }
+        return
+    }
     val extraPrice = if (company.plan == "pro") "$4/mo" else "$5/mo"
 
     var picking by remember { mutableStateOf(false) }
