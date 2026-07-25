@@ -94,6 +94,33 @@ class PushPayloadTest {
     }
 
     @Test
+    fun `task_due kind routes to the task reminders channel`() {
+        // A busy inbox is the first thing someone mutes, and a due-date
+        // reminder is time-critical in a way an inbox notification is not.
+        val content = parsePush(
+            mapOf(
+                "kind" to "task_due",
+                "title" to "Replace the outdoor tap",
+                "body" to "Due in 30 min",
+                "url" to "/inbox/conv-4",
+            ),
+        )
+
+        assertEquals(ChannelIds.TASK_REMINDERS, content.channelId)
+    }
+
+    @Test
+    fun `an unknown kind still lands somewhere rather than being dropped`() {
+        // A newer server than this build: render it on the general channel.
+        val content = parsePush(
+            mapOf("kind" to "something_new", "title" to "Hi", "url" to "/inbox/c"),
+        )
+
+        assertEquals(ChannelIds.MESSAGES, content.channelId)
+        assertEquals("Hi", content.title)
+    }
+
+    @Test
     fun `empty payload degrades to a calm generic notice, never dropped`() {
         val content = parsePush(emptyMap())
 

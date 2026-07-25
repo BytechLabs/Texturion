@@ -34,6 +34,9 @@ object PushKind {
     const val CALL = "call"
     const val MISSED_CALL = "missed_call"
 
+    /** A task the reader is assigned, shortly before (or after) its due date. */
+    const val TASK_DUE = "task_due"
+
     /**
      * Ring revocation on every exit from `ringing` (calls-v3 §9.2). Android
      * FCM sends are data-only with NO collapse key, so the ONLY dismissal
@@ -95,10 +98,12 @@ fun parsePush(data: Map<String, String>): PushContent {
         body = body.ifEmpty { "You have a new notification." },
         url = url,
         tag = tag,
-        channelId = if (kind == PushKind.MISSED_CALL) {
-            ChannelIds.MISSED_CALLS
-        } else {
-            ChannelIds.MESSAGES
+        channelId = when (kind) {
+            PushKind.MISSED_CALL -> ChannelIds.MISSED_CALLS
+            PushKind.TASK_DUE -> ChannelIds.TASK_REMINDERS
+            // An unknown kind is a newer server than this build: render it on
+            // the general channel rather than dropping it.
+            else -> ChannelIds.MESSAGES
         },
     )
 }
