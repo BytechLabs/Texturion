@@ -230,10 +230,34 @@ type TelnyxSendResult =
   | { ok: true; telnyxMessageId: string }
   | ({ ok: false } & TelnyxSendFailure);
 
+/**
+ * The Idempotency-Key for one outbound text: the message ROW's id.
+ *
+ * One row is one text, forever, so this is stable across every attempt at it —
+ * including the §7 retry, which re-dispatches the SAME row. That is exactly
+ * what makes it safe: without a key, a POST that Telnyx ACCEPTED but whose
+ * response we never finished reading (the 20s timeout firing, a dropped
+ * connection) comes back as a network error, the row is marked failed with no
+ * telnyx_message_id, the thread offers Retry, and pressing it sends the
+ * customer the same text a second time and bills for both.
+ *
+ * Matches the rule the billing paths already encode: a vendor-charged intent
+ * gets a stable DERIVED key, never a random per-request one.
+ */
+function sendIdempotencyKey(messageId: string): string {
+  return `message:${messageId}`;
+}
+
 /** Telnyx POST /v2/messages (SPEC §8): from, to, text, media_urls. */
 async function telnyxCreateMessage(
   env: Env,
-  args: { from: string; to: string; text: string; mediaUrls: string[] },
+  args: {
+    from: string;
+    to: string;
+    text: string;
+    mediaUrls: string[];
+    idempotencyKey: string;
+  },
 ): Promise<TelnyxSendResult> {
   let response: Response;
   try {
@@ -242,6 +266,7 @@ async function telnyxCreateMessage(
       headers: {
         Authorization: `Bearer ${env.TELNYX_API_KEY}`,
         "Content-Type": "application/json",
+        "Idempotency-Key": args.idempotencyKey,
       },
       body: JSON.stringify({
         from: args.from,
@@ -412,7 +437,10 @@ export async function dispatchOutbound(
     }
   }
 
-  const result = await telnyxCreateMessage(env, args);
+  const result = await telnyxCreateMessage(env, {
+    ...args,
+    idempotencyKey: sendIdempotencyKey(message.id),
+  });
 
   const patch = result.ok
     ? { telnyx_message_id: result.telnyxMessageId }
