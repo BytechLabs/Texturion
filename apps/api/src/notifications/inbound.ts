@@ -30,8 +30,7 @@ import { getDb } from "../db";
 import { emailLayout, escapeHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
-import { isFcmConfigured, sendFcm } from "./fcm";
-import { sendWebPush } from "./webpush";
+import { deliverPush } from "./deliver";
 
 const SNIPPET_LENGTH = 80;
 
@@ -56,21 +55,6 @@ interface PrefsRow {
   user_id: string;
   email_enabled: boolean;
   push_enabled: boolean;
-}
-
-interface SubscriptionRow {
-  id: string;
-  user_id: string;
-  endpoint: string;
-  p256dh: string;
-  auth: string;
-}
-
-interface DeviceTokenRow {
-  id: string;
-  user_id: string;
-  platform: "android" | "ios";
-  token: string;
 }
 
 function unwrapRows<T>(
@@ -245,109 +229,16 @@ export async function notifyInboundMessage(
     }
   }
 
-  // WEB PUSH — payload consumed by the apps/web service worker (§8: contact
-  // display name + 80-char snippet + deep link).
-  if (pushUsers.length > 0) {
-    // #30 defensive bound: POST /v1/push-subscriptions caps each user at 10
-    // live rows, but a bad table state must never unbound webhook processing —
-    // newest 50 across the audience is far above any legitimate team's devices.
-    const subscriptions = unwrapRows<SubscriptionRow>(
-      await db
-        .from("push_subscriptions")
-        .select("id,user_id,endpoint,p256dh,auth")
-        .in("user_id", pushUsers)
-        .order("created_at", { ascending: false })
-        .limit(50),
-      "push subscriptions lookup",
-    );
-    const payload = JSON.stringify({
-      title: contactName,
-      body: snippet,
-      url: link,
-    });
-    for (const subscription of subscriptions) {
-      try {
-        const result = await sendWebPush(env, subscription, payload);
-        if (result.gone) {
-          // Permanently dead endpoint (unsubscribed/expired): drop the row.
-          const { error } = await db
-            .from("push_subscriptions")
-            .delete()
-            .eq("id", subscription.id);
-          if (error) {
-            throw new Error(
-              `dead push subscription cleanup failed: ${error.message}`,
-            );
-          }
-        } else if (!result.ok) {
-          throw new Error(
-            `push delivery failed with HTTP ${result.status} for subscription ${subscription.id}` +
-              (result.errorBody ? ` — ${result.errorBody}` : ""),
-          );
-        }
-      } catch (cause) {
-        failures.push(cause);
-      }
-    }
-
-    // NATIVE DEVICE PUSH (#151): same audience, same payload contract — one
-    // FCM send per registered Android/iOS device of every push-enabled
-    // recipient. Skipped with one log line until the founder provisions
-    // Firebase (the secret is optional so deploys stay green).
-    if (!isFcmConfigured(env)) {
-      console.log(
-        "fcm: FCM_SERVICE_ACCOUNT_JSON unset — native device push skipped",
-      );
-    } else {
-      // Same #30-style defensive bound as the subscription query: newest 50
-      // across the audience, far above any legitimate team's devices.
-      const deviceTokens = unwrapRows<DeviceTokenRow>(
-        await db
-          .from("device_push_tokens")
-          .select("id,user_id,platform,token")
-          .in("user_id", pushUsers)
-          .order("created_at", { ascending: false })
-          .limit(50),
-        "device push tokens lookup",
-      );
-      for (const device of deviceTokens) {
-        try {
-          // #162 iOS coalescing: repeat texts in one thread REPLACE the
-          // pending alert (apns-collapse-id) instead of stacking — the same
-          // `conversation:<id>` tag the clients coalesce on. TTL/urgency ride
-          // the sender defaults.
-          const result = await sendFcm(
-            env,
-            device,
-            payload,
-            undefined,
-            undefined,
-            `conversation:${input.conversationId}`,
-          );
-          if (result.gone) {
-            // FCM says UNREGISTERED (app uninstalled / token rotated): drop
-            // the row, mirroring the Web Push 404/410 prune.
-            const { error } = await db
-              .from("device_push_tokens")
-              .delete()
-              .eq("id", device.id);
-            if (error) {
-              throw new Error(
-                `dead device push token cleanup failed: ${error.message}`,
-              );
-            }
-          } else if (!result.ok) {
-            throw new Error(
-              `native push delivery failed with HTTP ${result.status} for device token ${device.id}` +
-                (result.errorBody ? ` — ${result.errorBody}` : ""),
-            );
-          }
-        } catch (cause) {
-          failures.push(cause);
-        }
-      }
-    }
-  }
+  // WEB PUSH + NATIVE DEVICE PUSH: the §8 payload (contact display name,
+  // 80-char snippet, deep link) to every push-enabled recipient. #162 iOS
+  // coalescing: repeat texts in one thread REPLACE the pending alert rather
+  // than stacking, on the `conversation:<id>` tag the clients coalesce on.
+  await deliverPush(env, db, {
+    userIds: pushUsers,
+    webPayload: JSON.stringify({ title: contactName, body: snippet, url: link }),
+    collapseKey: `conversation:${input.conversationId}`,
+    failures,
+  });
 
   if (failures.length > 0) {
     throw new AggregateError(

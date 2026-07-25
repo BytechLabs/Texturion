@@ -26,8 +26,7 @@ import { levelFromRules, type NumberAccessRule } from "../auth/number-access";
 import type { MemberRole } from "../context";
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { isFcmConfigured, sendFcm } from "./fcm";
-import { sendWebPush } from "./webpush";
+import { deliverPush } from "./deliver";
 
 export interface MissedCallNotificationInput {
   companyId: string;
@@ -53,21 +52,6 @@ interface ConversationView {
 interface PrefsRow {
   user_id: string;
   push_enabled: boolean;
-}
-
-interface SubscriptionRow {
-  id: string;
-  user_id: string;
-  endpoint: string;
-  p256dh: string;
-  auth: string;
-}
-
-interface DeviceTokenRow {
-  id: string;
-  user_id: string;
-  platform: "android" | "ios";
-  token: string;
 }
 
 function unwrapRows<T>(
@@ -167,117 +151,26 @@ export async function notifyMissedCall(
 
   const failures: unknown[] = [];
 
-  if (pushUsers.length > 0) {
-    const subscriptions = unwrapRows<SubscriptionRow>(
-      await db
-        .from("push_subscriptions")
-        .select("id,user_id,endpoint,p256dh,auth")
-        .in("user_id", pushUsers)
-        // #30 defensive bound (mirrors inbound.ts): POST /v1/push-subscriptions
-        // caps each user at 10 live rows, but a bad table state must never
-        // unbound a webhook's fan-out — newest 50 across the audience is far
-        // above any legitimate team's devices.
-        .order("created_at", { ascending: false })
-        .limit(50),
-      "push subscriptions lookup",
-    );
-    const payload = JSON.stringify({
-      title: `Missed call from ${contactName}`,
-      body:
-        input.textStatus === "sent"
-          ? "We texted them so they can book by reply."
-          : input.textStatus === "failed"
-            ? "Their text-back failed. Call them back."
-            : "No text-back went out. Call them back.",
-      url: link,
-    });
-    for (const subscription of subscriptions) {
-      try {
-        const result = await sendWebPush(env, subscription, payload);
-        if (result.gone) {
-          const { error } = await db
-            .from("push_subscriptions")
-            .delete()
-            .eq("id", subscription.id);
-          if (error) {
-            throw new Error(
-              `dead push subscription cleanup failed: ${error.message}`,
-            );
-          }
-        } else if (!result.ok) {
-          throw new Error(
-            `push delivery failed with HTTP ${result.status} for subscription ${subscription.id}` +
-              (result.errorBody ? ` — ${result.errorBody}` : ""),
-          );
-        }
-      } catch (cause) {
-        failures.push(cause);
-      }
-    }
-
-    // NATIVE DEVICE PUSH (#151/#165): same audience and copy as the Web Push
-    // payload, plus the `kind:'missed_call'` structural discriminator so the
-    // Android client routes it to the dedicated missed-calls channel
-    // (PushKind.MISSED_CALL). Web Push stays kind-less — the service worker
-    // renders unmarked pushes as ordinary notices and must not change shape.
-    // One FCM send per registered device of every push-enabled recipient;
-    // skipped with one log line until Firebase is provisioned (optional
-    // secret, deploys green).
-    const nativePayload = JSON.stringify({
-      kind: "missed_call",
-      ...(JSON.parse(payload) as Record<string, string>),
-    });
-    if (!isFcmConfigured(env)) {
-      console.log(
-        "fcm: FCM_SERVICE_ACCOUNT_JSON unset — native device push skipped",
-      );
-    } else {
-      // #30-style defensive bound: newest 50 across the audience.
-      const deviceTokens = unwrapRows<DeviceTokenRow>(
-        await db
-          .from("device_push_tokens")
-          .select("id,user_id,platform,token")
-          .in("user_id", pushUsers)
-          .order("created_at", { ascending: false })
-          .limit(50),
-        "device push tokens lookup",
-      );
-      for (const device of deviceTokens) {
-        try {
-          // #162 iOS coalescing: like the inbound-message push, missed-call
-          // alerts tag per conversation (apns-collapse-id) — the client
-          // coalescing contract keys missed calls on `conversation:<id>` too.
-          const result = await sendFcm(
-            env,
-            device,
-            nativePayload,
-            undefined,
-            undefined,
-            `conversation:${input.conversationId}`,
-          );
-          if (result.gone) {
-            // UNREGISTERED token: drop the row (the Web Push 404/410 mirror).
-            const { error } = await db
-              .from("device_push_tokens")
-              .delete()
-              .eq("id", device.id);
-            if (error) {
-              throw new Error(
-                `dead device push token cleanup failed: ${error.message}`,
-              );
-            }
-          } else if (!result.ok) {
-            throw new Error(
-              `native push delivery failed with HTTP ${result.status} for device token ${device.id}` +
-                (result.errorBody ? ` — ${result.errorBody}` : ""),
-            );
-          }
-        } catch (cause) {
-          failures.push(cause);
-        }
-      }
-    }
-  }
+  // WEB PUSH + NATIVE DEVICE PUSH. The native body carries the
+  // `kind:'missed_call'` discriminator so the Android client routes it to the
+  // dedicated missed-calls channel (PushKind.MISSED_CALL); Web Push stays
+  // kind-less, since the service worker renders unmarked pushes as ordinary
+  // notices and must not change shape. #162 iOS coalescing keys on the
+  // conversation, like the inbound-message alert.
+  const body =
+    input.textStatus === "sent"
+      ? "We texted them so they can book by reply."
+      : input.textStatus === "failed"
+        ? "Their text-back failed. Call them back."
+        : "No text-back went out. Call them back.";
+  const alert = { title: `Missed call from ${contactName}`, body, url: link };
+  await deliverPush(env, db, {
+    userIds: pushUsers,
+    webPayload: JSON.stringify(alert),
+    nativePayload: JSON.stringify({ kind: "missed_call", ...alert }),
+    collapseKey: `conversation:${input.conversationId}`,
+    failures,
+  });
 
   if (failures.length > 0) {
     throw new AggregateError(
