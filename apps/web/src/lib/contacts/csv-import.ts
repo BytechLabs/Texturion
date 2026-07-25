@@ -1,4 +1,4 @@
-import { isUsCaDestination } from "@loonext/shared";
+import { detectContactColumns, isUsCaDestination } from "@loonext/shared";
 
 /**
  * CSV import wizard logic (G6): column-mapping auto-detect, client-side
@@ -58,55 +58,14 @@ export function normalizeNanpPhone(input: string): string | null {
 }
 
 /** Lowercase and strip everything but letters/digits: "Phone Number" → "phonenumber". */
-function normalizeHeader(header: string): string {
-  return header.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
 /**
- * Header patterns per target field, most specific first. Detection order
- * matters: `opted_out` is matched before `phone` so a "do not text" column is
- * never claimed by phone's broad `number` pattern.
- */
-const FIELD_PATTERNS: readonly [ImportField, RegExp[]][] = [
-  [
-    "opted_out",
-    [/^optedout$/, /optout/, /unsubscribe/, /donottext|donotcontact/, /^dnc$/, /blocked/],
-  ],
-  [
-    "phone",
-    [/^phone$/, /phone/, /mobile/, /^cell/, /^tel/, /number/],
-  ],
-  [
-    "name",
-    [/^name$/, /^fullname$/, /^contactname$|^customername$|^clientname$/, /^contact$|^customer$|^client$/, /name/],
-  ],
-  ["address", [/^address$/, /address/, /^addr/, /street/]],
-  ["notes", [/^notes?$/, /comment/, /memo/, /description/]],
-];
-
-/**
- * Auto-detect a column mapping from the header row. Each column is claimed by
- * at most one field; per field the most specific pattern wins, scanning
- * columns left to right.
+ * Auto-detect a column mapping from the header row. The detection itself lives
+ * in @loonext/shared because the API applies the SAME rules to a file posted
+ * raw from a phone; keeping a second copy here is how the two drifted in the
+ * first place (web rewrote the header before uploading, the phones did not).
  */
 export function autoDetectMapping(headers: readonly string[]): ImportMapping {
-  const normalized = headers.map(normalizeHeader);
-  const claimed = new Set<number>();
-  const mapping: ImportMapping = {};
-
-  for (const [field, patterns] of FIELD_PATTERNS) {
-    outer: for (const pattern of patterns) {
-      for (let i = 0; i < normalized.length; i += 1) {
-        if (claimed.has(i)) continue;
-        if (pattern.test(normalized[i])) {
-          mapping[field] = i;
-          claimed.add(i);
-          break outer;
-        }
-      }
-    }
-  }
-  return mapping;
+  return detectContactColumns(headers) as ImportMapping;
 }
 
 export type PreviewStatus = "ready" | "invalid_phone" | "duplicate";

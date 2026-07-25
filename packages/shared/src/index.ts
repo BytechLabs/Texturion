@@ -67,3 +67,10 @@ export {
   type DayHours,
   type BusinessHours,
 } from "./business-hours";
+
+export {
+  detectContactColumns,
+  normalizeContactHeader,
+  type ContactImportField,
+  type ContactImportMapping,
+} from "./contact-import-headers";

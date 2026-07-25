@@ -52,6 +52,8 @@ import {
   unwrap,
 } from "./core/http";
 import { resolveActorNames } from "./core/attribution";
+import { detectContactColumns } from "@loonext/shared";
+
 import { normalizeNanpPhone } from "./core/phone";
 import { parseVCards } from "./core/vcard";
 
@@ -587,16 +589,20 @@ contactsRoutes.post(
         "file: CSV must have a header row and at least one data row.",
       );
     }
-    const header = rows[0].map((cell) => cell.trim().toLowerCase());
-    const col = (name: string) => header.indexOf(name);
-    const phoneCol = col("phone");
+    // Header detection is shared with the web importer (@loonext/shared), so a
+    // file exported from another tool ("Phone Number", "Mobile", "Cell") lands
+    // the same way whichever client posted it. Web rewrote the header before
+    // uploading and the phones did not, so the same file that imported from a
+    // laptop was rejected from a phone.
+    const mapping = detectContactColumns(rows[0].map((cell) => cell.trim()));
+    const phoneCol = mapping.phone ?? -1;
     if (phoneCol === -1) {
       throw new ApiError("validation_failed", "file: missing `phone` column.");
     }
-    const nameCol = col("name");
-    const addressCol = col("address");
-    const notesCol = col("notes");
-    const optedOutCol = col("opted_out");
+    const nameCol = mapping.name ?? -1;
+    const addressCol = mapping.address ?? -1;
+    const notesCol = mapping.notes ?? -1;
+    const optedOutCol = mapping.opted_out ?? -1;
 
     const dataRows = rows.slice(1);
     if (dataRows.length > IMPORT_MAX_ROWS) {
