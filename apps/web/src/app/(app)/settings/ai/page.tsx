@@ -198,6 +198,28 @@ export default function AiSettingsPage() {
               />
             </div>
           </SettingsCard>
+          <SettingsCard title="When someone leaves a voicemail">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="ai-voicemail" className="text-sm font-medium">
+                  Let Lou write voicemails down
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Show what a voicemail says next to the recording, so you can
+                  read it when playing it isn&apos;t an option. The recording is
+                  always kept either way.
+                </p>
+              </div>
+              <Switch
+                id="ai-voicemail"
+                checked={settings.data.transcribe_voicemail}
+                disabled={!canEdit || update.isPending}
+                onCheckedChange={(checked) =>
+                  toggle("transcribe_voicemail", checked)
+                }
+              />
+            </div>
+          </SettingsCard>
           {!canEdit && (
             <p className="text-sm text-muted-foreground">
               Only owners and admins can change these.

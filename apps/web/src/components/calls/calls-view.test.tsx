@@ -78,6 +78,7 @@ function call(overrides: Partial<Call> = {}): Call {
     screening_result: null,
     stir_attestation: null,
     voicemail_seconds: null,
+  voicemail_transcript: null,
     answered_by_user_id: null,
     answered_by_name: null,
     started_at: new Date().toISOString(),

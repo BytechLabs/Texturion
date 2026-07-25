@@ -497,6 +497,11 @@ export interface CompanyAiSettings {
    * Null means Lou has been told nothing and may not describe the business.
    */
   business_description: string | null;
+  /**
+   * Transcribe new voicemails. Off leaves the recording exactly as it was:
+   * this only decides whether the words appear beside it.
+   */
+  transcribe_voicemail: boolean;
 }
 
 /** POST /v1/conversations/:id/reply-suggestions — up to three reviewed drafts. */
@@ -926,6 +931,13 @@ export interface Call {
   screening_result: string | null;
   stir_attestation: string | null;
   voicemail_seconds: number | null;
+  /**
+   * What the voicemail says, written best-effort after the recording is
+   * stored. Null means it was not transcribed (turned off, over the monthly
+   * cap, too long, or the model failed) and is never a reason to hide the
+   * audio.
+   */
+  voicemail_transcript: string | null;
   answered_by_user_id: string | null;
   /** #191: the acting member's display name — the PLACER of an outbound call, the
    *  ANSWERER of an inbound one. Null when the actor is unknown (pre-#211 outbound,

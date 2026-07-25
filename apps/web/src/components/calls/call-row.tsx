@@ -113,6 +113,14 @@ export function CallRow({ call }: { call: Call }) {
               callSessionId={call.call_session_id}
               seconds={call.voicemail_seconds}
             />
+            {/* What it says, for the times playing it is not an option: on a
+                roof, in a truck, next to a running compressor. The player
+                stays: the recording is the record, this is the shortcut. */}
+            {call.voicemail_transcript && (
+              <span className="mt-1.5 block text-[12.5px] leading-[1.45] text-app-muted">
+                {call.voicemail_transcript}
+              </span>
+            )}
           </span>
         ) : null}
       </span>
