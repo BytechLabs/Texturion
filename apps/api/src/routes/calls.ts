@@ -20,13 +20,7 @@
  */
 import { Hono, type Context } from "hono";
 import type { Env } from "../env";
-import { loadAiSettings, reserveAiUsage } from "../ai/settings";
-import {
-  shouldTranscribe,
-  VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD,
-  VOICEMAIL_TRANSCRIPT_FEATURE,
-  VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
-} from "../calls/voicemail-transcript";
+import { shouldTranscribe } from "../calls/voicemail-transcript";
 import { runTranscription } from "../messaging/inbound-ring";
 import { z } from "zod";
 
@@ -234,23 +228,19 @@ async function backfillVoicemailTranscript(
   },
 ): Promise<string | null> {
   try {
-    if (!env.AI || !shouldTranscribe(args.seconds)) return null;
-
-    const settings = await loadAiSettings(db, args.companyId);
-    if (!settings.transcribe_voicemail) return null;
-
-    const reservation = await reserveAiUsage(db, {
-      companyId: args.companyId,
-      feature: VOICEMAIL_TRANSCRIPT_FEATURE,
-      cap: VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
-      alertThreshold: VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD,
-    });
-    if (reservation.over_cap) return null;
+    // The gate owns the opt-in, the cap, the alert and the timeout; the only
+    // check that is ours is whether this recording is worth paying for.
+    if (!shouldTranscribe(args.seconds)) return null;
 
     const download = await db.storage.from(VOICEMAILS_BUCKET).download(args.path);
     if (download.error || !download.data) return null;
 
-    const text = await runTranscription(env, await download.data.arrayBuffer());
+    const text = await runTranscription(
+      env,
+      db,
+      args.companyId,
+      await download.data.arrayBuffer(),
+    );
     if (text === null) return null;
 
     await db

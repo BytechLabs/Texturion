@@ -33,6 +33,7 @@
  *   - No em dashes (brand rule): the model is told, and the sanitizer rewrites
  *     any that survive.
  */
+import type { AiFeatureSpec } from "../ai/run";
 import {
   type BusinessHours,
   formatZonedStamp,
@@ -92,6 +93,21 @@ export const SUGGEST_REPLY_CONTEXT_GAP_MS = 24 * 60 * 60 * 1000;
 export const SUGGEST_REPLY_MAX_MESSAGE_CHARS = 600;
 /** Longest draft we will offer: about two SMS segments. */
 export const SUGGEST_REPLY_MAX_CHARS = 320;
+
+/**
+ * Everything this cost center may do, declared once and handed to
+ * `runAiFeature` — the one door onto the model, which owns the opt-in, the
+ * cap, the alert and the timeout so no caller can assemble them wrongly.
+ */
+export const SUGGEST_REPLY_FEATURE_SPEC: AiFeatureSpec = {
+  key: "suggest_reply",
+  label: "reply drafting",
+  cap: SUGGEST_REPLY_MONTHLY_CAP,
+  alertThreshold: SUGGEST_REPLY_ALERT_THRESHOLD,
+  stops: "the composer simply stops offering drafts.",
+  timeoutMs: SUGGEST_REPLY_TIMEOUT_MS,
+  enabled: (settings) => settings.suggest_replies,
+};
 /** Truncate the person's in-progress draft before it reaches the model. */
 export const SUGGEST_REPLY_MAX_DRAFT_CHARS = 500;
 /** Never offer more than this many drafts. */
@@ -261,14 +277,9 @@ export function hasReplyableInbound(messages: SuggestionMessage[]): boolean {
  * is a deliberate tap, and the burst limiter and monthly cap sit behind it.
  */
 /**
- * How much of our own words counts as something to follow up ON.
- *
- * A thread whose only message is an outbound "hi" gives the model nothing, and
- * a model given nothing does not stay quiet — it fills the gap. A real
- * production thread with exactly that one word produced a draft about a
- * "custom PC build" and the customer's "budget", neither of which had ever
- * been mentioned to anyone. Every sentence of it was invented, and it was
- * offered to send to a customer.
+ * A model given nothing to work from does not stay quiet: it fills the gap.
+ * So a bare greeting from us is not a conversation to follow up on — drafting
+ * from it produces invented history offered up ready to send.
  */
 const GREETING_ONLY =
   /^(?:hi|hey|hello|yo|hiya|howdy|good (?:morning|afternoon|evening)|morning|hi there|hey there)[\s!.,]*$/i;
@@ -303,8 +314,7 @@ export function shouldSuggest(
     return true;
   }
   // Outbound only: a follow-up needs something to follow up ON. Our own "hi"
-  // is a wave, not a conversation — that exact thread is what produced the
-  // invented one.
+  // is a wave, not a conversation.
   return messages.some(
     (m) =>
       m.direction === "outbound" &&

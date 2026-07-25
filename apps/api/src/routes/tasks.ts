@@ -49,6 +49,7 @@
  * sources). There is no task-specific attachment route here.
  */
 import { Hono } from "hono";
+import { runAiFeature } from "../ai/run";
 import { z } from "zod";
 
 import {
@@ -74,10 +75,10 @@ import {
   ENRICHMENT_ALERT_THRESHOLD,
   ENRICHMENT_FEATURE,
   ENRICHMENT_MAX_INPUT_CHARS,
+  ENRICHMENT_FEATURE_SPEC,
   ENRICHMENT_MAX_OUTPUT_TOKENS,
   ENRICHMENT_MODEL,
   ENRICHMENT_MONTHLY_CAP,
-  ENRICHMENT_TIMEOUT_MS,
   parseEnrichmentOutput,
 } from "../tasks/enrichment";
 import {
@@ -588,29 +589,19 @@ tasksRoutes.post("/tasks/enrich", requireRole("member"), async (c) => {
     contactAddress: ctx.contactAddress,
   });
 
-  // Never block on the AI: race the call against a timeout, degrade on failure.
-  let raw: unknown;
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  try {
-    raw = await Promise.race([
-      env.AI.run(ENRICHMENT_MODEL, {
-        messages,
-        max_tokens: ENRICHMENT_MAX_OUTPUT_TOKENS,
-      }),
-      new Promise((_, reject) => {
-        timeoutId = setTimeout(
-          () => reject(new Error("ai enrichment timeout")),
-          ENRICHMENT_TIMEOUT_MS,
-        );
-      }),
-    ]);
-  } catch {
-    return c.json(EMPTY_ENRICHMENT);
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-  }
+  // One door onto the model (ai/run.ts): it owns the opt-in, the monthly cap,
+  // the alert before the cap, and the timeout. Any refusal degrades to "no
+  // enrichment" — make-a-task never waits on it and never fails because of it.
+  const enriched = await runAiFeature(env, db, {
+    companyId,
+    spec: ENRICHMENT_FEATURE_SPEC,
+    model: ENRICHMENT_MODEL,
+    input: { messages, max_tokens: ENRICHMENT_MAX_OUTPUT_TOKENS },
+    settings,
+  });
+  if (!enriched.ok) return c.json(EMPTY_ENRICHMENT);
 
-  const output = parseEnrichmentOutput(raw);
+  const output = parseEnrichmentOutput(enriched.raw);
   if (!output) return c.json(EMPTY_ENRICHMENT);
 
   const result = buildEnrichmentResult(output, {

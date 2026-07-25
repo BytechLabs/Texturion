@@ -18,6 +18,7 @@
  *     content between them is data to extract from, never commands to follow.
  *   - Only the acting company's / linked contact's data ever enters the prompt.
  */
+import type { AiFeatureSpec } from "../ai/run";
 import { formatZonedStamp } from "@loonext/shared";
 import { z } from "zod";
 
@@ -37,8 +38,27 @@ export const ENRICHMENT_ALERT_THRESHOLD = Math.floor(
 );
 /** Reject task text longer than this before spending an AI call on it. */
 export const ENRICHMENT_MAX_INPUT_CHARS = 4000;
+
 /** Never block task creation on the AI: race the call against this timeout. */
 export const ENRICHMENT_TIMEOUT_MS = 8000;
+
+/**
+ * Everything this cost center may do, declared once and handed to
+ * `runAiFeature` — the one door onto the model, which owns the opt-in, the
+ * cap, the alert and the timeout so no caller can assemble them wrongly.
+ */
+export const ENRICHMENT_FEATURE_SPEC: AiFeatureSpec = {
+  key: "enrich",
+  label: "task enrichment",
+  cap: ENRICHMENT_MONTHLY_CAP,
+  alertThreshold: ENRICHMENT_ALERT_THRESHOLD,
+  stops: "make-a-task simply stops pre-filling the address and due date.",
+  timeoutMs: ENRICHMENT_TIMEOUT_MS,
+  // Either half being on is reason enough to ask; the response carries only
+  // what the company actually opted into.
+  enabled: (settings) =>
+    settings.enrich_task_address || settings.enrich_task_due,
+};
 /** Cap the model's output — the JSON object is tiny. */
 export const ENRICHMENT_MAX_OUTPUT_TOKENS = 256;
 

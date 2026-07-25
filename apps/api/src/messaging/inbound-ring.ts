@@ -31,22 +31,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
 import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
-import {
-  loadAiSettings,
-  reserveAiUsage,
-  sendAiCapAlert,
-} from "../ai/settings";
+import { runAiFeature } from "../ai/run";
 import {
   fallbackTranscriptInput,
   sanitizeTranscript,
   shouldTranscribe,
   transcriptInput,
   VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL,
-  VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD,
-  VOICEMAIL_TRANSCRIPT_FEATURE,
+  VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
   VOICEMAIL_TRANSCRIPT_MODEL,
-  VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
-  VOICEMAIL_TRANSCRIPT_TIMEOUT_MS,
 } from "../calls/voicemail-transcript";
 
 /** client_state tag on each member ring leg:
@@ -340,15 +333,15 @@ export async function storeVoicemailRecording(
  * Ask the model, with a second shape to fall back on.
  *
  * Each attempt is raced against the timeout and its failure is logged rather
- * than swallowed: the first production voicemail after this feature shipped
- * stored nothing, and "the reservation was spent and no words came back" was
- * all anyone could tell from the outside.
+ * than swallowed: without that, a spent reservation and no words back is
+ * indistinguishable from a recording with nothing in it.
  */
 export async function runTranscription(
   env: Env,
+  db: SupabaseClient,
+  companyId: string,
   audio: ArrayBuffer,
 ): Promise<string | null> {
-  if (!env.AI) return null;
   // Base64 first: a five-minute recording is about a million array elements
   // otherwise, inside a 128 MB Worker already holding the raw buffer.
   const attempts: [string, Record<string, unknown>][] = [
@@ -356,25 +349,24 @@ export async function runTranscription(
     [VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL, fallbackTranscriptInput(audio)],
   ];
   for (const [model, input] of attempts) {
-    try {
-      const raw = await Promise.race([
-        env.AI.run(model, input),
-        new Promise<null>((resolve) =>
-          setTimeout(() => resolve(null), VOICEMAIL_TRANSCRIPT_TIMEOUT_MS),
-        ),
-      ]);
-      const text = sanitizeTranscript(raw);
-      if (text !== null) return text;
-      console.error(
-        `voicemail transcript: ${model} returned nothing usable`,
-        JSON.stringify(raw)?.slice(0, 300) ?? "null",
-      );
-    } catch (cause) {
-      console.error(
-        `voicemail transcript: ${model} threw:`,
-        cause instanceof Error ? cause.message : String(cause),
-      );
+    const result = await runAiFeature(env, db, {
+      companyId,
+      spec: VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
+      model,
+      input,
+    });
+    // A refusal is about the COMPANY (off, over cap, no binding), so trying the
+    // other model would only spend again for the same answer.
+    if (!result.ok) {
+      if (result.reason !== "model_error") return null;
+      continue;
     }
+    const text = sanitizeTranscript(result.raw);
+    if (text !== null) return text;
+    console.error(
+      `voicemail transcript: ${model} returned nothing usable`,
+      JSON.stringify(result.raw)?.slice(0, 300) ?? "null",
+    );
   }
   return null;
 }
@@ -395,39 +387,10 @@ async function transcribeVoicemail(
   db: SupabaseClient,
   args: { companyId: string; audio: ArrayBuffer; seconds: number },
 ): Promise<string | null> {
-  try {
-    if (!shouldTranscribe(args.seconds)) return null;
-    if (!env.AI) return null;
-
-    const settings = await loadAiSettings(db, args.companyId);
-    if (!settings.transcribe_voicemail) return null;
-
-    const reservation = await reserveAiUsage(db, {
-      companyId: args.companyId,
-      feature: VOICEMAIL_TRANSCRIPT_FEATURE,
-      cap: VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
-      alertThreshold: VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD,
-    });
-    if (reservation.should_alert) {
-      await sendAiCapAlert(env, {
-        companyId: args.companyId,
-        label: "voicemail transcript",
-        count: reservation.count,
-        cap: VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
-        alertThreshold: VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD,
-        stops: "new voicemails are still recorded and playable, just not transcribed.",
-      }).catch(() => {});
-    }
-    if (reservation.over_cap) return null;
-
-    return await runTranscription(env, args.audio);
-  } catch (cause) {
-    console.error(
-      `voicemail transcript failed for company ${args.companyId}:`,
-      cause instanceof Error ? cause.message : String(cause),
-    );
-    return null;
-  }
+  // The only check that is ours rather than the gate's: a recording of nothing,
+  // or one that ran away, is not worth paying per audio minute for.
+  if (!shouldTranscribe(args.seconds)) return null;
+  return await runTranscription(env, db, args.companyId, args.audio);
 }
 
 /** Replay recovery: a voicemail already stored in OUR bucket (voicemail_path

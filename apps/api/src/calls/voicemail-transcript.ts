@@ -1,3 +1,5 @@
+import type { AiFeatureSpec } from "../ai/run";
+
 /**
  * Voicemails you can read — the pure core.
  *
@@ -38,14 +40,9 @@ export const VOICEMAIL_TRANSCRIPT_MODEL = "@cf/openai/whisper-large-v3-turbo";
 
 /**
  * The older model, kept as a fallback with a DIFFERENT input shape (an array of
- * byte numbers rather than base64).
- *
- * Not belt-and-braces for its own sake: the AI REST API refuses our deploy
- * token, so the binding cannot be exercised anywhere but production, and the
- * first real voicemail after this shipped stored no words at all — the unit was
- * reserved, the call was made, and nothing came back. When one model's input
- * contract is the suspect, having a second shape to fall back on is the
- * difference between a transcript and a shrug.
+ * byte numbers rather than base64). The AI binding cannot be exercised outside
+ * a deployed Worker, so one model's input contract being wrong must not mean no
+ * words at all.
  */
 export const VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL = "@cf/openai/whisper";
 
@@ -76,6 +73,23 @@ export const VOICEMAIL_TRANSCRIPT_MAX_SECONDS = 300;
 export const VOICEMAIL_TRANSCRIPT_TIMEOUT_MS = 20_000;
 
 /**
+ * Everything this cost center is allowed to do, declared once. Both places that
+ * transcribe (the recording arriving, and opening one that never got words)
+ * hand this to `runAiFeature`, so neither can spend without the opt-in, the
+ * cap, the alert and the timeout.
+ */
+export const VOICEMAIL_TRANSCRIPT_FEATURE_SPEC: AiFeatureSpec = {
+  key: VOICEMAIL_TRANSCRIPT_FEATURE,
+  label: "voicemail transcript",
+  cap: VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
+  alertThreshold: VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD,
+  stops:
+    "new voicemails are still recorded and playable, just not transcribed.",
+  timeoutMs: VOICEMAIL_TRANSCRIPT_TIMEOUT_MS,
+  enabled: (settings) => settings.transcribe_voicemail,
+};
+
+/**
  * Longest transcript we store. Whisper on a 5-minute recording lands far under
  * this; the ceiling stops a degenerate output from bloating every read of the
  * calls list, which embeds the transcript.
@@ -93,12 +107,10 @@ export function shouldTranscribe(seconds: number): boolean {
 /**
  * The turbo model's input: base64 audio and nothing else.
  *
- * Deliberately minimal. The first version passed task / language / vad_filter /
- * condition_on_previous_text as well, and the first production voicemail after
- * it shipped produced no transcript — a rejected input body is indistinguishable
- * from a bad one here, because the call is wrapped so it can never break the
- * voicemail. Every optional knob is a way for the whole thing to return
- * nothing, so the documented minimum is what we send.
+ * Deliberately minimal. This call is wrapped so it can never break the
+ * voicemail, which also means a rejected input body is indistinguishable from a
+ * bad transcription — every optional knob is one more way to get nothing back,
+ * so we send the documented minimum.
  */
 export function transcriptInput(audioBase64: string): Record<string, unknown> {
   return { audio: audioBase64 };
@@ -110,12 +122,9 @@ export function fallbackTranscriptInput(audio: ArrayBuffer): Record<string, unkn
 }
 
 /**
- * Pull the text out of whatever envelope the binding hands back.
- *
- * Deliberately generous, and for a reason we already paid for once: the reply
- * drafting feature shipped reading exactly one envelope shape, the binding
- * returned a different one in production, and every draft came back empty with
- * the parser blamed. Read several shapes rather than assume one.
+ * Pull the text out of whatever envelope the binding hands back. Deliberately
+ * generous: assuming a single shape turns an unrecognised envelope into a
+ * silent empty result that looks like a parser bug.
  */
 export function transcriptText(raw: unknown): string | null {
   if (typeof raw === "string") return raw;

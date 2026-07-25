@@ -28,6 +28,7 @@
  *   DELETE /v1/conversations/:id/tags/:tag_id detach.
  */
 import type { BusinessHours } from "@loonext/shared";
+import { runAiFeature } from "../ai/run";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -60,9 +61,9 @@ import {
   SUGGEST_REPLY_FEATURE,
   SUGGEST_REPLY_MAX_DRAFT_CHARS,
   SUGGEST_REPLY_MAX_OUTPUT_TOKENS,
+  SUGGEST_REPLY_FEATURE_SPEC,
   SUGGEST_REPLY_MODEL,
   SUGGEST_REPLY_MONTHLY_CAP,
-  SUGGEST_REPLY_TIMEOUT_MS,
   type SuggestionMessage,
   threadTextOf,
 } from "../messaging/reply-suggestions";
@@ -718,9 +719,8 @@ conversationsRoutes.post(
     }
 
     // Both reads are best effort — a draft is worth offering with less
-    // context — but NOT silent. Discarding the error is what let a select
-    // against a column that never existed run for weeks: every draft was
-    // generated against "unknown name" and nothing anywhere said so.
+    // context — but NOT silent. A discarded error here degrades every draft
+    // quietly, with nothing anywhere to say why.
     const firstRowOrNull = <T>(label: string) =>
       (r: { data: unknown[] | null; error: { message: string } | null }): T | null => {
         if (r.error) {
@@ -744,13 +744,10 @@ conversationsRoutes.post(
           }>("company"),
         ),
       db
-        // `name`, singular — the contacts table has never had first_name /
-        // last_name (those exist only as merge-field TOKENS in the composer).
-        // PostgREST answered the old select with "column does not exist", the
-        // error was discarded, and every draft was generated against
-        // "Customer: unknown name" — on the paid path, since the AI unit is
-        // reserved before this runs. Lou could never once greet a customer by
-        // name, which is the strongest signal a reply has.
+        // `name`, singular. The contacts table has one name column;
+        // first_name / last_name exist only as merge-field TOKENS in the
+        // composer. Greeting the customer by name is the strongest signal a
+        // draft has, so getting this column wrong costs every draft.
         .from("contacts")
         .select("name")
         .eq("company_id", companyId)
@@ -773,37 +770,23 @@ conversationsRoutes.post(
       draft,
     });
 
-    // Never leave the composer hanging: race the model against a timeout.
-    let raw: unknown;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    try {
-      raw = await Promise.race([
-        env.AI.run(SUGGEST_REPLY_MODEL, {
-          messages: prompt,
-          max_tokens: SUGGEST_REPLY_MAX_OUTPUT_TOKENS,
-        }),
-        new Promise((_, reject) => {
-          timeoutId = setTimeout(
-            () => reject(new Error("reply suggestion timeout")),
-            SUGGEST_REPLY_TIMEOUT_MS,
-          );
-        }),
-      ]);
-    } catch (error) {
+    // One door onto the model (ai/run.ts): it owns the opt-in, the monthly cap,
+    // the alert before the cap, and the timeout.
+    const run = await runAiFeature(env, db, {
+      companyId,
+      spec: SUGGEST_REPLY_FEATURE_SPEC,
+      model: SUGGEST_REPLY_MODEL,
+      input: { messages: prompt, max_tokens: SUGGEST_REPLY_MAX_OUTPUT_TOKENS },
+      settings,
+    });
+    if (!run.ok) {
       // A model that is unreachable, renamed, or slow looks exactly like "no
       // ideas" to the person waiting, which is the least useful thing we could
-      // tell them. Say it failed, and leave a breadcrumb for the logs.
-      console.error(
-        `reply suggestion model call failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-      return c.json({ suggestions: [], reason: "model_error" as const });
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId);
+      // tell them. The gate's reason maps straight onto what the composer says.
+      return c.json({ suggestions: [], reason: run.reason });
     }
 
-    const parsed = parseSuggestionOutput(raw);
+    const parsed = parseSuggestionOutput(run.raw);
     const report = sanitizeWithReport(parsed, {
       threadText: threadTextOf(messages),
       draft,
@@ -832,7 +815,7 @@ conversationsRoutes.post(
         // The envelope's KEY NAMES only (never its contents). Zero candidates
         // with nothing dropped means we did not recognise the shape at all,
         // and this is what names it.
-        envelope: envelopeShape(raw),
+        envelope: envelopeShape(run.raw),
       });
     }
     // The tally rides along whenever anything was discarded, not only when
