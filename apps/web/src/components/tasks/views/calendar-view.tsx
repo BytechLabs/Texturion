@@ -66,7 +66,16 @@ export function CalendarView({ state }: { state: TaskPageState }) {
   // Drain every page in the visible window so no dated chip past page 1 is
   // dropped from the month/week grid.
   const query = useAllTasks(filters);
-  const tasks = flattenPages(query.data);
+  // The status dimension is applied here rather than on the wire: the fetch
+  // covers the visible window in one due-sorted query, so narrowing it
+  // server-side would cost a refetch per tab. Without this the Open and Done
+  // pills stayed lit and changed nothing, which is what both phone apps
+  // already got right (matchesCalendarTab).
+  const tasks = flattenPages(query.data).filter((task) => {
+    if (state.tab === "open") return !task.done;
+    if (state.tab === "done") return task.done;
+    return true;
+  });
 
   const byDay = useMemo(() => {
     const map = new Map<string, Task[]>();
