@@ -102,7 +102,8 @@ private final class InboxController {
     private let searchApi: SearchApi
     private let repo: MessagingRepository
     private let companyId: String
-    private let meUserId: String
+    /// Read by the rows so "assigned to me" shows as "You".
+    let meUserId: String
 
     private(set) var tab: InboxStatusTab = .open
     private(set) var assignee: Member?
@@ -893,12 +894,25 @@ private struct ConversationListPane: View {
         }
     }
 
+    /// The row's assignee as a name the reader recognises: "You" for their own,
+    /// the teammate's display name otherwise, nil when nobody has it. Mirrors
+    /// Android's assigneeName in InboxTab.kt.
+    private func assigneeName(_ row: ConversationListItem) -> String? {
+        guard let userId = row.assigned_user_id else { return nil }
+        if userId == controller.meUserId { return "You" }
+        guard let member = controller.members.first(where: { $0.user_id == userId })
+        else { return nil }
+        return member.display_name.isBlank ? "Teammate" : member.display_name
+    }
+
     /// One row + its swipe actions. Done/Reopen IS the close/open status flip
     /// (product vocabulary: "Done" == closed — the web removed the redundant
     /// separate control); Assign opens the thread's assignee picker.
     private func rowCell(_ row: ConversationListItem, pinned: Bool = false) -> some View {
         let closed = row.status == ConversationStatus.closed
-        return ConversationRow(row: row) { onOpen(row.id) }
+        return ConversationRow(row: row, assigneeName: assigneeName(row)) {
+            onOpen(row.id)
+        }
             .tag(row.id)
             // Pinned rows sit on the warm cream well (design-system grammar).
             .listRowBackground(pinned ? BrandColor.cream : BrandColor.paper)
@@ -952,6 +966,11 @@ private struct ConversationListPane: View {
 
 private struct ConversationRow: View {
     let row: ConversationListItem
+    /// Who owns this conversation, already resolved to a display name ("You"
+    /// for the reader). Nil when nobody has it. In a shared inbox this is the
+    /// difference between a list you can triage and one where every row looks
+    /// like yours; web and Android both show it, so the row does too.
+    var assigneeName: String?
     let onTap: @MainActor () -> Void
 
     private var name: String {
@@ -999,7 +1018,7 @@ private struct ConversationRow: View {
                             .foregroundStyle(BrandColor.muted600)
                             .lineLimit(2)
                     }
-                    if !row.tags.isEmpty {
+                    if !row.tags.isEmpty || assigneeName != nil {
                         HStack(spacing: 4) {
                             ForEach(row.tags.prefix(3), id: \.id) { tag in
                                 TagChip(tag: tag)
@@ -1008,6 +1027,12 @@ private struct ConversationRow: View {
                                 Text("+\(row.tags.count - 3)")
                                     .font(.golos(10.5, weight: .semibold))
                                     .foregroundStyle(BrandColor.muted500)
+                            }
+                            if let assigneeName {
+                                Text(assigneeName)
+                                    .font(.golos(10.5, weight: .semibold))
+                                    .foregroundStyle(BrandColor.muted500)
+                                    .lineLimit(1)
                             }
                         }
                         .padding(.top, 2)
@@ -1031,6 +1056,7 @@ private struct ConversationRow: View {
         // to sighted users isn't otherwise exposed, so read and unread
         // conversations sounded identical. Matches NotificationsView.
         .accessibilityValue(row.unread ? "Unread" : "")
+        .accessibilityHint(assigneeName.map { "Assigned to \($0)" } ?? "")
     }
 }
 
@@ -1442,6 +1468,7 @@ private func previewListItem(
                     Tag(id: "t1", name: "Estimate", color: "#66801F", created_at: nil, updated_at: nil),
                 ]
             ),
+            assigneeName: "You",
             onTap: {}
         )
         ConversationRow(
