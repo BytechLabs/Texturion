@@ -24,6 +24,12 @@ export interface CompanyAiSettings {
   enrich_task_address: boolean;
   enrich_task_due: boolean;
   suggest_replies: boolean;
+  /**
+   * One sentence describing what this business does, used to ground drafts.
+   * Null means Lou has been told nothing and may not describe the business at
+   * all — the difference between an honest answer and an invented one.
+   */
+  business_description: string | null;
 }
 
 /**
@@ -36,11 +42,12 @@ export const DEFAULT_AI_SETTINGS: CompanyAiSettings = {
   enrich_task_address: true,
   enrich_task_due: true,
   suggest_replies: true,
+  business_description: null,
 };
 
 /** The columns that make up the settings row, for a `select`. */
 export const AI_SETTINGS_COLUMNS =
-  "enrich_task_address,enrich_task_due,suggest_replies";
+  "enrich_task_address,enrich_task_due,suggest_replies,business_description";
 
 /** Company AI toggles, falling back to the defaults when the row is absent. */
 export async function loadAiSettings(

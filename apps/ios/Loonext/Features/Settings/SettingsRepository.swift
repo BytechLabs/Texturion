@@ -41,15 +41,22 @@ struct SettingsRepository: Sendable {
         _ companyId: String,
         enrichAddress: Bool,
         enrichDue: Bool,
-        suggestReplies: Bool
+        suggestReplies: Bool,
+        businessDescription: String? = nil
     ) async throws -> CompanyAiSettings {
-        try await api.patch(
+        var body: [String: JSONValue] = [
+            "enrich_task_address": .bool(enrichAddress),
+            "enrich_task_due": .bool(enrichDue),
+            "suggest_replies": .bool(suggestReplies),
+        ]
+        // Omitted leaves whatever is stored; an empty string clears it. A
+        // toggle save must never wipe the description as a side effect.
+        if let businessDescription {
+            body["business_description"] = .string(businessDescription)
+        }
+        return try await api.patch(
             "/v1/company/ai-settings",
-            body: JSONValue.object([
-                "enrich_task_address": .bool(enrichAddress),
-                "enrich_task_due": .bool(enrichDue),
-                "suggest_replies": .bool(suggestReplies),
-            ]),
+            body: JSONValue.object(body),
             companyId: companyId
         )
     }

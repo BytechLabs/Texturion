@@ -329,6 +329,7 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
       enrich_task_address: true,
       enrich_task_due: true,
       suggest_replies: true,
+      business_description: null,
     });
   });
 
@@ -340,6 +341,7 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
         enrich_task_address: true,
         enrich_task_due: false,
         suggest_replies: false,
+        business_description: "We paint houses.",
         updated_at: "2026-07-23T00:00:00.000Z",
       }),
     );
@@ -354,6 +356,7 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
       enrich_task_address: true,
       enrich_task_due: false,
       suggest_replies: false,
+      business_description: "We paint houses.",
     });
     expect(upsert.calls.length).toBe(1);
   });

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  MAX_CAP_MULTIPLIER,
   capLabel,
   capSegments,
   describeCapChange,

@@ -492,6 +492,11 @@ export interface CompanyAiSettings {
   enrich_task_due: boolean;
   /** Offer AI-drafted replies in the composer. Drafts are never sent for you. */
   suggest_replies: boolean;
+  /**
+   * One sentence about what the business does, used to ground Lou's drafts.
+   * Null means Lou has been told nothing and may not describe the business.
+   */
+  business_description: string | null;
 }
 
 /** POST /v1/conversations/:id/reply-suggestions — up to three reviewed drafts. */

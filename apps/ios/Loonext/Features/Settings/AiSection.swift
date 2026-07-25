@@ -13,6 +13,8 @@ struct AiSectionView: View {
 
     @State private var state: LoadState<CompanyAiSettings> = .loading
     @State private var saving = false
+    @State private var description = ""
+    @FocusState private var descriptionFocused: Bool
     @State private var reloadKey = 0
 
     private var canEdit: Bool { SettingsRoleGate.canManageAiSettings(scope.role) }
@@ -85,6 +87,49 @@ struct AiSectionView: View {
                 }
             }
 
+            SettingsCard(title: "What Lou knows about your business") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(
+                        "One sentence, in your words. Without it Lou will not say "
+                            + "what your business does, because anything it said would "
+                            + "be guesswork. With it, drafts can answer \"do you do "
+                            + "X?\" honestly."
+                    )
+                    .font(.golos(12.5))
+                    .foregroundStyle(BrandColor.muted600)
+
+                    // Held locally while typing and saved when focus leaves, so
+                    // a settings screen does not write per keystroke and a
+                    // half-typed sentence never reaches a draft.
+                    TextField(
+                        "We paint houses and do small renovations in Calgary.",
+                        text: $description,
+                        axis: .vertical
+                    )
+                    .lineLimit(2...4)
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(!canEdit || saving)
+                    .focused($descriptionFocused)
+                    .onChange(of: description) { _, value in
+                        if value.count > businessDescriptionMax {
+                            description = String(value.prefix(businessDescriptionMax))
+                        }
+                    }
+                    .onChange(of: descriptionFocused) { _, focused in
+                        guard !focused, case .ready(let current) = state else { return }
+                        let next = description.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let stored = (current.business_description ?? "")
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        if next != stored { saveDescription(next) }
+                    }
+
+                    Text("\(description.count) / \(businessDescriptionMax)")
+                        .font(.golos(10.5))
+                        .foregroundStyle(BrandColor.muted500)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            }
+
             SettingsCard(title: "When you reply to a customer") {
                 LabeledToggleRow(
                     label: "Let Lou draft replies",
@@ -117,7 +162,9 @@ struct AiSectionView: View {
     private func load() async {
         if case .ready = state {} else { state = .loading }
         do {
-            state = .ready(try await scope.repo.aiSettings(scope.companyId))
+            let loaded = try await scope.repo.aiSettings(scope.companyId)
+            state = .ready(loaded)
+            description = loaded.business_description ?? ""
         } catch {
             if case .ready = state {
                 scope.showMessage(error.userMessage)
@@ -129,6 +176,29 @@ struct AiSectionView: View {
 
     /// Optimistic flip + PATCH (the whole pair is sent). On failure, roll back
     /// and surface the server's message.
+    /// Save just the description, leaving every toggle exactly as it is.
+    private func saveDescription(_ next: String) {
+        guard case .ready(let previous) = state else { return }
+        saving = true
+        Task {
+            do {
+                let saved = try await scope.repo.updateAiSettings(
+                    scope.companyId,
+                    enrichAddress: previous.enrich_task_address,
+                    enrichDue: previous.enrich_task_due,
+                    suggestReplies: previous.suggest_replies,
+                    businessDescription: next
+                )
+                state = .ready(saved)
+            } catch {
+                state = .ready(previous)
+                description = previous.business_description ?? ""
+                scope.showMessage(error.userMessage)
+            }
+            saving = false
+        }
+    }
+
     private func save(address: Bool, due: Bool, replies: Bool) {
         guard case .ready(let previous) = state else { return }
         state = .ready(

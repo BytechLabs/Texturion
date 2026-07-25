@@ -25,6 +25,11 @@ import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.style.TextAlign
+import com.loonext.android.core.model.BUSINESS_DESCRIPTION_MAX
 
 /**
  * #214 Settings → AI. Per-enrichment opt-in: when a teammate makes a task from
@@ -119,6 +124,54 @@ fun AiSection(scope: SettingsScope) {
                         onCheckedChange = { checked ->
                             toggle(settings, settings.copy(enrich_task_due = checked))
                         },
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                SettingsCard(title = "What Lou knows about your business") {
+                    // Held locally while typing and saved when focus leaves, so
+                    // a settings screen does not write per keystroke and a
+                    // half-typed sentence never reaches a draft.
+                    var description by remember(settings.business_description) {
+                        mutableStateOf(settings.business_description.orEmpty())
+                    }
+                    Text(
+                        "One sentence, in your words. Without it Lou will not say " +
+                            "what your business does, because anything it said would " +
+                            "be guesswork. With it, drafts can answer \"do you do X?\" " +
+                            "honestly.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = {
+                            if (it.length <= BUSINESS_DESCRIPTION_MAX) description = it
+                        },
+                        placeholder = {
+                            Text("We paint houses and do small renovations in Calgary.")
+                        },
+                        enabled = canEdit,
+                        minLines = 2,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { focus ->
+                                if (!focus.isFocused &&
+                                    description.trim() != settings.business_description.orEmpty().trim()
+                                ) {
+                                    toggle(
+                                        settings,
+                                        settings.copy(business_description = description.trim()),
+                                    )
+                                }
+                            },
+                    )
+                    Text(
+                        "${description.length} / $BUSINESS_DESCRIPTION_MAX",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.End,
                     )
                 }
                 Spacer(Modifier.height(12.dp))

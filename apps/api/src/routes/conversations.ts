@@ -761,6 +761,7 @@ conversationsRoutes.post(
       // Only a company that has actually set hours gets them in the prompt; the
       // default is an empty jsonb map, which reads as unset.
       businessHours: company?.business_hours ?? null,
+      businessDescription: settings.business_description,
       draft,
     });
 
@@ -800,6 +801,7 @@ conversationsRoutes.post(
       draft,
       // Only a company that really set hours may have them stated back.
       hoursKnown: hasBusinessHours(company?.business_hours ?? null),
+      descriptionKnown: !!settings.business_description?.trim(),
     });
     const suggestions = report.kept;
     if (suggestions.length === 0) {

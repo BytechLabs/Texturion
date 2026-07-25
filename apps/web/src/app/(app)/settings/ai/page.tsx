@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -10,10 +11,14 @@ import {
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { useAiSettings, useUpdateAiSettings } from "@/lib/api/ai-settings";
 import { ApiError } from "@/lib/api/error";
 import type { CompanyAiSettings } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
+
+/** Matches the column's CHECK constraint (migration 20260724120000). */
+const BUSINESS_DESCRIPTION_MAX = 280;
 
 /**
  * #214 Settings → AI. Per-enrichment opt-in: when a teammate makes a task from
@@ -22,6 +27,47 @@ import { useActiveCompany } from "@/lib/company/provider";
  * person reviews before saving — nothing is auto-applied. Default OFF (it costs
  * money and the model sees message text). Owners/admins set it for the company.
  */
+/**
+ * The one sentence Lou is allowed to repeat about the business.
+ *
+ * Held locally while typing and saved on blur, so a settings screen does not
+ * fire a write per keystroke, and a half-typed sentence never reaches a draft.
+ */
+function BusinessDescriptionField({
+  value,
+  disabled,
+  onSave,
+}: {
+  value: string;
+  disabled: boolean;
+  onSave: (next: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  // A save elsewhere (another tab, another admin) should win over stale text.
+  useEffect(() => setDraft(value), [value]);
+
+  return (
+    <>
+      <Textarea
+        id="ai-description"
+        value={draft}
+        maxLength={BUSINESS_DESCRIPTION_MAX}
+        rows={2}
+        disabled={disabled}
+        placeholder="We paint houses and do small renovations in Calgary."
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => {
+          const next = draft.trim();
+          if (next !== (value ?? "").trim()) onSave(next);
+        }}
+      />
+      <p className="text-right text-[11px] tabular-nums text-muted-foreground">
+        {draft.length} / {BUSINESS_DESCRIPTION_MAX}
+      </p>
+    </>
+  );
+}
+
 export default function AiSettingsPage() {
   const settings = useAiSettings();
   const update = useUpdateAiSettings();
@@ -99,6 +145,35 @@ export default function AiSettingsPage() {
                   }
                 />
               </div>
+            </div>
+          </SettingsCard>
+          <SettingsCard title="What Lou knows about your business">
+            <div className="space-y-2">
+              <Label htmlFor="ai-description" className="text-sm font-medium">
+                What you do
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                One sentence, in your words. Without it Lou will not say what
+                your business does, because anything it said would be guesswork.
+                With it, drafts can answer &ldquo;do you do X?&rdquo; honestly.
+              </p>
+              <BusinessDescriptionField
+                value={settings.data.business_description ?? ""}
+                disabled={!canEdit || update.isPending}
+                onSave={(next) =>
+                  update.mutate(
+                    { ...settings.data, business_description: next },
+                    {
+                      onError: (cause) =>
+                        toast.error(
+                          cause instanceof ApiError
+                            ? cause.message
+                            : "Couldn't save that. Try again.",
+                        ),
+                    },
+                  )
+                }
+              />
             </div>
           </SettingsCard>
           <SettingsCard title="When you reply to a customer">

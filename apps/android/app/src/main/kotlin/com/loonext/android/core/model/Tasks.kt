@@ -219,7 +219,15 @@ data class CompanyAiSettings(
     val enrich_task_due: Boolean = true,
     /** Offer AI-drafted replies in the composer. Never sent for you. */
     val suggest_replies: Boolean = true,
+    /**
+     * One sentence about what the business does, used to ground Lou's drafts.
+     * Null means Lou has been told nothing and may not describe the business.
+     */
+    val business_description: String? = null,
 )
+
+/** Matches the column's CHECK constraint (migration 20260724120000). */
+const val BUSINESS_DESCRIPTION_MAX = 280
 
 /**
  * POST /v1/conversations/:id/reply-suggestions — up to three drafts the person

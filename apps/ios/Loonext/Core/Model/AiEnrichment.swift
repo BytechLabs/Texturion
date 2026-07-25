@@ -68,20 +68,28 @@ struct CompanyAiSettings: Codable, Sendable {
     @Default<DefaultTrue> var enrich_task_due: Bool
     /// Offer AI-drafted replies in the composer. Never sent for you.
     @Default<DefaultTrue> var suggest_replies: Bool
+    /// One sentence about what the business does, used to ground Lou's drafts.
+    /// Nil means Lou has been told nothing and may not describe the business.
+    var business_description: String?
 
     init(
         enrich_task_address: Bool,
         enrich_task_due: Bool,
-        suggest_replies: Bool = true
+        suggest_replies: Bool = true,
+        business_description: String? = nil
     ) {
         self.enrich_task_address = enrich_task_address
         self.enrich_task_due = enrich_task_due
         self.suggest_replies = suggest_replies
+        self.business_description = business_description
     }
 
     /// Any enrichment on → the make-task sheet should call /tasks/enrich.
     var anyEnabled: Bool { enrich_task_address || enrich_task_due }
 }
+
+/// Matches the column's CHECK constraint (migration 20260724120000).
+let businessDescriptionMax = 280
 
 /// POST /v1/conversations/:id/reply-suggestions — up to three drafts the person
 /// reads and edits. An empty list is the normal "nothing to offer" answer

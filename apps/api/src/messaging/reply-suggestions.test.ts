@@ -118,6 +118,7 @@ describe("buildSuggestionMessages", () => {
     // A Wednesday, 14:00 Toronto time (inside the weekday window above).
     now: new Date("2026-07-15T18:00:00Z"),
     businessHours: null as BusinessHours | null,
+    businessDescription: null as string | null,
     draft: null as string | null,
   };
 
@@ -150,6 +151,22 @@ describe("buildSuggestionMessages", () => {
       { role: "assistant", content: "Checking now" },
     ]);
     expect(msgs[msgs.length - 1].role).toBe("user");
+  });
+
+  it("states what the business does once the owner has written it", () => {
+    const msgs = buildSuggestionMessages({
+      ...ctx,
+      businessDescription: "We paint houses and do small renovations in Calgary.",
+    });
+    expect(msgs[1].content).toContain(
+      "What the business does: We paint houses and do small renovations in Calgary.",
+    );
+  });
+
+  it("says nothing about the trade when nobody has written one", () => {
+    expect(buildSuggestionMessages(ctx)[1].content).not.toContain(
+      "What the business does",
+    );
   });
 
   it("says plainly that our own turns are ours, not requests to answer", () => {
@@ -533,6 +550,17 @@ describe("sanitizeSuggestions", () => {
       ]),
     ).toEqual([]);
     expect(clean(["We are a plumbing company, happy to help."])).toEqual([]);
+  });
+
+  it("allows describing the business once the owner has written a description", () => {
+    // The ban exists because Lou was told nothing. Told something, saying it is
+    // grounded rather than invented.
+    expect(
+      sanitizeSuggestions(["We are a painting company, happy to help."], {
+        threadText: "Do you paint houses?",
+        descriptionKnown: true,
+      }),
+    ).toEqual(["We are a painting company, happy to help."]);
   });
 
   it("keeps a plain offer of help, which describes nothing", () => {

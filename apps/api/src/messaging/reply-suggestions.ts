@@ -156,6 +156,13 @@ export interface SuggestionContext {
    */
   businessHours: BusinessHours | null;
   /**
+   * One sentence about what the business does, when the owner has written one.
+   * Given, it is a FACT Lou may state, which is what lets a draft answer "do
+   * you do X?" honestly. Absent, Lou is forbidden from describing the business
+   * at all, because anything it said would be invented.
+   */
+  businessDescription: string | null;
+  /**
    * What the person has already typed into the composer, if anything. Present,
    * it changes the job from "write a reply" to "finish MY reply": the drafts
    * must continue that exact thought instead of proposing three of their own.
@@ -282,7 +289,7 @@ const SYSTEM_PROMPT = [
   "- Never promise that someone will arrive at a specific day or time. Confirming a time the customer proposed is fine; naming a new one is not. If a time needs setting, ASK.",
   "- Never say work is done, scheduled, dispatched, ordered, or paid unless the conversation already says so.",
   "- Never invent a person's name, a part, a warranty, or a policy.",
-  "- Never describe the business or what it does. You have not been told its trade, its size, or what work it takes on, so saying \"we're a small business\" or \"we specialize in ...\" is inventing. If a request looks outside what this conversation shows the business doing, ask about it rather than declaring what you do and do not do.",
+  "- Only describe the business using the \"What the business does\" line above, word for word in substance. If that line is absent you have NOT been told the trade, the size, or what work is taken on, so \"we're a small business\" or \"we specialize in ...\" is inventing: ask about the request instead of declaring what you do and do not do.",
   "- HOURS: only if the details above list business hours may you state them or say whether we are open right now, and then only exactly as listed. If no hours are listed, never state or imply any, and never say whether we are open or closed.",
   "- Read the current date and time above to resolve today, tonight, tomorrow, and weekday names correctly.",
   "- If something needed to answer well is missing, that is the best draft: ask for it.",
@@ -310,8 +317,10 @@ export function buildSuggestionMessages(
     .reverse()
     .find((m) => m.direction === "inbound" && m.body.trim() !== "");
 
+  const description = collapse(ctx.businessDescription ?? "");
   const lines = [
     `Business: ${collapse(ctx.companyName) || "the business"}`,
+    ...(description ? [`What the business does: ${description}`] : []),
     `Customer: ${collapse(ctx.contactName ?? "") || "unknown name"}`,
   ];
 
@@ -667,6 +676,8 @@ export function sanitizeWithReport(
     draft?: string | null;
     /** True only when the company really has hours set (see HOURS_CLAIM). */
     hoursKnown?: boolean;
+    /** True once the owner has written what the business does. */
+    descriptionKnown?: boolean;
   },
 ): SanitationReport {
   const draft = collapse(opts.draft ?? "").slice(
@@ -750,8 +761,14 @@ export function sanitizeWithReport(
       continue;
     }
 
-    // The business describing itself with facts nobody gave it.
-    if (SELF_DESCRIPTION.test(text) && !SELF_DESCRIPTION.test(opts.threadText)) {
+    // The business describing itself with facts nobody gave it. Once the owner
+    // has written a description, saying what the business does is grounded
+    // rather than invented, so the rule steps aside.
+    if (
+      !opts.descriptionKnown &&
+      SELF_DESCRIPTION.test(text) &&
+      !SELF_DESCRIPTION.test(opts.threadText)
+    ) {
       dropped.selfDescription += 1;
       continue;
     }
@@ -807,7 +824,12 @@ export interface SanitationReport {
 /** The drafts worth showing. See `sanitizeWithReport` for why each was dropped. */
 export function sanitizeSuggestions(
   replies: string[],
-  opts: { threadText: string; draft?: string | null; hoursKnown?: boolean },
+  opts: {
+    threadText: string;
+    draft?: string | null;
+    hoursKnown?: boolean;
+    descriptionKnown?: boolean;
+  },
 ): string[] {
   return sanitizeWithReport(replies, opts).kept;
 }
