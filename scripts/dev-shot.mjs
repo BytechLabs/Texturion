@@ -5,6 +5,11 @@
  * cached storage state, then captures one or more app routes headlessly so
  * visual work on authenticated screens can be judged from real pixels.
  *
+ * Every capture also reports what the page hit at runtime: uncaught errors,
+ * console errors, failed requests, and 4xx/5xx responses. A screen can look
+ * right in a screenshot while it is throwing, so the pixels alone are not
+ * enough to call it working.
+ *
  * Usage:
  *   node scripts/dev-shot.mjs [options] <path> [<path>...]
  *
@@ -104,8 +109,36 @@ if (!fresh && existsSync(STATE_FILE)) {
   await login(context);
 }
 
+/** Runtime complaints seen since the last capture, in the order they happened. */
+let problems = [];
+
+/**
+ * A dev server serves its own machinery over the same origin. Those requests
+ * failing says nothing about the app, and reporting them trains the reader to
+ * ignore the list.
+ */
+const IGNORED_REQUESTS = [/\/__nextjs/, /\/_next\/static\/webpack\//, /hot-update/];
+
+function watch(page) {
+  problems = [];
+  page.on("pageerror", (error) => problems.push(`uncaught: ${error.message}`));
+  page.on("console", (message) => {
+    if (message.type() === "error") problems.push(`console: ${message.text()}`);
+  });
+  page.on("requestfailed", (request) => {
+    if (IGNORED_REQUESTS.some((p) => p.test(request.url()))) return;
+    problems.push(`request failed: ${request.url()} (${request.failure()?.errorText})`);
+  });
+  page.on("response", (response) => {
+    if (response.status() < 400) return;
+    if (IGNORED_REQUESTS.some((p) => p.test(response.url()))) return;
+    problems.push(`HTTP ${response.status()}: ${response.url()}`);
+  });
+}
+
 for (const path of paths) {
   const page = await context.newPage();
+  watch(page);
   await page.goto(`${base}${path}`, { waitUntil: "networkidle" });
 
   // A cached state whose session expired bounces to /login — re-login once.
@@ -116,6 +149,7 @@ for (const path of paths) {
     await applyTheme(context);
     await login(context);
     const retry = await context.newPage();
+    watch(retry);
     await retry.goto(`${base}${path}`, { waitUntil: "networkidle" });
     await shoot(retry, path);
     await retry.close();
@@ -139,6 +173,12 @@ async function shoot(page, path) {
     await page.screenshot({ path: file, fullPage });
   }
   console.log(file);
+
+  // One line per distinct complaint: a single fault that fires on every render
+  // would otherwise bury the rest.
+  for (const problem of [...new Set(problems)]) {
+    console.log(`  ! ${problem}`);
+  }
 }
 
 await context.close();

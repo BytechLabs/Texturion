@@ -276,7 +276,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           onFilterChange={setThreadFilter}
         />
         <MessageList
-          key={conversationId}
+          key={`messages-${conversationId}`}
           conversationId={conversationId}
           contact={conversation.contact}
           filter={threadFilter}
@@ -294,9 +294,12 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             />
             {/* Keyed so the draft state cannot survive into a different
                 conversation: without it the half-typed reply to one customer
-                appeared in the box for the next one. */}
+                appeared in the box for the next one. The key is namespaced
+                because the composer and the message list are siblings: React
+                requires keys to be unique among siblings, and matching two
+                different components on one key is undefined behaviour. */}
             <Composer
-              key={conversationId}
+              key={`composer-${conversationId}`}
               conversationId={conversationId}
               noteOnly
             />
@@ -305,7 +308,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           // #106: a notes-only member (viewer_level 'note') gets the note
           // composer — texting the customer needs level 'text' on this number.
           <Composer
-            key={conversationId}
+            key={`composer-${conversationId}`}
             conversationId={conversationId}
             noteOnly={conversation.viewer_level === "note"}
           />
