@@ -609,11 +609,15 @@ private struct ThreadBody: View {
                     composer.restore(body: body, photos: photos, files: [])
                 }
             },
-            onSaveNote: { body, files in
-                controller.saveNote(body: body, files: files) {
-                    composer.restore(body: body, photos: [], files: files)
+            onSaveNote: { body, files, mentionUserIds in
+                let picked = composer.picked
+                controller.saveNote(body: body, files: files, mentionUserIds: mentionUserIds) {
+                    // Put the picks back with the words: a restored draft that
+                    // still reads "@Sam" must still be able to tell Sam.
+                    composer.restore(body: body, photos: [], files: files, picked: picked)
                 }
             },
+            loadMentionableMembers: { await controller.mentionableMembers() },
             onNotice: { controller.notifyExternally($0) },
             suggestReplies: { [repo = controller.repo, companyId = detail.company_id] draft in
                 await repo.suggestReplies(

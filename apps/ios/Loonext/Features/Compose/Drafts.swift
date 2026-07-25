@@ -33,5 +33,33 @@ final class ComposerDrafts {
 
     func clear(_ conversationId: String) {
         defaults.removeObject(forKey: key(conversationId))
+        defaults.removeObject(forKey: mentionKey(conversationId))
+    }
+
+    // MARK: - Note mentions
+    //
+    // The teammates named on a note draft ride WITH the text. Persisting only
+    // the words restored a draft that still read "@Sam" and notified nobody,
+    // which is worse than losing the draft: the note on screen was evidence of
+    // something that would not happen.
+    //
+    // JSON under a separate key, so a draft written by an older build still
+    // loads and a value we cannot decode costs the picks rather than the draft.
+
+    private func mentionKey(_ conversationId: String) -> String {
+        "composer-draft-mentions:\(conversationId)"
+    }
+
+    func loadMentions(_ conversationId: String) -> [PickedMention] {
+        guard let data = defaults.data(forKey: mentionKey(conversationId)) else { return [] }
+        return (try? JSONDecoder().decode([PickedMention].self, from: data)) ?? []
+    }
+
+    func saveMentions(_ conversationId: String, mentions: [PickedMention]) {
+        if mentions.isEmpty {
+            defaults.removeObject(forKey: mentionKey(conversationId))
+        } else if let data = try? JSONEncoder().encode(mentions) {
+            defaults.set(data, forKey: mentionKey(conversationId))
+        }
     }
 }

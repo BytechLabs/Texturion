@@ -31,12 +31,26 @@ final class ComposerState {
     var photos: [StagedPhoto] = []
     var files: [StagedFile] = []
 
+    /// Teammates named on a NOTE draft. Ids come from what was picked, never
+    /// from re-reading the draft for "@name": display names are neither unique
+    /// nor prefix-free, so parsing notifies the wrong people. Deleting a name
+    /// from the text still withdraws that mention at send time.
+    private(set) var picked: [PickedMention] = []
+
     @ObservationIgnored private var saveTask: Task<Void, Never>?
 
     init(draftKey: String, drafts: ComposerDrafts) {
         self.draftKey = draftKey
         self.drafts = drafts
         text = drafts.load(draftKey)
+        // The picks ride with the words; restoring one without the other makes
+        // the draft lie about who it will notify.
+        picked = drafts.loadMentions(draftKey)
+    }
+
+    func addMention(_ mention: PickedMention) {
+        picked.append(mention)
+        queueDraftSave()
     }
 
     func onTextChange(_ value: String) {
@@ -50,6 +64,7 @@ final class ComposerState {
             try? await Task.sleep(for: .milliseconds(400))
             if Task.isCancelled { return }
             drafts.save(draftKey, text: text)
+            drafts.saveMentions(draftKey, mentions: picked)
         }
     }
 
@@ -58,15 +73,22 @@ final class ComposerState {
         text = ""
         photos = []
         files = []
+        picked = []
         saveTask?.cancel()
         drafts.clear(draftKey)
     }
 
     /// Failed send: put the draft back exactly as it was.
-    func restore(body: String, photos: [StagedPhoto], files: [StagedFile]) {
+    func restore(
+        body: String,
+        photos: [StagedPhoto],
+        files: [StagedFile],
+        picked: [PickedMention] = []
+    ) {
         text = body
         self.photos = photos
         self.files = files
+        self.picked = picked
         queueDraftSave()
     }
 }
@@ -85,7 +107,10 @@ struct ThreadComposerView: View {
     let businessName: String?
     let loadTemplates: @MainActor () async throws -> [Template]
     let onSendText: @MainActor (String, [StagedPhoto]) -> Void
-    let onSaveNote: @MainActor (String, [StagedFile]) -> Void
+    let onSaveNote: @MainActor (String, [StagedFile], [String]) -> Void
+    /// Who may be named on a note here. Nil withholds mentions entirely rather
+    /// than opening a picker with nothing behind it.
+    var loadMentionableMembers: (@MainActor () async -> [MentionableMember])?
     let onNotice: @MainActor (String) -> Void
     /// Ask for AI-drafted replies. Nil hides the affordance entirely.
     var suggestReplies: (@MainActor (String) async -> ReplySuggestions)?
@@ -99,6 +124,7 @@ struct ThreadComposerView: View {
     var draftCacheKey: String?
 
     @State private var templatePickerOpen = false
+    @State private var mentionPickerOpen = false
     // Drafts live only while the composer is looking at this thread: they are a
     // momentary offer, never cached state.
     @State private var suggestions: [String] = []
@@ -207,6 +233,28 @@ struct ThreadComposerView: View {
                 insertTemplate(body)
             }
         }
+        .sheet(isPresented: $mentionPickerOpen) {
+            if let load = loadMentionableMembers {
+                MentionPickerSheet(load: load) { member in
+                    mentionPickerOpen = false
+                    insertMention(member)
+                }
+            }
+        }
+    }
+
+    /// Write the chosen teammate into the draft and remember WHICH teammate,
+    /// so two people sharing a display name stay distinguishable at send time.
+    private func insertMention(_ member: MentionableMember) {
+        let name = member.display_name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let label = name.isEmpty ? "Teammate" : name
+        let next = MentionLogic.insertMention(
+            text: state.text,
+            caret: state.text.count,
+            name: label
+        )
+        state.onTextChange(next.text)
+        state.addMention(PickedMention(userId: member.user_id, name: label))
     }
 
     /// Ask for drafts, sending whatever is typed so far so the server finishes
@@ -452,7 +500,21 @@ struct ThreadComposerView: View {
         if !isNote, state.text.isEmpty, value == "/" {
             templatePickerOpen = true
         } else {
+            let previous = state.text
             state.onTextChange(value)
+            // "@" at the start of a note or after a space names a teammate.
+            // Mid-word it belongs to an email address or a rate like
+            // "2 hrs @ $95", so the picker stays shut and the character is
+            // always kept. Guarded to a single appended character so a stale
+            // "@" already at the end cannot re-open it on an unrelated edit.
+            if isNote,
+                loadMentionableMembers != nil,
+                value.count == previous.count + 1,
+                value.hasPrefix(previous),
+                MentionLogic.isMentionTrigger(text: value, caret: value.count)
+            {
+                mentionPickerOpen = true
+            }
             // Drafts were written for what was typed a moment ago; once that
             // changes they are stale, so they go rather than sit there
             // offering to overwrite newer words.
@@ -474,8 +536,9 @@ struct ThreadComposerView: View {
         let body = state.text.trimmingCharacters(in: .whitespacesAndNewlines)
         if isNote {
             let files = state.files
+            let mentionIds = MentionLogic.resolveMentions(text: body, picked: state.picked)
             state.clearForSend()
-            onSaveNote(body, files)
+            onSaveNote(body, files, mentionIds)
         } else {
             let photos = state.photos
             state.clearForSend()
@@ -854,7 +917,7 @@ struct TemplatePickerSheet: View {
             businessName: "Loonext Fencing",
             loadTemplates: { [] },
             onSendText: { _, _ in },
-            onSaveNote: { _, _ in },
+            onSaveNote: { _, _, _ in },
             onNotice: { _ in }
         )
     }
@@ -871,8 +934,73 @@ struct TemplatePickerSheet: View {
             businessName: "Loonext Fencing",
             loadTemplates: { [] },
             onSendText: { _, _ in },
-            onSaveNote: { _, _ in },
+            onSaveNote: { _, _, _ in },
             onNotice: { _ in }
         )
+    }
+}
+
+/// Names a teammate on an internal note.
+///
+/// The list is the SERVER's answer to who may be named here, never a filter
+/// over the whole team: a teammate who cannot open this thread must not be
+/// offered, because the note quotes the customer.
+@MainActor
+struct MentionPickerSheet: View {
+    let load: @MainActor () async -> [MentionableMember]
+    let onPick: @MainActor (MentionableMember) -> Void
+
+    @State private var members: [MentionableMember]?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Mention a teammate")
+                .font(.display(21))
+                .foregroundStyle(BrandColor.ink)
+            content
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 18)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(BrandColor.canvas.ignoresSafeArea())
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .task { members = await load() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let rows = members {
+            if rows.isEmpty {
+                Text("No teammates can see this conversation.")
+                    .font(.golos(12.5))
+                    .foregroundStyle(BrandColor.muted600)
+                    .padding(.vertical, 16)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(rows) { member in
+                            Button {
+                                onPick(member)
+                            } label: {
+                                Text(displayName(member))
+                                    .font(.golos(15))
+                                    .foregroundStyle(BrandColor.ink)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.vertical, 14)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        } else {
+            CenteredLoading()
+        }
+    }
+
+    private func displayName(_ member: MentionableMember) -> String {
+        let trimmed = member.display_name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Teammate" : trimmed
     }
 }

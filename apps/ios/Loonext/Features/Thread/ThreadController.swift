@@ -477,15 +477,29 @@ final class ThreadController {
         }
     }
 
+    /// Who this member may name on a note here; the server owns the answer.
+    func mentionableMembers() async -> [MentionableMember] {
+        (try? await repo.mentionableMembers(
+            companyId: companyId,
+            conversationId: conversationId
+        )) ?? []
+    }
+
     /// D28 chain: the note row first, then each staged file against its id.
-    func saveNote(body: String, files: [StagedFile], onRestore: @escaping @MainActor () -> Void) {
+    func saveNote(
+        body: String,
+        files: [StagedFile],
+        mentionUserIds: [String] = [],
+        onRestore: @escaping @MainActor () -> Void
+    ) {
         Task {
             let note: Message
             do {
                 note = try await repo.createNote(
                     companyId: companyId,
                     conversationId: conversationId,
-                    body: body
+                    body: body,
+                    mentionUserIds: mentionUserIds
                 )
             } catch {
                 onRestore()

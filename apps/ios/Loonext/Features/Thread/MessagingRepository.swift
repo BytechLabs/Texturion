@@ -33,6 +33,9 @@ struct ComposeBody: Codable, Sendable {
 struct NoteBody: Codable, Sendable {
     let body: String
     let task_id: String?
+    /// Teammates named in the body. Omitted when empty so the no-mention case
+    /// sends exactly what it always did.
+    var mention_user_ids: [String]?
 }
 
 /// All messaging reads + mutations for the inbox / thread / composer features
@@ -251,13 +254,30 @@ struct MessagingRepository: Sendable {
         companyId: String,
         conversationId: String,
         body: String,
-        taskId: String? = nil
+        taskId: String? = nil,
+        mentionUserIds: [String] = []
     ) async throws -> Message {
         try await api.post(
             "/v1/conversations/\(conversationId)/notes",
-            body: NoteBody(body: body, task_id: taskId),
+            body: NoteBody(
+                body: body,
+                task_id: taskId,
+                mention_user_ids: mentionUserIds.isEmpty ? nil : mentionUserIds
+            ),
             companyId: companyId
         )
+    }
+
+    /// Who this member may name on a note here (already number-access filtered).
+    func mentionableMembers(
+        companyId: String,
+        conversationId: String
+    ) async throws -> [MentionableMember] {
+        let page: Page<MentionableMember> = try await api.get(
+            "/v1/conversations/\(conversationId)/mentionable-members",
+            companyId: companyId
+        )
+        return page.data
     }
 
     // MARK: - Per-message facets
