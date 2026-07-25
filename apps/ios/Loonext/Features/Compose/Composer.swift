@@ -554,12 +554,16 @@ struct ComposerHints: View {
 /// pick a .zip only to be turned away afterwards.
 let mmsImporterContentTypes: [UTType] = {
     var types: [UTType] = [
-        .image, .audio, .movie, .mpeg4Movie, .threeGPP,
+        .image, .audio, .movie, .mpeg4Movie,
         .pdf, .vCard, .calendarEvent, .plainText,
     ]
-    // A .ics file does not always resolve to public.calendar-event, and a
-    // calendar invite you cannot pick is the same as one we cannot send.
-    if let ics = UTType(filenameExtension: "ics") { types.append(ics) }
+    // 3GPP has no static constant, and a .ics file does not always resolve to
+    // public.calendar-event. A kind you cannot pick is the same as one we
+    // cannot send, so both are derived rather than assumed.
+    types.append(contentsOf: [
+        UTType(mimeType: "video/3gpp"),
+        UTType(filenameExtension: "ics"),
+    ].compactMap { $0 })
     return types
 }()
 
