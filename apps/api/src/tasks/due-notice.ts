@@ -11,10 +11,20 @@
  * still time to drive, call, or reschedule. The window is deliberately short,
  * because an alert far in advance is one that gets dismissed and forgotten.
  *
- * WHO: the assignee, and only the assignee. An unassigned task with a due date
- * is a triage problem rather than a reminder problem, and it already surfaces
- * in the lead's For You triage strip; waking the whole crew for it would train
- * everyone to ignore the channel.
+ * WHO: the assignee, and only the assignee, and only while they are still an
+ * active member of that company. An unassigned task with a due date is a triage
+ * problem rather than a reminder problem, and it already surfaces in the lead's
+ * For You triage strip; waking the whole crew for it would train everyone to
+ * ignore the channel.
+ *
+ * Removing a member stamps `company_members.deactivated_at`; it does not clear
+ * the tasks they were assigned, and push registrations are per USER with no
+ * company column, so without the membership check a removed member keeps
+ * receiving that workspace's reminders. A task title is seeded from the
+ * customer's own message, so those alerts carry customer detail out of a
+ * workspace the reader no longer belongs to. Every other push pipeline
+ * (notifications/inbound.ts, notifications/missed-call.ts) resolves its
+ * audience through active company_members for the same reason.
  *
  * ONCE: `tasks.due_notified_at` is stamped after the send. Changing a task's
  * due date clears the stamp (a trigger, so every writer obeys it), which is
@@ -155,6 +165,24 @@ export async function notifyDueTasksJob(
       );
       continue;
     }
+
+    // Still one of the crew? Deactivation leaves the assignment in place, so
+    // this is the only thing standing between a removed member and a workspace
+    // they can no longer open.
+    const membership = await db
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", task.company_id)
+      .eq("user_id", task.assigned_user_id)
+      .is("deactivated_at", null)
+      .limit(1);
+    if (membership.error) {
+      failures.push(
+        new Error(`membership lookup failed: ${membership.error.message}`),
+      );
+      continue;
+    }
+    if ((membership.data ?? []).length === 0) continue;
 
     const prefRows = await db
       .from("notification_prefs")

@@ -43,6 +43,8 @@ function world(
   options: {
     tasks?: Record<string, unknown>[];
     prefs?: Record<string, unknown>[];
+    /** Active members of the task's company; [] means the assignee was removed. */
+    members?: Record<string, unknown>[];
     stampFails?: boolean;
   } = {},
 ): SupabaseStub {
@@ -50,6 +52,9 @@ function world(
   sb.on("GET", "/rest/v1/tasks", () => options.tasks ?? [dueTask()]);
   sb.on("PATCH", "/rest/v1/tasks", () =>
     options.stampFails ? new Response("boom", { status: 500 }) : [],
+  );
+  sb.on("GET", "/rest/v1/company_members", () =>
+    options.members ?? [{ user_id: ASSIGNEE }],
   );
   sb.on("GET", "/rest/v1/notification_prefs", () => options.prefs ?? []);
   sb.on("GET", "/rest/v1/push_subscriptions", () => []);
@@ -156,6 +161,33 @@ describe("notifyDueTasksJob", () => {
       .find("GET", "/rest/v1/push_subscriptions")[0]
       .url.searchParams.get("user_id");
     expect(audience).toBe(`in.(${ASSIGNEE})`);
+  });
+
+  it("never reminds someone who was removed from the workspace", async () => {
+    // Deactivation leaves the assignment in place, and push registrations are
+    // per user with no company column, so without this check a removed member
+    // keeps getting that workspace's reminders. Task titles are seeded from the
+    // customer's own message, so those alerts carry customer detail out of a
+    // workspace the reader can no longer open.
+    const sb = world({ members: [] });
+    stubFetch(sb.route);
+
+    await notifyDueTasksJob(env, NOW);
+
+    expect(sb.find("GET", "/rest/v1/push_subscriptions")).toHaveLength(0);
+    expect(sb.find("GET", "/rest/v1/notification_prefs")).toHaveLength(0);
+  });
+
+  it("asks for the assignee's membership scoped to the task's company", async () => {
+    const sb = world();
+    stubFetch(sb.route);
+
+    await notifyDueTasksJob(env, NOW);
+
+    const params = sb.find("GET", "/rest/v1/company_members")[0].url.searchParams;
+    expect(params.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(params.get("user_id")).toBe(`eq.${ASSIGNEE}`);
+    expect(params.get("deactivated_at")).toBe("is.null");
   });
 
   it("respects a member who turned push off", async () => {
