@@ -719,6 +719,7 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
       allowed?: boolean;
       transcript?: string | null;
       attemptedAt?: string | null;
+      transcribe?: boolean;
     } = {},
   ): SupabaseStub {
     const sb = supabaseStub(env);
@@ -740,6 +741,17 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     ]);
     sb.on("GET", "/rest/v1/companies", () => [
       { plan: "starter", current_period_start: "2026-07-01T00:00:00.000Z" },
+    ]);
+    // Read before the egress claim, to decide whether a second copy of the
+    // recording will be pulled for transcription.
+    sb.on("GET", "/rest/v1/company_ai_settings", () => [
+      {
+        enrich_task_address: true,
+        enrich_task_due: true,
+        suggest_replies: true,
+        business_description: null,
+        transcribe_voicemail: opts.transcribe ?? true,
+      },
     ]);
     sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress", () => ({
       allowed: opts.allowed ?? true,
@@ -838,5 +850,27 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     expect(await res.json()).toMatchObject({ transcript: null });
     // Nothing was written, which is what proves the model was never called.
     expect(sb.find("PATCH", "/rest/v1/calls")).toHaveLength(0);
+  });
+  it("claims both copies when the words still have to be written down", async () => {
+    // Writing the words down pulls its own copy from storage, so an open that
+    // backfills moves the file twice. The meter has to see both.
+    const sb = voicemailStub({ transcript: null });
+    const res = await play(sb, [listRoute(), signRoute()]);
+
+    expect(res.status).toBe(200);
+    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")[0];
+    expect((claim.body as { p_bytes: number }).p_bytes).toBe(26_374 * 2);
+  });
+
+  it("pays for one copy when transcription is turned off", async () => {
+    // The opt-in used to be checked only after the file had been fetched, so a
+    // company that had declined transcription still paid for the download.
+    const sb = voicemailStub({ transcript: null, transcribe: false });
+    const res = await play(sb, [listRoute(), signRoute()]);
+
+    expect(res.status).toBe(200);
+    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")[0];
+    expect((claim.body as { p_bytes: number }).p_bytes).toBe(26_374);
+    expect(await res.json()).toMatchObject({ transcript: null });
   });
 });

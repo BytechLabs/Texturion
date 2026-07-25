@@ -21,7 +21,14 @@
 import { Hono, type Context } from "hono";
 import { assertEgressWithinAllowance } from "../attachments/egress";
 import type { Env } from "../env";
-import { shouldTranscribe } from "../calls/voicemail-transcript";
+import {
+  shouldTranscribe,
+  VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
+} from "../calls/voicemail-transcript";
+import {
+  loadAiSettings,
+  type CompanyAiSettings,
+} from "../ai/settings";
 import { runTranscription } from "../messaging/inbound-ring";
 import { z } from "zod";
 
@@ -184,16 +191,25 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) 
     need: "read",
   });
 
-  // Every other signed-URL mint claims its bytes against the company's period
-  // egress allowance before signing. This one did not, so voicemail downloads
-  // accrued storage egress that the period accounting never saw: the alerts
-  // could not warn and the allowance could not bite, however many times a
-  // recording was pulled.
+  // Writing the words down pulls its OWN copy of the recording from storage,
+  // so an open that backfills moves the file twice. Deciding that here, before
+  // the claim, is what keeps the meter honest: the alerts and the allowance see
+  // every byte that actually leaves. It also means a company with transcription
+  // off never pays for a download it had already declined, since the opt-in used
+  // to be checked only after the file had been fetched.
+  const settings = await loadAiSettings(db, c.get("companyId"));
+  const willTranscribe =
+    call.voicemail_transcript === null &&
+    call.voicemail_transcript_attempted_at === null &&
+    shouldTranscribe(call.voicemail_seconds ?? 0) &&
+    VOICEMAIL_TRANSCRIPT_FEATURE_SPEC.enabled(settings);
+
+  const objectBytes = await voicemailObjectBytes(db, call.voicemail_path);
   await assertEgressWithinAllowance(db, c.get("companyId"), [
-    {
-      bucket: VOICEMAILS_BUCKET,
-      sizeBytes: await voicemailObjectBytes(db, call.voicemail_path),
-    },
+    { bucket: VOICEMAILS_BUCKET, sizeBytes: objectBytes },
+    ...(willTranscribe
+      ? [{ bucket: VOICEMAILS_BUCKET, sizeBytes: objectBytes }]
+      : []),
   ]);
 
   const signed = await db.storage
@@ -217,14 +233,14 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) 
   // means the audio without the words, never a broken response.
   const transcript =
     call.voicemail_transcript ??
-    (call.voicemail_transcript_attempted_at !== null
-      ? null
-      : await backfillVoicemailTranscript(env, db, {
+    (willTranscribe
+      ? await backfillVoicemailTranscript(env, db, {
           companyId: c.get("companyId"),
           sessionId,
           path: call.voicemail_path,
-          seconds: call.voicemail_seconds ?? 0,
-        }));
+          settings,
+        })
+      : null);
 
   return c.json({
     url: signed.data.signedUrl,
@@ -268,14 +284,10 @@ async function backfillVoicemailTranscript(
     companyId: string;
     sessionId: string;
     path: string;
-    seconds: number;
+    settings: CompanyAiSettings;
   },
 ): Promise<string | null> {
   try {
-    // The gate owns the opt-in, the cap, the alert and the timeout; the only
-    // check that is ours is whether this recording is worth paying for.
-    if (!shouldTranscribe(args.seconds)) return null;
-
     const download = await db.storage.from(VOICEMAILS_BUCKET).download(args.path);
     if (download.error || !download.data) return null;
 
@@ -284,6 +296,7 @@ async function backfillVoicemailTranscript(
       db,
       args.companyId,
       await download.data.arrayBuffer(),
+      args.settings,
     );
 
     // Stamped whether or not anything came back. The model has been paid for by

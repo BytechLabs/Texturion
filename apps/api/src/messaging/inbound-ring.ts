@@ -32,6 +32,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env";
 import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
 import { runAiFeature } from "../ai/run";
+import type { CompanyAiSettings } from "../ai/settings";
 import {
   fallbackTranscriptInput,
   sanitizeTranscript,
@@ -341,6 +342,8 @@ export async function runTranscription(
   db: SupabaseClient,
   companyId: string,
   audio: ArrayBuffer,
+  /** Already-loaded settings, so the gate does not read them a second time. */
+  settings?: CompanyAiSettings,
 ): Promise<string | null> {
   // Base64 first: a five-minute recording is about a million array elements
   // otherwise, inside a 128 MB Worker already holding the raw buffer.
@@ -349,6 +352,7 @@ export async function runTranscription(
     spec: VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
     model: VOICEMAIL_TRANSCRIPT_MODEL,
     input: transcriptInput(Buffer.from(audio).toString("base64")),
+    settings,
     fallback: {
       model: VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL,
       input: fallbackTranscriptInput(audio),
