@@ -258,12 +258,44 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     });
   });
 
+  it("an edit answers with the opt-out state, so a client cache cannot lose it", async () => {
+    // Android writes this response into the cache its detail screen renders
+    // from (deliberately, so a reopen never shows the pre-edit value). When the
+    // response was the bare table row, an ordinary name edit made the red
+    // "Opted out" chip and the "sends are blocked" card vanish, and the screen
+    // went back to offering to opt out someone who already had.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("PATCH", "/rest/v1/contacts", () => [contactRow({ name: "Jo S." })]);
+    sb.on("GET", "/rest/v1/opt_outs", () => [
+      { id: "0abc0abc-1111-4222-8333-444444444444", source: "stop_keyword" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      { method: "PATCH", companyId: COMPANY_ID, body: { name: "Jo S." } },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      opted_out: boolean;
+      opt_out_source: string | null;
+    };
+    expect(body.opted_out).toBe(true);
+    expect(body.opt_out_source).toBe("stop_keyword");
+  });
+
   it("PATCH consent_attested stamps consent fields and writes a consent_attested event", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
     sb.on("PATCH", "/rest/v1/contacts", (call) => [
       { ...contactRow(), ...(call.body as Record<string, unknown>) },
     ]);
+    // The PATCH answers with the same shape GET does, opt-out state included.
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
     sb.on("GET", "/rest/v1/conversations", () => []); // no conversation yet
     sb.on("POST", "/rest/v1/conversation_events", () => []);
     stubFetch(jwksRoute(auth), sb.route);
@@ -302,6 +334,8 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
   it("DELETE soft-deletes (deleted_at) and 404s an unknown id", async () => {
     const sb = stubWithRole("member");
     sb.on("PATCH", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
+    // The PATCH answers with the same shape GET does, opt-out state included.
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -357,6 +391,8 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
     sb.on("PATCH", "/rest/v1/contacts", (call) => [
       { ...contactRow(), ...(call.body as Record<string, unknown>) },
     ]);
+    // The PATCH answers with the same shape GET does, opt-out state included.
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/contacts", {
@@ -461,6 +497,8 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
     sb.on("PATCH", "/rest/v1/contacts", () => [contactRow({ name: "Jo S." })]);
+    // The PATCH answers with the same shape GET does, opt-out state included.
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -480,6 +518,8 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
   it("DELETE records deleted_by_user_id alongside deleted_at", async () => {
     const sb = stubWithRole("member");
     sb.on("PATCH", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
+    // The PATCH answers with the same shape GET does, opt-out state included.
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -1332,6 +1372,8 @@ describe("geocode cache reset on address writes (D25)", () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
     sb.on("PATCH", "/rest/v1/contacts", () => [contactRow({ address: "New Addr" })]);
+    // The PATCH answers with the same shape GET does, opt-out state included.
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -1356,6 +1398,8 @@ describe("geocode cache reset on address writes (D25)", () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
     sb.on("PATCH", "/rest/v1/contacts", () => [contactRow({ address: null })]);
+    // The PATCH answers with the same shape GET does, opt-out state included.
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
