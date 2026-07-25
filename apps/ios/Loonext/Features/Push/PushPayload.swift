@@ -164,7 +164,11 @@ func queryParam(url: String, name: String) -> String? {
 /// `https://app.loonext.com/inbox/{conversationId}` and
 /// `https://app.loonext.com/calls?call={call_session_id}`.
 enum PushRoute: Equatable, Sendable {
-    case thread(conversationId: String)
+    /// [taskId] rides along on a task reminder, whose link opens the job over
+    /// the customer's thread.
+    case thread(conversationId: String, taskId: String? = nil)
+    /// A task with no thread behind it: its own page carries the same panel.
+    case task(taskId: String)
     case calls(sessionId: String?)
 }
 
@@ -176,7 +180,17 @@ func parsePushRoute(url: String) -> PushRoute? {
     guard let components = URLComponents(string: normalized) else { return nil }
     let segments = components.percentEncodedPath.split(separator: "/").map(String.init)
     if segments.count >= 2, segments[0] == "inbox" || segments[0] == "conversations" {
-        return .thread(conversationId: segments[1])
+        // A task reminder links to the JOB over its customer's thread, so the
+        // query decides what opens on top. Reading only the path left the
+        // reader in the thread with the address and checklist still a search
+        // away, which is what the link exists to save them.
+        return .thread(
+            conversationId: segments[1],
+            taskId: queryParam(url: normalized, name: "task")
+        )
+    }
+    if segments.count >= 2, segments[0] == "tasks" {
+        return .task(taskId: segments[1])
     }
     if segments.first == "calls" {
         return .calls(sessionId: queryParam(url: normalized, name: "call"))

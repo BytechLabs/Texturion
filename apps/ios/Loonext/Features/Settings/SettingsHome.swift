@@ -130,14 +130,19 @@ struct SettingsHome: View {
                         .navigationDestination(for: SettingsSection.self) { section in
                             sectionScreen(section, company: company)
                         }
+                        // Seeded HERE, not on the stack itself, and only once.
+                        // The destination is declared in this branch, so a push
+                        // made while the company was still loading had nothing
+                        // to resolve against and opened an empty screen: a tap
+                        // on an offer to change one setting landed on nothing.
+                        // Pushing on every appear would fight the back button.
+                        .task {
+                            guard let initialSection, path.isEmpty else { return }
+                            path.append(initialSection)
+                        }
                 }
             }
             .navigationTitle("Settings")
-            // Seeded once. Pushing on every appear would fight the back button.
-            .task {
-                guard let initialSection, path.isEmpty else { return }
-                path.append(initialSection)
-            }
             .background(BrandColor.canvas.ignoresSafeArea())
         }
         .tint(BrandColor.olive)

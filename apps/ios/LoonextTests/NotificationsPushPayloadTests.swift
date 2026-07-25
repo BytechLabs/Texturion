@@ -187,6 +187,23 @@ final class NotificationsPushPayloadTests: XCTestCase {
         )
     }
 
+    func testATaskReminderOpensTheJobOverItsCustomersThread() {
+        // The server points reminders at /inbox/<conv>?task=<id> so one tap
+        // carries the address and checklist AND the thread they are about.
+        XCTAssertEqual(
+            parsePushRoute(url: "/inbox/conv-1?task=task-9"),
+            .thread(conversationId: "conv-1", taskId: "task-9")
+        )
+    }
+
+    func testATaskWithNoThreadBehindItOpensItsOwnPage() {
+        // This used to resolve to nothing, so the tap appeared to do nothing.
+        XCTAssertEqual(
+            parsePushRoute(url: "https://app.loonext.com/tasks/task-9"),
+            .task(taskId: "task-9")
+        )
+    }
+
     func testCallsUrlsRouteToCallsWithTheSession() {
         XCTAssertEqual(
             parsePushRoute(url: "/calls?call=sess-9"),

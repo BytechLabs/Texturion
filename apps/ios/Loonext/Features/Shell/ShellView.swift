@@ -517,8 +517,11 @@ struct ShellView: View {
         PushCoordinator.shared.activate(api: graph.api)
         PushHooks.router = { route in
             switch route {
-            case .thread(let conversationId):
+            case .thread(let conversationId, let taskId):
                 AppRouter.shared.openConversationId = conversationId
+                if let taskId { AppRouter.shared.openTaskId = taskId }
+            case .task(let taskId):
+                AppRouter.shared.openTaskId = taskId
             case .calls(let sessionId):
                 AppRouter.shared.openCalls = true
                 if let sessionId {
