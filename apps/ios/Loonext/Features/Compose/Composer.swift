@@ -98,6 +98,10 @@ struct ThreadComposerView: View {
     // Drafts live only while the composer is looking at this thread: they are a
     // momentary offer, never cached state.
     @State private var suggestions: [String] = []
+    // Reported with the drafts: Lou was never told what this business does.
+    // Held for the life of the composer rather than re-fetched, since it only
+    // changes when someone writes the line.
+    @State private var businessUnknown = false
     @State private var suggesting = false
     @State private var photosPickerOpen = false
     @State private var fileImporterOpen = false
@@ -221,6 +225,7 @@ struct ThreadComposerView: View {
                 onNotice(replyDraftMessage(drafted.reason))
             } else {
                 suggestions = drafted.suggestions
+                businessUnknown = drafted.business_unknown
                 if let draftCacheKey {
                     DraftSuggestionsCache.write(draftCacheKey, suggestions: drafted.suggestions)
                 }
@@ -284,6 +289,22 @@ struct ThreadComposerView: View {
                                 .stroke(BrandColor.insetDeep, lineWidth: 1)
                         )
                         .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            // Offered here rather than only in Settings, because this is the
+            // moment the gap is felt: the drafts are on screen and vaguer than
+            // they need to be. The setting exists either way; almost nobody
+            // goes looking.
+            if !suggesting, businessUnknown {
+                Button {
+                    AppRouter.shared.openSettingsSection = .ai
+                } label: {
+                    Text("Lou doesn't know what you do yet. Tell it, and drafts get specific.")
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.olive)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.plain)
             }

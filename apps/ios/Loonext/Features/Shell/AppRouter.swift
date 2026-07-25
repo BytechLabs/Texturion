@@ -34,6 +34,10 @@ import Foundation
     @Published var openContactId: String?        // command: open this contact's detail (shell pushes, then clears)
     @Published var openCalls: Bool = false        // command: show the calls tab
     @Published var openContacts: Bool = false     // command: show the contacts surface
+    // command: open settings AT one section, for a surface offering a specific
+    // setting as the fix for what the reader is looking at (shell opens the
+    // sheet seeded with it, then clears)
+    @Published var openSettingsSection: SettingsSection?
     @Published var viewedConversationId: String?  // report: thread currently on screen (nil when none)
     @Published var contactsRevision: Int = 0      // report: a pushed contact detail popped — refetch the list
 }

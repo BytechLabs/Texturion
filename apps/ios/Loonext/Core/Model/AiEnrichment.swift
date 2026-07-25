@@ -101,6 +101,10 @@ let businessDescriptionMax = 280
 /// (toggle off, nothing to reply to, over the monthly cap, model unavailable).
 struct ReplySuggestions: Codable, Sendable {
     @Default<DefaultEmptyList<String>> var suggestions: [String]
+    /// Lou has not been told what this business does. The prompt refuses to
+    /// say anything about the trade without that line, so every draft is
+    /// thinner until someone writes it.
+    @Default<DefaultFalse> var business_unknown: Bool
     /// Why the list is empty; absent on success. See `replyDraftMessage`.
     var reason: String?
 }

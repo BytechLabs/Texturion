@@ -89,7 +89,10 @@ struct SettingsHome: View {
     let companyId: String
     let me: Me
     let onSignOut: @MainActor () -> Void
+    /// Open straight at this section instead of the index.
+    var initialSection: SettingsSection? = nil
 
+    @State private var path = NavigationPath()
     @State private var companyState: LoadState<CompanyView> = .loading
     @State private var refreshKey = 0
     @State private var toast: String?
@@ -115,7 +118,7 @@ struct SettingsHome: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 switch companyState {
                 case .loading:
@@ -130,6 +133,11 @@ struct SettingsHome: View {
                 }
             }
             .navigationTitle("Settings")
+            // Seeded once. Pushing on every appear would fight the back button.
+            .task {
+                guard let initialSection, path.isEmpty else { return }
+                path.append(initialSection)
+            }
             .background(BrandColor.canvas.ignoresSafeArea())
         }
         .tint(BrandColor.olive)

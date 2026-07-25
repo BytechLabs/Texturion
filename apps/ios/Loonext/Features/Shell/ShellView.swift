@@ -85,6 +85,8 @@ struct ShellView: View {
     @State private var tab: ShellTab = .forYou
     @State private var path: [ShellRoute] = []
     @State private var activeSheet: ShellSheet?
+    /// The section the settings sheet opens at, set by a router command.
+    @State private var pendingSettingsSection: SettingsSection?
     @State private var counts = ShellCounts()
     @State private var countsKey = 0
 
@@ -151,6 +153,12 @@ struct ShellView: View {
             activeSheet = nil
             path.append(.contact(contactId: id))
             Task { @MainActor in router.openContactId = nil }
+        }
+        .onReceive(router.$openSettingsSection) { section in
+            guard let section else { return }
+            pendingSettingsSection = section
+            activeSheet = .settings
+            router.openSettingsSection = nil
         }
         .onReceive(router.$openCalls) { open in
             guard open else { return }
@@ -466,7 +474,12 @@ struct ShellView: View {
                     tab = .contacts
                 },
                 onOpenNotifications: { activeSheet = .notifications },
-                onOpenSettings: { activeSheet = .settings },
+                onOpenSettings: {
+                    // Cleared so the hub opens at the index, not wherever a
+                    // previous router command sent it.
+                    pendingSettingsSection = nil
+                    activeSheet = .settings
+                },
                 onSwitchWorkspace: { root.switchWorkspace($0) },
                 onSignOut: { root.signOut() }
             )
@@ -481,7 +494,8 @@ struct ShellView: View {
                 graph: graph,
                 companyId: companyId,
                 me: hydratedMe,
-                onSignOut: { root.signOut() }
+                onSignOut: { root.signOut() },
+                initialSection: pendingSettingsSection
             )
         case .compose(let prefillContactId):
             NewConversationView(
