@@ -15,6 +15,7 @@ import type { AppEnv } from "./context";
 import { getEnv, type Bindings, type Env } from "./env";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
+import { notifyDueTasksJob } from "./tasks/due-notice";
 import { ApiError, errorResponse } from "./http/errors";
 import {
   failStuckOutboundSends,
@@ -233,6 +234,10 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
   // the signed-URL grace window (D19 §2 sweep) — piggybacks this 15-min cadence,
   // comfortably longer than the 300s signed-URL TTL.
   "*/15 * * * *": [
+    // Task due-date reminders: one push to the assignee as a task comes due,
+    // at most once per due date. A quarter hour is close enough to "now" for
+    // a day of trade work and keeps the scan cheap.
+    notifyDueTasksJob,
     reconcileNumbers,
     retryCampaignAssignments,
     sweepDeletedAttachments,

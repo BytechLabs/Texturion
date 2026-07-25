@@ -17,6 +17,7 @@ import { runUsageAlertsJob } from "./billing/usage-alerts";
 import { sweepDeletedAttachments } from "./attachments/sweep";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
+import { notifyDueTasksJob } from "./tasks/due-notice";
 import { app, CRON_JOBS } from "./index";
 import {
   failStuckOutboundSends,
@@ -431,6 +432,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       sweepStuckProvisioning,
     ]);
     expect(CRON_JOBS["*/15 * * * *"]).toEqual([
+      notifyDueTasksJob,
       reconcileNumbers,
       retryCampaignAssignments,
       sweepDeletedAttachments,
