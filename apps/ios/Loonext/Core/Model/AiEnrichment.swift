@@ -107,6 +107,18 @@ struct ReplySuggestions: Codable, Sendable {
     @Default<DefaultFalse> var business_unknown: Bool
     /// Why the list is empty; absent on success. See `replyDraftMessage`.
     var reason: String?
+
+    // Spelled out so a caller building a failure result does not have to
+    // supply fields that only a real answer carries.
+    init(
+        suggestions: [String] = [],
+        business_unknown: Bool = false,
+        reason: String? = nil
+    ) {
+        self.suggestions = suggestions
+        self.business_unknown = business_unknown
+        self.reason = reason
+    }
 }
 
 /// Plain-language copy for an empty result. One blanket "nothing to suggest"
