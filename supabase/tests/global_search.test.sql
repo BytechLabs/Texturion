@@ -551,6 +551,56 @@ begin
   raise notice 'G10 PASSED: p_hidden_number_ids denies conversation/task/attachment arms';
 end $$;
 
+-- ===========================================================================
+-- G11. Phone numbers written the way people write them. The stored value is
+--      E.164 (+14165550201), but a number is read, spoken, texted and DISPLAYED
+--      BY THIS PRODUCT with punctuation. Matching the stored string as a bare
+--      substring found the digits-only spellings and nothing else, so a number
+--      copied out of the app and pasted back into search returned no results.
+--
+--      A number the company does not hold still finds nothing: the digits arm
+--      widens which spellings match, never which contacts.
+-- ===========================================================================
+do $$
+declare
+  f record;
+  r jsonb;
+  q text;
+begin
+  select * into f from gs_fixture;
+
+  foreach q in array array[
+    '+14165550201',
+    '14165550201',
+    '4165550201',
+    '416-555-0201',
+    '(416) 555-0201',
+    '416 555 0201',
+    '555-0201',
+    '0201'
+  ] loop
+    r := public.api_search_v2(f.cid_a, q, 0, 10, 0, 0, 0);
+    if jsonb_array_length(r->'contacts') <> 1
+       or r->'contacts'->0->>'phone_e164' <> '+14165550201' then
+      raise exception 'G11 FAILED: % did not find the contact: %', q, r;
+    end if;
+  end loop;
+
+  -- A formatted number belonging to nobody here matches nobody here.
+  r := public.api_search_v2(f.cid_a, '(519) 000-0000', 0, 10, 0, 0, 0);
+  if jsonb_array_length(r->'contacts') <> 0 then
+    raise exception 'G11 FAILED: an unrelated number matched: %', r;
+  end if;
+
+  -- A name search must be unaffected by the digits arm.
+  r := public.api_search_v2(f.cid_a, 'Pat Rivera', 0, 10, 0, 0, 0);
+  if jsonb_array_length(r->'contacts') <> 1 then
+    raise exception 'G11 FAILED: name search regressed: %', r;
+  end if;
+
+  raise notice 'G11 PASSED: a phone number matches however it is written';
+end $$;
+
 rollback;
 
 select 'ALL GLOBAL SEARCH TESTS PASSED' as result;
