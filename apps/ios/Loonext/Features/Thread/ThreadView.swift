@@ -566,7 +566,9 @@ private struct ThreadBody: View {
 
     // MARK: - Composer
 
-    @ViewBuilder
+    /// Deliberately NOT a @ViewBuilder: this returns a single view, so the
+    /// result-builder transform buys nothing and spends type-checker budget
+    /// this function has none of to spare.
     private func composerPane(detail: ConversationDetail) -> some View {
         let banner = selectComposerBanner(
             contactOptedOut: controller.contact?.opted_out == true,
@@ -578,7 +580,19 @@ private struct ThreadBody: View {
             usTextingOff: controller.company.map(usTextingOff) ?? false,
             usage: controller.usage
         )
-        ThreadComposerView(
+        // #106: calling is outreach like texting, so a notes-only member gets
+        // no control the API would refuse.
+        let onCallInstead: (@MainActor () -> Void)? =
+            detail.viewer_level == "text"
+                ? {
+                    startCall(
+                        detail: detail,
+                        contactName: detail.contact.name
+                            ?? formatPhone(detail.contact.phone_e164)
+                    )
+                }
+                : nil
+        return ThreadComposerView(
             state: composer,
             noteOnly: detail.viewer_level == "note",
             banner: banner,
@@ -605,6 +619,7 @@ private struct ThreadBody: View {
                     draft: draft
                 )
             },
+            onCallInstead: onCallInstead,
             // Reuse drafts already paid for until a message moves the thread.
             draftCacheKey: DraftSuggestionsCache.key(
                 conversationId: detail.id,
