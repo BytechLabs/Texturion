@@ -19,11 +19,53 @@ export function resolveMentions(
   text: string,
   picked: readonly PickedMention[],
 ): string[] {
+  // Each pick must claim its OWN "@Name" in the draft, and a claimed span is
+  // consumed so nothing else can match inside it.
+  //
+  // A plain `text.includes("@" + name)` looks equivalent and is not. Display
+  // names are not unique and are not prefix-free: with "Sam" and "Sam Rivera"
+  // both picked, deleting "@Sam" left "@Sam Rivera" behind, which still
+  // contains "@Sam", so the withdrawn person was notified anyway. Two
+  // teammates who share a name had the same problem, and both are the exact
+  // failures this function exists to prevent.
+  //
+  // Longest name first, because "@Sam Rivera" must take that span before
+  // "@Sam" can look at it.
+  const order = [...picked].sort((a, b) => b.name.length - a.name.length);
+  const claimed: Array<[number, number]> = [];
   const ids = new Set<string>();
-  for (const mention of picked) {
-    if (text.includes(`@${mention.name}`)) ids.add(mention.userId);
+
+  for (const mention of order) {
+    const token = `@${mention.name}`;
+    let from = 0;
+    for (;;) {
+      const at = text.indexOf(token, from);
+      if (at === -1) break;
+      const end = at + token.length;
+      const overlaps = claimed.some(([start, stop]) => at < stop && end > start);
+      if (!overlaps) {
+        claimed.push([at, end]);
+        ids.add(mention.userId);
+        break;
+      }
+      from = at + 1;
+    }
   }
   return [...ids];
+}
+
+/**
+ * Whether an "@" typed at this position is asking for the picker.
+ *
+ * Only at the start of the draft or after whitespace. Mid-word it is part of
+ * something the author is writing: an email address, a rate like "2 hrs @ $95",
+ * a handle. Opening a teammate picker there, and worse swallowing the
+ * character, made an ordinary internal note impossible to type.
+ */
+export function isMentionTrigger(text: string, caret: number): boolean {
+  if (caret <= 0 || text[caret - 1] !== "@") return false;
+  if (caret === 1) return true;
+  return /\s/.test(text[caret - 2] ?? "");
 }
 
 /**

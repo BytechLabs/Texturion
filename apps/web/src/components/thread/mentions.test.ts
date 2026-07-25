@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { insertMention, resolveMentions } from "./mentions";
+import { insertMention, isMentionTrigger, resolveMentions } from "./mentions";
 
 describe("resolveMentions", () => {
   it("sends the id that was picked, not one guessed from the text", () => {
@@ -59,5 +59,66 @@ describe("insertMention", () => {
   it("inserts without a trigger when the picker was opened another way", () => {
     const result = insertMention("hey ", 4, "Sam");
     expect(result.text).toBe("hey @Sam ");
+  });
+});
+
+describe("resolveMentions — names that collide", () => {
+  it("does not re-arm a withdrawn mention whose name is a prefix of another", () => {
+    // "@Sam" was deleted; "@Sam Rivera" remains and contains it. A substring
+    // test notified the withdrawn Sam anyway.
+    const ids = resolveMentions("@Sam Rivera can you look?", [
+      { userId: "sam", name: "Sam" },
+      { userId: "sam-rivera", name: "Sam Rivera" },
+    ]);
+    expect(ids).toEqual(["sam-rivera"]);
+  });
+
+  it("keeps both when the draft really names both", () => {
+    const ids = resolveMentions("@Sam Rivera and @Sam please", [
+      { userId: "sam", name: "Sam" },
+      { userId: "sam-rivera", name: "Sam Rivera" },
+    ]);
+    expect(ids.sort()).toEqual(["sam", "sam-rivera"]);
+  });
+
+  it("notifies one person when two teammates share a display name and one is named", () => {
+    // Both picks read "@Sam". One occurrence in the draft means one mention,
+    // not an alert for every teammate who happens to be called Sam.
+    const ids = resolveMentions("@Sam can you check the shutoff?", [
+      { userId: "sam-a", name: "Sam" },
+      { userId: "sam-b", name: "Sam" },
+    ]);
+    expect(ids).toHaveLength(1);
+  });
+
+  it("treats a name repeated in the draft as separate claims", () => {
+    const ids = resolveMentions("@Sam and also @Sam", [
+      { userId: "sam-a", name: "Sam" },
+      { userId: "sam-b", name: "Sam" },
+    ]);
+    expect(ids.sort()).toEqual(["sam-a", "sam-b"]);
+  });
+});
+
+describe("isMentionTrigger", () => {
+  it("opens on @ at the start of a note", () => {
+    expect(isMentionTrigger("@", 1)).toBe(true);
+  });
+
+  it("opens on @ after a space", () => {
+    expect(isMentionTrigger("hey @", 5)).toBe(true);
+  });
+
+  it("stays shut inside an email address", () => {
+    // An internal note is exactly where someone writes a customer's email.
+    expect(isMentionTrigger("bob@acme.com", 4)).toBe(false);
+  });
+
+  it("stays shut mid-word", () => {
+    expect(isMentionTrigger("rate2@", 6)).toBe(false);
+  });
+
+  it("stays shut when the character before the caret is not @", () => {
+    expect(isMentionTrigger("hello", 5)).toBe(false);
   });
 });

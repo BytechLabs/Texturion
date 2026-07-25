@@ -52,3 +52,68 @@ export function clearDraft(conversationId: string): void {
     // As above.
   }
 }
+
+/**
+ * The teammates named on a note draft, kept beside the text.
+ *
+ * A mention is two things: the "@Sam" the author typed and the id that decides
+ * who gets told. Persisting only the text restored a draft that still SAID
+ * "@Sam" while notifying nobody, which is worse than losing the draft: the
+ * words on screen were positive evidence of something that would not happen.
+ *
+ * Stored under its own key so a text-only draft written by an older build is
+ * still read correctly, and so a parse failure costs the picks rather than the
+ * draft.
+ */
+const MENTION_PREFIX = "loonext:composer-draft-mentions:";
+
+export interface StoredMention {
+  userId: string;
+  name: string;
+}
+
+export function loadDraftMentions(conversationId: string): StoredMention[] {
+  try {
+    const raw = storage()?.getItem(MENTION_PREFIX + conversationId);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    // Anything that is not a well-formed pick is dropped: a half-understood
+    // mention must never become a notification for the wrong person.
+    return parsed.filter(
+      (row): row is StoredMention =>
+        typeof row === "object" &&
+        row !== null &&
+        typeof (row as StoredMention).userId === "string" &&
+        typeof (row as StoredMention).name === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function saveDraftMentions(
+  conversationId: string,
+  mentions: readonly StoredMention[],
+): void {
+  try {
+    const store = storage();
+    if (!store) return;
+    if (mentions.length === 0) {
+      store.removeItem(MENTION_PREFIX + conversationId);
+    } else {
+      store.setItem(MENTION_PREFIX + conversationId, JSON.stringify(mentions));
+    }
+  } catch {
+    // As above: losing the picks is survivable, and the text-presence check
+    // means a lost pick fails CLOSED (nobody is notified).
+  }
+}
+
+export function clearDraftMentions(conversationId: string): void {
+  try {
+    storage()?.removeItem(MENTION_PREFIX + conversationId);
+  } catch {
+    // As above.
+  }
+}

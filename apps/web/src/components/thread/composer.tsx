@@ -33,7 +33,13 @@ import {
 import { ReplySuggestionChips } from "./reply-suggestion-chips";
 import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { useCompany } from "@/lib/api/companies";
-import { loadDraft, saveDraft } from "@/lib/messaging/composer-drafts";
+import {
+  clearDraftMentions,
+  loadDraft,
+  loadDraftMentions,
+  saveDraft,
+  saveDraftMentions,
+} from "@/lib/messaging/composer-drafts";
 import {
   cacheSuggestions,
   readCachedSuggestions,
@@ -69,7 +75,12 @@ import { cn } from "@/lib/utils";
 import { formatBytes } from "./gallery-grouping";
 import { segmentMeter, segmentTooltip } from "./segment-meter";
 import { MentionPicker } from "./mention-picker";
-import { insertMention, resolveMentions, type PickedMention } from "./mentions";
+import {
+  insertMention,
+  isMentionTrigger,
+  resolveMentions,
+  type PickedMention,
+} from "./mentions";
 import { TemplatePicker } from "./template-picker";
 
 export interface DraftAttachment {
@@ -79,6 +90,23 @@ export interface DraftAttachment {
   contentType: MmsMediaType;
   /** Local object URL for image previews; null for non-image files. */
   previewUrl: string | null;
+}
+
+/** Matches the server's cap so the composer refuses before the note bounces. */
+const MAX_MENTIONS_PER_NOTE = 10;
+
+/**
+ * Turn a mention rejection into something a person can act on.
+ *
+ * The API answers a bad mention with a zod-shaped string that opens with the
+ * field name. That is right for the wire and wrong on screen: the author reads
+ * "mention_user_ids" and cannot tell which teammate to remove.
+ */
+export function mentionAwareMessage(message: string): string {
+  if (!message.startsWith("mention_user_ids")) return message;
+  return message.includes("access to this conversation")
+    ? "One of the teammates you named can't see this conversation. Remove them and save again."
+    : `A note can name up to ${MAX_MENTIONS_PER_NOTE} teammates. Assign the thread if the whole crew needs it.`;
 }
 
 export function fileToBase64(file: File): Promise<string> {
@@ -321,7 +349,9 @@ export function Composer({
   // teammates can share a display name, and the text cannot say which was
   // meant. Deleting the name from the draft still withdraws the mention.
   const [mentionOpen, setMentionOpen] = useState(false);
-  const [picked, setPicked] = useState<PickedMention[]>([]);
+  const [picked, setPicked] = useState<PickedMention[]>(() =>
+    loadDraftMentions(conversationId),
+  );
   const uploadNoteFiles = useUploadNoteFiles();
   /**
    * The last send that FAILED, with the Idempotency-Key it used. Pressing send
@@ -366,6 +396,15 @@ export function Composer({
     const timer = setTimeout(() => saveDraft(conversationId, text), 400);
     return () => clearTimeout(timer);
   }, [conversationId, text]);
+
+  // The picks ride with the draft. Restoring text alone brought back a note
+  // that still SAID "@Sam" and notified nobody, which is worse than losing the
+  // draft: the words on screen were evidence of something that would not
+  // happen.
+  useEffect(() => {
+    const timer = setTimeout(() => saveDraftMentions(conversationId, picked), 400);
+    return () => clearTimeout(timer);
+  }, [conversationId, picked]);
 
   // Object URLs are revoked when chips are removed or the composer unmounts.
   const attachmentsRef = useRef(attachments);
@@ -457,6 +496,7 @@ export function Composer({
       setText("");
       noteStage.clear();
       setPicked([]);
+      clearDraftMentions(conversationId);
 
       let note: Awaited<ReturnType<typeof createNote.mutateAsync>>;
       try {
@@ -473,7 +513,7 @@ export function Composer({
         setPicked(draftPicked);
         toast.error(
           error instanceof ApiError
-            ? error.message
+            ? mentionAwareMessage(error.message)
             : "That note didn't save. Try again.",
         );
         return;
@@ -576,16 +616,6 @@ export function Composer({
       event.preventDefault();
       setPickerOpen(true);
     }
-    // "@" names a teammate on a note. Notes only: a mention is internal, and a
-    // text goes to the customer, who has no idea who Sam is.
-    //
-    // The keystroke is swallowed like the template picker's "/": the popover
-    // takes focus, so an un-prevented "@" lands in ITS search box, filtering
-    // the list down to nothing. Picking writes the whole "@Name" anyway.
-    if (event.key === "@" && isNote) {
-      event.preventDefault();
-      setMentionOpen(true);
-    }
   };
 
   const onMentionPick = (member: { user_id: string; display_name: string }) => {
@@ -594,7 +624,17 @@ export function Composer({
     const caret = field?.selectionStart ?? text.length;
     const next = insertMention(text, caret, name);
     setText(next.text);
-    setPicked((prior) => [...prior, { userId: member.user_id, name }]);
+    setPicked((prior) => {
+      // The server caps a note at ten names. Saying so here beats letting the
+      // note bounce with a validation string naming an internal field.
+      if (prior.length >= MAX_MENTIONS_PER_NOTE) {
+        toast.error(
+          `A note can name up to ${MAX_MENTIONS_PER_NOTE} teammates. Assign the thread if the whole crew needs it.`,
+        );
+        return prior;
+      }
+      return [...prior, { userId: member.user_id, name }];
+    });
     // Put the caret back where the author was typing, not at the end.
     window.requestAnimationFrame(() => {
       field?.focus();
@@ -889,7 +929,15 @@ export function Composer({
           ref={textareaRef}
           value={text}
           onChange={(event) => {
-            setText(event.target.value);
+            const next = event.target.value;
+            setText(next);
+            // The picker opens from the typed text, not from a keydown: an
+            // Android soft keyboard reports every key as "Unidentified", so a
+            // keydown trigger never fired there at all. The "@" is left in the
+            // draft either way, so dismissing the picker costs nothing.
+            if (isNote && isMentionTrigger(next, event.target.selectionStart ?? next.length)) {
+              setMentionOpen(true);
+            }
             // Drafts were written for what was typed a moment ago; once that
             // changes they are stale, so they go rather than sit there
             // offering to overwrite newer words.

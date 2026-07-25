@@ -58,9 +58,18 @@ export function MentionPicker({
 
   const label = (member: MentionableMember) =>
     member.display_name.trim() || "Teammate";
+  const labels = new Map(rows.map((member) => [member.user_id, label(member)]));
 
   const list = (autoFocus: boolean) => (
-    <Command>
+    // Filter on the NAME only. Using the row value meant the uuid was
+    // searchable, so any hex-looking query ("abc", "1234") matched every
+    // teammate at once.
+    <Command
+      filter={(value, search) => {
+        const name = labels.get(value) ?? "";
+        return name.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
+      }}
+    >
       <CommandInput placeholder="Search teammates…" autoFocus={autoFocus} />
       <CommandList>
         <CommandEmpty>
@@ -77,9 +86,9 @@ export function MentionPicker({
             {rows.map((member) => (
               <CommandItem
                 key={member.user_id}
-                // Searchable by name; the id keeps two teammates who share a
-                // display name from collapsing into one row.
-                value={`${label(member)} ${member.user_id}`}
+                // The id alone: two teammates who share a display name must
+                // stay two rows, and the filter above matches on the name.
+                value={member.user_id}
                 onSelect={() => {
                   onPick(member);
                   onOpenChange(false);

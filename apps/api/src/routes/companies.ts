@@ -617,4 +617,3 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   });
 });
 
-/** Hono's `c.executionCtx` throws when there is no runtime context; probe it. */
