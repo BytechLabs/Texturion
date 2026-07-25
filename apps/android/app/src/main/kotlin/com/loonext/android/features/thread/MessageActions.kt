@@ -219,6 +219,8 @@ fun MakeTaskSheet(
     message: Message,
     contactName: String,
     members: List<Member>,
+    /** Who to assign by default: the person making the task (web parity). */
+    meUserId: String?,
     aiRepo: AiRepository,
     companyId: String,
     conversationId: String,
@@ -233,7 +235,11 @@ fun MakeTaskSheet(
     var title by remember {
         mutableStateOf(message.body.trim().take(120).ifBlank { "Follow up" })
     }
-    var assigneeId by remember { mutableStateOf<String?>(null) }
+    // Assigned to whoever is making it, matching the web. The default task
+    // view is "open, assigned to me", so a task made on a phone and left
+    // unassigned landed in a list nobody was looking at. Nobody stays
+    // selectable.
+    var assigneeId by remember { mutableStateOf(meUserId) }
     var due by remember { mutableStateOf<DueChoice?>(null) }
     var dueSuggested by remember { mutableStateOf(false) }
     var pickerOpen by remember { mutableStateOf(false) }

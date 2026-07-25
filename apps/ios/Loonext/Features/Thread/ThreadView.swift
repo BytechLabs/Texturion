@@ -895,6 +895,42 @@ private struct ConversationSheet: View {
     }
 }
 
+/// One choice in the make-a-task assignee row: avatar + name on paper, with an
+/// ink ring when it is the one picked.
+@MainActor
+private struct AssigneeChoiceChip: View {
+    let name: String
+    let showsAvatar: Bool
+    let selected: Bool
+    let onTap: @MainActor () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 7) {
+                if showsAvatar {
+                    InitialsAvatar(name: name, size: 26)
+                }
+                Text(name)
+                    .font(.golos(12.5, weight: selected ? .semibold : .medium))
+                    .foregroundStyle(selected ? BrandColor.ink : BrandColor.muted700)
+            }
+            .padding(.leading, showsAvatar ? 6 : 13)
+            .padding(.trailing, 13)
+            .padding(.vertical, 6)
+            .background(BrandColor.paper, in: Capsule())
+            .overlay(
+                Capsule().strokeBorder(
+                    selected ? BrandColor.ink : Color.clear,
+                    lineWidth: 2
+                )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(name)
+        .accessibilityAddTraits(selected ? AccessibilityTraits.isSelected : [])
+    }
+}
+
 /// Active-member picker with an Unassigned entry. Shared with the inbox
 /// rows' Assign swipe action — the one picker for the one mutation.
 @MainActor
@@ -1067,6 +1103,10 @@ private struct MakeTaskSheet: View {
     let onDismiss: @MainActor () -> Void
 
     @State private var title: String
+    /// Assigned to whoever is making it, matching web and Android. The default
+    /// task view is "open, assigned to me", so a task made here and left
+    /// unassigned landed in a list nobody was looking at.
+    @State private var assigneeId: String?
     @State private var due: Date?
     @State private var dueSuggested = false
     @State private var duePickerOpen = false
@@ -1093,6 +1133,7 @@ private struct MakeTaskSheet: View {
         self.contactName = contactName
         self.onDismiss = onDismiss
         _title = State(initialValue: Self.seededTitle(message.body))
+        _assigneeId = State(initialValue: controller.meUserId)
     }
 
     /// The web's message-snippet default title, editable: the trimmed body
@@ -1108,6 +1149,7 @@ private struct MakeTaskSheet: View {
                 header
                 if !message.body.isBlank { sourceQuote }
                 titleField
+                assigneeRow
                 dueRow
                 addressBlock
                 createButton
@@ -1192,6 +1234,41 @@ private struct MakeTaskSheet: View {
                     BrandColor.paper,
                     in: RoundedRectangle(cornerRadius: 16, style: .continuous)
                 )
+        }
+    }
+
+    /// Active teammates as tappable chips with a Nobody entry, mirroring
+    /// Android. Inline rather than a nested picker sheet: assigning is one tap
+    /// from the sheet that is already open, not three.
+    private var assigneeRow: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeader(label: "Assign to")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(
+                        controller.members.filter { $0.deactivated_at == nil },
+                        id: \.user_id
+                    ) { member in
+                        let name = member.display_name.isBlank
+                            ? "Teammate" : member.display_name
+                        AssigneeChoiceChip(
+                            name: name,
+                            showsAvatar: true,
+                            selected: assigneeId == member.user_id
+                        ) {
+                            assigneeId =
+                                assigneeId == member.user_id ? nil : member.user_id
+                        }
+                    }
+                    AssigneeChoiceChip(
+                        name: "Nobody",
+                        showsAvatar: false,
+                        selected: assigneeId == nil
+                    ) { assigneeId = nil }
+                }
+                .padding(.horizontal, 1)
+                .padding(.vertical, 2)
+            }
         }
     }
 
@@ -1406,6 +1483,7 @@ private struct MakeTaskSheet: View {
         controller.makeTask(
             message,
             title: String(trimmed.prefix(taskTitleMax)),
+            assignedUserId: assigneeId,
             dueAt: due.map { encodeDueAt($0) },
             address: addr,
             provenance: addrProvenance ?? AddressProvenance.manual

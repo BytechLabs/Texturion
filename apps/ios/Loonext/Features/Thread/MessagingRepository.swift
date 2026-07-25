@@ -289,6 +289,7 @@ struct MessagingRepository: Sendable {
         companyId: String,
         messageId: String,
         title: String,
+        assignedUserId: String? = nil,
         dueAt: String? = nil,
         address: JSONValue? = nil
     ) async throws -> TaskRowPatch {
@@ -303,7 +304,7 @@ struct MessagingRepository: Sendable {
             body: taskCreateBody(
                 messageId: messageId,
                 title: title,
-                assignedUserId: nil,
+                assignedUserId: assignedUserId,
                 dueAt: dueAt,
                 address: address
             ),

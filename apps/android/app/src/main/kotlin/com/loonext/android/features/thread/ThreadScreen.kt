@@ -155,6 +155,7 @@ fun ThreadScreen(
             cache = graph.storeCache,
             companyId = companyId,
             conversationId = conversationId,
+            meUserId = me.user_id,
             scope = graph.appScope,
         )
     }

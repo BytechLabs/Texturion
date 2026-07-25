@@ -31,7 +31,8 @@ final class ThreadController {
     /// (explicit-null clears) rather than growing a duplicate here.
     private let contacts: ContactMutations
     private let companyId: String
-    private let meUserId: String
+    /// Read by the make-a-task sheet so a new task defaults to its creator.
+    let meUserId: String
 
     private(set) var load: LoadState<Void> = .loading
     /// Structural error code of a failed initial load (drives the honest 404).
@@ -582,6 +583,7 @@ final class ThreadController {
     func makeTask(
         _ message: Message,
         title: String,
+        assignedUserId: String? = nil,
         dueAt: String? = nil,
         address: AddressFieldValues = AddressFieldValues(),
         provenance: String = AddressProvenance.manual
@@ -593,6 +595,7 @@ final class ThreadController {
                     companyId: companyId,
                     messageId: message.id,
                     title: title,
+                    assignedUserId: assignedUserId,
                     dueAt: dueAt,
                     address: addressBody
                 )
