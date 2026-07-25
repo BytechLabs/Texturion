@@ -914,6 +914,9 @@ describe("§9 event → state table", () => {
     const harness = makeHarness([
       ...ledgerEndpoints(),
       endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+      endpoint("POST", /api\.stripe\.com\/v1\/invoices\/.*\/void/, () =>
+        Response.json({ id: "in_test", status: "void" }),
+      ),
     ]);
     await deliver(
       eventOf(
@@ -938,6 +941,13 @@ describe("§9 event → state table", () => {
       registration_fee_charge_started_at: null,
       us_texting_enabled: false,
     });
+    // The failed invoice is closed. Left open it stays in Stripe's automatic
+    // retry schedule for about two weeks, while the rollback above invites the
+    // owner to press enable-us again: the idempotency key that would replay the
+    // first invoice expires after about a day, so the retry mints a SECOND one
+    // and both can collect $29.
+    expect(harness.callsTo("POST", /api\.stripe\.com\/v1\/invoices\/.*\/void/))
+      .toHaveLength(1);
     // No subscription on the fee invoice → no dunning email, no status mirror.
     expect(harness.callsTo("POST", /api\.resend\.com/)).toHaveLength(0);
     expect(harness.callsTo("GET", /api\.stripe\.com/)).toHaveLength(0);
@@ -945,10 +955,10 @@ describe("§9 event → state table", () => {
 
   it("a declined fee that later succeeds still delivers what was paid for", async () => {
     // The whole sequence, because the halves were each correct alone and wrong
-    // together: the decline turns US texting back off, the invoice stays open
-    // and payable by a Stripe retry, and the later success used to stamp only
-    // the fee — leaving a company charged $29 with the capability still off and
-    // no carrier registration ever filed.
+    // together: the decline turns US texting back off and closes that invoice,
+    // and the later success (a fresh invoice from a second enable-us attempt)
+    // used to stamp only the fee — leaving a company charged $29 with the
+    // capability still off and no carrier registration ever filed.
     const feeInvoice = () =>
       invoiceFixture({
         metadata: { purpose: "us_registration", company_id: COMPANY_ID },
@@ -956,8 +966,12 @@ describe("§9 event → state table", () => {
       });
     const patchOk = () =>
       endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 }));
+    const voidOk = () =>
+      endpoint("POST", /api\.stripe\.com\/v1\/invoices\/.*\/void/, () =>
+        Response.json({ id: "in_test", status: "void" }),
+      );
 
-    const declined = makeHarness([...ledgerEndpoints(), patchOk()]);
+    const declined = makeHarness([...ledgerEndpoints(), patchOk(), voidOk()]);
     await deliver(eventOf("invoice.payment_failed", feeInvoice()), declined);
     expect(declined.callsTo("PATCH", /companies/)[0].json()).toMatchObject({
       us_texting_enabled: false,
@@ -970,6 +984,35 @@ describe("§9 event → state table", () => {
     });
     // And the registration is actually filed, which is the thing the $29 buys.
     expect(submitRegistration).toHaveBeenCalledWith(env, COMPANY_ID);
+  });
+
+  it("a void that loses the race to a retry never blocks the rollback", async () => {
+    // Stripe refuses to void an invoice that just got paid. That is the paid
+    // path winning, which is a consistent outcome, so the rollback must still
+    // stand rather than the whole event failing and being replayed.
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+      endpoint("POST", /api\.stripe\.com\/v1\/invoices\/.*\/void/, () =>
+        Response.json(
+          { error: { message: "Invoice is already paid", type: "invalid_request_error" } },
+          { status: 400 },
+        ),
+      ),
+    ]);
+
+    await deliver(
+      eventOf(
+        "invoice.payment_failed",
+        invoiceFixture({
+          metadata: { purpose: "us_registration", company_id: COMPANY_ID },
+          parent: null,
+        }),
+      ),
+      harness,
+    );
+
+    expect(harness.callsTo("PATCH", /companies/)).toHaveLength(1);
   });
 
   it("invoice.payment_action_required: SCA email only, NO state change", async () => {

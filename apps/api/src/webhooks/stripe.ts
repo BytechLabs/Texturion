@@ -886,6 +886,28 @@ async function handleInvoicePaymentFailed(
     if (error) {
       throw new Error(`enable-us fee marker clear failed: ${error.message}`);
     }
+
+    // Close the failed invoice, or the owner pays twice. Rolling the company
+    // back invites them to press enable-us again, and the idempotency key that
+    // would have replayed the first invoice expires after about a day, so a
+    // second attempt mints a SECOND invoice. Meanwhile this one is still inside
+    // Stripe's automatic retry schedule, which runs for roughly two weeks: both
+    // can collect $29, and the later one reconciles to nothing because
+    // registration_fee_paid_at is already stamped.
+    //
+    // Best effort on purpose. A void that fails because the retry just
+    // succeeded is the paid path winning the race, which is a consistent
+    // outcome; anything else must not stop the rollback above from standing.
+    if (invoice.id) {
+      try {
+        await getStripe(env).invoices.voidInvoice(invoice.id);
+      } catch (cause) {
+        console.error(
+          `us-registration invoice ${invoice.id} could not be voided:`,
+          cause instanceof Error ? cause.message : String(cause),
+        );
+      }
+    }
   }
 
   const subscriptionId = invoiceSubscriptionId(invoice);
