@@ -3,6 +3,7 @@ import FirebaseMessaging
 import Foundation
 import os
 import UIKit
+import UserNotifications
 
 private let pushLog = Logger(subsystem: "com.loonext.ios", category: "push")
 
@@ -59,6 +60,15 @@ enum PushAvailability {
 ///
 /// The endpoint is Bearer-only (tokens are per-USER; SPEC §6) — no
 /// X-Company-Id is sent.
+/// The system permission prompt, on the main actor because this file's other
+/// UIKit hops are too. Discards the answer: the caller registers a token
+/// either way, and the prefs card is where a refusal is explained.
+@MainActor
+private func requestNotificationAuthorization() async {
+    _ = try? await UNUserNotificationCenter.current()
+        .requestAuthorization(options: [.alert, .badge, .sound])
+}
+
 actor PushRegistrar {
     private let api: ApiClient
 
@@ -84,6 +94,14 @@ actor PushRegistrar {
     /// log, once) when Firebase isn't configured in this build.
     func register() async {
         guard await MainActor.run(body: { PushAvailability.configureIfNeeded() }) else { return }
+        // Ask BEFORE registering. Registering alone yields an APNs token and a
+        // server that happily sends, while iOS drops every alert on the floor:
+        // displaying one needs the user's own permission. Asking here, once at
+        // startup, mirrors the Android prompt; the call is idempotent, so a
+        // decision already made returns it without prompting again, and a
+        // refusal leaves the rest of this method to register a token that is
+        // still worth having for badges and silent delivery.
+        await requestNotificationAuthorization()
         // APNs registration feeds Messaging.apnsToken via PushAppDelegate;
         // FCM needs it before it can mint a registration token.
         await MainActor.run { UIApplication.shared.registerForRemoteNotifications() }
