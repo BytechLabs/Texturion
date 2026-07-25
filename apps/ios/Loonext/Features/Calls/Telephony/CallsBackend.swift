@@ -67,6 +67,12 @@ struct RingAck: Codable, Sendable {
 struct VoicemailPlayback: Codable, Sendable {
     let url: String
     @Default<DefaultZero> var seconds: Int
+    /// The words, written down. Carried on the playback response as well as
+    /// the call row, because the server transcribes a recording that has no
+    /// transcript yet on this very request: recordings from before
+    /// transcription existed, and any whose transcription failed at the time,
+    /// get their words on first play.
+    var transcript: String?
 }
 
 private struct TransferBody: Codable, Sendable {

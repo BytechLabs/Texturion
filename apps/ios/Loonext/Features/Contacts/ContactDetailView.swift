@@ -1025,7 +1025,8 @@ private struct ContactCallRow: View {
                     service: service,
                     companyId: companyId,
                     sessionId: call.call_session_id,
-                    seconds: call.voicemail_seconds ?? 0
+                    seconds: call.voicemail_seconds ?? 0,
+                    storedTranscript: voicemailWords(call)
                 )
                 .padding(.leading, 42)
                 .padding(.trailing, 15)
@@ -1043,12 +1044,21 @@ private struct ContactCallRow: View {
 /// stream via AVPlayer with seek + live progress. Any change here must mirror
 /// the call log's player until a shared component is extracted.
 @MainActor
+/// The words on a voicemail row, or nil when there is nothing worth showing.
+private func voicemailWords(_ call: Call) -> String? {
+    guard let text = call.voicemail_transcript, !text.isBlank else { return nil }
+    return text
+}
+
 private struct ContactVoicemailPlayerRow: View {
     let service: CallsService
     let companyId: String
     let sessionId: String
     let seconds: Int
+    /// The stored transcript, when the call row already carries one.
+    let storedTranscript: String?
 
+    @State private var backfilledTranscript: String?
     @State private var player: AVPlayer?
     @State private var preparing = false
     @State private var playing = false
@@ -1057,7 +1067,14 @@ private struct ContactVoicemailPlayerRow: View {
     @State private var scrubbing = false
     @State private var errorText: String?
 
-    init(service: CallsService, companyId: String, sessionId: String, seconds: Int) {
+    init(
+        service: CallsService,
+        companyId: String,
+        sessionId: String,
+        seconds: Int,
+        storedTranscript: String?
+    ) {
+        self.storedTranscript = storedTranscript
         self.service = service
         self.companyId = companyId
         self.sessionId = sessionId
@@ -1117,6 +1134,12 @@ private struct ContactVoicemailPlayerRow: View {
                 Text(errorText)
                     .font(.golos(10.5))
                     .foregroundStyle(BrandColor.muted500)
+            }
+            if let words = storedTranscript ?? backfilledTranscript {
+                Text(words)
+                    .font(.golos(12))
+                    .foregroundStyle(BrandColor.muted600)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .task(id: playing) {
@@ -1183,6 +1206,14 @@ private struct ContactVoicemailPlayerRow: View {
                 guard let url = URL(string: playback.url) else {
                     errorText = "Couldn't play this voicemail."
                     return
+                }
+                // Recordings from before transcription existed, and any whose
+                // transcription failed at the time, are written down by the
+                // server on this request and get their words on first play.
+                if storedTranscript == nil,
+                   let words = playback.transcript,
+                   !words.isBlank {
+                    backfilledTranscript = words
                 }
                 let next = AVPlayer(url: url)
                 player = next

@@ -584,7 +584,8 @@ private struct CallRow: View {
                     service: service,
                     companyId: companyId,
                     sessionId: call.call_session_id,
-                    seconds: call.voicemail_seconds ?? 0
+                    seconds: call.voicemail_seconds ?? 0,
+                    transcriptShown: transcript != nil
                 )
                 .padding(.leading, 64)
                 .padding(.trailing, 15)
@@ -619,7 +620,10 @@ private struct VoicemailPlayerRow: View {
     let companyId: String
     let sessionId: String
     let seconds: Int
+    /// The row already shows the words, so the player must not repeat them.
+    let transcriptShown: Bool
 
+    @State private var backfilledTranscript: String?
     @State private var player: AVPlayer?
     @State private var preparing = false
     @State private var playing = false
@@ -628,11 +632,18 @@ private struct VoicemailPlayerRow: View {
     @State private var scrubbing = false
     @State private var errorText: String?
 
-    init(service: CallsService, companyId: String, sessionId: String, seconds: Int) {
+    init(
+        service: CallsService,
+        companyId: String,
+        sessionId: String,
+        seconds: Int,
+        transcriptShown: Bool
+    ) {
         self.service = service
         self.companyId = companyId
         self.sessionId = sessionId
         self.seconds = seconds
+        self.transcriptShown = transcriptShown
         _durationMs = State(initialValue: max(1, seconds * 1000))
     }
 
@@ -688,6 +699,12 @@ private struct VoicemailPlayerRow: View {
                 Text(errorText)
                     .font(.golos(10.5))
                     .foregroundStyle(BrandColor.muted500)
+            }
+            if let backfilledTranscript {
+                Text(backfilledTranscript)
+                    .font(.golos(12))
+                    .foregroundStyle(BrandColor.muted600)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .task(id: playing) {
@@ -754,6 +771,9 @@ private struct VoicemailPlayerRow: View {
                 guard let url = URL(string: playback.url) else {
                     errorText = "Couldn't play this voicemail."
                     return
+                }
+                if !transcriptShown, let words = playback.transcript, !words.isBlank {
+                    backfilledTranscript = words
                 }
                 let next = AVPlayer(url: url)
                 player = next
