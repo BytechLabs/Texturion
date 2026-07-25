@@ -79,6 +79,7 @@ object NotificationType {
     const val ASSIGNED = "assigned"
     const val TASK_ASSIGNED = "task_assigned"
     const val MISSED_CALL = "missed_call"
+    const val MENTION = "mention"
 }
 
 @Serializable

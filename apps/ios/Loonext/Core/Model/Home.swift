@@ -74,6 +74,7 @@ enum NotificationType {
     static let assigned = "assigned"
     static let taskAssigned = "task_assigned"
     static let missedCall = "missed_call"
+    static let mention = "mention"
 }
 
 struct NotificationItem: Codable, Sendable {

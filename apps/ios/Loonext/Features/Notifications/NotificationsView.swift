@@ -217,6 +217,8 @@ private func iconWell(_ type: String) -> Color {
     case NotificationType.assigned: BrandColor.avatarTint
     case NotificationType.taskAssigned: BrandColor.inset
     case NotificationType.missedCall: BrandColor.destructiveContainer
+    // A mention is aimed at THIS reader, so it reads warmer than an assignment.
+    case NotificationType.mention: BrandColor.cream
     default: BrandColor.inset
     }
 }
@@ -225,6 +227,7 @@ private func iconTint(_ type: String) -> Color {
     switch type {
     case NotificationType.missedCall: BrandColor.destructive
     case NotificationType.taskAssigned: BrandColor.olive
+    case NotificationType.mention: BrandColor.olive
     default: BrandColor.muted900
     }
 }
@@ -241,6 +244,8 @@ private func summaryFor(_ row: NotificationItem) -> String {
         return who.map { "Task assigned · \($0)" } ?? "Task assigned to you"
     case NotificationType.missedCall:
         return who.map { "Missed call from \($0)" } ?? "Missed call"
+    case NotificationType.mention:
+        return who.map { "You were mentioned · \($0)" } ?? "You were mentioned"
     default:
         // A type added server-side after this build shipped — show something
         // honest instead of crashing or hiding it.
@@ -254,6 +259,7 @@ private func iconFor(_ type: String) -> String {
     case NotificationType.assigned: "person.crop.circle.badge.checkmark"
     case NotificationType.taskAssigned: "checklist"
     case NotificationType.missedCall: "phone.arrow.down.left"
+    case NotificationType.mention: "at"
     default: "bell"
     }
 }

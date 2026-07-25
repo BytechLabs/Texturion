@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AlternateEmail
 import androidx.compose.material.icons.outlined.AssignmentInd
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Checklist
@@ -546,6 +547,10 @@ private fun KindBadge(row: NotificationItem) {
         NotificationType.ASSIGNED, NotificationType.TASK_ASSIGNED ->
             colors.secondaryContainer to colors.secondary
 
+        // A mention is aimed at THIS reader, so it carries the primary tint
+        // rather than the quieter assignment one.
+        NotificationType.MENTION -> colors.primaryContainer to colors.onPrimaryContainer
+
         else -> colors.surfaceContainer to colors.onSurfaceVariant
     }
     val contactName = row.contact?.name
@@ -605,6 +610,9 @@ private fun summaryFor(row: NotificationItem): String {
         NotificationType.MISSED_CALL ->
             who?.let { "Missed call from $it" } ?: "Missed call"
 
+        NotificationType.MENTION ->
+            who?.let { "You were mentioned · $it" } ?: "You were mentioned"
+
         // A type added server-side after this build shipped — show something
         // honest instead of crashing or hiding it.
         else -> who?.let { "Update · $it" } ?: "Update"
@@ -616,5 +624,6 @@ private fun iconFor(type: String): ImageVector = when (type) {
     NotificationType.ASSIGNED -> Icons.Outlined.AssignmentInd
     NotificationType.TASK_ASSIGNED -> Icons.Outlined.Checklist
     NotificationType.MISSED_CALL -> Icons.Outlined.PhoneMissed
+    NotificationType.MENTION -> Icons.Outlined.AlternateEmail
     else -> Icons.Outlined.Notifications
 }
