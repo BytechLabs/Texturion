@@ -213,9 +213,7 @@ struct ThreadComposerView: View {
     private var replySuggestionsRow: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 11))
-                    .foregroundStyle(BrandColor.muted500)
+                AiOrb(state: suggesting ? .thinking : .done, size: 14)
                 Text(suggesting ? "Drafting…" : "Lou's drafts")
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted500)
@@ -273,17 +271,6 @@ struct ThreadComposerView: View {
                     } label: {
                         Label("Saved reply", systemImage: "text.badge.plus")
                     }
-                    if suggestReplies != nil {
-                        Button {
-                            askForSuggestions()
-                        } label: {
-                            Label(
-                                state.text.isBlank ? "Draft with Lou" : "Finish with Lou",
-                                systemImage: "sparkles"
-                            )
-                        }
-                        .disabled(suggesting)
-                    }
                 } label: {
                     Image(systemName: "plus")
                         .font(.body.weight(.medium))
@@ -291,6 +278,23 @@ struct ThreadComposerView: View {
                         .frame(width: 36, height: 36)
                 }
                 .accessibilityLabel("Add to message")
+
+                // Lou sits in the pill, not inside the overflow: asking for a
+                // draft was two taps and a menu, which is more work than
+                // typing the reply.
+                if suggestReplies != nil {
+                    Button {
+                        askForSuggestions()
+                    } label: {
+                        AiOrb(state: suggesting ? .thinking : .idle, size: 20)
+                            .frame(width: 36, height: 36)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(suggesting)
+                    .accessibilityLabel(
+                        state.text.isBlank ? "Draft with Lou" : "Finish with Lou"
+                    )
+                }
             } else {
                 Button {
                     fileImporterOpen = true

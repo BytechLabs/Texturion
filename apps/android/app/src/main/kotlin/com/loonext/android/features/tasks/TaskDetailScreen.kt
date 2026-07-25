@@ -103,6 +103,8 @@ import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.features.contacts.MultipartClient
 import com.loonext.android.features.contacts.uploadNoteFile
+import com.loonext.android.ui.common.AiOrb
+import com.loonext.android.ui.common.AiOrbState
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.CountryField
 import com.loonext.android.ui.common.DsChip
@@ -1302,12 +1304,7 @@ private fun AddressProvenanceBadge(label: String) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        Icon(
-            Icons.Outlined.AutoAwesome,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(11.dp),
-        )
+        AiOrb(state = AiOrbState.Idle, size = 11.dp)
         Text(
             label,
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),

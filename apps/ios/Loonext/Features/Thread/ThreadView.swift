@@ -1236,8 +1236,7 @@ private struct MakeTaskSheet: View {
 
     private var suggestedHint: some View {
         HStack(spacing: 3) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 9, weight: .semibold))
+            AiOrb(state: .idle, size: 11)
             Text("Suggested")
                 .font(.golos(10.5, weight: .semibold))
         }
@@ -1313,8 +1312,7 @@ private struct MakeTaskSheet: View {
 
     private func addrBadge(_ label: String) -> some View {
         HStack(spacing: 4) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 9, weight: .semibold))
+            AiOrb(state: .idle, size: 11)
             Text(label)
                 .font(.golos(10.5, weight: .semibold))
         }

@@ -69,6 +69,8 @@ import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.TaskAddressInput
 import com.loonext.android.core.model.addressProvenanceLabel
+import com.loonext.android.ui.common.AiOrb
+import com.loonext.android.ui.common.AiOrbState
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.CountryField
 import com.loonext.android.ui.common.initialsOf
@@ -747,12 +749,7 @@ private fun SuggestedHint() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        Icon(
-            Icons.Outlined.AutoAwesome,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(11.dp),
-        )
+        AiOrb(state = AiOrbState.Idle, size = 11.dp)
         Text(
             "Suggested",
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
@@ -772,12 +769,7 @@ private fun ProvenanceBadge(label: String) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        Icon(
-            Icons.Outlined.AutoAwesome,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(11.dp),
-        )
+        AiOrb(state = AiOrbState.Idle, size = 11.dp)
         Text(
             label,
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),

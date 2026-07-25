@@ -78,6 +78,8 @@ import coil3.compose.AsyncImage
 import com.loonext.android.core.model.ReplySuggestions
 import com.loonext.android.core.model.replyDraftMessage
 import com.loonext.android.core.model.Template
+import com.loonext.android.ui.common.AiOrb
+import com.loonext.android.ui.common.AiOrbState
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
@@ -459,27 +461,25 @@ fun ThreadComposer(
                                 templatePickerOpen = true
                             },
                         )
-                        if (suggestReplies != null) {
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        if (state.text.isBlank()) "Draft with Lou"
-                                        else "Finish with Lou",
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        Icons.Outlined.AutoAwesome,
-                                        contentDescription = null,
-                                    )
-                                },
-                                enabled = !suggesting,
-                                onClick = {
-                                    attachMenuOpen = false
-                                    askForSuggestions()
-                                },
-                            )
-                        }
+                    }
+                }
+
+                // Lou sits in the row, not inside the overflow: asking for a
+                // draft was two taps and a menu, which is more work than
+                // typing the reply.
+                if (suggestReplies != null) {
+                    IconButton(
+                        onClick = { askForSuggestions() },
+                        enabled = !suggesting,
+                    ) {
+                        AiOrb(
+                            state = if (suggesting) AiOrbState.Thinking else AiOrbState.Idle,
+                            contentDescription = if (state.text.isBlank()) {
+                                "Draft with Lou"
+                            } else {
+                                "Finish with Lou"
+                            },
+                        )
                     }
                 }
             } else {
@@ -576,11 +576,9 @@ private fun ReplySuggestionsRow(
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                Icons.Outlined.AutoAwesome,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(13.dp),
+            AiOrb(
+                state = if (loading) AiOrbState.Thinking else AiOrbState.Done,
+                size = 14.dp,
             )
             Spacer(Modifier.width(5.dp))
             Text(

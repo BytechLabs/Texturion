@@ -52,7 +52,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .workspace: "building.2"
         case .hours: "clock"
         case .calling: "phone"
-        case .ai: "sparkles"
+        case .ai: "circle.hexagongrid"
         case .team: "person.2"
         case .numbers: "number"
         case .usage: "chart.bar"
