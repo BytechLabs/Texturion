@@ -226,6 +226,12 @@ fun ThreadComposer(
      */
     onOpenAiSettings: (() -> Unit)? = null,
     /**
+     * Place a call to this customer, offered by a banner that blocks texting
+     * but not calling. Null withholds it (a member without text level on the
+     * number would be refused by the API).
+     */
+    onCallInstead: (() -> Unit)? = null,
+    /**
      * Identifies this thread AT ITS CURRENT POINT, so drafts already paid for
      * are reused until a message in either direction retires them. Null skips
      * the cache entirely (a compose screen with no thread behind it yet).
@@ -338,7 +344,7 @@ fun ThreadComposer(
     }
 
     Column(modifier.fillMaxWidth()) {
-        if (banner != null) ComposerBannerCard(banner)
+        if (banner != null) ComposerBannerCard(banner, onCallInstead = onCallInstead)
 
         if (!textBlocked) {
             Row(

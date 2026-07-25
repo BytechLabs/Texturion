@@ -1,6 +1,7 @@
 package com.loonext.android.features.compose
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -125,9 +126,25 @@ fun bannerCopy(banner: ComposerBanner): Pair<String, String> = when (banner) {
             "Outbound texts pause until the cap is raised or the month rolls over. Internal notes still work."
 }
 
+/**
+ * Whether this banner should offer the call as a way forward.
+ *
+ * Carrier registration gates TEXTING only, so a call to the same customer
+ * connects today, on every plan. An opted-out contact is deliberately excluded:
+ * a STOP revokes consent for the business to reach out, not only to text, so
+ * the phone must never be offered as a way around it.
+ */
+fun offersCallInstead(banner: ComposerBanner): Boolean =
+    banner is ComposerBanner.RegistrationPending || banner is ComposerBanner.UsTextingOff
+
 /** The card that stands in for the text composer (notes remain below it). */
 @Composable
-fun ComposerBannerCard(banner: ComposerBanner, modifier: Modifier = Modifier) {
+fun ComposerBannerCard(
+    banner: ComposerBanner,
+    modifier: Modifier = Modifier,
+    /** Place a call to this customer. Null withholds the offer entirely. */
+    onCallInstead: (() -> Unit)? = null,
+) {
     val (title, body) = bannerCopy(banner)
     Column(
         modifier
@@ -147,5 +164,15 @@ fun ComposerBannerCard(banner: ComposerBanner, modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp),
         )
+        if (onCallInstead != null && offersCallInstead(banner)) {
+            Text(
+                "Call them instead",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .clickable(onClick = onCallInstead),
+            )
+        }
     }
 }

@@ -3,12 +3,27 @@ package com.loonext.android.features.compose
 import com.loonext.android.core.model.SubscriptionStatus
 import com.loonext.android.core.model.Usage
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import com.loonext.android.core.model.OPT_OUT_SOURCE_STOP
 
 /** Banner precedence: opted_out > subscription > registration > cap > none. */
 class ComposerBannerTest {
+
+    @Test
+    fun `only a texting gate offers the call, never an opt-out`() {
+        // Carrier registration gates texting alone, so the call connects today.
+        // A STOP revokes consent for the business to reach out at all, so the
+        // phone must never be offered as a way around it.
+        assertTrue(offersCallInstead(ComposerBanner.RegistrationPending))
+        assertTrue(offersCallInstead(ComposerBanner.UsTextingOff))
+        assertFalse(offersCallInstead(ComposerBanner.OptedOut(carrierBlocked = true)))
+        assertFalse(offersCallInstead(ComposerBanner.OptedOut(carrierBlocked = false)))
+        assertFalse(offersCallInstead(ComposerBanner.UsageCap))
+        assertFalse(offersCallInstead(ComposerBanner.Subscription("past_due")))
+    }
 
     @Test
     fun `a workspace without US texting is told what is off, not to wait`() {

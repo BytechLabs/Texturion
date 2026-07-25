@@ -677,6 +677,9 @@ private fun ThreadLoaded(
             ),
             loadTemplates = { repo.templates(companyId).data },
             onOpenAiSettings = onOpenAiSettings,
+            // #106: calling is outreach like texting, so a notes-only member
+            // gets no control the API would refuse.
+            onCallInstead = if (detail.viewer_level == "text") ({ placeCall() }) else null,
             onSendText = { body, photos ->
                 controller.sendText(body, photos) {
                     composer.restore(body, photos, emptyList())
