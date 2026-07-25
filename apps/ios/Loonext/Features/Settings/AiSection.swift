@@ -64,7 +64,8 @@ struct AiSectionView: View {
                             save(
                                 address: $0,
                                 due: settings.enrich_task_due,
-                                replies: settings.suggest_replies
+                                replies: settings.suggest_replies,
+                                transcribe: settings.transcribe_voicemail
                             )
                         }
                     )
@@ -80,7 +81,8 @@ struct AiSectionView: View {
                             save(
                                 address: settings.enrich_task_address,
                                 due: $0,
-                                replies: settings.suggest_replies
+                                replies: settings.suggest_replies,
+                                transcribe: settings.transcribe_voicemail
                             )
                         }
                     )
@@ -142,7 +144,27 @@ struct AiSectionView: View {
                         save(
                             address: settings.enrich_task_address,
                             due: settings.enrich_task_due,
-                            replies: $0
+                            replies: $0,
+                            transcribe: settings.transcribe_voicemail
+                        )
+                    }
+                )
+            }
+
+            SettingsCard(title: "When someone leaves a voicemail") {
+                LabeledToggleRow(
+                    label: "Let Lou write voicemails down",
+                    supporting: "Show what a voicemail says next to the recording, "
+                        + "so you can read it when playing it isn't an option. The "
+                        + "recording is always kept either way.",
+                    isOn: settings.transcribe_voicemail,
+                    enabled: canEdit && !saving,
+                    onChange: {
+                        save(
+                            address: settings.enrich_task_address,
+                            due: settings.enrich_task_due,
+                            replies: settings.suggest_replies,
+                            transcribe: $0
                         )
                     }
                 )
@@ -187,6 +209,7 @@ struct AiSectionView: View {
                     enrichAddress: previous.enrich_task_address,
                     enrichDue: previous.enrich_task_due,
                     suggestReplies: previous.suggest_replies,
+                    transcribeVoicemail: previous.transcribe_voicemail,
                     businessDescription: next
                 )
                 state = .ready(saved)
@@ -199,13 +222,15 @@ struct AiSectionView: View {
         }
     }
 
-    private func save(address: Bool, due: Bool, replies: Bool) {
+    private func save(address: Bool, due: Bool, replies: Bool, transcribe: Bool) {
         guard case .ready(let previous) = state else { return }
         state = .ready(
             CompanyAiSettings(
                 enrich_task_address: address,
                 enrich_task_due: due,
-                suggest_replies: replies
+                suggest_replies: replies,
+                businessDescription: previous.business_description,
+                transcribe_voicemail: transcribe
             )
         )
         saving = true
@@ -215,7 +240,8 @@ struct AiSectionView: View {
                     scope.companyId,
                     enrichAddress: address,
                     enrichDue: due,
-                    suggestReplies: replies
+                    suggestReplies: replies,
+                    transcribeVoicemail: transcribe
                 )
                 state = .ready(saved)
             } catch {

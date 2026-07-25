@@ -188,6 +188,20 @@ fun AiSection(scope: SettingsScope) {
                         },
                     )
                 }
+                Spacer(Modifier.height(12.dp))
+                SettingsCard(title = "When someone leaves a voicemail") {
+                    LabeledSwitchRow(
+                        label = "Let Lou write voicemails down",
+                        supporting = "Show what a voicemail says next to the recording, " +
+                            "so you can read it when playing it isn't an option. The " +
+                            "recording is always kept either way.",
+                        checked = settings.transcribe_voicemail,
+                        enabled = canEdit,
+                        onCheckedChange = { checked ->
+                            toggle(settings, settings.copy(transcribe_voicemail = checked))
+                        },
+                    )
+                }
                 if (!canEdit) {
                     ReadOnlyLine(
                         "Only owners and admins can change these.",

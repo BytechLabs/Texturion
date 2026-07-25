@@ -29,6 +29,13 @@ data class Call(
     val screening_result: String? = null,
     val stir_attestation: String? = null,
     val voicemail_seconds: Int? = null,
+    /**
+     * What the voicemail says, written best-effort after the recording is
+     * stored. Null means it was not transcribed (turned off, over the monthly
+     * cap, too long, or the model failed) and is never a reason to hide the
+     * audio.
+     */
+    val voicemail_transcript: String? = null,
     val answered_by_user_id: String? = null,
     /** #191: the acting member's resolved display name — the PLACER of an
      *  outbound call, the ANSWERER of an inbound one (both land in

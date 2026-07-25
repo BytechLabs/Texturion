@@ -71,17 +71,22 @@ struct CompanyAiSettings: Codable, Sendable {
     /// One sentence about what the business does, used to ground Lou's drafts.
     /// Nil means Lou has been told nothing and may not describe the business.
     var business_description: String?
+    /// Transcribe new voicemails. Off leaves the recording exactly as it was:
+    /// this only decides whether the words appear beside it.
+    @Default<DefaultTrue> var transcribe_voicemail: Bool
 
     init(
         enrich_task_address: Bool,
         enrich_task_due: Bool,
         suggest_replies: Bool = true,
-        business_description: String? = nil
+        business_description: String? = nil,
+        transcribe_voicemail: Bool = true
     ) {
         self.enrich_task_address = enrich_task_address
         self.enrich_task_due = enrich_task_due
         self.suggest_replies = suggest_replies
         self.business_description = business_description
+        self.transcribe_voicemail = transcribe_voicemail
     }
 
     /// Any enrichment on → the make-task sheet should call /tasks/enrich.

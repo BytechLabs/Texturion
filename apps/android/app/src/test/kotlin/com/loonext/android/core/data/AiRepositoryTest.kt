@@ -142,13 +142,17 @@ class AiRepositoryTest {
                 enrich_task_address = true,
                 enrich_task_due = true,
                 suggest_replies = true,
+                transcribe_voicemail = false,
             ),
         )
         val recorded = server.takeRequest()
         assertEquals("PATCH", recorded.method)
         assertEquals("/v1/company/ai-settings", recorded.url.encodedPath)
+        // Every toggle rides the PATCH: this client sends the whole object, so
+        // an omitted field would silently re-enable whatever it left out.
         assertEquals(
-            """{"enrich_task_address":true,"enrich_task_due":true,"suggest_replies":true}""",
+            """{"enrich_task_address":true,"enrich_task_due":true,"suggest_replies":true,""" +
+                """"transcribe_voicemail":false}""",
             recorded.body?.utf8(),
         )
     }

@@ -224,6 +224,11 @@ data class CompanyAiSettings(
      * Null means Lou has been told nothing and may not describe the business.
      */
     val business_description: String? = null,
+    /**
+     * Transcribe new voicemails. Off leaves the recording exactly as it was:
+     * this only decides whether the words appear beside it.
+     */
+    val transcribe_voicemail: Boolean = true,
 )
 
 /** Matches the column's CHECK constraint (migration 20260724120000). */

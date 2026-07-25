@@ -42,12 +42,14 @@ struct SettingsRepository: Sendable {
         enrichAddress: Bool,
         enrichDue: Bool,
         suggestReplies: Bool,
+        transcribeVoicemail: Bool,
         businessDescription: String? = nil
     ) async throws -> CompanyAiSettings {
         var body: [String: JSONValue] = [
             "enrich_task_address": .bool(enrichAddress),
             "enrich_task_due": .bool(enrichDue),
             "suggest_replies": .bool(suggestReplies),
+            "transcribe_voicemail": .bool(transcribeVoicemail),
         ]
         // Omitted leaves whatever is stored; an empty string clears it. A
         // toggle save must never wipe the description as a side effect.

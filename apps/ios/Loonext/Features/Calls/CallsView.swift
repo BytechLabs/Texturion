@@ -535,6 +535,13 @@ private struct CallRow: View {
         call.outcome == CallOutcome.voicemail && (call.voicemail_seconds ?? 0) > 0
     }
 
+    /// The transcript, or nil when there is nothing worth showing under the
+    /// player. A blank string is the same as none.
+    private var transcript: String? {
+        guard let text = call.voicemail_transcript, !text.isBlank else { return nil }
+        return text
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 11) {
@@ -581,7 +588,20 @@ private struct CallRow: View {
                 )
                 .padding(.leading, 64)
                 .padding(.trailing, 15)
-                .padding(.bottom, 12)
+                .padding(.bottom, transcript == nil ? 12 : 6)
+                // What it says, for the times playing it is not an option: on
+                // a roof, in a truck, next to a running compressor. The player
+                // stays above it: the recording is the record, this is the
+                // shortcut.
+                if let transcript {
+                    Text(transcript)
+                        .font(.golos(12.5))
+                        .foregroundStyle(BrandColor.muted600)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, 64)
+                        .padding(.trailing, 15)
+                        .padding(.bottom, 12)
+                }
             }
         }
         .contentShape(Rectangle())

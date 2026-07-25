@@ -997,6 +997,24 @@ private fun CallRow(
                 sessionId = call.call_session_id,
                 seconds = call.voicemail_seconds ?: 0,
             )
+            // What it says, for the times playing it is not an option: on a
+            // roof, in a truck, next to a running compressor. The player stays
+            // above it: the recording is the record, this is the shortcut.
+            call.voicemail_transcript?.takeIf { it.isNotBlank() }?.let { transcript ->
+                Text(
+                    transcript,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 12.5.sp,
+                        lineHeight = 18.sp,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(
+                        start = 64.dp,
+                        end = 15.dp,
+                        bottom = 10.dp,
+                    ),
+                )
+            }
         }
     }
 }

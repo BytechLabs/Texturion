@@ -27,6 +27,11 @@ struct Call: Codable, Sendable {
     let screening_result: String?
     let stir_attestation: String?
     let voicemail_seconds: Int?
+    /// What the voicemail says, written best-effort after the recording is
+    /// stored. Nil means it was not transcribed (turned off, over the monthly
+    /// cap, too long, or the model failed) and is never a reason to hide the
+    /// audio.
+    var voicemail_transcript: String? = nil
     let answered_by_user_id: String?
     /// #191: server-resolved display name of the acting member — the PLACER of
     /// an outbound call, the ANSWERER of an inbound one (both land in
