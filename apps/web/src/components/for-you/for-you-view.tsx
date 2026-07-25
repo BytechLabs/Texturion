@@ -438,20 +438,35 @@ function SummaryTile({ label, count }: { label: string; count: number }) {
  * #133 adds an ambient "Recent calls" section below everything — history, not
  * workload, so it never touches the header count or the caught-up card.
  */
+/**
+ * The number of distinct things needing the reader, for the line above the
+ * queue. Conversations are counted once however many sections carry them:
+ * "waiting on you" and "unread" overlap by design, since the second is a
+ * cross-cut of the first rather than a separate pile of work.
+ */
+export function countDistinctWork(data: ForYou): number {
+  const conversations = new Set<string>();
+  for (const row of data.waiting_on_you) conversations.add(row.conversation_id);
+  for (const row of data.unread) conversations.add(row.conversation_id);
+  for (const row of data.triage?.conversations ?? []) {
+    conversations.add(row.conversation_id);
+  }
+  const tasks = new Set<string>();
+  for (const row of data.my_tasks) tasks.add(row.task_id);
+  for (const row of data.triage?.tasks ?? []) tasks.add(row.task_id);
+  return conversations.size + tasks.size;
+}
+
 export function ForYouView() {
   const { role } = useActiveCompany();
   const forYou = useForYou();
   const isLead = role === "owner" || role === "admin";
 
-  const total = forYou.data
-    ? forYou.data.waiting_on_you.length +
-      forYou.data.my_tasks.length +
-      forYou.data.unread.length +
-      (forYou.data.triage
-        ? forYou.data.triage.conversations.length +
-          forYou.data.triage.tasks.length
-        : 0)
-    : 0;
+  // How many THINGS need you, not how many rows are on screen. The unread
+  // section is a cross-cut, so a thread assigned to you that nobody has read
+  // appears there and under "waiting on you" as well. Adding the sections up
+  // counted that thread twice and reported more work than there was.
+  const total = forYou.data ? countDistinctWork(forYou.data) : 0;
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8 lg:max-w-5xl">

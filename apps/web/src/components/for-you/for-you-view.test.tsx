@@ -44,7 +44,7 @@ vi.mock("@/components/tasks/use-task-drawer", () => ({
   useTaskDrawer: () => ({ openTask: vi.fn() }),
 }));
 
-import { ForYouView } from "./for-you-view";
+import { countDistinctWork, ForYouView } from "./for-you-view";
 
 function call(overrides: Partial<Call> = {}): Call {
   return {
@@ -198,5 +198,57 @@ describe("ForYouView Recent calls (#133)", () => {
     ];
     html = render();
     expect(html).not.toContain("bg-warning/10");
+  });
+});
+
+describe("countDistinctWork", () => {
+  const conv = (id: string) => ({ conversation_id: id }) as never;
+  const task = (id: string) => ({ task_id: id }) as never;
+
+  it("counts a thread once however many sections carry it", () => {
+    // "unread" is a cross-cut of "waiting on you", not a separate pile, so a
+    // thread in both is one thing to do. Adding the sections up reported more
+    // work than there was.
+    expect(
+      countDistinctWork({
+        waiting_on_you: [conv("a"), conv("b")],
+        my_tasks: [],
+        unread: [conv("a")],
+        triage: null,
+      } as never),
+    ).toBe(2);
+  });
+
+  it("counts tasks and conversations together", () => {
+    expect(
+      countDistinctWork({
+        waiting_on_you: [conv("a")],
+        my_tasks: [task("t1")],
+        unread: [],
+        triage: { conversations: [conv("c")], tasks: [task("t2")] },
+      } as never),
+    ).toBe(4);
+  });
+
+  it("counts a task once when triage and my tasks both carry it", () => {
+    expect(
+      countDistinctWork({
+        waiting_on_you: [],
+        my_tasks: [task("t1")],
+        unread: [],
+        triage: { conversations: [], tasks: [task("t1")] },
+      } as never),
+    ).toBe(1);
+  });
+
+  it("reads an empty queue as nothing to do", () => {
+    expect(
+      countDistinctWork({
+        waiting_on_you: [],
+        my_tasks: [],
+        unread: [],
+        triage: null,
+      } as never),
+    ).toBe(0);
   });
 });
