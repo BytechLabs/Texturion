@@ -13,6 +13,8 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { CARRIER_OPT_OUT_ERROR_CODE } from "@loonext/shared";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,16 +45,13 @@ import {
 } from "./done";
 import { MakeTaskForm } from "./make-task-form";
 
-/** Telnyx error for a send blocked by the profile-level opt-out list. */
-const OPTED_OUT_ERROR_CODE = "40300";
-
 /** A failed outbound with no carrier id assigned can be retried (SPEC §7). */
 function isRetryable(message: Message): boolean {
   return (
     message.direction === "outbound" &&
     message.status === "failed" &&
     message.telnyx_message_id === null &&
-    message.error_code !== OPTED_OUT_ERROR_CODE
+    message.error_code !== CARRIER_OPT_OUT_ERROR_CODE
   );
 }
 

@@ -67,6 +67,7 @@ import com.loonext.android.core.model.CARRIER_OPT_OUT_ERROR_CODE
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.MessageStatus
+import com.loonext.android.core.model.sendFailureMessage
 import com.loonext.android.features.compose.MmsKind
 import com.loonext.android.features.compose.icon
 import com.loonext.android.features.compose.mmsKindOf
@@ -96,8 +97,7 @@ fun deliveryLabel(message: Message): String? = when (message.status) {
     MessageStatus.SENT -> "Sent"
     MessageStatus.DELIVERED -> "Delivered"
     MessageStatus.FAILED ->
-        if (message.error_code == CARRIER_OPT_OUT_ERROR_CODE) "This customer opted out"
-        else "Not delivered"
+        sendFailureMessage(message.error_code)
 
     else -> null
 }

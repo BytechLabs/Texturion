@@ -12,7 +12,11 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 
-import { mmsMediaKind } from "@loonext/shared";
+import {
+  CARRIER_OPT_OUT_ERROR_CODE,
+  mmsMediaKind,
+  sendFailureMessage,
+} from "@loonext/shared";
 
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import {
@@ -35,14 +39,12 @@ import { AttachmentImage } from "./attachment-image";
 import { doneBadgeLabel, isDone } from "./done";
 import { MessageActions } from "./message-actions";
 
-/** Telnyx error for a send blocked by the profile-level opt-out list (§5). */
-const OPTED_OUT_ERROR_CODE = "40300";
-
 /**
  * Delivery-state line (G5): "Sending…" → "Sent ✓" → "Delivered ✓✓";
- * Failed = red "Not delivered — Retry" (retry only while the Telnyx API call
- * never assigned an id, SPEC §7); 40300 failures read "This customer opted
- * out" instead. Includes screen-reader text (G11). Hovering the time shows
+ * Failed = a red line saying WHY, plus Retry (retry only while the Telnyx API
+ * call never assigned an id, SPEC §7). The reason comes from the provider's
+ * error code through the shared sendFailureMessage, so "Not delivered" is now
+ * only what an unexplainable failure says. Includes screen-reader text (G11). Hovering the time shows
  * the absolute datetime with zone abbreviation (D15).
  */
 export function DeliveryState({
@@ -55,7 +57,7 @@ export function DeliveryState({
   const retry = useRetryMessage(conversationId);
 
   if (message.status === "failed") {
-    const optedOut = message.error_code === OPTED_OUT_ERROR_CODE;
+    const optedOut = message.error_code === CARRIER_OPT_OUT_ERROR_CODE;
     const retryable = message.telnyx_message_id === null && !optedOut;
     // red-600 clears 4.5:1 on every light bubble; red-400 is needed on the
     // dark teal-950 outbound bubble (red-500 there is only 3.79:1). 12px.
@@ -64,7 +66,7 @@ export function DeliveryState({
         className="text-[12px] text-destructive dark:text-red-400"
         role="status"
       >
-        {optedOut ? "This customer opted out" : "Not delivered"}
+        {sendFailureMessage(message.error_code)}
         {retryable && (
           <>
             {". "}

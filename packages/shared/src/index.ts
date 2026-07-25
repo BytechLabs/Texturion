@@ -74,3 +74,9 @@ export {
   type ContactImportField,
   type ContactImportMapping,
 } from "./contact-import-headers";
+
+export {
+  CARRIER_OPT_OUT_ERROR_CODE,
+  GENERIC_SEND_FAILURE,
+  sendFailureMessage,
+} from "./send-failures";

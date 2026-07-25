@@ -221,10 +221,7 @@ func deliveryLabel(_ message: Message) -> String? {
     case MessageStatus.queued: "Sending…"
     case MessageStatus.sent: "Sent ✓"
     case MessageStatus.delivered: "Delivered ✓✓"
-    case MessageStatus.failed:
-        message.error_code == carrierOptOutErrorCode
-            ? "This customer opted out"
-            : "Not delivered"
+    case MessageStatus.failed: sendFailureMessage(message.error_code)
     default: nil
     }
 }
