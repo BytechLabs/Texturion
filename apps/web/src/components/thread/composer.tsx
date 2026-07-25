@@ -68,6 +68,8 @@ import { cn } from "@/lib/utils";
 
 import { formatBytes } from "./gallery-grouping";
 import { segmentMeter, segmentTooltip } from "./segment-meter";
+import { MentionPicker } from "./mention-picker";
+import { insertMention, resolveMentions, type PickedMention } from "./mentions";
 import { TemplatePicker } from "./template-picker";
 
 export interface DraftAttachment {
@@ -315,6 +317,11 @@ export function Composer({
 }) {
   const send = useSendMessage(conversationId);
   const createNote = useCreateNote(conversationId);
+  // Who the author PICKED. Ids never come from parsing the draft: two
+  // teammates can share a display name, and the text cannot say which was
+  // meant. Deleting the name from the draft still withdraws the mention.
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [picked, setPicked] = useState<PickedMention[]>([]);
   const uploadNoteFiles = useUploadNoteFiles();
   /**
    * The last send that FAILED, with the Idempotency-Key it used. Pressing send
@@ -446,18 +453,24 @@ export function Composer({
       // failure. D28 staged-note-upload chain: the note is created first, then
       // each staged file POSTs with the returned note id.
       const draftFiles = noteStage.files;
+      const draftPicked = picked;
       setText("");
       noteStage.clear();
+      setPicked([]);
 
       let note: Awaited<ReturnType<typeof createNote.mutateAsync>>;
       try {
         // mutateAsync resolves from the MutationCache even if the composer
         // unmounts before the response, so the upload chain below still runs
         // and staged files aren't silently dropped (D28 / finding #6).
-        note = await createNote.mutateAsync(draftText);
+        note = await createNote.mutateAsync({
+          body: draftText,
+          mentionUserIds: resolveMentions(draftText, draftPicked),
+        });
       } catch (error) {
         setText(draftText);
         noteStage.restore(draftFiles);
+        setPicked(draftPicked);
         toast.error(
           error instanceof ApiError
             ? error.message
@@ -563,6 +576,30 @@ export function Composer({
       event.preventDefault();
       setPickerOpen(true);
     }
+    // "@" names a teammate on a note. Notes only: a mention is internal, and a
+    // text goes to the customer, who has no idea who Sam is.
+    //
+    // The keystroke is swallowed like the template picker's "/": the popover
+    // takes focus, so an un-prevented "@" lands in ITS search box, filtering
+    // the list down to nothing. Picking writes the whole "@Name" anyway.
+    if (event.key === "@" && isNote) {
+      event.preventDefault();
+      setMentionOpen(true);
+    }
+  };
+
+  const onMentionPick = (member: { user_id: string; display_name: string }) => {
+    const name = member.display_name.trim() || "Teammate";
+    const field = textareaRef.current;
+    const caret = field?.selectionStart ?? text.length;
+    const next = insertMention(text, caret, name);
+    setText(next.text);
+    setPicked((prior) => [...prior, { userId: member.user_id, name }]);
+    // Put the caret back where the author was typing, not at the end.
+    window.requestAnimationFrame(() => {
+      field?.focus();
+      field?.setSelectionRange(next.caret, next.caret);
+    });
   };
 
   // #189 text-mode intake: run the shared MMS matrix locally and surface the
@@ -913,6 +950,22 @@ export function Composer({
             className="pointer-events-none mx-auto block h-0 max-w-[42rem]"
           />
         </TemplatePicker>
+      )}
+
+      {/* Naming a teammate on a note, opened by typing "@". Notes only: a
+          mention is internal, and a text goes to the customer. */}
+      {isNote && (
+        <MentionPicker
+          conversationId={conversationId}
+          open={mentionOpen}
+          onOpenChange={setMentionOpen}
+          onPick={onMentionPick}
+        >
+          <span
+            aria-hidden
+            className="pointer-events-none mx-auto block h-0 max-w-[42rem]"
+          />
+        </MentionPicker>
       )}
     </div>
   );

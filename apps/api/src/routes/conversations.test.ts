@@ -900,6 +900,8 @@ describe("POST /v1/conversations/:id/notes", () => {
         role: "member",
         display_name: "Sam Rivera",
       });
+      // Naming yourself sends no alert, so it is not offered.
+      expect(page.data.map((row) => row.user_id)).not.toContain(auth.subject);
     });
 
     it("404s the picker for an unknown conversation", async () => {

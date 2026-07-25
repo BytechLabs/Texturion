@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AtSign,
   Bell,
   CheckCheck,
   ListChecks,
@@ -43,6 +44,7 @@ const TYPE_ICON: Record<NotificationType, typeof MessageSquareText> = {
   assigned: UserRoundPlus,
   task_assigned: ListChecks,
   missed_call: PhoneMissed,
+  mention: AtSign,
 };
 
 /** One-line, past-tense summary of a notification (calm — the name is the hero). */
@@ -56,6 +58,10 @@ function describe(item: NotificationItem, name: string): string {
       return `Task assigned · ${name}`;
     case "missed_call":
       return `Missed call from ${name}`;
+    case "mention":
+      // The thread is the customer's; what changed is that someone needs THIS
+      // reader specifically.
+      return `You were mentioned · ${name}`;
     default:
       return name;
   }

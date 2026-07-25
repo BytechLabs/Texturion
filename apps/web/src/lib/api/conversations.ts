@@ -30,6 +30,7 @@ import type {
   ConversationEvent,
   ConversationListItem,
   ConversationStatus,
+  MentionableMember,
   Message,
   Page,
   ReadReceipt,
@@ -331,16 +332,45 @@ export function useMarkConversationUnread() {
 }
 
 /** POST /v1/conversations/:id/notes — internal note (amber card, G5). */
+/**
+ * Teammates this member may name on a note here.
+ *
+ * Its own endpoint rather than a filter over GET /v1/members: the client cannot
+ * see number access, so a client-side filter would offer people the server is
+ * going to reject. Fetched only while the picker is open.
+ */
+export function useMentionableMembers(conversationId: string, enabled: boolean) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: keys.mentionableMembers(companyId, conversationId),
+    queryFn: () =>
+      apiFetch<Page<MentionableMember>>(
+        `/v1/conversations/${conversationId}/mentionable-members`,
+        { companyId },
+      ),
+    enabled,
+  });
+}
+
 export function useCreateNote(conversationId: string) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: string) =>
-      apiFetch<Message>(`/v1/conversations/${conversationId}/notes`, {
+    mutationFn: (input: string | { body: string; mentionUserIds?: string[] }) => {
+      const draft = typeof input === "string" ? { body: input } : input;
+      return apiFetch<Message>(`/v1/conversations/${conversationId}/notes`, {
         method: "POST",
         companyId,
-        body: { body },
-      }),
+        body: {
+          body: draft.body,
+          // Omitted rather than sent empty: the server treats an absent list
+          // as "no mentions", and an older server ignores the field entirely.
+          ...(draft.mentionUserIds?.length
+            ? { mention_user_ids: draft.mentionUserIds }
+            : {}),
+        },
+      });
+    },
     onSuccess: (note) => {
       queryClient.setQueryData<ThreadData>(
         keys.thread(companyId, conversationId),

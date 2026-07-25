@@ -540,10 +540,15 @@ conversationsRoutes.get(
       need: "note",
     });
 
-    const viewers = await listConversationViewers(db, {
-      companyId,
-      phoneNumberId: conversation.phone_number_id as string | null,
-    });
+    // The caller is not offered: naming yourself sends no alert (the notifier
+    // drops self-mentions), so listing yourself would be an option that
+    // silently does nothing.
+    const viewers = (
+      await listConversationViewers(db, {
+        companyId,
+        phoneNumberId: conversation.phone_number_id as string | null,
+      })
+    ).filter((viewer) => viewer.user_id !== c.get("userId"));
 
     const displayNames = new Map<string, string>();
     if (viewers.length > 0) {

@@ -44,6 +44,8 @@ export const keys = {
   tags: (companyId: string) => [companyId, "tags"] as const,
   templates: (companyId: string) => [companyId, "templates"] as const,
   members: (companyId: string) => [companyId, "members"] as const,
+  mentionableMembers: (companyId: string, conversationId: string) =>
+    [companyId, "conversation", conversationId, "mentionable-members"] as const,
   invites: (companyId: string) => [companyId, "invites"] as const,
   notificationPrefs: (companyId: string) =>
     [companyId, "notification-prefs"] as const,

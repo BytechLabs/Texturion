@@ -771,6 +771,17 @@ export interface Member {
   display_name: string;
 }
 
+/**
+ * A teammate who may be named on a note in one conversation. Narrower than
+ * Member on purpose: this list is already filtered by number access, so it
+ * carries only what the picker renders.
+ */
+export interface MentionableMember {
+  user_id: string;
+  role: MemberRole;
+  display_name: string;
+}
+
 export interface Invite {
   id: string;
   company_id: string;
@@ -1439,7 +1450,9 @@ export type NotificationType =
   | "inbound_message"
   | "assigned"
   | "task_assigned"
-  | "missed_call";
+  | "missed_call"
+  // A teammate named you on an internal note.
+  | "mention";
 
 export interface NotificationItem {
   id: string;
