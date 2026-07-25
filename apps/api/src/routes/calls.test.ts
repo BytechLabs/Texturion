@@ -714,7 +714,13 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
   const SESSION = "85011718-87f2-11f1-b490-02420aef29a0";
   const PATH = `${COMPANY_ID}/${SESSION}.mp3`;
 
-  function voicemailStub(opts: { allowed?: boolean } = {}): SupabaseStub {
+  function voicemailStub(
+    opts: {
+      allowed?: boolean;
+      transcript?: string | null;
+      attemptedAt?: string | null;
+    } = {},
+  ): SupabaseStub {
     const sb = supabaseStub(env);
     sb.on(
       "GET",
@@ -727,7 +733,9 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
         phone_number_id: "bbbbbbbb-0000-4000-8000-000000000002",
         voicemail_path: PATH,
         voicemail_seconds: 12,
-        voicemail_transcript: "Leaking tap upstairs.",
+        voicemail_transcript:
+          opts.transcript === undefined ? "Leaking tap upstairs." : opts.transcript,
+        voicemail_transcript_attempted_at: opts.attemptedAt ?? null,
       },
     ]);
     sb.on("GET", "/rest/v1/companies", () => [
@@ -814,5 +822,21 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     expect(res.status).toBe(200);
     const claims = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress");
     expect((claims[0].body as { p_bytes: number }).p_bytes).toBe(0);
+  });
+  it("does not buy a transcript twice for a recording that had nothing in it", async () => {
+    // A hang-up after the beep transcribes to nothing, so no words are stored
+    // and the column stays null. The clients mint a fresh URL on every tap and
+    // never cache, so keying the backfill on the transcript alone meant every
+    // replay downloaded the audio again and spent another monthly unit.
+    const sb = voicemailStub({
+      transcript: null,
+      attemptedAt: "2026-07-24T10:00:00.000Z",
+    });
+    const res = await play(sb, [listRoute(), signRoute()]);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ transcript: null });
+    // Nothing was written, which is what proves the model was never called.
+    expect(sb.find("PATCH", "/rest/v1/calls")).toHaveLength(0);
   });
 });

@@ -158,12 +158,14 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) 
       voicemail_path: string | null;
       voicemail_seconds: number | null;
       voicemail_transcript: string | null;
+      voicemail_transcript_attempted_at: string | null;
     }[]
   >(
     await db
       .from("calls")
       .select(
-        "phone_number_id,voicemail_path,voicemail_seconds,voicemail_transcript",
+        "phone_number_id,voicemail_path,voicemail_seconds,voicemail_transcript," +
+          "voicemail_transcript_attempted_at",
       )
       .eq("company_id", c.get("companyId"))
       .eq("call_session_id", sessionId)
@@ -204,19 +206,25 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) 
   }
   // Words, if this recording never got them: every voicemail from before the
   // feature existed, and any whose transcription failed at the time. Done here
-  // because this is the moment someone is actually looking at the voicemail,
-  // and it happens ONCE per recording — the result is stored, so the next open
-  // is free. Same gates as the ingest path, so it cannot become a way around
-  // the company's setting or the monthly cap, and same posture: a failure just
+  // because this is the moment someone is actually looking at the voicemail.
+  //
+  // ONCE per recording, counted by the ATTEMPT rather than by the result. A
+  // recording that produces nothing usable stores no transcript, so keying on
+  // the transcript alone made every replay download the audio again and spend
+  // another unit, and the clients mint a fresh URL per tap without caching.
+  // Same gates as the ingest path, so it cannot become a way around the
+  // company's setting or the monthly cap, and same posture: a failure just
   // means the audio without the words, never a broken response.
   const transcript =
     call.voicemail_transcript ??
-    (await backfillVoicemailTranscript(env, db, {
-      companyId: c.get("companyId"),
-      sessionId,
-      path: call.voicemail_path,
-      seconds: call.voicemail_seconds ?? 0,
-    }));
+    (call.voicemail_transcript_attempted_at !== null
+      ? null
+      : await backfillVoicemailTranscript(env, db, {
+          companyId: c.get("companyId"),
+          sessionId,
+          path: call.voicemail_path,
+          seconds: call.voicemail_seconds ?? 0,
+        }));
 
   return c.json({
     url: signed.data.signedUrl,
@@ -277,11 +285,17 @@ async function backfillVoicemailTranscript(
       args.companyId,
       await download.data.arrayBuffer(),
     );
-    if (text === null) return null;
 
+    // Stamped whether or not anything came back. The model has been paid for by
+    // this point, so the answer stands: a recording with nothing in it must not
+    // be bought again on the next tap. A download that never got this far
+    // leaves the attempt unspent, so a storage blip still gets another try.
     await db
       .from("calls")
-      .update({ voicemail_transcript: text })
+      .update({
+        voicemail_transcript_attempted_at: new Date().toISOString(),
+        ...(text === null ? {} : { voicemail_transcript: text }),
+      })
       .eq("company_id", args.companyId)
       .eq("call_session_id", args.sessionId);
     return text;
