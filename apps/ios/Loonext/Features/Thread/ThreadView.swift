@@ -603,7 +603,12 @@ private struct ThreadBody: View {
                     conversationId: detail.id,
                     draft: draft
                 )
-            }
+            },
+            // Reuse drafts already paid for until a message moves the thread.
+            draftCacheKey: DraftSuggestionsCache.key(
+                conversationId: detail.id,
+                lastActivityAt: detail.last_message_at
+            )
         )
     }
 }

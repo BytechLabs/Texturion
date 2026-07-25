@@ -219,6 +219,12 @@ fun ThreadComposer(
     modifier: Modifier = Modifier,
     /** Ask for AI-drafted replies. Null hides the affordance entirely. */
     suggestReplies: (suspend (draft: String) -> ReplySuggestions)? = null,
+    /**
+     * Identifies this thread AT ITS CURRENT POINT, so drafts already paid for
+     * are reused until a message in either direction retires them. Null skips
+     * the cache entirely (a compose screen with no thread behind it yet).
+     */
+    draftCacheKey: String? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -228,14 +234,20 @@ fun ThreadComposer(
 
     var templatePickerOpen by remember { mutableStateOf(false) }
     var attachMenuOpen by remember { mutableStateOf(false) }
-    // Drafts live only as long as the composer is looking at this thread: they
-    // are a momentary offer, never cached state.
+    // Drafts are kept per conversation until it moves: asking costs a real AI
+    // call, so closing the strip and opening it again, or leaving and coming
+    // back, must not spend again (see DraftSuggestionsCache).
     var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
     var suggesting by remember { mutableStateOf(false) }
 
     val askForSuggestions: () -> Unit = {
         val ask = suggestReplies
-        if (ask != null && !suggesting) {
+        val cached = draftCacheKey?.let { DraftSuggestionsCache.read(it) }
+        if (cached != null) {
+            // Already drafted for this thread, and nothing has happened since:
+            // show what Lou wrote rather than paying for the same answer twice.
+            suggestions = cached
+        } else if (ask != null && !suggesting) {
             suggesting = true
             suggestions = emptyList()
             scope.launch {
@@ -245,6 +257,7 @@ fun ThreadComposer(
                     onNotice(replyDraftMessage(drafted.reason))
                 } else {
                     suggestions = drafted.suggestions
+                    draftCacheKey?.let { DraftSuggestionsCache.write(it, drafted.suggestions) }
                 }
             }
         }
@@ -354,7 +367,6 @@ fun ThreadComposer(
                     state.onTextChange(suggestion)
                     suggestions = emptyList()
                 },
-                onRetry = { askForSuggestions() },
                 onDismiss = { suggestions = emptyList() },
             )
         }
@@ -573,7 +585,6 @@ private fun ReplySuggestionsRow(
     suggestions: List<String>,
     loading: Boolean,
     onUse: (String) -> Unit,
-    onRetry: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
@@ -590,15 +601,10 @@ private fun ReplySuggestionsRow(
             )
             Spacer(Modifier.weight(1f))
             if (!loading) {
-                // Another set is one tap away: the first three are a starting
-                // point, and re-asking beats editing a draft you do not like.
-                Text(
-                    "Try again",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.clickable(onClick = onRetry),
-                )
-                Spacer(Modifier.width(12.dp))
+                // No re-ask. Every ask is a real AI call, and re-rolling until
+                // a draft reads nicely is what turns a bounded per-message cost
+                // into an unbounded one, for an answer that is a starting point
+                // you edit anyway. The next set comes when the thread moves.
                 Text(
                     "Dismiss",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),

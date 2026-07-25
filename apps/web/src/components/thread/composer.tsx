@@ -34,6 +34,10 @@ import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { useCompany } from "@/lib/api/companies";
 import { loadDraft, saveDraft } from "@/lib/messaging/composer-drafts";
 import {
+  cacheSuggestions,
+  readCachedSuggestions,
+} from "@/lib/messaging/draft-suggestions-cache";
+import {
   useConversation,
   useCreateNote,
 } from "@/lib/api/conversations";
@@ -162,14 +166,12 @@ export function ReplySuggestionChips({
   suggestions,
   loading,
   onUse,
-  onRetry,
   onDismiss,
 }: {
   suggestions: string[];
   /** Drafting is in flight — show the placeholders rather than an empty strip. */
   loading?: boolean;
   onUse: (suggestion: string) => void;
-  onRetry: () => void;
   onDismiss: () => void;
 }) {
   return (
@@ -180,16 +182,10 @@ export function ReplySuggestionChips({
           label={loading ? "Drafting…" : "Lou's drafts"}
         />
         <div className="ml-auto flex items-center gap-1">
-          {/* Another set is one tap away: the first three are a starting
-              point, and re-asking beats editing a draft you do not like. */}
-          <button
-            type="button"
-            onClick={onRetry}
-            disabled={loading}
-            className="rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-          >
-            Try again
-          </button>
+          {/* No re-ask. Every ask is a real AI call, and re-rolling until a
+              draft reads nicely is what turns a bounded per-message cost into
+              an unbounded one — for an answer that is a starting point you
+              edit anyway. The next set comes when the conversation moves. */}
           <button
             type="button"
             onClick={onDismiss}
@@ -406,9 +402,10 @@ export function Composer({
   const [mediaErrors, setMediaErrors] = useState<string[]>([]);
   const noteStage = useStagedFiles();
   const [pickerOpen, setPickerOpen] = useState(false);
-  // AI-drafted replies for THIS thread. Held in component state, never cached:
-  // they are a momentary offer, and a stale draft attached to a moved-on
-  // conversation would be worse than none.
+  // AI-drafted replies for THIS thread. Kept per conversation until it moves:
+  // asking costs a real AI call, so closing the strip and opening it again, or
+  // leaving and coming back, must not spend again. A message in either
+  // direction retires them (see draft-suggestions-cache).
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const suggestReplies = useReplySuggestions(conversationId);
   // Read-only, for the merge-field preview: both are already in cache from the
@@ -463,20 +460,29 @@ export function Composer({
    * the sentence rather than talk past it. An empty result is stated plainly:
    * silence after a tap reads as broken.
    */
+  const lastActivityAt = conversation.data?.last_message_at ?? null;
   const askForSuggestions = useCallback(() => {
     if (suggestReplies.isPending) return;
+    // Already drafted for this conversation, and nothing has happened since:
+    // show what Lou wrote rather than paying for the same answer twice.
+    const cached = readCachedSuggestions(conversationId, lastActivityAt);
+    if (cached) {
+      setSuggestions(cached);
+      return;
+    }
     setSuggestions([]);
     suggestReplies.mutate(text, {
       onSuccess: (result) => {
         if (result.suggestions.length > 0) {
           setSuggestions(result.suggestions);
+          cacheSuggestions(conversationId, lastActivityAt, result.suggestions);
           return;
         }
         toast(suggestionFailureMessage(result.reason));
       },
       onError: () => toast.error("Couldn't draft a reply. Try again."),
     });
-  }, [suggestReplies, text]);
+  }, [conversationId, lastActivityAt, suggestReplies, text]);
 
   /** Take a draft into the composer to read, edit, and send. Never auto-sent. */
   const useSuggestion = (suggestion: string) => {
@@ -708,7 +714,6 @@ export function Composer({
           suggestions={suggestions}
           loading={suggestReplies.isPending}
           onUse={useSuggestion}
-          onRetry={askForSuggestions}
           onDismiss={() => setSuggestions([])}
         />
       )}

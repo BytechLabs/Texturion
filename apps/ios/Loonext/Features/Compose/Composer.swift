@@ -89,6 +89,10 @@ struct ThreadComposerView: View {
     let onNotice: @MainActor (String) -> Void
     /// Ask for AI-drafted replies. Nil hides the affordance entirely.
     var suggestReplies: (@MainActor (String) async -> ReplySuggestions)?
+    /// Identifies this thread AT ITS CURRENT POINT, so drafts already paid for
+    /// are reused until a message in either direction retires them. Nil skips
+    /// the cache entirely (a compose screen with no thread behind it yet).
+    var draftCacheKey: String?
 
     @State private var templatePickerOpen = false
     // Drafts live only while the composer is looking at this thread: they are a
@@ -201,6 +205,12 @@ struct ThreadComposerView: View {
     /// the sentence rather than talking past it. Silence after a tap reads as
     /// broken, so an empty result says so out loud.
     private func askForSuggestions() {
+        // Already drafted for this thread, and nothing has happened since: show
+        // what Lou wrote rather than paying for the same answer twice.
+        if let draftCacheKey, let cached = DraftSuggestionsCache.read(draftCacheKey) {
+            suggestions = cached
+            return
+        }
         guard let ask = suggestReplies, !suggesting else { return }
         suggesting = true
         suggestions = []
@@ -211,6 +221,9 @@ struct ThreadComposerView: View {
                 onNotice(replyDraftMessage(drafted.reason))
             } else {
                 suggestions = drafted.suggestions
+                if let draftCacheKey {
+                    DraftSuggestionsCache.write(draftCacheKey, suggestions: drafted.suggestions)
+                }
             }
         }
     }
@@ -227,13 +240,11 @@ struct ThreadComposerView: View {
                     .foregroundStyle(BrandColor.muted500)
                 Spacer()
                 if !suggesting {
-                    // Another set is one tap away: the first three are a
-                    // starting point, and re-asking beats editing a draft you
-                    // do not like.
-                    Button("Try again") { askForSuggestions() }
-                        .font(.golos(11))
-                        .foregroundStyle(BrandColor.muted500)
-                        .buttonStyle(.plain)
+                    // No re-ask. Every ask is a real AI call, and re-rolling
+                    // until a draft reads nicely is what turns a bounded
+                    // per-message cost into an unbounded one, for an answer
+                    // that is a starting point you edit anyway. The next set
+                    // comes when the thread moves.
                     Button("Dismiss") { suggestions = [] }
                         .font(.golos(11))
                         .foregroundStyle(BrandColor.muted500)

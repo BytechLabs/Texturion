@@ -94,6 +94,7 @@ import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.telephony.SoftphoneManager
+import com.loonext.android.features.compose.DraftSuggestionsCache
 import com.loonext.android.features.compose.ComposerDrafts
 import com.loonext.android.features.compose.NoteFileUploader
 import com.loonext.android.features.compose.ThreadComposer
@@ -663,6 +664,11 @@ private fun ThreadLoaded(
             banner = banner,
             contactName = detail.contact.name,
             businessName = controller.company?.name,
+            // Reuse drafts already paid for until a message moves the thread.
+            draftCacheKey = DraftSuggestionsCache.keyOf(
+                controller.conversationId,
+                detail.last_message_at,
+            ),
             loadTemplates = { repo.templates(companyId).data },
             onSendText = { body, photos ->
                 controller.sendText(body, photos) {
