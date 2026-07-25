@@ -41,16 +41,10 @@ fun RegistrationBlock(
     registration: RegistrationDetailPair,
     onChanged: () -> Unit,
 ) {
-    // CA without US texting has nothing to register — say so once, plainly.
+    // CA without US texting has nothing to register yet — but turning it on is
+    // an owner decision we can take right here, the way the web does.
     if (company.country == "CA" && !company.us_texting_enabled) {
-        SettingsCard(title = "Texting registration") {
-            Text(
-                "No registration needed. Canadian texting works without one. " +
-                    "Enabling US texting (from the web app) adds it.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        EnableUsCard(scope, onChanged)
         return
     }
 
@@ -131,6 +125,73 @@ fun RegistrationBlock(
             Spacer(Modifier.height(6.dp))
             ReadOnlyLine("Only owners and admins can change registration.")
         }
+    }
+}
+
+/**
+ * A Canadian workspace turning US texting on: a one-time $29 carrier
+ * registration, owner only. Everyone else gets the honest read-only line.
+ */
+@Composable
+private fun EnableUsCard(scope: SettingsScope, onChanged: () -> Unit) {
+    var confirming by remember { mutableStateOf(false) }
+    var pending by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val coroutines = rememberCoroutineScope()
+
+    SettingsCard(
+        title = "US texting",
+        description = "Texting Canadian numbers already works. Texting US numbers needs " +
+            "a one-time carrier registration.",
+    ) {
+        if (SettingsRoleGate.canEnableUsTexting(scope.role)) {
+            Button(onClick = { confirming = true }) {
+                Text("Enable US texting: \$29 one-time")
+            }
+        } else {
+            ReadOnlyLine(
+                "Ask your account owner to enable US texting; it's a one-time " +
+                    "\$29 carrier registration.",
+            )
+        }
+    }
+
+    if (confirming) {
+        ConfirmDialog(
+            title = "Enable US texting?",
+            body = "A one-time \$29 registration fee is charged to your card on file, " +
+                "and we register your business with US carriers. Approval usually " +
+                "takes 3 to 7 business days. We handle it and email you when it's live.",
+            confirmLabel = if (pending) "Starting…" else "Enable US texting",
+            confirmEnabled = !pending,
+            pending = pending,
+            error = error,
+            dismissLabel = "Not now",
+            onDismiss = {
+                if (!pending) {
+                    confirming = false
+                    error = null
+                }
+            },
+            onConfirm = {
+                pending = true
+                error = null
+                coroutines.launch {
+                    try {
+                        scope.repo.enableUsTexting(scope.companyId)
+                        confirming = false
+                        scope.showMessage(
+                            "US registration started. We'll email you when it's approved.",
+                        )
+                        onChanged()
+                    } catch (cause: Exception) {
+                        error = cause.userMessage()
+                    } finally {
+                        pending = false
+                    }
+                }
+            },
+        )
     }
 }
 

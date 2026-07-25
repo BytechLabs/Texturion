@@ -17,16 +17,10 @@ struct RegistrationBlock: View {
     private var canManage: Bool { SettingsRoleGate.canManageNumbers(scope.role) }
 
     var body: some View {
-        // CA without US texting has nothing to register — say so once, plainly.
+        // CA without US texting has nothing to register yet — but turning it on
+        // is an owner decision we can take right here, the way the web does.
         if company.country == "CA" && !company.us_texting_enabled {
-            SettingsCard(title: "Texting registration") {
-                Text(
-                    "No registration needed. Canadian texting works without one. "
-                        + "Enabling US texting (from the web app) adds it."
-                )
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            }
+            EnableUsCard(scope: scope, onChanged: onChanged)
         } else {
             SettingsCard(
                 title: "Texting registration",
@@ -222,6 +216,75 @@ private struct SolePropOtpRow: View {
                 self.error = error.userMessage
             }
             resending = false
+        }
+    }
+}
+
+
+/// A Canadian workspace turning US texting on: a one-time $29 carrier
+/// registration, owner only. Everyone else gets the honest read-only line.
+@MainActor
+private struct EnableUsCard: View {
+    let scope: SettingsScope
+    let onChanged: @MainActor () -> Void
+
+    @State private var confirming = false
+    @State private var pending = false
+    @State private var error: String?
+
+    var body: some View {
+        SettingsCard(
+            title: "US texting",
+            description: "Texting Canadian numbers already works. Texting US numbers "
+                + "needs a one-time carrier registration."
+        ) {
+            if SettingsRoleGate.canEnableUsTexting(scope.role) {
+                Button("Enable US texting: $29 one-time") { confirming = true }
+                    .buttonStyle(.borderedProminent)
+            } else {
+                ReadOnlyLine(
+                    "Ask your account owner to enable US texting; it's a one-time "
+                        + "$29 carrier registration."
+                )
+            }
+        }
+        .sheet(isPresented: $confirming) {
+            ConfirmSheet(
+                title: "Enable US texting?",
+                message: "A one-time $29 registration fee is charged to your card on "
+                    + "file, and we register your business with US carriers. Approval "
+                    + "usually takes 3 to 7 business days. We handle it and email you "
+                    + "when it's live.",
+                confirmLabel: pending ? "Starting…" : "Enable US texting",
+                pending: pending,
+                error: error,
+                confirmEnabled: !pending,
+                dismissLabel: "Not now",
+                onConfirm: { enable() },
+                onDismiss: {
+                    guard !pending else { return }
+                    confirming = false
+                    error = nil
+                }
+            )
+        }
+    }
+
+    private func enable() {
+        pending = true
+        error = nil
+        Task {
+            do {
+                _ = try await scope.repo.enableUsTexting(scope.companyId)
+                confirming = false
+                scope.showMessage(
+                    "US registration started. We'll email you when it's approved."
+                )
+                onChanged()
+            } catch {
+                self.error = error.userMessage
+            }
+            pending = false
         }
     }
 }

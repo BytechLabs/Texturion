@@ -310,6 +310,20 @@ struct SettingsRepository: Sendable {
         try await api.post("/v1/registration/submit", companyId: companyId)
     }
 
+    /// Save wizard drafts. Each part must be a COMPLETE draft — the server
+    /// validates the whole object, so send every field, not just edits.
+    func saveRegistrationDraft(
+        _ companyId: String,
+        body: JSONValue
+    ) async throws -> RegistrationDetailPair {
+        try await api.put("/v1/registration", body: body, companyId: companyId)
+    }
+
+    /// Owner-only: a Canadian company turning US texting on (one-time $29).
+    func enableUsTexting(_ companyId: String) async throws -> EnableUsResult {
+        try await api.post("/v1/registration/enable-us", companyId: companyId)
+    }
+
     /// Sole-proprietor SMS OTP verification.
     func verifyRegistrationOtp(_ companyId: String, code: String) async throws -> RegistrationDetailPair {
         try await api.post(

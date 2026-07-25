@@ -151,6 +151,14 @@ struct RegistrationDetail: Codable, Sendable {
     let data: JSONValue?
 }
 
+/// POST /v1/registration/enable-us. `invoice_id` is null when the one-time
+/// fee was already paid (it is charged at most once per company, ever).
+struct EnableUsResult: Codable, Sendable {
+    @Default<DefaultTrue> var us_texting_enabled: Bool
+    let invoice_id: String?
+    let action: String?
+}
+
 struct RegistrationDetailPair: Codable, Sendable {
     let brand: RegistrationDetail?
     let campaign: RegistrationDetail?

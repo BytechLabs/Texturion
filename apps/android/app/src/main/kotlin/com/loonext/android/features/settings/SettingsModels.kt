@@ -169,6 +169,15 @@ data class RegistrationDetail(
     val data: JsonObject? = null,
 )
 
+/** POST /v1/registration/enable-us. `invoice_id` is null when the one-time
+ *  fee was already paid (it is charged at most once per company, ever). */
+@Serializable
+data class EnableUsResult(
+    val us_texting_enabled: Boolean = true,
+    val invoice_id: String? = null,
+    val action: String? = null,
+)
+
 @Serializable
 data class RegistrationDetailPair(
     val brand: RegistrationDetail? = null,

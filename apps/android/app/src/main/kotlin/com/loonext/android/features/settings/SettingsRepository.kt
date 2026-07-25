@@ -256,6 +256,17 @@ class SettingsRepository(
     suspend fun submitRegistration(companyId: String): RegistrationDetailPair =
         api.post("/v1/registration/submit", companyId = companyId)
 
+    /** Save wizard drafts. Each part must be a COMPLETE draft — the server
+     *  validates the whole object, so send every field, not just edits. */
+    suspend fun saveRegistrationDraft(
+        companyId: String,
+        body: JsonObject,
+    ): RegistrationDetailPair = api.put("/v1/registration", body, companyId = companyId)
+
+    /** Owner-only: a Canadian company turning US texting on (one-time $29). */
+    suspend fun enableUsTexting(companyId: String): EnableUsResult =
+        api.post("/v1/registration/enable-us", companyId = companyId)
+
     /** Sole-proprietor SMS OTP verification. */
     suspend fun verifyRegistrationOtp(companyId: String, code: String): RegistrationDetailPair =
         api.post(
