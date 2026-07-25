@@ -291,3 +291,25 @@ func openExternal(_ url: String) {
 func copyToClipboard(_ text: String) {
     UIPasteboard.general.string = text
 }
+
+/// A quiet line under a switch, for a feature that is ON but cannot reach every
+/// customer yet. Says which destinations it will not reach and why, so a switch
+/// never reads as working when it is not.
+struct ReachNote: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.golos(12))
+            .foregroundStyle(BrandColor.muted600)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                BrandColor.inset,
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
+            .padding(.top, 8)
+    }
+}

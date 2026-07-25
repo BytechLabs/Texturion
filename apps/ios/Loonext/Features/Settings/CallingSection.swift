@@ -137,6 +137,15 @@ private struct TextBackCard: View {
                     }
                 }
             }
+            // The send gates refuse a US destination until the campaign is
+            // approved, and the text-back is skipped without a trace when they
+            // do. A caller who is never texted back is the whole point of the
+            // feature.
+            if enabled, !usSendApproved(company) {
+                ReachNote(text: usTextingOff(company)
+                    ? "Callers with US numbers won't get this text: US texting isn't on for this workspace. Canadian callers get it now."
+                    : "Callers with US numbers won't get this text until your registration is approved. Canadian callers get it now.")
+            }
             if enabled {
                 if canEdit {
                     TextField(defaultMctbMessage, text: Binding(

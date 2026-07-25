@@ -196,6 +196,16 @@ private struct AwayReplyCard: View {
                 isOn: enabled,
                 enabled: canEdit && !saving
             ) { enabled = $0 }
+            // The send gates refuse a US destination until the campaign is
+            // approved, and the away reply is best-effort: a refusal is
+            // swallowed so it never breaks inbound ingest. A switch reading ON
+            // while every US customer gets silence is the first week of every
+            // US workspace.
+            if enabled, !usSendApproved(company) {
+                ReachNote(text: usTextingOff(company)
+                    ? "Customers with US numbers won't get this reply: US texting isn't on for this workspace. Canadian numbers get it now."
+                    : "Customers with US numbers won't get this reply until your registration is approved. Canadian numbers get it now.")
+            }
             if canEdit {
                 TextField(defaultAwayMessage, text: Binding(
                     get: { message },
