@@ -22,8 +22,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { levelFromRules, type NumberAccessRule } from "../auth/number-access";
-import type { MemberRole } from "../context";
+import { listConversationViewers } from "../auth/conversation-audience";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { deliverPush } from "./deliver";
@@ -83,47 +82,23 @@ export async function notifyMissedCall(
     );
   }
 
-  // Audience (§8): assignee if still an active member, else all active members.
-  const memberRows = unwrapRows<{ user_id: string; role: MemberRole }>(
-    await db
-      .from("company_members")
-      .select("user_id,role")
-      .eq("company_id", input.companyId)
-      .is("deactivated_at", null),
-    "company members lookup",
-  );
-  const members = memberRows.map((row) => row.user_id);
-  let audience =
+  // Audience (§8): the assignee, else everyone who can see the thread.
+  //
+  // #106/#133 is applied FIRST: the caller's name and the deep link would leak
+  // a hidden conversation, and the D24 bell arm filtering the SAME event would
+  // otherwise tell a different story. An assignee who cannot be told falls back
+  // to the team rather than alerting nobody about a missed call.
+  const viewers = await listConversationViewers(db, {
+    companyId: input.companyId,
+    phoneNumberId: conversation.phone_number_id,
+  });
+  const members = viewers.map((row) => row.user_id);
+  const audience =
     conversation.assigned_user_id !== null &&
     members.includes(conversation.assigned_user_id)
       ? [conversation.assigned_user_id]
       : members;
   if (audience.length === 0) return;
-
-  // #106/#133: never alert a member who can't see this number — the caller's
-  // name/number and the deep link would leak a hidden conversation, and the
-  // D24 bell arm filtering the SAME event would tell a different story.
-  // Mirrors notifyInboundMessage: notes-only members can read the thread, so
-  // only level 'none' is dropped; owners/admins always keep access.
-  if (conversation.phone_number_id) {
-    const rules = unwrapRows<NumberAccessRule>(
-      await db
-        .from("number_access")
-        .select("phone_number_id,principal_kind,principal,level")
-        .eq("company_id", input.companyId)
-        .eq("phone_number_id", conversation.phone_number_id),
-      "number access lookup",
-    );
-    if (rules.length > 0) {
-      const roleOf = new Map(memberRows.map((row) => [row.user_id, row.role]));
-      audience = audience.filter((userId) => {
-        const role = roleOf.get(userId) ?? "member";
-        if (role === "owner" || role === "admin") return true;
-        return levelFromRules(rules, userId, role) !== "none";
-      });
-      if (audience.length === 0) return;
-    }
-  }
 
   const prefRows = unwrapRows<PrefsRow>(
     await db

@@ -33,13 +33,14 @@ function buildWorld(
     phoneNumberId?: string | null;
     accessRules?: Record<string, unknown>[];
     members?: { user_id: string; role: string }[];
+    assignedUserId?: string | null;
   } = {},
 ): World {
   const sb = supabaseStub(env);
   sb.on("GET", "/rest/v1/conversations", () => [
     {
       id: CONVERSATION_ID,
-      assigned_user_id: null,
+      assigned_user_id: options.assignedUserId ?? null,
       phone_number_id: options.phoneNumberId ?? null,
       contacts: {
         name: options.contactName === undefined ? "Dana Smith" : options.contactName,
@@ -156,6 +157,51 @@ describe("notifyMissedCall — #106 number access", () => {
       (call) => call.path === "/rest/v1/push_subscriptions",
     );
     expect(lookup?.url.searchParams.get("user_id")).toBe(`in.(${MEMBER})`);
+  });
+
+  it("falls back to the team when the assignee lost access to the number", async () => {
+    // Access is revoked AFTER a thread is assigned, so an assignee can outlive
+    // their own ability to see it. Singling them out first and filtering
+    // second left the alert with an empty audience: nobody on the crew learned
+    // a customer had called. Access decides who is eligible, THEN the assignee
+    // is picked from that set.
+    const world = buildWorld({
+      phoneNumberId: NUMBER_ID,
+      assignedUserId: MEMBER,
+      members: [
+        { user_id: OWNER, role: "owner" },
+        { user_id: MEMBER, role: "member" },
+      ],
+      accessRules: scopedToTrusted,
+    });
+    stubFetch(...world.routes);
+
+    await notifyMissedCall(env, INPUT);
+
+    const lookup = world.sb.calls.find(
+      (call) => call.path === "/rest/v1/push_subscriptions",
+    );
+    expect(lookup?.url.searchParams.get("user_id")).toBe(`in.(${OWNER})`);
+  });
+
+  it("still alerts only the assignee when they can see the number", async () => {
+    const world = buildWorld({
+      phoneNumberId: NUMBER_ID,
+      assignedUserId: TRUSTED,
+      members: [
+        { user_id: OWNER, role: "owner" },
+        { user_id: TRUSTED, role: "member" },
+      ],
+      accessRules: scopedToTrusted,
+    });
+    stubFetch(...world.routes);
+
+    await notifyMissedCall(env, INPUT);
+
+    const lookup = world.sb.calls.find(
+      (call) => call.path === "/rest/v1/push_subscriptions",
+    );
+    expect(lookup?.url.searchParams.get("user_id")).toBe(`in.(${TRUSTED})`);
   });
 
   it("sends nothing when every eligible member is denied", async () => {
