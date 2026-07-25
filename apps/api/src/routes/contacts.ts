@@ -151,6 +151,28 @@ async function findContact(
 
 export const contactsRoutes = new Hono<AppEnv>();
 
+/**
+ * The `or` filter for a contact text search: name, the query as typed, and the
+ * query's digits on their own.
+ *
+ * A number is stored E.164 (+16478923862) but READ, spoken, texted and
+ * DISPLAYED with punctuation, so matching only the raw string misses every
+ * human spelling of it. This product's own screens show "(647) 892-3862", and
+ * pasting that back used to find nothing. Matching digits works as a plain
+ * substring because the stored value carries no punctuation of its own.
+ *
+ * Three digits is the floor: a shorter fragment matches most of a contact list.
+ */
+export function contactSearchOr(rawQ: string): string {
+  const q = orIlikeValue(rawQ);
+  const terms = [`name.ilike.*${q}*`, `phone_e164.ilike.*${q}*`];
+  const digits = rawQ.replace(/\D/g, "");
+  if (digits.length >= 3 && digits !== q) {
+    terms.push(`phone_e164.ilike.*${digits}*`);
+  }
+  return terms.join(",");
+}
+
 contactsRoutes.get("/contacts", requireRole("member"), async (c) => {
   const limit = parseLimit(c, 25, 100);
   const cursor = parseCursor(c);
@@ -166,8 +188,7 @@ contactsRoutes.get("/contacts", requireRole("member"), async (c) => {
     if (rawQ.length > 200) {
       throw new ApiError("validation_failed", "q: too long (max 200).");
     }
-    const q = orIlikeValue(rawQ);
-    query = query.or(`name.ilike.*${q}*,phone_e164.ilike.*${q}*`);
+    query = query.or(contactSearchOr(rawQ));
   }
   if (cursor) {
     query = query.or(keysetFilter("created_at", cursor));
@@ -297,8 +318,7 @@ contactsRoutes.get("/contacts/export", requireRole("member"), async (c) => {
     if (rawQ.length > 200) {
       throw new ApiError("validation_failed", "q: too long (max 200).");
     }
-    const q = orIlikeValue(rawQ);
-    query = query.or(`name.ilike.*${q}*,phone_e164.ilike.*${q}*`);
+    query = query.or(contactSearchOr(rawQ));
   }
   interface ExportRow {
     id: string;

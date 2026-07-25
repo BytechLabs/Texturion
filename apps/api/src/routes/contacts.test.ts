@@ -191,6 +191,56 @@ describe("GET /v1/contacts", () => {
       "(name.ilike.*abcd*,phone_e164.ilike.*abcd*)",
     );
   });
+
+  it("finds a customer by a phone number written the way it is read", async () => {
+    // Stored E.164 carries no punctuation, so the raw query never matches a
+    // formatted number. The product's own screens display "(647) 892-3862",
+    // and pasting that back found nothing.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts?q=${encodeURIComponent("(647) 892-3862")}`,
+      { companyId: COMPANY_ID },
+    );
+
+    expect(
+      sb.find("GET", "/rest/v1/contacts")[0].url.searchParams.get("or"),
+    ).toBe(
+      "(name.ilike.*647 892-3862*,phone_e164.ilike.*647 892-3862*," +
+        "phone_e164.ilike.*6478923862*)",
+    );
+  });
+
+  it("adds no digits term for a name, or for digits already bare", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(app, env, await auth.token(), "/v1/contacts?q=smith", {
+      companyId: COMPANY_ID,
+    });
+    await apiRequest(app, env, await auth.token(), "/v1/contacts?q=6478923862", {
+      companyId: COMPANY_ID,
+    });
+
+    const calls = sb.find("GET", "/rest/v1/contacts");
+    expect(calls[0].url.searchParams.get("or")).toBe(
+      "(name.ilike.*smith*,phone_e164.ilike.*smith*)",
+    );
+    // Already bare digits: the same term twice would only cost a scan.
+    expect(calls[1].url.searchParams.get("or")).toBe(
+      "(name.ilike.*6478923862*,phone_e164.ilike.*6478923862*)",
+    );
+  });
 });
 
 describe("POST /v1/contacts (upsert semantics)", () => {
