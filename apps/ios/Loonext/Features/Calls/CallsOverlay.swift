@@ -34,7 +34,18 @@ struct CallsOverlay: View {
     }
 
     var body: some View {
-        CallChip(manager: manager) { expanded = true }
+        VStack(spacing: 0) {
+            // #168A/D: a softphone error with NO call presenting it (idle line)
+            // — "Loonext needs the microphone to answer calls" after the ring
+            // already ended, say. The in-call screen renders `error` too, but it
+            // is not on screen for these, so the message had nowhere to land and
+            // the tap simply did nothing. One calm dismissible line, the shape
+            // Android's SoftphoneNotice uses.
+            if let error = manager.state.error, manager.state.liveCalls.isEmpty {
+                SoftphoneNotice(message: error) { manager.clearError() }
+            }
+            CallChip(manager: manager) { expanded = true }
+        }
             .task(id: companyId) {
                 manager.start(companyId: companyId, callerIdName: me.display_name)
             }
@@ -56,6 +67,38 @@ struct CallsOverlay: View {
                     onClose: { expanded = false }
                 )
             }
+    }
+}
+
+/// The idle-line error line above the tab bar: what went wrong, and a way to
+/// put it away. Calm, not alarming — nothing here is a failed send.
+@MainActor
+private struct SoftphoneNotice: View {
+    let message: String
+    let onDismiss: @MainActor () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(message)
+                .font(.golos(12))
+                .foregroundStyle(BrandColor.muted700)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 4)
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(BrandColor.muted500)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss")
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 4)
+        .padding(.vertical, 6)
+        .glassEffect(.regular)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 4)
     }
 }
 
