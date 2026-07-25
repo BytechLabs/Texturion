@@ -10,6 +10,7 @@ import com.loonext.android.core.model.OutboundMedia
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 /** SPEC §7 outbound MMS limits — validated here AND by the API. */
 const val MAX_PHOTOS = 3
@@ -138,6 +139,37 @@ sealed interface FileStageResult {
 }
 
 /** Resolve name/size/type for a document-picker URI and enforce D19 limits. */
+/**
+ * The D19 note-attachment allow-list: images (never SVG), PDFs, plain text,
+ * CSV, zip, and the Office/OpenDocument family. The server is the authority
+ * (it sniffs the bytes), so this only stops a file the picker should never
+ * have offered — an .exe, say — before it is staged, with the same sentence
+ * the web composer uses. Mirrors isAllowedAttachmentType in
+ * apps/web/src/lib/attachments/validate.ts.
+ */
+private val ALLOWED_NOTE_FILE_TYPES = setOf(
+    "application/pdf",
+    "text/plain",
+    "text/csv",
+    "application/zip",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.oasis.opendocument.text",
+    "application/vnd.oasis.opendocument.spreadsheet",
+    "application/vnd.oasis.opendocument.presentation",
+)
+
+fun isAllowedNoteFileType(contentType: String): Boolean {
+    val type = contentType.trim().lowercase(Locale.US)
+    if (type == "image/svg+xml") return false
+    if (type.startsWith("image/")) return type.length > "image/".length
+    return type in ALLOWED_NOTE_FILE_TYPES
+}
+
 fun stageNoteFile(context: Context, uri: Uri): FileStageResult {
     val resolver = context.contentResolver
     var name: String? = null
@@ -160,6 +192,14 @@ fun stageNoteFile(context: Context, uri: Uri): FileStageResult {
     val resolvedSize = size ?: return FileStageResult.Rejected(
         "Couldn't read that file's size. Try picking it again.",
     )
+    // Only reject a type that is PRESENT and explicitly disallowed: the server
+    // sniffs the bytes and is the authority, so an unknown type still goes.
+    val declaredType = resolver.getType(uri).orEmpty()
+    if (declaredType.isNotEmpty() && !isAllowedNoteFileType(declaredType)) {
+        return FileStageResult.Rejected(
+            "That file type isn't allowed. Images, PDFs, and documents only.",
+        )
+    }
     if (resolvedSize > MAX_NOTE_FILE_BYTES) {
         return FileStageResult.Rejected("Files can be up to 25 MB each.")
     }

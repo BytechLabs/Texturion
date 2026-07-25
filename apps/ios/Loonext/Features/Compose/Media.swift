@@ -263,6 +263,35 @@ enum FileStageResult: Sendable {
 /// Resolve name/size/type for a document-picker URL, enforce the D19 limits,
 /// and copy the bytes into a scratch file that outlives the picker's
 /// security scope.
+/// The D19 note-attachment allow-list: images (never SVG), PDFs, plain text,
+/// CSV, zip, and the Office/OpenDocument family. The server is the authority
+/// (it sniffs the bytes), so this only stops a file the picker should never
+/// have offered — an .exe, say — before it is staged, with the same sentence
+/// the web composer uses. Mirrors isAllowedAttachmentType in
+/// apps/web/src/lib/attachments/validate.ts.
+private let allowedNoteFileTypes: Set<String> = [
+    "application/pdf",
+    "text/plain",
+    "text/csv",
+    "application/zip",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.oasis.opendocument.text",
+    "application/vnd.oasis.opendocument.spreadsheet",
+    "application/vnd.oasis.opendocument.presentation",
+]
+
+nonisolated func isAllowedNoteFileType(_ contentType: String) -> Bool {
+    let type = contentType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if type == "image/svg+xml" { return false }
+    if type.hasPrefix("image/") { return type.count > "image/".count }
+    return allowedNoteFileTypes.contains(type)
+}
+
 nonisolated func stageNoteFile(pickedURL: URL) -> FileStageResult {
     let accessing = pickedURL.startAccessingSecurityScopedResource()
     defer {
@@ -272,6 +301,14 @@ nonisolated func stageNoteFile(pickedURL: URL) -> FileStageResult {
     let name = pickedURL.lastPathComponent
     guard !name.isEmpty else {
         return .rejected("Couldn't read that file. Try picking it again.")
+    }
+
+    // Only reject a type that is PRESENT and explicitly disallowed: the server
+    // sniffs the bytes and is the authority, so an unknown type still goes.
+    let declaredType = (try? pickedURL.resourceValues(forKeys: [.contentTypeKey]))?
+        .contentType?.preferredMIMEType ?? ""
+    if !declaredType.isEmpty, !isAllowedNoteFileType(declaredType) {
+        return .rejected("That file type isn't allowed. Images, PDFs, and documents only.")
     }
 
     let size: Int64
