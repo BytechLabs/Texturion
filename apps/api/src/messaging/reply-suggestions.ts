@@ -270,7 +270,7 @@ export function shouldSuggest(
 const SYSTEM_PROMPT = [
   "You draft short text-message replies for a small trade business answering a customer over SMS.",
   'Output ONLY one JSON object, no prose and no code fence: {"replies": ["...", "..."]}.',
-  "Give 2 or 3 drafts. Each must take a DIFFERENT approach — for example one that answers directly, one that asks the question you still need answered, one that proposes the next step. Never two drafts that say the same thing.",
+  "ALWAYS return exactly 3 drafts. Not one, not two: three. Each must take a DIFFERENT approach — one that answers directly, one that asks the question you still need answered, one that proposes the next step. Never two drafts that say the same thing, and never fewer than three because you think one is enough.",
   "IF a partly typed reply is given below, that person has already decided what to say. Every draft must be a FINISHED version of THAT reply: keep their words, their tone, and their intent, and carry the sentence on from where they stopped. Never discard it, never contradict it, never answer a different question. Each draft is the whole message, their opening included, ready to send.",
   "ALWAYS RETURN DRAFTS. If the customer asked something, answer it. If we spoke last and they have not replied, write the natural next message instead: confirm what was agreed, check in, ask for the detail still missing, or close the loop politely. A conversation always has a sensible next message, so an empty list is never the right answer.",
   "",

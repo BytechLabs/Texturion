@@ -176,6 +176,12 @@ describe("buildSuggestionMessages", () => {
     expect(msgs.slice(2, -1)).toEqual([{ role: "user", content: "Hey" }]);
   });
 
+  it("asks for three drafts, since fewer reads as the tool giving up", () => {
+    expect(buildSuggestionMessages(ctx)[0].content).toMatch(
+      /ALWAYS return exactly 3 drafts/,
+    );
+  });
+
   it("forbids inventing prices, links, and times in the system prompt", () => {
     const system = buildSuggestionMessages(ctx)[0].content;
     expect(system).toMatch(/No prices/i);
