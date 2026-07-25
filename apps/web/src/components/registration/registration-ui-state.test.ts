@@ -54,7 +54,7 @@ describe("SPEC §4.4 banner copy — exact strings", () => {
       "We couldn't get a number in area code 416. Choose another to finish setup.",
     );
     expect(REGISTRATION_COPY.registrationPending).toBe(
-      "US texting activates in ~3 to 7 business days (carrier approval). Receiving texts and texting Canadian numbers already work.",
+      "US texting activates in ~3 to 7 business days (carrier approval). Calling, receiving texts, and texting Canadian numbers already work.",
     );
     expect(REGISTRATION_COPY.otpPending("(416) 555-0182")).toBe(
       "One step left: enter the verification code we sent to (416) 555-0182 to finish US registration.",

@@ -361,7 +361,8 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
         {inReview && !otpOutstanding && (
           <p className="rounded-md bg-warning/10 px-3 py-2 text-sm">
             US texting activates in ~3 to 7 business days (carrier approval).
-            Receiving texts and texting Canadian numbers already work.
+            Calling, receiving texts, and texting Canadian numbers already
+            work.
           </p>
         )}
 

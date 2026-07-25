@@ -28,7 +28,7 @@ export const REGISTRATION_COPY = {
     "Text-enabling your existing number. Carrier review usually takes a few business days. Calls keep working the whole time.",
   /** §4.4 "Registration submitted/pending". */
   registrationPending:
-    "US texting activates in ~3 to 7 business days (carrier approval). Receiving texts and texting Canadian numbers already work.",
+    "US texting activates in ~3 to 7 business days (carrier approval). Calling, receiving texts, and texting Canadian numbers already work.",
   /** §4.4 "Sole-prop OTP outstanding" — {phone} interpolated. */
   otpPending: (phone: string) =>
     `One step left: enter the verification code we sent to ${phone} to finish US registration.`,
