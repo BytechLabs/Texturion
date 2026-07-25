@@ -21,6 +21,22 @@ final class NotificationsPushPayloadTests: XCTestCase {
         XCTAssertNil(content.kind)
     }
 
+    func testTaskReminderKeepsItsOwnIdentityOnAThreadUrl() {
+        // A reminder links to the job over its customer's thread, so it carries
+        // an /inbox url. The kind is what tells it apart from a text about that
+        // conversation, which is what the foreground rule reads: suppressing on
+        // the url alone dropped the reminder whenever the assignee had that
+        // thread open.
+        let content = parsePush([
+            "kind": "task_due",
+            "title": "Replace the outdoor tap",
+            "body": "Due in 30 min",
+            "url": "/inbox/1f0f7a5e-1111-2222-3333-444455556666?task=task-9",
+        ])
+
+        XCTAssertEqual(content.kind, PushKind.taskDue)
+    }
+
     func testCallPushIsHighUrgencyCategoryWithPerSessionTagAndSessionId() {
         let content = parsePush([
             "kind": "call",

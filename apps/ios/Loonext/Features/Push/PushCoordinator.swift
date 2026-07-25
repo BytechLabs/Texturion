@@ -100,7 +100,15 @@ extension PushCoordinator: UNUserNotificationCenterDelegate {
             }
             // Either viewed-thread seam suppresses the banner: PushHooks (the
             // push stack's own) or the shared AppRouter report.
-            if let conversation = conversationId(fromNormalizedUrl: push.url),
+            //
+            // Only for alerts ABOUT that thread. A task reminder links to the
+            // job over its customer's thread, so it carries an /inbox url too,
+            // and suppressing on the url alone dropped the reminder entirely
+            // whenever the assignee happened to have that conversation open.
+            // The deadline is the reason for the alert; the thread it points
+            // through is not.
+            if push.kind != PushKind.taskDue,
+               let conversation = conversationId(fromNormalizedUrl: push.url),
                conversation == PushHooks.viewedConversationId
                    || conversation == AppRouter.shared.viewedConversationId {
                 return []

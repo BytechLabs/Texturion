@@ -25,6 +25,8 @@ enum PushLink {
 enum PushKind {
     static let call = "call"
     static let missedCall = "missed_call"
+    /// A task the reader is assigned, shortly before (or after) its due date.
+    static let taskDue = "task_due"
 }
 
 /// Category identifiers — the iOS analogue of the Android notification
