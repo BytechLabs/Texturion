@@ -10,6 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.model.OPT_OUT_SOURCE_STOP
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.SubscriptionStatus
 import com.loonext.android.core.model.Usage
@@ -29,7 +30,13 @@ import com.loonext.android.core.model.Usage
  * banner.
  */
 sealed interface ComposerBanner {
-    data object OptedOut : ComposerBanner
+    /**
+     * [carrierBlocked] tells the two opt-outs apart, because only one of them
+     * has anything the reader can do about it: a STOP the customer sent is a
+     * carrier block only they can lift, while an opt-out someone recorded by
+     * hand comes off in a tap on the contact.
+     */
+    data class OptedOut(val carrierBlocked: Boolean) : ComposerBanner
     data class Subscription(val status: String) : ComposerBanner
     data object RegistrationPending : ComposerBanner
     data object UsageCap : ComposerBanner
@@ -37,12 +44,15 @@ sealed interface ComposerBanner {
 
 fun selectComposerBanner(
     contactOptedOut: Boolean,
+    contactOptOutSource: String?,
     subscriptionStatus: String,
     destinationCountry: String?,
     usApproved: Boolean,
     usage: Usage?,
 ): ComposerBanner? {
-    if (contactOptedOut) return ComposerBanner.OptedOut
+    if (contactOptedOut) {
+        return ComposerBanner.OptedOut(contactOptOutSource == OPT_OUT_SOURCE_STOP)
+    }
     if (subscriptionStatus != SubscriptionStatus.ACTIVE) {
         return ComposerBanner.Subscription(subscriptionStatus)
     }
@@ -68,9 +78,16 @@ fun usSendApproved(company: CompanyView): Boolean {
 
 /** Honest, calm one-liner copy per banner (Loonext voice — no hype). */
 fun bannerCopy(banner: ComposerBanner): Pair<String, String> = when (banner) {
-    ComposerBanner.OptedOut ->
-        "This customer opted out" to
-            "They texted STOP or were opted out manually. You can't text them unless they opt back in. Internal notes still work."
+    // Say what can actually be done about it, rather than covering both cases
+    // at once and leaving the reader to guess which one they are in.
+    is ComposerBanner.OptedOut ->
+        if (banner.carrierBlocked) {
+            "This customer opted out" to
+                "They texted STOP, so their carrier is blocking your texts. Only they can undo it, by texting START to your number. Internal notes still work."
+        } else {
+            "This customer opted out" to
+                "Someone marked them opted out. You can undo that on their contact. Internal notes still work."
+        }
 
     is ComposerBanner.Subscription ->
         "Texting is paused" to

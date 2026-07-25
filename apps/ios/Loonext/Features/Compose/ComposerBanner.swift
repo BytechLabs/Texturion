@@ -13,7 +13,11 @@ import SwiftUI
 /// selector only decides what the user sees. Notes stay available under every
 /// banner.
 enum ComposerBanner: Equatable, Sendable {
-    case optedOut
+    /// The associated flag tells the two opt-outs apart, because only one of
+    /// them has anything the reader can do about it: a STOP the customer sent
+    /// is a carrier block only they can lift, while an opt-out someone recorded
+    /// by hand comes off in a tap on the contact.
+    case optedOut(carrierBlocked: Bool)
     case subscription(String)
     case registrationPending
     case usageCap
@@ -21,12 +25,15 @@ enum ComposerBanner: Equatable, Sendable {
 
 func selectComposerBanner(
     contactOptedOut: Bool,
+    contactOptOutSource: String?,
     subscriptionStatus: String,
     destinationCountry: String?,
     usApproved: Bool,
     usage: Usage?
 ) -> ComposerBanner? {
-    if contactOptedOut { return .optedOut }
+    if contactOptedOut {
+        return .optedOut(carrierBlocked: contactOptOutSource == optOutSourceStop)
+    }
     if subscriptionStatus != SubscriptionStatus.active {
         return .subscription(subscriptionStatus)
     }
@@ -49,11 +56,18 @@ func usSendApproved(_ company: CompanyView) -> Bool {
 /// Honest, calm one-liner copy per banner (Loonext voice — no hype).
 func bannerCopy(_ banner: ComposerBanner) -> (title: String, body: String) {
     switch banner {
-    case .optedOut:
-        return (
-            "This customer opted out",
-            "They texted STOP or were opted out manually. You can't text them unless they opt back in. Internal notes still work."
-        )
+    // Say what can actually be done about it, rather than covering both cases
+    // at once and leaving the reader to guess which one they are in.
+    case .optedOut(let carrierBlocked):
+        return carrierBlocked
+            ? (
+                "This customer opted out",
+                "They texted STOP, so their carrier is blocking your texts. Only they can undo it, by texting START to your number. Internal notes still work."
+            )
+            : (
+                "This customer opted out",
+                "Someone marked them opted out. You can undo that on their contact. Internal notes still work."
+            )
     case .subscription:
         return (
             "Texting is paused",

@@ -25,6 +25,7 @@ final class MessagingComposerBannerTests: XCTestCase {
         XCTAssertNil(
             selectComposerBanner(
                 contactOptedOut: false,
+                contactOptOutSource: nil,
                 subscriptionStatus: SubscriptionStatus.active,
                 destinationCountry: "CA",
                 usApproved: false,
@@ -37,12 +38,30 @@ final class MessagingComposerBannerTests: XCTestCase {
         XCTAssertEqual(
             selectComposerBanner(
                 contactOptedOut: true,
+                contactOptOutSource: optOutSourceStop,
                 subscriptionStatus: SubscriptionStatus.canceled,
                 destinationCountry: "US",
                 usApproved: false,
                 usage: usage(used: 200, cap: 100)
             ),
-            .optedOut
+            .optedOut(carrierBlocked: true)
+        )
+    }
+
+    func testTellsTheTwoOptOutsApart() {
+        // A STOP is the customer's to undo. A hand-recorded opt-out is the
+        // crew's, and telling them to wait for a START they will never get is
+        // a dead end.
+        XCTAssertEqual(
+            selectComposerBanner(
+                contactOptedOut: true,
+                contactOptOutSource: "manual",
+                subscriptionStatus: SubscriptionStatus.active,
+                destinationCountry: "CA",
+                usApproved: true,
+                usage: usage(used: 10, cap: 100)
+            ),
+            .optedOut(carrierBlocked: false)
         )
     }
 
@@ -50,6 +69,7 @@ final class MessagingComposerBannerTests: XCTestCase {
         XCTAssertEqual(
             selectComposerBanner(
                 contactOptedOut: false,
+                contactOptOutSource: nil,
                 subscriptionStatus: SubscriptionStatus.pastDue,
                 destinationCountry: "US",
                 usApproved: false,
@@ -63,6 +83,7 @@ final class MessagingComposerBannerTests: XCTestCase {
         XCTAssertEqual(
             selectComposerBanner(
                 contactOptedOut: false,
+                contactOptOutSource: nil,
                 subscriptionStatus: SubscriptionStatus.active,
                 destinationCountry: "US",
                 usApproved: false,
@@ -76,6 +97,7 @@ final class MessagingComposerBannerTests: XCTestCase {
         XCTAssertNil(
             selectComposerBanner(
                 contactOptedOut: false,
+                contactOptOutSource: nil,
                 subscriptionStatus: SubscriptionStatus.active,
                 destinationCountry: "CA",
                 usApproved: false,
@@ -88,6 +110,7 @@ final class MessagingComposerBannerTests: XCTestCase {
         XCTAssertEqual(
             selectComposerBanner(
                 contactOptedOut: false,
+                contactOptOutSource: nil,
                 subscriptionStatus: SubscriptionStatus.active,
                 destinationCountry: "CA",
                 usApproved: true,
@@ -101,6 +124,7 @@ final class MessagingComposerBannerTests: XCTestCase {
         XCTAssertNil(
             selectComposerBanner(
                 contactOptedOut: false,
+                contactOptOutSource: nil,
                 subscriptionStatus: SubscriptionStatus.active,
                 destinationCountry: "CA",
                 usApproved: true,
@@ -113,6 +137,7 @@ final class MessagingComposerBannerTests: XCTestCase {
         XCTAssertNil(
             selectComposerBanner(
                 contactOptedOut: false,
+                contactOptOutSource: nil,
                 subscriptionStatus: SubscriptionStatus.active,
                 destinationCountry: "CA",
                 usApproved: true,

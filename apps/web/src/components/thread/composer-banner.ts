@@ -20,7 +20,13 @@ import type {
  */
 
 export type ComposerBanner =
-  | { kind: "opted_out" }
+  /**
+   * `carrierBlocked` distinguishes the two opt-outs, because only one of them
+   * has anything the reader can do about it. A STOP the customer sent is a
+   * carrier block that only they can lift; an opt-out someone recorded by hand
+   * comes off in a tap on the contact.
+   */
+  | { kind: "opted_out"; carrierBlocked: boolean }
   | { kind: "subscription"; status: SubscriptionStatus }
   | { kind: "registration_pending" }
   | { kind: "usage_cap" }
@@ -29,6 +35,8 @@ export type ComposerBanner =
 export interface ComposerGateInput {
   /** GET /v1/contacts/:id `opted_out`. */
   contactOptedOut: boolean;
+  /** GET /v1/contacts/:id `opt_out_source` — null when not opted out. */
+  contactOptOutSource: "stop_keyword" | "manual" | null;
   /** companies.subscription_status. */
   subscriptionStatus: SubscriptionStatus;
   /** Destination country from the NANP table; null = unknown yet. */
@@ -40,7 +48,12 @@ export interface ComposerGateInput {
 }
 
 export function selectComposerBanner(input: ComposerGateInput): ComposerBanner {
-  if (input.contactOptedOut) return { kind: "opted_out" };
+  if (input.contactOptedOut) {
+    return {
+      kind: "opted_out",
+      carrierBlocked: input.contactOptOutSource === "stop_keyword",
+    };
+  }
   if (input.subscriptionStatus !== "active") {
     return { kind: "subscription", status: input.subscriptionStatus };
   }

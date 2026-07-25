@@ -649,6 +649,7 @@ private fun ThreadLoaded(
         val composer = rememberComposerState(controller.conversationId, drafts)
         val banner = selectComposerBanner(
             contactOptedOut = controller.contact?.opted_out == true,
+            contactOptOutSource = controller.contact?.opt_out_source,
             subscriptionStatus = controller.company?.subscription_status
                 ?: com.loonext.android.core.model.SubscriptionStatus.ACTIVE,
             destinationCountry = Nanp.destinationCountry(detail.contact.phone_e164),

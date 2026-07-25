@@ -58,7 +58,11 @@ export function ComposerBannerCard({ banner }: { banner: NonNullable<ComposerBan
 
   switch (banner.kind) {
     case "opted_out":
-      sentence = "This customer opted out of texting. Sends are blocked.";
+      // Say what can actually be done about it. A STOP is the customer's to
+      // undo; a hand-recorded opt-out is the crew's.
+      sentence = banner.carrierBlocked
+        ? "This customer texted STOP, so their carrier is blocking your texts. Only they can undo it, by texting START to your number."
+        : "This customer is marked opted out. You can undo that on their contact.";
       break;
     case "subscription":
       if (banner.status === "past_due" || banner.status === "unpaid") {

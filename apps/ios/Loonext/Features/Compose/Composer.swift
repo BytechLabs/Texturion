@@ -830,7 +830,7 @@ struct TemplatePickerSheet: View {
         ThreadComposerView(
             state: ComposerState(draftKey: "preview-gated", drafts: ComposerDrafts()),
             noteOnly: false,
-            banner: .optedOut,
+            banner: .optedOut(carrierBlocked: true),
             contactName: "Dana Whitcomb",
             businessName: "Loonext Fencing",
             loadTemplates: { [] },

@@ -250,6 +250,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
     company.data && contact.data
       ? selectComposerBanner({
           contactOptedOut: contact.data.opted_out,
+          contactOptOutSource: contact.data.opt_out_source,
           subscriptionStatus: company.data.subscription_status,
           destinationCountry: destinationCountry(
             conversation.contact.phone_e164,

@@ -237,6 +237,11 @@ export function NewConversation() {
     company.data && destinationE164
       ? selectComposerBanner({
           contactOptedOut,
+          // This screen never learns WHICH opt-out it is (it holds a boolean
+          // the API set on a recipient_opted_out refusal), so it takes the
+          // carrier-block wording: that is the case a customer-sent STOP
+          // produces, and the one the reader most needs to see.
+          contactOptOutSource: contactOptedOut ? "stop_keyword" : null,
           subscriptionStatus: company.data.subscription_status,
           destinationCountry: destinationCountry(destinationE164),
           usApproved: usSendApproved(company.data),

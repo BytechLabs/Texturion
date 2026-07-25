@@ -5,6 +5,7 @@ import com.loonext.android.core.model.Usage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import com.loonext.android.core.model.OPT_OUT_SOURCE_STOP
 
 /** Banner precedence: opted_out > subscription > registration > cap > none. */
 class ComposerBannerTest {
@@ -17,6 +18,7 @@ class ComposerBannerTest {
         assertNull(
             selectComposerBanner(
                 contactOptedOut = false,
+                contactOptOutSource = null,
                 subscriptionStatus = SubscriptionStatus.ACTIVE,
                 destinationCountry = "CA",
                 usApproved = false,
@@ -28,9 +30,10 @@ class ComposerBannerTest {
     @Test
     fun `opted out wins over everything`() {
         assertEquals(
-            ComposerBanner.OptedOut,
+            ComposerBanner.OptedOut(carrierBlocked = true),
             selectComposerBanner(
                 contactOptedOut = true,
+                contactOptOutSource = OPT_OUT_SOURCE_STOP,
                 subscriptionStatus = SubscriptionStatus.CANCELED,
                 destinationCountry = "US",
                 usApproved = false,
@@ -45,6 +48,7 @@ class ComposerBannerTest {
             ComposerBanner.Subscription(SubscriptionStatus.PAST_DUE),
             selectComposerBanner(
                 contactOptedOut = false,
+                contactOptOutSource = null,
                 subscriptionStatus = SubscriptionStatus.PAST_DUE,
                 destinationCountry = "US",
                 usApproved = false,
@@ -59,6 +63,7 @@ class ComposerBannerTest {
             ComposerBanner.RegistrationPending,
             selectComposerBanner(
                 contactOptedOut = false,
+                contactOptOutSource = null,
                 subscriptionStatus = SubscriptionStatus.ACTIVE,
                 destinationCountry = "US",
                 usApproved = false,
@@ -72,6 +77,7 @@ class ComposerBannerTest {
         assertNull(
             selectComposerBanner(
                 contactOptedOut = false,
+                contactOptOutSource = null,
                 subscriptionStatus = SubscriptionStatus.ACTIVE,
                 destinationCountry = "CA",
                 usApproved = false,
@@ -86,6 +92,7 @@ class ComposerBannerTest {
             ComposerBanner.UsageCap,
             selectComposerBanner(
                 contactOptedOut = false,
+                contactOptOutSource = null,
                 subscriptionStatus = SubscriptionStatus.ACTIVE,
                 destinationCountry = "CA",
                 usApproved = true,
@@ -99,6 +106,7 @@ class ComposerBannerTest {
         assertNull(
             selectComposerBanner(
                 contactOptedOut = false,
+                contactOptOutSource = null,
                 subscriptionStatus = SubscriptionStatus.ACTIVE,
                 destinationCountry = "CA",
                 usApproved = true,
@@ -112,10 +120,29 @@ class ComposerBannerTest {
         assertNull(
             selectComposerBanner(
                 contactOptedOut = false,
+                contactOptOutSource = null,
                 subscriptionStatus = SubscriptionStatus.ACTIVE,
                 destinationCountry = "CA",
                 usApproved = true,
                 usage = null,
+            ),
+        )
+    }
+
+    @Test
+    fun `tells the two opt-outs apart, because only one has a way out`() {
+        // A STOP is the customer's to undo. A hand-recorded opt-out is the
+        // crew's, and telling them to wait for a START they will never get is
+        // a dead end.
+        assertEquals(
+            ComposerBanner.OptedOut(carrierBlocked = false),
+            selectComposerBanner(
+                contactOptedOut = true,
+                contactOptOutSource = "manual",
+                subscriptionStatus = SubscriptionStatus.ACTIVE,
+                destinationCountry = "CA",
+                usApproved = true,
+                usage = usage(10, 100),
             ),
         )
     }

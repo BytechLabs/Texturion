@@ -9,6 +9,7 @@ import {
 
 const clear: ComposerGateInput = {
   contactOptedOut: false,
+  contactOptOutSource: null,
   subscriptionStatus: "active",
   destinationCountry: "US",
   usApproved: true,
@@ -25,11 +26,24 @@ describe("selectComposerBanner precedence", () => {
       selectComposerBanner({
         ...clear,
         contactOptedOut: true,
+        contactOptOutSource: "stop_keyword",
         subscriptionStatus: "past_due",
         usApproved: false,
         usage: { used_segments: 2000, cap_segments: 1500 },
       }),
-    ).toEqual({ kind: "opted_out" });
+    ).toEqual({ kind: "opted_out", carrierBlocked: true });
+  });
+
+  it("tells the two opt-outs apart, because only one has a way out", () => {
+    // A STOP is the customer's to undo. A hand-recorded opt-out is the crew's,
+    // and telling them to wait for a START they will never get is a dead end.
+    expect(
+      selectComposerBanner({
+        ...clear,
+        contactOptedOut: true,
+        contactOptOutSource: "manual",
+      }),
+    ).toEqual({ kind: "opted_out", carrierBlocked: false });
   });
 
   it("subscription beats registration and cap", () => {

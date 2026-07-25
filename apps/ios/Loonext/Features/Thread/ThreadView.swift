@@ -569,6 +569,7 @@ private struct ThreadBody: View {
     private func composerPane(detail: ConversationDetail) -> some View {
         let banner = selectComposerBanner(
             contactOptedOut: controller.contact?.opted_out == true,
+            contactOptOutSource: controller.contact?.opt_out_source,
             subscriptionStatus: controller.company?.subscription_status
                 ?? SubscriptionStatus.active,
             destinationCountry: Nanp.destinationCountry(detail.contact.phone_e164),
