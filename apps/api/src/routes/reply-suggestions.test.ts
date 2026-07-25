@@ -338,6 +338,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
         link: 0,
         phone: 0,
         money: 0,
+        hours: 0,
         duplicate: 0,
       },
       // Zero candidates with nothing dropped means the envelope itself was not

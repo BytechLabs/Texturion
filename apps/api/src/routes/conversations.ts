@@ -51,6 +51,7 @@ import { buildPage, encodeCursor, type Cursor } from "../http/pagination";
 import {
   buildSuggestionMessages,
   envelopeShape,
+  hasBusinessHours,
   parseSuggestionOutput,
   sanitizeWithReport,
   shouldSuggest,
@@ -797,6 +798,8 @@ conversationsRoutes.post(
     const report = sanitizeWithReport(parsed, {
       threadText: threadTextOf(messages),
       draft,
+      // Only a company that really set hours may have them stated back.
+      hoursKnown: hasBusinessHours(company?.business_hours ?? null),
     });
     const suggestions = report.kept;
     if (suggestions.length === 0) {

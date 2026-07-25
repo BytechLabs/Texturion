@@ -139,8 +139,28 @@ describe("buildSuggestionMessages", () => {
     });
     expect(msgs[1].content).toContain("Business: Bolt Plumbing");
     expect(msgs[1].content).toContain("Customer: Dana");
-    expect(msgs[1].content).toContain("Customer: Are you free Tuesday?");
-    expect(msgs[1].content).toContain("Us: Checking now");
+    // Named speakers: the model kept reading the business's own questions as
+    // things to answer, and drafted replies addressed back at us.
+    expect(msgs[1].content).toContain("Dana (the customer): Are you free Tuesday?");
+    expect(msgs[1].content).toContain("Bolt Plumbing (us): Checking now");
+    // And it is told outright which message it is replying to.
+    expect(msgs[1].content).toContain(
+      "The customer's most recent message: Are you free Tuesday?",
+    );
+  });
+
+  it("says plainly that our own messages are ours, not requests to answer", () => {
+    const system = buildSuggestionMessages(ctx)[0].content;
+    expect(system).toMatch(/Never answer our own messages/i);
+    expect(system).toMatch(/Never argue with the customer, lecture them/i);
+  });
+
+  it("says so when the customer has not written anything yet", () => {
+    const user = buildSuggestionMessages({
+      ...ctx,
+      messages: [outbound("Just checking in on the quote.")],
+    })[1].content;
+    expect(user).toContain("The customer has not sent anything yet.");
   });
 
   it("forbids inventing prices, links, and times in the system prompt", () => {
@@ -478,6 +498,38 @@ describe("sanitizeSuggestions", () => {
     expect(clean(["Thanks.Us two will be there Thursday."])).toEqual([
       "Thanks.Us two will be there Thursday.",
     ]);
+  });
+
+  it("drops invented opening hours when the company set none", () => {
+    // The prompt already forbids this and the model did it anyway: a workspace
+    // with no hours configured was offered "We're open until 6 PM today".
+    expect(
+      sanitizeSuggestions(["We're open until 6 PM today, come by anytime."], {
+        threadText: "Are you around?",
+      }),
+    ).toEqual([]);
+    expect(
+      sanitizeSuggestions(["Our hours are 8 to 5 Monday to Friday."], {
+        threadText: "When are you open?",
+      }),
+    ).toEqual([]);
+  });
+
+  it("allows stating hours once the company really has them", () => {
+    expect(
+      sanitizeSuggestions(["We're open until 5 today, come by anytime."], {
+        threadText: "Are you around?",
+        hoursKnown: true,
+      }),
+    ).toEqual(["We're open until 5 today, come by anytime."]);
+  });
+
+  it("allows repeating hours the crew already gave in the thread", () => {
+    expect(
+      sanitizeSuggestions(["Yes, we're open until 5 as we said."], {
+        threadText: "We're open until 5 on weekdays.",
+      }),
+    ).toEqual(["Yes, we're open until 5 as we said."]);
   });
 
   it("drops a price the conversation never mentioned", () => {
