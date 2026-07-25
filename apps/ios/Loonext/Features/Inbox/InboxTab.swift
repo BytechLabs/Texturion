@@ -990,7 +990,13 @@ private struct ConversationRow: View {
         } else {
             body = last.body
         }
-        return last.direction == "note" ? "Note · \(body)" : body
+        switch last.direction {
+        case "note": return "Note · \(body)"
+        // Whose turn it is, at a glance: without this a row you already
+        // answered looks exactly like one still waiting.
+        case "outbound": return "You: \(body)"
+        default: return body
+        }
     }
 
     var body: some View {
@@ -1013,10 +1019,22 @@ private struct ConversationRow: View {
                         }
                     }
                     if !snippet.isEmpty {
-                        Text(snippet)
-                            .font(.golos(12))
-                            .foregroundStyle(BrandColor.muted600)
-                            .lineLimit(2)
+                        // A message carrying media reads differently at a glance
+                        // from one that is only text. The clip shows whenever
+                        // there is an attachment, including alongside a caption,
+                        // where the label alone would not appear at all.
+                        HStack(alignment: .top, spacing: 4) {
+                            if row.last_message?.has_attachments == true {
+                                Image(systemName: "paperclip")
+                                    .font(.system(size: 9.5))
+                                    .foregroundStyle(BrandColor.muted300)
+                                    .padding(.top, 2)
+                            }
+                            Text(snippet)
+                                .font(.golos(12))
+                                .foregroundStyle(BrandColor.muted600)
+                                .lineLimit(2)
+                        }
                     }
                     if !row.tags.isEmpty || assigneeName != nil {
                         HStack(spacing: 4) {

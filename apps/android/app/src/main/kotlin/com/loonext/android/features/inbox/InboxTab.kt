@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.automirrored.outlined.Undo
+import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.MarkEmailRead
@@ -1236,16 +1237,39 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
                 } else {
                     last.body
                 }
-                if (last.direction == "note") "Note · $body" else body
+                when (last.direction) {
+                    "note" -> "Note · $body"
+                    // Whose turn it is, at a glance: without this a row you
+                    // already answered looks exactly like one still waiting.
+                    "outbound" -> "You: $body"
+                    else -> body
+                }
             }.orEmpty()
-            Text(
-                snippet,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
-            )
+            // A message carrying media reads differently at a glance from one
+            // that is only text. The clip shows whenever there is an attachment,
+            // including alongside a caption, where the label alone would not
+            // appear at all.
+            Row(
+                Modifier.padding(top = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (row.last_message?.has_attachments == true) {
+                    Icon(
+                        Icons.Outlined.AttachFile,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.size(13.dp),
+                    )
+                }
+                Text(
+                    snippet,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             if (row.tags.isNotEmpty() || row.is_spam || assigneeName != null) {
                 Row(
                     Modifier.padding(top = 6.dp),
