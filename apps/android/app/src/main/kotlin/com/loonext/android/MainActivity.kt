@@ -99,7 +99,15 @@ import kotlinx.serialization.json.contentOrNull
 
 /** A navigation request parsed from a notification tap / app-link intent. */
 sealed interface DeepLink {
-    data class Thread(val conversationId: String) : DeepLink
+    /** [taskId] rides along on a task reminder, whose link opens the job over
+     *  the customer's thread. */
+    data class Thread(
+        val conversationId: String,
+        val taskId: String? = null,
+    ) : DeepLink
+
+    /** A task with no thread behind it: its own page carries the same panel. */
+    data class Task(val taskId: String) : DeepLink
 
     /**
      * The calls surface. [sessionId] rides the `?call=<session>` query
@@ -124,18 +132,40 @@ sealed interface DeepLink {
     data class ComposeTo(val number: String) : DeepLink
 }
 
+/**
+ * Which surface a notification-tap URL opens. Split from the Uri so it can be
+ * exercised without the Android framework: every push the server sends lands
+ * here, and a link that resolves to nothing is a tap that appears to do
+ * nothing at all.
+ */
+fun deepLinkFor(
+    segments: List<String>,
+    taskParam: String? = null,
+    callParam: String? = null,
+): DeepLink? = when {
+    segments.size >= 2 && (segments[0] == "inbox" || segments[0] == "conversations") ->
+        // A task reminder links to the JOB over its customer's thread, so the
+        // query decides what opens on top. Reading only the path left the
+        // reader in the thread with the address and checklist still a search
+        // away, which is what the link exists to save them.
+        DeepLink.Thread(segments[1], taskParam?.takeIf { it.isNotBlank() })
+
+    segments.size >= 2 && segments[0] == "tasks" -> DeepLink.Task(segments[1])
+
+    segments.firstOrNull() == "calls" ->
+        DeepLink.Calls(callParam?.takeIf { it.isNotBlank() })
+
+    else -> null
+}
+
 /** Notification-tap URLs: https://app.loonext.com/inbox/{id} or /calls?call=… */
 private fun parseDeepLink(uri: Uri?): DeepLink? {
     val segments = uri?.pathSegments ?: return null
-    return when {
-        segments.size >= 2 && (segments[0] == "inbox" || segments[0] == "conversations") ->
-            DeepLink.Thread(segments[1])
-
-        segments.firstOrNull() == "calls" ->
-            DeepLink.Calls(uri.getQueryParameter("call")?.takeIf { it.isNotBlank() })
-
-        else -> null
-    }
+    return deepLinkFor(
+        segments,
+        taskParam = uri.getQueryParameter("task"),
+        callParam = uri.getQueryParameter("call"),
+    )
 }
 
 class MainActivity : ComponentActivity() {
@@ -426,7 +456,12 @@ private fun ReadyShell(
     LaunchedEffect(companyId) {
         deepLinks.collect { link ->
             when (link) {
-                is DeepLink.Thread -> push(Overlay.Thread(link.conversationId))
+                is DeepLink.Thread -> {
+                    push(Overlay.Thread(link.conversationId))
+                    link.taskId?.let { push(Overlay.Task(it)) }
+                }
+
+                is DeepLink.Task -> push(Overlay.Task(link.taskId))
                 is DeepLink.Calls -> {
                     // Calls is a single surface: the pager tab (#203). A
                     // pushed duplicate would mean two live CallsScreens, so
