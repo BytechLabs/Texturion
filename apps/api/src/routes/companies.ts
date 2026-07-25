@@ -281,6 +281,9 @@ const aiSettingsSchema = z
     // Absent leaves whatever is stored; an empty string clears it. A toggle
     // save from any client must never wipe the description as a side effect.
     business_description: z.string().max(280).optional(),
+    // Absent means "leave it alone", so a client that predates the toggle
+    // cannot turn transcription off just by saving the other switches.
+    transcribe_voicemail: z.boolean().optional(),
   })
   .strict();
 
@@ -296,6 +299,7 @@ companiesRoutes.patch(
       p_enrich_task_due: body.enrich_task_due,
       p_suggest_replies: body.suggest_replies,
       p_business_description: body.business_description ?? null,
+      p_transcribe_voicemail: body.transcribe_voicemail ?? true,
     });
     if (error) {
       throw new Error(`upsert_company_ai_settings failed: ${error.message}`);
@@ -306,6 +310,7 @@ companiesRoutes.patch(
       enrich_task_due: row.enrich_task_due,
       suggest_replies: row.suggest_replies,
       business_description: row.business_description ?? null,
+      transcribe_voicemail: row.transcribe_voicemail,
     });
   },
 );

@@ -330,6 +330,7 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
       enrich_task_due: true,
       suggest_replies: true,
       business_description: null,
+      transcribe_voicemail: true,
     });
   });
 

@@ -30,6 +30,8 @@ export interface CompanyAiSettings {
    * all — the difference between an honest answer and an invented one.
    */
   business_description: string | null;
+  /** Whether new voicemails are transcribed. Off leaves the audio untouched. */
+  transcribe_voicemail: boolean;
 }
 
 /**
@@ -43,11 +45,13 @@ export const DEFAULT_AI_SETTINGS: CompanyAiSettings = {
   enrich_task_due: true,
   suggest_replies: true,
   business_description: null,
+  transcribe_voicemail: true,
 };
 
 /** The columns that make up the settings row, for a `select`. */
 export const AI_SETTINGS_COLUMNS =
-  "enrich_task_address,enrich_task_due,suggest_replies,business_description";
+  "enrich_task_address,enrich_task_due,suggest_replies,business_description," +
+  "transcribe_voicemail";
 
 /** Company AI toggles, falling back to the defaults when the row is absent. */
 export async function loadAiSettings(
@@ -60,7 +64,7 @@ export async function loadAiSettings(
     .eq("company_id", companyId)
     .limit(1);
   if (error) throw new Error(`ai settings lookup failed: ${error.message}`);
-  return (data?.[0] as CompanyAiSettings | undefined) ?? DEFAULT_AI_SETTINGS;
+  return (data?.[0] as unknown as CompanyAiSettings | undefined) ?? DEFAULT_AI_SETTINGS;
 }
 
 export interface AiReservation {

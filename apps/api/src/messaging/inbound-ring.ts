@@ -31,6 +31,20 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
 import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
+import {
+  loadAiSettings,
+  reserveAiUsage,
+  sendAiCapAlert,
+} from "../ai/settings";
+import {
+  sanitizeTranscript,
+  shouldTranscribe,
+  VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD,
+  VOICEMAIL_TRANSCRIPT_FEATURE,
+  VOICEMAIL_TRANSCRIPT_MODEL,
+  VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
+  VOICEMAIL_TRANSCRIPT_TIMEOUT_MS,
+} from "../calls/voicemail-transcript";
 
 /** client_state tag on each member ring leg:
  *  `brm|<session>|<user_id>|<caller-or-empty>|<inbound_ccid>` (ccid LAST —
@@ -275,9 +289,22 @@ export async function storeVoicemailRecording(
     throw new Error(`voicemail store failed: ${upload.error.message}`);
   }
 
+  // Words, if we can get them. Best effort by construction: every failure
+  // path below leaves the voicemail exactly as it is without one — stored,
+  // threaded, playable — so a model outage can never cost a customer message.
+  const transcript = await transcribeVoicemail(env, db, {
+    companyId: resolved.companyId,
+    audio,
+    seconds,
+  });
+
   const { error: stampError } = await db
     .from("calls")
-    .update({ voicemail_path: path, voicemail_seconds: seconds })
+    .update({
+      voicemail_path: path,
+      voicemail_seconds: seconds,
+      ...(transcript === null ? {} : { voicemail_transcript: transcript }),
+    })
     .eq("call_session_id", sessionId);
   if (stampError) {
     throw new Error(`voicemail stamp failed: ${stampError.message}`);
@@ -295,6 +322,65 @@ export async function storeVoicemailRecording(
     caller,
     seconds,
   };
+}
+
+/**
+ * Speech-to-text over a stored voicemail, or null. Never throws: the caller is
+ * mid-way through durably recording a customer's message, and no part of that
+ * may depend on an AI call succeeding.
+ *
+ * Order matters and is the cost posture: the length gate and the company's
+ * opt-in are both free, so they run BEFORE the reservation, and the
+ * reservation runs before the model. A reservation that fails counts as over
+ * cap (fail closed), because a broken ledger should cost a transcript, never
+ * an unbounded bill.
+ */
+async function transcribeVoicemail(
+  env: Env,
+  db: SupabaseClient,
+  args: { companyId: string; audio: ArrayBuffer; seconds: number },
+): Promise<string | null> {
+  try {
+    if (!shouldTranscribe(args.seconds)) return null;
+    if (!env.AI) return null;
+
+    const settings = await loadAiSettings(db, args.companyId);
+    if (!settings.transcribe_voicemail) return null;
+
+    const reservation = await reserveAiUsage(db, {
+      companyId: args.companyId,
+      feature: VOICEMAIL_TRANSCRIPT_FEATURE,
+      cap: VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
+      alertThreshold: VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD,
+    });
+    if (reservation.should_alert) {
+      await sendAiCapAlert(env, {
+        companyId: args.companyId,
+        label: "voicemail transcript",
+        count: reservation.count,
+        cap: VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
+        alertThreshold: VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD,
+        stops: "new voicemails are still recorded and playable, just not transcribed.",
+      }).catch(() => {});
+    }
+    if (reservation.over_cap) return null;
+
+    const raw = await Promise.race([
+      env.AI.run(VOICEMAIL_TRANSCRIPT_MODEL, {
+        audio: [...new Uint8Array(args.audio)],
+      }),
+      new Promise<null>((resolve) =>
+        setTimeout(() => resolve(null), VOICEMAIL_TRANSCRIPT_TIMEOUT_MS),
+      ),
+    ]);
+    return sanitizeTranscript(raw);
+  } catch (cause) {
+    console.error(
+      `voicemail transcript failed for company ${args.companyId}:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+    return null;
+  }
 }
 
 /** Replay recovery: a voicemail already stored in OUR bucket (voicemail_path

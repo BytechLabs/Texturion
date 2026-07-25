@@ -75,6 +75,9 @@ export interface CallRow {
   screening_result: string | null;
   stir_attestation: string | null;
   voicemail_seconds: number | null;
+  /** Speech-to-text of the recording; null = not transcribed, never a reason
+   *  to hide the audio. */
+  voicemail_transcript: string | null;
   answered_by_user_id: string | null;
   /** #191 attribution: the display name of the acting member — the PLACER for an
    *  outbound call ("{name} called"), the ANSWERER for an inbound one ("Answered
