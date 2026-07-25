@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { useCompany } from "@/lib/api/companies";
+import { loadDraft, saveDraft } from "@/lib/messaging/composer-drafts";
 import {
   useConversation,
   useCreateNote,
@@ -395,7 +396,10 @@ export function Composer({
   const lastFailedSendRef = useRef<FailedAttempt | null>(null);
   const [mode, setMode] = useState<"sms" | "note">(noteOnly ? "note" : "sms");
   const isNote = noteOnly || mode === "note";
-  const [text, setText] = useState("");
+  // Restored from the last visit to THIS conversation. Both phone apps have
+  // always kept a per-conversation draft; on web a half-typed reply died the
+  // moment you opened another thread to check something.
+  const [text, setText] = useState(() => loadDraft(conversationId));
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   // #189 inline rejection copy from the LAST admission attempt (type/size/
   // count) — rendered above the pill, replaced or cleared on the next intake.
@@ -414,6 +418,14 @@ export function Composer({
   const textareaRef = useAutoGrow(text);
   const fileRef = useRef<HTMLInputElement>(null);
   const noteFileRef = useRef<HTMLInputElement>(null);
+
+  // Persist the draft as it is typed, one write per idle moment rather than
+  // one per keystroke. Sending clears `text`, which removes the entry; a failed
+  // send restores it, which writes it back.
+  useEffect(() => {
+    const timer = setTimeout(() => saveDraft(conversationId, text), 400);
+    return () => clearTimeout(timer);
+  }, [conversationId, text]);
 
   // Object URLs are revoked when chips are removed or the composer unmounts.
   const attachmentsRef = useRef(attachments);

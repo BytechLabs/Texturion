@@ -38,6 +38,12 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompany } from "@/lib/api/companies";
+import {
+  clearDraft,
+  loadDraft,
+  NEW_CONVERSATION_DRAFT,
+  saveDraft,
+} from "@/lib/messaging/composer-drafts";
 import { useStartConversation, type ComposeInput } from "@/lib/api/compose";
 import {
   attachmentSignature,
@@ -137,7 +143,9 @@ export function NewConversation() {
   const active = clampActiveIndex(activeIndex, optionCount);
 
   // --- Draft -----------------------------------------------------------------
-  const [body, setBody] = useState("");
+  // Restored the way the phone apps restore theirs: a message you started and
+  // navigated away from is still here when you come back.
+  const [body, setBody] = useState(() => loadDraft(NEW_CONVERSATION_DRAFT));
   const [pickerOpen, setPickerOpen] = useState(false);
   const [quietHours, setQuietHours] = useState<{
     localTime: string | null;
@@ -205,6 +213,12 @@ export function NewConversation() {
       setNumberId(activeNumbers[0].id);
     }
   }, [activeNumbers, numberId]);
+
+  // One write per idle moment rather than one per keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => saveDraft(NEW_CONVERSATION_DRAFT, body), 400);
+    return () => clearTimeout(timer);
+  }, [body]);
 
   // --- Gates preview (the API enforces independently) --------------------------
   const destinationE164 =
@@ -287,6 +301,9 @@ export function NewConversation() {
     start.mutate(inputBody, {
       onSuccess: ({ conversation }) => {
         lastFailedComposeRef.current = null;
+        // It went out, so the draft is spent. This screen navigates away
+        // rather than clearing its own state, so the clear is explicit.
+        clearDraft(NEW_CONVERSATION_DRAFT);
         router.push(`/inbox/${conversation.id}`);
       },
       onError: (error) => {

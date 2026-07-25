@@ -282,12 +282,20 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
         {banner ? (
           <>
             <ComposerBannerCard banner={banner} />
-            <Composer conversationId={conversationId} noteOnly />
+            {/* Keyed so the draft state cannot survive into a different
+                conversation: without it the half-typed reply to one customer
+                appeared in the box for the next one. */}
+            <Composer
+              key={conversationId}
+              conversationId={conversationId}
+              noteOnly
+            />
           </>
         ) : (
           // #106: a notes-only member (viewer_level 'note') gets the note
           // composer — texting the customer needs level 'text' on this number.
           <Composer
+            key={conversationId}
             conversationId={conversationId}
             noteOnly={conversation.viewer_level === "note"}
           />
