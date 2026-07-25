@@ -39,6 +39,12 @@ vi.mock("@/lib/api/calls", () => ({
 // softphone; the push-to-wake effect reads the URL; the #210 Ongoing card
 // reads the member roster. Stub them all so this render test needs no live
 // env/client/router.
+// The dialer correlates the typed number against contacts; the real module
+// pulls in the API client, whose env validates NEXT_PUBLIC_* at import time.
+vi.mock("@/lib/api/contacts", () => ({
+  useContacts: () => ({ data: { pages: [] } }),
+}));
+
 vi.mock("@/lib/api/numbers", () => ({
   useNumbers: () => ({ data: { data: [] } }),
 }));

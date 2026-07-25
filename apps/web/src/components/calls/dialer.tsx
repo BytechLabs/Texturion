@@ -8,7 +8,7 @@
  * conversation on answer, so a dialed stranger still lands in the inbox.
  */
 import { Delete, Phone } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useContacts } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";
 import { useNumbers } from "@/lib/api/numbers";
 import { formatPhone } from "@/lib/format/phone";
@@ -59,6 +60,33 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
   const [fromId, setFromId] = useState<string | undefined>(undefined);
   const [calling, setCalling] = useState(false);
 
+  // Who you are about to call, if they are already on file. Both phone apps
+  // show this under the readout; web showed the bare digits, so dialling a
+  // number you already had in contacts told you nothing, and the call chip
+  // said "(416) 555-0182" instead of the customer's name.
+  const [debounced, setDebounced] = useState("");
+  useEffect(() => {
+    const typed = digits.replace(/\D/g, "");
+    // Under 4 digits every contact matches; the search is not worth running.
+    if (typed.length < 4) {
+      setDebounced("");
+      return;
+    }
+    const timer = setTimeout(() => setDebounced(typed), 250);
+    return () => clearTimeout(timer);
+  }, [digits]);
+
+  const matches = useContacts(debounced);
+  const matchedName = useMemo(() => {
+    if (debounced === "") return null;
+    const rows = matches.data?.pages.flatMap((page) => page.data) ?? [];
+    const hit = rows.find((contact) =>
+      contact.phone_e164.replace(/\D/g, "").includes(debounced),
+    );
+    if (!hit) return null;
+    return hit.name?.trim() || formatPhone(hit.phone_e164);
+  }, [debounced, matches.data]);
+
   // The server does the authoritative NANP validation; this just gates the
   // Call button so an obviously-too-short number can't be dialed.
   const canCall = digits.replace(/\D/g, "").length >= 10 && !calling;
@@ -90,7 +118,9 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
         // single-number company lets the server imply it.
         phoneNumberId:
           active.length > 1 ? (fromId ?? active[0]?.id) : undefined,
-        contactName: formatPhone(e164),
+        // The name if we know it, so the call chip and the log read like a
+        // person rather than a number.
+        contactName: matchedName ?? formatPhone(e164),
       });
       setOpen(false);
       setDigits("");
@@ -154,6 +184,12 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
               <span className="text-app-muted-2">Enter a number</span>
             )}
           </div>
+
+          {matchedName && (
+            <p className="-mt-2 text-center text-sm font-medium text-primary">
+              {matchedName}
+            </p>
+          )}
 
           {active.length > 1 && (
             <Select value={fromId ?? active[0]?.id} onValueChange={setFromId}>
