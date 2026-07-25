@@ -29,6 +29,7 @@
  */
 import type { BusinessHours } from "@loonext/shared";
 import { runAiFeature } from "../ai/run";
+import { notifyNoteMention } from "../notifications/mention";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -37,6 +38,7 @@ import {
 } from "../ai/settings";
 import { assertEgressWithinAllowance } from "../attachments/egress";
 import { requireRole } from "../auth/company";
+import { listConversationViewers } from "../auth/conversation-audience";
 import {
   assertNumberLevel,
   requireConversationAccess,
@@ -75,6 +77,7 @@ import {
   expectOk,
   keysetFilter,
   parseCursor,
+  executionCtxOf,
   parseJsonBody,
   parseLimit,
   parseWith,
@@ -139,6 +142,10 @@ const noteSchema = z.object({
   // interwoven in the thread AND collected in the task's activity timeline.
   // Validated below to belong to the same conversation + company (422 else).
   task_id: z.uuid().optional(),
+  // Teammates named in the body. Capped so one note cannot fan out past the
+  // delivery ceiling and silently drop recipients; a crew note that needs more
+  // than ten named people wanted the whole team, which assignment already does.
+  mention_user_ids: z.array(z.uuid()).max(10).optional(),
 });
 
 // The composer's in-progress text, so the drafts can FINISH what the person
@@ -503,6 +510,69 @@ conversationsRoutes.patch(
   },
 );
 
+/**
+ * Who this member may name on a note here.
+ *
+ * A separate route rather than filtering GET /v1/members in the client: the
+ * client cannot see `number_access`, so a client-side filter would offer
+ * teammates the server is going to reject, and the picker would quietly become
+ * a way to find out who has access to which number.
+ */
+conversationsRoutes.get(
+  "/conversations/:id/mentionable-members",
+  requireRole("member"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+
+    const conversation = await findConversation(db, companyId, id);
+    if (!conversation) {
+      return errorResponse(c, "not_found", "No such conversation.");
+    }
+    // A number the CALLER cannot see is a 404, never a 403: a 403 would confirm
+    // the conversation exists.
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: conversation.phone_number_id as string | null,
+      need: "note",
+    });
+
+    const viewers = await listConversationViewers(db, {
+      companyId,
+      phoneNumberId: conversation.phone_number_id as string | null,
+    });
+
+    const displayNames = new Map<string, string>();
+    if (viewers.length > 0) {
+      const profiles = unwrap<{ user_id: string; display_name: string }[]>(
+        await db
+          .from("profiles")
+          .select("user_id,display_name")
+          .in(
+            "user_id",
+            viewers.map((v) => v.user_id),
+          ),
+        "profiles lookup",
+      );
+      for (const profile of profiles) {
+        displayNames.set(profile.user_id, profile.display_name);
+      }
+    }
+
+    return c.json({
+      data: viewers.map((viewer) => ({
+        user_id: viewer.user_id,
+        role: viewer.role,
+        display_name: displayNames.get(viewer.user_id) ?? "",
+      })),
+      next_cursor: null,
+    });
+  },
+);
+
 conversationsRoutes.post(
   "/conversations/:id/notes",
   requireRole("member"),
@@ -551,6 +621,27 @@ conversationsRoutes.post(
       taskLink = { id: tasks[0].id, title: tasks[0].title };
     }
 
+    // A mention notifies one named person, so the id must belong to a teammate
+    // who can already open this thread. Checked BEFORE the insert, because a
+    // note body quotes the customer and the alert carries a snippet of it.
+    // ONE message for every rejection: a caller must not be able to tell "not
+    // in this workspace" from "cannot see this number", which would turn the
+    // endpoint into a probe for who has access to what.
+    const mentionIds = [...new Set(body.mention_user_ids ?? [])];
+    if (mentionIds.length > 0) {
+      const viewers = await listConversationViewers(db, {
+        companyId,
+        phoneNumberId: conversation.phone_number_id as string | null,
+      });
+      const canSee = new Set(viewers.map((row) => row.user_id));
+      if (mentionIds.some((userId) => !canSee.has(userId))) {
+        throw new ApiError(
+          "validation_failed",
+          "mention_user_ids: not a teammate with access to this conversation.",
+        );
+      }
+    }
+
     // SPEC §6/§7: a note IS a messages row — direction 'note', status NULL
     // (messages_note_status), authored by the caller. It threads, searches,
     // and paginates with the rest of the conversation for free, and the
@@ -578,6 +669,26 @@ conversationsRoutes.post(
     const note = inserted[0];
     if (!note) throw new Error("note insert returned no row");
 
+    // Mentions are a child table of the note, written after it because the
+    // foreign key needs the message to exist. The route's tail is already
+    // non-atomic (the activity bump below can fail with the note saved), and
+    // this inherits that rather than adding a new failure mode: the worst case
+    // is a saved note whose mentions did not land, never an alert for a note
+    // that does not exist.
+    if (mentionIds.length > 0) {
+      expectOk(
+        await db.from("message_mentions").insert(
+          mentionIds.map((userId) => ({
+            message_id: note.id as string,
+            user_id: userId,
+            company_id: companyId,
+            conversation_id: id,
+          })),
+        ),
+        "note mentions insert",
+      );
+    }
+
     // Notes are messages, so thread activity moves forward — but never
     // backwards (mirrors the greatest() bump in the §6 SQL functions).
     expectOk(
@@ -590,9 +701,31 @@ conversationsRoutes.post(
       "conversation activity bump",
     );
 
+    // Alerting the named teammates is best-effort and must never turn a saved
+    // note into an error for its author: a dead push subscription is not the
+    // author's problem.
+    if (mentionIds.length > 0) {
+      const notify = notifyNoteMention(getEnv(c.env), {
+        companyId,
+        conversationId: id,
+        messageId: note.id as string,
+        authorUserId: c.get("userId"),
+        mentionedUserIds: mentionIds,
+        body: body.body,
+      }).catch((cause: unknown) => {
+        console.error("note mention alert failed:", cause);
+      });
+      const ctx = executionCtxOf(c);
+      if (ctx) ctx.waitUntil(notify);
+      else await notify;
+    }
+
     // Message objects carry `attachments` everywhere (§7); notes have none.
     // A task-linked note carries its `task` { id, title } so the thread renders
     // the "on: <task title>" chip immediately, without a refetch (D-D).
+    //
+    // The 201 is UNCHANGED by mentions: the note body still carries the literal
+    // "@Name" text, so every client renders it exactly as before.
     return c.json({ ...note, attachments: [], task: taskLink }, 201);
   },
 );

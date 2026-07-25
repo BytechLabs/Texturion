@@ -200,3 +200,21 @@ export function orIlikeValue(q: string): string {
   // user `*` can't over-match through the `name.ilike.*<q>*` filter.
   return q.replace(/["\\%_(),*]/g, "");
 }
+
+/**
+ * The Worker's execution context, or null where there isn't one (unit tests,
+ * and any runtime that does not provide it). Reading it can throw, which is why
+ * this exists rather than a property access at each call site.
+ *
+ * Used to hand best-effort background work to `waitUntil` so a slow or failing
+ * side effect does not hold up (or fail) the caller's response.
+ */
+export function executionCtxOf(c: {
+  executionCtx: { waitUntil(p: Promise<unknown>): void };
+}): { waitUntil(p: Promise<unknown>): void } | null {
+  try {
+    return c.executionCtx;
+  } catch {
+    return null;
+  }
+}

@@ -788,6 +788,136 @@ describe("POST /v1/conversations/:id/notes", () => {
     expect(insert.body).toMatchObject({ direction: "note", body: "" });
   });
 
+  describe("@mentions", () => {
+    const TEAMMATE = "eeeeeeee-1111-4222-8333-444444444444";
+    const OUTSIDER = "ffffffff-1111-4222-8333-444444444444";
+
+    /** The audience query listConversationViewers runs (select=user_id,role). */
+    function viewersResponder(rows: { user_id: string; role: string }[]) {
+      return (call: { url: URL }) =>
+        call.url.searchParams.get("select") === "user_id,role" ? rows : undefined;
+    }
+
+    it("records a mention for a teammate who can see the thread", async () => {
+      const sb = memberStub();
+      sb.on("GET", "/rest/v1/company_members", viewersResponder([
+        { user_id: auth.subject, role: "member" },
+        { user_id: TEAMMATE, role: "member" },
+      ]));
+      sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+      sb.on("POST", "/rest/v1/messages", () =>
+        Response.json([noteRow()], { status: 201 }),
+      );
+      sb.on("POST", "/rest/v1/message_mentions", () => new Response(null, { status: 201 }));
+      sb.on("PATCH", "/rest/v1/conversations", () => new Response(null, { status: 204 }));
+      sb.on("GET", "/rest/v1/notification_prefs", () => []);
+      sb.on("GET", "/rest/v1/push_subscriptions", () => []);
+      sb.on("GET", "/rest/v1/device_push_tokens", () => []);
+      sb.on("GET", "/rest/v1/profiles", () => []);
+      stubFetch(jwksRoute(auth), sb.route);
+
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        `/v1/conversations/${CONV_ID}/notes`,
+        {
+          method: "POST",
+          companyId: COMPANY_ID,
+          body: { body: "@Teammate can you check this?", mention_user_ids: [TEAMMATE] },
+        },
+      );
+
+      expect(res.status).toBe(201);
+      const rows = sb.find("POST", "/rest/v1/message_mentions")[0];
+      expect(rows.body).toEqual([
+        {
+          message_id: NOTE_ID,
+          user_id: TEAMMATE,
+          company_id: COMPANY_ID,
+          conversation_id: CONV_ID,
+        },
+      ]);
+      // The body is untouched, so clients that know nothing about mentions
+      // render the note exactly as typed.
+      const insert = sb.find("POST", "/rest/v1/messages")[0];
+      expect(insert.body).toMatchObject({ body: "@Teammate can you check this?" });
+    });
+
+    it("refuses a mention for someone who cannot see the conversation, saving nothing", async () => {
+      // A note body quotes the customer, and the alert carries a snippet of it,
+      // so an id outside the audience must never reach the table.
+      const sb = memberStub();
+      sb.on("GET", "/rest/v1/company_members", viewersResponder([
+        { user_id: auth.subject, role: "member" },
+      ]));
+      sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+      stubFetch(jwksRoute(auth), sb.route);
+
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        `/v1/conversations/${CONV_ID}/notes`,
+        {
+          method: "POST",
+          companyId: COMPANY_ID,
+          body: { body: "@Outsider look", mention_user_ids: [OUTSIDER] },
+        },
+      );
+
+      expect(res.status).toBe(422);
+      expect(sb.find("POST", "/rest/v1/messages")).toHaveLength(0);
+      expect(sb.find("POST", "/rest/v1/message_mentions")).toHaveLength(0);
+    });
+
+    it("offers only teammates who can see the conversation", async () => {
+      const sb = memberStub();
+      sb.on("GET", "/rest/v1/company_members", viewersResponder([
+        { user_id: auth.subject, role: "member" },
+        { user_id: TEAMMATE, role: "member" },
+      ]));
+      sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+      sb.on("GET", "/rest/v1/profiles", () => [
+        { user_id: TEAMMATE, display_name: "Sam Rivera" },
+      ]);
+      stubFetch(jwksRoute(auth), sb.route);
+
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        `/v1/conversations/${CONV_ID}/mentionable-members`,
+        { companyId: COMPANY_ID },
+      );
+
+      expect(res.status).toBe(200);
+      const page = (await res.json()) as {
+        data: { user_id: string; display_name: string }[];
+      };
+      expect(page.data).toContainEqual({
+        user_id: TEAMMATE,
+        role: "member",
+        display_name: "Sam Rivera",
+      });
+    });
+
+    it("404s the picker for an unknown conversation", async () => {
+      const sb = memberStub();
+      sb.on("GET", "/rest/v1/conversations", () => []);
+      stubFetch(jwksRoute(auth), sb.route);
+
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        `/v1/conversations/${CONV_ID}/mentionable-members`,
+        { companyId: COMPANY_ID },
+      );
+      expect(res.status).toBe(404);
+    });
+  });
+
   it("404s an unknown conversation without inserting", async () => {
     const sb = memberStub();
     sb.on("GET", "/rest/v1/conversations", () => []);

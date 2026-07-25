@@ -681,4 +681,84 @@ begin
   raise notice 'N7 PASSED: missed_call bell arm (inbound-only, assignee-else-everyone, #106-filtered, badge in lockstep)';
 end $$;
 
+-- ===========================================================================
+-- N8. @mention bell arm. A note that names the member reaches THEM and nobody
+--     else, the badge moves with the list (the twins must never disagree), the
+--     author is never told about their own mention, and denying the number
+--     hides the row from both -- a note body quotes customer text.
+-- ===========================================================================
+do $$
+declare cnt int; badge_before int; badge_after int; author_cnt int;
+        hidden_before int; hidden_after int;
+begin
+  badge_before := public.api_notifications_unread_count(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000002');
+  -- Denying the number also hides unrelated rows on it, so the deny-list
+  -- baseline is taken here and compared with itself after the insert.
+  hidden_before := public.api_notifications_unread_count(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000002',
+    array['d0000000-0000-4000-8000-000000000001']::uuid[]);
+
+  -- Lead writes an internal note naming Member.
+  insert into public.messages (id, company_id, conversation_id, direction, body,
+                               sent_by_user_id, created_at)
+  values ('10000000-0000-4000-8000-00000000000f',
+          'c0000000-0000-4000-8000-000000000001',
+          'f0000000-0000-4000-8000-00000000000a', 'note',
+          '@Member did we replace this valve last spring?',
+          'a0000000-0000-4000-8000-000000000001', now() + interval '2 minutes');
+  insert into public.message_mentions (message_id, user_id, company_id, conversation_id)
+  values ('10000000-0000-4000-8000-00000000000f',
+          'a0000000-0000-4000-8000-000000000002',
+          'c0000000-0000-4000-8000-000000000001',
+          'f0000000-0000-4000-8000-00000000000a');
+
+  select count(*) into cnt from public.api_notifications(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000002', 100, null, null) x
+   where x->>'type' = 'mention';
+  if cnt <> 1 then
+    raise exception 'N8 FAILED: expected 1 mention row, got %', cnt;
+  end if;
+
+  badge_after := public.api_notifications_unread_count(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000002');
+  if badge_after - badge_before <> 1 then
+    raise exception 'N8 FAILED: badge moved by % (want 1) -- the twins disagree',
+      badge_after - badge_before;
+  end if;
+
+  -- The author is not notified about naming someone.
+  select count(*) into author_cnt from public.api_notifications(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000001', 100, null, null) x
+   where x->>'type' = 'mention';
+  if author_cnt <> 0 then
+    raise exception 'N8 FAILED: author saw % mention rows', author_cnt;
+  end if;
+
+  -- #106: denying the number hides the mention from the list AND the badge.
+  select count(*) into cnt from public.api_notifications(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000002', 100, null, null,
+    array['d0000000-0000-4000-8000-000000000001']::uuid[]) x
+   where x->>'type' = 'mention';
+  if cnt <> 0 then
+    raise exception 'N8 FAILED: deny-list left % mention rows visible', cnt;
+  end if;
+  hidden_after := public.api_notifications_unread_count(
+    'c0000000-0000-4000-8000-000000000001',
+    'a0000000-0000-4000-8000-000000000002',
+    array['d0000000-0000-4000-8000-000000000001']::uuid[]);
+  if hidden_after <> hidden_before then
+    raise exception 'N8 FAILED: deny-list badge moved by % -- the mention leaked into the count',
+      hidden_after - hidden_before;
+  end if;
+
+  raise notice 'N8 PASSED: mention bell arm (mentioned-only, author excluded, #106-filtered, badge in lockstep)';
+end $$;
+
 rollback;

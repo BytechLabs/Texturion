@@ -42,7 +42,7 @@ import {
   withCallerIdDerived,
   withMctbDerived,
 } from "./core/company-view";
-import { parseJsonBody, unwrap } from "./core/http";
+import { executionCtxOf, parseJsonBody, unwrap } from "./core/http";
 import { isValidIanaTimezone } from "./core/timezone";
 
 const createSchema = z.object({
@@ -618,12 +618,3 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
 });
 
 /** Hono's `c.executionCtx` throws when there is no runtime context; probe it. */
-function executionCtxOf(c: {
-  executionCtx: { waitUntil(p: Promise<unknown>): void };
-}): { waitUntil(p: Promise<unknown>): void } | null {
-  try {
-    return c.executionCtx;
-  } catch {
-    return null;
-  }
-}
