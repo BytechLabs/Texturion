@@ -219,10 +219,27 @@ struct ThreadComposerView: View {
                     .foregroundStyle(BrandColor.muted500)
                 Spacer()
                 if !suggesting {
+                    // Another set is one tap away: the first three are a
+                    // starting point, and re-asking beats editing a draft you
+                    // do not like.
+                    Button("Try again") { askForSuggestions() }
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.muted500)
+                        .buttonStyle(.plain)
                     Button("Dismiss") { suggestions = [] }
                         .font(.golos(11))
                         .foregroundStyle(BrandColor.muted500)
                         .buttonStyle(.plain)
+                        .padding(.leading, 12)
+                }
+            }
+            // Three placeholders while drafting, because three is what comes
+            // back: the strip keeps its shape instead of jumping when they land.
+            if suggesting {
+                ForEach(0..<3, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(BrandColor.inset)
+                        .frame(height: 38)
                 }
             }
             ForEach(suggestions, id: \.self) { suggestion in

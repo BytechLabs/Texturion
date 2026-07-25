@@ -354,6 +354,7 @@ fun ThreadComposer(
                     state.onTextChange(suggestion)
                     suggestions = emptyList()
                 },
+                onRetry = { askForSuggestions() },
                 onDismiss = { suggestions = emptyList() },
             )
         }
@@ -572,6 +573,7 @@ private fun ReplySuggestionsRow(
     suggestions: List<String>,
     loading: Boolean,
     onUse: (String) -> Unit,
+    onRetry: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
@@ -588,6 +590,15 @@ private fun ReplySuggestionsRow(
             )
             Spacer(Modifier.weight(1f))
             if (!loading) {
+                // Another set is one tap away: the first three are a starting
+                // point, and re-asking beats editing a draft you do not like.
+                Text(
+                    "Try again",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clickable(onClick = onRetry),
+                )
+                Spacer(Modifier.width(12.dp))
                 Text(
                     "Dismiss",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -597,6 +608,22 @@ private fun ReplySuggestionsRow(
             }
         }
         Spacer(Modifier.height(4.dp))
+        // Three placeholders while drafting, because three is what comes back:
+        // the strip keeps its shape instead of jumping when they land.
+        if (loading) {
+            repeat(3) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(38.dp)
+                        .padding(bottom = 6.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceContainerHigh,
+                            RoundedCornerShape(14.dp),
+                        ),
+                )
+            }
+        }
         suggestions.forEach { suggestion ->
             Surface(
                 onClick = { onUse(suggestion) },

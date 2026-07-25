@@ -151,40 +151,70 @@ export function AttachmentChips({
  */
 export function ReplySuggestionChips({
   suggestions,
+  loading,
   onUse,
+  onRetry,
   onDismiss,
 }: {
   suggestions: string[];
+  /** Drafting is in flight — show the placeholders rather than an empty strip. */
+  loading?: boolean;
   onUse: (suggestion: string) => void;
+  onRetry: () => void;
   onDismiss: () => void;
 }) {
   return (
     <div className="mx-auto max-w-[42rem] px-1 pb-2">
-      <div className="mb-1 flex items-center gap-1.5">
-        <AiStatus state="done" label="Lou's drafts" />
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="ml-auto rounded-md px-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Dismiss
-        </button>
+      <div className="mb-1 flex items-center gap-2">
+        <AiStatus
+          state={loading ? "thinking" : "done"}
+          label={loading ? "Drafting…" : "Lou's drafts"}
+        />
+        <div className="ml-auto flex items-center gap-1">
+          {/* Another set is one tap away: the first three are a starting
+              point, and re-asking beats editing a draft you do not like. */}
+          <button
+            type="button"
+            onClick={onRetry}
+            disabled={loading}
+            className="rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+          >
+            Try again
+          </button>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Dismiss
+          </button>
+        </div>
       </div>
       <div
         className="flex flex-col gap-1.5"
         role="group"
         aria-label="Suggested replies"
       >
-        {suggestions.map((suggestion, index) => (
-          <button
-            key={index}
-            type="button"
-            onClick={() => onUse(suggestion)}
-            className="rounded-app-card border border-app-line bg-app-white px-3 py-2 text-left text-[13px] leading-[1.45] text-app-ink transition-colors duration-150 ease-out hover:border-app-petrol hover:bg-app-tint/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
-            {suggestion}
-          </button>
-        ))}
+        {loading
+          ? // Three placeholders, because three is what comes back: the strip
+            // keeps its shape instead of jumping when the drafts land.
+            [0, 1, 2].map((row) => (
+              <div
+                key={row}
+                className="h-[38px] animate-pulse rounded-app-card border border-app-line bg-app-stone-1"
+                aria-hidden
+              />
+            ))
+          : suggestions.map((suggestion, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={() => onUse(suggestion)}
+                className="rounded-app-card border border-app-line bg-app-white px-3 py-2 text-left text-[13px] leading-[1.45] text-app-ink transition-colors duration-150 ease-out hover:border-app-petrol hover:bg-app-tint/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                {suggestion}
+              </button>
+            ))}
       </div>
     </div>
   );
@@ -619,10 +649,12 @@ export function Composer({
           ))}
         </div>
       )}
-      {!isNote && suggestions.length > 0 && (
+      {!isNote && (suggestions.length > 0 || suggestReplies.isPending) && (
         <ReplySuggestionChips
           suggestions={suggestions}
+          loading={suggestReplies.isPending}
           onUse={useSuggestion}
+          onRetry={askForSuggestions}
           onDismiss={() => setSuggestions([])}
         />
       )}
