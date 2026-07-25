@@ -82,12 +82,30 @@ fun RegistrationBlock(
             Text(
                 "The carrier registry rejected this" +
                     (rejected.rejection_reason?.let { ": $it" } ?: ".") +
-                    " Fix your details in the web app's registration wizard, then " +
-                    "resubmit here.",
+                    " Fix the details below and resubmit.",
                 style = MaterialTheme.typography.bodySmall,
             )
-            if (canManage) {
-                InlineError(error)
+        }
+
+        // Draft and rejected rows are both editable, and both are dead ends
+        // without this: a rejection you cannot act on, or a draft that never
+        // goes out. Resubmitting without an edit stays possible.
+        val editable = registrationEditable(brand) || registrationEditable(campaign)
+        if (canManage && editable) {
+            InlineError(error)
+            RegistrationFixForm(
+                scope = scope,
+                country = company.country,
+                brand = brand,
+                campaign = campaign,
+                submitLabel = if (rejected != null) {
+                    "Resubmit registration"
+                } else {
+                    "Submit registration"
+                },
+                onSubmitted = onChanged,
+            )
+            if (rejected != null) {
                 Button(
                     onClick = {
                         submitting = true
@@ -106,7 +124,15 @@ fun RegistrationBlock(
                     },
                     enabled = !submitting,
                     modifier = Modifier.padding(top = 8.dp),
-                ) { Text(if (submitting) "Resubmitting…" else "Resubmit registration") }
+                ) {
+                    Text(
+                        if (submitting) {
+                            "Resubmitting…"
+                        } else {
+                            "Resubmit without changes"
+                        },
+                    )
+                }
             }
         }
 
@@ -217,7 +243,7 @@ private fun RegistrationRow(label: String, detail: RegistrationDetail?) {
                         " · submitted ${relativeTime(it)} ago"
                     } ?: "")
 
-                else -> "Draft · finish the wizard in the web app"
+                else -> "Draft · not submitted yet"
             }
             Text(
                 line,

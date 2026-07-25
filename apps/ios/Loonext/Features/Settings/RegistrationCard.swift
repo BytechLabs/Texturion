@@ -50,15 +50,35 @@ struct RegistrationBlock: View {
                         Text(
                             "The carrier registry rejected this"
                                 + (rejected.rejection_reason.map { ": \($0)" } ?? ".")
-                                + " Fix your details in the web app's registration wizard, then "
-                                + "resubmit here."
+                                + " Fix the details below and resubmit."
                         )
                         .font(.footnote)
-                        if canManage {
-                            InlineError(error)
-                            Button(submitting ? "Resubmitting…" : "Resubmit registration") { resubmit() }
-                                .buttonStyle(.borderedProminent)
-                                .tint(BrandColor.olive)
+                    }
+
+                    // Draft and rejected rows are both editable, and both are
+                    // dead ends without this: a rejection you cannot act on, or
+                    // a draft that never goes out. Resubmitting without an edit
+                    // stays possible.
+                    if canManage,
+                       registrationEditable(brand) || registrationEditable(campaign) {
+                        InlineError(error)
+                        RegistrationFixForm(
+                            scope: scope,
+                            country: company.country,
+                            brand: brand,
+                            campaign: campaign,
+                            submitLabel: rejected != nil
+                                ? "Resubmit registration"
+                                : "Submit registration",
+                            onSubmitted: onChanged
+                        )
+                        if rejected != nil {
+                            Button(
+                                submitting
+                                    ? "Resubmitting…"
+                                    : "Resubmit without changes"
+                            ) { resubmit() }
+                                .buttonStyle(.bordered)
                                 .disabled(submitting)
                                 .padding(.top, 8)
                         }
@@ -114,7 +134,7 @@ private struct RegistrationRow: View {
         case RegistrationStatus.submitted, RegistrationStatus.pending:
             return "In review" + (detail.submitted_at.map { " · submitted \(relativeTime($0)) ago" } ?? "")
         default:
-            return "Draft — finish the wizard in the web app"
+            return "Draft · not submitted yet"
         }
     }
 
