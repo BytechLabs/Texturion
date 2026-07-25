@@ -2,6 +2,7 @@
 
 import { toast } from "sonner";
 
+import { CallButton } from "@/components/calls/call-button";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/error";
 import { useBillingPortal } from "@/lib/api/billing";
@@ -15,7 +16,17 @@ import type { ComposerBanner } from "./composer-banner";
  * The G5 banner card that REPLACES the composer: full-width tinted card, one
  * sentence + optional action. Copy is verbatim from DESIGN.md G5.
  */
-export function ComposerBannerCard({ banner }: { banner: NonNullable<ComposerBanner> }) {
+export function ComposerBannerCard({
+  banner,
+  thread,
+}: {
+  banner: NonNullable<ComposerBanner>;
+  /**
+   * The thread this banner is standing in front of, so a banner can offer the
+   * call. Omitted where no thread exists yet.
+   */
+  thread?: { conversationId: string; contactName: string; canCall: boolean };
+}) {
   const { role } = useActiveCompany();
   const isOwner = role === "owner";
   const isAdminUp = role === "owner" || role === "admin";
@@ -88,6 +99,19 @@ export function ComposerBannerCard({ banner }: { banner: NonNullable<ComposerBan
     case "registration_pending":
       sentence =
         "US texting activates once your registration is approved. Usually 3 to 7 business days.";
+      // Carrier registration gates TEXTING only: calling this customer works
+      // today, on every plan. Without this the banner is a dead end for the
+      // whole 3-to-7-day wait, next to a Call button in the header that the
+      // reader has no reason to connect to the sentence they just read.
+      if (thread?.canCall) {
+        action = (
+          <CallButton
+            conversationId={thread.conversationId}
+            contactName={thread.contactName}
+            label="Call them instead"
+          />
+        );
+      }
       break;
     case "usage_cap":
       // #178: the cap is the owner's protection, not a quota — name it that way.

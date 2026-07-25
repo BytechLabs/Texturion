@@ -282,7 +282,14 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
         />
         {banner ? (
           <>
-            <ComposerBannerCard banner={banner} />
+            <ComposerBannerCard
+              banner={banner}
+              thread={{
+                conversationId,
+                contactName: contactDisplayName(conversation.contact),
+                canCall: conversation.viewer_level === "text",
+              }}
+            />
             {/* Keyed so the draft state cannot survive into a different
                 conversation: without it the half-typed reply to one customer
                 appeared in the box for the next one. */}

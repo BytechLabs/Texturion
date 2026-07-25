@@ -22,6 +22,7 @@ export function CallButton({
   conversationId,
   contactId,
   contactName,
+  label,
   className,
 }: {
   /** Call from an existing thread… */
@@ -29,6 +30,13 @@ export function CallButton({
   /** …or a contact with no thread yet (fresh import). Exactly one is set. */
   contactId?: string;
   contactName: string;
+  /**
+   * Render as a labelled button instead of the header's icon. Used where the
+   * call is being OFFERED rather than sat in a toolbar, so the reader is told
+   * it exists. Same softphone path either way: one button owns the busy state,
+   * the mic-permission copy and the server's refusal message.
+   */
+  label?: string;
   className?: string;
 }) {
   const softphone = useSoftphone();
@@ -61,10 +69,16 @@ export function CallButton({
       );
   }
 
+  const icon = busy ? (
+    <PhoneOutgoing className="size-4 animate-pulse" strokeWidth={1.75} />
+  ) : (
+    <Phone className="size-4" strokeWidth={1.75} />
+  );
+
   return (
     <Button
-      variant="ghost"
-      size="icon-sm"
+      variant={label ? "default" : "ghost"}
+      size={label ? "sm" : "icon-sm"}
       className={className}
       aria-label={
         busy ? "On a call…" : `Call ${contactName} from your business number`
@@ -72,11 +86,8 @@ export function CallButton({
       onClick={onClick}
       disabled={busy}
     >
-      {busy ? (
-        <PhoneOutgoing className="size-4 animate-pulse" strokeWidth={1.75} />
-      ) : (
-        <Phone className="size-4" strokeWidth={1.75} />
-      )}
+      {icon}
+      {label ? <span>{label}</span> : null}
     </Button>
   );
 }
