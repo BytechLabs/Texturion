@@ -578,6 +578,16 @@ private struct ThreadBody: View {
             usTextingOff: controller.company.map(usTextingOff) ?? false,
             usage: controller.usage
         )
+        // #106: calling is outreach like texting, so a notes-only member gets
+        // no control the API would refuse. Spelled out with its type: a
+        // ternary yielding a closure inside the initialiser below leaves the
+        // type checker unable to finish the expression.
+        let callContactName = detail.contact.name
+            ?? formatPhone(detail.contact.phone_e164)
+        let onCallInstead: (@MainActor () -> Void)? =
+            detail.viewer_level == "text"
+                ? { startCall(detail: detail, contactName: callContactName) }
+                : nil
         ThreadComposerView(
             state: composer,
             noteOnly: detail.viewer_level == "note",
@@ -605,17 +615,7 @@ private struct ThreadBody: View {
                     draft: draft
                 )
             },
-            // #106: calling is outreach like texting, so a notes-only member
-            // gets no control the API would refuse.
-            onCallInstead: detail.viewer_level == "text"
-                ? {
-                    startCall(
-                        detail: detail,
-                        contactName: detail.contact.name
-                            ?? formatPhone(detail.contact.phone_e164)
-                    )
-                }
-                : nil,
+            onCallInstead: onCallInstead,
             // Reuse drafts already paid for until a message moves the thread.
             draftCacheKey: DraftSuggestionsCache.key(
                 conversationId: detail.id,
