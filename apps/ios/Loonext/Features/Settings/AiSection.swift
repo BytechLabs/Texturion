@@ -229,7 +229,7 @@ struct AiSectionView: View {
                 enrich_task_address: address,
                 enrich_task_due: due,
                 suggest_replies: replies,
-                businessDescription: previous.business_description,
+                business_description: previous.business_description,
                 transcribe_voicemail: transcribe
             )
         )
