@@ -986,7 +986,7 @@ describe("§9 event → state table", () => {
     expect(submitRegistration).toHaveBeenCalledWith(env, COMPANY_ID);
   });
 
-  it("a void that loses the race to a retry never blocks the rollback", async () => {
+  it("a void refused because the invoice was already paid never blocks the rollback", async () => {
     // Stripe refuses to void an invoice that just got paid. That is the paid
     // path winning, which is a consistent outcome, so the rollback must still
     // stand rather than the whole event failing and being replayed.
@@ -1013,6 +1013,40 @@ describe("§9 event → state table", () => {
     );
 
     expect(harness.callsTo("PATCH", /companies/)).toHaveLength(1);
+  });
+
+  it("a void that fails on a server error goes back on the ledger to be retried", async () => {
+    // A transport or server error leaves the invoice open and still inside
+    // Stripe's retry schedule, so giving up would quietly restore the double
+    // charge. Recording the failure is what gets the sweeper to replay this
+    // handler; the rollback is guarded and safe to run again.
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+      endpoint("POST", /api\.stripe\.com\/v1\/invoices\/.*\/void/, () =>
+        Response.json({ error: { message: "upstream", type: "api_error" } }, { status: 500 }),
+      ),
+    ]);
+
+    await deliver(
+      eventOf(
+        "invoice.payment_failed",
+        invoiceFixture({
+          metadata: { purpose: "us_registration", company_id: COMPANY_ID },
+          parent: null,
+        }),
+      ),
+      harness,
+    );
+
+    // The rollback still stands, and the event is marked owed rather than done.
+    expect(harness.callsTo("PATCH", /companies/)).toHaveLength(1);
+    const ledger = harness.callsTo("PATCH", /webhook_events/);
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0].json()).toMatchObject({
+      attempts: 1,
+      last_error: expect.any(String),
+    });
   });
 
   it("invoice.payment_action_required: SCA email only, NO state change", async () => {
