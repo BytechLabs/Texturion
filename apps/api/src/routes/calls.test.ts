@@ -709,3 +709,110 @@ describe("POST /v1/calls/browser (D43)", () => {
     expect(out.from).toBe("+14165550200"); // the chosen number
   });
 });
+
+describe("GET /v1/calls/:sessionId/voicemail", () => {
+  const SESSION = "85011718-87f2-11f1-b490-02420aef29a0";
+  const PATH = `${COMPANY_ID}/${SESSION}.mp3`;
+
+  function voicemailStub(opts: { allowed?: boolean } = {}): SupabaseStub {
+    const sb = supabaseStub(env);
+    sb.on(
+      "GET",
+      "/rest/v1/company_members",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    sb.on("GET", "/rest/v1/number_access", () => []);
+    sb.on("GET", "/rest/v1/calls", () => [
+      {
+        phone_number_id: "bbbbbbbb-0000-4000-8000-000000000002",
+        voicemail_path: PATH,
+        voicemail_seconds: 12,
+        voicemail_transcript: "Leaking tap upstairs.",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/companies", () => [
+      { plan: "starter", current_period_start: "2026-07-01T00:00:00.000Z" },
+    ]);
+    sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress", () => ({
+      allowed: opts.allowed ?? true,
+      used_bytes: 1024,
+    }));
+    return sb;
+  }
+
+  const origin = new URL(env.SUPABASE_URL).origin;
+
+  function listRoute(): Stub {
+    return stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        url.origin === origin &&
+        url.pathname.startsWith("/storage/v1/object/list/voicemails"),
+      () => [{ name: `${SESSION}.mp3`, metadata: { size: 26_374 } }],
+    );
+  }
+
+  function signRoute(): Stub {
+    return stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        url.origin === origin &&
+        url.pathname.startsWith("/storage/v1/object/sign/voicemails/"),
+      () => ({ signedURL: `/object/sign/voicemails/${PATH}?token=t` }),
+    );
+  }
+
+  function storageRoutes(): Stub[] {
+    return [listRoute(), signRoute()];
+  }
+
+  async function play(sb: SupabaseStub, extra: Stub[]) {
+    // Storage routes first: the broad Supabase stub matches on origin and
+    // would otherwise swallow the /storage/v1 calls.
+    stubFetch(jwksRoute(auth), ...extra.map((stub) => stub.route), sb.route);
+    return apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls/${SESSION}/voicemail`,
+      { companyId: COMPANY_ID },
+    );
+  }
+
+  it("claims the recording's real size against the egress allowance", async () => {
+    const sb = voicemailStub();
+    const res = await play(sb, storageRoutes());
+
+    expect(res.status).toBe(200);
+    const claims = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress");
+    expect(claims).toHaveLength(1);
+    // Measured from the object, not estimated from its duration.
+    expect((claims[0].body as { p_bytes: number }).p_bytes).toBe(26_374);
+    expect((claims[0].body as { p_bucket: string }).p_bucket).toBe("voicemails");
+  });
+
+  it("refuses to sign once the period allowance is used up", async () => {
+    const res = await play(voicemailStub({ allowed: false }), storageRoutes());
+    expect(res.status).toBe(402);
+  });
+
+  it("still plays a recording whose size cannot be measured", async () => {
+    // An unmeasurable object claims zero rather than withholding a message a
+    // customer left.
+    const sb = voicemailStub();
+    const res = await play(sb, [
+      stubRoute(
+        (url, request) =>
+          request.method === "POST" &&
+          url.origin === origin &&
+          url.pathname.startsWith("/storage/v1/object/list/voicemails"),
+        () => new Response("nope", { status: 500 }),
+      ),
+      signRoute(),
+    ]);
+
+    expect(res.status).toBe(200);
+    const claims = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress");
+    expect((claims[0].body as { p_bytes: number }).p_bytes).toBe(0);
+  });
+});

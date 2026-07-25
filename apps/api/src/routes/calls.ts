@@ -19,6 +19,7 @@
  * cannot see a hidden number's calls by asking for the contact directly.
  */
 import { Hono, type Context } from "hono";
+import { assertEgressWithinAllowance } from "../attachments/egress";
 import type { Env } from "../env";
 import { shouldTranscribe } from "../calls/voicemail-transcript";
 import { runTranscription } from "../messaging/inbound-ring";
@@ -181,6 +182,18 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) 
     need: "read",
   });
 
+  // Every other signed-URL mint claims its bytes against the company's period
+  // egress allowance before signing. This one did not, so voicemail downloads
+  // accrued storage egress that the period accounting never saw: the alerts
+  // could not warn and the allowance could not bite, however many times a
+  // recording was pulled.
+  await assertEgressWithinAllowance(db, c.get("companyId"), [
+    {
+      bucket: VOICEMAILS_BUCKET,
+      sizeBytes: await voicemailObjectBytes(db, call.voicemail_path),
+    },
+  ]);
+
   const signed = await db.storage
     .from(VOICEMAILS_BUCKET)
     .createSignedUrl(call.voicemail_path, 60 * 60);
@@ -211,6 +224,29 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) 
     transcript,
   });
 });
+
+/**
+ * The stored size of one recording, read from the object itself.
+ *
+ * The calls row records how long a voicemail runs, not how large it is, and an
+ * estimate would either over-claim or under-claim the allowance. Returns null
+ * when the object cannot be measured, which claims zero: an unmeasurable
+ * recording must not block playback of a message a customer left.
+ */
+async function voicemailObjectBytes(
+  db: ReturnType<typeof getDb>,
+  path: string,
+): Promise<number | null> {
+  const lastSlash = path.lastIndexOf("/");
+  const folder = lastSlash === -1 ? "" : path.slice(0, lastSlash);
+  const name = path.slice(lastSlash + 1);
+  const listed = await db.storage
+    .from(VOICEMAILS_BUCKET)
+    .list(folder, { search: name, limit: 1 });
+  if (listed.error) return null;
+  const size = listed.data?.[0]?.metadata?.size;
+  return typeof size === "number" ? size : null;
+}
 
 /**
  * Transcribe a stored recording that has no transcript yet and keep it.
