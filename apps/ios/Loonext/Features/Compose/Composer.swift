@@ -2,6 +2,7 @@ import Observation
 import PhotosUI
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 enum ComposerMode: Equatable, Sendable {
     case text
@@ -174,12 +175,19 @@ struct ThreadComposerView: View {
             photoSelection = []
             ingestPhotos(items)
         }
+        // ONE importer for both modes: a note and a text are never composed at
+        // the same time, and two .fileImporter modifiers on one view race each
+        // other's presentation.
         .fileImporter(
             isPresented: $fileImporterOpen,
-            allowedContentTypes: [.item],
+            allowedContentTypes: isNote ? [.item] : mmsImporterContentTypes,
             allowsMultipleSelection: true
         ) { result in
-            stageFiles(result)
+            if isNote {
+                stageFiles(result)
+            } else {
+                stageMedia(result)
+            }
         }
         .sheet(isPresented: $templatePickerOpen) {
             TemplatePickerSheet(loadTemplates: loadTemplates) { body in
@@ -281,6 +289,15 @@ struct ThreadComposerView: View {
                         photosPickerOpen = true
                     } label: {
                         Label("Attach a photo", systemImage: "photo")
+                    }
+                    .disabled(state.photos.count >= maxPhotos)
+                    // A text carries more than photos, and this app could only
+                    // send those: an audio clip, a PDF, or a contact card had
+                    // to go out from the web app or Android.
+                    Button {
+                        fileImporterOpen = true
+                    } label: {
+                        Label("Attach a file", systemImage: "paperclip")
                     }
                     .disabled(state.photos.count >= maxPhotos)
                     Button {
@@ -454,6 +471,26 @@ struct ThreadComposerView: View {
         }
     }
 
+    /// Stage picked documents as outbound media. Same ceiling as photos (3 per
+    /// text) because the server counts them the same way.
+    private func stageMedia(_ result: Result<[URL], Error>) {
+        guard case .success(let urls) = result else { return }
+        var trimmed = false
+        for url in urls {
+            if state.photos.count >= maxPhotos {
+                trimmed = true
+                break
+            }
+            switch stageMmsMedia(pickedURL: url) {
+            case .ready(let media):
+                state.photos.append(media)
+            case .rejected(let reason):
+                onNotice(reason)
+            }
+        }
+        if trimmed { onNotice("You can attach up to 3 files per text.") }
+    }
+
     private func stageFiles(_ result: Result<[URL], Error>) {
         guard case .success(let urls) = result else { return }
         var trimmed = false
@@ -512,7 +549,51 @@ struct ComposerHints: View {
     }
 }
 
-/// Removable photo previews above the pill.
+/// The content types the file picker offers for an outbound text: the UTType
+/// spellings of `mmsOutboundMediaTypes`. Offering `.item` would let someone
+/// pick a .zip only to be turned away afterwards.
+let mmsImporterContentTypes: [UTType] = {
+    var types: [UTType] = [
+        .image, .audio, .movie, .mpeg4Movie, .threeGPP,
+        .pdf, .vCard, .calendarEvent, .plainText,
+    ]
+    // A .ics file does not always resolve to public.calendar-event, and a
+    // calendar invite you cannot pick is the same as one we cannot send.
+    if let ics = UTType(filenameExtension: "ics") { types.append(ics) }
+    return types
+}()
+
+/// A staged item with no thumbnail: its kind icon, its name, and its size.
+struct StagedMediaChip: View {
+    let media: StagedPhoto
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Image(systemName: media.kind.symbolName)
+                .font(.system(size: 17))
+                .foregroundStyle(BrandColor.muted600)
+            Text(media.name ?? attachmentLabel(kind: media.kind, count: 1))
+                .font(.golos(8.5, weight: .semibold))
+                .foregroundStyle(BrandColor.muted600)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Text(stagedSizeLabel(media.sizeBytes))
+                .font(.golos(8))
+                .foregroundStyle(BrandColor.muted300)
+        }
+        .padding(.horizontal, 4)
+        .frame(width: 56, height: 56)
+        .background(BrandColor.inset, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(BrandColor.insetDeep, lineWidth: 0.5)
+        )
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Removable staged previews above the pill: a thumbnail for a photo, a named
+/// chip for everything else a text can carry.
 struct PhotoChipsRow: View {
     let photos: [StagedPhoto]
     let onRemove: @MainActor (String) -> Void
@@ -522,7 +603,7 @@ struct PhotoChipsRow: View {
             HStack(spacing: 8) {
                 ForEach(photos) { photo in
                     ZStack(alignment: .topTrailing) {
-                        if let image = UIImage(data: photo.bytes) {
+                        if photo.kind == .image, let image = UIImage(data: photo.bytes) {
                             Image(uiImage: image)
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
@@ -533,9 +614,9 @@ struct PhotoChipsRow: View {
                                         .strokeBorder(BrandColor.insetDeep, lineWidth: 0.5)
                                 )
                         } else {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(BrandColor.inset)
-                                .frame(width: 56, height: 56)
+                            // No thumbnail to show, so say what it is instead of
+                            // staging an anonymous grey square.
+                            StagedMediaChip(media: photo)
                         }
                         Button {
                             onRemove(photo.id)
@@ -544,7 +625,7 @@ struct PhotoChipsRow: View {
                                 .font(.system(size: 16))
                                 .foregroundStyle(BrandColor.ink, BrandColor.paper)
                         }
-                        .accessibilityLabel("Remove photo")
+                        .accessibilityLabel("Remove attachment")
                         .offset(x: 6, y: -6)
                     }
                 }

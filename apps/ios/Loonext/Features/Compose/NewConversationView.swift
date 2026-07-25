@@ -85,6 +85,7 @@ private struct NewConversationLoaded: View {
     @State private var quietHoursPrompt: ComposeBody?
     @State private var templatePickerOpen = false
     @State private var photosPickerOpen = false
+    @State private var fileImporterOpen = false
     @State private var photoSelection: [PhotosPickerItem] = []
     @State private var lastIntent: (key: ComposeIntentKey, idempotencyKey: String)?
     @State private var noticeText: String?
@@ -163,6 +164,13 @@ private struct NewConversationLoaded: View {
             guard !items.isEmpty else { return }
             photoSelection = []
             ingestPhotos(items)
+        }
+        .fileImporter(
+            isPresented: $fileImporterOpen,
+            allowedContentTypes: mmsImporterContentTypes,
+            allowsMultipleSelection: true
+        ) { result in
+            stageMedia(result)
         }
         .sheet(isPresented: $templatePickerOpen) {
             TemplatePickerSheet(
@@ -289,6 +297,22 @@ private struct NewConversationLoaded: View {
                     .buttonStyle(.plain)
                     .disabled(composer.photos.count >= maxPhotos)
                     .accessibilityLabel("Attach a photo")
+
+                    // A text carries more than photos. This screen could only
+                    // send those, so an audio clip or a PDF meant starting the
+                    // conversation somewhere else.
+                    Button {
+                        fileImporterOpen = true
+                    } label: {
+                        Image(systemName: "paperclip")
+                            .font(.system(size: 15, weight: .regular))
+                            .foregroundStyle(BrandColor.ink)
+                            .frame(width: 44, height: 44)
+                            .background(Circle().fill(BrandColor.paper))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(composer.photos.count >= maxPhotos)
+                    .accessibilityLabel("Attach a file")
 
                     Spacer()
 
@@ -586,6 +610,26 @@ private struct NewConversationLoaded: View {
             )
         }
         dispatch(request, key: key)
+    }
+
+    /// Stage picked documents as outbound media. Same ceiling as photos (3 per
+    /// text) because the server counts them the same way.
+    private func stageMedia(_ result: Result<[URL], Error>) {
+        guard let composer, case .success(let urls) = result else { return }
+        var trimmed = false
+        for url in urls {
+            if composer.photos.count >= maxPhotos {
+                trimmed = true
+                break
+            }
+            switch stageMmsMedia(pickedURL: url) {
+            case .ready(let media):
+                composer.photos.append(media)
+            case .rejected(let reason):
+                notify(reason)
+            }
+        }
+        if trimmed { notify("You can attach up to 3 files per text.") }
     }
 
     private func ingestPhotos(_ items: [PhotosPickerItem]) {

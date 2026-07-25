@@ -7,15 +7,89 @@ let maxPhotos = 3
 let maxPhotoBytes = 1024 * 1024
 let acceptedPhotoTypes: Set<String> = ["image/jpeg", "image/png", "image/gif"]
 
+/// Everything a text can actually carry outbound (#189). Photos are only the
+/// most common case; the phone apps and the web composer admit the same set,
+/// and the API re-checks it. Mirrors MMS_OUTBOUND_MEDIA_TYPES on Android.
+let mmsOutboundMediaTypes: Set<String> = [
+    "image/jpeg", "image/png", "image/gif", "image/webp",
+    "audio/mpeg", "audio/mp4", "audio/amr", "audio/wav", "audio/ogg", "audio/3gpp",
+    "video/mp4", "video/3gpp", "video/quicktime",
+    "application/pdf", "text/vcard", "text/x-vcard", "text/calendar", "text/plain",
+]
+
+/// Spellings that mean a type we already admit. Pickers and file systems
+/// disagree about these, and rejecting "audio/x-m4a" for not being
+/// "audio/mp4" would be a lie about what we can send.
+private let mmsTypeAliases: [String: String] = [
+    "audio/x-m4a": "audio/mp4",
+    "audio/m4a": "audio/mp4",
+    "audio/x-wav": "audio/wav",
+    "audio/wave": "audio/wav",
+    "audio/vnd.wave": "audio/wav",
+    "audio/amr-nb": "audio/amr",
+    "audio/mp3": "audio/mpeg",
+    "video/3gp": "video/3gpp",
+    "text/directory": "text/vcard",
+]
+
+/// Fallback when a picker declares nothing useful (or "public.data").
+private let mmsExtensionTypes: [String: String] = [
+    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+    "gif": "image/gif", "webp": "image/webp",
+    "mp3": "audio/mpeg", "m4a": "audio/mp4", "amr": "audio/amr",
+    "wav": "audio/wav", "ogg": "audio/ogg", "oga": "audio/ogg",
+    "mp4": "video/mp4", "3gp": "video/3gpp", "mov": "video/quicktime",
+    "pdf": "application/pdf", "vcf": "text/vcard", "ics": "text/calendar",
+    "txt": "text/plain",
+]
+
+/// Lowercase, parameters stripped, aliases mapped.
+nonisolated func canonicalMmsType(_ raw: String) -> String {
+    let cleaned = raw
+        .split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)
+        .first
+        .map(String.init)?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased() ?? ""
+    return mmsTypeAliases[cleaned] ?? cleaned
+}
+
+/// The content type a picked file would be SENT as; nil = not deliverable.
+nonisolated func mmsTypeForFile(declaredType: String?, name: String?) -> String? {
+    let declared = canonicalMmsType(declaredType ?? "")
+    if mmsOutboundMediaTypes.contains(declared) { return declared }
+    let ext = (name ?? "")
+        .split(separator: ".").last
+        .map { $0.lowercased() } ?? ""
+    return mmsExtensionTypes[ext]
+}
+
+/// "312 B" / "48 KB" / "0.9 MB" for staged chips.
+nonisolated func stagedSizeLabel(_ sizeBytes: Int) -> String {
+    if sizeBytes < 1024 { return "\(sizeBytes) B" }
+    if sizeBytes < 1024 * 1024 { return "\((sizeBytes + 512) / 1024) KB" }
+    return String(format: "%.1f MB", Double(sizeBytes) / (1024.0 * 1024.0))
+}
+
 /// D19 note-file limits (server: 10 files per owner, 25 MB each).
 let maxNoteFiles = 10
 let maxNoteFileBytes: Int64 = 25 * 1024 * 1024
 
-/// A photo staged on the composer: bytes ready for base64 inline send.
+/// One item staged on the composer for an outbound text: bytes ready for
+/// base64 inline send. Not only photos — a text can carry audio, video, a
+/// contact card, a calendar invite, a PDF or a plain-text file — so `name`
+/// and `sizeBytes` ride along for the chips that cannot show a thumbnail.
 struct StagedPhoto: Identifiable, Equatable, Sendable {
     let id: String
     let contentType: String
     let bytes: Data
+    /// The picked file's display name, when it came from the file picker.
+    var name: String?
+
+    var sizeBytes: Int { bytes.count }
+
+    /// The coarse kind a chip labels and icons itself by.
+    var kind: MediaKind { MediaKind.of(contentType) }
 
     func toOutboundMedia() -> OutboundMedia {
         OutboundMedia(content_type: contentType, base64: bytes.base64EncodedString())
@@ -71,6 +145,67 @@ nonisolated func preparePhoto(data: Data) -> PhotoPrepResult {
         return .rejected("That image can't be sent. Try a different photo.")
     }
     return .ready(StagedPhoto(id: UUID().uuidString, contentType: "image/jpeg", bytes: jpeg))
+}
+
+/// Stage one picked document as outbound MMS media (#189): resolve the name and
+/// type, route images through the existing transcode pipeline (an oversized
+/// photo still becomes deliverable), and hold everything else to the 1 MB
+/// decoded ceiling. Rejection copy matches the web and Android composers word
+/// for word.
+nonisolated func stageMmsMedia(pickedURL: URL) -> PhotoPrepResult {
+    let accessing = pickedURL.startAccessingSecurityScopedResource()
+    defer {
+        if accessing { pickedURL.stopAccessingSecurityScopedResource() }
+    }
+
+    let name = pickedURL.lastPathComponent
+    let display = name.isEmpty ? "That file" : "\"\(name)\""
+    let declared = try? pickedURL.resourceValues(forKeys: [.contentTypeKey])
+        .contentType?.preferredMIMEType
+
+    guard let contentType = mmsTypeForFile(declaredType: declared ?? nil, name: name) else {
+        return .rejected(
+            "\(display) isn't something a text can carry. "
+                + "Try a photo, video, audio clip, contact card, or PDF."
+        )
+    }
+
+    guard let bytes = try? Data(contentsOf: pickedURL, options: .mappedIfSafe) else {
+        return .rejected("Couldn't read that file. Try picking it again.")
+    }
+    if bytes.isEmpty { return .rejected("\(display) is empty.") }
+
+    // Images go through the transcoder: an oversized or HEIC photo becomes
+    // deliverable rather than being turned away.
+    if contentType.hasPrefix("image/") {
+        switch preparePhoto(data: bytes) {
+        case .ready(let photo):
+            return .ready(
+                StagedPhoto(
+                    id: photo.id,
+                    contentType: photo.contentType,
+                    bytes: photo.bytes,
+                    name: name.isEmpty ? nil : name
+                )
+            )
+        case .rejected(let reason):
+            return .rejected(reason)
+        }
+    }
+
+    if bytes.count > maxPhotoBytes {
+        return .rejected("\(display) is over 1 MB, the most a text can carry.")
+    }
+    return .ready(
+        StagedPhoto(
+            id: UUID().uuidString,
+            contentType: contentType,
+            // A memory-mapped Data would be read lazily long after the
+            // security scope closes; copy the bytes we are going to send.
+            bytes: Data(bytes),
+            name: name.isEmpty ? nil : name
+        )
+    )
 }
 
 /// Decode, downscale to a sane texting size, and JPEG-compress under the 1 MB
