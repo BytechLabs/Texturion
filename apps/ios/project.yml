@@ -63,6 +63,8 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "Loonext uses the microphone for phone calls."
+        # Only asked for when the task map's My location button is tapped.
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Loonext shows where you are on the job map so you can see which jobs are nearby."
         INFOPLIST_KEY_UIBackgroundModes: "audio voip remote-notification"
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"

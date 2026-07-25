@@ -273,6 +273,13 @@ private struct TaskMapContent: View {
                 }
             }
             .mapStyle(.standard)
+            // Where you are, against where the jobs are. The permission is
+            // asked for on the tap, not on arrival, which is how web and
+            // Android do it too: a map that demands your location before
+            // showing you anything is a map you close.
+            .mapControls {
+                MapUserLocationButton()
+            }
 
             if model.groups.isEmpty {
                 emptyOverlay
