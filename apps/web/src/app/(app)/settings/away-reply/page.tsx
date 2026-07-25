@@ -8,6 +8,10 @@ import {
   SettingsCard,
   SettingsPage,
 } from "@/components/settings/section";
+import {
+  usSendApproved,
+  usTextingOff,
+} from "@/components/thread/composer-banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -238,6 +242,18 @@ function AwayMessageCard({
             onCheckedChange={setEnabled}
           />
         </div>
+
+        {/* The send gates refuse a US destination until the campaign is
+            approved, and the away reply is best-effort: it is skipped without
+            a trace. Turning the switch on and hearing nothing more is the
+            first week of every US workspace, so say it at the switch. */}
+        {!usSendApproved(company) && enabled ? (
+          <p className="rounded-md bg-warning/10 px-3 py-2 text-sm">
+            {usTextingOff(company)
+              ? "Customers with US numbers won't get this reply: US texting isn't on for this workspace. Canadian numbers get it now."
+              : "Customers with US numbers won't get this reply until your registration is approved. Canadian numbers get it now."}
+          </p>
+        ) : null}
 
         <div className="space-y-2">
           <Label htmlFor="away-message" className="text-sm font-medium">

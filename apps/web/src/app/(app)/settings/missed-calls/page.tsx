@@ -23,6 +23,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import {
+  usSendApproved,
+  usTextingOff,
+} from "@/components/thread/composer-banner";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
@@ -188,6 +192,18 @@ function TextBackCard({
             onCheckedChange={toggle}
           />
         </div>
+
+        {/* The send gates refuse a US destination until the campaign is
+            approved, and the text-back is skipped without a trace when they
+            do. A caller who is never texted back is the whole point of the
+            feature, so say it at the switch rather than let it look on. */}
+        {enabled && !usSendApproved(company) ? (
+          <p className="rounded-md bg-warning/10 px-3 py-2 text-sm">
+            {usTextingOff(company)
+              ? "Callers with US numbers won't get this text: US texting isn't on for this workspace. Canadian callers get it now."
+              : "Callers with US numbers won't get this text until your registration is approved. Canadian callers get it now."}
+          </p>
+        ) : null}
 
         {enabled && (
           <>

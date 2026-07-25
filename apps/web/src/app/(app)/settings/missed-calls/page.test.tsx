@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CompanyView, Usage } from "@/lib/api/types";
 
@@ -25,7 +25,31 @@ const company = {
   cnam_submitted_at: null,
   numbers: [],
   enabled_modules: [],
+  // A live US workspace: the text-back reaches everyone, so the reach note
+  // stays out of the way of every test that is not about it.
+  country: "US",
+  us_texting_enabled: true,
+  registration: {
+    brand: null,
+    campaign: { status: "approved", deactivated_at: null },
+  },
 } as unknown as CompanyView;
+
+/** The workspace's reach: which destinations its texts can arrive at. */
+function setReach(
+  country: "US" | "CA",
+  usTextingEnabled: boolean,
+  campaignApproved: boolean,
+) {
+  company.country = country;
+  company.us_texting_enabled = usTextingEnabled;
+  company.registration = {
+    brand: null,
+    campaign: campaignApproved
+      ? { status: "approved", deactivated_at: null }
+      : null,
+  } as unknown as CompanyView["registration"];
+}
 
 function setTextBack(enabled: boolean, message: string | null) {
   company.mctb_enabled = enabled;
@@ -195,6 +219,44 @@ describe("/settings/missed-calls — #192 text-back settings contract", () => {
  * Change action (no always-editable field), and a fresh submission surfaces
  * the honest carrier-propagation note.
  */
+describe("/settings/missed-calls — the text-back's reach", () => {
+  afterEach(() => setReach("US", true, true));
+
+  it("says US callers get nothing while registration is pending", () => {
+    // The send gates refuse a US destination until the campaign is approved,
+    // and the text-back is skipped without a trace when they do. A switch that
+    // reads ON while nobody is texted back is the first week of every US
+    // workspace.
+    setTextBack(true, null);
+    setReach("US", true, false);
+
+    expect(render()).toContain(
+      "get this text until your registration is approved",
+    );
+  });
+
+  it("says nothing once the campaign is approved", () => {
+    setTextBack(true, null);
+    setReach("US", true, true);
+
+    expect(render()).not.toContain("get this text until");
+  });
+
+  it("names the add-on for a workspace that never turned US texting on", () => {
+    setTextBack(true, null);
+    setReach("CA", false, false);
+
+    expect(render()).toContain("on for this workspace");
+  });
+
+  it("stays quiet while the text-back itself is off", () => {
+    setTextBack(false, null);
+    setReach("US", true, false);
+
+    expect(render()).not.toContain("get this text until");
+  });
+});
+
 describe("/settings/missed-calls — #193 caller ID default + change flow", () => {
   it("unset: shows the effective name with the company-name attribution and a Change action", () => {
     setCallerId(null);
