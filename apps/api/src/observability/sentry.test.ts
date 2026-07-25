@@ -107,6 +107,40 @@ describe("scrubEvent (SPEC §10: no bodies, names, or phone numbers reach Sentry
     expect(scrubbed.exception?.values?.[0]?.type).toBe("Error");
   });
 
+  it("never ships the caller's credentials with a crash report", () => {
+    // The token is live for up to an hour: anyone who could read the Sentry
+    // project could replay it and act as that user.
+    const event = syntheticEvent();
+    event.request = {
+      ...event.request,
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer eyJhbGciOiJIUzI1NiJ9.super-secret.signature",
+        cookie: "sb-ref-auth-token.0=base64-abc",
+        "x-api-key": "sk_live_do_not_leak",
+        "cf-ray": "a208ca93afb050df-YVR",
+      },
+    };
+    const headers = scrubEvent(event).request?.headers as Record<string, string>;
+    expect(headers.authorization).toBe("[redacted]");
+    expect(headers.cookie).toBe("[redacted]");
+    expect(headers["x-api-key"]).toBe("[redacted]");
+    // Still says WHICH headers were present, and keeps the ones that help.
+    expect(Object.keys(headers)).toContain("authorization");
+    expect(headers["cf-ray"]).toBe("a208ca93afb050df-YVR");
+  });
+
+  it("redacts an unknown header by default rather than on a list", () => {
+    // A denylist leaks every new credential header until someone remembers it.
+    const event = syntheticEvent();
+    event.request = {
+      ...event.request,
+      headers: { "x-some-future-token": "secret-value" },
+    };
+    const headers = scrubEvent(event).request?.headers as Record<string, string>;
+    expect(headers["x-some-future-token"]).toBe("[redacted]");
+  });
+
   it("drops a user with no id entirely", () => {
     const event = syntheticEvent();
     event.user = { email: "jane@example.com" };

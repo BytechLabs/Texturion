@@ -26,6 +26,52 @@ function isNameKey(key: string): boolean {
   return /(?:^|[_-])name$|[a-z0-9]Name$/.test(key);
 }
 
+/**
+ * The only request headers worth keeping on a crash report.
+ *
+ * An ALLOWLIST, deliberately, because the alternative failed: the scrubber
+ * redacted phone numbers and names but passed every other header through, so
+ * `authorization` — the caller's live Supabase access token, good for up to an
+ * hour — was written in plaintext into the Sentry issue for every 500 on an
+ * authenticated route. Anyone who could read that project could replay it and
+ * act as that user.
+ *
+ * With a denylist, the next credential header someone adds leaks until a human
+ * remembers to add it. With this, it is redacted until a human decides it is
+ * safe.
+ */
+const SAFE_REQUEST_HEADERS = new Set([
+  "accept",
+  "accept-encoding",
+  "accept-language",
+  "content-length",
+  "content-type",
+  "user-agent",
+  // Cloudflare request identity: the whole point of a crash report is being
+  // able to find the request again in the edge logs.
+  "cf-ray",
+  "cf-ipcountry",
+  "x-request-id",
+]);
+
+const HEADER_REDACTED = "[redacted]";
+
+/**
+ * Keep the handful of headers that help debugging; redact the rest by name so
+ * the issue still shows WHICH headers were present without their values.
+ */
+export function scrubHeaders(
+  headers: Record<string, string>,
+): Record<string, string> {
+  const scrubbed: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    scrubbed[key] = SAFE_REQUEST_HEADERS.has(key.toLowerCase())
+      ? redactPhones(value)
+      : HEADER_REDACTED;
+  }
+  return scrubbed;
+}
+
 /** Deep-scrub arbitrary JSON-ish data: redact phones, strip name-keyed values. */
 function scrubUnknown(value: unknown): unknown {
   if (typeof value === "string") return redactPhones(value);
@@ -90,8 +136,8 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
       event.request.url = redactPhones(cut === -1 ? url : url.slice(0, cut));
     }
     if (event.request.headers) {
-      event.request.headers = scrubUnknown(
-        event.request.headers,
+      event.request.headers = scrubHeaders(
+        event.request.headers as Record<string, string>,
       ) as typeof event.request.headers;
     }
   }
