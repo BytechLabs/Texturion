@@ -139,8 +139,6 @@ describe("GET /v1/usage", () => {
         // #121 one-release shim: storage is free — the budgets no longer
         // exist, and the fields are pinned to 0 so pre-#121 web bundles hide
         // their meters (nearLimit(x, 0) is false) instead of crashing.
-        attachment_budget_bytes: 0,
-        mms_budget_bytes: 0,
       },
       // D36: voice mirrors the segment shape — allowance, spending cap
       // (2,500 × 3.00 = 7,500 min), and overage-so-far at 1¢/min.
@@ -323,8 +321,6 @@ describe("GET /v1/usage", () => {
         voicemail_bytes: 0,
         other_bytes: 0,
         total_bytes: 0,
-        attachment_budget_bytes: 0,
-        mms_budget_bytes: 0,
       },
       voice: {
         used_minutes: 0,

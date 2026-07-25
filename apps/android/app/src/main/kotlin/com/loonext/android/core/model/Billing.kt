@@ -23,8 +23,6 @@ data class UsageStorage(
     val other_bytes: Long = 0,
     /** Every byte this workspace holds, measured from the buckets themselves. */
     val total_bytes: Long = 0,
-    val attachment_budget_bytes: Long = 0,
-    val mms_budget_bytes: Long = 0,
 ) {
     /**
      * What is really stored. The old line added two figures together and so

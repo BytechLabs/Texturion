@@ -31,16 +31,24 @@ struct UsageStorage: Codable, Sendable {
         total_bytes > 0 ? total_bytes : attachments_bytes + mms_bytes
     }
 
+    // The storage budgets went away with #121 (storage is free and capless), so
+    // the fields went with them rather than lingering as zeros nothing reads.
     init(
         attachments_bytes: Int = 0,
         mms_bytes: Int = 0,
-        attachment_budget_bytes: Int = 0,
-        mms_budget_bytes: Int = 0
+        received_media_bytes: Int = 0,
+        sent_media_bytes: Int = 0,
+        voicemail_bytes: Int = 0,
+        other_bytes: Int = 0,
+        total_bytes: Int = 0
     ) {
         self.attachments_bytes = attachments_bytes
         self.mms_bytes = mms_bytes
-        self.attachment_budget_bytes = attachment_budget_bytes
-        self.mms_budget_bytes = mms_budget_bytes
+        self.received_media_bytes = received_media_bytes
+        self.sent_media_bytes = sent_media_bytes
+        self.voicemail_bytes = voicemail_bytes
+        self.other_bytes = other_bytes
+        self.total_bytes = total_bytes
     }
 }
 

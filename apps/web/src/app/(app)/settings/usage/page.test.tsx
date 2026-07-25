@@ -53,8 +53,6 @@ function baseUsage(overrides: Partial<Usage> = {}): Usage {
       total_bytes: 0,
       attachments_bytes: 0,
       mms_bytes: 0,
-      attachment_budget_bytes: 0,
-      mms_budget_bytes: 0,
     },
     voice: {
       used_minutes: 0,
@@ -342,8 +340,6 @@ describe("/settings/usage details content", () => {
           voicemail_bytes: 512 * 1024,
           other_bytes: 0,
           total_bytes: 6.5 * 1024 * 1024,
-          attachment_budget_bytes: 0,
-          mms_budget_bytes: 0,
         },
       }),
     );
@@ -371,8 +367,6 @@ describe("/settings/usage details content", () => {
           voicemail_bytes: 0,
           other_bytes: 0,
           total_bytes: 1024,
-          attachment_budget_bytes: 0,
-          mms_budget_bytes: 0,
         },
       }),
     );

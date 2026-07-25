@@ -109,8 +109,6 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
         voicemail_bytes: 0,
         other_bytes: 0,
         total_bytes: 0,
-        attachment_budget_bytes: 0,
-        mms_budget_bytes: 0,
       },
       voice: {
         used_minutes: 0,
@@ -265,12 +263,6 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
         storage.total_bytes ??
           Number(storage.attachments_bytes) + Number(storage.mms_bytes),
       ),
-      // #121 one-release shim: storage is free (no budgets exist). Pre-#121
-      // web bundles still loaded in a tab read the *_budget_bytes fields —
-      // zeros hide their meters (nearLimit(x, 0) is false) without crashing.
-      // Remove once those bundles have aged out.
-      attachment_budget_bytes: 0,
-      mms_budget_bytes: 0,
     },
     voice: {
       used_minutes: voiceUsedMinutes,

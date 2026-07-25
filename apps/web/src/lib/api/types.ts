@@ -816,10 +816,6 @@ export interface UsageStorage {
   other_bytes: number;
   /** Every byte this workspace holds, measured from the buckets themselves. */
   total_bytes: number;
-  /** Effective attachment budget (plan + extra_storage add-on). */
-  attachment_budget_bytes: number;
-  /** Effective MMS-media budget (plan + extra_storage add-on). */
-  mms_budget_bytes: number;
 }
 
 /** #12/D36 calling minutes embedded in GET /v1/usage (both directions, D38). */
