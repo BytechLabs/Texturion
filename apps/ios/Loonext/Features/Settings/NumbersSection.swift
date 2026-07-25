@@ -239,7 +239,7 @@ private struct NumberCard: View {
             .font(.footnote)
             .foregroundStyle(.secondary)
         } else if number.status == NumberStatus.provisioning {
-            Text("We're setting up your number. This usually takes under a minute.")
+            Text(provisioningWaitCopy(number.created_at))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } else if number.status == NumberStatus.provisionFailed {

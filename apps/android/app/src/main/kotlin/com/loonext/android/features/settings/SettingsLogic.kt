@@ -313,6 +313,31 @@ fun needsNumberChoice(number: PhoneNumberSummary): Boolean =
     number.status == NumberStatus.PROVISION_FAILED &&
         (number.failure_reason == "no_inventory" || (number.provision_attempts ?: 0) >= 5)
 
+/**
+ * What to say while a number is still being set up, tiered on how long it has
+ * actually been. The flat "usually under a minute" line was true for the first
+ * minute and a lie for every one after it, and a number that stalls is exactly
+ * when a stale promise reads worst. The web twin is provisioningWaitCopy in
+ * apps/web/src/components/registration/copy.ts.
+ */
+fun provisioningWaitCopy(createdAtIso: String?, nowMillis: Long): String {
+    val created = createdAtIso?.let {
+        runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
+    }
+    val elapsed = created?.let { nowMillis - it } ?: 0L
+    return when {
+        elapsed >= 4 * 60_000L ->
+            "Your number is taking a little longer than usual. We're still on it, " +
+                "you don't have to wait here."
+
+        elapsed >= 90_000L ->
+            "Still setting up your number, this is taking a little longer than " +
+                "usual. Hang tight."
+
+        else -> "We're setting up your number. This usually takes under a minute."
+    }
+}
+
 /** Honest, reason-driven copy for a provision_failed number. */
 fun failedNumberCopy(number: PhoneNumberSummary): String = when {
     !needsNumberChoice(number) ->

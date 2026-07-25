@@ -408,6 +408,25 @@ func planIncludedSegments(_ plan: String?) -> Int {
     }
 }
 
+/// What to say while a number is still being set up, tiered on how long it has
+/// actually been. The flat "usually under a minute" line was true for the first
+/// minute and a lie for every one after it, and a number that stalls is exactly
+/// when a stale promise reads worst. The web twin is provisioningWaitCopy in
+/// apps/web/src/components/registration/copy.ts.
+func provisioningWaitCopy(_ createdAtIso: String?, now: Date = Date()) -> String {
+    let elapsed = parseWireTimestamp(createdAtIso)
+        .map { now.timeIntervalSince($0) } ?? 0
+    if elapsed >= 240 {
+        return "Your number is taking a little longer than usual. We're still on "
+            + "it, you don't have to wait here."
+    }
+    if elapsed >= 90 {
+        return "Still setting up your number, this is taking a little longer "
+            + "than usual. Hang tight."
+    }
+    return "We're setting up your number. This usually takes under a minute."
+}
+
 /// "(416) 555-0182" → "+14165550182"; nil when it isn't a NANP number.
 func normalizeNanpInput(_ input: String) -> String? {
     let digits = input.filter(\.isNumber)

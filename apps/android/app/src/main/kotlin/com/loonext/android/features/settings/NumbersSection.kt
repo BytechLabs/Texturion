@@ -239,7 +239,7 @@ private fun NumberCard(
             )
 
             number.status == NumberStatus.PROVISIONING -> Text(
-                "We're setting up your number. This usually takes under a minute.",
+                provisioningWaitCopy(number.created_at, System.currentTimeMillis()),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
