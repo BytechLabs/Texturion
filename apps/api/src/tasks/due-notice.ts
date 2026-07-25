@@ -89,6 +89,24 @@ interface PrefsRow {
   push_enabled: boolean;
 }
 
+/**
+ * Where the alert lands: the JOB, not just the thread it came from.
+ *
+ * The task drawer is mounted in the app shell and driven by `?task=`, so a
+ * conversation carrying that param gives both at once, the address and due
+ * time and checklist over the customer they belong to. A task with no
+ * conversation behind it opens its own page, which renders the same panel from
+ * cold, which is the state a notification tap arrives in.
+ */
+export function dueNoticeLink(
+  origin: string,
+  task: { id: string; conversation_id: string | null },
+): string {
+  return task.conversation_id
+    ? `${origin}/inbox/${task.conversation_id}?task=${task.id}`
+    : `${origin}/tasks/${task.id}`;
+}
+
 export async function notifyDueTasksJob(
   env: Env,
   now: Date = new Date(),
@@ -154,11 +172,7 @@ export async function notifyDueTasksJob(
     if (prefs[0]?.push_enabled === false) continue;
 
     const title = (task.title ?? "").trim().slice(0, TITLE_LENGTH) || "A task";
-    // Task notifications open the conversation the work is about, matching the
-    // bell feed. A task with no conversation opens the task list instead.
-    const link = task.conversation_id
-      ? `${env.APP_ORIGIN}/inbox/${task.conversation_id}`
-      : `${env.APP_ORIGIN}/tasks`;
+    const link = dueNoticeLink(env.APP_ORIGIN, task);
     const alert = {
       title,
       body: dueNoticeBody(new Date(task.due_at), now),

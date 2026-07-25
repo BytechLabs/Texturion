@@ -9,6 +9,7 @@ import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
 import {
   dueNoticeBody,
+  dueNoticeLink,
   notifyDueTasksJob,
   TASK_DUE_BATCH,
   TASK_DUE_LEAD_MINUTES,
@@ -76,6 +77,32 @@ describe("dueNoticeBody", () => {
     expect(dueNoticeBody(at(-90), NOW)).toBe("2 hours overdue");
     expect(dueNoticeBody(at(-60), NOW)).toBe("1 hour overdue");
     expect(dueNoticeBody(at(-60 * 24 * 3), NOW)).toBe("3 days overdue");
+  });
+});
+
+describe("dueNoticeLink", () => {
+  it("opens the job over the customer it belongs to", () => {
+    // The drawer is shell-mounted and `?task=` drives it, so one link carries
+    // the address and checklist AND the thread they are about.
+    expect(
+      dueNoticeLink("https://app.example.com", {
+        id: TASK_ID,
+        conversation_id: CONVERSATION_ID,
+      }),
+    ).toBe(
+      `https://app.example.com/inbox/${CONVERSATION_ID}?task=${TASK_ID}`,
+    );
+  });
+
+  it("opens the task's own page when no conversation is behind it", () => {
+    // That route renders the same panel from cold, which is the state a tap on
+    // a notification arrives in.
+    expect(
+      dueNoticeLink("https://app.example.com", {
+        id: TASK_ID,
+        conversation_id: null,
+      }),
+    ).toBe(`https://app.example.com/tasks/${TASK_ID}`);
   });
 });
 
