@@ -106,9 +106,24 @@ func bannerCopy(_ banner: ComposerBanner) -> (title: String, body: String) {
     }
 }
 
+/// Whether this banner should offer the call as a way forward.
+///
+/// Carrier registration gates TEXTING only, so a call to the same customer
+/// connects today, on every plan. An opted-out contact is deliberately
+/// excluded: a STOP revokes consent for the business to reach out, not only to
+/// text, so the phone must never be offered as a way around it.
+func offersCallInstead(_ banner: ComposerBanner) -> Bool {
+    switch banner {
+    case .registrationPending, .usTextingOff: return true
+    case .optedOut, .subscription, .usageCap: return false
+    }
+}
+
 /// The card that stands in for the text composer (notes remain below it).
 struct ComposerBannerCard: View {
     let banner: ComposerBanner
+    /// Place a call to this customer. Nil withholds the offer entirely.
+    var onCallInstead: (@MainActor () -> Void)?
 
     var body: some View {
         let copy = bannerCopy(banner)
@@ -119,6 +134,13 @@ struct ComposerBannerCard: View {
             Text(copy.body)
                 .font(.golos(11.5))
                 .foregroundStyle(BrandColor.muted600)
+            if let onCallInstead, offersCallInstead(banner) {
+                Button("Call them instead", action: onCallInstead)
+                    .font(.golos(12, weight: .semibold))
+                    .foregroundStyle(BrandColor.olive)
+                    .buttonStyle(.plain)
+                    .padding(.top, 6)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)

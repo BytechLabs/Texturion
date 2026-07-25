@@ -89,6 +89,10 @@ struct ThreadComposerView: View {
     let onNotice: @MainActor (String) -> Void
     /// Ask for AI-drafted replies. Nil hides the affordance entirely.
     var suggestReplies: (@MainActor (String) async -> ReplySuggestions)?
+    /// Place a call to this customer, offered by a banner that blocks texting
+    /// but not calling. Nil withholds it (a member without text level on the
+    /// number would be refused by the API).
+    var onCallInstead: (@MainActor () -> Void)?
     /// Identifies this thread AT ITS CURRENT POINT, so drafts already paid for
     /// are reused until a message in either direction retires them. Nil skips
     /// the cache entirely (a compose screen with no thread behind it yet).
@@ -120,7 +124,7 @@ struct ThreadComposerView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let banner {
-                ComposerBannerCard(banner: banner)
+                ComposerBannerCard(banner: banner, onCallInstead: onCallInstead)
             }
 
             if !textBlocked {

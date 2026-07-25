@@ -50,6 +50,18 @@ final class MessagingComposerBannerTests: XCTestCase {
         )
     }
 
+    func testOnlyATextingGateOffersTheCall() {
+        // Carrier registration gates texting alone, so the call connects today.
+        // A STOP revokes consent for the business to reach out at all, so the
+        // phone must never be offered as a way around it.
+        XCTAssertTrue(offersCallInstead(.registrationPending))
+        XCTAssertTrue(offersCallInstead(.usTextingOff))
+        XCTAssertFalse(offersCallInstead(.optedOut(carrierBlocked: true)))
+        XCTAssertFalse(offersCallInstead(.optedOut(carrierBlocked: false)))
+        XCTAssertFalse(offersCallInstead(.usageCap))
+        XCTAssertFalse(offersCallInstead(.subscription("past_due")))
+    }
+
     func testNoGatesMeansNoBanner() {
         XCTAssertNil(
             selectComposerBanner(

@@ -605,6 +605,17 @@ private struct ThreadBody: View {
                     draft: draft
                 )
             },
+            // #106: calling is outreach like texting, so a notes-only member
+            // gets no control the API would refuse.
+            onCallInstead: detail.viewer_level == "text"
+                ? {
+                    startCall(
+                        detail: detail,
+                        contactName: detail.contact.name
+                            ?? formatPhone(detail.contact.phone_e164)
+                    )
+                }
+                : nil,
             // Reuse drafts already paid for until a message moves the thread.
             draftCacheKey: DraftSuggestionsCache.key(
                 conversationId: detail.id,
