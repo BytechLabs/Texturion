@@ -582,16 +582,19 @@ private struct ThreadBody: View {
         )
         // #106: calling is outreach like texting, so a notes-only member gets
         // no control the API would refuse.
-        let onCallInstead: (@MainActor () -> Void)? =
-            detail.viewer_level == "text"
-                ? {
-                    startCall(
-                        detail: detail,
-                        contactName: detail.contact.name
-                            ?? formatPhone(detail.contact.phone_e164)
-                    )
-                }
-                : nil
+        //
+        // Assigned through an `if` rather than a ternary. A @MainActor function
+        // type is implicitly @Sendable, and a ternary does not carry that
+        // contextual type into the closure literal: the literal is inferred as
+        // a plain `() -> ()` and then will not convert.
+        var onCallInstead: (@MainActor () -> Void)?
+        if detail.viewer_level == "text" {
+            let callContactName = detail.contact.name
+                ?? formatPhone(detail.contact.phone_e164)
+            onCallInstead = {
+                startCall(detail: detail, contactName: callContactName)
+            }
+        }
         return ThreadComposerView(
             state: composer,
             noteOnly: detail.viewer_level == "note",
