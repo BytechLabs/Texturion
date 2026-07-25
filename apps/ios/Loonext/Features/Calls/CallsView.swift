@@ -37,6 +37,11 @@ struct CallsView: View {
     @State private var nextCursor: String?
     @State private var loadingMore = false
     @State private var refreshKey = 0
+    /// #210: the rows the Ongoing card pins, and the roster that names who is
+    /// holding each line. Both are derived reads — the log below stays the
+    /// single source of the call history.
+    @State private var ongoing: [Call] = []
+    @State private var members: [Member] = []
     /// The dialer and its "Add contact" create sheet share ONE presentation
     /// (#186 item 5): the dialer swaps to `.addContact` IN PLACE, so the two
     /// never toggle in the same runloop (dismiss-then-present on the same
@@ -62,6 +67,20 @@ struct CallsView: View {
         VStack(spacing: 0) {
             header
 
+            // #210: who is holding which line RIGHT NOW — pinned above the
+            // filter rail whenever the company has in-flight rows, absent
+            // entirely when it has none (it never takes space at rest).
+            if !ongoing.isEmpty {
+                OngoingCallsCard(
+                    calls: ongoing,
+                    members: members,
+                    numbers: me.company?.numbers ?? [],
+                    openConversation: openConversation
+                )
+                .padding(.horizontal, 18)
+                .padding(.top, 12)
+            }
+
             filterPills
                 .padding(.horizontal, 18)
                 .padding(.vertical, 10)
@@ -86,6 +105,14 @@ struct CallsView: View {
             for await _ in await graph.realtime.reconnected() {
                 refreshKey += 1
             }
+        }
+        // #210: the roster only matters once a live call needs a name on it,
+        // so the transfer picker's GET /v1/members read fires on the first
+        // ongoing row (and again per company) — never on the quiet path.
+        .task(id: "\(companyId)|\(ongoing.isEmpty)") {
+            guard !ongoing.isEmpty else { return }
+            guard let page = try? await service.members(companyId: companyId) else { return }
+            members = page.data
         }
         // #215 Part A: a call.updated missed while backgrounded self-heals on
         // foreground — the same first-page refetch the re-JOIN runs.
@@ -218,7 +245,18 @@ struct CallsView: View {
         case .failed(let message):
             CenteredError(message: message) { refreshKey += 1 }
         case .ready(let calls):
-            if calls.isEmpty {
+            // #210: in-flight rows live in the pinned card above, not the log;
+            // each drops back in here the moment its outcome is stamped.
+            callLog(resolvedCalls(calls))
+        }
+    }
+
+    /// The resolved log itself, split out so the `content` switch stays one
+    /// expression per case (this file has already lost the type checker once).
+    @ViewBuilder
+    private func callLog(_ calls: [Call]) -> some View {
+        if calls.isEmpty {
+            if ongoing.isEmpty {
                 Text(emptyCopy)
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted500)
@@ -226,39 +264,43 @@ struct CallsView: View {
                     .padding(.horizontal, 32)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView {
-                    VStack(spacing: 14) {
-                        PaperCard {
-                            ForEach(calls, id: \.id) { call in
-                                CallRow(
-                                    call: call,
-                                    service: service,
-                                    companyId: companyId,
-                                    onOpen: openAction(for: call)
-                                )
-                                if call.id != calls.last?.id {
-                                    RowDivider().padding(.leading, 64)
-                                }
+                // With a live call pinned above, "No calls yet" would
+                // contradict the screen — stay quiet and let the card talk.
+                Spacer()
+            }
+        } else {
+            ScrollView {
+                VStack(spacing: 14) {
+                    PaperCard {
+                        ForEach(calls, id: \.id) { call in
+                            CallRow(
+                                call: call,
+                                service: service,
+                                companyId: companyId,
+                                onOpen: openAction(for: call)
+                            )
+                            if call.id != calls.last?.id {
+                                RowDivider().padding(.leading, 64)
                             }
-                        }
-                        if nextCursor != nil {
-                            HStack {
-                                Spacer()
-                                if loadingMore {
-                                    ProgressView()
-                                } else {
-                                    Button("Load more") { loadMore() }
-                                        .font(.golos(12, weight: .semibold))
-                                        .foregroundStyle(BrandColor.olive)
-                                }
-                                Spacer()
-                            }
-                            .padding(.vertical, 4)
                         }
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.bottom, 24)
+                    if nextCursor != nil {
+                        HStack {
+                            Spacer()
+                            if loadingMore {
+                                ProgressView()
+                            } else {
+                                Button("Load more") { loadMore() }
+                                    .font(.golos(12, weight: .semibold))
+                                    .foregroundStyle(BrandColor.olive)
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 4)
+                    }
                 }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 24)
             }
         }
     }
@@ -276,12 +318,23 @@ struct CallsView: View {
             let page = try await service.calls(companyId: companyId, outcome: filter.outcome)
             nextCursor = page.next_cursor
             state = .ready(page.data)
+            // On the default pill the page just fetched IS the ongoing source,
+            // so the pinned card costs no second request.
+            if filter == .all { ongoing = ongoingCalls(page.data) }
         } catch {
             if case .ready = state {
                 // Keep the stale list on a quiet refetch failure.
             } else {
                 state = .failed(error.userMessage)
             }
+        }
+        // #210: an `outcome=` page can never carry an in-flight row (those have
+        // no outcome yet), so a narrow pill reads the unfiltered log as well —
+        // otherwise the live call would vanish the moment Missed is tapped. A
+        // failure here just leaves the last known card up, never an error.
+        if filter != .all,
+           let page = try? await service.calls(companyId: companyId) {
+            ongoing = ongoingCalls(page.data)
         }
     }
 
@@ -352,6 +405,113 @@ private struct SoftphoneStatusPill: View {
             }
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// #210: the Ongoing card — the founder's "who is on my line?" answer. Rows
+/// stack when several calls run at once (each business line can hold one);
+/// the section is absent entirely when nothing is in flight.
+private struct OngoingCallsCard: View {
+    let calls: [Call]
+    let members: [Member]
+    let numbers: [PhoneNumberSummary]
+    let openConversation: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SectionHeader(label: "Ongoing", count: calls.count > 1 ? calls.count : nil)
+            PaperCard {
+                ForEach(calls, id: \.id) { call in
+                    OngoingCallRow(
+                        call: call,
+                        members: members,
+                        numbers: numbers,
+                        openConversation: openConversation
+                    )
+                    if call.id != calls.last?.id {
+                        RowDivider().padding(.leading, 64)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// One live line: caller identity, the member holding it (or "Ringing…"
+/// before anyone does), the business number when the company owns more than
+/// one, and — for answered calls — the live talk timer. Tapping opens the
+/// caller's conversation when one exists.
+private struct OngoingCallRow: View {
+    let call: Call
+    let members: [Member]
+    let numbers: [PhoneNumberSummary]
+    let openConversation: (String) -> Void
+
+    private var name: String { callerDisplayName(call) }
+
+    private var phase: OngoingPhase { ongoingPhase(call) }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 11) {
+            InitialsAvatar(name: name, size: 38)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .font(.golos(13.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    // The card's one tinted element — the same coral the app
+                    // reserves for live/attention accents, never an error red.
+                    Text(ongoingStatusLabel(
+                        phase,
+                        memberName: memberDisplayName(call.answered_by_user_id, in: members)
+                    ))
+                    .font(.golos(11.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.coral)
+                    .lineLimit(1)
+                    if let label = ongoingNumberLabel(call.phone_number_id, in: numbers) {
+                        DsChip(
+                            text: label,
+                            container: BrandColor.inset,
+                            content: BrandColor.muted600
+                        )
+                    }
+                }
+            }
+            Spacer(minLength: 8)
+            if ongoingShowsTimer(phase) {
+                OngoingTicker(anchorIso: ongoingAnchorIso(call))
+            } else {
+                AttentionDot()
+            }
+        }
+        .padding(.horizontal, 15)
+        .padding(.top, 11)
+        .padding(.bottom, 10)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let id = call.conversation_id { openConversation(id) }
+        }
+    }
+}
+
+/// The one thing that moves every second — a TimelineView so the tick redraws
+/// exactly this label, never the card or the log behind it (#210). An anchor
+/// that won't parse renders nothing rather than a frozen 0:00.
+private struct OngoingTicker: View {
+    let anchorIso: String
+
+    var body: some View {
+        if let anchor = parseWireTimestamp(anchorIso) {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(formatTimer(
+                    elapsedMs: Int(context.date.timeIntervalSince(anchor) * 1000)
+                ))
+                .font(.golos(12, weight: .semibold))
+                .foregroundStyle(BrandColor.coral)
+                .monospacedDigit()
+            }
+        }
     }
 }
 
@@ -598,7 +758,10 @@ private func previewCall(
     forwardSeconds: Int = 0,
     screening: String? = nil,
     voicemailSeconds: Int? = nil,
-    startedAt: String = "2026-07-16T09:05:00Z"
+    startedAt: String = "2026-07-16T09:05:00Z",
+    state: String? = nil,
+    answeredBy: String? = nil,
+    answeredAt: String? = nil
 ) -> Call {
     Call(
         id: id,
@@ -615,9 +778,11 @@ private func previewCall(
         screening_result: screening,
         stir_attestation: nil,
         voicemail_seconds: voicemailSeconds,
-        answered_by_user_id: nil,
+        answered_by_user_id: answeredBy,
         answered_by_name: nil,
-        started_at: startedAt
+        started_at: startedAt,
+        state: state,
+        answered_at: answeredAt
     )
 }
 
@@ -688,6 +853,46 @@ private func previewCall(
         }
         .padding(18)
     }
+    .background(BrandColor.canvas)
+}
+
+#Preview("Ongoing calls") {
+    // A live anchor: the ticker is the point of this card, so the preview
+    // shows real elapsed talk time instead of years since a fixed date.
+    let answeredAt = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-192))
+    OngoingCallsCard(
+        calls: [
+            previewCall(
+                id: "live-1",
+                outcome: nil,
+                contactName: "Marta Reyes",
+                state: "answered",
+                answeredBy: "u1",
+                answeredAt: answeredAt
+            ),
+            previewCall(
+                id: "live-2",
+                outcome: nil,
+                callerE164: "+14155550188",
+                state: "ringing"
+            ),
+        ],
+        members: [
+            Member(
+                id: "m1",
+                user_id: "u1",
+                role: "member",
+                deactivated_at: nil,
+                created_at: "2026-07-01T00:00:00Z",
+                display_name: "Dana"
+            ),
+        ],
+        // A one-number company: the business-line chip stays off by design.
+        numbers: [],
+        openConversation: { _ in }
+    )
+    .padding(18)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     .background(BrandColor.canvas)
 }
 

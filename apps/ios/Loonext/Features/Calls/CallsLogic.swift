@@ -114,6 +114,107 @@ func dialerContactName(matching typed: String, in contacts: [Contact]) -> String
     return formatPhone(match.phone_e164)
 }
 
+// MARK: - #210 ongoing call card
+
+/// The #208 live-phase mirror values the card reads. Private: the card and
+/// its tests speak in the raw wire strings, exactly as the Android twin does.
+private enum CallState {
+    static let ringing = "ringing"
+    static let answered = "answered"
+    static let voicemailGreeting = "voicemail_greeting"
+    static let voicemailRecording = "voicemail_recording"
+    static let endedPrefix = "ended"
+}
+
+/// A row still holding the line: outcome unstamped AND the #208 state mirror
+/// does not already say ended_*. An outcome-null row whose state is terminal
+/// is mirror lag (the outcome stamp is seconds behind) — pinning it as
+/// "ongoing" would show a ghost call, so it counts as resolved.
+func isOngoingCall(_ call: Call) -> Bool {
+    call.outcome == nil && call.state?.hasPrefix(CallState.endedPrefix) != true
+}
+
+/// The rows the Ongoing card pins, kept in the log's newest-first order.
+func ongoingCalls(_ calls: [Call]) -> [Call] {
+    calls.filter(isOngoingCall)
+}
+
+/// The log below the card — everything that has actually resolved.
+func resolvedCalls(_ calls: [Call]) -> [Call] {
+    calls.filter { !isOngoingCall($0) }
+}
+
+/// What an ongoing row is doing right now.
+enum OngoingPhase {
+    case ringing
+    case dialing
+    case answered
+    case voicemail
+}
+
+/// Phase resolution: the #208 state is the truth when present; a null state
+/// (outbound rows, pre-backfill rows) falls back to the answer stamps, then
+/// direction — an unstamped outbound row is the crew dialing out.
+func ongoingPhase(_ call: Call) -> OngoingPhase {
+    switch call.state {
+    case CallState.answered:
+        return .answered
+    case CallState.voicemailGreeting, CallState.voicemailRecording:
+        return .voicemail
+    case CallState.ringing:
+        return .ringing
+    default:
+        if call.answered_at != nil || call.answered_by_user_id != nil { return .answered }
+        return call.direction == "outbound" ? .dialing : .ringing
+    }
+}
+
+/// The card's status line. Ringing shows no member (nobody has the line yet);
+/// an answered call names who does; an answered call whose member cannot be
+/// resolved still says the line is taken instead of naming no one.
+func ongoingStatusLabel(_ phase: OngoingPhase, memberName: String?) -> String {
+    switch phase {
+    case .ringing:
+        return "Ringing…"
+    case .dialing:
+        return "Calling…"
+    case .voicemail:
+        return "Leaving a voicemail"
+    case .answered:
+        if let memberName, !memberName.isBlank { return "With \(memberName)" }
+        return "On the line"
+    }
+}
+
+/// Only an answered call has talk time to tick.
+func ongoingShowsTimer(_ phase: OngoingPhase) -> Bool {
+    phase == .answered
+}
+
+/// The live timer's anchor: answered_at (true talk time). A row the API has
+/// not stamped yet falls back to started_at — a few seconds of ring time is
+/// a smaller lie than a frozen timer.
+func ongoingAnchorIso(_ call: Call) -> String {
+    call.answered_at ?? call.started_at
+}
+
+/// answered_by user id → roster display name; nil when unresolvable.
+func memberDisplayName(_ userId: String?, in members: [Member]) -> String? {
+    guard let userId else { return nil }
+    guard let match = members.first(where: { $0.user_id == userId }) else { return nil }
+    return match.display_name.isBlank ? nil : match.display_name
+}
+
+/// The business-line chip label: only when the company owns MORE than one
+/// number (one number = zero ambiguity, the chip is noise) and the row's
+/// number resolves to a listable E.164.
+func ongoingNumberLabel(_ phoneNumberId: String?, in numbers: [PhoneNumberSummary]) -> String? {
+    guard numbers.count > 1, let phoneNumberId else { return nil }
+    guard let match = numbers.first(where: { $0.id == phoneNumberId }),
+          let e164 = match.number_e164, !e164.isBlank else { return nil }
+    return formatPhone(e164)
+}
+
 /// "(415) 555-01…" progressive format while typing (NANP-shaped input).
 func formatAsYouDial(_ raw: String) -> String {
     let digits = raw.filter(\.isNumber)

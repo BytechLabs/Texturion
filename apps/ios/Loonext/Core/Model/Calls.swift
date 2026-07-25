@@ -33,6 +33,19 @@ struct Call: Codable, Sendable {
     /// `answered_by_user_id`). Optional so pre-#191 rows decode cleanly.
     var answered_by_name: String?
     let started_at: String
+    /// #170/#208 CALLS-V3 §3/§8.4: the DO-mirrored live phase — "ringing",
+    /// "answered", "voicemail_greeting", "voicemail_recording" or an
+    /// "ended_*" terminal. NULLABLE by design (legacy rows and every outbound
+    /// row carry none), so readers derive from `outcome` when it is absent.
+    /// A plain Optional rather than `@Default` for the same reason
+    /// `answered_by_name` is one: the synthesized decoder reads an Optional
+    /// with `decodeIfPresent`, so a cached pre-v3 payload missing the key
+    /// decodes to nil instead of throwing.
+    var state: String? = nil
+    /// #210: when a member picked up — the Ongoing card's live-duration
+    /// anchor. Absent on rows written before the api_list_calls projection
+    /// shipped it; readers fall back to `started_at`.
+    var answered_at: String? = nil
 
     /// Display resolution order: contact > CNAM dip > raw number.
     var displayName: String? {
