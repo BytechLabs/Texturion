@@ -232,6 +232,9 @@ export function SystemLine({
           <VoicemailPlayer
             callSessionId={voicemailSession}
             seconds={Number(event.payload.voicemail_seconds ?? 0) || null}
+            // Only when this line has no words of its own (an older voicemail,
+            // written before transcription existed).
+            showTranscript={!transcript}
           />
         </div>
         {/* The words, right where the message is. Without them the line only

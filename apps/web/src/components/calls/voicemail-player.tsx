@@ -15,9 +15,18 @@ import { formatCallDuration } from "@/lib/format/call";
 export function VoicemailPlayer({
   callSessionId,
   seconds,
+  showTranscript = false,
 }: {
   callSessionId: string;
   seconds: number | null;
+  /**
+   * Render the transcript under the player. Off by default because the row or
+   * timeline line above usually shows it already, and two copies of the same
+   * words is worse than none. Parents turn it on ONLY when they have nothing
+   * to show themselves, which is exactly the recording that gets its words
+   * backfilled on this open.
+   */
+  showTranscript?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const voicemail = useVoicemailUrl(callSessionId, open);
@@ -35,7 +44,7 @@ export function VoicemailPlayer({
         />
         {/* A recording from before transcription existed, or one whose
             transcription failed at the time, gets its words on first open. */}
-        {voicemail.data.transcript && (
+        {showTranscript && voicemail.data.transcript && (
           <span className="mt-1.5 block text-[12.5px] leading-[1.45] text-app-muted">
             {voicemail.data.transcript}
           </span>

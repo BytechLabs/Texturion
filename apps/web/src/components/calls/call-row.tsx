@@ -112,6 +112,9 @@ export function CallRow({ call }: { call: Call }) {
             <VoicemailPlayer
               callSessionId={call.call_session_id}
               seconds={call.voicemail_seconds}
+              // Only when this row has no words of its own, or the same
+              // transcript would appear twice.
+              showTranscript={!call.voicemail_transcript}
             />
             {/* What it says, for the times playing it is not an option: on a
                 roof, in a truck, next to a running compressor. The player
