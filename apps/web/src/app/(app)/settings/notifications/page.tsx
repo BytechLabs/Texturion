@@ -44,7 +44,7 @@ export default function NotificationsSettingsPage() {
   return (
     <SettingsPage
       title="Notifications"
-      description="How you hear about new customer texts. These are your settings; teammates set their own."
+      description="How you hear about customer texts, missed calls, and teammates who need you. These are your settings; teammates set their own."
     >
       {prefs.isPending ? (
         <div className="space-y-4" aria-label="Loading notification settings">
@@ -55,7 +55,7 @@ export default function NotificationsSettingsPage() {
         <LoadError onRetry={() => prefs.refetch()} />
       ) : (
         <div className="space-y-6">
-          <SettingsCard title="When a customer texts">
+          <SettingsCard title="When something needs you">
             <div className="space-y-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-0.5">
@@ -82,8 +82,9 @@ export default function NotificationsSettingsPage() {
                     Push
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    Send a notification to your devices for those same moments.
-                    Each device also needs push turned on below.
+                    Send a notification to your devices for those same moments,
+                    plus a missed call and any note where a teammate mentions
+                    you. Each device also needs push turned on below.
                   </p>
                 </div>
                 <Switch
