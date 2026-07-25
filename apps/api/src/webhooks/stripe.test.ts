@@ -850,8 +850,12 @@ describe("§9 event → state table", () => {
     expect(patches[0].url.searchParams.get("registration_fee_paid_at")).toBe(
       "is.null",
     );
+    // The flag is re-asserted, not assumed: a first-attempt decline turns it
+    // off and the invoice stays payable, so the later success is the only
+    // thing that can turn back on what the $29 bought.
     expect(patches[0].json()).toEqual({
       registration_fee_paid_at: expect.any(String),
+      us_texting_enabled: true,
     });
     // §9: "stamp registration_fee_paid_at and start the §4.4 submission
     // (R1)" — the paid enable-us invoice must trigger the submission itself.
@@ -937,6 +941,35 @@ describe("§9 event → state table", () => {
     // No subscription on the fee invoice → no dunning email, no status mirror.
     expect(harness.callsTo("POST", /api\.resend\.com/)).toHaveLength(0);
     expect(harness.callsTo("GET", /api\.stripe\.com/)).toHaveLength(0);
+  });
+
+  it("a declined fee that later succeeds still delivers what was paid for", async () => {
+    // The whole sequence, because the halves were each correct alone and wrong
+    // together: the decline turns US texting back off, the invoice stays open
+    // and payable by a Stripe retry, and the later success used to stamp only
+    // the fee — leaving a company charged $29 with the capability still off and
+    // no carrier registration ever filed.
+    const feeInvoice = () =>
+      invoiceFixture({
+        metadata: { purpose: "us_registration", company_id: COMPANY_ID },
+        parent: null,
+      });
+    const patchOk = () =>
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 }));
+
+    const declined = makeHarness([...ledgerEndpoints(), patchOk()]);
+    await deliver(eventOf("invoice.payment_failed", feeInvoice()), declined);
+    expect(declined.callsTo("PATCH", /companies/)[0].json()).toMatchObject({
+      us_texting_enabled: false,
+    });
+
+    const paid = makeHarness([...ledgerEndpoints(), patchOk()]);
+    await deliver(eventOf("invoice.paid", feeInvoice()), paid);
+    expect(paid.callsTo("PATCH", /companies/)[0].json()).toMatchObject({
+      us_texting_enabled: true,
+    });
+    // And the registration is actually filed, which is the thing the $29 buys.
+    expect(submitRegistration).toHaveBeenCalledWith(env, COMPANY_ID);
   });
 
   it("invoice.payment_action_required: SCA email only, NO state change", async () => {

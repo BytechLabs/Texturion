@@ -818,7 +818,18 @@ async function handleInvoicePaid(
   ) {
     const { error } = await db
       .from("companies")
-      .update({ registration_fee_paid_at: new Date().toISOString() })
+      .update({
+        registration_fee_paid_at: new Date().toISOString(),
+        // The money arrived, so the capability it bought is ON. This must be
+        // re-asserted, not assumed: if the FIRST charge attempt declined,
+        // handleInvoicePaymentFailed turned the flag back off, and the invoice
+        // stays open and payable by a Stripe retry or by the customer. Without
+        // this line that later success charged $29 and delivered nothing —
+        // submitRegistration reads the company back and no-ops for a Canadian
+        // company with US texting off, so no carrier registration was ever
+        // filed and no email went out either way.
+        us_texting_enabled: true,
+      })
       .eq("id", invoice.metadata.company_id)
       .is("registration_fee_paid_at", null);
     if (error) {
