@@ -282,6 +282,7 @@ const SYSTEM_PROMPT = [
   "- Never promise that someone will arrive at a specific day or time. Confirming a time the customer proposed is fine; naming a new one is not. If a time needs setting, ASK.",
   "- Never say work is done, scheduled, dispatched, ordered, or paid unless the conversation already says so.",
   "- Never invent a person's name, a part, a warranty, or a policy.",
+  "- Never describe the business or what it does. You have not been told its trade, its size, or what work it takes on, so saying \"we're a small business\" or \"we specialize in ...\" is inventing. If a request looks outside what this conversation shows the business doing, ask about it rather than declaring what you do and do not do.",
   "- HOURS: only if the details above list business hours may you state them or say whether we are open right now, and then only exactly as listed. If no hours are listed, never state or imply any, and never say whether we are open or closed.",
   "- Read the current date and time above to resolve today, tonight, tomorrow, and weekday names correctly.",
   "- If something needed to answer well is missing, that is the best draft: ask for it.",
@@ -354,7 +355,12 @@ export function buildSuggestionMessages(
     draft === ""
       ? [
           lastCustomerMessage
-            ? "Write the messages to send next, answering what the customer just said."
+            ? // Quoted outright. Naming the exact message stops the model
+              // reaching back for older, meatier content — including the
+              // business's own messages — and replying to that instead.
+              `Reply to the customer's latest message, which was: "${collapse(
+                lastCustomerMessage.body,
+              ).slice(0, SUGGEST_REPLY_MAX_MESSAGE_CHARS)}"`
             : "The customer has not written yet. Write the natural next message from us: follow up on what we last said, or ask for what we still need.",
         ]
       : [
@@ -610,6 +616,16 @@ function containsPhoneNumber(text: string): boolean {
 const HOURS_CLAIM =
   /\b(?:we(?:'re| are)\s+(?:open|closed)|we\s+open|we\s+close|open\s+(?:until|till|from|at)\b|closed\s+(?:until|till|from|at)\b|our\s+(?:business\s+)?hours|opening\s+hours)\b/i;
 
+/**
+ * The model describing the business back to the customer.
+ *
+ * It is told the workspace name and nothing else — not the trade, not the size,
+ * not what work is taken on — so any sentence of this shape is invented. The
+ * prompt forbids it; this is the part that holds, exactly as with hours.
+ */
+const SELF_DESCRIPTION =
+  /\b(?:we(?:'re| are)\s+(?:a|an)\s+\w+|we\s+specialali?ze|we\s+specialize|our\s+specialty|we\s+(?:only\s+)?do(?:n't| not)?\s+(?:large|small|residential|commercial))\b/i;
+
 /** Money, in the shapes a model writes it. */
 const MONEY = /(\$\s?\d[\d,]*(?:\.\d{1,2})?|\b\d[\d,]*(?:\.\d{1,2})?\s?(?:dollars|bucks|usd|cad)\b)/gi;
 
@@ -679,6 +695,7 @@ export function sanitizeWithReport(
     phone: 0,
     money: 0,
     hours: 0,
+    selfDescription: 0,
     duplicate: 0,
   };
 
@@ -733,6 +750,12 @@ export function sanitizeWithReport(
       continue;
     }
 
+    // The business describing itself with facts nobody gave it.
+    if (SELF_DESCRIPTION.test(text) && !SELF_DESCRIPTION.test(opts.threadText)) {
+      dropped.selfDescription += 1;
+      continue;
+    }
+
     // Opening hours we were never told. The conversation itself can still
     // establish them: if the crew already said when they open, repeating it is
     // a confirmation like any other.
@@ -776,6 +799,7 @@ export interface SanitationReport {
     phone: number;
     money: number;
     hours: number;
+    selfDescription: number;
     duplicate: number;
   };
 }

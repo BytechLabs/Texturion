@@ -250,7 +250,7 @@ describe("buildSuggestionMessages", () => {
     const msgs = buildSuggestionMessages(ctx);
     const closing = msgs[msgs.length - 1];
     expect(closing.role).toBe("user");
-    expect(closing.content).toContain("Write the messages to send next");
+    expect(closing.content).toContain("Reply to the customer's latest message");
     expect(closing.content).not.toContain("part-way through typing");
   });
 
@@ -263,7 +263,7 @@ describe("buildSuggestionMessages", () => {
     expect(closing).toContain("part-way through typing");
     expect(closing).toContain("We can swing by Thursday but");
     expect(closing).toContain("Finish it.");
-    expect(closing).not.toContain("Write the messages to send next");
+    expect(closing).not.toContain("Reply to the customer's latest message");
   });
 
   it("truncates a pasted essay in the composer rather than paying for it", () => {
@@ -274,7 +274,7 @@ describe("buildSuggestionMessages", () => {
   it("treats a whitespace-only draft as an empty composer", () => {
     const msgs = buildSuggestionMessages({ ...ctx, draft: "   \n  " });
     expect(msgs[msgs.length - 1].content).toContain(
-      "Write the messages to send next",
+      "Reply to the customer's latest message",
     );
   });
 
@@ -515,6 +515,23 @@ describe("sanitizeSuggestions", () => {
     // "Thanks.Us" read as a bare domain while the rule was case-insensitive.
     expect(clean(["Thanks.Us two will be there Thursday."])).toEqual([
       "Thanks.Us two will be there Thursday.",
+    ]);
+  });
+
+  it("drops the model describing a business it was told nothing about", () => {
+    // It knows the workspace name and nothing else, so "we're a small trade
+    // business, we specialize in renovations" is invented whole.
+    expect(
+      clean([
+        "We're a small trade business, we specialize in residential renovations.",
+      ]),
+    ).toEqual([]);
+    expect(clean(["We are a plumbing company, happy to help."])).toEqual([]);
+  });
+
+  it("keeps a plain offer of help, which describes nothing", () => {
+    expect(clean(["Happy to help with that. What day suits you?"])).toEqual([
+      "Happy to help with that. What day suits you?",
     ]);
   });
 
