@@ -469,9 +469,14 @@ private struct ThreadBody: View {
         case .message(let message):
             MessageBubble(
                 message: message,
+                // #101 shared-inbox attribution: in a shared inbox the first
+                // question about an outbound text is who already answered this
+                // customer, so sends carry the teammate's name like the web.
                 authorName: message.direction == MessageDirection.note
                     ? (message.sent_by_user_id.flatMap { names[$0] } ?? "Internal note")
-                    : nil,
+                    : (message.direction == MessageDirection.outbound
+                        ? message.sent_by_user_id.flatMap { names[$0] }
+                        : nil),
                 doneByName: message.done_by_user_id.flatMap { names[$0] },
                 noteFilesState: message.direction == MessageDirection.note
                     ? controller.noteFiles[message.id]

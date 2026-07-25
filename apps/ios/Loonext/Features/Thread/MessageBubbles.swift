@@ -38,6 +38,7 @@ struct MessageBubble: View {
                 .contextMenu { menuItems }
             MessageMetaLine(
                 message: message,
+                authorName: authorName,
                 doneByName: doneByName,
                 onRetry: actions.onRetry,
                 onOpenTask: actions.onOpenTask
@@ -221,6 +222,8 @@ struct MessageBubble: View {
 /// The quiet line under a bubble: time · delivery state · done · pin · task.
 private struct MessageMetaLine: View {
     let message: Message
+    /// The teammate who sent this, for an outbound message in a shared inbox.
+    let authorName: String?
     let doneByName: String?
     let onRetry: @MainActor () -> Void
     let onOpenTask: @MainActor (String) -> Void
@@ -234,7 +237,12 @@ private struct MessageMetaLine: View {
     }
 
     private var metaText: String {
-        var parts = [bubbleTime(message.created_at)]
+        // "Dana · 7:18 AM · Delivered", matching the web's order.
+        var parts: [String] = []
+        if message.direction == MessageDirection.outbound, let authorName {
+            parts.append(authorName)
+        }
+        parts.append(bubbleTime(message.created_at))
         if message.direction == MessageDirection.outbound, let delivery = deliveryLabel(message) {
             parts.append(delivery)
         }

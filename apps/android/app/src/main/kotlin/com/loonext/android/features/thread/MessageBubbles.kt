@@ -255,6 +255,7 @@ fun MessageBubble(
 
         MessageMetaLine(
             message = message,
+            authorName = authorName,
             doneByName = doneByName,
             onRetry = onRetry,
             onOpenTask = onOpenTask,
@@ -266,6 +267,8 @@ fun MessageBubble(
 @Composable
 private fun MessageMetaLine(
     message: Message,
+    /** The teammate who sent this, for an outbound message in a shared inbox. */
+    authorName: String?,
     doneByName: String?,
     onRetry: () -> Unit,
     onOpenTask: ((taskId: String) -> Unit)? = null,
@@ -319,6 +322,8 @@ private fun MessageMetaLine(
         }
 
         val quiet = buildList {
+            // "Dana · 7:18 AM · Delivered", matching the web's order.
+            if (outbound && authorName != null) add(authorName)
             add(bubbleTime(message.created_at))
             if (outbound && !failed) deliveryLabel(message)?.let { add(it) }
         }

@@ -155,7 +155,6 @@ fun ThreadScreen(
             cache = graph.storeCache,
             companyId = companyId,
             conversationId = conversationId,
-            meUserId = me.user_id,
             scope = graph.appScope,
         )
     }
@@ -533,10 +532,18 @@ private fun ThreadLoaded(
                                 val message = item.message
                                 MessageBubble(
                                     message = message,
+                                    // #101 shared-inbox attribution: in a shared
+                                    // inbox the first question about an
+                                    // outbound text is who already answered
+                                    // this customer, so sends carry the
+                                    // teammate's name the way the web does.
                                     authorName = when (message.direction) {
                                         MessageDirection.NOTE ->
                                             message.sent_by_user_id?.let { names[it] }
                                                 ?: "Internal note"
+
+                                        MessageDirection.OUTBOUND ->
+                                            message.sent_by_user_id?.let { names[it] }
 
                                         else -> null
                                     },
@@ -690,6 +697,7 @@ private fun ThreadLoaded(
             message = message,
             contactName = contactName,
             members = controller.members,
+            meUserId = me.user_id,
             aiRepo = graph.aiRepo,
             companyId = companyId,
             conversationId = controller.conversationId,
