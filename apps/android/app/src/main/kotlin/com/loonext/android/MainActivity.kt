@@ -160,9 +160,14 @@ fun deepLinkFor(
 
 /** Notification-tap URLs: https://app.loonext.com/inbox/{id} or /calls?call=… */
 private fun parseDeepLink(uri: Uri?): DeepLink? {
-    val segments = uri?.pathSegments ?: return null
+    uri ?: return null
+    // Every VIEW intent the app receives reaches here, including ones carrying
+    // an opaque uri (no authority, so no path and no query). Asking such a uri
+    // for a query parameter throws, and an app link is always hierarchical, so
+    // there is nothing here to read anyway.
+    if (uri.isOpaque) return null
     return deepLinkFor(
-        segments,
+        uri.pathSegments,
         taskParam = uri.getQueryParameter("task"),
         callParam = uri.getQueryParameter("call"),
     )
