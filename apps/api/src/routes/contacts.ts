@@ -784,6 +784,16 @@ contactsRoutes.post(
         for (const row of found) alreadyActive.add(row.phone_e164);
       }
 
+      // An import may ADD an opt-out; it may never rewrite one that is already
+      // standing. There is a single opt_outs row per (company, phone), so a
+      // plain upsert overwrote `source` on an ACTIVE row: a carrier STOP became
+      // source='import', and the revoke guard that makes a STOP unrevokable
+      // stopped firing. The app would then let someone "opt them back in" while
+      // the carrier block stood, so every send failed 40300 against a contact
+      // the UI showed as textable. Only the customer can lift a STOP.
+      //
+      // Same two-step transition the manual opt-out route uses: revive a
+      // REVOKED row, otherwise insert and let an existing active row win.
       const optOutRows = optedOutPhones.map((phone) => ({
         company_id: companyId,
         phone_e164: phone,
@@ -791,15 +801,30 @@ contactsRoutes.post(
         created_by: userId,
         revoked_at: null,
       }));
+      for (let i = 0; i < optedOutPhones.length; i += IMPORT_CHUNK) {
+        const chunk = optedOutPhones.slice(i, i + IMPORT_CHUNK);
+        unwrap(
+          await db
+            .from("opt_outs")
+            .update({ source: "import", created_by: userId, revoked_at: null })
+            .eq("company_id", companyId)
+            .in("phone_e164", chunk)
+            .not("revoked_at", "is", null)
+            .select("id"),
+          "import opt-out revive",
+        );
+      }
       for (let i = 0; i < optOutRows.length; i += IMPORT_CHUNK) {
         unwrap(
           await db
             .from("opt_outs")
             .upsert(optOutRows.slice(i, i + IMPORT_CHUNK), {
               onConflict: "company_id,phone_e164",
+              // An active row is left exactly as it is, whatever its source.
+              ignoreDuplicates: true,
             })
             .select("id"),
-          "import opt-out upsert",
+          "import opt-out insert",
         );
       }
 

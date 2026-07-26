@@ -672,6 +672,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       }));
     });
     sb.on("GET", "/rest/v1/opt_outs", () => []); // none already active
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []); // no revoked row to revive
     sb.on("POST", "/rest/v1/opt_outs", () => [{ id: "0abc0abc-1111-4222-8333-444444444444" }]);
     sb.on("GET", "/rest/v1/conversations", () => []);
     sb.on("POST", "/rest/v1/conversation_events", () => []);
@@ -799,6 +800,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       { id: CONTACT_ID, phone_e164: "+14165550199" },
     ]);
     sb.on("GET", "/rest/v1/opt_outs", () => [{ phone_e164: "+14165550199" }]);
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []); // no revoked row to revive
     sb.on("POST", "/rest/v1/opt_outs", () => [{ id: "0abc0abc-1111-4222-8333-444444444444" }]);
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -869,6 +871,54 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     const body = (await res.json()) as { error: { code: string } };
     expect(body.error.code).toBe("validation_failed");
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
+});
+
+describe("import and a standing carrier STOP", () => {
+  it("never rewrites an active opt-out, so a STOP stays unrevokable", async () => {
+    // A STOP can only be lifted by the customer. There is ONE opt_outs row per
+    // (company, phone), so an import that upserted over it turned
+    // source='stop_keyword' into 'import' and the revoke guard stopped firing:
+    // the app would then let someone "opt them back in" while the carrier
+    // block stood, and every send failed 40300 against a contact the UI showed
+    // as textable.
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row, i) => ({
+        id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    // The number already carries a STANDING opt-out.
+    sb.on("GET", "/rest/v1/opt_outs", () => [{ phone_e164: "+14165550101" }]);
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []); // nothing revoked to revive
+    sb.on("POST", "/rest/v1/opt_outs", () => []); // the active row wins
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const csv = ["phone,name,opted_out", "416-555-0101,New Person,TRUE"].join(
+      "\r\n",
+    );
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
+    );
+    expect(res.status).toBe(200);
+
+    // The insert must be ON CONFLICT DO NOTHING, so an active row of ANY
+    // source is left exactly as it stands.
+    const insert = sb.find("POST", "/rest/v1/opt_outs")[0];
+    expect(insert.url.searchParams.get("on_conflict")).toBe("company_id,phone_e164");
+    expect(insert.headers.get("prefer") ?? "").toContain("ignore-duplicates");
+
+    // The revive only ever touches rows that are already revoked.
+    const revive = sb.find("PATCH", "/rest/v1/opt_outs")[0];
+    expect(revive.url.searchParams.get("revoked_at")).toBe("not.is.null");
   });
 });
 
