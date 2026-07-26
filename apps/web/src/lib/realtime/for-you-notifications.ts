@@ -50,11 +50,50 @@ function feedsForYouOrBell(key: readonly unknown[], companyId: string): boolean 
  */
 const COALESCE_MS = 400;
 
+/**
+ * One subscription per company, however many components ask for it.
+ *
+ * The hook is mounted by more than one always-present component (the bell and
+ * the mobile tab bar), and each mount used to build its OWN cache subscription
+ * with its own coalescing window. They are independent, so they never collapse
+ * into each other: every settling query bought a refetch of the queue and the
+ * badge PER MOUNT. A page load fired six of each, in simultaneous pairs, with a
+ * CORS preflight apiece.
+ *
+ * Ref-counted so the last consumer to leave tears it down.
+ */
+const subscriptions = new Map<
+  string,
+  { count: number; dispose: () => void }
+>();
+
+function acquireSubscription(
+  companyId: string,
+  start: () => () => void,
+): () => void {
+  const existing = subscriptions.get(companyId);
+  if (existing) {
+    existing.count += 1;
+  } else {
+    subscriptions.set(companyId, { count: 1, dispose: start() });
+  }
+  return () => {
+    const entry = subscriptions.get(companyId);
+    if (!entry) return;
+    entry.count -= 1;
+    if (entry.count <= 0) {
+      entry.dispose();
+      subscriptions.delete(companyId);
+    }
+  };
+}
+
 export function useForYouNotificationsRealtime() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    return acquireSubscription(companyId, () => {
     const cache = queryClient.getQueryCache();
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -107,6 +146,12 @@ export function useForYouNotificationsRealtime() {
       // observerAdded/observerRemoved/observerResultsUpdated churn that fired on
       // every mount/unmount and forced needless network round-trips.
       if (event.type !== "updated") return;
+      // A query loading for the FIRST time is not a change to react to, it is
+      // the app arriving. On boot every watched list settles at once, and each
+      // one bought a refetch of the queue and the badge that had just been
+      // fetched anyway. Only a query that already had data and then changed
+      // means something actually moved.
+      if (event.query.state.dataUpdateCount <= 1) return;
       if (feedsForYouOrBell(event.query.queryKey as readonly unknown[], companyId)) {
         schedule();
       }
@@ -117,5 +162,6 @@ export function useForYouNotificationsRealtime() {
       if (timer !== null) clearTimeout(timer);
       unsubscribe();
     };
+    });
   }, [companyId, queryClient]);
 }
