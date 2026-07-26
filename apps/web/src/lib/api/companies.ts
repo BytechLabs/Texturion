@@ -8,7 +8,12 @@ import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
 import { keys } from "./keys";
-import type { BusinessHours, CompanyView, Country } from "./types";
+import type {
+  BusinessHours,
+  CompanyView,
+  Country,
+  WorkspaceClosure,
+} from "./types";
 
 /** GET /v1/company — company + plan/subscription/period/cap + numbers + registration. */
 export function useCompany() {
@@ -97,5 +102,25 @@ export function useUpdateCompany() {
         });
       }
     },
+  });
+}
+
+/**
+ * DELETE /v1/company (#341 / D48) — close the workspace.
+ *
+ * Owner only. Access ends immediately; the erasure runs after the window in
+ * the response's `purge_after`. The result is deliberately specific — how many
+ * sessions ended, whether the number was released — because "we've closed it"
+ * without saying what actually happened is the kind of reassurance that turns
+ * out to be wrong.
+ */
+export function useCloseWorkspace() {
+  const companyId = useCompanyId();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<WorkspaceClosure>("/v1/company", {
+        method: "DELETE",
+        companyId,
+      }),
   });
 }

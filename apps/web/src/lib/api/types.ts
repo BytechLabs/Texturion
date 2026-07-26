@@ -1593,3 +1593,17 @@ export interface GalleryItem {
   created_at: string;
   url: string;
 }
+
+/**
+ * What closing a workspace actually did (#341 / D48). Specific on purpose: the
+ * confirmation says what happened rather than just that something did.
+ */
+export interface WorkspaceClosure {
+  already_closed: boolean;
+  /** When the erasure may begin — ISO, ~30 days out. */
+  purge_after: string | null;
+  sessions_ended: number;
+  push_devices_removed: number;
+  numbers_released: number;
+  subscription_cancelled: boolean;
+}

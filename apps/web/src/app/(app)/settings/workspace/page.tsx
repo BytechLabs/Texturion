@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { CloseWorkspaceCard } from "@/components/settings/close-workspace-card";
 import { TimezoneSelect } from "@/components/settings/timezone-select";
 import {
   LoadError,
@@ -322,6 +323,7 @@ function TimezoneCard({ company }: { company: CompanyView }) {
 
 export default function WorkspaceSettingsPage() {
   const company = useCompany();
+  const { role } = useActiveCompany();
 
   return (
     <SettingsPage
@@ -337,6 +339,9 @@ export default function WorkspaceSettingsPage() {
           <CompanyNameCard company={company.data} />
           <BusinessIdentityCard company={company.data} />
           <TimezoneCard company={company.data} />
+          {/* #341: last, and only for the owner — ending the account is not an
+              everyday setting and should not sit among them. */}
+          {role === "owner" && <CloseWorkspaceCard company={company.data} />}
         </div>
       )}
     </SettingsPage>
