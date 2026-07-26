@@ -179,7 +179,13 @@ export function useMarkAllNotificationsRead() {
       const countKey = keys.notifications.unreadCount(companyId);
       await queryClient.cancelQueries({ queryKey: countKey });
       const previousCount = queryClient.getQueryData<UnreadCount>(countKey);
-      queryClient.setQueryData<UnreadCount>(countKey, { count: 0 });
+      // #343: SPREAD, never replace. A bare `{ count: 0 }` drops alert_pause,
+      // so marking everything read would silently hide a "notifications are
+      // paused" line that is still true.
+      queryClient.setQueryData<UnreadCount>(countKey, (current) => ({
+        ...current,
+        count: 0,
+      }));
       clearFeedUnread(companyId, queryClient);
       return { previousCount };
     },
@@ -253,7 +259,8 @@ export function useMarkNotificationReadItem() {
       await queryClient.cancelQueries({ queryKey: countKey });
       const previousCount = queryClient.getQueryData<UnreadCount>(countKey);
       queryClient.setQueryData<UnreadCount>(countKey, (current) =>
-        current ? { count: Math.max(0, current.count - 1) } : current,
+        // #343: spread, for the same reason as mark-all-read above.
+        current ? { ...current, count: Math.max(0, current.count - 1) } : current,
       );
       queryClient.setQueryData<NotificationFeedData>(feedKey, (data) =>
         markFeedReadItem(data, item.id),

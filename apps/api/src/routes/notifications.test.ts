@@ -38,7 +38,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function memberStub(): SupabaseStub {
+function memberStub(options: { pause?: unknown } = {}): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
     "GET",
@@ -48,8 +48,21 @@ function memberStub(): SupabaseStub {
   // #106: the read-model routes resolve number_access; [] = no rules →
   // unrestricted (p_hidden_number_ids null), so the RPC assertions are unchanged.
   sb.on("GET", "/rest/v1/number_access", () => []);
+  // #343: the badge endpoint now also reports whether the workspace's daily
+  // notification allowance is spent. Nothing paused by default.
+  // Handlers are tried in REGISTRATION order and the first match wins, so a
+  // later `sb.on` for the same path never runs — the pause is a parameter
+  // rather than something a test overrides afterwards.
+  sb.on("POST", "/rest/v1/rpc/api_notification_pause", () => options.pause ?? NOT_PAUSED);
   return sb;
 }
+
+/** #343: the healthy state — allowance untouched. */
+const NOT_PAUSED = {
+  email_paused: false,
+  push_paused: false,
+  resets_at: "2026-07-28T07:00:00+00:00",
+};
 
 /** A real browser-shaped subscription body (structurally valid keys). */
 async function subscriptionBody() {
@@ -557,7 +570,7 @@ describe("GET /v1/notifications/unread-count", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ count: 4 });
+    expect(await res.json()).toEqual({ count: 4, alert_pause: NOT_PAUSED });
 
     const rpc = sb.find(
       "POST",
@@ -582,7 +595,7 @@ describe("GET /v1/notifications/unread-count", () => {
       "/v1/notifications/unread-count",
       { companyId: COMPANY_ID },
     );
-    expect(await res.json()).toEqual({ count: 7 });
+    expect(await res.json()).toEqual({ count: 7, alert_pause: NOT_PAUSED });
   });
 });
 
@@ -748,5 +761,47 @@ describe("POST /v1/notifications/mark-read", () => {
     expect(
       sb.find("POST", "/rest/v1/rpc/api_mark_notifications_read"),
     ).toHaveLength(0);
+  });
+});
+
+describe("GET /v1/notifications/unread-count — the pause a member can see (#343)", () => {
+  it("reports that email is paused, and when it lifts", async () => {
+    // At the ceiling, notifications stop reaching EVERY member and only the
+    // owner is emailed. A tech's phone just goes quiet, and from their side
+    // the business had a slow afternoon. This is the signal that says
+    // otherwise, on the endpoint every client already polls.
+    const paused = {
+      email_paused: true,
+      push_paused: false,
+      resets_at: "2026-07-28T07:00:00+00:00",
+    };
+    const sb = memberStub({ pause: paused });
+    sb.on("POST", "/rest/v1/rpc/api_notifications_unread_count", () => 2);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notifications/unread-count",
+      { companyId: COMPANY_ID },
+    );
+
+    expect(await res.json()).toEqual({ count: 2, alert_pause: paused });
+  });
+
+  it("asks for the badge and the pause in one round trip each, not in series", async () => {
+    // This endpoint is polled on a timer by three clients; the pause must not
+    // turn one request into two sequential database calls.
+    const sb = memberStub();
+    sb.on("POST", "/rest/v1/rpc/api_notifications_unread_count", () => 0);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(app, env, await auth.token(), "/v1/notifications/unread-count", {
+      companyId: COMPANY_ID,
+    });
+
+    expect(sb.find("POST", "/rest/v1/rpc/api_notifications_unread_count")).toHaveLength(1);
+    expect(sb.find("POST", "/rest/v1/rpc/api_notification_pause")).toHaveLength(1);
   });
 });

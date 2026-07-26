@@ -106,6 +106,18 @@ interface PrefsRow {
   push_enabled: boolean;
 }
 
+/**
+ * #343 — whether the workspace's daily notification allowance is spent, and
+ * when it comes back. `resets_at` is the company's next LOCAL midnight, which
+ * is the thing the owner's alert copy has been implying and getting wrong in
+ * every timezone.
+ */
+interface AlertPause {
+  email_paused: boolean;
+  push_paused: boolean;
+  resets_at: string;
+}
+
 export const notificationsRoutes = new Hono<AppEnv>();
 
 notificationsRoutes.get(
@@ -318,17 +330,28 @@ notificationsRoutes.get(
       userId: c.get("userId"),
       role: c.get("role"),
     });
+    // #343: the badge and the pause state travel together. At the daily
+    // ceiling notifications stop reaching EVERY member while only the owner is
+    // emailed — a tech's phone simply goes quiet and, from their side, the
+    // business had a slow afternoon. This is the endpoint every client already
+    // polls on a timer, so the signal rides it rather than adding a second one.
+    // Two RPCs in parallel: the pause read is one indexed join, and it must not
+    // add latency to a badge poll.
+    const [countResult, pauseResult] = await Promise.all([
+      db.rpc("api_notifications_unread_count", {
+        p_company_id: c.get("companyId"),
+        p_user_id: c.get("userId"),
+        p_hidden_number_ids: access.hiddenNumberIds,
+      }),
+      db.rpc("api_notification_pause", { p_company_id: c.get("companyId") }),
+    ]);
     const count = Number(
-      unwrap<number | string>(
-        await db.rpc("api_notifications_unread_count", {
-          p_company_id: c.get("companyId"),
-          p_user_id: c.get("userId"),
-          p_hidden_number_ids: access.hiddenNumberIds,
-        }),
-        "notifications unread count",
-      ),
+      unwrap<number | string>(countResult, "notifications unread count"),
     );
-    return c.json({ count });
+    return c.json({
+      count,
+      alert_pause: unwrap<AlertPause>(pauseResult, "notification pause"),
+    });
   },
 );
 

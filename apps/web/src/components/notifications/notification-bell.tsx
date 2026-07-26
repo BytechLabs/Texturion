@@ -30,6 +30,7 @@ import { flattenPages } from "@/lib/api/pagination";
 import { usePushSubscription } from "@/lib/push/use-push-subscription";
 import type { NotificationItem, NotificationType } from "@/lib/api/types";
 import { contactDisplayName } from "@/lib/format/phone";
+import { NotificationPauseNotice } from "./pause-notice";
 import { formatRelativeTime } from "@/lib/format/time";
 import { useForYouNotificationsRealtime } from "@/lib/realtime/for-you-notifications";
 import { cn } from "@/lib/utils";
@@ -236,6 +237,8 @@ export function NotificationFeed({
           Mark all read
         </Button>
       </div>
+
+      <NotificationPauseNotice pause={unread.data?.alert_pause} />
 
       <PushOffer />
 

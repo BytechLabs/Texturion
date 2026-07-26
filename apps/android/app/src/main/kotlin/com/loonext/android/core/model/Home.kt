@@ -180,7 +180,29 @@ data class NotificationItem(
 )
 
 @Serializable
-data class UnreadCount(val count: Int)
+/**
+ * #343 - whether the workspace's daily notification allowance is spent.
+ *
+ * At the ceiling notifications stop reaching EVERY member while only the owner
+ * is emailed, so a tech's phone just goes quiet and the reasonable inference is
+ * that the business had a slow afternoon. `resets_at` is the company's next
+ * LOCAL midnight.
+ */
+@Serializable
+data class AlertPause(
+    val email_paused: Boolean = false,
+    val push_paused: Boolean = false,
+    val resets_at: String? = null,
+) {
+    val anyPaused: Boolean get() = email_paused || push_paused
+}
+
+@Serializable
+data class UnreadCount(
+    val count: Int,
+    /** #343. Null from an older Worker - treat as nothing paused. */
+    val alert_pause: AlertPause? = null,
+)
 
 @Serializable
 data class MarkReadResult(val last_seen_at: String)

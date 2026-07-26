@@ -1609,9 +1609,25 @@ export interface NotificationItem {
   unread: boolean;
 }
 
+/**
+ * #343 — whether the workspace's daily notification allowance is spent.
+ *
+ * At the ceiling notifications stop reaching EVERY member while only the owner
+ * is emailed, so a tech's phone just goes quiet and the reasonable inference
+ * is that the business had a slow afternoon. `resets_at` is the company's next
+ * LOCAL midnight.
+ */
+export interface AlertPause {
+  email_paused: boolean;
+  push_paused: boolean;
+  resets_at: string;
+}
+
 /** GET /v1/notifications/unread-count. */
 export interface UnreadCount {
   count: number;
+  /** #343. Absent from an older Worker — treat as "nothing paused". */
+  alert_pause?: AlertPause;
 }
 
 /** POST /v1/notifications/mark-read | mark-all-read. */

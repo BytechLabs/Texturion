@@ -166,8 +166,27 @@ struct NotificationItem: Codable, Sendable {
     @Default<DefaultFalse> var unread: Bool
 }
 
+/// #343 - whether the workspace's daily notification allowance is spent.
+///
+/// At the ceiling notifications stop reaching EVERY member while only the owner
+/// is emailed, so a tech's phone just goes quiet and the reasonable inference is
+/// that the business had a slow afternoon. `resets_at` is the company's next
+/// LOCAL midnight.
+struct AlertPause: Codable, Sendable {
+    @Default<DefaultFalse> var email_paused: Bool
+    @Default<DefaultFalse> var push_paused: Bool
+    var resets_at: String?
+
+    var anyPaused: Bool { email_paused || push_paused }
+}
+
 struct UnreadCount: Codable, Sendable {
     let count: Int
+    /// #343. Nil from an older Worker - treat as nothing paused.
+    ///
+    /// Declared `var ... = nil`: a `let` optional becomes a REQUIRED parameter
+    /// of the synthesized memberwise init and breaks every construction site.
+    var alert_pause: AlertPause? = nil
 }
 
 struct MarkReadResult: Codable, Sendable {
