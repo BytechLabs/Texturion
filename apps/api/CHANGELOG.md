@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/BytechLabs/Texturion/compare/api-v0.3.0...api-v0.4.0) (2026-07-26)
+
+
+### Features
+
+* **api:** a closed workspace is erased for real when its 30 days are up ([ef55506](https://github.com/BytechLabs/Texturion/commit/ef55506fc8e0739d1187badb4d4126ee928c0ee9)), closes [#341](https://github.com/BytechLabs/Texturion/issues/341)
+* **api:** closing a workspace ends access at once and erases it in 30 days ([4cd817a](https://github.com/BytechLabs/Texturion/commit/4cd817acc132258913fc17a06e99f0158ec8dc15)), closes [#341](https://github.com/BytechLabs/Texturion/issues/341)
+
 ## [0.3.0](https://github.com/BytechLabs/Texturion/compare/api-v0.2.0...api-v0.3.0) (2026-07-26)
 
 

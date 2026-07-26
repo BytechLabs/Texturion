@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/BytechLabs/Texturion/compare/web-v0.3.0...web-v0.4.0) (2026-07-26)
+
+
+### Features
+
+* **web:** closing your workspace tells you what that means first ([a8d1a74](https://github.com/BytechLabs/Texturion/commit/a8d1a74f306a38628651a10db7d8e78aed9419dd)), closes [#341](https://github.com/BytechLabs/Texturion/issues/341)
+
 ## [0.3.0](https://github.com/BytechLabs/Texturion/compare/web-v0.2.0...web-v0.3.0) (2026-07-26)
 
 
