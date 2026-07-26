@@ -551,6 +551,8 @@ private func previewCall(
 #Preview("Recent calls section") {
     ForYouList(
         forYou: ForYou(waiting_on_you: [], my_tasks: [], unread: [], triage: nil),
+        spamReview: [],
+        onAnswerSpamReview: { _, _ in },
         recentCalls: .ready([
             previewCall(
                 id: "c1",
@@ -582,7 +584,40 @@ private func previewCall(
 #Preview("Recent calls · load failure") {
     ForYouList(
         forYou: ForYou(waiting_on_you: [], my_tasks: [], unread: [], triage: nil),
+        spamReview: [],
+        onAnswerSpamReview: { _, _ in },
         recentCalls: .failed("Something went wrong."),
+        onOpenConversation: { _ in },
+        onOpenCalls: {},
+        onRefresh: {}
+    )
+}
+
+/// #342 — the strip that says a spam mark may have been a mistake. Previewed
+/// on its own because it renders on almost no real day, which is exactly the
+/// kind of surface that rots unseen.
+#Preview("Marked spam, still texting") {
+    ForYouList(
+        forYou: ForYou(waiting_on_you: [], my_tasks: [], unread: [], triage: nil),
+        spamReview: [
+            SpamReviewItem(
+                conversation_id: "conv-1",
+                contact: ContactSummary(
+                    id: "c1",
+                    name: "Maria Alvarez",
+                    phone_e164: "+14155551000"
+                ),
+                marked_at: "2026-06-26T12:00:00Z",
+                marked_by_user_id: "u1",
+                inbound_since: 4,
+                last_inbound_at: "2026-07-25T09:00:00Z",
+                we_texted_them: true,
+                sustained: false,
+                high_volume: false
+            )
+        ],
+        onAnswerSpamReview: { _, _ in },
+        recentCalls: .ready([]),
         onOpenConversation: { _ in },
         onOpenCalls: {},
         onRefresh: {}
