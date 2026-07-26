@@ -572,14 +572,32 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   scheduleRecoverRef.current = scheduleRecover;
 
   // Eager registration: an open app is a phone that can ring.
+  //
+  // Deferred to an idle moment rather than fired during boot. Registering pulls
+  // in the WebRTC SDK, by far the largest chunk the app loads, and doing that
+  // on the critical path made every page load carry it before anything was
+  // interactive, for a call that may never come. Idle keeps the phone ready
+  // within moments of arriving without competing with the screen itself; the
+  // timeout is the floor so a permanently busy tab still registers.
   useEffect(() => {
-    void ensureClient().catch(() => {
+    const canIdle = typeof window.requestIdleCallback === "function";
+    const handle = canIdle
+      ? window.requestIdleCallback(() => void register(), { timeout: 2500 })
+      : window.setTimeout(() => void register(), 300);
+    return () => {
+      if (canIdle) window.cancelIdleCallback(handle);
+      else window.clearTimeout(handle);
+    };
+
+    function register() {
+      return ensureClient().catch(() => {
       // No toast: texting is unaffected and the Call button retries on use. The
       // failure is still RECORDED, because the status indicator otherwise reads
       // "Connecting…" for the rest of the session and a member is left believing
       // their browser will ring when it never will.
       dispatch({ type: "error", message: REGISTRATION_FAILED });
-    });
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once on mount
   }, []);
 
