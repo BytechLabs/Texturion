@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.2.0...ios-v0.3.0) (2026-07-26)
+
+
+### Features
+
+* **ios:** delete your own account from the phone ([96e9922](https://github.com/BytechLabs/Texturion/commit/96e9922882a61a7d89e517adf14490f0bb3b37b4)), closes [#346](https://github.com/BytechLabs/Texturion/issues/346)
+
 ## [0.2.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.1.0...ios-v0.2.0) (2026-07-26)
 
 
