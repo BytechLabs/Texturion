@@ -1014,6 +1014,57 @@ delete from public.messages where task_id is null and direction='note'
   and conversation_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003' and body='ordered the part';
 delete from public.conversation_events where conversation_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003';
 
+
+-- ---------------------------------------------------------------------------
+-- A27. Deleting a task RELEASES the notes linked to it, so the same message can
+--      be promoted again and bring its files and its body with it.
+--
+--      The link is set once (create_task guards on `task_id is null`), and a
+--      delete used to leave it pointing at the dead task. Promoting the same
+--      note again then produced a task with no back-link: empty Attachments and
+--      an activity timeline missing the note it was made from, while the files
+--      sat in storage still attached to that note in the thread. The thread
+--      re-offers "Make a task" the moment the first task is deleted, so this is
+--      an ordinary path, not a corner.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_company uuid := 'b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7';
+  v_conv    uuid := 'b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003';
+  v_actor   uuid := 'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7';
+  v_note    uuid;
+  v_task    uuid;
+  res       jsonb;
+begin
+  insert into public.messages (company_id, conversation_id, direction, body, sent_by_user_id)
+  values (v_company, v_conv, 'note', 'Photos of the shutoff', v_actor)
+  returning id into v_note;
+
+  res := public.create_task(v_company, v_note, null, null, null, null, v_actor);
+  v_task := (res->'task'->>'id')::uuid;
+  if (select task_id from public.messages where id = v_note) is distinct from v_task then
+    raise exception 'A27 FAILED: promoting a note did not link it back to the task';
+  end if;
+
+  if public.delete_task(v_company, v_task, v_actor)->>'outcome' <> 'deleted' then
+    raise exception 'A27 FAILED: delete_task did not report deleted';
+  end if;
+  if (select task_id from public.messages where id = v_note) is not null then
+    raise exception 'A27 FAILED: the note is still linked to the deleted task';
+  end if;
+
+  res := public.create_task(v_company, v_note, null, null, null, null, v_actor);
+  if res->>'outcome' <> 'created' then
+    raise exception 'A27 FAILED: re-promoting outcome % (want created)', res->>'outcome';
+  end if;
+  if (select task_id from public.messages where id = v_note)
+       is distinct from (res->'task'->>'id')::uuid then
+    raise exception 'A27 FAILED: the re-promoted task has no back-link, so its files and body are lost';
+  end if;
+
+  raise notice 'A27 PASSED: delete releases the note; re-promotion links it again';
+end $$;
+
 rollback;
 
 select 'ALL APP-V2 SCHEMA TESTS PASSED' as result;
