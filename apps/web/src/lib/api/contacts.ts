@@ -84,6 +84,12 @@ export function useCreateContact() {
         (existing) => ({
           opted_out: existing?.opted_out ?? false,
           opt_out_source: existing?.opt_out_source ?? null,
+          // #292: the PATCH echoes the stored override, not the resolved
+          // clock — the detail refetch below brings that. Keeping the previous
+          // resolution meanwhile beats blanking the line mid-edit.
+          timezone_resolved: existing?.timezone_resolved ?? "UTC",
+          timezone_source: existing?.timezone_source ?? "company",
+          local_hour: existing?.local_hour ?? 0,
           ...contact,
         }),
       );
@@ -99,6 +105,12 @@ export interface ContactPatch {
   name?: string | null;
   address?: string | null;
   notes?: string | null;
+  /**
+   * #292/D49: correct the area-code inference, or null to go back to
+   * inferring — which is what you want after fixing a wrong NUMBER rather than
+   * a customer who moved.
+   */
+  timezone?: string | null;
   /** §5 consent attestation — only literal true has meaning. */
   consent_attested?: true;
 }
@@ -114,12 +126,18 @@ export function useUpdateContact(contactId: string) {
         companyId,
         body: patch,
       }),
-    onSuccess: (contact) => {
+    onSuccess: (contact, patch) => {
       queryClient.setQueryData<ContactDetail>(
         keys.contacts.detail(companyId, contactId),
         (existing) => ({
           opted_out: existing?.opted_out ?? false,
           opt_out_source: existing?.opt_out_source ?? null,
+          // #292: the PATCH echoes the stored OVERRIDE, not the resolved
+          // clock. Carrying the previous resolution forward beats blanking the
+          // line mid-edit; a timezone change refetches it below.
+          timezone_resolved: existing?.timezone_resolved ?? "UTC",
+          timezone_source: existing?.timezone_source ?? "company",
+          local_hour: existing?.local_hour ?? 0,
           ...contact,
         }),
       );
@@ -127,6 +145,15 @@ export function useUpdateContact(contactId: string) {
         queryKey: keys.contacts.lists(companyId),
         refetchType: "active",
       });
+      // #292: only the timezone changes what the server RESOLVES, and only it
+      // is worth a round trip — an autosaved name would refetch the detail on
+      // every keystroke pause for no change anyone can see.
+      if ("timezone" in patch) {
+        queryClient.invalidateQueries({
+          queryKey: keys.contacts.detail(companyId, contactId),
+          refetchType: "active",
+        });
+      }
     },
   });
 }

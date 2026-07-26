@@ -22,7 +22,7 @@
  *     attestation still apply and are recorded.
  *   • the send itself runs the §7 gate order via the shared send core.
  */
-import { destinationLocalHour, estimateSegments } from "@loonext/shared";
+import { estimateSegments } from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -40,6 +40,7 @@ import {
   signedMediaUrls,
   uploadOutboundMedia,
 } from "../messaging/media";
+import { resolveDestinationClock } from "../messaging/destination-clock";
 import { applySendMergeFields } from "../messaging/merge";
 import {
   dispatchOutbound,
@@ -418,15 +419,19 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
   // are always free.)
 
   // Quiet hours (soft, §5): 8pm–8am destination local time needs an explicit
-  // confirmation; unknown local time (non-geographic code) skips the check.
-  const hour = destinationLocalHour(destination, new Date());
-  const quietHours = hour !== null && (hour >= 20 || hour < 8);
-  if (quietHours && body.quiet_hours_confirmed !== true) {
+  // confirmation. #292/D49: through the ONE resolver, so this path and every
+  // automated one share an implementation rather than agreeing by accident —
+  // and so a contact whose area code lies can be corrected in one place.
+  const clock = await resolveDestinationClock(db, {
+    companyId,
+    phoneE164: destination,
+  });
+  if (clock.quiet && body.quiet_hours_confirmed !== true) {
     // Structural signal: dedicated code (409, same envelope) so the UI shows
     // the quiet-hours confirm dialog by CODE, not by sniffing the message.
     throw new ApiError(
       "quiet_hours_confirmation_required",
-      `It's ${String(hour).padStart(2, "0")}:00 where this customer is. Confirm with quiet_hours_confirmed to send anyway.`,
+      `It's ${String(clock.localHour).padStart(2, "0")}:00 where this customer is. Confirm with quiet_hours_confirmed to send anyway.`,
     );
   }
 
@@ -526,13 +531,20 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
       payload: { consent_source: "attested" },
     },
   ];
-  if (quietHours) {
+  if (clock.quiet) {
     events.push({
       company_id: companyId,
       conversation_id: conversation.id as string,
       actor_user_id: userId,
       type: "quiet_hours_confirmed",
-      payload: { destination_local_hour: hour },
+      payload: {
+        destination_local_hour: clock.localHour,
+        // #292: which rung of the D49 ladder answered. A confirmation against
+        // the shop's clock is a weaker record than one against the customer's
+        // own, and the difference matters if it is ever produced as evidence.
+        timezone: clock.timezone,
+        timezone_source: clock.source,
+      },
     });
   }
   // #20: any failure between the queued-row insert and dispatch would strand

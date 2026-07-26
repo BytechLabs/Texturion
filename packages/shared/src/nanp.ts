@@ -545,22 +545,61 @@ function hourFormatter(timezone: string): Intl.DateTimeFormat {
 }
 
 /**
- * Local hour (0–23) at the destination's primary timezone at the instant
- * `atUtc`, for the SPEC §5 quiet-hours check (8pm–8am destination local
- * time → confirm dialog). Offset math — including DST transitions — is done
- * by the runtime's IANA tzdata via Intl.DateTimeFormat; no external deps.
+ * Every distinct timezone the NANP table uses, sorted.
  *
- * Returns null when the destination is not a geographic US/CA area code
- * (unknown/Caribbean code, non-geographic code) or `atUtc` is invalid —
- * "unknown local time" callers treat as "no quiet-hours dialog".
+ * The picker a dispatcher uses to correct a contact's clock (#292) is built
+ * from this rather than from the ~400 IANA zones, because every number this
+ * product can text is in one of them — and because a list derived from the
+ * table cannot drift from the table. Adding an area code with a new zone adds
+ * it here automatically.
+ */
+export const NANP_TIMEZONES: readonly string[] = [
+  ...new Set(
+    Object.values(NANP_AREA_CODES)
+      .map((entry) => (entry.geographic ? entry.timezone : null))
+      .filter((zone): zone is string => zone !== null),
+  ),
+].sort();
+
+/**
+ * Local hour (0–23) in an IANA zone at the instant `atUtc`. Offset
+ * arithmetic — DST transitions included — is the runtime's own tzdata via
+ * Intl.DateTimeFormat; no external deps and no offset table of ours to go
+ * stale.
+ *
+ * Asking about an INSTANT is what makes the two awkward days a year ordinary:
+ * an instant has exactly one local hour in every zone, including the morning
+ * that skips 2am and the one that has 1am twice. It is wall-clock arithmetic
+ * that breaks on those days, and this does none.
+ *
+ * Returns null for a zone the runtime does not know or an invalid instant.
+ *
+ * The QUIET-HOURS POLICY does not live here (#292/D49) — which hours are
+ * quiet, and which clock to ask when the area code has no answer, is
+ * `apps/api/src/messaging/destination-clock.ts`, so every send path shares one
+ * ruling instead of agreeing by accident.
+ */
+export function localHourInZone(timezone: string, atUtc: Date): number | null {
+  if (Number.isNaN(atUtc.getTime())) return null;
+  let fmt: Intl.DateTimeFormat;
+  try {
+    fmt = hourFormatter(timezone);
+  } catch {
+    return null;
+  }
+  const hourPart = fmt.formatToParts(atUtc).find((part) => part.type === "hour");
+  if (!hourPart) return null;
+  return Number(hourPart.value);
+}
+
+/**
+ * The same, for a destination phone number: its area code's primary zone.
+ * Returns null when the destination is not a geographic US/CA area code (an
+ * unknown or Caribbean code, a non-geographic services code) — a caller that
+ * needs an answer for every number climbs the D49 ladder instead.
  */
 export function destinationLocalHour(e164: string, atUtc: Date): number | null {
   const entry = lookupAreaCode(e164);
   if (!entry || !entry.geographic) return null;
-  if (Number.isNaN(atUtc.getTime())) return null;
-  const hourPart = hourFormatter(entry.timezone)
-    .formatToParts(atUtc)
-    .find((part) => part.type === "hour");
-  if (!hourPart) return null;
-  return Number(hourPart.value);
+  return localHourInZone(entry.timezone, atUtc);
 }

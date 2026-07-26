@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   NANP_AREA_CODES,
+  NANP_TIMEZONES,
   destinationLocalHour,
   isUsCaDestination,
   lookupAreaCode,
@@ -215,5 +216,28 @@ describe("destinationLocalHour (quiet-hours math, SPEC §5)", () => {
     expect(destinationLocalHour("+18765550123", winter)).toBeNull(); // Jamaica
     expect(destinationLocalHour("garbage", winter)).toBeNull();
     expect(destinationLocalHour("+12125550123", new Date(Number.NaN))).toBeNull();
+  });
+});
+
+describe("NANP_TIMEZONES (#292 contact-timezone picker)", () => {
+  it("is every zone the table uses, and nothing else", () => {
+    const fromTable = new Set(
+      Object.values(NANP_AREA_CODES)
+        .map((entry) => (entry.geographic ? entry.timezone : null))
+        .filter((zone): zone is string => zone !== null),
+    );
+    expect(new Set(NANP_TIMEZONES)).toEqual(fromTable);
+    // Derived, not hand-listed: adding an area code with a new zone must not
+    // need a second edit somewhere a picker quietly goes stale.
+    expect(NANP_TIMEZONES).toHaveLength(fromTable.size);
+  });
+
+  it("is sorted, and every entry is a zone the runtime knows", () => {
+    expect([...NANP_TIMEZONES]).toEqual([...NANP_TIMEZONES].sort());
+    for (const zone of NANP_TIMEZONES) {
+      expect(() =>
+        new Intl.DateTimeFormat("en-US", { timeZone: zone }),
+      ).not.toThrow();
+    }
   });
 });

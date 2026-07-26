@@ -344,7 +344,15 @@ Status transitions are driven by **Telnyx webhooks** to `/webhooks/telnyx` — `
 
 ### Quiet hours (soft, D4)
 
-Composing a **new** outbound conversation between **8pm–8am destination local time** (timezone inferred from the destination area code via the static NANP table in `packages/shared`) shows a confirm dialog: "It's {time} where this customer is. Send anyway?" Confirmed sends proceed and are logged (`quiet_hours_confirmed` event, `quiet_hours_confirmed: true` on the `POST /v1/conversations` request — the only route carrying the flag). Replies within existing conversations are exempt, so `POST /v1/messages/send` has no quiet-hours parameter. **No hard block.**
+Composing a **new** outbound conversation between **8pm–8am destination local time** shows a confirm dialog: "It's {time} where this customer is. Send anyway?" Confirmed sends proceed and are logged (`quiet_hours_confirmed` event, `quiet_hours_confirmed: true` on the `POST /v1/conversations` request — the only route carrying the flag). Replies within existing conversations are exempt, so `POST /v1/messages/send` has no quiet-hours parameter. **No hard block.**
+
+**The destination clock is a ladder (#292/D49), resolved at FIRE time**, in `apps/api/src/messaging/destination-clock.ts` — the ONE resolver, which compose uses too:
+
+1. **`contacts.timezone`** — a person's correction. Area codes lie: a mobile number keeps its original code when its owner moves provinces, and a dispatcher who knows better can say so. Only the CORRECTION is stored; NULL means "infer", so the answer never goes stale when the NANP table is fixed.
+2. **The destination area code**, via the static NANP table in `packages/shared`.
+3. **`companies.timezone`** — the shop's own clock, when the area code has no region (a non-geographic US/CA code). A tradesperson's customers are overwhelmingly local to the business, so this is a far better estimate than treating the time as unknown, and it is a value the owner chose. It never runs out of rungs, which is what lets an automated path act rather than invent a policy.
+
+The resolved `timezone_source` rides `GET /v1/contacts/:id` so a screen can say "from their area code" or "using your timezone" instead of presenting a guess as a fact, and it is recorded on the `quiet_hours_confirmed` event — a confirmation against the shop's clock is a weaker record than one against the customer's own. DST, including the hour that does not exist and the hour that happens twice, is the runtime's tzdata via `Intl`, never our own offset arithmetic.
 
 ### First-message identification (D4 — REVERSED 2026-07)
 
@@ -504,6 +512,7 @@ create table public.contacts (
   consent_source               consent_source_t,
   consent_at                   timestamptz,
   consent_attested_by          uuid references auth.users(id) on delete restrict,
+  timezone                     text,            -- #292/D49: a person's CORRECTION to the area-code inference; NULL = infer (never a cached copy)
   first_identification_sent_at timestamptz,     -- vestigial: footer removed (§5); never written now, kept to avoid a destructive drop
   deleted_at                   timestamptz,     -- soft delete
   created_at                   timestamptz not null default now(),

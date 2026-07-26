@@ -13,6 +13,8 @@ export {
   lookupAreaCode,
   isUsCaDestination,
   destinationLocalHour,
+  localHourInZone,
+  NANP_TIMEZONES,
   type NanpCountry,
   type NanpEntry,
   type NanpGeographicEntry,

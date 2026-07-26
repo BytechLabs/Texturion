@@ -53,6 +53,22 @@ data class Contact(
      * made, with no carrier involved. Null when not opted out.
      */
     val opt_out_source: String? = null,
+    /**
+     * #292/D49: a person's CORRECTION to the area-code inference, or null to
+     * keep inferring. Never a cached copy of the inferred zone — that would go
+     * stale the day the area-code table is fixed, with nothing to tell it
+     * apart from a deliberate choice.
+     */
+    val timezone: String? = null,
+    /**
+     * What the server actually resolved, and which rung of the ladder answered
+     * ("contact", "area_code", "company"). Detail reads only — the list does
+     * not carry them, hence the defaults.
+     */
+    val timezone_resolved: String? = null,
+    val timezone_source: String? = null,
+    /** 0–23 where they are, at the moment the detail was read. */
+    val local_hour: Int? = null,
     val last_activity_at: String? = null,
     val created_by_user_id: String? = null,
     val created_by_name: String? = null,
@@ -80,3 +96,30 @@ data class ImportResult(
     @Serializable
     data class ImportRowError(val row: Int, val reason: String)
 }
+
+/**
+ * #292/D49: how honest to be about the clock we are showing.
+ *
+ * "From their area code" is an inference a dispatcher may know better than —
+ * a mobile number keeps its original code when its owner moves provinces.
+ * "Using your timezone" is us admitting we do not know, which is the one they
+ * most need to see before scheduling anything.
+ */
+fun timezoneProvenanceLabel(source: String?): String = when (source) {
+    "contact" -> "Set by your crew"
+    "area_code" -> "From their area code"
+    "company" -> "Their area code doesn't say — using your timezone"
+    else -> ""
+}
+
+/**
+ * The zones worth offering when correcting a contact's clock. Taken from the
+ * platform's own tz database rather than a list of ours, so it cannot go stale
+ * when IANA renames one — and narrowed to North America because every number
+ * this product can text is there. The server validates whatever is sent.
+ */
+fun northAmericanTimeZoneIds(): List<String> =
+    java.util.TimeZone.getAvailableIDs()
+        .filter { it.startsWith("America/") || it.startsWith("Pacific/Honolulu") }
+        .distinct()
+        .sorted()

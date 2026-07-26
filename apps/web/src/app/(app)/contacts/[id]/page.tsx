@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, Copy, SquarePen } from "lucide-react";
+import { ChevronLeft, Clock, Copy, SquarePen } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
@@ -23,6 +23,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -39,6 +46,7 @@ import { flattenPages } from "@/lib/api/pagination";
 import { useMembers } from "@/lib/api/team";
 import type { ContactDetail } from "@/lib/api/types";
 import { formatPhone } from "@/lib/format/phone";
+import { NANP_TIMEZONES } from "@loonext/shared";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -156,6 +164,125 @@ function RecordAttribution({ contact }: { contact: ContactDetail }) {
         </p>
       )}
       {editedBy && editedBy !== addedBy && <p>Edited by {editedBy}</p>}
+    </div>
+  );
+}
+
+/**
+ * #292/D49 — what time it is where this customer is, and the way to fix it
+ * when the area code lies.
+ *
+ * A reading and a quiet correction, not a form field. The inference is right
+ * for the large majority of contacts, so a 23-item picker sitting open in the
+ * primary view would be permanent clutter earning its keep a few times a year.
+ * It reveals on request instead, pre-filled with the zone currently in force —
+ * never an empty select asking a dispatcher to work out the answer from
+ * scratch.
+ *
+ * Applying: Zen of Clarity (advanced control stays folded), Progressive
+ * Disclosure, Smart Defaults (the picker opens on the current answer).
+ */
+function DestinationClock({ contact }: { contact: ContactDetail }) {
+  const [editing, setEditing] = useState(false);
+  const update = useUpdateContact(contact.id);
+
+  const reading = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: contact.timezone_resolved,
+  }).format(new Date());
+
+  // Honest about the guess. "From their area code" is an inference a
+  // dispatcher may know better than; "using your timezone" is us admitting we
+  // do not know, which is the one they most need to see.
+  const provenance =
+    contact.timezone_source === "contact"
+      ? "Set by your crew"
+      : contact.timezone_source === "area_code"
+        ? "From their area code"
+        : "Their area code doesn't say — using your timezone";
+
+  function save(next: string | null) {
+    update.mutate(
+      { timezone: next } as ContactPatch,
+      {
+        onSuccess: () => {
+          setEditing(false);
+          toast.success(
+            next ? "Timezone updated." : "Back to their area code.",
+          );
+        },
+        onError: (cause) =>
+          toast.error(
+            cause instanceof ApiError
+              ? cause.message
+              : "Couldn't save the timezone. Try again.",
+          ),
+      },
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="contact-timezone">Their time</Label>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <p className="flex items-center gap-1.5 text-sm">
+          <Clock className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden />
+          <span className="tabular-nums">{reading}</span>
+        </p>
+        <p className="text-xs text-muted-foreground">{provenance}</p>
+        {!editing && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={() => setEditing(true)}
+          >
+            Change
+          </Button>
+        )}
+      </div>
+
+      {editing && (
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <Select
+            value={contact.timezone_resolved}
+            onValueChange={(next) => save(next)}
+            disabled={update.isPending}
+          >
+            <SelectTrigger id="contact-timezone" className="w-64">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {NANP_TIMEZONES.map((zone) => (
+                <SelectItem key={zone} value={zone}>
+                  {zone.split("/").slice(1).join(" / ").replaceAll("_", " ")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {contact.timezone && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs"
+              disabled={update.isPending}
+              onClick={() => save(null)}
+            >
+              Use their area code
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs"
+            disabled={update.isPending}
+            onClick={() => setEditing(false)}
+          >
+            Cancel
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -315,6 +442,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
             />
             <SaveStatus state={notes.state} />
           </div>
+          <DestinationClock contact={contact} />
           <RecordAttribution contact={contact} />
         </div>
       </SettingsCard>

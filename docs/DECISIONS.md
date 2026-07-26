@@ -1871,3 +1871,48 @@ The ordered teardown across all 38 relationships and the external stores lives
 in `docs/DELETION.md`. #341 also assumed R2 for attachments and voicemail
 audio; those are Supabase Storage buckets (`attachments`, `mms-media`,
 `voicemails`) and the document names them correctly.
+
+---
+
+## D49 — the destination clock is a ladder, and it never runs out of rungs (#292)
+
+Quiet hours are destination-local (D4), inferred from the area code. Two things
+were undecided, and both only bite when nobody is watching the send go out.
+
+**A contact can carry a timezone, and we store only the correction.** Area codes
+lie: a mobile number keeps its original code when its owner moves provinces, and
+that gets more common every year. A dispatcher who knows a customer is in
+Alberta can now say so.
+
+What is stored is the OVERRIDE and nothing else. Storing the inferred value too
+would look tidier and would rot: the NANP table gets corrected, and every
+contact keeps the answer it was given the day it was created, with no way to
+tell a stale copy from a deliberate choice. A null column means "ask the
+inference", which is always current, and provenance falls out of it rather than
+needing its own bookkeeping.
+
+**When inference has no answer, fall back to the SHOP's clock, not to a
+guess.** The case is narrow — a US/CA number on a non-geographic area code,
+which passes the destination gate but has no region. There were three options:
+
+- Treat it as in-hours. Fine for a human pressing send, who is choosing. For an
+  automated path it means breaching a legal window and never knowing.
+- Treat it as quiet. Safe and useless: the message never goes at all.
+- Use the intersection of 8am–8pm across every US/CA zone. Defensible, and
+  about four and a half hours a day once Hawaii and Newfoundland are both in
+  it — a window so narrow it would bunch every deferred send into the same
+  slice of the afternoon.
+
+We use `companies.timezone`. A tradesperson's customers are overwhelmingly
+local to the business — that is the entire premise of the product — so the shop
+clock is a far better estimate than any of the above, and it is a value the
+owner chose rather than one we invented. The resolver reports which rung it
+landed on, so a screen can say "their area code doesn't say — using your
+timezone" instead of stating a fact it does not have.
+
+**Every automated path resolves at FIRE time, through the one resolver.** Not
+at schedule time: a message queued at noon and sent at 11pm was resolved
+against the wrong instant. The failure mode is silent — a path that simply
+never asks produces a 3am text with no error anywhere — so the resolver is the
+only implementation, the compose gate uses it too, and a test enumerates the
+files allowed to decide quiet hours.

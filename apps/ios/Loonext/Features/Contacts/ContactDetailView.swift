@@ -41,6 +41,8 @@ struct ContactDetailView: View {
     @State private var confirmDelete = false
     @State private var working = false
     @State private var placingCall = false
+    /// #292: the timezone picker stays folded until asked for.
+    @State private var editingTimezone = false
 
     @Environment(\.dismiss) private var dismiss
 
@@ -436,6 +438,93 @@ struct ContactDetailView: View {
                 )
             }
             .id("\(contact.id)|notes")
+            RowDivider()
+            // #292/D49: what time it is where they are, and a way to fix it
+            // when the area code lies.
+            destinationClockRow(contact)
+        }
+    }
+
+    /// #292/D49 — the destination clock: a reading, where it came from, and a
+    /// quiet way to correct it.
+    ///
+    /// Folded by default. The inference is right for the large majority of
+    /// contacts, so a permanently-open picker of every North American zone
+    /// would be clutter earning its keep a few times a year. Tapping "Change"
+    /// reveals it, already on the zone in force rather than empty.
+    ///
+    /// Applying: Zen of Clarity (advanced control collapsed), Smart Defaults.
+    @ViewBuilder
+    private func destinationClockRow(_ contact: Contact) -> some View {
+        if let zone = contact.timezone_resolved {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Their time")
+                    .font(.golos(10.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.muted500)
+                HStack(spacing: 6) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 11))
+                        .foregroundStyle(BrandColor.muted500)
+                    Text(localReading(zone))
+                        .font(.golos(12.5))
+                        .foregroundStyle(BrandColor.muted900)
+                    Text(timezoneProvenanceLabel(contact.timezone_source))
+                        .font(.golos(10.5))
+                        .foregroundStyle(BrandColor.muted500)
+                    Spacer(minLength: 6)
+                    Button(editingTimezone ? "Done" : "Change") {
+                        editingTimezone.toggle()
+                    }
+                    .font(.golos(11, weight: .semibold))
+                    .foregroundStyle(BrandColor.olive)
+                    .buttonStyle(.plain)
+                    .disabled(working)
+                }
+                if editingTimezone {
+                    Menu {
+                        ForEach(northAmericanTimeZoneIdentifiers(), id: \.self) { candidate in
+                            Button(zoneLabel(candidate)) { saveTimezone(candidate) }
+                        }
+                    } label: {
+                        Text(zoneLabel(zone))
+                            .font(.golos(12.5))
+                            .foregroundStyle(BrandColor.olive)
+                    }
+                    .disabled(working)
+                    if contact.timezone != nil {
+                        Button("Use their area code") { saveTimezone(nil) }
+                            .font(.golos(11))
+                            .foregroundStyle(BrandColor.muted500)
+                            .buttonStyle(.plain)
+                            .disabled(working)
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func localReading(_ zone: String) -> String {
+        let formatter = DateFormatter()
+        formatter.timeZone = TimeZone(identifier: zone)
+        formatter.dateFormat = "h:mm a"
+        return formatter.string(from: Date())
+    }
+
+    private func zoneLabel(_ zone: String) -> String {
+        (zone.split(separator: "/").last.map(String.init) ?? zone)
+            .replacingOccurrences(of: "_", with: " ")
+    }
+
+    private func saveTimezone(_ zone: String?) {
+        runAction {
+            _ = try await mutations.updateField(
+                companyId: companyId, contactId: contactId, field: "timezone", value: zone
+            )
+            editingTimezone = false
+            refreshKey += 1
         }
     }
 

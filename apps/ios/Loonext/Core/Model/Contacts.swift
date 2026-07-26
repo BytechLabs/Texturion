@@ -39,6 +39,18 @@ struct Contact: Codable, Sendable {
     /// to one of them. "manual" and "import" are records someone in the office
     /// made, with no carrier involved. Nil when not opted out.
     var opt_out_source: String?
+    /// #292/D49: a person's CORRECTION to the area-code inference, or nil to
+    /// keep inferring. Never a cached copy of the inferred zone — that would
+    /// go stale the day the area-code table is fixed, with nothing to tell it
+    /// apart from a deliberate choice.
+    var timezone: String?
+    /// What the server actually resolved, and which rung of the ladder
+    /// answered ("contact", "area_code", "company"). Detail reads only — the
+    /// list does not carry them, hence the optionals.
+    var timezone_resolved: String?
+    var timezone_source: String?
+    /// 0–23 where they are, at the moment the detail was read.
+    var local_hour: Int?
     let last_activity_at: String?
     /// #191 record attribution — who created (or resurrected) and who last
     /// edited this contact. The detail + list reads resolve each actor to a
@@ -76,4 +88,29 @@ struct ImportResult: Codable, Sendable {
     let updated: Int
     let skipped: Int
     @Default<DefaultEmptyList<ImportRowError>> var errors: [ImportRowError]
+}
+
+/// #292/D49: how honest to be about the clock we are showing.
+///
+/// "From their area code" is an inference a dispatcher may know better than —
+/// a mobile number keeps its original code when its owner moves provinces.
+/// "Using your timezone" is us admitting we do not know, which is the one they
+/// most need to see before scheduling anything.
+func timezoneProvenanceLabel(_ source: String?) -> String {
+    switch source {
+    case "contact": return "Set by your crew"
+    case "area_code": return "From their area code"
+    case "company": return "Their area code doesn't say — using your timezone"
+    default: return ""
+    }
+}
+
+/// The zones worth offering when correcting a contact's clock. Taken from the
+/// platform's own tz database rather than a list of ours, so it cannot go stale
+/// when IANA renames one — and narrowed to North America because every number
+/// this product can text is there. The server validates whatever is sent.
+func northAmericanTimeZoneIdentifiers() -> [String] {
+    TimeZone.knownTimeZoneIdentifiers
+        .filter { $0.hasPrefix("America/") || $0 == "Pacific/Honolulu" }
+        .sorted()
 }

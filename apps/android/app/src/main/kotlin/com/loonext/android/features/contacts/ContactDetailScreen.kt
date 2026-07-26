@@ -37,6 +37,12 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material.icons.outlined.Schedule
+import com.loonext.android.core.model.northAmericanTimeZoneIds
+import com.loonext.android.core.model.timezoneProvenanceLabel
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -521,6 +527,17 @@ private fun ContactDetailBody(
                     graph.storeCache.put(CacheKeys.contact(companyId, contact.id), updated)
                 },
             )
+            RowDivider()
+            // #292/D49: what time it is where they are, and a way to fix it
+            // when the area code lies.
+            DestinationClockRow(
+                contact = contact,
+                save = { zone ->
+                    val updated =
+                        mutations.updateField(companyId, contact.id, "timezone", zone)
+                    graph.storeCache.put(CacheKeys.contact(companyId, contact.id), updated)
+                },
+            )
         }
 
         // #191: a quiet record-attribution caption — who added this contact,
@@ -741,6 +758,98 @@ private fun ContactDetailBody(
  * avatar, name and phone lines, then the info card's three field rows.
  * Cache-first (#176) makes this the true first open only.
  */
+/**
+ * #292/D49 — the destination clock: a reading, where it came from, and a quiet
+ * way to correct it.
+ *
+ * Folded by default. The inference is right for the large majority of
+ * contacts, so a permanently-open picker of every North American zone would be
+ * clutter earning its keep a few times a year. Tapping "Change" reveals it,
+ * already on the zone in force rather than empty.
+ *
+ * Applying: Zen of Clarity (advanced control collapsed), Smart Defaults.
+ */
+@Composable
+private fun DestinationClockRow(
+    contact: Contact,
+    save: suspend (String?) -> Unit,
+) {
+    val zone = contact.timezone_resolved ?: return
+    var editing by remember(contact.id) { mutableStateOf(false) }
+    var saving by remember(contact.id) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    val reading = remember(zone, contact.updated_at) {
+        runCatching {
+            java.time.ZonedDateTime.now(java.time.ZoneId.of(zone))
+                .format(java.time.format.DateTimeFormatter.ofPattern("h:mm a"))
+        }.getOrDefault("")
+    }
+
+    fun apply(next: String?) {
+        saving = true
+        scope.launch {
+            runCatching { save(next) }
+            saving = false
+            editing = false
+        }
+    }
+
+    Column(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 12.dp)) {
+        Text(
+            "Their time",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Outlined.Schedule,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(reading, style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                timezoneProvenanceLabel(contact.timezone_source),
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Spacer(Modifier.width(8.dp))
+            TextButton(onClick = { editing = !editing }, enabled = !saving) {
+                Text(if (editing) "Done" else "Change")
+            }
+        }
+
+        if (editing) {
+            Spacer(Modifier.height(4.dp))
+            val zones = remember { northAmericanTimeZoneIds() }
+            var expanded by remember { mutableStateOf(false) }
+            Box {
+                OutlinedButton(onClick = { expanded = true }, enabled = !saving) {
+                    Text(zone.substringAfter('/').replace('_', ' '))
+                }
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    zones.forEach { candidate ->
+                        DropdownMenuItem(
+                            text = { Text(candidate.substringAfter('/').replace('_', ' ')) },
+                            onClick = { expanded = false; apply(candidate) },
+                        )
+                    }
+                }
+            }
+            if (contact.timezone != null) {
+                TextButton(onClick = { apply(null) }, enabled = !saving) {
+                    Text("Use their area code")
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun ContactDetailSkeleton() {
     Column(

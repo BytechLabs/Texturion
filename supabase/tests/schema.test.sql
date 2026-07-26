@@ -545,6 +545,28 @@ begin
 end $$;
 
 -- ===========================================================================
+-- T16b. [#292/D49] contacts.timezone — the CORRECTION column.
+--       NULL means "infer from the area code" and must stay legal; a valid
+--       IANA name is accepted; rubbish is refused by the shape check, which is
+--       the backstop behind the API's Intl validation.
+-- ===========================================================================
+do $$
+begin
+  insert into public.contacts (company_id, phone_e164, timezone)
+  values ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', '+16135559901', 'America/Edmonton');
+  insert into public.contacts (company_id, phone_e164, timezone)
+  values ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', '+16135559902', null);
+  begin
+    insert into public.contacts (company_id, phone_e164, timezone)
+    values ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', '+16135559903', 'not a zone');
+    raise exception 'T16b FAILED: contacts.timezone accepted a non-zone';
+  exception when check_violation then
+    null;
+  end;
+  raise notice 'T16b PASSED: contacts.timezone takes a zone or NULL, nothing else';
+end $$;
+
+-- ===========================================================================
 -- T17. invites: pending partial unique — duplicate pending invite rejected,
 --      allowed again once the first is revoked.
 -- ===========================================================================

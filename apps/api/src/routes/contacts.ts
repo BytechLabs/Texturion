@@ -30,6 +30,7 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
+import { resolveDestinationClock } from "../messaging/destination-clock";
 import { requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -56,11 +57,14 @@ import { resolveActorNames } from "./core/attribution";
 import { detectContactColumns } from "@loonext/shared";
 
 import { normalizeNanpPhone } from "./core/phone";
+import { isValidIanaTimezone } from "./core/timezone";
 import { parseVCards } from "./core/vcard";
 
 const CONTACT_COLUMNS =
   "id,phone_e164,name,address,notes,consent_source,consent_at," +
   "consent_attested_by,created_by_user_id,updated_by_user_id," +
+  // #292: the human's correction to the area-code inference. NULL means infer.
+  "timezone," +
   "deleted_at,created_at,updated_at";
 
 /**
@@ -86,6 +90,19 @@ const patchSchema = z
     name: z.string().trim().min(1).max(200).nullable().optional(),
     address: z.string().trim().min(1).max(500).nullable().optional(),
     notes: z.string().max(5000).nullable().optional(),
+    // #292/D49: the correction to the area-code inference. NULL clears it and
+    // goes back to inferring — which is a real thing to want, so it is
+    // nullable rather than write-once.
+    timezone: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .refine(isValidIanaTimezone, {
+        message: "Must be an IANA timezone name, e.g. America/Edmonton.",
+      })
+      .nullable()
+      .optional(),
     // §5 consent attestation: only literal true has meaning.
     consent_attested: z.literal(true).optional(),
   })
@@ -94,6 +111,7 @@ const patchSchema = z
       "name" in body ||
       "address" in body ||
       "notes" in body ||
+      "timezone" in body ||
       body.consent_attested === true,
     { message: "Provide at least one field to update." },
   );
@@ -498,9 +516,25 @@ contactsRoutes.get("/contacts/:id", requireRole("member"), async (c) => {
   // actor-less rows — the UI shows the attribution line only when it resolves).
   const createdBy = contact.created_by_user_id as string | null;
   const updatedBy = contact.updated_by_user_id as string | null;
-  const actorNames = await resolveActorNames(db, [createdBy, updatedBy]);
+  const [actorNames, clock] = await Promise.all([
+    resolveActorNames(db, [createdBy, updatedBy]),
+    // #292/D49: what time it is where they are, resolved the same way a send
+    // resolves it. The screen showing "9:00 AM their time" and the gate that
+    // decides whether a send needs confirming must not be able to disagree.
+    resolveDestinationClock(db, {
+      companyId,
+      phoneE164: contact.phone_e164 as string,
+      contactTimezone: (contact.timezone as string | null) ?? null,
+    }),
+  ]);
   return c.json({
     ...contact,
+    // The resolved clock, and which rung of the ladder answered — so the UI
+    // can say "from their area code" or "using your timezone" rather than
+    // presenting a guess as a fact.
+    timezone_resolved: clock.timezone,
+    timezone_source: clock.source,
+    local_hour: clock.localHour,
     opted_out: optOuts.length > 0,
     // Which kind of opt-out it is, because only one of them can be undone from
     // in here: 'stop_keyword' is a carrier-level block the customer created and
@@ -532,6 +566,10 @@ contactsRoutes.patch("/contacts/:id", requireRole("member"), async (c) => {
     Object.assign(patch, geocodeReset(nextAddress));
   }
   if ("notes" in body) patch.notes = body.notes ?? null;
+  // #292/D49: null is meaningful here — it clears the correction and goes back
+  // to inferring from the area code, which is what you want after fixing a
+  // number rather than a person.
+  if ("timezone" in body) patch.timezone = body.timezone ?? null;
   if (body.consent_attested === true) {
     patch.consent_source = "attested";
     patch.consent_at = new Date().toISOString();

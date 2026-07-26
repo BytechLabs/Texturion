@@ -704,6 +704,14 @@ export interface Contact {
   created_by_name: string | null;
   updated_by_user_id: string | null;
   updated_by_name: string | null;
+  /**
+   * #292/D49: a person's CORRECTION to the area-code inference, or null to
+   * keep inferring. Never a cached copy of the inferred zone — that would go
+   * stale the day the area-code table is fixed, with nothing to distinguish it
+   * from a deliberate choice. Read {@link ContactDetail.timezone_resolved} for
+   * the answer actually in force.
+   */
+  timezone: string | null;
 }
 
 /**
@@ -726,6 +734,16 @@ export interface ContactDetail extends Contact {
    * with no carrier involved. Null when the contact is not opted out.
    */
   opt_out_source: OptOutSource | null;
+  /**
+   * #292/D49: what time it is where they are, resolved the same way a send
+   * resolves it — a person's correction, else the area code, else the shop's
+   * own clock. `timezone_source` says which rung answered, so a screen can be
+   * honest about a guess instead of presenting it as a fact.
+   */
+  timezone_resolved: string;
+  timezone_source: "contact" | "area_code" | "company";
+  /** 0–23 there, at the moment the detail was read. */
+  local_hour: number;
 }
 
 /**
