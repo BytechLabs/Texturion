@@ -59,7 +59,13 @@ function submitButton(html: string): string {
 // Each test re-imports a full page module tree (supabase client included)
 // after resetModules; the first cold transform under a parallel full-suite
 // run can exceed the 5s default and flake — give the file real headroom.
-vi.setConfig({ testTimeout: 30_000 });
+//
+// Raised from 30s on 2026-07-26 after a run measured 48s. The cost is real
+// work, not a hang: six tests x resetModules x a cold Next page graph, on a
+// machine already running every other suite. A test that only fails when the
+// box is busy is worse than a slow one — under merge-to-ship a red CI is a
+// release that does not ship, so the flake had a price it did not used to.
+vi.setConfig({ testTimeout: 120_000 });
 
 beforeEach(() => {
   vi.resetModules();

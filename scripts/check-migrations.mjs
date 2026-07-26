@@ -84,6 +84,34 @@ function stripComments(sql) {
     .replace(/--[^\n]*/g, " ");
 }
 
+/**
+ * Strip GRANT/REVOKE statements before matching.
+ *
+ * `truncate` and `delete` are PRIVILEGE NAMES as well as statements, so
+ *
+ *     revoke update, delete, truncate on public.audit_log from public;
+ *
+ * read as "truncates a table" to a word-boundary match — when it is the exact
+ * opposite: it is the statement that makes truncating impossible. That false
+ * positive turned main red for six consecutive commits (#231's audit_log
+ * migration, 2026-07-26) and, because nothing deploys from a red main, none of
+ * that day's work reached production.
+ *
+ * Stripping rather than special-casing each rule: a GRANT or REVOKE cannot
+ * destroy a row under any spelling, so there is nothing in one for these rules
+ * to legitimately find. The alternative — writing `-- destructive-ok:` on a
+ * migration that destroys nothing — is worse than the bug: it trains the
+ * reflex this guard's own header warns about, and an acknowledgement that
+ * means "the checker was wrong" is indistinguishable from one that means "I
+ * thought about this".
+ */
+function stripPrivilegeStatements(sql) {
+  return sql.replace(
+    /\b(?:grant|revoke)\b[\s\S]*?;/gi,
+    " ",
+  );
+}
+
 const files = readdirSync(DIR).filter((f) => f.endsWith(".sql")).sort();
 const offenders = [];
 
@@ -91,7 +119,7 @@ for (const file of files) {
   if (GRANDFATHERED.has(file)) continue; // already applied; reason recorded above
   const raw = readFileSync(join(DIR, file), "utf8");
   if (ACK.test(raw)) continue; // acknowledged, with the reason in the file
-  const sql = stripComments(raw);
+  const sql = stripPrivilegeStatements(stripComments(raw));
   const hits = RULES.filter(([pattern]) => pattern.test(sql)).map(([, why]) => why);
   if (hits.length > 0) offenders.push({ file, hits });
 }
