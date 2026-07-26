@@ -772,6 +772,27 @@ export interface Member {
 }
 
 /**
+ * One privileged change, from GET /v1/audit-log (#231). The table it comes
+ * from is append-only at the database level, so a row here is what actually
+ * happened — not what someone later decided it should say.
+ */
+export interface AuditEntry {
+  id: string;
+  /** Null when the system acted (a scheduled job, a provider webhook). */
+  actor_user_id: string | null;
+  actor_name: string | null;
+  actor_ip: string | null;
+  /** Dotted `subject.verb`, e.g. "member.role_changed". */
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  /** Shape of the change — never message bodies or customer content. */
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  occurred_at: string;
+}
+
+/**
  * A teammate who may be named on a note in one conversation. Narrower than
  * Member on purpose: this list is already filtered by number access, so it
  * carries only what the picker renders.

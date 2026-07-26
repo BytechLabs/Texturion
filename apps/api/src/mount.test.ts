@@ -15,6 +15,7 @@ import { runSubscriptionReconcileJob } from "./billing/reconcile";
 import { runOverageWarningJob } from "./billing/overage-warning";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
 import { sweepDeletedAttachments } from "./attachments/sweep";
+import { pruneAuditLog } from "./audit/retention";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { notifyDueTasksJob } from "./tasks/due-notice";
@@ -453,6 +454,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     expect(CRON_JOBS["10 13 * * *"]).toEqual([pollPortRequests]);
     expect(CRON_JOBS["0 14 * * *"]).toEqual([runGraceJob]);
     expect(CRON_JOBS["0 15 * * *"]).toEqual([runSubscriptionReconcileJob]);
-    expect(CRON_JOBS["30 15 * * *"]).toEqual([pruneWebhookEvents]);
+    // Both ledger retentions ride the same daily slot (#231).
+    expect(CRON_JOBS["30 15 * * *"]).toEqual([pruneWebhookEvents, pruneAuditLog]);
   });
 });

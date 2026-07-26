@@ -25,6 +25,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { type CompanyAiSettings, loadAiSettings } from "../ai/settings";
+import { recordAuditFromRequest } from "../audit/log";
 import { requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -306,6 +307,20 @@ companiesRoutes.patch(
       throw new Error(`upsert_company_ai_settings failed: ${error.message}`);
     }
     const row = data as CompanyAiSettings;
+    // #231: settings changes are the "why did we stop getting jobs three weeks
+    // ago" class. The switches, never the business description — that is the
+    // owner's words, and the log records shape, not content.
+    await recordAuditFromRequest(db, c, {
+      companyId: c.get("companyId"),
+      action: "settings.changed",
+      targetType: "ai_settings",
+      after: {
+        enrich_task_address: row.enrich_task_address,
+        enrich_task_due: row.enrich_task_due,
+        suggest_replies: row.suggest_replies,
+        transcribe_voicemail: row.transcribe_voicemail,
+      },
+    });
     return c.json({
       enrich_task_address: row.enrich_task_address,
       enrich_task_due: row.enrich_task_due,
@@ -524,6 +539,30 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   if (!company) {
     return errorResponse(c, "not_found", "No such company.");
   }
+
+  // #231: the settings an owner asks about after the fact — the caller ID, the
+  // missed-call text-back, the away reply. Record WHICH ones moved, not the
+  // message text: the words are the owner's, and a log that copies them
+  // becomes a second place for customer-facing content to leak from. An
+  // authored message is reported as present/absent instead.
+  await recordAuditFromRequest(db, c, {
+    companyId: c.get("companyId"),
+    action: "settings.changed",
+    targetType: "company",
+    targetId: c.get("companyId"),
+    after: Object.fromEntries(
+      Object.entries(patch).map(([key, value]) => [
+        key,
+        key === "away_message" ||
+        key === "mctb_message" ||
+        key === "voicemail_greeting"
+          ? value === null
+            ? "cleared"
+            : "set"
+          : value,
+      ]),
+    ),
+  });
 
   // When the missed-call text-back is turned ON, or a forward cell is set, the
   // company's number(s) must be able to RECEIVE CALLS. Enable voice idempotently

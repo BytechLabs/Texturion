@@ -10,6 +10,7 @@ import {
   MessageSquareText,
   Phone,
   PhoneMissed,
+  ScrollText,
   ShieldCheck,
   Sparkles,
   UserRound,
@@ -113,6 +114,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "Account",
     description: "Email, password, and sign-in methods",
     icon: ShieldCheck,
+  },
+  {
+    // #231 — the workspace audit log. Last in the list on purpose: it is the
+    // page you go looking for, not one you pass through.
+    slug: "history",
+    label: "History",
+    description: "Who changed what, and when",
+    icon: ScrollText,
   },
 ];
 

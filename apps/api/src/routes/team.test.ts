@@ -49,7 +49,16 @@ function stubWithRole(role: string | null): SupabaseStub {
     "/rest/v1/company_members",
     membershipResponder(MEMBER_ID, role),
   );
+  // #231: every membership change writes one audit row.
+  sb.on("POST", "/rest/v1/audit_log", () => []);
   return sb;
+}
+
+/** The one #231 row a privileged action wrote, or a failure naming the count. */
+function auditRow(sb: SupabaseStub): Record<string, unknown> {
+  const writes = sb.find("POST", "/rest/v1/audit_log");
+  expect(writes).toHaveLength(1);
+  return writes[0].body as Record<string, unknown>;
 }
 
 /** Register plan + seat-count responders (HEAD count queries). */
@@ -633,6 +642,15 @@ describe("PATCH /v1/members/:id (O/A; owner immutable)", () => {
     expect(sb.find("PATCH", "/rest/v1/company_members")[0].body).toEqual({
       role: "admin",
     });
+    // #231: who can do what is the first thing reconstructed after an incident,
+    // so the row carries both sides of the change.
+    expect(auditRow(sb)).toMatchObject({
+      action: "member.role_changed",
+      target_type: "member",
+      target_id: TARGET_MEMBER_ID,
+      before: { role: "member" },
+      after: { role: "admin" },
+    });
   });
 
   it("409s any change to the owner row; 422s role 'owner' in the body", async () => {
@@ -690,6 +708,15 @@ describe("DELETE /v1/members/:id (deactivate, not delete)", () => {
       typeof (patch.body as Record<string, unknown>).deactivated_at,
     ).toBe("string");
     expect(sb.find("DELETE", "/rest/v1/company_members")).toHaveLength(0);
+    // #231: "did the person we let go on Friday still have access on Monday"
+    // is the question this row exists to answer.
+    expect(auditRow(sb)).toMatchObject({
+      company_id: COMPANY_ID,
+      action: "member.deactivated",
+      target_type: "member",
+      target_id: TARGET_MEMBER_ID,
+      after: { role: "member", active: false },
+    });
 
     vi.unstubAllGlobals();
     const sb2 = stubWithRole("admin");

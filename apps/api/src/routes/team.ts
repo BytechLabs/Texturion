@@ -30,6 +30,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { recordAuditFromRequest } from "../audit/log";
 import { requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -193,6 +194,16 @@ teamRoutes.patch("/members/:id", requireRole("admin"), async (c) => {
       .select(MEMBER_COLUMNS),
     "member role update",
   );
+  // #231: who can do what is the first thing anyone reconstructs after an
+  // incident.
+  await recordAuditFromRequest(db, c, {
+    companyId,
+    action: "member.role_changed",
+    targetType: "member",
+    targetId: id,
+    before: { role: target.role },
+    after: { role: body.role },
+  });
   return c.json(updated[0]);
 });
 
@@ -250,6 +261,16 @@ teamRoutes.delete("/members/:id", requireRole("admin"), async (c) => {
         cause instanceof Error ? cause.message : String(cause),
       );
     }
+    // #231: "did the person we let go on Friday still have access on Monday"
+    // is the question this row exists to answer.
+    await recordAuditFromRequest(db, c, {
+      companyId,
+      action: "member.deactivated",
+      targetType: "member",
+      targetId: id,
+      before: { role: target.role, active: true },
+      after: { role: target.role, active: false },
+    });
   }
   return c.body(null, 204);
 });
@@ -332,6 +353,15 @@ teamRoutes.post("/invites", requireRole("admin"), async (c) => {
     });
   }
 
+  // #231: an invite is the front door — who opened it, for whom, at what role.
+  await recordAuditFromRequest(db, c, {
+    companyId,
+    action: "member.invited",
+    targetType: "invite",
+    targetId: invite.id as string,
+    after: { email: body.email, role: body.role, email_sent: emailSent },
+  });
+
   return c.json({ ...invite, email_sent: emailSent }, 201);
 });
 
@@ -400,6 +430,12 @@ teamRoutes.delete("/invites/:id", requireRole("admin"), async (c) => {
   if (rows.length === 0) {
     return errorResponse(c, "not_found", "No pending invite to revoke.");
   }
+  await recordAuditFromRequest(db, c, {
+    companyId: c.get("companyId"),
+    action: "member.invite_revoked",
+    targetType: "invite",
+    targetId: id,
+  });
   return c.body(null, 204);
 });
 
@@ -568,6 +604,16 @@ teamRoutes.post("/invites/accept", async (c) => {
       .eq("id", invite.id),
     "invite accept stamp",
   );
+
+  // #231: the moment someone gains access. The actor is the joiner, which is
+  // the truth of it — the inviter's row was written when they opened the door.
+  await recordAuditFromRequest(db, c, {
+    companyId: invite.company_id,
+    action: "member.joined",
+    targetType: "member",
+    targetId: memberRows[0].id as string,
+    after: { role: invite.role, invite_id: invite.id },
+  });
 
   return c.json(
     { ...memberRows[0], company_id: invite.company_id },

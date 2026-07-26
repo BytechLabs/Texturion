@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { recordAuditFromRequest } from "../audit/log";
 import { requireRole } from "../auth/company";
 import { resolveNumberAccess } from "../auth/number-access";
 import {
@@ -710,6 +711,21 @@ numbersRoutes.put("/:id/access", requireRole("admin"), async (c) => {
       throw new Error(`number_access insert failed: ${insertError.message}`);
     }
   }
+
+  // #231: "who granted the new guy access to the main number" — and, after
+  // someone leaves, whether anything was quietly opened up on the way out.
+  await recordAuditFromRequest(db, c, {
+    companyId,
+    action: "number_access.changed",
+    targetType: "phone_number",
+    targetId: id,
+    after:
+      body.access === "everyone"
+        ? { access: "everyone" }
+        : body.access === "role"
+          ? { access: "role", role: body.role, level: body.level }
+          : { access: "people", people: userIds.length, level: body.level },
+  });
 
   return c.json(body);
 });
