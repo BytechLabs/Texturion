@@ -192,7 +192,7 @@ final class ThreadController {
 
     private func refreshMessagesFirstPage() async throws {
         let page = try await repo.messages(companyId: companyId, conversationId: conversationId)
-        messages = mergeFirstPage(messages, page.data, idOf: { $0.id }, sortKey: { $0.created_at })
+        messages = mergeMessagesFirstPage(messages, page.data)
         if messagesCursor == nil, page.next_cursor != nil, !allMessagesLoaded {
             messagesCursor = page.next_cursor
         }
@@ -264,12 +264,7 @@ final class ThreadController {
     private func refreshConversationDetail() async throws {
         let detail = try await repo.detail(companyId: companyId, conversationId: conversationId)
         conversation = detail
-        messages = mergeFirstPage(
-            messages,
-            detail.messages.data,
-            idOf: { $0.id },
-            sortKey: { $0.created_at }
-        )
+        messages = mergeMessagesFirstPage(messages, detail.messages.data)
     }
 
     private func refreshContact() async throws {
@@ -305,12 +300,7 @@ final class ThreadController {
                 conversationId: conversationId
             ) {
                 conversation = detail
-                messages = mergeFirstPage(
-                    messages,
-                    detail.messages.data,
-                    idOf: { $0.id },
-                    sortKey: { $0.created_at }
-                )
+                messages = mergeMessagesFirstPage(messages, detail.messages.data)
                 // Only re-open pagination if we hadn't scrolled yet; a
                 // scrolled-back thread keeps its deeper cursor + loaded flag.
                 if messagesCursor == nil, detail.messages.next_cursor != nil, !allMessagesLoaded {
@@ -437,12 +427,7 @@ final class ThreadController {
                 )
                 lastFailedIntent = nil
                 pendingSends.removeAll { $0.localId == pendingRow.localId }
-                messages = mergeFirstPage(
-                    messages,
-                    [message],
-                    idOf: { $0.id },
-                    sortKey: { $0.created_at }
-                )
+                messages = mergeMessagesFirstPage(messages, [message])
                 markRead()
             } catch {
                 pendingSends.removeAll { $0.localId == pendingRow.localId }
@@ -506,7 +491,7 @@ final class ThreadController {
                 notify(error.userMessage)
                 return
             }
-            messages = mergeFirstPage(messages, [note], idOf: { $0.id }, sortKey: { $0.created_at })
+            messages = mergeMessagesFirstPage(messages, [note])
             if files.isEmpty { return }
             var failedCount = 0
             for file in files {

@@ -108,12 +108,16 @@ struct Message: Codable, Sendable {
     let direction: String
     let body: String
     /// nil iff direction='note'.
-    let status: String?
+    ///
+    /// `var` so a merge can keep a status a stale page would otherwise walk
+    /// backwards (see mergeMessage). The error fields travel with it, since
+    /// they describe the state being kept.
+    var status: String?
     let segments: Int?
     let encoding: String?
     let sent_by_user_id: String?
-    let error_code: String?
-    let error_detail: String?
+    var error_code: String?
+    var error_detail: String?
     let telnyx_message_id: String?
     let done_at: String?
     let done_by_user_id: String?

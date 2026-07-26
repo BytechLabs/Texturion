@@ -199,12 +199,7 @@ class ThreadController(
         if (seeded) {
             // Merge page 1 instead of trimming — the snapshot may hold pages
             // the user had already scrolled back through.
-            messages = mergeFirstPage(
-                messages,
-                detail.messages.data,
-                { it.id },
-                { it.created_at },
-            )
+            messages = mergeMessagesFirstPage(messages, detail.messages.data)
             val cursor = detail.messages.next_cursor
             if (messagesCursor == null && cursor != null && !allMessagesLoaded) {
                 messagesCursor = cursor
@@ -295,7 +290,7 @@ class ThreadController(
 
     private suspend fun refreshMessagesFirstPage() {
         val page = repo.messages(companyId, conversationId)
-        messages = mergeFirstPage(messages, page.data, { it.id }, { it.created_at })
+        messages = mergeMessagesFirstPage(messages, page.data)
         if (messagesCursor == null && page.next_cursor != null && !allMessagesLoaded) {
             messagesCursor = page.next_cursor
         }
@@ -364,7 +359,7 @@ class ThreadController(
     private suspend fun refreshConversationDetail() {
         val detail = repo.detail(companyId, conversationId)
         conversation = detail
-        messages = mergeFirstPage(messages, detail.messages.data, { it.id }, { it.created_at })
+        messages = mergeMessagesFirstPage(messages, detail.messages.data)
         persistSnapshot()
     }
 
@@ -399,12 +394,7 @@ class ThreadController(
             runCatching {
                 val detail = repo.detail(companyId, conversationId)
                 conversation = detail
-                messages = mergeFirstPage(
-                    messages,
-                    detail.messages.data,
-                    { it.id },
-                    { it.created_at },
-                )
+                messages = mergeMessagesFirstPage(messages, detail.messages.data)
                 // Only adopt the fresh cursor from a blank slate; when the user
                 // has already paged deeper, the existing cursor still points to
                 // the oldest UNloaded message and the merge kept the rest.
@@ -531,12 +521,7 @@ class ThreadController(
                 )
                 lastFailedIntent = null
                 pendingSends = pendingSends - pendingRow
-                messages = mergeFirstPage(
-                    messages,
-                    listOf(message),
-                    { it.id },
-                    { it.created_at },
-                )
+                messages = mergeMessagesFirstPage(messages, listOf(message))
                 persistSnapshot()
                 markRead()
             } catch (cause: Exception) {
@@ -592,7 +577,7 @@ class ThreadController(
                 notify(cause.userMessage())
                 return@launch
             }
-            messages = mergeFirstPage(messages, listOf(note), { it.id }, { it.created_at })
+            messages = mergeMessagesFirstPage(messages, listOf(note))
             persistSnapshot()
             if (files.isEmpty()) return@launch
             var failedCount = 0
