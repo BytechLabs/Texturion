@@ -1048,6 +1048,8 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
       updateOutcome?: string;
       assignOutcome?: string;
       current?: Record<string, unknown>;
+      /** Whether the ASSIGNEE is an active member (default true). */
+      assigneeActive?: boolean;
     } = {},
   ): PatchStubs {
     const current = options.current ?? {};
@@ -1076,10 +1078,27 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
         task: taskRow({ ...current, assigned_user_id: p.p_assigned_user_id }),
       };
     });
+    // The assignee's own membership lookup, which now runs BEFORE any write
+    // when a PATCH carries both metadata and an assignee.
+    const assigneeRoute: FetchRoute = (url) =>
+      url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/company_members`) &&
+      url.searchParams.get("user_id") === `eq.${OTHER_USER}`
+        ? Response.json(
+            options.assigneeActive === false
+              ? []
+              : [{ user_id: OTHER_USER }],
+          )
+        : undefined;
     return {
       update,
       assign,
-      all: [jwksRoute(auth), membersRoute(), update.route, assign.route],
+      all: [
+        jwksRoute(auth),
+        membersRoute(),
+        assigneeRoute,
+        update.route,
+        assign.route,
+      ],
     };
   }
 
@@ -1153,6 +1172,26 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
       done: true,
     });
     expect(response.status).toBe(422);
+  });
+
+  it("rejects an unassignable member without writing the metadata first", async () => {
+    // The two RPCs are separate transactions, so a PATCH carrying both used to
+    // commit the rename and THEN refuse the assignment, answering 422 for a
+    // request that had already changed the task. The client restores its
+    // previous cache on error, so the crew saw a title the caller believed had
+    // been rejected, and an identical retry failed forever while the drift
+    // stood.
+    const stubs = patchStubs({ assigneeActive: false });
+    stubFetch(...stubs.all);
+    const response = await request("PATCH", `/v1/tasks/${TASK_ID}`, {
+      title: "Replace water heater",
+      assigned_user_id: OTHER_USER,
+    });
+    expect(response.status).toBe(422);
+    expect(await errorCode(response)).toBe("validation_failed");
+    // Nothing was written.
+    expect(stubs.update.calls).toHaveLength(0);
+    expect(stubs.assign.calls).toHaveLength(0);
   });
 
   it("422 when the assignee is not an active member (assign_task not_member)", async () => {

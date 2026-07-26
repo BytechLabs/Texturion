@@ -1357,6 +1357,37 @@ tasksRoutes.patch("/tasks/:id", requireRole("member"), async (c) => {
     "address" in body;
   const touchesAssignee = "assigned_user_id" in body;
 
+  // Reject an unassignable member BEFORE anything is written.
+  //
+  // Each RPC is atomic on its own, but a PATCH carrying both metadata and an
+  // assignee ran them as two transactions: the rename committed, then the
+  // assignment was refused, and the caller received a 422 for a request that
+  // had already changed the task. A client that treats the rejection as "none
+  // of this applied" (ours restores its previous cache on error) then shows a
+  // title the whole crew can already see, and retrying the identical body fails
+  // the same way forever while the drift stands.
+  //
+  // The RPC's own not_member check stays as the authoritative one; this only
+  // moves the ordinary case in front of the first write.
+  if (touchesMeta && touchesAssignee && body.assigned_user_id) {
+    const members = unwrap<{ user_id: string }[]>(
+      await db
+        .from("company_members")
+        .select("user_id")
+        .eq("company_id", companyId)
+        .eq("user_id", body.assigned_user_id)
+        .is("deactivated_at", null)
+        .limit(1),
+      "assignee membership lookup",
+    );
+    if (members.length === 0) {
+      throw new ApiError(
+        "validation_failed",
+        "assigned_user_id: not an active member of this company.",
+      );
+    }
+  }
+
   // Track the freshest task row an RPC returned, and whether the task exists.
   let latest: Record<string, unknown> | null = null;
   let found = false;
