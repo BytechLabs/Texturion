@@ -173,7 +173,11 @@ export function GettingStartedCard() {
             <div className="min-w-0 flex-1 text-sm leading-snug">
               <span
                 className={cn(
-                  item.done && "text-muted-foreground line-through decoration-border",
+                  // The strike inherits the text colour. `decoration-border`
+                  // painted it in the hairline tone, which is nearly invisible
+                  // on the card, so a finished step read as faint text with no
+                  // line through it rather than as done.
+                  item.done && "text-muted-foreground line-through",
                 )}
               >
                 {item.label}
