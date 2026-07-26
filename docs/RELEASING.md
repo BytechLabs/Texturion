@@ -87,6 +87,37 @@ The build number must be overridden or the store rejects the upload:
 xcodebuild archive -project Loonext.xcodeproj -scheme Loonext -archivePath build/Loonext.xcarchive CURRENT_PROJECT_VERSION="$(git rev-list --count HEAD)"
 ```
 
+## Before submitting to either store (#254)
+
+Store declarations are binding legal statements about data handling, and both
+platforms enforce them. Getting one wrong does not fail at submission — it gets
+the app pulled weeks later in a review sweep, which for a business phone line
+is an outage for every mobile customer at once with no engineering fix
+available.
+
+Run this whenever a release touches the apps. It takes a few minutes and it is
+the only thing standing between a new feature and a stale declaration.
+
+1. **Did this release change what data leaves the device?** A new permission, a
+   new field stored, a new third party, a new thing sent to a model. If yes,
+   update `docs/DATA-INVENTORY.md` FIRST, then both declarations, then submit
+   the change with the release. Not after.
+2. **Do the three still agree?** `docs/DATA-INVENTORY.md`, the two store files
+   (`apps/ios/store/privacy-nutrition.md`, `apps/android/store/data-safety.md`)
+   and the privacy policy are one statement made three times. A discrepancy in
+   any direction is the finding.
+3. **Purpose strings** in `apps/ios/project.yml` still describe what the app
+   actually does with each permission, in words a person would recognise.
+4. **Android permission justifications** in the Play Console still match
+   `apps/android/store/data-safety.md`, especially the Contacts one.
+5. **Account deletion still reachable in-app on both apps** (Apple 5.1.1(v)):
+   Settings → Account → Delete your account. Open it and check.
+6. **The data-deletion URL still resolves**:
+   `https://loonext.com/legal/delete-my-data`. The path is filed with Google;
+   a rename or a 404 breaks the declaration silently.
+7. **Anything new sent to a model?** That is a third-party sharing disclosure
+   on both forms, not an implementation detail.
+
 ## Commit conventions — enforced
 
 ```
