@@ -79,6 +79,23 @@ data class Usage(
     val history: List<UsageMonth> = emptyList(),
     val storage: UsageStorage = UsageStorage(),
     val voice: UsageVoice = UsageVoice(),
+    /**
+     * What Lou has done this month, per feature. Defaults to empty so a client
+     * talking to a server that predates it renders no section rather than
+     * failing to decode.
+     */
+    val ai: List<AiFeatureUsage> = emptyList(),
+)
+
+/** One AI feature's month: what has been used against its limit. */
+@Serializable
+data class AiFeatureUsage(
+    /** The ledger key, so a row is identified without matching on copy. */
+    val key: String,
+    val label: String,
+    val used: Long = 0,
+    val cap: Long = 0,
+    val enabled: Boolean = true,
 )
 
 /** GET /v1/billing/modules — admin-only add-on catalog with enabled state. */

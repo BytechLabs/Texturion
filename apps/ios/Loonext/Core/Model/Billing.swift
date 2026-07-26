@@ -133,6 +133,9 @@ struct Usage: Codable, Sendable {
     @Default<DefaultEmptyList<UsageMonth>> var history: [UsageMonth]
     @Default<DefaultEmptyStorage> var storage: UsageStorage
     @Default<DefaultEmptyVoice> var voice: UsageVoice
+    /// What Lou has done this month, per feature. Empty against a server that
+    /// predates it, so the section simply does not render.
+    @Default<DefaultEmptyList<AiFeatureUsage>> var ai: [AiFeatureUsage]
 
     init(
         status: String = UsageStatus.quiet,
@@ -147,7 +150,8 @@ struct Usage: Codable, Sendable {
         overage_projection: UsageOverageProjection = UsageOverageProjection(),
         history: [UsageMonth] = [],
         storage: UsageStorage = UsageStorage(),
-        voice: UsageVoice = UsageVoice()
+        voice: UsageVoice = UsageVoice(),
+        ai: [AiFeatureUsage] = []
     ) {
         self.status = status
         self.period_start = period_start
@@ -162,7 +166,20 @@ struct Usage: Codable, Sendable {
         self.history = history
         self.storage = storage
         self.voice = voice
+        self.ai = ai
     }
+}
+
+/// One AI feature's month: what has been used against its limit.
+struct AiFeatureUsage: Codable, Sendable, Identifiable {
+    /// The ledger key, so a row is identified without matching on copy.
+    let key: String
+    let label: String
+    @Default<DefaultZero> var used: Int
+    @Default<DefaultZero> var cap: Int
+    @Default<DefaultTrue> var enabled: Bool
+
+    var id: String { key }
 }
 
 /// GET /v1/billing/modules — admin-only add-on catalog with enabled state.

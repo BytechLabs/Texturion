@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
@@ -36,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.model.AiFeatureUsage
 import com.loonext.android.core.model.UsageStorage
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Usage
@@ -388,6 +390,77 @@ private fun CapCard(
  * Deliberately NOT a meter: storage is free and capless, so there is no maximum
  * to fill and no remaining to run out of.
  */
+/**
+ * What Lou has done this month, per feature.
+ *
+ * These limits were enforced server-side and shown nowhere: a crew reached one
+ * mid-sentence, got a message saying that one thing had stopped, and had no way
+ * to have seen it coming. Unlike storage this IS a meter, because an AI limit
+ * is a hard stop rather than a fair-use line.
+ */
+@Composable
+private fun AiUsageBars(features: List<AiFeatureUsage>) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        for (feature in features) {
+            val pct =
+                if (feature.cap > 0) {
+                    ((feature.used.toDouble() / feature.cap) * 100).toInt().coerceIn(0, 100)
+                } else {
+                    0
+                }
+            // Say it before it bites, where the number already lives.
+            val nearCap = feature.enabled && pct >= 80
+            Column {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        feature.label.replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        if (feature.enabled) "${feature.used} of ${feature.cap}" else "Off",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(if (feature.enabled) pct / 100f else 0f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(
+                                if (nearCap) {
+                                    MaterialTheme.colorScheme.tertiary
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                },
+                            ),
+                    )
+                }
+                if (nearCap) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Close to this month's limit. It resets on the 1st.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun StorageBreakdown(storage: UsageStorage) {
     val rows = listOf(
@@ -476,6 +549,16 @@ private fun DetailsCard(usage: Usage) {
                 Spacer(Modifier.height(14.dp))
                 DetailHeader("Storage")
                 StorageBreakdown(usage.storage)
+                if (usage.ai.isNotEmpty()) {
+                    Spacer(Modifier.height(14.dp))
+                    DetailHeader("Lou this month")
+                    DetailLine(
+                        "What Lou has drafted, filled in, and written down. " +
+                            "Each resets on the 1st.",
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    AiUsageBars(usage.ai)
+                }
                 if (usage.history.isNotEmpty()) {
                     Spacer(Modifier.height(14.dp))
                     DetailHeader("Last 6 months")

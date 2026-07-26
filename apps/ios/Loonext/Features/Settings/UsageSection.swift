@@ -397,6 +397,9 @@ private struct DetailsCard: View {
                     MessagesDetail(usage: usage)
                     VoiceDetail(usage: usage)
                     StorageDetail(usage: usage)
+                    if !usage.ai.isEmpty {
+                        AiUsageDetail(features: usage.ai)
+                    }
                     if !usage.history.isEmpty {
                         HistoryDetail(history: usage.history)
                     }
@@ -514,6 +517,60 @@ private struct StorageDetail: View {
                 }
                 .font(.golos(12.5))
                 .foregroundStyle(BrandColor.muted600)
+            }
+        }
+    }
+}
+
+/// What Lou has done this month, per feature.
+///
+/// These limits were enforced server-side and shown nowhere: a crew reached one
+/// mid-sentence, got a message saying that one thing had stopped, and had no
+/// way to have seen it coming. Unlike storage this IS a meter, because an AI
+/// limit is a hard stop rather than a fair-use line.
+private struct AiUsageDetail: View {
+    let features: [AiFeatureUsage]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            DetailHeader("Lou this month")
+            DetailLine(
+                "What Lou has drafted, filled in, and written down. "
+                    + "Each resets on the 1st."
+            )
+            ForEach(features) { feature in
+                let pct = feature.cap > 0
+                    ? min(100, Int((Double(feature.used) / Double(feature.cap)) * 100))
+                    : 0
+                // Say it before it bites, where the number already lives.
+                let nearCap = feature.enabled && pct >= 80
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(feature.label.prefix(1).uppercased() + feature.label.dropFirst())
+                        Spacer()
+                        Text(feature.enabled ? "\(feature.used) of \(feature.cap)" : "Off")
+                    }
+                    .font(.golos(12.5))
+                    .foregroundStyle(BrandColor.muted600)
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(BrandColor.inset)
+                            Capsule()
+                                .fill(nearCap ? BrandColor.overdueAmber : BrandColor.olive)
+                                .frame(
+                                    width: geo.size.width
+                                        * (feature.enabled ? CGFloat(pct) / 100 : 0)
+                                )
+                        }
+                    }
+                    .frame(height: 6)
+                    if nearCap {
+                        Text("Close to this month's limit. It resets on the 1st.")
+                            .font(.golos(12))
+                            .foregroundStyle(BrandColor.overdueAmber)
+                    }
+                }
+                .padding(.top, 6)
             }
         }
     }
