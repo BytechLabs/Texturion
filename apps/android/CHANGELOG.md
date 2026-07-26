@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.0](https://github.com/BytechLabs/Texturion/compare/android-v0.3.0...android-v0.4.0) (2026-07-26)
+
+
+### Features
+
+* **api:** a STOP we never received still stops the texts ([9504283](https://github.com/BytechLabs/Texturion/commit/95042837194fef5c6cf05a24d72b251dc418aab3)), closes [#331](https://github.com/BytechLabs/Texturion/issues/331)
+* **api:** deleting your data now gets you a confirmation in writing ([4a3b2cd](https://github.com/BytechLabs/Texturion/commit/4a3b2cd03032c31d4019ca5471cb6a6fd7bc957d)), closes [#371](https://github.com/BytechLabs/Texturion/issues/371)
+* **web:** fix a customer's timezone when their area code has it wrong ([285932f](https://github.com/BytechLabs/Texturion/commit/285932f61a1b359444a9533db2be7415834b8a27)), closes [#292](https://github.com/BytechLabs/Texturion/issues/292)
+* **web:** tell the crew when notifications are paused, not just the owner ([87807d9](https://github.com/BytechLabs/Texturion/commit/87807d96e6864ad6cd6481099b36d16f4d21467a)), closes [#343](https://github.com/BytechLabs/Texturion/issues/343)
+
+
+### Bug Fixes
+
+* **android:** the app compiles again ([342093d](https://github.com/BytechLabs/Texturion/commit/342093d2cbd6844ba6ed892f349ca87fde2ccaa1))
+* **web:** a customer wrongly marked as spam is no longer texting into silence ([5f0ebb0](https://github.com/BytechLabs/Texturion/commit/5f0ebb075e0f36f7e86ec0a8348204bbc986719a)), closes [#342](https://github.com/BytechLabs/Texturion/issues/342)
+* **web:** the home screen counts the work, not the twenty rows on screen ([3ab282d](https://github.com/BytechLabs/Texturion/commit/3ab282df7ed79f6048237ef1d49468c91b01e414)), closes [#306](https://github.com/BytechLabs/Texturion/issues/306)
+
 ## [0.3.0](https://github.com/BytechLabs/Texturion/compare/android-v0.2.0...android-v0.3.0) (2026-07-26)
 
 

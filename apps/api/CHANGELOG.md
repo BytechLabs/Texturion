@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.0](https://github.com/BytechLabs/Texturion/compare/api-v0.5.0...api-v0.6.0) (2026-07-26)
+
+
+### Features
+
+* **api:** a STOP we never received still stops the texts ([9504283](https://github.com/BytechLabs/Texturion/commit/95042837194fef5c6cf05a24d72b251dc418aab3)), closes [#331](https://github.com/BytechLabs/Texturion/issues/331)
+* **api:** deleting your data now gets you a confirmation in writing ([4a3b2cd](https://github.com/BytechLabs/Texturion/commit/4a3b2cd03032c31d4019ca5471cb6a6fd7bc957d)), closes [#371](https://github.com/BytechLabs/Texturion/issues/371)
+* **web:** fix a customer's timezone when their area code has it wrong ([285932f](https://github.com/BytechLabs/Texturion/commit/285932f61a1b359444a9533db2be7415834b8a27)), closes [#292](https://github.com/BytechLabs/Texturion/issues/292)
+* **web:** tell the crew when notifications are paused, not just the owner ([87807d9](https://github.com/BytechLabs/Texturion/commit/87807d96e6864ad6cd6481099b36d16f4d21467a)), closes [#343](https://github.com/BytechLabs/Texturion/issues/343)
+
+
+### Bug Fixes
+
+* **api:** notifications stop for the day when your day ends, not at 5pm ([c8f2b53](https://github.com/BytechLabs/Texturion/commit/c8f2b5330c4242dbff12d81c6e6332ce5f524f78)), closes [#343](https://github.com/BytechLabs/Texturion/issues/343)
+* **web:** a customer wrongly marked as spam is no longer texting into silence ([5f0ebb0](https://github.com/BytechLabs/Texturion/commit/5f0ebb075e0f36f7e86ec0a8348204bbc986719a)), closes [#342](https://github.com/BytechLabs/Texturion/issues/342)
+
 ## [0.5.0](https://github.com/BytechLabs/Texturion/compare/api-v0.4.0...api-v0.5.0) (2026-07-26)
 
 
