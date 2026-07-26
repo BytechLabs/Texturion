@@ -889,10 +889,24 @@ extension must be revisited first.
   outlive the ring window, not undercut it). Fan-out from the DO at
   RING-START; audience per §5.4; hard-failure pruning + settle re-check per
   §5.5.
-- **NEW `kind:'call_end'`** revocation push on every exit from `ringing`
+- **NEW `kind:'call_end'`** retirement push on every exit from `ringing`
   (answered / voicemail / missed); body carries
-  `{url:"/calls?call=<session>", reason}`. Kills the "tray rings a dead call
-  for 30s" ghost (scenario 2's second act). Best-effort like all push.
+  `{url:"/calls?call=<session>", reason, title, body}`. Kills the "tray rings
+  a dead call for 30s" ghost (scenario 2's second act). Best-effort like all
+  push.
+  - **Since #265** it is not silent on web. Web Push subscriptions are created
+    `userVisibleOnly: true` and browsers enforce that: Firefox decrements a
+    per-subscription quota on every push that displays nothing and
+    UNSUBSCRIBES at zero (the member loses rings, texts and missed-call
+    alerts, with the row then pruned as 410 — invisible to them), and Chrome
+    posts its own "site updated in the background" notice once its budget is
+    spent, which is the very ghost this push exists to kill. So sw.js closes
+    the ring and shows the OUTCOME on the same `loonext:call:<session>` tag —
+    one card per call, replacing the ring, silent and non-persistent. Android
+    is unaffected (data-only FCM, no such contract) and still cancels
+    silently. The audience also now excludes whoever answered (their ring is
+    already gone) and honors `notification_prefs.push_enabled`, which the
+    dial-target-derived audience never did.
   **Dismissal mechanics, stated against the real code (review R2-B1 — the
   draft's two compat premises were both false):**
   - **Android**: FCM sends are DATA-ONLY and carry NO collapse key
@@ -1480,8 +1494,9 @@ implementation notes:
    in v3 server code.
 7. **Verified-in-repo facts implementers may rely on** (gate re-checked):
    telnyx.ts duplicate pure-ack + post-dispatch processed_at stamp; fcm.ts
-   data-only/no-collapse-key; sw.js renders every push (notice vs
-   call:<session> tags); incoming-call.ts #146 pref filter; one durable
+   data-only/no-collapse-key; sw.js renders every push, call_end included
+   since #265 (notice vs call:<session> tags); incoming-call.ts #146 pref
+   filter, which call_end now shares; one durable
    credential per (company,user); MainActivity.parseDeepLink drops `?call=`
    today; vitest 'telnyx' project hosts mount.test.ts with no resolve.alias;
    `instrumentDurableObjectWithSentry` exists in @sentry/cloudflare 10.63.0;

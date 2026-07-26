@@ -213,6 +213,9 @@ export interface SessionRuntime {
     userIds: string[];
     sessionId: string;
     reason: "answered" | "voicemail" | "missed";
+    /** The far party and the answerer, for the outcome card copy (#265). */
+    caller: string | null;
+    answeredByUserId: string | null;
   }): Promise<void>;
   threadAtAnswer(machine: SessionMachine): Promise<void>;
   /** Event-mode terminal merge: replay the triggering Telnyx payload through
@@ -890,6 +893,8 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         userIds: input.userIds,
         callSessionId: input.sessionId,
         reason: input.reason,
+        caller: input.caller,
+        answeredByUserId: input.answeredByUserId,
       });
     },
 

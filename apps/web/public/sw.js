@@ -4,9 +4,12 @@
  * Four jobs, nothing speculative:
  *   1. push              -> show "contact name + snippet" notifications from
  *                           the server payload ({ title, body, url }).
- *   2. push kind:call_end-> the ring-revocation push (#170 CALLS-V3 §9.2):
+ *   2. push kind:call_end-> the ring-retirement push (#170 CALLS-V3 §9.2):
  *                           close the ringing-call notification for the
- *                           session — render nothing.
+ *                           session and show the call's outcome on the same
+ *                           tag (#265 — a Web Push that displays nothing
+ *                           costs the subscription its userVisibleOnly
+ *                           budget, and eventually the subscription itself).
  *   3. notificationclick -> focus an open Loonext tab on the deep-linked
  *                           thread, or open one.
  *   4. offline           -> precached app-shell fallback (offline.html) for
@@ -134,13 +137,14 @@ function callTag(url, origin) {
  * deriving the tag through the SAME normalize+callTag pipeline guarantees the
  * revocation always names the exact notification the ring created.
  *
- * Returns the tag to dismiss, or null when the push is not a call_end.
- * Delivery is capability-gated server-side — only subscriptions that declared
- * caps:["call_end"] receive one — so this handler ships in the same deploy as
- * the cap declaration (subscription-machine.ts) and no un-updated worker ever
- * sees the kind (it would render a stray generic notification, §8.5.4).
+ * Returns `{ tag, title, options }` for the outcome card, or null when the
+ * push is not a call_end. Delivery is capability-gated server-side — only
+ * subscriptions that declared caps:["call_end"] receive one — so this handler
+ * ships in the same deploy as the cap declaration (subscription-machine.ts)
+ * and no un-updated worker ever sees the kind (it would render a stray generic
+ * notification, §8.5.4).
  */
-function callEndDismissTag(rawText, origin) {
+function callEndNotification(rawText, origin) {
   if (typeof rawText !== "string" || rawText.length === 0) return null;
   let payload = null;
   try {
@@ -149,16 +153,54 @@ function callEndDismissTag(rawText, origin) {
     return null;
   }
   if (!payload || payload.kind !== "call_end") return null;
-  return callTag(normalizeNotificationUrl(payload.url, origin), origin);
+  const url = normalizeNotificationUrl(payload.url, origin);
+  const tag = callTag(url, origin);
+  return {
+    tag,
+    title:
+      typeof payload.title === "string" && payload.title.trim() !== ""
+        ? payload.title
+        : "Call ended",
+    options: {
+      body:
+        typeof payload.body === "string" && payload.body.trim() !== ""
+          ? payload.body
+          : "The call is over.",
+      icon: "/icons/icon-192.png",
+      badge: "/icons/badge-72.png",
+      // The ring's own tag, so this REPLACES it in place — one card per call,
+      // never a ring sitting beside its own obituary.
+      tag,
+      // It replaces an alert the member has already heard: no second buzz, and
+      // no staying on screen the way a live call does.
+      renotify: false,
+      silent: true,
+      requireInteraction: false,
+      data: { url: "/calls" },
+    },
+  };
 }
 
-/** Close every notification carrying the revoked call's tag. Best-effort:
- *  zero matches (already tapped/timed out) is the routine case, not an error. */
-async function dismissCallNotifications(tag) {
-  const notifications = await self.registration.getNotifications({ tag });
+/**
+ * Close the ring, then render the outcome in its place.
+ *
+ * Rendering NOTHING here was the tidier behaviour and the browsers do not
+ * allow it (#265): a Web Push subscription is created `userVisibleOnly: true`,
+ * and Firefox unsubscribes an endpoint that keeps pushing silently — a member
+ * losing every ring, text and missed-call alert with no way to find out why —
+ * while Chrome eventually posts its own "site updated in the background"
+ * notice, which is exactly the ghost we were avoiding. Showing the outcome on
+ * the ring's tag honors the contract AND answers the member's actual question:
+ * did anyone get that call?
+ */
+async function showCallEnd(alert) {
+  const notifications = await self.registration.getNotifications({
+    tag: alert.tag,
+  });
   for (const notification of notifications) {
     notification.close();
   }
+  await self.registration.showNotification(alert.title, alert.options);
 }
 
 self.addEventListener("install", (event) => {
@@ -198,12 +240,11 @@ self.addEventListener("push", (event) => {
       rawText = null;
     }
   }
-  // A call_end is a REVOCATION, not an alert (#170 CALLS-V3 §10.3): close the
-  // session's ring notification and render nothing — showing anything here
-  // would recreate the stray-tray ghost the kind exists to kill.
-  const dismissTag = callEndDismissTag(rawText, self.location.origin);
-  if (dismissTag !== null) {
-    event.waitUntil(dismissCallNotifications(dismissTag));
+  // A call_end retires the ring (#170 CALLS-V3 §10.3): close the session's
+  // ring notification and put the outcome in its place on the same tag.
+  const callEnd = callEndNotification(rawText, self.location.origin);
+  if (callEnd !== null) {
+    event.waitUntil(showCallEnd(callEnd));
     return;
   }
   const { title, options } = formatPushNotification(
@@ -351,6 +392,6 @@ self.__loonextSw = {
   PRECACHE,
   normalizeNotificationUrl,
   formatPushNotification,
-  callEndDismissTag,
+  callEndNotification,
   subscriptionSaveBody,
 };

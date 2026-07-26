@@ -707,6 +707,9 @@ export class CallSessionDO extends DurableObject<Env> {
           userIds: this.pushEndAudience(machine),
           sessionId: machine.callSessionId,
           reason: effect.reason,
+          // The card that replaces the ring says what happened (#265).
+          caller: machine.callerE164,
+          answeredByUserId: machine.answeredByUserId,
         });
         return [];
       }
@@ -763,10 +766,17 @@ export class CallSessionDO extends DurableObject<Env> {
 
   /** The audience for a call_end revocation push: everyone who could have been
    *  woken (dial targets + push audience) — recomputed as the union of leg
-   *  users and the remaining push-capable set. */
+   *  users and the remaining push-capable set, MINUS whoever answered.
+   *
+   *  The answerer is excluded because taking the call already cleared their
+   *  ring: there is nothing left to revoke, and since the revocation now
+   *  renders (a Web Push that displays nothing burns the browser's
+   *  userVisibleOnly budget, #265) sending it would put a card on the screen
+   *  of the one person who least needs telling how the call went. */
   private pushEndAudience(machine: SessionMachine): string[] {
     const users = new Set<string>(machine.pushCapableUserIds);
     for (const leg of machine.legs) users.add(leg.userId);
+    if (machine.answeredByUserId !== null) users.delete(machine.answeredByUserId);
     return [...users];
   }
 

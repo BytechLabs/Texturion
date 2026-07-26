@@ -104,10 +104,10 @@ function loadServiceWorker(
       rawUrl: unknown,
       origin: string,
     ) => string,
-    callEndDismissTag: exposed.callEndDismissTag as (
+    callEndNotification: exposed.callEndNotification as (
       rawText: string | null,
       origin: string,
-    ) => string | null,
+    ) => { tag: string; title: string; options: Record<string, unknown> } | null,
     subscriptionSaveBody: exposed.subscriptionSaveBody as (json: unknown) => {
       endpoint: string;
       keys: { p256dh: string; auth: string };
@@ -334,11 +334,17 @@ describe("push event listener", () => {
   });
 });
 
-describe("kind:'call_end' revocation push (#170 CALLS-V3 §9.2/§10.3)", () => {
+describe("kind:'call_end' retirement push (#170 CALLS-V3 §9.2/§10.3)", () => {
   const callEndRaw = (url: string) =>
-    JSON.stringify({ kind: "call_end", url, reason: "answered" });
+    JSON.stringify({
+      kind: "call_end",
+      url,
+      reason: "answered",
+      title: "Call answered",
+      body: "Sam picked it up.",
+    });
 
-  it("closes the session's ring notification by tag and renders NOTHING", async () => {
+  it("replaces the ring with the outcome on the same tag", async () => {
     const ringing = { tag: "loonext:call:sess-A", close: vi.fn() };
     const otherCall = { tag: "loonext:call:sess-B", close: vi.fn() };
     const thread = { tag: "loonext:/inbox/t-1", close: vi.fn() };
@@ -348,17 +354,29 @@ describe("kind:'call_end' revocation push (#170 CALLS-V3 §9.2/§10.3)", () => {
       data: { text: () => callEndRaw("/calls?call=sess-A") },
     });
 
-    // The revoked session's alert is gone; a CONCURRENT live call's alert and
+    // The retired session's ring is gone; a CONCURRENT live call's alert and
     // message notifications are untouched.
     expect(ringing.close).toHaveBeenCalled();
     expect(otherCall.close).not.toHaveBeenCalled();
     expect(thread.close).not.toHaveBeenCalled();
-    // A revocation is not an alert — no notification of any kind is shown
-    // (rendering one would recreate the stray-tray ghost, §8.5.4).
-    expect(sw.showNotification).not.toHaveBeenCalled();
     expect(sw.getNotifications).toHaveBeenCalledWith({
       tag: "loonext:call:sess-A",
     });
+    // #265: something MUST be shown. A Web Push that displays nothing spends
+    // the subscription's userVisibleOnly budget, and Firefox eventually
+    // unsubscribes the endpoint — the member loses every alert we send.
+    expect(sw.showNotification).toHaveBeenCalledExactlyOnceWith(
+      "Call answered",
+      expect.objectContaining({
+        body: "Sam picked it up.",
+        // Same tag as the ring, so this replaces it rather than stacking.
+        tag: "loonext:call:sess-A",
+        // It replaces an alert already heard: no second buzz, no sticking.
+        silent: true,
+        renotify: false,
+        requireInteraction: false,
+      }),
+    );
   });
 
   it("derives the tag through the SAME pipeline as the ring push, so they always match", () => {
@@ -367,28 +385,44 @@ describe("kind:'call_end' revocation push (#170 CALLS-V3 §9.2/§10.3)", () => {
       JSON.stringify({ kind: "call", title: "Call", url: "/calls?call=sess-X" }),
       ORIGIN,
     );
-    expect(sw.callEndDismissTag(callEndRaw("/calls?call=sess-X"), ORIGIN)).toBe(
-      ring.options.tag,
-    );
+    expect(
+      sw.callEndNotification(callEndRaw("/calls?call=sess-X"), ORIGIN)?.tag,
+    ).toBe(ring.options.tag);
     // Session-less urls fall back to the SAME constant tag the ring used.
     const fallbackRing = sw.formatPushNotification(
       JSON.stringify({ kind: "call", title: "Call", url: "/calls" }),
       ORIGIN,
     );
-    expect(sw.callEndDismissTag(callEndRaw("/calls"), ORIGIN)).toBe(
+    expect(sw.callEndNotification(callEndRaw("/calls"), ORIGIN)?.tag).toBe(
       fallbackRing.options.tag,
     );
   });
 
-  it("is a quiet no-op when the notification was already gone (tapped/timed out)", async () => {
+  it("still shows the outcome when the ring was already gone (tapped/timed out)", async () => {
+    // The common case: the member tapped the ring to answer, so there is
+    // nothing left to close. This is exactly when a silent push would have
+    // been spent for nothing.
     const sw = loadServiceWorker([], []);
     await dispatch(sw.listeners, "push", {
       data: { text: () => callEndRaw("/calls?call=sess-A") },
     });
-    expect(sw.showNotification).not.toHaveBeenCalled();
+    expect(sw.showNotification).toHaveBeenCalledOnce();
   });
 
-  it("never treats other kinds (or garbage) as a revocation", () => {
+  it("falls back to calm copy when the server sends no words", async () => {
+    const sw = loadServiceWorker([], []);
+    await dispatch(sw.listeners, "push", {
+      data: {
+        text: () => JSON.stringify({ kind: "call_end", url: "/calls?call=s" }),
+      },
+    });
+    expect(sw.showNotification).toHaveBeenCalledExactlyOnceWith(
+      "Call ended",
+      expect.objectContaining({ body: "The call is over." }),
+    );
+  });
+
+  it("never treats other kinds (or garbage) as a call_end", () => {
     const sw = loadServiceWorker();
     for (const raw of [
       JSON.stringify({ kind: "call", url: "/calls?call=sess-A" }),
@@ -397,7 +431,7 @@ describe("kind:'call_end' revocation push (#170 CALLS-V3 §9.2/§10.3)", () => {
       "",
       null,
     ]) {
-      expect(sw.callEndDismissTag(raw, ORIGIN)).toBeNull();
+      expect(sw.callEndNotification(raw, ORIGIN)).toBeNull();
     }
   });
 });

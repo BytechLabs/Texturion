@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "../db";
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
-import { notifyCallEnd } from "./call-end";
+import { callEndAlert, notifyCallEnd } from "./call-end";
 import { encodeBase64Url } from "./webpush";
 
 vi.mock("@sentry/cloudflare", () => ({
@@ -56,6 +56,7 @@ function pushEndpoint(status: number): FetchRoute {
 describe("notifyCallEnd — caps gating (§9.2)", () => {
   it("queries with the caps filter and sends only to a caps-declaring subscription", async () => {
     const sb = supabaseStub(env);
+    sb.on("GET", "/rest/v1/notification_prefs", () => []);
     const sub = await makeSubRow(USER_A, `${PUSH_ORIGIN}/send/abc`);
     let capsFilter = "";
     let sends = 0;
@@ -88,6 +89,7 @@ describe("notifyCallEnd — caps gating (§9.2)", () => {
 
   it("a pre-v3 subscription (no caps) receives NOTHING — the fleet-ghost gate", async () => {
     const sb = supabaseStub(env);
+    sb.on("GET", "/rest/v1/notification_prefs", () => []);
     let sends = 0;
     // The DB filter excludes non-caps rows → the query returns empty.
     sb.on("GET", "/rest/v1/push_subscriptions", () => []);
@@ -108,5 +110,53 @@ describe("notifyCallEnd — caps gating (§9.2)", () => {
 
     expect(sends).toBe(0);
     void pushEndpoint;
+  });
+
+  it("skips a member who turned push off (#265)", async () => {
+    // The audience is built from dial targets — gated on SIP credentials and
+    // number access, never on the preference — so a member who switched push
+    // off in settings was still sent these.
+    const sb = supabaseStub(env);
+    sb.on("GET", "/rest/v1/notification_prefs", () => [
+      { user_id: USER_A, push_enabled: false },
+    ]);
+    let subscriptionQueries = 0;
+    sb.on("GET", "/rest/v1/push_subscriptions", () => {
+      subscriptionQueries += 1;
+      return [];
+    });
+    stubFetch(sb.route);
+
+    await notifyCallEnd(env, getDb(env), {
+      companyId: COMPANY_ID,
+      userIds: [USER_A],
+      callSessionId: "sess-1",
+      reason: "missed",
+    });
+
+    // Nobody left to tell — and we don't spend a query proving it.
+    expect(subscriptionQueries).toBe(0);
+  });
+
+  it("says what happened to the call, so the card can replace the ring", async () => {
+    // #265: the web client MUST render this push — a Web Push that displays
+    // nothing spends the subscription's userVisibleOnly budget and eventually
+    // costs the member every alert we send. So it carries real copy.
+    expect(callEndAlert("answered", "+16135551000", "Sam Ruiz")).toEqual({
+      title: "Call answered",
+      body: "Sam Ruiz picked it up.",
+    });
+    // An unnamed teammate still reads as a person, never as a blank.
+    expect(callEndAlert("answered", "+16135551000", null).body).toBe(
+      "A teammate picked it up.",
+    );
+    expect(callEndAlert("voicemail", "+16135551000", null)).toEqual({
+      title: "New voicemail",
+      body: "+16135551000 left a message.",
+    });
+    expect(callEndAlert("missed", null, null)).toEqual({
+      title: "Missed call",
+      body: "Someone called and nobody picked up.",
+    });
   });
 });

@@ -26,6 +26,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { keys } from "@/lib/api/keys";
 import { useActiveCompany } from "@/lib/company/provider";
+import { releasePushOnThisDevice } from "@/lib/push/release";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 // display_name is synced to public.profiles (display_name text). Keep it 1–120
@@ -44,10 +45,11 @@ type ProfileValues = z.infer<typeof profileSchema>;
  * trigger syncs public.profiles), theme (System/Light/Dark, G2), sign out.
  */
 export default function ProfileSettingsPage() {
-  const { displayName } = useActiveCompany();
+  const { displayName, companyId } = useActiveCompany();
   const queryClient = useQueryClient();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const [signingOut, setSigningOut] = useState(false);
 
   const form = useForm<ProfileValues>({
     resolver: zodResolver(profileSchema),
@@ -94,6 +96,10 @@ export default function ProfileSettingsPage() {
   }
 
   async function signOut() {
+    setSigningOut(true);
+    // Hand this browser's push subscription back FIRST (#264) — while the
+    // session that owns it still exists.
+    await releasePushOnThisDevice(companyId);
     await getSupabaseBrowser().auth.signOut();
     queryClient.clear();
     router.push("/login");
@@ -181,8 +187,12 @@ export default function ProfileSettingsPage() {
         </SettingsCard>
 
         <SettingsCard title="Sign out">
-          <Button variant="outline" onClick={() => void signOut()}>
-            Sign out
+          <Button
+            variant="outline"
+            onClick={() => void signOut()}
+            disabled={signingOut}
+          >
+            {signingOut ? "Signing out…" : "Sign out"}
           </Button>
         </SettingsCard>
       </div>

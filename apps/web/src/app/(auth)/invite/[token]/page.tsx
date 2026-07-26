@@ -13,6 +13,7 @@ import { ApiError } from "@/lib/api/error";
 import { fetchMe, useUpdateDisplayName } from "@/lib/api/me";
 import { useAcceptInvite } from "@/lib/api/team";
 import { writeCompanyCookie } from "@/lib/company/cookie";
+import { releasePushOnThisDevice } from "@/lib/push/release";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 type SessionState = "checking" | "authed" | "anonymous";
@@ -162,6 +163,11 @@ export default function InviteAcceptPage() {
   }
 
   async function signOutAndLogin() {
+    // Signing out to accept an invite as someone else is exactly the handover
+    // that leaves the previous member's push subscription on this browser
+    // (#264). No workspace is active here, so this only ends the browser's
+    // subscription — the server prunes the row as dead on its next send.
+    await releasePushOnThisDevice(null);
     await getSupabaseBrowser().auth.signOut();
     router.push(`/login?next=${encodeURIComponent(`/invite/${token}`)}`);
   }

@@ -25,8 +25,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
 
+import { newestPerUser } from "./deliver";
 import { isFcmConfigured, sendFcm } from "./fcm";
 import { sendWebPush } from "./webpush";
+
+/** Per-recipient device bound (#267): never a single ceiling across the crew. */
+const MAX_TARGETS_PER_USER = 10;
 
 interface SubscriptionRow {
   id: string;
@@ -182,13 +186,17 @@ async function deliverIncomingCallPush(
     .from("push_subscriptions")
     .select("id,user_id,endpoint,p256dh,auth")
     .in("user_id", pushUserIds)
-    // #30 defensive bound (mirrors inbound.ts): each user is capped at 10 live
-    // subscriptions, but a bad table state must never unbound the ring fan-out —
-    // newest 50 across the audience is far above any legitimate team's devices.
+    // #30 defensive bound, PER RECIPIENT (#267): each user is capped at 10
+    // live subscriptions, and bounding the whole fan-out at 50 instead meant a
+    // big enough crew stopped ringing its longest-tenured members entirely —
+    // the sort is newest-first, so it was always the same people.
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(pushUserIds.length * MAX_TARGETS_PER_USER);
   if (error) return { unreachableUserIds: [] }; // best-effort — never throw
-  const subscriptions = (data ?? []) as SubscriptionRow[];
+  const subscriptions = newestPerUser(
+    (data ?? []) as SubscriptionRow[],
+    MAX_TARGETS_PER_USER,
+  );
 
   const payload = JSON.stringify({
     kind: "call", // the service worker renders this as an urgent call alert
@@ -257,11 +265,14 @@ async function deliverIncomingCallPush(
     .from("device_push_tokens")
     .select("id,user_id,platform,token")
     .in("user_id", pushUserIds)
-    // #30-style defensive bound: newest 50 across the audience.
+    // #30-style defensive bound, ten devices PER recipient (#267).
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(pushUserIds.length * MAX_TARGETS_PER_USER);
   if (tokenError) return { unreachableUserIds: [] }; // best-effort — never throw
-  const deviceTokens = (tokenRows ?? []) as DeviceTokenRow[];
+  const deviceTokens = newestPerUser(
+    (tokenRows ?? []) as DeviceTokenRow[],
+    MAX_TARGETS_PER_USER,
+  );
 
   await Promise.all(
     deviceTokens.map(async (device) => {

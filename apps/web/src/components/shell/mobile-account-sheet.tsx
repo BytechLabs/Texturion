@@ -32,6 +32,7 @@ import {
 } from "@/lib/api/notifications";
 import { useNumbers } from "@/lib/api/numbers";
 import { useActiveCompany } from "@/lib/company/provider";
+import { releasePushOnThisDevice } from "@/lib/push/release";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 
@@ -74,7 +75,7 @@ export function MobileAccountSheetBody({
   /** The notifications feed was expanded — the host arms dismiss-marks-read. */
   onFeedOpened: () => void;
 }) {
-  const { membership, memberships, switchCompany, displayName } =
+  const { membership, memberships, switchCompany, displayName, companyId } =
     useActiveCompany();
   const numbers = useNumbers();
   const unread = useNotificationsUnreadCount();
@@ -83,6 +84,7 @@ export function MobileAccountSheetBody({
   const queryClient = useQueryClient();
 
   const [feedOpen, setFeedOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   const count = unread.data?.count ?? 0;
   const multi = memberships.length > 1;
@@ -96,12 +98,18 @@ export function MobileAccountSheetBody({
   }
 
   async function signOut() {
+    setSigningOut(true);
+    // Hand this browser's push subscription back FIRST (#264) — while the
+    // session that owns it still exists. Otherwise the next person to sign in
+    // on this phone keeps getting your customers' messages.
+    await releasePushOnThisDevice(companyId);
     // signOut() returns { error } (and can throw on a network failure) — a
     // swallowed failure left the user still signed in with nothing on screen.
     try {
       const { error } = await getSupabaseBrowser().auth.signOut();
       if (error) throw error;
     } catch {
+      setSigningOut(false);
       toast.error("Couldn't sign out. Check your connection and try again.");
       return;
     }
@@ -289,15 +297,16 @@ export function MobileAccountSheetBody({
         <div className={cardClass}>
           <button
             type="button"
-            className={rowClass}
+            className={cn(rowClass, "disabled:opacity-60")}
             onClick={() => void signOut()}
+            disabled={signingOut}
           >
             <LogOut
               className="size-4 shrink-0 text-app-muted-2"
               strokeWidth={1.75}
               aria-hidden
             />
-            Sign out
+            {signingOut ? "Signing out…" : "Sign out"}
           </button>
         </div>
       </div>

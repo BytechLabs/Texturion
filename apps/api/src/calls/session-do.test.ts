@@ -692,6 +692,12 @@ describe("Founder sequence 1 — FOREGROUND (banner never vanishes → answer)",
     expect(calls.answersVm).toHaveLength(0); // voicemail NEVER answered
     expect(calls.bridges).toHaveLength(1);
     expect(calls.callEnds.some((e) => e.reason === "answered")).toBe(true);
+    // #265: the call_end now RENDERS on web (a Web Push showing nothing costs
+    // the subscription its userVisibleOnly budget), so it must not reach the
+    // person who just answered — their ring is already gone and a card telling
+    // them how their own call went is noise.
+    const answered = calls.callEnds.find((e) => e.reason === "answered");
+    expect(answered?.userIds).not.toContain("u1");
   });
 
   it("counterfactual: nobody answers → the t+45 ALARM (and only the alarm) starts voicemail", async () => {
