@@ -183,3 +183,34 @@ data class RegistrationDetailPair(
     val brand: RegistrationDetail? = null,
     val campaign: RegistrationDetail? = null,
 )
+
+/**
+ * GET /v1/account/deletion-preview (#346) — what deleting your account would
+ * touch, asked before anything happens. `blocked_by == "owner"` means the
+ * workspaces below have to be handed on or closed first: a workspace cannot be
+ * left with no owner, and there is no transfer path yet (#332).
+ */
+@Serializable
+data class AccountDeletionPreview(
+    val blocked_by: String? = null,
+    val owned_workspaces: List<OwnedWorkspace> = emptyList(),
+    val memberships: Int = 0,
+    val open_conversations: Int = 0,
+    val open_tasks: Int = 0,
+) {
+    val blockedByOwnership: Boolean get() = blocked_by == "owner"
+
+    /** What the crew picks up when this person leaves. */
+    val openWork: Int get() = open_conversations + open_tasks
+}
+
+@Serializable
+data class OwnedWorkspace(val id: String, val name: String)
+
+/** DELETE /v1/account (#346). */
+@Serializable
+data class AccountDeletionResult(
+    val deleted: Boolean = false,
+    val workspaces_left: Int = 0,
+    val personal_rows_removed: Int = 0,
+)

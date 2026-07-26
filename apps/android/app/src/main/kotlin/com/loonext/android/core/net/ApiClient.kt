@@ -135,6 +135,17 @@ class ApiClient(
     }
 
     /**
+     * DELETE whose response body matters. Most of ours return 204 and the
+     * plain [delete] is right; account deletion (#346) reports what it
+     * actually did, and a screen that says "deleted" without reading that is
+     * guessing.
+     */
+    suspend inline fun <reified T> deleteReturning(
+        path: String,
+        companyId: String? = null,
+    ): T = decodeBody(path, raw("DELETE", path, companyId = companyId))
+
+    /**
      * Execute a request and return the response body text. 401 triggers ONE
      * single-flight refresh + retry; a second 401 (or a failed refresh) signs
      * the user out.

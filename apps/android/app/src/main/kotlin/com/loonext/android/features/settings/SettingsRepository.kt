@@ -68,6 +68,18 @@ class SettingsRepository(
         api.delete("/v1/members/$memberId", companyId = companyId)
     }
 
+    // -- account (#346) -----------------------------------------------------
+    //
+    // Company-EXEMPT, both of them: deleting your account is about the person,
+    // not one of their workspaces, and somebody who belongs to none must still
+    // be able to leave. Passing a company id here would be wrong, not merely
+    // unnecessary.
+
+    suspend fun accountDeletionPreview(): AccountDeletionPreview =
+        api.get("/v1/account/deletion-preview")
+
+    suspend fun deleteAccount(): AccountDeletionResult = api.deleteReturning("/v1/account")
+
     suspend fun invites(companyId: String): Page<Invite> =
         api.get("/v1/invites", companyId = companyId)
 
