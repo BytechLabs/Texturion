@@ -710,6 +710,20 @@ describe("POST /v1/calls/browser (D43)", () => {
   });
 });
 
+/**
+ * #261: the egress claim is per OBJECT now, so the claim body carries a list
+ * rather than one bucket + byte count. These read the same facts back out.
+ */
+function claimedBytes(body: unknown): number {
+  const objects = (body as { p_objects?: { bytes: number }[] }).p_objects ?? [];
+  return objects.reduce((sum, object) => sum + object.bytes, 0);
+}
+
+function claimedBuckets(body: unknown): string {
+  const objects = (body as { p_objects?: { bucket: string }[] }).p_objects ?? [];
+  return [...new Set(objects.map((object) => object.bucket))].join(",");
+}
+
 describe("GET /v1/calls/:sessionId/voicemail", () => {
   const SESSION = "85011718-87f2-11f1-b490-02420aef29a0";
   const PATH = `${COMPANY_ID}/${SESSION}.mp3`;
@@ -753,9 +767,10 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
         transcribe_voicemail: opts.transcribe ?? true,
       },
     ]);
-    sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress", () => ({
+    sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress_objects", (call) => ({
       allowed: opts.allowed ?? true,
       used_bytes: 1024,
+      claimed_bytes: (opts.allowed ?? true) ? claimedBytes(call.body) : 0,
     }));
     return sb;
   }
@@ -804,11 +819,11 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     const res = await play(sb, storageRoutes());
 
     expect(res.status).toBe(200);
-    const claims = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress");
+    const claims = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects");
     expect(claims).toHaveLength(1);
     // Measured from the object, not estimated from its duration.
-    expect((claims[0].body as { p_bytes: number }).p_bytes).toBe(26_374);
-    expect((claims[0].body as { p_bucket: string }).p_bucket).toBe("voicemails");
+    expect(claimedBytes(claims[0].body)).toBe(26_374);
+    expect(claimedBuckets(claims[0].body)).toBe("voicemails");
   });
 
   it("refuses to sign once the period allowance is used up", async () => {
@@ -832,8 +847,8 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     ]);
 
     expect(res.status).toBe(200);
-    const claims = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress");
-    expect((claims[0].body as { p_bytes: number }).p_bytes).toBe(0);
+    const claims = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects");
+    expect(claimedBytes(claims[0].body)).toBe(0);
   });
   it("does not buy a transcript twice for a recording that had nothing in it", async () => {
     // A hang-up after the beep transcribes to nothing, so no words are stored
@@ -858,8 +873,8 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     const res = await play(sb, [listRoute(), signRoute()]);
 
     expect(res.status).toBe(200);
-    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")[0];
-    expect((claim.body as { p_bytes: number }).p_bytes).toBe(26_374 * 2);
+    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")[0];
+    expect(claimedBytes(claim.body)).toBe(26_374 * 2);
   });
 
   it("pays for one copy when transcription is turned off", async () => {
@@ -869,8 +884,8 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     const res = await play(sb, [listRoute(), signRoute()]);
 
     expect(res.status).toBe(200);
-    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")[0];
-    expect((claim.body as { p_bytes: number }).p_bytes).toBe(26_374);
+    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")[0];
+    expect(claimedBytes(claim.body)).toBe(26_374);
     expect(await res.json()).toMatchObject({ transcript: null });
   });
   it("does not mark a recording tried when nothing was ever spent on it", async () => {

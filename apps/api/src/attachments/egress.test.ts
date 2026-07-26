@@ -16,6 +16,7 @@ import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { getDb } from "../db";
 import {
   assertEgressWithinAllowance,
+  assertMintRateWithinLimit,
   claimSignedUrlEgress,
   companyPlanRow,
   EGRESS_ALLOWANCE_BYTES,
@@ -81,8 +82,8 @@ describe("claimSignedUrlEgress (#16, fail closed)", () => {
   const args = {
     companyId: COMPANY_ID,
     since: "2026-07-01T00:00:00.000Z",
-    bucket: "attachments",
-    bytes: 2048,
+    dedupeSince: "2026-07-26T11:00:00.000Z",
+    objects: [{ key: "attachments/a/b.jpg", bucket: "attachments", bytes: 2048 }],
     limitBytes: 200 * GB, // #121: the fixed pool every caller passes now
   };
 
@@ -90,16 +91,19 @@ describe("claimSignedUrlEgress (#16, fail closed)", () => {
     const { route, bodies } = rpcRoute(() => ({
       allowed: true,
       used_bytes: 2048,
+      claimed_bytes: 2048,
     }));
     stubFetch(route);
 
     const claim = await claimSignedUrlEgress(getDb(env), args);
-    expect(claim).toEqual({ allowed: true, usedBytes: 2048 });
+    expect(claim).toEqual({ allowed: true, usedBytes: 2048, claimedBytes: 2048 });
     expect(bodies[0]).toEqual({
       p_company_id: COMPANY_ID,
       p_since: "2026-07-01T00:00:00.000Z",
-      p_bucket: "attachments",
-      p_bytes: 2048,
+      p_dedupe_since: "2026-07-26T11:00:00.000Z",
+      p_objects: [
+        { key: "attachments/a/b.jpg", bucket: "attachments", bytes: 2048 },
+      ],
       p_limit_bytes: 200 * GB,
     });
   });
@@ -111,7 +115,7 @@ describe("claimSignedUrlEgress (#16, fail closed)", () => {
     stubFetch(route);
 
     await expect(claimSignedUrlEgress(getDb(env), args)).rejects.toThrow(
-      /claim_signed_url_egress failed/,
+      /claim_signed_url_egress_objects failed/,
     );
   });
 
@@ -170,53 +174,82 @@ describe("assertEgressWithinAllowance (#16 — the gate every mint path calls)",
     sb.on("GET", "/rest/v1/companies", () => [
       { plan: "starter", current_period_start: PERIOD_START },
     ]);
-    sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress", (call) => {
-      const p = call.body as { p_bytes: number; p_limit_bytes: number };
+    sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress_objects", (call) => {
+      const p = call.body as {
+        p_objects: { bytes: number }[];
+        p_limit_bytes: number;
+      };
+      const claimed = p.p_objects.reduce((sum, o) => sum + o.bytes, 0);
       const used = options.usedBytes ?? 0;
-      if (used + p.p_bytes > p.p_limit_bytes) {
-        return { allowed: false, used_bytes: used };
+      if (used + claimed > p.p_limit_bytes) {
+        return { allowed: false, used_bytes: used, claimed_bytes: 0 };
       }
-      return { allowed: true, used_bytes: used + p.p_bytes };
+      return {
+        allowed: true,
+        used_bytes: used + claimed,
+        claimed_bytes: claimed,
+      };
     });
     return sb;
   }
 
-  it("claims ONE per-bucket subtotal for a mixed page (NULL sizes claim 0), resolving the allowance once", async () => {
+  it("claims a mixed page in ONE call, keyed per object (NULL sizes claim 0)", async () => {
     const sb = poolStub();
     stubFetch(sb.route);
 
-    await assertEgressWithinAllowance(getDb(env), COMPANY_ID, [
-      { bucket: "attachments", sizeBytes: 2048 },
-      { bucket: "mms-media", sizeBytes: null }, // legacy NULL size → 0
-      { bucket: "attachments", sizeBytes: 1024 },
-      { bucket: "mms-media", sizeBytes: 4096 },
-    ]);
+    await assertEgressWithinAllowance(
+      getDb(env),
+      COMPANY_ID,
+      [
+        { bucket: "attachments", path: "c/a.pdf", sizeBytes: 2048 },
+        { bucket: "mms-media", path: "c/b.jpg", sizeBytes: null }, // legacy NULL → 0
+        { bucket: "attachments", path: "c/c.pdf", sizeBytes: 1024 },
+        { bucket: "mms-media", path: "c/d.jpg", sizeBytes: 4096 },
+      ],
+      3600,
+    );
 
-    // Exactly one claim per bucket, carrying that bucket's summed bytes,
-    // against the shared pool + period window.
-    const claims = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress");
-    expect(claims.map((call) => call.body)).toEqual([
-      {
-        p_company_id: COMPANY_ID,
-        p_since: PERIOD_START,
-        p_bucket: "attachments",
-        p_bytes: 3072,
-        p_limit_bytes: ALLOWANCE,
-      },
-      {
-        p_company_id: COMPANY_ID,
-        p_since: PERIOD_START,
-        p_bucket: "mms-media",
-        p_bytes: 4096,
-        p_limit_bytes: ALLOWANCE,
-      },
+    // #261: one claim carrying every object by key. Per-object is what makes
+    // a repeat mint free — a per-bucket subtotal cannot tell the difference
+    // between a new object and the same one asked for again.
+    const claims = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects");
+    expect(claims).toHaveLength(1);
+    const body = claims[0].body as Record<string, unknown>;
+    expect(body.p_company_id).toBe(COMPANY_ID);
+    expect(body.p_since).toBe(PERIOD_START);
+    expect(body.p_limit_bytes).toBe(ALLOWANCE);
+    expect(body.p_objects).toEqual([
+      { key: "attachments/c/a.pdf", bucket: "attachments", bytes: 2048 },
+      { key: "mms-media/c/b.jpg", bucket: "mms-media", bytes: 0 },
+      { key: "attachments/c/c.pdf", bucket: "attachments", bytes: 1024 },
+      { key: "mms-media/c/d.jpg", bucket: "mms-media", bytes: 4096 },
     ]);
-    // The period-anchor resolution ran ONCE for the whole page — a gallery
-    // page costs the same round trips as a single /url mint. #121: the
+    // The dedupe cutoff is the TTL of the URLs being handed out: a claim made
+    // while the previous URL is still usable bought nothing new.
+    const dedupeSince = Date.parse(body.p_dedupe_since as string);
+    expect(Date.now() - dedupeSince).toBeGreaterThanOrEqual(3600 * 1000);
+    expect(Date.now() - dedupeSince).toBeLessThan(3600 * 1000 + 5000);
+    // The period-anchor resolution ran ONCE for the whole page. #121: the
     // allowance is fixed, so the retired storage-budget resolution
     // (company_modules) is never read at all.
     expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(1);
     expect(sb.find("GET", "/rest/v1/company_modules")).toHaveLength(0);
+  });
+
+  it("keys the same object identically however it is spelled", async () => {
+    // The /url route strips the legacy `mms-media/` prefix before signing, and
+    // the gallery never carries it. Both must land on ONE key, or the same
+    // photo is charged twice depending on which screen asked (#261).
+    const sb = poolStub();
+    stubFetch(sb.route);
+
+    await assertEgressWithinAllowance(getDb(env), COMPANY_ID, [
+      { bucket: "mms-media", path: "co/msg/photo.jpg", sizeBytes: 4096 },
+    ]);
+
+    const body = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")[0]
+      .body as { p_objects: { key: string }[] };
+    expect(body.p_objects[0].key).toBe("mms-media/co/msg/photo.jpg");
   });
 
   it("does nothing at all for an empty page (no reads, no claims)", async () => {
@@ -227,17 +260,16 @@ describe("assertEgressWithinAllowance (#16 — the gate every mint path calls)",
     expect(sb.calls).toHaveLength(0);
   });
 
-  it("throws usage_cap_reached over the allowance and stops claiming (cap-and-drop)", async () => {
-    // Pool already fully spent (#121: that now means 200 GB burnt) → the
-    // FIRST bucket's claim is refused.
+  it("throws usage_cap_reached over the allowance (cap-and-drop)", async () => {
+    // Pool already fully spent (#121: that now means 200 GB burnt).
     const sb = poolStub({ usedBytes: ALLOWANCE });
     stubFetch(sb.route);
 
     let error: unknown;
     try {
       await assertEgressWithinAllowance(getDb(env), COMPANY_ID, [
-        { bucket: "attachments", sizeBytes: 1 },
-        { bucket: "mms-media", sizeBytes: 1 },
+        { bucket: "attachments", path: "c/a.pdf", sizeBytes: 1 },
+        { bucket: "mms-media", path: "c/b.jpg", sizeBytes: 1 },
       ]);
     } catch (caught) {
       error = caught;
@@ -245,8 +277,10 @@ describe("assertEgressWithinAllowance (#16 — the gate every mint path calls)",
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).code).toBe("usage_cap_reached");
     expect((error as ApiError).message).toContain("200 GB");
-    // The refusal short-circuits: the second bucket is never claimed.
-    expect(sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")).toHaveLength(1);
+    // One refusal for the page — nothing is signed and nothing is written.
+    expect(
+      sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects"),
+    ).toHaveLength(1);
   });
 
   it("propagates a claim error — the caller must not sign (fail closed)", async () => {
@@ -257,15 +291,60 @@ describe("assertEgressWithinAllowance (#16 — the gate every mint path calls)",
     ]);
     sb.on(
       "POST",
-      "/rest/v1/rpc/claim_signed_url_egress",
+      "/rest/v1/rpc/claim_signed_url_egress_objects",
       () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
     );
     stubFetch(sb.route);
 
     await expect(
       assertEgressWithinAllowance(getDb(env), COMPANY_ID, [
-        { bucket: "attachments", sizeBytes: 64 },
+        { bucket: "attachments", path: "c/a.pdf", sizeBytes: 64 },
       ]),
-    ).rejects.toThrow(/claim_signed_url_egress failed/);
+    ).rejects.toThrow(/claim_signed_url_egress_objects failed/);
+  });
+});
+
+describe("assertMintRateWithinLimit (#261 — the mint routes had no rate limit)", () => {
+  const USER_ID = "9b2c4d6e-8f0a-4b3c-9d5e-7f9a1b3c5d7e";
+
+  it("is a no-op without the binding (local dev / tests)", async () => {
+    await expect(
+      assertMintRateWithinLimit(env, COMPANY_ID, USER_ID),
+    ).resolves.toBeUndefined();
+  });
+
+  it("keys on company AND user, so one member cannot crowd out the crew", async () => {
+    const keys: string[] = [];
+    const limiter = {
+      limit: async ({ key }: { key: string }) => {
+        keys.push(key);
+        return { success: true };
+      },
+    };
+
+    await assertMintRateWithinLimit(
+      { ...env, ATTACHMENT_URL_RATE_LIMITER: limiter },
+      COMPANY_ID,
+      USER_ID,
+    );
+
+    expect(keys).toEqual([`attachment-url:${COMPANY_ID}:${USER_ID}`]);
+  });
+
+  it("refuses over the limit with copy a person can act on", async () => {
+    const limiter = { limit: async () => ({ success: false }) };
+
+    let error: unknown;
+    try {
+      await assertMintRateWithinLimit(
+        { ...env, ATTACHMENT_URL_RATE_LIMITER: limiter },
+        COMPANY_ID,
+        USER_ID,
+      );
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).code).toBe("rate_limited");
   });
 });

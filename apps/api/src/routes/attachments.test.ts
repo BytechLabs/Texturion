@@ -115,13 +115,21 @@ describe("GET /v1/attachments/:id/url", () => {
           options.periodStart === undefined ? PERIOD_START : options.periodStart,
       },
     ]);
-    sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress", (call) => {
-      const p = call.body as { p_bytes: number; p_limit_bytes: number };
+    sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress_objects", (call) => {
+      const p = call.body as {
+        p_objects: { bytes: number }[];
+        p_limit_bytes: number;
+      };
+      const claimed = p.p_objects.reduce((sum, o) => sum + o.bytes, 0);
       const used = options.usedBytes ?? 0;
-      if (used + p.p_bytes > p.p_limit_bytes) {
-        return { allowed: false, used_bytes: used };
+      if (used + claimed > p.p_limit_bytes) {
+        return { allowed: false, used_bytes: used, claimed_bytes: 0 };
       }
-      return { allowed: true, used_bytes: used + p.p_bytes };
+      return {
+        allowed: true,
+        used_bytes: used + claimed,
+        claimed_bytes: claimed,
+      };
     });
   }
 
@@ -162,16 +170,28 @@ describe("GET /v1/attachments/:id/url", () => {
 
     // #16: the mint claimed the object's bytes against the fixed allowance
     // (#121), keyed on the billing period, BEFORE the sign call.
-    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")[0];
-    expect(claim.body).toEqual({
+    const claim = sb.find(
+      "POST",
+      "/rest/v1/rpc/claim_signed_url_egress_objects",
+    )[0];
+    expect(claim.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_since: PERIOD_START,
-      p_bucket: "attachments",
-      p_bytes: 2048,
       p_limit_bytes: EGRESS_ALLOWANCE,
+      // #261: keyed on the object, so asking again while the URL is still
+      // valid costs nothing.
+      p_objects: [
+        {
+          key: `attachments/${COMPANY_ID}/task/${TASK_ID}/uuid-quote.pdf`,
+          bucket: "attachments",
+          bytes: 2048,
+        },
+      ],
     });
     const order = sb.calls.map((call) => call.path);
-    expect(order.indexOf("/rest/v1/rpc/claim_signed_url_egress")).toBeLessThan(
+    expect(
+      order.indexOf("/rest/v1/rpc/claim_signed_url_egress_objects"),
+    ).toBeLessThan(
       order.findIndex((path) => path.startsWith("/storage/v1/object/sign/")),
     );
   });
@@ -213,8 +233,21 @@ describe("GET /v1/attachments/:id/url", () => {
     );
     expect(sign.body).toMatchObject({ expiresIn: 3600 });
     // MMS media draws on the same egress pool; a legacy NULL size claims 0.
-    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")[0];
-    expect(claim.body).toMatchObject({ p_bucket: "mms-media", p_bytes: 0 });
+    // The key uses the STRIPPED path — the same spelling the gallery claims
+    // on, so one photo is never charged twice for being asked two ways (#261).
+    const claim = sb.find(
+      "POST",
+      "/rest/v1/rpc/claim_signed_url_egress_objects",
+    )[0];
+    expect(claim.body).toMatchObject({
+      p_objects: [
+        {
+          key: `mms-media/${COMPANY_ID}/msg-1/0`,
+          bucket: "mms-media",
+          bytes: 0,
+        },
+      ],
+    });
   });
 
   it("402s usage_cap_reached over the egress allowance — no URL is signed (#16)", async () => {
@@ -257,7 +290,7 @@ describe("GET /v1/attachments/:id/url", () => {
     ]);
     sb.on(
       "POST",
-      "/rest/v1/rpc/claim_signed_url_egress",
+      "/rest/v1/rpc/claim_signed_url_egress_objects",
       () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
     );
     stubFetch(jwksRoute(auth), sb.route);
@@ -292,7 +325,7 @@ describe("GET /v1/attachments/:id/url", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")[0];
+    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")[0];
     const now = new Date();
     expect((claim.body as { p_since: string }).p_since).toBe(
       new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString(),
@@ -317,7 +350,7 @@ describe("GET /v1/attachments/:id/url", () => {
     }
     // No Storage call and no egress claim for a miss.
     expect(sb.find("POST", /^\/storage\//)).toHaveLength(0);
-    expect(sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")).toHaveLength(0);
   });
 
   it("403s a non-member before touching anything", async () => {
@@ -1090,7 +1123,7 @@ describe("#106 number access — attachments never leak a hidden number", () => 
     );
     expect(res.status).toBe(404);
     // No egress claim and no Storage sign for a hidden number.
-    expect(sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")).toHaveLength(0);
     expect(sb.find("POST", /^\/storage\//)).toHaveLength(0);
   });
 

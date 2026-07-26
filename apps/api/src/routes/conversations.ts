@@ -36,7 +36,10 @@ import { z } from "zod";
 import {
   loadAiSettings,
 } from "../ai/settings";
-import { assertEgressWithinAllowance } from "../attachments/egress";
+import {
+  assertEgressWithinAllowance,
+  assertMintRateWithinLimit,
+} from "../attachments/egress";
 import { requireRole } from "../auth/company";
 import { listConversationViewers } from "../auth/conversation-audience";
 import {
@@ -1274,7 +1277,12 @@ conversationsRoutes.get(
     const companyId = c.get("companyId");
     const limit = parseLimit(c, 25, 100);
     const cursor = parseCursor(c);
-    const db = getDb(getEnv(c.env));
+    const env = getEnv(c.env);
+    const db = getDb(env);
+
+    // #261: bound the mint RATE before doing any work for it. This route signs
+    // up to 100 objects per call, so it is the cheaper of the two side doors.
+    await assertMintRateWithinLimit(env, companyId, c.get("userId"));
 
     const conversation = await findConversation(db, companyId, id);
     if (!conversation) {
@@ -1394,7 +1402,12 @@ conversationsRoutes.get(
     await assertEgressWithinAllowance(
       db,
       companyId,
-      pageRows.map((row) => ({ bucket: row.bucket, sizeBytes: row.size_bytes })),
+      pageRows.map((row) => ({
+        bucket: row.bucket,
+        path: row.objectPath,
+        sizeBytes: row.size_bytes,
+      })),
+      MMS_SIGNED_URL_TTL_SECONDS,
     );
 
     // Sign each item's object (short-lived) — the single authorize+sign point.

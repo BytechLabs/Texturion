@@ -220,12 +220,30 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) 
     VOICEMAIL_TRANSCRIPT_FEATURE_SPEC.enabled(settings);
 
   const objectBytes = await voicemailObjectBytes(db, call.voicemail_path);
-  await assertEgressWithinAllowance(db, c.get("companyId"), [
-    { bucket: VOICEMAILS_BUCKET, sizeBytes: objectBytes },
-    ...(willTranscribe
-      ? [{ bucket: VOICEMAILS_BUCKET, sizeBytes: objectBytes }]
-      : []),
-  ]);
+  await assertEgressWithinAllowance(
+    db,
+    c.get("companyId"),
+    [
+      {
+        bucket: VOICEMAILS_BUCKET,
+        path: call.voicemail_path,
+        sizeBytes: objectBytes,
+      },
+      // Transcription reads the file server-side, which is a second real
+      // download of the same bytes. Claims are per object now (#261), so give
+      // it a key of its own rather than repeating the playback object's.
+      ...(willTranscribe
+        ? [
+            {
+              bucket: VOICEMAILS_BUCKET,
+              path: `${call.voicemail_path}#transcribe`,
+              sizeBytes: objectBytes,
+            },
+          ]
+        : []),
+    ],
+    60 * 60,
+  );
 
   const signed = await db.storage
     .from(VOICEMAILS_BUCKET)

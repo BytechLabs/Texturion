@@ -43,6 +43,7 @@ import { z } from "zod";
 
 import {
   assertEgressWithinAllowance,
+  assertMintRateWithinLimit,
 } from "../attachments/egress";
 import { requireRole } from "../auth/company";
 import {
@@ -479,7 +480,11 @@ attachmentsRoutes.get(
   async (c) => {
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");
-    const db = getDb(getEnv(c.env));
+    const env = getEnv(c.env);
+    const db = getDb(env);
+
+    // #261: bound the mint RATE before doing any work for it.
+    await assertMintRateWithinLimit(env, companyId, c.get("userId"));
 
     // Generic (note/task) arm first — the D19 table. Only live rows.
     const generic = unwrap<
@@ -503,9 +508,18 @@ attachmentsRoutes.get(
       // a signed URL is the whole payload, so a hidden number must 404 here.
       await assertConversationVisible(db, c, generic[0].conversation_id);
       // #16: claim the egress BEFORE signing — over the allowance, no URL.
-      await assertEgressWithinAllowance(db, companyId, [
-        { bucket: ATTACHMENTS_BUCKET, sizeBytes: generic[0].size_bytes },
-      ]);
+      await assertEgressWithinAllowance(
+        db,
+        companyId,
+        [
+          {
+            bucket: ATTACHMENTS_BUCKET,
+            path: generic[0].storage_path,
+            sizeBytes: generic[0].size_bytes,
+          },
+        ],
+        ATTACHMENT_SIGNED_URL_TTL_SECONDS,
+      );
       return c.json(await signObject(db, ATTACHMENTS_BUCKET, generic[0].storage_path, ATTACHMENT_SIGNED_URL_TTL_SECONDS));
     }
 
@@ -528,12 +542,17 @@ attachmentsRoutes.get(
       // media's conversation (message → conversation) only when the caller is
       // actually restricted — unrestricted callers skip the extra lookup.
       await assertMmsVisible(db, c, mms[0].message_id);
-      // #16: MMS media downloads draw on the same per-company egress pool.
-      await assertEgressWithinAllowance(db, companyId, [
-        { bucket: MMS_BUCKET, sizeBytes: mms[0].size_bytes },
-      ]);
       // storage_path may carry the legacy `mms-media/` prefix (SPEC §6) — strip it.
       const objectPath = mms[0].storage_path.replace(/^mms-media\//, "");
+      // #16: MMS media downloads draw on the same per-company egress pool.
+      // Claim on the STRIPED path, which is what the gallery claims on too —
+      // the same object must not be charged twice under two spellings (#261).
+      await assertEgressWithinAllowance(
+        db,
+        companyId,
+        [{ bucket: MMS_BUCKET, path: objectPath, sizeBytes: mms[0].size_bytes }],
+        MMS_TTL_SECONDS,
+      );
       return c.json(await signObject(db, MMS_BUCKET, objectPath, MMS_TTL_SECONDS));
     }
 

@@ -63,9 +63,10 @@ function memberStub(): SupabaseStub {
   ]);
   // #121: no company_modules stub — the allowance is fixed, so the retired
   // storage-budget resolution is never read (it would fail loudly).
-  sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress", (call) => {
-    const p = call.body as { p_bytes: number };
-    return { allowed: true, used_bytes: p.p_bytes };
+  sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress_objects", (call) => {
+    const p = call.body as { p_objects: { bytes: number }[] };
+    const claimed = p.p_objects.reduce((sum, o) => sum + o.bytes, 0);
+    return { allowed: true, used_bytes: claimed, claimed_bytes: claimed };
   });
   return sb;
 }
@@ -177,30 +178,38 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
       `/storage/v1/object/sign/attachments/${COMPANY_ID}/task/t1/uuid-quote.pdf`,
     );
 
-    // #16: the page's egress was claimed as per-bucket subtotals against the
-    // shared pool, and every claim landed BEFORE the first sign call.
-    const claims = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress");
-    expect(claims.map((call) => call.body)).toEqual(
+    // #16/#261: the whole page's egress was claimed in ONE call, keyed per
+    // object, and it landed BEFORE the first sign call. Per object is what
+    // makes re-opening the gallery free — a per-bucket subtotal cannot tell a
+    // new photo from the same one asked for again.
+    const claims = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects");
+    expect(claims).toHaveLength(1);
+    const claimBody = claims[0].body as {
+      p_company_id: string;
+      p_since: string;
+      p_limit_bytes: number;
+      p_objects: { key: string; bucket: string; bytes: number }[];
+    };
+    expect(claimBody.p_company_id).toBe(COMPANY_ID);
+    expect(claimBody.p_since).toBe(PERIOD_START);
+    expect(claimBody.p_limit_bytes).toBe(EGRESS_ALLOWANCE);
+    expect(claimBody.p_objects).toEqual(
       expect.arrayContaining([
         {
-          p_company_id: COMPANY_ID,
-          p_since: PERIOD_START,
-          p_bucket: "mms-media",
-          p_bytes: 4096,
-          p_limit_bytes: EGRESS_ALLOWANCE,
-        },
-        {
-          p_company_id: COMPANY_ID,
-          p_since: PERIOD_START,
-          p_bucket: "attachments",
-          p_bytes: 10240, // 8192 + 2048 — the generic arm's summed page bytes
-          p_limit_bytes: EGRESS_ALLOWANCE,
+          key: `mms-media/${COMPANY_ID}/msg-1/0`,
+          bucket: "mms-media",
+          bytes: 4096,
         },
       ]),
     );
-    expect(claims).toHaveLength(2);
+    // The generic arm's two objects, claimed under their own keys.
+    expect(
+      claimBody.p_objects
+        .filter((o) => o.bucket === "attachments")
+        .reduce((sum, o) => sum + o.bytes, 0),
+    ).toBe(10240);
     const order = sb.calls.map((call) => call.path);
-    expect(order.indexOf("/rest/v1/rpc/claim_signed_url_egress")).toBeLessThan(
+    expect(order.indexOf("/rest/v1/rpc/claim_signed_url_egress_objects")).toBeLessThan(
       order.findIndex((path) => path.startsWith("/storage/v1/object/sign/")),
     );
   });
@@ -227,9 +236,10 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
     sb.on("GET", "/rest/v1/companies", () => [
       { plan: "starter", current_period_start: PERIOD_START },
     ]);
-    sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress", () => ({
+    sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress_objects", () => ({
       allowed: false,
       used_bytes: EGRESS_ALLOWANCE,
+      claimed_bytes: 0,
     }));
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -270,7 +280,7 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
     ]);
     sb.on(
       "POST",
-      "/rest/v1/rpc/claim_signed_url_egress",
+      "/rest/v1/rpc/claim_signed_url_egress_objects",
       () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
     );
     stubFetch(jwksRoute(auth), sb.route);

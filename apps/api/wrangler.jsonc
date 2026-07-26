@@ -125,6 +125,21 @@
         "type": "ratelimit",
         "namespace_id": "1006",
         "simple": { "limit": 6, "period": 60 }
+      },
+      {
+        // #261: the signed-URL mint routes had no rate limit at all, and the
+        // egress ledger charged per REQUEST — so any member could spend the
+        // whole workspace's period download allowance by looping one
+        // attachment, leaving everybody on 402 until the period rolled. The
+        // ledger is per object now, which removes the cost; this bounds the
+        // request rate so the lookups and claim RPCs behind each mint cannot be
+        // a flood either. Keyed on company + user. 120/min is far above opening
+        // a thread with a full gallery and scrolling it hard, and far below a
+        // script. Optional in src/env.ts → dev/tests skip it.
+        "name": "ATTACHMENT_URL_RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1007",
+        "simple": { "limit": 120, "period": 60 }
       }
     ]
   },

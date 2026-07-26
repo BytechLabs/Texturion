@@ -296,6 +296,15 @@ const envSchema = z.object({
    * cap. OPTIONAL, like the others.
    */
   AI_TRANSCRIBE_RATE_LIMITER: rateLimiterSchema.optional(),
+  /**
+   * #261: burst limiter on the signed-URL mint routes, keyed on company + user.
+   * The egress ledger is now per object rather than per request, so looping one
+   * attachment no longer spends the workspace's allowance — but a mint is still
+   * a lookup, an access check and a claim RPC per call, and nothing bounded how
+   * fast one member could ask. This bounds the request rate; the per-object
+   * claim bounds the cost. OPTIONAL, like the others.
+   */
+  ATTACHMENT_URL_RATE_LIMITER: rateLimiterSchema.optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -322,7 +322,9 @@ declare
 begin
   foreach fn_name in array array[
     'claim_signed_url_egress', 'api_period_egress_bytes',
-    'api_orphan_attachment_objects', 'api_ghost_attachment_rows'
+    'api_orphan_attachment_objects', 'api_ghost_attachment_rows',
+    -- [#261] the per-object claim and its helper
+    'claim_signed_url_egress_objects', 'egress_claimable_objects'
   ] loop
     select p.oid::regprocedure, p.prosecdef, p.proconfig
       into fn, is_secdef, cfg
@@ -395,6 +397,103 @@ begin
   end if;
 
   raise notice 'SA-8 PASSED: atomic egress claim holds the boundary';
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- SA-8b [#261]. claim_signed_url_egress_objects charges per OBJECT, not per
+--       request. The old claim counted mints, so re-minting a URL for the same
+--       attachment charged again even though the previous URL was still valid
+--       — one 25 MB file and a shell loop could spend the whole workspace's
+--       period allowance, leaving everybody on 402 until it rolled. Asking
+--       again inside the URL's own lifetime must now cost nothing, while a
+--       genuinely new object still charges.
+--       Uses company B, continuing from SA-8's ledger (1000 bytes at the cap).
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_company uuid := 'd3d3d3d3-d3d3-4d3d-8d3d-d3d300000002';
+  v_since timestamptz := now() - interval '1 day';
+  v_ttl timestamptz := now() - interval '1 hour';   -- the URL lifetime window
+  v_r jsonb; v_total int8; v_rows int;
+begin
+  -- Start this test from a clean ledger for B so the numbers read plainly.
+  delete from public.egress_events where company_id = v_company;
+
+  -- First mint of two objects: both are new, both charged.
+  v_r := public.claim_signed_url_egress_objects(
+    v_company, v_since, v_ttl,
+    '[{"key":"attachments/a.pdf","bucket":"attachments","bytes":300},
+      {"key":"mms-media/b.jpg","bucket":"mms-media","bytes":200}]'::jsonb,
+    1000);
+  if (v_r->>'allowed')::boolean is not true
+     or (v_r->>'claimed_bytes')::int8 <> 500
+     or (v_r->>'used_bytes')::int8 <> 500 then
+    raise exception 'SA-8b FAILED: first claim: %', v_r;
+  end if;
+
+  -- THE BUG: the same two objects again, while their URLs are still live.
+  -- Nothing new became downloadable, so nothing may be charged.
+  v_r := public.claim_signed_url_egress_objects(
+    v_company, v_since, v_ttl,
+    '[{"key":"attachments/a.pdf","bucket":"attachments","bytes":300},
+      {"key":"mms-media/b.jpg","bucket":"mms-media","bytes":200}]'::jsonb,
+    1000);
+  if (v_r->>'allowed')::boolean is not true
+     or (v_r->>'claimed_bytes')::int8 <> 0
+     or (v_r->>'used_bytes')::int8 <> 500 then
+    raise exception 'SA-8b FAILED: repeat claim was charged: %', v_r;
+  end if;
+
+  -- A page mixing the seen object with a new one charges only the new one.
+  v_r := public.claim_signed_url_egress_objects(
+    v_company, v_since, v_ttl,
+    '[{"key":"attachments/a.pdf","bucket":"attachments","bytes":300},
+      {"key":"attachments/c.pdf","bucket":"attachments","bytes":100}]'::jsonb,
+    1000);
+  if (v_r->>'claimed_bytes')::int8 <> 100
+     or (v_r->>'used_bytes')::int8 <> 600 then
+    raise exception 'SA-8b FAILED: mixed page: %', v_r;
+  end if;
+
+  -- One object listed twice in a single page is one charge.
+  v_r := public.claim_signed_url_egress_objects(
+    v_company, v_since, v_ttl,
+    '[{"key":"attachments/d.pdf","bucket":"attachments","bytes":50},
+      {"key":"attachments/d.pdf","bucket":"attachments","bytes":50}]'::jsonb,
+    1000);
+  if (v_r->>'claimed_bytes')::int8 <> 50 then
+    raise exception 'SA-8b FAILED: intra-page duplicate charged twice: %', v_r;
+  end if;
+
+  -- Past the window the same object IS new exposure again, and the boundary
+  -- still holds: 650 + 400 > 1000 → refused, nothing written. (The cutoff is
+  -- pushed past the rows above: inside one transaction now() is frozen, so
+  -- `now()` alone would still cover a row stamped in this same statement.)
+  v_r := public.claim_signed_url_egress_objects(
+    v_company, v_since, now() + interval '1 second',
+    '[{"key":"attachments/a.pdf","bucket":"attachments","bytes":400}]'::jsonb,
+    1000);
+  if (v_r->>'allowed')::boolean is not false
+     or (v_r->>'claimed_bytes')::int8 <> 0
+     or (v_r->>'used_bytes')::int8 <> 650 then
+    raise exception 'SA-8b FAILED: over-boundary re-exposure: %', v_r;
+  end if;
+
+  -- Ledger: one row per charged object, totalling what was charged.
+  select count(*), coalesce(sum(bytes),0)::int8 into v_rows, v_total
+    from public.egress_events where company_id = v_company;
+  if v_rows <> 4 or v_total <> 650 then
+    raise exception 'SA-8b FAILED: ledger = % rows / % bytes (want 4 / 650)',
+      v_rows, v_total;
+  end if;
+  -- Every row carries the object it paid for, which is what makes the repeat
+  -- lookup possible at all.
+  if exists (select 1 from public.egress_events
+              where company_id = v_company and object_key is null) then
+    raise exception 'SA-8b FAILED: a claimed row has no object_key';
+  end if;
+
+  raise notice 'SA-8b PASSED: egress is charged per object, not per request';
 end $$;
 
 -- ---------------------------------------------------------------------------
