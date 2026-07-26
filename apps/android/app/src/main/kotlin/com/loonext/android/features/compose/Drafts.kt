@@ -15,27 +15,43 @@ private val Context.composerDraftStore by preferencesDataStore(name = "composer-
  * drafts — restore-on-failure and cross-open persistence are purely ours).
  * Text only: staged photos/files are content URIs whose read permission does
  * not survive the process, so persisting them would restore dead chips.
+ *
+ * An interface so the composer's persistence can be driven on the JVM: what a
+ * draft write must survive (#269 — the screen going away mid-debounce) is
+ * exactly the kind of thing a device test would never catch reliably.
  */
-class ComposerDrafts(private val context: Context) {
-
-    private fun key(conversationId: String) = stringPreferencesKey("draft:$conversationId")
+interface ComposerDrafts {
+    suspend fun load(conversationId: String): String
+    suspend fun save(conversationId: String, text: String)
+    suspend fun clear(conversationId: String)
+    suspend fun loadMentions(conversationId: String): List<PickedMention>
+    suspend fun saveMentions(conversationId: String, mentions: List<PickedMention>)
 
     /** The new-conversation screen's draft rides a fixed slot. */
     companion object {
         const val NEW_CONVERSATION = "new"
     }
+}
 
-    suspend fun load(conversationId: String): String =
+/** The real thing, backed by the `composer-drafts` DataStore. */
+@Suppress("FunctionName")
+fun ComposerDrafts(context: Context): ComposerDrafts = DataStoreComposerDrafts(context)
+
+private class DataStoreComposerDrafts(private val context: Context) : ComposerDrafts {
+
+    private fun key(conversationId: String) = stringPreferencesKey("draft:$conversationId")
+
+    override suspend fun load(conversationId: String): String =
         context.composerDraftStore.data.first()[key(conversationId)].orEmpty()
 
-    suspend fun save(conversationId: String, text: String) {
+    override suspend fun save(conversationId: String, text: String) {
         context.composerDraftStore.edit { prefs ->
             if (text.isBlank()) prefs.remove(key(conversationId))
             else prefs[key(conversationId)] = text
         }
     }
 
-    suspend fun clear(conversationId: String) {
+    override suspend fun clear(conversationId: String) {
         context.composerDraftStore.edit {
             it.remove(key(conversationId))
             it.remove(mentionKey(conversationId))
@@ -55,14 +71,14 @@ class ComposerDrafts(private val context: Context) {
     private fun mentionKey(conversationId: String) =
         stringPreferencesKey("draft-mentions:$conversationId")
 
-    suspend fun loadMentions(conversationId: String): List<PickedMention> {
+    override suspend fun loadMentions(conversationId: String): List<PickedMention> {
         val raw = context.composerDraftStore.data.first()[mentionKey(conversationId)]
         if (raw.isNullOrEmpty()) return emptyList()
         return runCatching { Json.decodeFromString<List<PickedMention>>(raw) }
             .getOrDefault(emptyList())
     }
 
-    suspend fun saveMentions(conversationId: String, mentions: List<PickedMention>) {
+    override suspend fun saveMentions(conversationId: String, mentions: List<PickedMention>) {
         context.composerDraftStore.edit { prefs ->
             if (mentions.isEmpty()) {
                 prefs.remove(mentionKey(conversationId))

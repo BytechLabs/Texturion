@@ -11,6 +11,7 @@ import mockwebserver3.MockWebServer
 import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -162,5 +163,58 @@ class ApiClientTest {
         assertTrue(result.ok)
         assertEquals("Bearer token-2", api.takeRequest().headers["Authorization"])
         assertNotNull(sessions.flow.value)
+    }
+
+    // --- #268: a bad minute at the auth server is not a dead session ---
+
+    @Test
+    fun `a 429 during refresh keeps the session`() = runTest {
+        // A whole crew behind one office IP hits GoTrue's refresh rate limit.
+        // The refresh token is untouched; signing everyone out would cost each
+        // of them a full re-login for a limit that clears in seconds.
+        sessions.flow.value = liveSession().copy(
+            expiresAt = System.currentTimeMillis() / 1000 - 10,
+        )
+        gotrue.enqueue(MockResponse(code = 429, body = """{"msg":"rate limited"}"""))
+
+        try {
+            client().get<Pong>("/v1/me")
+            fail("expected ApiException")
+        } catch (e: ApiException) {
+            assertEquals(429, e.httpStatus)
+        }
+        assertFalse(sessions.cleared)
+        assertNotNull(sessions.flow.value)
+    }
+
+    @Test
+    fun `a 503 during refresh keeps the session`() = runTest {
+        // Supabase returns 503 for half a minute during a platform deploy.
+        sessions.flow.value = liveSession().copy(
+            expiresAt = System.currentTimeMillis() / 1000 - 10,
+        )
+        gotrue.enqueue(MockResponse(code = 503, body = """{"msg":"unavailable"}"""))
+
+        try {
+            client().get<Pong>("/v1/me")
+            fail("expected ApiException")
+        } catch (e: ApiException) {
+            assertEquals(503, e.httpStatus)
+        }
+        assertFalse(sessions.cleared)
+        assertNotNull(sessions.flow.value)
+    }
+
+    @Test
+    fun `only the server refusing the token counts as a dead session`() {
+        // The rule both clients share: a 4xx is a rejection, everything else
+        // is weather (iOS Core/ApiClient.swift).
+        assertTrue(ApiException(ApiErrorCode.NETWORK, "offline", 0).isTransientRefreshFailure())
+        assertTrue(ApiException(ApiErrorCode.RATE_LIMITED, "slow down", 429).isTransientRefreshFailure())
+        assertTrue(ApiException(ApiErrorCode.INTERNAL_ERROR, "boom", 500).isTransientRefreshFailure())
+        assertTrue(ApiException(ApiErrorCode.INTERNAL_ERROR, "gateway", 503).isTransientRefreshFailure())
+        assertFalse(ApiException(ApiErrorCode.UNAUTHORIZED, "gone", 400).isTransientRefreshFailure())
+        assertFalse(ApiException(ApiErrorCode.UNAUTHORIZED, "gone", 401).isTransientRefreshFailure())
+        assertFalse(ApiException(ApiErrorCode.FORBIDDEN, "no", 403).isTransientRefreshFailure())
     }
 }

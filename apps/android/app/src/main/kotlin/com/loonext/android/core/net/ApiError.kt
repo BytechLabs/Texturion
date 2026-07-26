@@ -38,6 +38,20 @@ class ApiException(
 ) : Exception(message)
 
 /**
+ * Did this failure say the session is DEAD, or just that the server was
+ * unreachable for a moment (#268)?
+ *
+ * Only a 4xx from GoTrue is the server refusing the refresh token itself.
+ * Everything else — a dropped connection, a 429 when a whole crew shares one
+ * office IP, a 5xx while Supabase deploys — is weather, and treating it as a
+ * rejection throws away a perfectly good session and costs a full re-login.
+ * Kept beside [ApiException] so both clients read the same rule (iOS:
+ * Core/ApiClient.swift).
+ */
+fun ApiException.isTransientRefreshFailure(): Boolean =
+    code == ApiErrorCode.NETWORK || httpStatus == 429 || httpStatus >= 500
+
+/**
  * The server said 2xx but the body didn't match the client model. The ACTION
  * SUCCEEDED — treat as success wherever it surfaces (toast the success copy,
  * refetch the fresh state). The mismatch is a client-model bug: report it via

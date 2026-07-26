@@ -206,7 +206,15 @@ class ApiClient(
                 next
             }
         } catch (cause: ApiException) {
-            if (cause.code == ApiErrorCode.NETWORK) throw cause
+            // Transient — keep the session (iOS parity, ApiClient.swift). Only
+            // a network error counted as transient here, so a Supabase 5xx
+            // during a platform blip, or a GoTrue 429 when a whole crew shares
+            // one office IP, fell through to the clear() below and signed
+            // someone out of a session that was still perfectly valid. This
+            // path runs roughly hourly on every active device. A refresh token
+            // is only actually dead when the server SAYS so (a 4xx), and
+            // losing it costs a full re-login.
+            if (cause.isTransientRefreshFailure()) throw cause
             // Refresh token rejected — the session is truly dead.
             sessionStore.clear()
             null

@@ -97,6 +97,7 @@ import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -123,6 +124,27 @@ object NoteAmber {
 }
 
 /**
+ * Draft writes run here, NOT on the composition's scope (#269).
+ *
+ * ThreadScreen is a routed overlay: a back press removes it from the
+ * composition immediately, which cancelled `rememberCoroutineScope()` and with
+ * it the pending 400 ms debounce — so anyone who typed and left inside that
+ * window found an empty composer next time, with nothing to say the words had
+ * ever existed. `clearForSend()` had the mirror-image bug: a just-sent message
+ * came back as a draft. A draft write is not screen work; it must finish
+ * whatever the user does next. (The iOS twin uses an unstructured Task for the
+ * same reason.)
+ *
+ * Process-lifetime by design and cheap: at most one small DataStore write per
+ * composer, and the writes are what the user would otherwise lose.
+ */
+internal val DraftPersistScope: CoroutineScope =
+    CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+/** How long typing settles before a draft is written. */
+private const val DRAFT_DEBOUNCE_MS = 400L
+
+/**
  * Composer state hoisted out of the UI so the thread controller can restore a
  * failed send. Text persists as a per-conversation client draft (the server
  * keeps none) with a debounced write.
@@ -131,7 +153,8 @@ object NoteAmber {
 class ComposerState(
     private val draftKey: String,
     private val drafts: ComposerDrafts,
-    private val scope: CoroutineScope,
+    /** See [DraftPersistScope] — deliberately NOT the composition's scope. */
+    private val scope: CoroutineScope = DraftPersistScope,
 ) {
     var text by mutableStateOf("")
         private set
@@ -180,11 +203,15 @@ class ComposerState(
     }
 
     private fun queueDraftSave() {
+        // Capture what is on screen NOW: the write runs after the screen may
+        // be gone, and it must record the words the user actually typed.
+        val body = text
+        val mentions = picked
         saveJob?.cancel()
         saveJob = scope.launch {
-            delay(400)
-            drafts.save(draftKey, text)
-            drafts.saveMentions(draftKey, picked)
+            delay(DRAFT_DEBOUNCE_MS)
+            drafts.save(draftKey, body)
+            drafts.saveMentions(draftKey, mentions)
         }
     }
 
@@ -218,8 +245,7 @@ fun rememberComposerState(
     draftKey: String,
     drafts: ComposerDrafts,
 ): ComposerState {
-    val scope = rememberCoroutineScope()
-    val state = remember(draftKey) { ComposerState(draftKey, drafts, scope) }
+    val state = remember(draftKey) { ComposerState(draftKey, drafts) }
     LaunchedEffect(state) { state.loadDraftOnce() }
     return state
 }
