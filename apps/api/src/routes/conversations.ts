@@ -124,13 +124,17 @@ const patchSchema = z
     is_spam: z.boolean().optional(),
     // #3: pin/unpin a whole conversation to the top of the inbox.
     pinned: z.boolean().optional(),
+    // #342: "yes, this is still spam". Answers the review prompt without
+    // making the decision permanent again — only literal true has meaning.
+    spam_reviewed: z.literal(true).optional(),
   })
   .refine(
     (body) =>
       body.status !== undefined ||
       "assigned_user_id" in body ||
       body.is_spam !== undefined ||
-      body.pinned !== undefined,
+      body.pinned !== undefined ||
+      body.spam_reviewed === true,
     { message: "Provide at least one field to update." },
   );
 
@@ -447,8 +451,20 @@ conversationsRoutes.patch(
         patch.closed_at = (current.closed_at as string | null) ?? now;
         event("spam_marked", { forced_status: "closed" });
       } else {
+        // #342: un-marking clears the review watermark too. The next mark
+        // starts a fresh count rather than inheriting a confirmation that was
+        // about different messages.
+        patch.spam_reviewed_at = null;
         event("spam_unmarked", {});
       }
+    }
+
+    // #342: confirming a mark. Deliberately AFTER the is_spam branch, so a
+    // request that does both ends with the confirmation — and deliberately
+    // not an event: it is a "no change" answer, and a timeline row per
+    // dismissal would be the noise this feature exists to avoid.
+    if (body.spam_reviewed === true && current.is_spam) {
+      patch.spam_reviewed_at = now;
     }
 
     if (

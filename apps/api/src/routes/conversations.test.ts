@@ -531,7 +531,10 @@ describe("PATCH /v1/conversations/:id (events per changed field)", () => {
     });
     const update2 = sb2.find("PATCH", "/rest/v1/conversations")[0]
       .body as Record<string, unknown>;
-    expect(update2).toEqual({ is_spam: false });
+    // #342: lifting the mark clears the review watermark too, so a later
+    // re-mark counts fresh rather than inheriting a confirmation that was
+    // about entirely different messages.
+    expect(update2).toEqual({ is_spam: false, spam_reviewed_at: null });
     const events2 = sb2.find("POST", "/rest/v1/conversation_events")[0]
       .body as { type: string }[];
     expect(events2.map((e) => e.type)).toEqual(["spam_unmarked"]);

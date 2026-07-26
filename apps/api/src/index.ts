@@ -40,6 +40,7 @@ import { contactsRoutes } from "./routes/contacts";
 import { conversationsRoutes } from "./routes/conversations";
 import { devicePushTokensRoutes } from "./routes/device-push-tokens";
 import { forYouRoutes } from "./routes/for-you";
+import { spamReviewRoutes } from "./routes/spam-review";
 import { meRoutes } from "./routes/me";
 import { messageRoutes } from "./routes/messages";
 import { notificationsRoutes } from "./routes/notifications";
@@ -149,6 +150,8 @@ app.route("/v1", teamRoutes);
 app.route("/v1", notificationsRoutes);
 app.route("/v1", devicePushTokensRoutes); // #151 native FCM/APNs token registry
 app.route("/v1", forYouRoutes); // D23 GET /v1/for-you home read-model
+// #342: spam marks that do not look like spam — a signal, never a notification.
+app.route("/v1", spamReviewRoutes);
 app.route("/v1", callsRoutes); // #129 GET /v1/calls — the call log
 app.route("/v1", liveCallsRoutes); // #135 D43 phase 3 — live-call transfers
 app.route("/v1", webrtcRoutes); // #135 D43 — browser softphone tokens

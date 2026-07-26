@@ -9,6 +9,7 @@ import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.NotificationItem
 import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.SearchResult
+import com.loonext.android.core.model.SpamReviewPage
 import com.loonext.android.core.model.Task
 import com.loonext.android.core.model.TaskAddressInput
 import com.loonext.android.core.model.TaskEnrichment
@@ -38,6 +39,35 @@ class MeRepository(private val api: ApiClient) {
 class ForYouRepository(private val api: ApiClient) {
     suspend fun forYou(companyId: String): ForYou =
         api.get("/v1/for-you", companyId = companyId)
+
+    /**
+     * #342: spam marks that do not look like spam. Its own call rather than a
+     * section of /v1/for-you — it answers a different question and is empty on
+     * nearly every day.
+     */
+    suspend fun spamReview(companyId: String): SpamReviewPage =
+        api.get("/v1/spam-review", companyId = companyId)
+
+    /**
+     * #342: the two answers to the review prompt. Lifting the mark puts the
+     * thread back in the inbox; confirming it says "yes, still spam" without
+     * making the decision permanent again — new activity can raise it later.
+     */
+    suspend fun answerSpamReview(
+        companyId: String,
+        conversationId: String,
+        notSpam: Boolean,
+    ) {
+        api.patch<JsonObject, JsonObject>(
+            "/v1/conversations/$conversationId",
+            if (notSpam) {
+                buildJsonObject { put("is_spam", false) }
+            } else {
+                buildJsonObject { put("spam_reviewed", true) }
+            },
+            companyId = companyId,
+        )
+    }
 }
 
 class InboxRepository(private val api: ApiClient) {

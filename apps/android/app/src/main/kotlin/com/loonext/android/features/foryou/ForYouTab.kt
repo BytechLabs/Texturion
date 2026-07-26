@@ -81,6 +81,12 @@ import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
+import androidx.compose.runtime.rememberCoroutineScope
+import com.loonext.android.core.model.SpamReviewItem
+import com.loonext.android.core.model.spamReviewReason
+import kotlinx.coroutines.launch
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import kotlinx.coroutines.delay
 
 /**
@@ -117,11 +123,23 @@ fun ForYouTab(
     // #176 cache-first: renders instantly from StoreCache on every visit after
     // the first in-process fetch; refreshKey bumps are always silent revalidation.
     var refreshKey by remember { mutableStateOf(0) }
+    // #342: the review strip's two answers are one-shot mutations; the strip
+    // refetches itself afterwards rather than patching a cache by hand.
+    val coroutines = rememberCoroutineScope()
     val state = rememberCacheFirst(
         cache = graph.storeCache,
         key = CacheKeys.forYou(companyId),
         refreshKey = refreshKey,
     ) { graph.forYouRepo.forYou(companyId) }
+
+    // #342: spam marks that do not look like spam. Empty on nearly every day,
+    // and deliberately NOT a badge or a push — a signal you find, not one that
+    // finds you.
+    val spamReview = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.spamReview(companyId),
+        refreshKey = refreshKey,
+    ) { graph.forYouRepo.spamReview(companyId).data }
 
     // Recent calls (#165): the 3 newest sessions, refetched on the same
     // realtime ticks as the queue (call.updated is in the filter below).
@@ -199,6 +217,18 @@ fun ForYouTab(
         ) {
             ForYouList(
                 forYou = current.value,
+                // #342: spam marks that do not look like spam.
+                spamReview = (spamReview as? LoadState.Ready)?.value.orEmpty(),
+                onAnswerSpamReview = { conversationId, notSpam ->
+                    coroutines.launch {
+                        runCatching {
+                            graph.forYouRepo.answerSpamReview(
+                                companyId, conversationId, notSpam,
+                            )
+                        }
+                        refreshKey += 1
+                    }
+                },
                 recentCalls = recentCalls,
                 unreadNotifications = unreadNotifications,
                 me = me,
@@ -214,6 +244,8 @@ fun ForYouTab(
 @Composable
 private fun ForYouList(
     forYou: ForYou,
+    spamReview: List<SpamReviewItem>,
+    onAnswerSpamReview: (conversationId: String, notSpam: Boolean) -> Unit,
     recentCalls: LoadState<List<Call>>,
     unreadNotifications: Int,
     me: Me,
@@ -259,6 +291,29 @@ private fun ForYouList(
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+
+        // #342: before the caught-up well, because "you're all caught up" is
+        // not true if somebody has been texting a thread nobody can see.
+        if (spamReview.isNotEmpty()) {
+            item(key = "spam-review") {
+                QueueSection(
+                    "Marked spam, still texting",
+                    count = spamReview.size,
+                    modifier = Modifier.animateItem(),
+                ) {
+                    spamReview.forEachIndexed { index, row ->
+                        if (index > 0) RowDivider()
+                        SpamReviewRow(
+                            item = row,
+                            onOpen = { onOpenConversation(row.conversation_id) },
+                            onAnswer = { notSpam ->
+                                onAnswerSpamReview(row.conversation_id, notSpam)
+                            },
+                        )
+                    }
+                }
             }
         }
 
@@ -771,3 +826,46 @@ private fun isDarkTheme(): Boolean = MaterialTheme.colorScheme.background.lumina
 @Composable
 private fun coralColor(): Color =
     if (isDarkTheme()) BrandColor.DarkCoral else BrandColor.Coral
+
+/**
+ * #342 — one spam mark that does not look like spam, and the two answers.
+ *
+ * The line says WHICH signal raised it: "4 messages since" reads as a counter,
+ * "you texted them before marking this" reads as the mistake it probably is.
+ * Both answers end the prompt — one lifts the mark, the other confirms it
+ * without making the decision permanent again.
+ */
+@Composable
+private fun SpamReviewRow(
+    item: SpamReviewItem,
+    onOpen: () -> Unit,
+    onAnswer: (notSpam: Boolean) -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 15.dp, vertical = 12.dp),
+    ) {
+        Text(
+            item.contact?.name ?: formatPhone(item.contact?.phone_e164),
+            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            spamReviewReason(item),
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
+            color = if (item.we_texted_them) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { onAnswer(true) }) { Text("Not spam") }
+            TextButton(onClick = { onAnswer(false) }) { Text("Still spam") }
+        }
+    }
+}

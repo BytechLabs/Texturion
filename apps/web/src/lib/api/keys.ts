@@ -114,6 +114,8 @@ export const keys = {
    * the caller's token, so no user segment is needed in the key.
    */
   forYou: (companyId: string) => [companyId, "for-you"] as const,
+  /** #342: spam marks that do not look like spam. */
+  spamReview: (companyId: string) => [companyId, "spam-review"] as const,
 
   /**
    * #129 /calls — the call log, one cursor list per outcome filter

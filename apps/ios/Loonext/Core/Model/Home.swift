@@ -59,6 +59,41 @@ struct ForYouTriage: Codable, Sendable {
     @Default<DefaultEmptyList<ForYouTriageTask>> var tasks: [ForYouTriageTask]
 }
 
+/// #342 — one spam-marked thread whose activity does not look like spam.
+///
+/// A spam-marked thread appends silently, never notifies, and is frozen at the
+/// moment it was marked, so it sinks in every list including the spam filter.
+/// Right for a robotexter, catastrophic for a mis-tap: the customer keeps
+/// texting and the business believes they stopped.
+struct SpamReviewItem: Codable, Sendable {
+    let conversation_id: String
+    let contact: ContactSummary?
+    let marked_at: String
+    let marked_by_user_id: String?
+    /// Inbound since the mark, or since it was last confirmed.
+    @Default<DefaultZero> var inbound_since: Int
+    /// The REAL latest inbound time — not the frozen list sort key.
+    let last_inbound_at: String
+    /// We texted this number before marking it. The strongest signal by far.
+    @Default<DefaultFalse> var we_texted_them: Bool
+    /// Messages spread across days rather than one burst.
+    @Default<DefaultFalse> var sustained: Bool
+    @Default<DefaultFalse> var high_volume: Bool
+}
+
+struct SpamReviewPage: Codable, Sendable {
+    @Default<DefaultEmptyList<SpamReviewItem>> var data: [SpamReviewItem]
+}
+
+/// #342: why this thread was raised, in the order the signals are trusted. A
+/// count alone reads as a counter; naming the signal reads as the mistake it
+/// probably is.
+func spamReviewReason(_ item: SpamReviewItem) -> String {
+    if item.we_texted_them { return "You texted them before this was marked" }
+    if item.sustained { return "Still texting, over several days" }
+    return "\(item.inbound_since) messages since it was marked"
+}
+
 /// GET /v1/for-you — the four-section focus queue.
 struct ForYou: Codable, Sendable {
     @Default<DefaultEmptyList<ForYouWaiting>> var waiting_on_you: [ForYouWaiting]

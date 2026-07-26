@@ -25,6 +25,31 @@ struct ForYouApi: Sendable {
     func forYou(companyId: String) async throws -> ForYou {
         try await api.get("/v1/for-you", companyId: companyId)
     }
+
+    /// #342: spam marks that do not look like spam. Its own call rather than a
+    /// section of /v1/for-you — it answers a different question and is empty
+    /// on nearly every day.
+    func spamReview(companyId: String) async throws -> SpamReviewPage {
+        try await api.get("/v1/spam-review", companyId: companyId)
+    }
+
+    /// The two answers. Lifting the mark puts the thread back in the inbox;
+    /// confirming it says "yes, still spam" without making the decision
+    /// permanent again — new activity can raise it later.
+    func answerSpamReview(
+        companyId: String,
+        conversationId: String,
+        notSpam: Bool
+    ) async throws {
+        let body: JSONValue = notSpam
+            ? .object(["is_spam": .bool(false)])
+            : .object(["spam_reviewed": .bool(true)])
+        let _: Conversation = try await api.patch(
+            "/v1/conversations/\(conversationId)",
+            body: body,
+            companyId: companyId
+        )
+    }
 }
 
 struct InboxApi: Sendable {

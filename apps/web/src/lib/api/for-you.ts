@@ -8,7 +8,7 @@ import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
 import { keys } from "./keys";
-import type { ForYou, ForYouTask, Message } from "./types";
+import type { ForYou, ForYouTask, Message, SpamReviewItem } from "./types";
 
 /**
  * GET /v1/for-you — the D23 crew-member focus queue: one derived object with
@@ -27,6 +27,23 @@ export function useForYou() {
   return useQuery({
     queryKey: keys.forYou(companyId),
     queryFn: () => apiFetch<ForYou>("/v1/for-you", { companyId }),
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * #342 — GET /v1/spam-review: spam marks that do not look like spam.
+ *
+ * Its own query rather than a section of /v1/for-you, because it answers a
+ * different question and is empty on nearly every day. Same 30s staleness as
+ * the queue it renders beside.
+ */
+export function useSpamReview() {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: keys.spamReview(companyId),
+    queryFn: () =>
+      apiFetch<{ data: SpamReviewItem[] }>("/v1/spam-review", { companyId }),
     staleTime: 30_000,
   });
 }

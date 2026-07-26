@@ -13,7 +13,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDue } from "@/components/tasks/task-format";
 import { useCalls } from "@/lib/api/calls";
 import { ApiError } from "@/lib/api/error";
-import { useCompleteForYouTask, useForYou } from "@/lib/api/for-you";
+import { useUpdateConversation } from "@/lib/api/conversations";
+import {
+  useCompleteForYouTask,
+  useForYou,
+  useSpamReview,
+} from "@/lib/api/for-you";
 import type {
   Call,
   ForYou,
@@ -22,6 +27,7 @@ import type {
   ForYouTriageTask,
   ForYouUnread,
   ForYouWaiting,
+  SpamReviewItem,
 } from "@/lib/api/types";
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -542,6 +548,109 @@ export function ForYouView() {
   );
 }
 
+/**
+ * #342 — spam marks that do not look like spam.
+ *
+ * A spam-marked thread appends silently, never notifies, and is frozen at the
+ * moment it was marked, so it sinks in every list including the spam filter
+ * itself. For a robotexter that is the point. For a mis-tap it means the
+ * customer keeps texting and the business believes they stopped.
+ *
+ * This strip is the evidence, and it renders NOTHING on almost every day — it
+ * lists only the threads whose activity does not look like spam, because a
+ * review list full of robotexters is the noise the silence exists to remove.
+ * No badge, no push, no count anywhere else: a signal you find, not one that
+ * finds you.
+ *
+ * Applying: Meaningful Highlights (the row says why it is here, not just that
+ * it is), Loss Aversion (the framing is the customer you are about to lose).
+ */
+function SpamReviewSection() {
+  const review = useSpamReview();
+  const items = review.data?.data ?? [];
+  if (items.length === 0) return null;
+
+  return (
+    <Section label="Marked spam, still texting" count={items.length}>
+      {items.map((item) => (
+        <SpamReviewRow key={item.conversation_id} item={item} />
+      ))}
+    </Section>
+  );
+}
+
+function SpamReviewRow({ item }: { item: SpamReviewItem }) {
+  const update = useUpdateConversation(item.conversation_id);
+  const name = contactDisplayName(item.contact);
+
+  // Say which signal raised it. "4 messages since" alone reads as a counter;
+  // "you texted them before marking this" reads as the mistake it probably is.
+  const why = item.we_texted_them
+    ? "You texted them before this was marked"
+    : item.sustained
+      ? `Still texting ${formatRelativeTime(item.last_inbound_at)}, over several days`
+      : `${item.inbound_since} messages since it was marked`;
+
+  return (
+    <div className="flex items-center gap-3 border-b border-app-line-soft px-4 py-3 last:border-b-0">
+      <Avatar name={name} />
+      <Link
+        href={`/inbox/${item.conversation_id}`}
+        className="min-w-0 flex-1 transition-opacity duration-150 ease-out hover:opacity-80"
+      >
+        <span className="block truncate text-[13.5px] font-semibold text-app-ink">
+          {name}
+        </span>
+        <span className="mt-0.5 block">
+          <Why text={why} warn={item.we_texted_them} />
+        </span>
+      </Link>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 shrink-0 px-2 text-xs"
+        disabled={update.isPending}
+        onClick={() =>
+          update.mutate(
+            { is_spam: false },
+            {
+              onSuccess: () => toast.success("Back in the inbox."),
+              onError: (e) =>
+                toast.error(
+                  e instanceof ApiError ? e.message : "Couldn't undo the mark.",
+                ),
+            },
+          )
+        }
+      >
+        Not spam
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 shrink-0 px-2 text-xs text-app-muted"
+        disabled={update.isPending}
+        onClick={() =>
+          update.mutate(
+            { spam_reviewed: true },
+            {
+              // Not a toast worth celebrating — it says "nothing changed",
+              // which is exactly what happened.
+              onSuccess: () => toast.success("Left as spam."),
+              onError: (e) =>
+                toast.error(
+                  e instanceof ApiError ? e.message : "Couldn't save that.",
+                ),
+            },
+          )
+        }
+      >
+        Still spam
+      </Button>
+    </div>
+  );
+}
+
 function ForYouSections({ data, isLead }: { data: ForYou; isLead: boolean }) {
   const { waiting_on_you, my_tasks, unread, triage } = data;
   const triageCount =
@@ -559,6 +668,9 @@ function ForYouSections({ data, isLead }: { data: ForYou; isLead: boolean }) {
     // without disturbing it (#133).
     return (
       <div className="space-y-7">
+        {/* #342: before the caught-up card, because "you're all caught up" is
+            not true if somebody has been texting a thread nobody can see. */}
+        <SpamReviewSection />
         <div className="flex flex-col items-center gap-4 rounded-app-card border border-app-line bg-app-white px-6 py-16 text-center">
           <span className="grid size-12 place-items-center rounded-full bg-app-tint">
             <Check className="size-6 text-app-petrol-deep" strokeWidth={2} aria-hidden />
@@ -586,6 +698,13 @@ function ForYouSections({ data, isLead }: { data: ForYou; isLead: boolean }) {
     // rather than stretching it to its neighbour's height, and the columns
     // collapse back to a single stack on a phone, where stacked IS right.
     <div className="space-y-7 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0">
+      {/* #342: the one strip whose absence is the whole problem it solves —
+          nothing else anywhere reports a spam thread that is still receiving
+          messages. It spans both columns so it is read before the queue. */}
+      <div className="lg:col-span-2">
+        <SpamReviewSection />
+      </div>
+
       {isLead && triageCount > 0 && (
         <Section label="Triage" count={triageCount}>
           {triage?.conversations.map((item) => (

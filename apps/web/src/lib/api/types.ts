@@ -747,6 +747,33 @@ export interface ContactDetail extends Contact {
 }
 
 /**
+ * #342 — one spam-marked thread whose activity does not look like spam.
+ *
+ * A thread marked spam appends silently, never notifies, and is frozen at the
+ * moment it was marked so it sinks in every list including the spam filter.
+ * That is right for a robotexter and catastrophic for a mis-tap: the customer
+ * keeps texting and the business believes they stopped. These are the ones
+ * worth a second look — never all of them, or the review strip becomes the
+ * noise the silence exists to remove.
+ */
+export interface SpamReviewItem {
+  conversation_id: string;
+  contact: ContactSummary | null;
+  marked_at: string;
+  marked_by_user_id: string | null;
+  /** Inbound messages since the mark (or since it was last confirmed). */
+  inbound_since: number;
+  /** The REAL latest inbound time — not the frozen list sort key. */
+  last_inbound_at: string;
+  /** We texted this number before marking it. The strongest signal by far. */
+  we_texted_them: boolean;
+  /** Messages spread across days rather than one burst. */
+  sustained: boolean;
+  /** Enough of them to be worth a glance regardless. */
+  high_volume: boolean;
+}
+
+/**
  * Whether this opt-out is enforced by the carrier — the ones nobody here can
  * undo, whatever the UI offers. A predicate rather than a comparison because
  * #331 added a second source that behaves identically, and every site that

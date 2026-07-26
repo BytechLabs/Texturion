@@ -22,6 +22,10 @@ struct ForYouTab: View {
 
     @State private var state: LoadState<ForYou> = .loading
     @State private var recentCalls: LoadState<[Call]> = .loading
+    /// #342: spam marks that do not look like spam. Empty on nearly every day,
+    /// and deliberately NOT a badge or a push — a signal you find, not one
+    /// that finds you.
+    @State private var spamReview: [SpamReviewItem] = []
     @State private var refreshKey = 0
 
     var body: some View {
@@ -36,6 +40,17 @@ struct ForYouTab: View {
             case .ready(let forYou):
                 ForYouList(
                     forYou: forYou,
+                    spamReview: spamReview,
+                    onAnswerSpamReview: { conversationId, notSpam in
+                        Task {
+                            try? await graph.forYouApi.answerSpamReview(
+                                companyId: companyId,
+                                conversationId: conversationId,
+                                notSpam: notSpam
+                            )
+                            refreshKey += 1
+                        }
+                    },
                     recentCalls: recentCalls,
                     onOpenConversation: { AppRouter.shared.openConversationId = $0 },
                     onOpenCalls: onOpenCalls,
@@ -47,6 +62,7 @@ struct ForYouTab: View {
             }
         }
         .task(id: "\(companyId)#\(refreshKey)") { await reload() }
+        .task(id: "\(companyId)#\(refreshKey)") { await reloadSpamReview() }
         .task(id: "\(companyId)#\(refreshKey)") { await reloadRecentCalls() }
         .task(id: companyId) {
             // Any conversation/task/call movement can change the queue —
@@ -91,6 +107,15 @@ struct ForYouTab: View {
     /// Recent calls (#161/D43): the 3 newest sessions from the calls list
     /// endpoint (never invented /v1/home fields), refetched on the same
     /// realtime ticks as the queue ('call.' is already in the filter above).
+    /// #342. A failure leaves the strip as it was rather than surfacing an
+    /// error: this is ambient evidence, and an error banner for it would be
+    /// louder than the thing it reports.
+    private func reloadSpamReview() async {
+        if let page = try? await graph.forYouApi.spamReview(companyId: companyId) {
+            spamReview = page.data
+        }
+    }
+
     private func reloadRecentCalls() async {
         do {
             recentCalls = .ready(
@@ -109,6 +134,8 @@ struct ForYouTab: View {
 
 private struct ForYouList: View {
     let forYou: ForYou
+    let spamReview: [SpamReviewItem]
+    let onAnswerSpamReview: @MainActor (String, Bool) -> Void
     let recentCalls: LoadState<[Call]>
     let onOpenConversation: @MainActor (String) -> Void
     let onOpenCalls: (() -> Void)?
@@ -138,6 +165,9 @@ private struct ForYouList: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 heading
+                // #342: above the queue, because "you're all caught up" is not
+                // true if somebody has been texting a thread nobody can see.
+                spamReviewSection
                 triageSection
                 waitingSection
                 tasksSection
@@ -162,6 +192,38 @@ private struct ForYouList: View {
                 .foregroundStyle(BrandColor.muted600)
         }
         .padding(.bottom, 2)
+    }
+
+    /// #342 — the spam marks that do not look like spam, and the two answers.
+    ///
+    /// The line says WHICH signal raised it: "4 messages since" reads as a
+    /// counter, "you texted them before marking this" reads as the mistake it
+    /// probably is.
+    @ViewBuilder
+    private var spamReviewSection: some View {
+        if !spamReview.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                SectionHeader(
+                    label: "Marked spam, still texting",
+                    count: spamReview.count
+                )
+                PaperCard {
+                    ForEach(
+                        Array(spamReview.enumerated()),
+                        id: \.element.conversation_id
+                    ) { index, row in
+                        if index > 0 { RowDivider() }
+                        SpamReviewRow(
+                            item: row,
+                            onOpen: { onOpenConversation(row.conversation_id) },
+                            onAnswer: { notSpam in
+                                onAnswerSpamReview(row.conversation_id, notSpam)
+                            }
+                        )
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -525,4 +587,45 @@ private func previewCall(
         onOpenCalls: {},
         onRefresh: {}
     )
+}
+
+/// #342 — one spam mark that does not look like spam, and the two answers.
+/// Both end the prompt: one lifts the mark, the other confirms it without
+/// making the decision permanent again.
+private struct SpamReviewRow: View {
+    let item: SpamReviewItem
+    let onOpen: @MainActor () -> Void
+    let onAnswer: @MainActor (Bool) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button(action: onOpen) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.contact?.name ?? formatPhone(item.contact?.phone_e164))
+                        .font(.golos(14.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                    Text(spamReviewReason(item))
+                        .font(.golos(11.5))
+                        .foregroundStyle(
+                            item.we_texted_them ? BrandColor.coral : BrandColor.muted500
+                        )
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+
+            HStack(spacing: 10) {
+                Button("Not spam") { onAnswer(true) }
+                    .font(.golos(12, weight: .semibold))
+                    .foregroundStyle(BrandColor.olive)
+                    .buttonStyle(.plain)
+                Button("Still spam") { onAnswer(false) }
+                    .font(.golos(12))
+                    .foregroundStyle(BrandColor.muted500)
+                    .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+    }
 }

@@ -28,6 +28,45 @@ data class ForYouTask(
     val overdue: Boolean = false,
 )
 
+/**
+ * #342 — one spam-marked thread whose activity does not look like spam.
+ *
+ * A spam-marked thread appends silently, never notifies, and is frozen at the
+ * moment it was marked, so it sinks in every list including the spam filter.
+ * Right for a robotexter, catastrophic for a mis-tap: the customer keeps
+ * texting and the business believes they stopped.
+ */
+@Serializable
+data class SpamReviewItem(
+    val conversation_id: String,
+    val contact: ContactSummary? = null,
+    val marked_at: String,
+    val marked_by_user_id: String? = null,
+    /** Inbound since the mark, or since it was last confirmed. */
+    val inbound_since: Int = 0,
+    /** The REAL latest inbound time — not the frozen list sort key. */
+    val last_inbound_at: String,
+    /** We texted this number before marking it. The strongest signal. */
+    val we_texted_them: Boolean = false,
+    /** Messages spread across days rather than one burst. */
+    val sustained: Boolean = false,
+    val high_volume: Boolean = false,
+)
+
+@Serializable
+data class SpamReviewPage(val data: List<SpamReviewItem> = emptyList())
+
+/**
+ * #342: why this thread was raised, in the order the signals are trusted.
+ * A count alone reads as a counter; naming the signal reads as the mistake it
+ * probably is.
+ */
+fun spamReviewReason(item: SpamReviewItem): String = when {
+    item.we_texted_them -> "You texted them before this was marked"
+    item.sustained -> "Still texting, over several days"
+    else -> "${item.inbound_since} messages since it was marked"
+}
+
 @Serializable
 data class ForYouUnread(
     val conversation_id: String,

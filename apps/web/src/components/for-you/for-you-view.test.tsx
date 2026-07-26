@@ -7,15 +7,17 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import type { Call, ForYou } from "@/lib/api/types";
+import type { Call, ForYou, SpamReviewItem } from "@/lib/api/types";
 
 // Hoisted mock state the hooks read; tests seed it before rendering.
 const state: {
   forYou: ForYou;
   calls: Call[];
+  spamReview: SpamReviewItem[];
 } = {
   forYou: { waiting_on_you: [], my_tasks: [], unread: [], triage: null },
   calls: [],
+  spamReview: [],
 };
 
 vi.mock("@/lib/company/provider", () => ({
@@ -29,6 +31,15 @@ vi.mock("@/lib/api/for-you", () => ({
     refetch: vi.fn(),
   }),
   useCompleteForYouTask: () => ({ isPending: false, mutate: vi.fn() }),
+  // #342: the spam-review strip. Empty by default so every existing case
+  // still describes the queue alone; `state.spamReview` fills it.
+  useSpamReview: () => ({ data: { data: state.spamReview } }),
+}));
+// The strip's two buttons act through the shared conversation mutation. Mocked
+// rather than let through, because the real module validates public env at
+// import time and this suite has none.
+vi.mock("@/lib/api/conversations", () => ({
+  useUpdateConversation: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 vi.mock("@/lib/api/calls", () => ({
   useCalls: () => ({
@@ -250,5 +261,66 @@ describe("countDistinctWork", () => {
         triage: null,
       } as never),
     ).toBe(0);
+  });
+});
+
+describe("marked spam, still texting (#342)", () => {
+  function flagged(overrides: Partial<SpamReviewItem> = {}): SpamReviewItem {
+    return {
+      conversation_id: "conv-spam-1",
+      contact: { id: "c1", name: "Real Customer", phone_e164: "+16135551000" },
+      marked_at: "2026-06-26T12:00:00Z",
+      marked_by_user_id: "u1",
+      inbound_since: 4,
+      last_inbound_at: "2026-07-25T09:00:00Z",
+      we_texted_them: true,
+      sustained: false,
+      high_volume: false,
+      ...overrides,
+    };
+  }
+
+  it("renders nothing when nothing is flagged", () => {
+    // Every ordinary day. A strip that lists robotexters is the noise the
+    // silent-append rule exists to remove, put back.
+    state.forYou = queue({ waiting_on_you: [waitingItem] });
+    state.spamReview = [];
+    expect(render()).not.toContain("Marked spam, still texting");
+  });
+
+  it("shows up even when the queue says you are all caught up", () => {
+    // The failure this exists for: "you're all caught up" is a lie if somebody
+    // has been texting a thread nobody can see.
+    state.forYou = queue({});
+    state.spamReview = [flagged()];
+    const html = render();
+
+    expect(html).toContain("Marked spam, still texting");
+    expect(html).toContain("Real Customer");
+    expect(html).toContain('href="/inbox/conv-spam-1"');
+    expect(html).toContain("You&#x27;re all caught up.");
+  });
+
+  it("says which signal raised it rather than just a count", () => {
+    state.forYou = queue({});
+    state.spamReview = [flagged()];
+    // "4 messages since" is a counter. "You texted them" is the mistake.
+    expect(render()).toContain("You texted them before this was marked");
+  });
+
+  it("falls back to the count when there is no stronger signal", () => {
+    state.forYou = queue({});
+    state.spamReview = [
+      flagged({ we_texted_them: false, sustained: false, inbound_since: 12 }),
+    ];
+    expect(render()).toContain("12 messages since it was marked");
+  });
+
+  it("offers both answers, so the prompt can be ended either way", () => {
+    state.forYou = queue({});
+    state.spamReview = [flagged()];
+    const html = render();
+    expect(html).toContain("Not spam");
+    expect(html).toContain("Still spam");
   });
 });

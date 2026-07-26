@@ -260,6 +260,11 @@ export interface ConversationPatch {
   is_spam?: boolean;
   /** #3: pin/unpin the whole conversation (top of the inbox). */
   pinned?: boolean;
+  /**
+   * #342: "yes, this is still spam" — answers the review prompt without
+   * lifting the mark. Only literal true has meaning.
+   */
+  spam_reviewed?: true;
 }
 
 /** PATCH /v1/conversations/:id — status / assignee / spam. */
@@ -279,6 +284,15 @@ export function useUpdateConversation(conversationId: string) {
       if (patch.pinned !== undefined) {
         queryClient.invalidateQueries({
           queryKey: keys.conversations.pinnedRoot(companyId),
+          refetchType: "active",
+        });
+      }
+      // #342: either answer to the review prompt removes the row from the
+      // strip, and the server decides which rows remain — refetch rather than
+      // guess at the ranking here.
+      if (patch.is_spam !== undefined || patch.spam_reviewed !== undefined) {
+        queryClient.invalidateQueries({
+          queryKey: keys.spamReview(companyId),
           refetchType: "active",
         });
       }
