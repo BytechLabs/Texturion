@@ -1829,3 +1829,45 @@ reasons:
 satisfaction) is rescoped to an INTERNAL quality signal only — no public-review
 path, no review-gating question — which is still worth building and is a
 different issue from the one that was written.
+
+## D48
+
+**D48 — Workspace deletion is SCHEDULED erasure with immediate access loss, and
+what the law makes us keep is anonymised rather than erased (2026-07-26,
+#341).** `DELETE FROM companies` cannot work: 38 foreign keys point at that row
+(25 `restrict`, 13 `cascade`), plus three Storage buckets, a Stripe customer, a
+Telnyx number and every push registration. The decision the issue asked for,
+made explicitly rather than left as an implementation detail:
+
+- **Two phases, not one.** The customer's request is ONE transactional state
+  change — the workspace is closed, every session is ended, the number is
+  released, and it disappears from everybody's workspace list. The erasure
+  itself then runs as a **resumable job with a recorded position**. This is
+  forced, not chosen: external stores are not transactional, so a synchronous
+  "delete now" across Storage + Stripe + Telnyx can fail halfway with no way
+  back — which is exactly the partial-teardown hazard #341 identifies, and the
+  worst outcome a deletion feature can have.
+- **The window is 30 days, and it is reversible inside it.** A workspace
+  deleted by mistake — a wrong click, a departing admin, a dispute between
+  owners — is recoverable until the job runs. After it runs, nothing is.
+- **Access ends at the request, not at the erasure.** The customer experiences
+  deletion immediately. Nothing about the window leaves anyone able to read a
+  message.
+- **`opt_outs` survives deletion outright.** A STOP is the recipient's, not the
+  workspace's: erasing it would let the same business, re-signed-up on the same
+  number, text somebody who told them to stop. This is the one record where
+  deleting the customer's data would harm a third party, and it stays.
+- **Consent artifacts are anonymised, not erased.** SPEC §5 holds consent
+  records and message history for three years (CASL). We keep the minimum that
+  proves consent existed — the phone number, the timestamps, the source — and
+  erase everything around it: names, emails, addresses, message bodies,
+  attachments, voicemail audio.
+- **The copy says all of it before the button.** What is erased, what is kept,
+  why, for how long, and that it cannot be undone after the window. Honest
+  consequence copy, in the same register as our honest failure copy — "deleted
+  now" and "deleted in 30 days" are different promises and only one is true.
+
+The ordered teardown across all 38 relationships and the external stores lives
+in `docs/DELETION.md`. #341 also assumed R2 for attachments and voicemail
+audio; those are Supabase Storage buckets (`attachments`, `mms-media`,
+`voicemails`) and the document names them correctly.
