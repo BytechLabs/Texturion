@@ -60,7 +60,11 @@ export function StorageBreakdown({ storage }: { storage: UsageStorage }) {
       key: "sent",
       label: "Attachments sent",
       bytes: storage.sent_media_bytes,
-      className: "bg-app-olive",
+      // Deep petrol pairs this with "received" above: both are message
+      // attachments, told apart by direction. It replaces an olive that the
+      // palette never defined, so Tailwind emitted no rule at all and this
+      // slice was invisible in both the bar and its legend swatch.
+      className: "bg-app-petrol-deep",
     },
     {
       key: "notes",
