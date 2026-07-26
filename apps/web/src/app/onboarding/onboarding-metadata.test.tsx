@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 // gate header; we only assert its static `metadata`, so stub those imports to
 // keep this a node-only unit test (the default component is never rendered).
 vi.mock("@/components/shell/gate-header", () => ({ GateHeader: () => null }));
+vi.mock("./session-gate", () => ({
+  OnboardingSessionGate: ({ children }: { children: React.ReactNode }) =>
+    children,
+}));
 vi.mock("../app-providers", () => ({
   AppProviders: ({ children }: { children: React.ReactNode }) => children,
 }));

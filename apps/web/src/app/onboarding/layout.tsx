@@ -4,6 +4,8 @@ import { GateHeader } from "@/components/shell/gate-header";
 
 import { AppProviders } from "../app-providers";
 
+import { OnboardingSessionGate } from "./session-gate";
+
 /**
  * Onboarding shell (DESIGN.md G7): calm centered column, big friendly type,
  * one question per screen. Middleware guarantees a session; the wizard runs
@@ -37,7 +39,10 @@ export default function OnboardingLayout({
       <div className="flex min-h-svh flex-col">
         <GateHeader />
         <div className="mx-auto flex w-full max-w-xl flex-1 flex-col px-4 pb-16 pt-8 sm:pt-12">
-          <main className="flex-1">{children}</main>
+          <main className="flex-1">
+            {/* #257: a dead session must never present as "still loading". */}
+            <OnboardingSessionGate>{children}</OnboardingSessionGate>
+          </main>
         </div>
       </div>
     </AppProviders>

@@ -8,7 +8,7 @@ import {
   useOnboardingCompany,
   useOnboardingRegistration,
 } from "@/lib/api/onboarding";
-import { useSessionReady } from "@/lib/auth/use-session-ready";
+import { useSessionState } from "@/lib/auth/use-session-ready";
 import type { CompanyView, RegistrationState } from "@/lib/api/types";
 import {
   readCompanyCookie,
@@ -26,7 +26,13 @@ import {
 } from "./steps";
 
 export interface OnboardingState {
-  status: "loading" | "error" | "ready";
+  /**
+   * `signed-out` is a DEAD END, not a slow load (#257). The layout's
+   * OnboardingSessionGate intercepts it before any step renders, so pages
+   * never see it — but the hook must not report a session that will never
+   * arrive as "loading", or the next caller inherits the same trap.
+   */
+  status: "loading" | "error" | "ready" | "signed-out";
   retry: () => void;
   /** Active company id (memberships + persisted cookie), null pre-creation. */
   companyId: string | null;
@@ -49,7 +55,8 @@ export function useOnboardingState(): OnboardingState {
   // Gate /v1/me on the resolved session — a fresh OAuth signup lands here (not
   // in CompanyProvider), so without this the first /me fires tokenless and the
   // wizard shows "check your connection" until a refresh.
-  const me = useMe(useSessionReady());
+  const sessionState = useSessionState();
+  const me = useMe(sessionState === "ready");
   // localStorage is unavailable during SSR; both renders start as {} and the
   // client fills it in before anything user-visible depends on it (the pages
   // render a skeleton until `status === "ready"`).
@@ -89,7 +96,16 @@ export function useOnboardingState(): OnboardingState {
   }, [loading, error, company.data, registration.data, draft]);
 
   return {
-    status: error ? "error" : loading ? "loading" : "ready",
+    // Order matters: with no session /v1/me never fires, so `loading` would
+    // otherwise stay true forever and hide the dead end behind a skeleton.
+    status:
+      sessionState === "signed-out"
+        ? "signed-out"
+        : error
+          ? "error"
+          : loading
+            ? "loading"
+            : "ready",
     retry: () => {
       if (me.isError) void me.refetch();
       if (company.isError) void company.refetch();

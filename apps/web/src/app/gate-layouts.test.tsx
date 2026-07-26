@@ -95,6 +95,9 @@ vi.mock("@/lib/supabase/browser", () => ({
 }));
 vi.mock("@/lib/auth/use-session-ready", () => ({
   useSessionReady: () => true,
+  // #257: the onboarding layout gates on the full state, not the boolean —
+  // "signed-out" is a dead end, not a slow load.
+  useSessionState: () => "ready",
 }));
 vi.mock("@/lib/api/me", () => ({
   useMe: () => ({

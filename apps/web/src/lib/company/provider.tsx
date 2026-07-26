@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { GateSignOut } from "@/components/shell/gate-escape";
+import { SessionExpiredCard } from "@/components/shell/session-expired";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMe } from "@/lib/api/me";
@@ -143,20 +144,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     // end. The middleware fails open, so nothing downstream redirects, and this
     // gate used to sit on "Loading your workspace…" forever with no sign-out
     // and no route back to login. Say what happened and offer the way out.
-    if (sessionState === "signed-out") {
-      return (
-        <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            Your session has expired. Sign in again to get back to your
-            workspace.
-          </p>
-          <Button onClick={() => router.replace("/login")} size="sm">
-            Go to sign in
-          </Button>
-          <GateSignOut />
-        </div>
-      );
-    }
+    if (sessionState === "signed-out") return <SessionExpiredCard />;
     // Loading (or redirecting to onboarding): named state, never a bare
     // spinner (G1 "no spinners without words").
     return (
