@@ -38,6 +38,8 @@ export const LIVE_ROUTES = {
   aup: "/legal/aup",
   messaging: "/legal/messaging",
   subprocessors: "/legal/subprocessors",
+  /** #227: the public deletion URL filed with Google Play. Path is STABLE. */
+  deleteMyData: "/legal/delete-my-data",
   refunds: "/legal/refunds",
   fairUse: "/legal/fair-use",
   cookies: "/legal/cookies",

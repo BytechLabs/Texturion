@@ -98,6 +98,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.3,
       changeFrequency: "yearly",
     },
+    // #227: the deletion URL is filed with Google Play, so it has to be
+    // crawlable and stable rather than an unlisted page.
+    {
+      path: LIVE_ROUTES.deleteMyData,
+      priority: 0.3,
+      changeFrequency: "yearly",
+    },
     { path: LIVE_ROUTES.refunds, priority: 0.3, changeFrequency: "yearly" },
     { path: LIVE_ROUTES.fairUse, priority: 0.3, changeFrequency: "yearly" },
     { path: LIVE_ROUTES.cookies, priority: 0.3, changeFrequency: "yearly" },

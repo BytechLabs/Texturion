@@ -9,6 +9,9 @@ vi.mock("@/env", () => ({ publicEnv: { NEXT_PUBLIC_GTM_ID: undefined } }));
 
 import AupPage, { metadata as aupMetadata } from "./aup/page";
 import CookiesPage, { metadata as cookiesMetadata } from "./cookies/page";
+import DeleteMyDataPage, {
+  metadata as deleteMyDataMetadata,
+} from "./delete-my-data/page";
 import FairUsePage, { metadata as fairUseMetadata } from "./fair-use/page";
 import MessagingPolicyPage, {
   metadata as messagingMetadata,
@@ -37,6 +40,11 @@ const PAGES = [
   // Appended last so the index-based per-page blocks above keep their indices.
   { name: "fair-use", html: renderToStaticMarkup(<FairUsePage />), meta: fairUseMetadata },
   { name: "cookies", html: renderToStaticMarkup(<CookiesPage />), meta: cookiesMetadata },
+  {
+    name: "delete-my-data",
+    html: renderToStaticMarkup(<DeleteMyDataPage />),
+    meta: deleteMyDataMetadata,
+  },
 ];
 
 describe("legal pages — Laws 1 and 6 across all seven", () => {
@@ -208,5 +216,40 @@ describe("cookies — essential cookies plus consent-gated GTM (#87, #124)", () 
   it("offers the change-your-mind path on the page itself", () => {
     expect(html).toContain("changeable right here");
     expect(html).toContain("changing your mind is one tap");
+  });
+});
+
+/**
+ * #227 — the public deletion URL. Google Play's Data Safety form requires a
+ * web-accessible deletion URL for any app with accounts, reachable without
+ * signing in. The path is filed with Google, so renaming it silently breaks a
+ * store declaration; these pin the path and the promises the page makes.
+ */
+describe("delete-my-data — the store-facing deletion page", () => {
+  const page = PAGES.find((entry) => entry.name === "delete-my-data")!;
+
+  it("lives at the stable path Google has on file", () => {
+    // If this fails, the Data Safety declaration is now pointing at a 404.
+    expect(page.meta.alternates?.canonical).toContain("/legal/delete-my-data");
+  });
+
+  it("names where the controls actually are, in each app", () => {
+    expect(page.html).toContain("Settings");
+    expect(page.html).toContain("Delete your account");
+    expect(page.html).toContain("Close this workspace");
+  });
+
+  it("states what outlives deletion instead of implying total erasure", () => {
+    // The two things D48 keeps. A deletion page that implies everything goes
+    // is making a promise the law does not let us keep.
+    expect(page.html).toContain("STOP");
+    expect(page.html).toContain("three years");
+    expect(page.html).toMatch(/30 days/);
+  });
+
+  it("tells a texted customer to reply STOP rather than routing them to us", () => {
+    // They are not our user; the business controls their data, and the fastest
+    // remedy is in their own hands.
+    expect(page.html).toContain("reply");
   });
 });

@@ -58,6 +58,9 @@ const COMPANY_AND_LEGAL: FooterLinkItem[] = [
   { label: "Fair use", href: LIVE_ROUTES.fairUse },
   { label: "SMS messaging policy", href: LIVE_ROUTES.messaging },
   { label: "Sub-processors", href: LIVE_ROUTES.subprocessors },
+  // #227: a store reviewer, and anyone who has lost account access, has to be
+  // able to find this without signing in.
+  { label: "Delete your data", href: LIVE_ROUTES.deleteMyData },
   { label: "30-day guarantee", href: LIVE_ROUTES.refunds },
   { label: "Security", href: LIVE_ROUTES.security },
   { label: "Status", href: LIVE_ROUTES.status },

@@ -162,15 +162,31 @@ export default function PrivacyPage() {
           We keep account and message data while your subscription is active and
           for a reasonable period afterward to meet legal, tax, and carrier
           record-keeping duties, then delete or anonymize it. Opt-out records are
-          kept as long as needed to keep honoring the opt-out. You can ask us to
-          delete your data, subject to those obligations.
+          kept as long as needed to keep honoring the opt-out.
+        </p>
+        <p>
+          You do not have to ask us. You can delete your own account, or close a
+          whole workspace, from inside Loonext. See{" "}
+          <LegalLink href="/legal/delete-my-data">delete your data</LegalLink>{" "}
+          for exactly what each one removes. Closing a workspace erases
+          everything in it 30 days later, which is a window in which a workspace
+          closed by mistake can still be recovered; after that nobody can undo
+          it. Two things outlive it: do-not-text records, which belong to the
+          person who sent the STOP rather than to the business that received it,
+          and a stripped record that consent existed, which Canadian anti-spam
+          law requires us to hold for three years with names and message
+          contents removed.
         </p>
       </LegalSectionBlock>
 
       <LegalSectionBlock id="your-rights" number="8" heading="Your rights">
         <p>
-          Under PIPEDA and Law 25 you can ask to access, correct, or delete your
-          personal information, and to withdraw consent. Email{" "}
+          Under PIPEDA and Law 25 you can access, correct, or delete your
+          personal information, and withdraw consent. Deletion is self-serve and
+          takes effect immediately;{" "}
+          <LegalLink href="/legal/delete-my-data">delete your data</LegalLink>{" "}
+          has the steps. For anything else, or if you have lost access to your
+          account, email{" "}
           <LegalLink href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</LegalLink>{" "}
           and we&apos;ll respond within the timelines the law requires. If a
           contact of one of our business customers asks us to exercise a right,
