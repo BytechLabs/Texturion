@@ -270,6 +270,55 @@ describe("runGraceJob — day 1/15/27/30 transitions, ledger-gated", () => {
     expect(deactivateCampaign).not.toHaveBeenCalled();
   });
 
+  it("keeps retrying a company whose release failed past the notice window", async () => {
+    // A release failure is re-thrown so the daily cron retries, but the scan
+    // used to be bounded by age: four attempts, then the company was never
+    // selected again. Its Telnyx number was never deleted and its campaign
+    // never deactivated, so the rent and the monthly campaign fee billed a
+    // churned tenant forever. Nothing else reclaims them - the number
+    // reconcile skips canceled companies outright.
+    const OLD_COMPANY = "8c9e6679-7425-40de-944b-e07fc1f90ae7";
+    const harness = makeHarness([
+      // Far outside the notice window, so the age-bounded scan returns nothing.
+      endpoint("GET", /\/rest\/v1\/companies/, () => []),
+      endpoint("GET", /\/rest\/v1\/phone_numbers/, (call) =>
+        call.url.searchParams.has("companies.subscription_status")
+          ? [
+              {
+                company_id: OLD_COMPANY,
+                companies: {
+                  id: OLD_COMPANY,
+                  name: "Churned Plumbing",
+                  canceled_at: CANCELED_AT,
+                },
+              },
+            ]
+          : [{ id: "num-1" }],
+      ),
+      endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(1)),
+      endpoint("GET", /\/rest\/v1\/messaging_registrations/, () => []),
+      endpoint("POST", /\/rest\/v1\/grace_notices/, () => [{ company_id: OLD_COMPANY }]),
+      endpoint("GET", /\/rest\/v1\/company_members/, () => [
+        { user_id: "11111111-1111-4111-8111-111111111111" },
+      ]),
+      endpoint("GET", /\/auth\/v1\/admin\/users\//, () => ({
+        id: "11111111-1111-4111-8111-111111111111",
+        email: "owner@example.com",
+      })),
+      endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "email_1" })),
+    ]);
+    stubFetch(harness.route);
+
+    // 90 days after cancellation: long past the window the old scan allowed.
+    await runGraceJob(env, daysAfterCancel(90));
+
+    // The number release was attempted for the straggler.
+    expect(releaseCompanyNumbers).toHaveBeenCalledWith(
+      expect.anything(),
+      OLD_COMPANY,
+    );
+  });
+
   it("a failing tenant surfaces as an error after the loop (cron retries daily)", async () => {
     const harness = makeHarness([
       endpoint("GET", /\/rest\/v1\/companies/, () => [
@@ -280,6 +329,9 @@ describe("runGraceJob — day 1/15/27/30 transitions, ledger-gated", () => {
         /\/rest\/v1\/grace_notices/,
         () => new Response(JSON.stringify({ message: "db down" }), { status: 500 }),
       ),
+      // The unfinished-release sweep runs on every pass.
+      endpoint("GET", /\/rest\/v1\/phone_numbers/, () => []),
+      endpoint("GET", /\/rest\/v1\/messaging_registrations/, () => []),
     ]);
     stubFetch(harness.route);
     await expect(runGraceJob(env, daysAfterCancel(2))).rejects.toThrow(

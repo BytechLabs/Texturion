@@ -126,6 +126,72 @@ export async function recordAndSendGraceNotice(
 }
 
 /**
+ * Canceled companies older than the notice window that STILL own something the
+ * release was supposed to take back: a number not yet released, or a campaign
+ * still live on Telnyx. Both are recurring charges.
+ *
+ * Two narrow reads rather than one scan of the whole churn history: a company
+ * shows up only while it still owes work, so the set is empty on a healthy day.
+ */
+async function companiesWithUnreleasedResources(
+  db: ReturnType<typeof getDb>,
+  olderThan: string,
+): Promise<CanceledCompany[]> {
+  type EmbeddedCompany = { id: string; name: string; canceled_at: string | null };
+  const found = new Map<string, CanceledCompany>();
+
+  // A to-one embed arrives as an object, while the generated types describe it
+  // as an array. Accept either rather than trusting one shape.
+  const collect = (rows: unknown) => {
+    for (const row of (rows as { companies?: unknown }[] | null) ?? []) {
+      const embedded = row.companies;
+      const companies: EmbeddedCompany[] = Array.isArray(embedded)
+        ? (embedded as EmbeddedCompany[])
+        : embedded
+          ? [embedded as EmbeddedCompany]
+          : [];
+      for (const company of companies) {
+        if (company?.canceled_at) {
+          found.set(company.id, {
+            id: company.id,
+            name: company.name,
+            canceled_at: company.canceled_at,
+          });
+        }
+      }
+    }
+  };
+
+  const { data: numbers, error: numbersError } = await db
+    .from("phone_numbers")
+    .select("company_id,companies!inner(id,name,canceled_at)")
+    .neq("status", "released")
+    .eq("companies.subscription_status", "canceled")
+    .is("companies.deleted_at", null)
+    .lt("companies.canceled_at", olderThan);
+  if (numbersError) {
+    throw new Error(`unreleased numbers lookup failed: ${numbersError.message}`);
+  }
+  collect(numbers);
+
+  const { data: campaigns, error: campaignsError } = await db
+    .from("messaging_registrations")
+    .select("company_id,companies!inner(id,name,canceled_at)")
+    .eq("kind", "campaign")
+    .not("telnyx_id", "is", null)
+    .is("deactivated_at", null)
+    .eq("companies.subscription_status", "canceled")
+    .is("companies.deleted_at", null)
+    .lt("companies.canceled_at", olderThan);
+  if (campaignsError) {
+    throw new Error(`live campaigns lookup failed: ${campaignsError.message}`);
+  }
+  collect(campaigns);
+
+  return [...found.values()];
+}
+
+/**
  * Release day-30 work: hand the numbers back via the telnyx track, deactivate
  * the 10DLC campaign (stops the recurring campaign fee — SPEC §4.4, §11), and
  * send the final email. The release/deactivate calls are state-gated for
@@ -233,8 +299,30 @@ export async function runGraceJob(
     throw new Error(`canceled companies lookup failed: ${error.message}`);
   }
 
+  // Anything the release could not finish stays in scope until it is finished.
+  //
+  // The window above is right for NOTICES, which genuinely stop being owed, and
+  // wrong for the release itself. A release failure is re-thrown on purpose so
+  // the daily cron retries, but the retries only lasted while the company sat
+  // inside the window: four attempts. A Telnyx number that is mid-port, or a
+  // campaign the API keeps refusing, or four days of a broken cron, and the
+  // company aged out with its number never deleted and its campaign never
+  // deactivated. Nothing else reclaims those: the number reconcile skips
+  // canceled companies, and its orphan scan only looks for numbers it does not
+  // know about, while a suspended row is perfectly well known. The rent and the
+  // monthly campaign fee then bill a churned tenant forever, silently.
+  //
+  // Bounded by OUTSTANDING WORK rather than by age, so it stays small: a
+  // company appears here only while it still owns something to release.
+  const stragglers = await companiesWithUnreleasedResources(db, graceCutoff);
+  const seen = new Set((data ?? []).map((row) => (row as CanceledCompany).id));
+  const queue = [
+    ...((data ?? []) as CanceledCompany[]),
+    ...stragglers.filter((row) => !seen.has(row.id)),
+  ];
+
   const failures: unknown[] = [];
-  for (const company of (data ?? []) as CanceledCompany[]) {
+  for (const company of queue) {
     try {
       const canceledAt = new Date(company.canceled_at).getTime();
       const daysElapsed = Math.floor((now.getTime() - canceledAt) / DAY_MS);
