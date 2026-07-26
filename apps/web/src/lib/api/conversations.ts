@@ -107,6 +107,39 @@ export function filtersFromListKey(
 }
 
 /**
+ * Apply `reduce` to every row of every cached PINNED supplement (#13).
+ *
+ * The pinned query is a separate cache entry under its own key, and the inbox
+ * renders pinned rows from IT while filtering those ids out of the main list.
+ * So a mutation that only patched the main list changed the row that is not on
+ * screen: marking a pinned thread read cleared a dot nobody could see, while
+ * the visible pinned row kept its own.
+ *
+ * A plain page, not the infinite shape the list reducers take, so it has its
+ * own walker rather than sharing theirs.
+ */
+export function patchPinnedConversations(
+  queryClient: QueryClient,
+  companyId: string,
+  reduce: (row: ConversationListItem) => ConversationListItem,
+): void {
+  const queries = queryClient.getQueryCache().findAll({
+    queryKey: keys.conversations.pinnedRoot(companyId),
+  });
+  for (const query of queries) {
+    const data = query.state.data as Page<ConversationListItem> | undefined;
+    if (!data) continue;
+    let changed = false;
+    const rows = data.data.map((row) => {
+      const next = reduce(row);
+      if (next !== row) changed = true;
+      return next;
+    });
+    if (changed) queryClient.setQueryData(query.queryKey, { ...data, data: rows });
+  }
+}
+
+/**
  * Iterate every cached conversation list (any filter combination) and apply
  * `reduce` with that list's own filters. The core primitive behind mutation
  * and realtime cache patching.
@@ -287,6 +320,10 @@ export function useMarkConversationRead() {
       patchConversationLists(queryClient, companyId, (list) =>
         listSetUnread(list, conversationId, false),
       );
+      // The pinned supplement renders its own copy of the row.
+      patchPinnedConversations(queryClient, companyId, (row) =>
+        row.id === conversationId ? { ...row, unread: false } : row,
+      );
     },
     onError: () => {
       // The optimistic unread-clear didn't reach the server — reconcile the
@@ -295,6 +332,9 @@ export function useMarkConversationRead() {
       // a thread that was already read; a refetch reflects the true state.)
       void queryClient.invalidateQueries({
         queryKey: keys.conversations.lists(companyId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.pinnedRoot(companyId),
       });
     },
   });
@@ -320,12 +360,19 @@ export function useMarkConversationUnread() {
       patchConversationLists(queryClient, companyId, (list) =>
         listSetUnread(list, conversationId, true),
       );
+      // The pinned supplement renders its own copy of the row.
+      patchPinnedConversations(queryClient, companyId, (row) =>
+        row.id === conversationId ? { ...row, unread: true } : row,
+      );
     },
     onError: () => {
       // Same reasoning as the read path: refetch rather than restore, so the
       // badges come back from the source of truth.
       void queryClient.invalidateQueries({
         queryKey: keys.conversations.lists(companyId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.pinnedRoot(companyId),
       });
     },
   });
