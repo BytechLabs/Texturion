@@ -370,12 +370,20 @@ contactsRoutes.get("/contacts/export", requireRole("member"), async (c) => {
   const table: (string | null)[][] = [
     [...EXPORT_HEADER],
     ...rows.map((row) => [
-      // Free-text columns are guarded against CSV/formula injection (a name or
-      // tag beginning with =+-@ etc. is apostrophe-prefixed so a spreadsheet
-      // treats it as text). phone_e164 is format-validated E.164 — left bare so
-      // the round-trip stays exact; consent_*/created_at are enum/timestamps.
+      // Guarded against CSV/formula injection: a value beginning with =+-@ is
+      // apostrophe-prefixed so a spreadsheet treats it as text.
+      //
+      // The phone needs this MORE than the free text does, not less. Every
+      // stored number is E.164, so every one of them starts with "+", which
+      // Excel and Sheets evaluate as arithmetic: +16478923862 opened as a
+      // number reads 1.6478E+10, and the country code is gone from what the
+      // user sees and from anything they copy out to dial. Exporting for a
+      // spreadsheet is the whole point of the BOM below.
+      //
+      // The round trip still holds: our own importer normalizes by stripping
+      // every non-digit, so the guard character is discarded on the way back in.
       csvSafeText(row.name),
-      row.phone_e164,
+      csvSafeText(row.phone_e164),
       csvSafeText([...(tagsByContact.get(row.id) ?? [])].join(";")),
       row.consent_source,
       row.consent_at,
@@ -734,7 +742,18 @@ contactsRoutes.post(
         // as its creator. A constant key, so the batching invariant holds.
         created_by_user_id: userId,
       };
-      if (nameCol !== -1) row.name = unguard(cell(cells, nameCol));
+      // A blank name cell means "this file says nothing about the name", never
+      // "erase the name you already have". The column is decided for the whole
+      // file, so one nameless row among named ones used to null out an existing
+      // contact's name on import: a contact saved on someone's phone as a bare
+      // number would blank the name the business had recorded for them, and the
+      // wizard reported it as a plain "updated" row.
+      //
+      // Rows are grouped below so each batch keeps one key set.
+      if (nameCol !== -1) {
+        const name = unguard(cell(cells, nameCol));
+        if (name !== null) row.name = name;
+      }
       if (addressCol !== -1) {
         const address = cell(cells, addressCol);
         row.address = address;
@@ -751,16 +770,24 @@ contactsRoutes.post(
       return row;
     });
     const contactIdByPhone = new Map<string, string>();
-    for (let i = 0; i < upsertRows.length; i += IMPORT_CHUNK) {
-      const chunk = upsertRows.slice(i, i + IMPORT_CHUNK);
-      const upserted = unwrap<{ id: string; phone_e164: string }[]>(
-        await db
-          .from("contacts")
-          .upsert(chunk, { onConflict: "company_id,phone_e164" })
-          .select("id,phone_e164"),
-        "import upsert",
-      );
-      for (const row of upserted) contactIdByPhone.set(row.phone_e164, row.id);
+    // PostgREST derives the column list from the first row of a batch, so every
+    // row in one request must carry the same keys. Rows that omit `name`
+    // (a blank cell, which must not erase an existing name) are sent as their
+    // own group rather than being padded back to a null.
+    const withName = upsertRows.filter((row) => "name" in row);
+    const withoutName = upsertRows.filter((row) => !("name" in row));
+    for (const group of [withName, withoutName]) {
+      for (let i = 0; i < group.length; i += IMPORT_CHUNK) {
+        const chunk = group.slice(i, i + IMPORT_CHUNK);
+        const upserted = unwrap<{ id: string; phone_e164: string }[]>(
+          await db
+            .from("contacts")
+            .upsert(chunk, { onConflict: "company_id,phone_e164" })
+            .select("id,phone_e164"),
+          "import upsert",
+        );
+        for (const row of upserted) contactIdByPhone.set(row.phone_e164, row.id);
+      }
     }
 
     // opted_out=true → opt_outs rows (source='import', SPEC §5) + events for

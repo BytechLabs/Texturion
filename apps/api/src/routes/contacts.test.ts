@@ -874,6 +874,81 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
   });
 });
 
+describe("import name handling", () => {
+  it("a blank name cell leaves an existing contact's name alone", async () => {
+    // The name column is decided for the WHOLE file, so one nameless row among
+    // named ones used to null out a name the business had recorded: a contact
+    // saved on someone's phone as a bare number blanked their stored name, and
+    // the wizard reported it as an ordinary "updated" row.
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row, i) => ({
+        id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const csv = [
+      "phone,name",
+      "416-555-0101,Bob Builder",
+      "416-555-0102,",
+    ].join("\r\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
+    );
+    expect(res.status).toBe(200);
+
+    const batches = sb.find("POST", "/rest/v1/contacts");
+    const rows = batches.flatMap((call) => call.body as Record<string, unknown>[]);
+    const named = rows.find((row) => row.phone_e164 === "+14165550101");
+    const nameless = rows.find((row) => row.phone_e164 === "+14165550102");
+    expect(named?.name).toBe("Bob Builder");
+    // The key is ABSENT, so the upsert cannot write null over a stored name.
+    expect(nameless && "name" in nameless).toBe(false);
+  });
+
+  it("re-imports a guarded phone from our own export", async () => {
+    // The export apostrophe-guards E.164 so a spreadsheet does not evaluate it.
+    // Normalization strips every non-digit, so the guard survives a round trip.
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row, i) => ({
+        id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const csv = ["phone,name", "'+14165550101,Bob Builder"].join("\r\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ imported: 1, skipped: 0 });
+    const rows = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    expect(rows[0]?.phone_e164).toBe("+14165550101");
+  });
+});
+
 describe("import and a standing carrier STOP", () => {
   it("never rewrites an active opt-out, so a STOP stays unrevokable", async () => {
     // A STOP can only be lifted by the customer. There is ONE opt_outs row per
@@ -1139,9 +1214,11 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     expect(lines[0]).toBe(
       "name,phone,tags,consent_source,consent_at,created_at",
     );
-    // Comma-containing name is quoted; tags ';'-joined.
+    // Comma-containing name is quoted; tags ';'-joined. The phone carries the
+    // injection guard because E.164 always starts with "+", which a spreadsheet
+    // evaluates as arithmetic.
     expect(lines[1]).toBe(
-      '"Jo, Smith",+14165550199,Quote sent;Won,attested,2026-06-01T00:00:00+00:00,2026-05-01T00:00:00+00:00',
+      `"Jo, Smith",'+14165550199,Quote sent;Won,attested,2026-06-01T00:00:00+00:00,2026-05-01T00:00:00+00:00`,
     );
     // Export respects company scope + soft-delete exclusion.
     const call = sb.find("GET", "/rest/v1/contacts")[0];
@@ -1183,7 +1260,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     }
   });
 
-  it("neutralizes CSV/formula injection in the name and tags columns, leaves phone bare (OWASP)", async () => {
+  it("neutralizes CSV/formula injection in every column including the phone (OWASP)", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [
       {
@@ -1216,9 +1293,11 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     const text = new TextDecoder("utf-8").decode(bytes.slice(3));
     const line = text.split("\r\n")[1];
     // The formula name is apostrophe-guarded (then RFC-quoted because it also
-    // contains a comma); the tag is guarded; the phone stays bare E.164.
+    // contains a comma); the tag is guarded; and so is the phone, whose leading
+    // "+" Excel would otherwise evaluate, showing 1.6478E+10 and losing the
+    // country code from anything the user copies out to dial.
     expect(line).toBe(
-      `"'=HYPERLINK(""http://evil"",""click"")",+14165550199,'+1+1,attested,2026-06-01T00:00:00+00:00,2026-05-01T00:00:00+00:00`,
+      `"'=HYPERLINK(""http://evil"",""click"")",'+14165550199,'+1+1,attested,2026-06-01T00:00:00+00:00,2026-05-01T00:00:00+00:00`,
     );
   });
 
