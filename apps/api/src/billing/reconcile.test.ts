@@ -137,6 +137,51 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
     expect(attach[0].form().has("quantity")).toBe(false);
   });
 
+  it("re-mirrors an ACTIVE company whose billing period already ended", async () => {
+    // The period columns are written only by a live renewal webhook, and the
+    // webhook sweeper abandons a row after five attempts, so an outage across a
+    // renewal pins the period to last month with nothing to correct it. Every
+    // billing read is anchored on it: the send cap then sums two months of
+    // usage against one month's ceiling and starts refusing a crew that is well
+    // inside its plan.
+    const harness = makeHarness([
+      endpoint("GET", /\/rest\/v1\/companies/, (call) => {
+        if (call.url.searchParams.has("stripe_customer_id")) return [];
+        // The stale-period scan is the one filtering on current_period_end.
+        return call.url.searchParams.has("current_period_end")
+          ? [{ id: COMPANY_ID, stripe_subscription_id: "sub_1" }]
+          : [];
+      }),
+      endpoint("HEAD", /\/rest\/v1\/invites/, () => countResponse(0)),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({ status: "active" }),
+      ),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscription_items$/, () => ({
+        id: "si_voice_metered",
+        object: "subscription_item",
+      })),
+      endpoint("GET", /\/rest\/v1\/phone_numbers/, () => []),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => [
+        { id: COMPANY_ID, name: "Acme Plumbing" },
+      ]),
+    ]);
+    stubFetch(harness.route);
+
+    const summary = await runSubscriptionReconcileJob(env, NOW);
+
+    expect(summary.reconciled).toBe(1);
+    const scan = harness
+      .callsTo("GET", /\/rest\/v1\/companies/)
+      .find((call) => call.url.searchParams.has("current_period_end"));
+    // Bounded by the FAULT, not by status: only a period that already ended.
+    expect(scan?.url.searchParams.get("subscription_status")).toBe("eq.active");
+    expect(
+      scan?.url.searchParams.getAll("current_period_end") ?? [],
+    ).toEqual(expect.arrayContaining([expect.stringMatching(/^lt\./)]));
+    // Stripe's current truth was written back.
+    expect(harness.callsTo("PATCH", /\/rest\/v1\/companies/)).toHaveLength(1);
+  });
+
   it("no non-active companies: never calls Stripe, still reports stale invites", async () => {
     const harness = makeHarness(baseEndpoints([], 3));
     stubFetch(harness.route);

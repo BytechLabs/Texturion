@@ -115,8 +115,46 @@ export async function runSubscriptionReconcileJob(
     "re-mirror",
   );
 
+  // Plus any ACTIVE company whose mirrored period has already ended.
+  //
+  // The scan above deliberately skips active tenants, and nothing else
+  // re-mirrors them: the period columns are written only by a live renewal
+  // webhook, and the webhook sweeper abandons a row after five attempts. A
+  // Stripe outage across a renewal therefore pins the period to last month
+  // permanently, and EVERY billing read is anchored on it — the send cap sums
+  // two months of usage against one month's ceiling and starts refusing texts
+  // for a crew that is well inside its plan.
+  //
+  // An expired period is exactly the detectable symptom, so this is bounded by
+  // the fault rather than by status: empty on a healthy day.
+  const { data: staleActive, error: staleError } = await db
+    .from("companies")
+    .select("id,stripe_subscription_id")
+    .eq("subscription_status", "active")
+    .not("stripe_subscription_id", "is", null)
+    .not("current_period_end", "is", null)
+    .lt("current_period_end", now.toISOString())
+    .is("deleted_at", null)
+    .order("id", { ascending: true })
+    .limit(RECONCILE_REMIRROR_BATCH);
+  if (staleError) {
+    throw new Error(`stale-period lookup failed: ${staleError.message}`);
+  }
+  warnIfScanAtCapacity(
+    (staleActive ?? []).length,
+    RECONCILE_REMIRROR_BATCH,
+    "stale-period re-mirror",
+  );
+
+  const seenIds = new Set((data ?? []).map((row) => (row as { id: string }).id));
+  const remirrorTargets = [
+    ...((data ?? []) as { id: string; stripe_subscription_id: string }[]),
+    ...((staleActive ?? []) as { id: string; stripe_subscription_id: string }[])
+      .filter((row) => !seenIds.has(row.id)),
+  ];
+
   const failures: unknown[] = [];
-  for (const row of (data ?? []) as {
+  for (const row of remirrorTargets as {
     id: string;
     stripe_subscription_id: string;
   }[]) {
