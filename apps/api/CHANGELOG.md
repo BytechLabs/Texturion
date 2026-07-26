@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/BytechLabs/Texturion/compare/api-v0.2.0...api-v0.3.0) (2026-07-26)
+
+
+### Features
+
+* **web:** removing someone asks where their work should go ([bb3594a](https://github.com/BytechLabs/Texturion/commit/bb3594a548f847d9fd90a98e3035953711a468bb)), closes [#276](https://github.com/BytechLabs/Texturion/issues/276)
+* **web:** see who changed what in your workspace ([22aab61](https://github.com/BytechLabs/Texturion/commit/22aab6170686296030d968e5acb4a211fce41c34)), closes [#231](https://github.com/BytechLabs/Texturion/issues/231)
+
 ## [0.2.0](https://github.com/BytechLabs/Texturion/compare/api-v0.1.0...api-v0.2.0) (2026-07-26)
 
 
