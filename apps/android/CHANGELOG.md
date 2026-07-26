@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/BytechLabs/Texturion/compare/android-v0.2.0...android-v0.3.0) (2026-07-26)
+
+
+### Features
+
+* **android:** delete your own account from the phone ([b76f92f](https://github.com/BytechLabs/Texturion/commit/b76f92ffd4a37f447c47e2b205820c272f6e047c)), closes [#346](https://github.com/BytechLabs/Texturion/issues/346)
+
 ## [0.2.0](https://github.com/BytechLabs/Texturion/compare/android-v0.1.0...android-v0.2.0) (2026-07-26)
 
 

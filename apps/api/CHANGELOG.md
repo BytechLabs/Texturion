@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.0](https://github.com/BytechLabs/Texturion/compare/api-v0.4.0...api-v0.5.0) (2026-07-26)
+
+
+### Features
+
+* **api:** ask for a copy of everything in your workspace ([da821e2](https://github.com/BytechLabs/Texturion/commit/da821e206b883d7e3688a3294b05bb96aefddccb)), closes [#227](https://github.com/BytechLabs/Texturion/issues/227)
+* **api:** you can delete your own account, not just your workspace ([f9a3acf](https://github.com/BytechLabs/Texturion/commit/f9a3acf2c9e16016be975088f1a8ff566713a4e2)), closes [#346](https://github.com/BytechLabs/Texturion/issues/346)
+* **web:** request and download your workspace export from settings ([cbffaae](https://github.com/BytechLabs/Texturion/commit/cbffaae4f1f023fb856958b33eb03c33a57951b8)), closes [#227](https://github.com/BytechLabs/Texturion/issues/227)
+
 ## [0.4.0](https://github.com/BytechLabs/Texturion/compare/api-v0.3.0...api-v0.4.0) (2026-07-26)
 
 

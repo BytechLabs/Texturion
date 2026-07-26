@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.0](https://github.com/BytechLabs/Texturion/compare/web-v0.4.0...web-v0.5.0) (2026-07-26)
+
+
+### Features
+
+* **web:** a public page explaining how to delete your data ([f7e3398](https://github.com/BytechLabs/Texturion/commit/f7e3398aa5a793aa817005264887f9b593ddd6f6)), closes [#227](https://github.com/BytechLabs/Texturion/issues/227)
+* **web:** delete your own account from account settings ([d6db82b](https://github.com/BytechLabs/Texturion/commit/d6db82b9f9f528a4199d0e92d9e38ebd5458a228)), closes [#346](https://github.com/BytechLabs/Texturion/issues/346)
+* **web:** request and download your workspace export from settings ([cbffaae](https://github.com/BytechLabs/Texturion/commit/cbffaae4f1f023fb856958b33eb03c33a57951b8)), closes [#227](https://github.com/BytechLabs/Texturion/issues/227)
+
 ## [0.4.0](https://github.com/BytechLabs/Texturion/compare/web-v0.3.0...web-v0.4.0) (2026-07-26)
 
 
