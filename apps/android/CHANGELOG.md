@@ -1,0 +1,56 @@
+# Changelog
+
+## [0.2.0](https://github.com/BytechLabs/Texturion/compare/android-v0.1.0...android-v0.2.0) (2026-07-26)
+
+
+### Features
+
+* a text that fails now says why ([3316f9d](https://github.com/BytechLabs/Texturion/commit/3316f9da9f68a688f970ecff861ddea5d7a79382))
+* a voicemail reads as a message in the conversation ([a03285c](https://github.com/BytechLabs/Texturion/commit/a03285c3ab496f2c95de151bbf3396b4ca871c4d))
+* **android:** drafts offer to tell Lou what your business does ([9c700e1](https://github.com/BytechLabs/Texturion/commit/9c700e182389199b7ebe37b4d71564103839a2de))
+* **android:** name a teammate on a note from the phone ([f6ca884](https://github.com/BytechLabs/Texturion/commit/f6ca88411b10271e06f0ecc7ea794d8d0b02587b))
+* **android:** task reminders get their own notification setting ([838a6b4](https://github.com/BytechLabs/Texturion/commit/838a6b48709641a1a3c22087f5cb116a8c8ce2e2))
+* **android:** the composer can draft a reply you edit before sending ([6e35d61](https://github.com/BytechLabs/Texturion/commit/6e35d61eb8f18fa84ca44da9ff7a221d71a38340))
+* ask Lou for another set of drafts without starting over ([a9f6983](https://github.com/BytechLabs/Texturion/commit/a9f698324346a766727fded6ff0d8832cc0ea414))
+* drafting is one tap on phones and looks the same everywhere ([03b02c2](https://github.com/BytechLabs/Texturion/commit/03b02c283e48c0b9c965fbefc6c35e9c917df91e))
+* drafts are kept instead of re-asked for ([6882b49](https://github.com/BytechLabs/Texturion/commit/6882b493eeb2131c3a4cb40e3f47c0d32afb024a))
+* **mobile:** a mention reads as one on the phone, not as a generic update ([dc18b81](https://github.com/BytechLabs/Texturion/commit/dc18b81cee98cd5784aa9a8110e60a27f4b29ed3))
+* **mobile:** everyone can see what the spending cap is set to ([8c20542](https://github.com/BytechLabs/Texturion/commit/8c20542412450e9909655c5e1306b6fcf0e99552))
+* **mobile:** fix and resubmit a rejected registration from your phone ([d6ecf9f](https://github.com/BytechLabs/Texturion/commit/d6ecf9f789d0bf6cdca2abf922fe08c5cfeaef42))
+* **mobile:** inbox rows say when the last word was yours ([2f642d7](https://github.com/BytechLabs/Texturion/commit/2f642d789883b3393d769f7a5917610a2a8d481d))
+* **mobile:** outgoing texts show which teammate sent them ([4310ff1](https://github.com/BytechLabs/Texturion/commit/4310ff104fe6b6c2859c5c11fb7911eaea26f94d))
+* **mobile:** owners can turn on US texting from their phone ([79841b9](https://github.com/BytechLabs/Texturion/commit/79841b9f12fca43d3cf9d5c8b66d0c6e12c44ad5))
+* **mobile:** read a voicemail instead of playing it ([98f8268](https://github.com/BytechLabs/Texturion/commit/98f82683777643a0ab7d63b701505a8658d8cd0c))
+* **mobile:** saved replies can be written and edited on your phone ([28c953c](https://github.com/BytechLabs/Texturion/commit/28c953c1644521b0f4cdbfb73a393512e31849ac))
+* **mobile:** see how much Lou has done this month on the phone too ([26b27fc](https://github.com/BytechLabs/Texturion/commit/26b27fc55e7acd5e3191fb26d2bbab6f7c454bd2))
+* tell Lou what your business does, in one sentence ([422aa0b](https://github.com/BytechLabs/Texturion/commit/422aa0b2cd7a4acba4db479b84a0d773a7ea608a))
+* the assistant is called Lou ([3d40bf7](https://github.com/BytechLabs/Texturion/commit/3d40bf782b1ac730d60da3d73435d80c52509dcb))
+* the blocked composer says who can unblock it ([790cf5a](https://github.com/BytechLabs/Texturion/commit/790cf5af2cbbb5cd0a861eb78e584e0385931994))
+* the spending cap can be set to any value on phones too ([3b0d4ba](https://github.com/BytechLabs/Texturion/commit/3b0d4baa5c288ddc29f5a946434891d89bc89d4e))
+* **web:** the spending cap looks like the decision it is ([30fbaad](https://github.com/BytechLabs/Texturion/commit/30fbaad123f354c9a6431975e82cb3ac00463580))
+
+
+### Bug Fixes
+
+* **android:** a draft you just typed survives leaving the thread ([e779db9](https://github.com/BytechLabs/Texturion/commit/e779db988ccdca27f5a43c05d718f3e915800485)), closes [#268](https://github.com/BytechLabs/Texturion/issues/268) [#269](https://github.com/BytechLabs/Texturion/issues/269)
+* **android:** a task reminder never replaces a text from that customer ([8bc4ded](https://github.com/BytechLabs/Texturion/commit/8bc4dedceff1521dd86efc221746b65027bec4fe))
+* **android:** a task reminder opens the job, not just the thread ([12b7c12](https://github.com/BytechLabs/Texturion/commit/12b7c125d318b527f6ca3a89005942e46b5c04bb))
+* **android:** a voice message now plays right in the conversation ([ac39a47](https://github.com/BytechLabs/Texturion/commit/ac39a47e429775c696c74d66e423ad0862b5af95))
+* **android:** an automation says when it cannot reach US numbers yet ([1366553](https://github.com/BytechLabs/Texturion/commit/1366553b6be14a1296e23f7425415033dc9b5dfc))
+* **android:** an unusual link handed to the app no longer crashes it ([fdd8d5d](https://github.com/BytechLabs/Texturion/commit/fdd8d5db29ec51cb1cd85b93adcc60a6b9938f05))
+* **android:** playing a voicemail shows its words when the row has none ([7e17a5a](https://github.com/BytechLabs/Texturion/commit/7e17a5a5261158010e2b3fca14991d3543e91696))
+* **android:** the import button names what it can actually import ([c4ba0ed](https://github.com/BytechLabs/Texturion/commit/c4ba0ed0eb0fb22daa1b812ac36a853f379ea96a))
+* **android:** the inbox says what kind of attachment arrived ([4b639dd](https://github.com/BytechLabs/Texturion/commit/4b639dddd325cb2a06f5824978e3d86f3d6b8177))
+* **android:** the US-approval wait offers the call that still works ([b688213](https://github.com/BytechLabs/Texturion/commit/b6882136ba637a6473a3172e77b635861e8226c9))
+* **mobile:** a file a note cannot carry is refused before you send it ([75e3fe1](https://github.com/BytechLabs/Texturion/commit/75e3fe121238b706d84c7b4a1f9d032f1f410cbd))
+* **mobile:** a sent message stops falling back to "Sending…" on the phones too ([0b0bd3c](https://github.com/BytechLabs/Texturion/commit/0b0bd3c26d50715c9a432bdaf0f22a97f58d5c7e))
+* **mobile:** a slow number setup stops promising it will be a minute ([f126480](https://github.com/BytechLabs/Texturion/commit/f126480404b29acaa31dabbeb23b011e843a1dca))
+* **mobile:** a task due later no longer reads as due now ([84f5cc3](https://github.com/BytechLabs/Texturion/commit/84f5cc370ed72dc21ec0198504671d92a202baae))
+* **mobile:** a task made from a message is assigned to you ([f6ca9cb](https://github.com/BytechLabs/Texturion/commit/f6ca9cb66e44ed361b001eaf34fdd283fd333a89))
+* **mobile:** stop offering an extra number that cannot be bought yet ([811cc96](https://github.com/BytechLabs/Texturion/commit/811cc9680c86389383aa6c7d7a186c0705dc8054))
+* **mobile:** the task map now respects the due and search filters ([c399119](https://github.com/BytechLabs/Texturion/commit/c399119d22f058712f4a3b0dd526fc69d6af2cbc))
+* only the customer can undo a STOP, and we now say so ([4ea1b20](https://github.com/BytechLabs/Texturion/commit/4ea1b203eee3b251d561598614b0a6a9ffa6f1c6))
+* phones show voicemail recordings in storage, and name every kind ([70fd415](https://github.com/BytechLabs/Texturion/commit/70fd4153d152154239f27cdaf662744801eac9fc))
+* **push:** the whole crew gets the alert, and a mention is never erased ([4a23ef7](https://github.com/BytechLabs/Texturion/commit/4a23ef7d5768c4ff6ca27eaf20c2412d56d97175)), closes [#266](https://github.com/BytechLabs/Texturion/issues/266) [#267](https://github.com/BytechLabs/Texturion/issues/267)
+* suggested drafts clear once you type something new ([e9cfbaa](https://github.com/BytechLabs/Texturion/commit/e9cfbaa8bb8627f9574c344ab28ad9fe355b1b92))
+* **web:** a workspace without US texting is told what to turn on ([36f872b](https://github.com/BytechLabs/Texturion/commit/36f872b6a7d42f572d8c139fdf3f076225fb7c73))
