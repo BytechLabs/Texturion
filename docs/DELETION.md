@@ -67,16 +67,29 @@ whatever the company-level policy says.
 | 11 | `contacts` | freed by step 8 |
 | 12 | `phone_numbers` | freed by steps 8 and 10 |
 | 13 | `tags` | `conversation_tags` cascades from both sides |
-| 14 | `templates`, `invites`, `messaging_registrations`, `grace_notices`, `inbound_notification_days`, `usage_alerts`, `egress_events`, `audit_log`, `company_members` | independent `restrict` children; any order |
-| 15 | `companies` | the 13 `cascade` tables go with it |
+| 14 | `templates`, `invites`, `messaging_registrations`, `grace_notices`, `inbound_notification_days`, `usage_alerts`, `egress_events`, `audit_log`, `company_members`, and the 13 `cascade` tables | independent children; any order |
+| 15 | `companies` — **anonymised, not deleted** | see below |
 
-**`opt_outs` is deliberately absent from that list.** It is the 25th `restrict`
-child and it is not deleted at all — see *What survives*. Step 15 therefore
-needs its `company_id` released rather than its rows removed; that is the one
-place the teardown changes a constraint's shape instead of satisfying it.
+**The `companies` row survives, stripped.** An earlier draft of this document
+said step 15 deleted it and released `opt_outs.company_id`; that is not
+possible — the column is `NOT NULL`, and it should not be made nullable to
+serve a teardown. Keeping the row is the better answer anyway, and it is what
+D48 meant by *anonymise, not erase*: the row becomes the anchor that keeps
+`opt_outs` enforceable and gives the CASL consent artifact somewhere to hang,
+while carrying none of the business's identity.
 
-Cascading with step 15, needing no explicit step: `call_member_legs`,
-`company_ai_settings`, `company_ai_usage`, `company_modules`, `email_ledger`,
+Cleared at step 15: `name`, `stripe_customer_id`, `stripe_subscription_id`,
+`telnyx_messaging_profile_id`, `chosen_number_e164`, `away_message`,
+`mctb_message`, `voicemail_greeting`, `cnam_display_name`, and `business_hours`
+(reset to `{}` — the column is `NOT NULL`). Kept: `id`, `created_at`,
+`country`, `timezone` and a `purged_at` stamp, so a regulator's question — was
+there consent, on what date, in what jurisdiction — still has an answer.
+`timezone` stays because it is `NOT NULL` with a default and says nothing about
+who the business was.
+
+Because the row survives, the 13 `cascade` tables no longer go with it and are
+deleted explicitly at step 14: `call_member_legs`, `company_ai_settings`,
+`company_ai_usage`, `company_modules`, `email_ledger`,
 `member_telephony_credentials`, `notification_prefs`,
 `notification_read_items`, `notification_reads`, `number_access`,
 `outbound_call_authorizations`, `outbound_dial_leases`, `provider_costs`.

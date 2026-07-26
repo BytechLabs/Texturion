@@ -47,6 +47,7 @@ import { portingRoutes } from "./routes/porting";
 import { registrationRoutes } from "./routes/registration";
 import { searchRoutes } from "./routes/search";
 import { pruneAuditLog } from "./audit/retention";
+import { purgeClosedWorkspaces } from "./workspace/purge";
 import { auditLogRoutes } from "./routes/audit-log";
 import { workspaceClosureRoutes } from "./routes/workspace-closure";
 import { tagsRoutes } from "./routes/tags";
@@ -296,7 +297,7 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
   // the ledger grows without bound for the life of the install.
   // Ledger retention, both daily: the webhook ledger's dedupe window and the
   // #231 audit log's 12 months. Neither can grow without bound.
-  "30 15 * * *": [pruneWebhookEvents, pruneAuditLog],
+  "30 15 * * *": [pruneWebhookEvents, pruneAuditLog, purgeClosedWorkspaces],
 };
 
 // Exported (not just the Sentry-wrapped default) so the outermost fetch guard
