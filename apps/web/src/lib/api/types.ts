@@ -895,6 +895,17 @@ export interface UsageOverageProjection {
 export type UsageStatus = "quiet" | "pacing" | "capped";
 
 /** GET /v1/usage — nulls when the company has never checked out. */
+/** One AI feature's month on the usage screen. */
+export interface AiFeatureUsage {
+  /** The ledger key, so a row is matched on identity rather than on copy. */
+  key: string;
+  label: string;
+  used: number;
+  cap: number;
+  /** False when the workspace has this feature switched off. */
+  enabled: boolean;
+}
+
 export interface Usage {
   /** #178 fair-use presentation contract — gates every usage surface. */
   status: UsageStatus;
@@ -915,6 +926,11 @@ export interface Usage {
   history: UsageMonth[];
   /** D30: the company's stored bytes, both arms. */
   storage: UsageStorage;
+  /**
+   * What Lou has done this month, per feature. Absent from a Worker deployed
+   * before this shipped, so every reader must default it.
+   */
+  ai?: AiFeatureUsage[];
   /** #12: calling minutes used vs the plan allowance (both directions). */
   voice: UsageVoice;
   // #97/#103: no `mms` meter — pictures count 3 segments each in the message

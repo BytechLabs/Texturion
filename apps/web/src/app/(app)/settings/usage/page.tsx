@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { CapControl } from "@/components/settings/cap-control";
 import { CalmEmptyState } from "@/components/settings/empty-state";
+import { AiUsage } from "@/components/settings/ai-usage";
 import { StorageBreakdown } from "@/components/settings/storage-breakdown";
 import {
   LoadError,
@@ -430,6 +431,15 @@ function UsageDetails({ usage }: { usage: Usage }) {
             <StorageBreakdown storage={usage.storage} />
           </div>
         </SettingsCard>
+
+        {(usage.ai?.length ?? 0) > 0 && (
+          <SettingsCard
+            title="Lou this month"
+            description="What Lou has drafted, filled in, and written down. Each resets on the 1st."
+          >
+            <AiUsage features={usage.ai ?? []} />
+          </SettingsCard>
+        )}
 
         {usage.history.length > 0 && (
           <SettingsCard

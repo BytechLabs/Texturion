@@ -36,6 +36,7 @@
  */
 import { Hono } from "hono";
 
+import { loadAiSettings } from "../ai/settings";
 import { requireRole } from "../auth/company";
 import { decideOverage } from "../billing/overage-projection";
 import type { AppEnv } from "../context";
@@ -43,6 +44,7 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
 import { unwrap } from "./core/http";
+import { readAiUsage } from "../ai/usage";
 import {
   PLAN_INCLUDED_SEGMENTS,
   PLAN_OVERAGE_CENTS_PER_SEGMENT,
@@ -196,6 +198,19 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
   const voiceSeconds = Number(
     unwrap<number | string>(voiceRes, "voice usage sum"),
   );
+  // Read alongside the rest of the screen's numbers. A failure here must not
+  // take down the whole usage page, so it degrades to no AI section rather
+  // than an error: the segment and storage figures are the ones people came
+  // for, and an absent section reads as "nothing to show" rather than a lie.
+  const aiUsage = await (async () => {
+    try {
+      const settings = await loadAiSettings(db, companyId);
+      return await readAiUsage(db, companyId, settings);
+    } catch {
+      return [];
+    }
+  })();
+
   const overage = Math.max(0, used - included);
   // D36: voice mirrors the segment shape — used vs the fair-use allowance,
   // overage-so-far at 1¢/min rated to the second (the meter bills the same
@@ -264,6 +279,10 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
           Number(storage.attachments_bytes) + Number(storage.mms_bytes),
       ),
     },
+    // What Lou has done this month, per feature. The caps were enforced
+    // server-side and shown nowhere: a crew hit one mid-sentence, got a
+    // failure, and had no way to have seen it coming or to check afterwards.
+    ai: aiUsage,
     voice: {
       used_minutes: voiceUsedMinutes,
       included_minutes: includedVoiceMinutes,

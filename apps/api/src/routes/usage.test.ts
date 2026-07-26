@@ -75,6 +75,9 @@ function usageStub(
   sb.on("POST", "/rest/v1/rpc/api_storage_usage", () => storage);
   sb.on("POST", "/rest/v1/rpc/api_period_forward_seconds", () => VOICE_SECONDS);
   sb.on("POST", "/rest/v1/rpc/api_period_forwarded_calls", () => 0);
+  // The AI section reads the workspace's opt-ins and its monthly counters.
+  sb.on("GET", "/rest/v1/company_ai_settings", () => []);
+  sb.on("GET", "/rest/v1/company_ai_usage", () => []);
   // #85/#93: decideOverage's revenue read still consults company_modules
   // (the #121 storage retirement removed the BUDGET read, not this one).
   // #134/D42: the route itself reads NO voice module state anymore.
@@ -142,6 +145,19 @@ describe("GET /v1/usage", () => {
       },
       // D36: voice mirrors the segment shape — allowance, spending cap
       // (2,500 × 3.00 = 7,500 min), and overage-so-far at 1¢/min.
+      // Every AI cost centre gets a line, used or not: a feature nobody has
+      // touched yet still has to say where it stands.
+      ai: [
+        { key: "suggest_reply", label: "reply drafting", used: 0, cap: 1500, enabled: true },
+        { key: "enrich", label: "task enrichment", used: 0, cap: 1000, enabled: true },
+        {
+          key: "voicemail_transcript",
+          label: "voicemail transcript",
+          used: 0,
+          cap: 500,
+          enabled: true,
+        },
+      ],
       voice: {
         used_minutes: 61,
         included_minutes: 2500,
