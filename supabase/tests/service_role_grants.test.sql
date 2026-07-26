@@ -29,6 +29,12 @@ begin
     -- reads but never mutates (20260707200000_contact_messages.sql). Exempt it
     -- from the blanket full-DML invariant rather than weakening its posture.
     and c.relname <> 'contact_messages'
+    -- audit_log is append-only for a stronger reason (#231): it is the record
+    -- of who did what, and a record the actor can edit is not one. UPDATE and
+    -- DELETE are revoked from service_role AND blocked by a trigger, so the
+    -- Worker cannot rewrite history even by mistake. Retention goes through
+    -- api_prune_audit_log, which is security definer for exactly this reason.
+    and c.relname <> 'audit_log'
     and not (
       has_table_privilege('service_role', c.oid, 'SELECT')
       and has_table_privilege('service_role', c.oid, 'INSERT')
@@ -37,7 +43,7 @@ begin
   if bad is not null then
     raise exception 'G1 FAILED: service_role missing DML privilege on: %', bad;
   end if;
-  raise notice 'G1 PASSED: service_role has SELECT/INSERT/UPDATE/DELETE on every public table (contact_messages append-only, exempt)';
+  raise notice 'G1 PASSED: service_role has SELECT/INSERT/UPDATE/DELETE on every public table (contact_messages and audit_log are append-only, exempt)';
 end $$;
 
 -- ===========================================================================

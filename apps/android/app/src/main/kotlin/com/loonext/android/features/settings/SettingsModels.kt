@@ -213,4 +213,6 @@ data class AccountDeletionResult(
     val deleted: Boolean = false,
     val workspaces_left: Int = 0,
     val personal_rows_removed: Int = 0,
+    /** #371: sent before the address itself was removed, or not sent at all. */
+    val receipt_emailed: Boolean = false,
 )

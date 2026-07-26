@@ -29,6 +29,7 @@ import type { Env } from "../env";
 import { MMS_BUCKET } from "../messaging/media";
 import { VOICEMAILS_BUCKET } from "../messaging/inbound-ring";
 import { ATTACHMENTS_BUCKET } from "../routes/core/attachments";
+import { sendDeletionEmail, workspacePurgedEmail } from "./deletion-emails";
 
 /** Rows per delete, and objects per Storage call. */
 const BATCH = 500;
@@ -80,6 +81,8 @@ export interface PurgeSummary {
   rowsDeleted: number;
   objectsRemoved: number;
   completed: number;
+  /** #371: erasure receipts that reached the customer. */
+  receiptsSent: number;
 }
 
 /**
@@ -96,11 +99,15 @@ export async function purgeClosedWorkspaces(
     rowsDeleted: 0,
     objectsRemoved: 0,
     completed: 0,
+    receiptsSent: 0,
   };
 
   const { data, error } = await db
     .from("companies")
-    .select("id,stripe_customer_id")
+    // #371: the name and the receipt address are read HERE, at the top of the
+    // run, because both are cleared by the anonymise at the end of it. A
+    // resumed purge that finishes today still carries what it needs to say so.
+    .select("id,name,stripe_customer_id,purge_receipt_email")
     .not("purge_after", "is", null)
     .lte("purge_after", now.toISOString())
     .is("purged_at", null)
@@ -110,14 +117,35 @@ export async function purgeClosedWorkspaces(
 
   for (const row of (data ?? []) as {
     id: string;
+    name: string | null;
     stripe_customer_id: string | null;
+    purge_receipt_email: string | null;
   }[]) {
     summary.workspaces += 1;
     try {
       const result = await purgeWorkspace(env, db, row.id, row.stripe_customer_id);
       summary.rowsDeleted += result.rowsDeleted;
       summary.objectsRemoved += result.objectsRemoved;
-      if (result.completed) summary.completed += 1;
+      if (result.completed) {
+        summary.completed += 1;
+        // #371: the receipt proper, and the last thing this workspace ever
+        // does. After the anonymise there is no name and no address left, so
+        // this is the final moment either exists.
+        if (
+          row.purge_receipt_email &&
+          (await sendDeletionEmail(
+            env,
+            row.purge_receipt_email,
+            workspacePurgedEmail({
+              companyName: row.name ?? "your workspace",
+              purgedAt: now,
+            }),
+            `workspace purge ${row.id}`,
+          ))
+        ) {
+          summary.receiptsSent += 1;
+        }
+      }
     } catch (cause) {
       // Loud, and never fatal to the rest of the run. A workspace that failed
       // partway is exactly as safe to resume as one that has not started.

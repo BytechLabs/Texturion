@@ -129,6 +129,16 @@ fun DeleteAccountCard(scope: SettingsScope, onDeleted: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Spacer(Modifier.height(6.dp))
+                // #371: said here rather than after the fact, because the
+                // moment this succeeds you are signed out and there is no
+                // screen left to read a confirmation on.
+                Text(
+                    "We email you a confirmation before your address is removed. It is the " +
+                        "last thing you will get from us, and it is worth keeping.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(Modifier.height(12.dp))
                 Button(
                     onClick = { confirming = true },

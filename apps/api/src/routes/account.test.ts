@@ -20,6 +20,7 @@ import {
   createTestAuth,
   jwksRoute,
   stubFetch,
+  type FetchRoute,
   type TestAuth,
 } from "../test/support";
 import { accountRoutes } from "./account";
@@ -49,6 +50,8 @@ function world(
   options: {
     preview?: Record<string, unknown>;
     deleteResult?: Record<string, unknown>;
+    /** #371: what the auth identity's address is when the receipt is built. */
+    email?: string;
   } = {},
 ): SupabaseStub {
   const sb = supabaseStub(env);
@@ -73,14 +76,48 @@ function world(
   sb.on("POST", "/rest/v1/rpc/delete_account", () =>
     options.deleteResult ?? { outcome: "deleted", personal_rows: 7 },
   );
+  // #371: the address the receipt goes to — and the one severAuthIdentity
+  // replaces a moment later.
+  sb.on("GET", /^\/auth\/v1\/admin\/users\//, () => ({
+    id: auth.subject,
+    email: options.email ?? "leaver@crew.test",
+  }));
   sb.on("PUT", /^\/auth\/v1\/admin\/users\//, () => ({ id: auth.subject }));
   return sb;
+}
+
+/**
+ * The Resend leg, and the ordering evidence with it. Each send records how
+ * many sever calls had already gone out when it left — the receipt is useless
+ * if it is sent to an address that has already been replaced with
+ * `@account.invalid`, and "before" is not something a call-count assertion can
+ * express after the fact.
+ */
+function mailbox(sb: SupabaseStub, options: { fails?: boolean } = {}) {
+  const sent: { to: string[]; subject: string; text: string; severedBefore: number }[] =
+    [];
+  const route: FetchRoute = async (url, request) => {
+    if (url.href !== "https://api.resend.com/emails") return undefined;
+    const body = (await request.clone().json()) as {
+      to: string[];
+      subject: string;
+      text: string;
+    };
+    sent.push({
+      ...body,
+      severedBefore: sb.find("PUT", /^\/auth\/v1\/admin\/users\//).length,
+    });
+    return options.fails
+      ? new Response(JSON.stringify({ message: "boom" }), { status: 500 })
+      : Response.json({ id: "email_1" });
+  };
+  return { route, sent };
 }
 
 describe("GET /v1/account/deletion-preview", () => {
   it("says what deleting would touch", async () => {
     const sb = world();
-    stubFetch(jwksRoute(auth), sb.route);
+    stubFetch(jwksRoute(auth), sb.route, mailbox(sb).route);
 
     // Company-exempt: this is about the person, and someone with no membership
     // at all must still be able to leave.
@@ -110,7 +147,7 @@ describe("GET /v1/account/deletion-preview", () => {
         owned: [{ id: COMPANY_ID, name: "Brightside Plumbing" }],
       },
     });
-    stubFetch(jwksRoute(auth), sb.route);
+    stubFetch(jwksRoute(auth), sb.route, mailbox(sb).route);
 
     const res = await apiRequest(
       app,
@@ -128,7 +165,7 @@ describe("GET /v1/account/deletion-preview", () => {
 describe("DELETE /v1/account", () => {
   it("offboards every workspace, then severs the identity", async () => {
     const sb = world();
-    stubFetch(jwksRoute(auth), sb.route);
+    stubFetch(jwksRoute(auth), sb.route, mailbox(sb).route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/account", {
       method: "DELETE",
@@ -138,6 +175,7 @@ describe("DELETE /v1/account", () => {
       deleted: true,
       workspaces_left: 1,
       personal_rows_removed: 7,
+      receipt_emailed: true,
     });
 
     // #276 runs per membership, releasing their open work to the crew — there
@@ -171,7 +209,7 @@ describe("DELETE /v1/account", () => {
         owned: [{ id: COMPANY_ID, name: "Brightside Plumbing" }],
       },
     });
-    stubFetch(jwksRoute(auth), sb.route);
+    stubFetch(jwksRoute(auth), sb.route, mailbox(sb).route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/account", {
       method: "DELETE",
@@ -193,7 +231,7 @@ describe("DELETE /v1/account", () => {
       /^\/auth\/v1\/admin\/users\//,
       () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
     );
-    stubFetch(jwksRoute(auth), sb.route);
+    stubFetch(jwksRoute(auth), sb.route, mailbox(sb).route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/account", {
       method: "DELETE",
@@ -204,11 +242,71 @@ describe("DELETE /v1/account", () => {
 
   it("handles becoming an owner between the preview and the delete", async () => {
     const sb = world({ deleteResult: { outcome: "owner" } });
-    stubFetch(jwksRoute(auth), sb.route);
+    stubFetch(jwksRoute(auth), sb.route, mailbox(sb).route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/account", {
       method: "DELETE",
     });
     expect(res.status).toBe(409);
+  });
+
+  describe("the receipt (#371)", () => {
+    it("emails the address BEFORE the identity holding it is severed", async () => {
+      // The ordering is the feature. `severAuthIdentity` parks the address on
+      // a non-routable `.invalid` domain, so a receipt sent one line later
+      // goes nowhere at all — and it would still look like it worked.
+      const sb = world();
+      const mail = mailbox(sb);
+      stubFetch(jwksRoute(auth), sb.route, mail.route);
+
+      await apiRequest(app, env, await auth.token(), "/v1/account", {
+        method: "DELETE",
+      });
+
+      expect(mail.sent).toHaveLength(1);
+      expect(mail.sent[0].to).toEqual(["leaver@crew.test"]);
+      expect(mail.sent[0].severedBefore).toBe(0);
+      expect(mail.sent[0].subject).toBe("Your Loonext account is deleted");
+
+      const body = mail.sent[0].text;
+      expect(body).toContain("no longer sign in");
+      // What they handed back, and what stays with the business — the same
+      // answer docs/DELETION.md gives, so nobody gets a different one here.
+      expect(body).toContain("the crew you were on");
+      expect(body).toContain("three years");
+    });
+
+    it("deletes the account anyway when the receipt cannot be sent", async () => {
+      const sb = world();
+      const mail = mailbox(sb, { fails: true });
+      stubFetch(jwksRoute(auth), sb.route, mail.route);
+
+      const res = await apiRequest(app, env, await auth.token(), "/v1/account", {
+        method: "DELETE",
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({
+        deleted: true,
+        receipt_emailed: false,
+      });
+      // And the deletion still completed: a mail failure is ours to chase, not
+      // a reason to leave someone with a signable account.
+      expect(sb.find("POST", "/rest/v1/rpc/delete_account")).toHaveLength(1);
+      expect(sb.find("PUT", /^\/auth\/v1\/admin\/users\//)).toHaveLength(1);
+    });
+
+    it("sends nothing when there is no address left to send to", async () => {
+      // A second delete attempt against an already-severed identity: a no-op,
+      // not a bounce at a domain that cannot receive.
+      const sb = world({ email: `deleted-${auth.subject}@account.invalid` });
+      const mail = mailbox(sb);
+      stubFetch(jwksRoute(auth), sb.route, mail.route);
+
+      const res = await apiRequest(app, env, await auth.token(), "/v1/account", {
+        method: "DELETE",
+      });
+      expect(await res.json()).toMatchObject({ receipt_emailed: false });
+      expect(mail.sent).toEqual([]);
+    });
   });
 });

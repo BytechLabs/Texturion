@@ -118,6 +118,14 @@ export function DeleteAccountCard() {
                 theirs, and some of it we are required by law to keep. They
                 will no longer carry your name.
               </li>
+              {/* #371: said here rather than in a toast, because the moment
+                  this succeeds you are signed out and there is no screen left
+                  to read one on. */}
+              <li>
+                We email you a confirmation before your address is removed. It
+                is the last thing you will get from us, and it is worth
+                keeping.
+              </li>
             </ul>
             <div className="flex flex-wrap gap-2">
               <Button

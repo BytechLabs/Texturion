@@ -33,6 +33,11 @@ import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
 import { errorResponse } from "../http/errors";
 import { releaseCompanyNumbers } from "../telnyx/provisioning";
+import {
+  lookupUserEmail,
+  sendDeletionEmail,
+  workspaceClosedEmail,
+} from "../workspace/deletion-emails";
 
 export const workspaceClosureRoutes = new Hono<AppEnv>();
 
@@ -83,6 +88,15 @@ workspaceClosureRoutes.delete("/company", requireRole("owner"), async (c) => {
     result.stripe_subscription_id ?? null,
   );
 
+  // #371: the written record, sent to the owner who did it. Last of the
+  // best-effort steps because it is the only one that costs the customer
+  // nothing if it fails — and it is deliberately AFTER the teardown, so it can
+  // say what actually happened rather than what was about to.
+  const receiptSentTo = await mailTheOwner(env, db, c.get("userId"), companyId, {
+    numbersReleased,
+    subscriptionCancelled,
+  });
+
   // #231: the end of a business's account is the single most consequential
   // thing anyone does in this product.
   await recordAuditFromRequest(db, c, {
@@ -96,6 +110,7 @@ workspaceClosureRoutes.delete("/company", requireRole("owner"), async (c) => {
       push_devices_removed: access.devices,
       numbers_released: numbersReleased,
       subscription_cancelled: subscriptionCancelled,
+      receipt_emailed: receiptSentTo,
     },
   });
 
@@ -106,8 +121,60 @@ workspaceClosureRoutes.delete("/company", requireRole("owner"), async (c) => {
     push_devices_removed: access.devices,
     numbers_released: numbersReleased,
     subscription_cancelled: subscriptionCancelled,
+    receipt_emailed: receiptSentTo,
   });
 });
+
+/**
+ * The closure receipt (#371), and the address for the one that follows it.
+ *
+ * Two sends, 30 days apart, and only this moment has both an owner to ask and
+ * a `company_members` row to ask it from — the purge deletes that table long
+ * before it finishes. So the address is written to the workspace here and read
+ * back by the sweep.
+ *
+ * Returns whether the customer has it in writing. Never throws: the workspace
+ * is already closed, and a mail failure that surfaced as a 500 would tell an
+ * owner their deletion did not happen when it entirely did.
+ */
+async function mailTheOwner(
+  env: Env,
+  db: Db,
+  ownerUserId: string,
+  companyId: string,
+  outcome: { numbersReleased: number; subscriptionCancelled: boolean },
+): Promise<boolean> {
+  const email = await lookupUserEmail(db, ownerUserId);
+  if (!email) return false;
+
+  // Stored before the send, not after: a failed send is chased by us from
+  // Sentry, and an address we never wrote down is one nobody can retry.
+  const { data: company, error } = await db
+    .from("companies")
+    .update({ purge_receipt_email: email })
+    .eq("id", companyId)
+    .select("name,purge_after")
+    .maybeSingle();
+  if (error) {
+    Sentry.captureMessage(
+      `workspace close: receipt address not stored for ${companyId}: ${error.message}`,
+      "error",
+    );
+  }
+
+  const row = (company ?? null) as { name?: string; purge_after?: string } | null;
+  return sendDeletionEmail(
+    env,
+    email,
+    workspaceClosedEmail({
+      companyName: row?.name ?? "Your workspace",
+      purgeAfter: row?.purge_after ?? null,
+      numbersReleased: outcome.numbersReleased,
+      subscriptionCancelled: outcome.subscriptionCancelled,
+    }),
+    `workspace close ${companyId}`,
+  );
+}
 
 /**
  * Every member signed out and unsubscribed from push — deactivated ones

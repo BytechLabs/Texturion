@@ -1606,6 +1606,8 @@ export interface WorkspaceClosure {
   push_devices_removed: number;
   numbers_released: number;
   subscription_cancelled: boolean;
+  /** #371: whether the written record reached the owner's inbox. */
+  receipt_emailed: boolean;
 }
 
 /**
@@ -1627,6 +1629,8 @@ export interface AccountDeletionResult {
   deleted: boolean;
   workspaces_left: number;
   personal_rows_removed: number;
+  /** #371: sent before the address itself was removed, or not sent at all. */
+  receipt_emailed: boolean;
 }
 
 /**

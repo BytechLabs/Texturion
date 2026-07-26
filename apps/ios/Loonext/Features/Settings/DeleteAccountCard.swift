@@ -116,6 +116,16 @@ struct DeleteAccountCard: View {
             .font(.golos(12))
             .foregroundStyle(BrandColor.muted600)
 
+            // #371: said here rather than after the fact, because the moment
+            // this succeeds you are signed out and there is no screen left to
+            // read a confirmation on.
+            Text(
+                "We email you a confirmation before your address is removed. It is the "
+                    + "last thing you will get from us, and it is worth keeping."
+            )
+            .font(.golos(12))
+            .foregroundStyle(BrandColor.muted600)
+
             // The deliberate pause. This is the one place in the product where
             // slowing someone down is the right thing to do.
             TextField("Type \(confirmWord) to confirm", text: $typed)

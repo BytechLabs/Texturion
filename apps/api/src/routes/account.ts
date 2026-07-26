@@ -28,6 +28,11 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
+import {
+  accountDeletedEmail,
+  lookupUserEmail,
+  sendDeletionEmail,
+} from "../workspace/deletion-emails";
 
 export const accountRoutes = new Hono<AppEnv>();
 
@@ -130,12 +135,23 @@ accountRoutes.delete("/account", async (c) => {
     );
   }
 
+  // #371 — the receipt, and the ORDERING IS THE WHOLE POINT. `severAuthIdentity`
+  // replaces the address with a non-routable `.invalid` one, so a receipt sent
+  // afterwards has nowhere to go. It goes now, while the address still exists.
+  const receiptSent = await sendDeletionEmail(
+    env,
+    await lookupUserEmail(db, userId),
+    accountDeletedEmail({ workspacesLeft: memberships.length }),
+    `account deletion ${userId}`,
+  );
+
   await severAuthIdentity(db, userId);
 
   return c.json({
     deleted: true,
     workspaces_left: memberships.length,
     personal_rows_removed: Number(result.personal_rows ?? 0),
+    receipt_emailed: receiptSent,
   });
 });
 

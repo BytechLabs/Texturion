@@ -146,6 +146,27 @@ Before the button, not after:
 - Until the 30 days are up, this can be undone by contacting us. After that it
   cannot be undone by anyone.
 
+And in writing, twice (#371). The screen that said all of this is one the
+person is signed out of a second later, so it is also emailed:
+
+| When | To | What it says |
+|---|---|---|
+| The workspace closes | The owner who closed it | What ended now, the date of the erasure, that it can still be undone until then |
+| The erasure finishes | The same address, stored for this | That it is done, and on what date. **This is the receipt** — the artefact a regulator asks for |
+| An account is deleted | The address being deleted, *before* it is severed | What went, what went back to the crew, what stays with the business |
+
+The copy in those emails is built from this section
+(`apps/api/src/workspace/deletion-emails.ts`) so the emails, the confirmation
+screens and the public page cannot drift into three different promises.
+
+The address for the second one is captured on `companies.purge_receipt_email`
+when the workspace closes, because by the time the purge finishes it has
+deleted `company_members` and there is no owner left to look up. The anonymise
+step clears it.
+
+**A failed send never fails or reverses a deletion.** The customer asked to
+leave; an unsent receipt raises in Sentry and is ours to chase.
+
 ---
 
 ## Open, and tracked elsewhere

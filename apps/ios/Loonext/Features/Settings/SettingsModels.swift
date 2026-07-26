@@ -203,4 +203,7 @@ struct AccountDeletionResult: Codable, Sendable {
     let deleted: Bool
     let workspaces_left: Int
     let personal_rows_removed: Int
+    /// #371: sent before the address itself was removed, or not sent at all.
+    /// Optional so an older server that does not send it still decodes.
+    let receipt_emailed: Bool?
 }

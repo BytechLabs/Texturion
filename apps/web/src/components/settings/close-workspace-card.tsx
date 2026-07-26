@@ -55,7 +55,16 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
         const when = result.purge_after
           ? formatAbsoluteDateTime(result.purge_after)
           : "in 30 days";
-        toast.success(`Workspace closed. Everything is erased on ${when}.`);
+        // #371: the toast is the last thing they see before being signed out,
+        // so it has to say where the details went. Only claimed when the send
+        // actually landed — pointing someone at an inbox with nothing in it is
+        // worse than saying nothing.
+        toast.success(
+          `Workspace closed. Everything is erased on ${when}.`,
+          result.receipt_emailed
+            ? { description: "We've emailed you the details and the date." }
+            : undefined,
+        );
         router.replace("/login");
       },
       onError: (cause) =>

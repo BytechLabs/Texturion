@@ -61,7 +61,13 @@ function closed(overrides: Record<string, unknown> = {}) {
 
 function world(
   options: { role?: string; close?: Record<string, unknown> } = {},
-): { sb: SupabaseStub; routes: FetchRoute[]; telnyx: string[]; stripe: string[] } {
+): {
+  sb: SupabaseStub;
+  routes: FetchRoute[];
+  telnyx: string[];
+  stripe: string[];
+  emails: { to: string[]; subject: string; text: string }[];
+} {
   const sb = supabaseStub(env);
   sb.on(
     "GET",
@@ -86,6 +92,15 @@ function world(
   sb.on("DELETE", "/rest/v1/push_subscriptions", () => new Response(null, { status: 204 }));
   sb.on("DELETE", "/rest/v1/device_push_tokens", () => new Response(null, { status: 204 }));
   sb.on("POST", "/rest/v1/audit_log", () => []);
+  // #371: the owner to mail, and the workspace row that carries the address
+  // across the 30-day window to the erasure receipt.
+  sb.on("GET", new RegExp(`^/auth/v1/admin/users/${auth.subject}$`), () => ({
+    id: auth.subject,
+    email: "owner@acme.test",
+  }));
+  sb.on("PATCH", "/rest/v1/companies", () => [
+    { name: "Acme Plumbing", purge_after: PURGE_AFTER },
+  ]);
 
   const telnyx: string[] = [];
   const stripe: string[] = [];
@@ -99,7 +114,25 @@ function world(
     stripe.push(`${request.method} ${url.pathname}`);
     return Response.json({ id: "sub_live", status: "canceled" });
   };
-  return { sb, routes: [sb.route, telnyxRoute, stripeRoute], telnyx, stripe };
+  const emails: { to: string[]; subject: string; text: string }[] = [];
+  const resendRoute: FetchRoute = async (url, request) => {
+    if (url.href !== "https://api.resend.com/emails") return undefined;
+    emails.push(
+      (await request.clone().json()) as {
+        to: string[];
+        subject: string;
+        text: string;
+      },
+    );
+    return Response.json({ id: `email_${emails.length}` });
+  };
+  return {
+    sb,
+    routes: [sb.route, telnyxRoute, stripeRoute, resendRoute],
+    telnyx,
+    stripe,
+    emails,
+  };
 }
 
 async function close(routes: FetchRoute[]) {
@@ -231,5 +264,74 @@ describe("DELETE /v1/company (#341 phase 1)", () => {
     const { routes } = world({ close: { outcome: "not_found" } });
     const res = await close(routes);
     expect(res.status).toBe(404);
+  });
+
+  describe("the receipt (#371)", () => {
+    it("emails the owner what ended now, when the erasure runs, and that it can still be undone", async () => {
+      const { sb, routes, emails } = world();
+      const res = await close(routes);
+
+      expect(await res.json()).toMatchObject({ receipt_emailed: true });
+      expect(emails).toHaveLength(1);
+      expect(emails[0].to).toEqual(["owner@acme.test"]);
+      expect(emails[0].subject).toBe("Acme Plumbing is closed");
+
+      const body = emails[0].text;
+      // The date, spelled out. "30 days" is not a date, and the whole reason
+      // this email exists is that the person has navigated away from the
+      // screen that said one.
+      expect(body).toContain("August 25, 2026");
+      expect(body).toContain("Access ended immediately");
+      expect(body).toContain("released back to the carrier");
+      expect(body).toContain("Billing is cancelled");
+      // docs/DELETION.md's "what survives" — in the email as well as on the
+      // page, because a customer who learns it later learns it from us badly.
+      expect(body).toContain("do-not-text list");
+      expect(body).toContain("three years");
+      expect(body).toContain("undo it");
+
+      // The address is written to the workspace, because 30 days from now the
+      // members table is one of the things the purge will have deleted.
+      const patch = sb.find("PATCH", "/rest/v1/companies")[0];
+      expect(patch.body).toEqual({ purge_receipt_email: "owner@acme.test" });
+
+      expect(
+        (sb.find("POST", "/rest/v1/audit_log")[0].body as { after: unknown })
+          .after,
+      ).toMatchObject({ receipt_emailed: true });
+    }, 15_000);
+
+    it("still closes the workspace when the email cannot be sent", async () => {
+      // The customer asked to leave. A deletion that reversed itself because
+      // Resend was down would be the far worse bug.
+      const { sb, routes } = world();
+      const failing = routes.map((route): FetchRoute => (url, request) =>
+        url.href === "https://api.resend.com/emails"
+          ? new Response("nope", { status: 500 })
+          : route(url, request),
+      );
+      const res = await close(failing);
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({
+        already_closed: false,
+        receipt_emailed: false,
+      });
+      // Closed regardless — and the audit row says the customer does not have
+      // it in writing, which is the bit we owe them.
+      expect(sb.find("POST", "/rest/v1/rpc/close_workspace")).toHaveLength(1);
+      expect(
+        (sb.find("POST", "/rest/v1/audit_log")[0].body as { after: unknown })
+          .after,
+      ).toMatchObject({ receipt_emailed: false });
+    }, 15_000);
+
+    it("does not re-send on a repeated close", async () => {
+      const { routes, emails } = world({
+        close: { outcome: "already", purge_after: PURGE_AFTER },
+      });
+      await close(routes);
+      expect(emails).toEqual([]);
+    });
   });
 });

@@ -32,16 +32,26 @@ interface WorldOptions {
   steps?: Record<string, unknown>[];
   attachments?: Record<string, string>[];
   storageFails?: boolean;
+  /** #371: make the erasure receipt's send fail. */
+  mailFails?: boolean;
 }
 
 function world(options: WorldOptions = {}): {
   sb: SupabaseStub;
   routes: FetchRoute[];
   removed: string[];
+  emails: { to: string[]; subject: string; text: string }[];
 } {
   const sb = supabaseStub(env);
   sb.on("GET", "/rest/v1/companies", () =>
-    options.companies ?? [{ id: COMPANY_ID, stripe_customer_id: "cus_1" }],
+    options.companies ?? [
+      {
+        id: COMPANY_ID,
+        name: "Acme Plumbing",
+        stripe_customer_id: "cus_1",
+        purge_receipt_email: "owner@acme.test",
+      },
+    ],
   );
   const steps = options.steps ?? [{ step: null, deleted: 0, done: true }];
   let index = 0;
@@ -73,9 +83,29 @@ function world(options: WorldOptions = {}): {
       ? Response.json({ deleted: true })
       : undefined;
 
+  const emails: { to: string[]; subject: string; text: string }[] = [];
+  const resendRoute: FetchRoute = async (url, request) => {
+    if (url.href !== "https://api.resend.com/emails") return undefined;
+    emails.push(
+      (await request.clone().json()) as {
+        to: string[];
+        subject: string;
+        text: string;
+      },
+    );
+    return options.mailFails
+      ? new Response(JSON.stringify({ message: "boom" }), { status: 500 })
+      : Response.json({ id: "email_1" });
+  };
+
   // Storage first: the Supabase stub claims every URL on that origin,
   // /storage included, so it must not get the first look.
-  return { sb, routes: [storageRoute, stripeRoute, sb.route], removed };
+  return {
+    sb,
+    routes: [storageRoute, stripeRoute, resendRoute, sb.route],
+    removed,
+    emails,
+  };
 }
 
 describe("purgeClosedWorkspaces", () => {
@@ -140,8 +170,8 @@ describe("purgeClosedWorkspaces", () => {
     const other = "9b1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
     const sb = supabaseStub(env);
     sb.on("GET", "/rest/v1/companies", () => [
-      { id: COMPANY_ID, stripe_customer_id: null },
-      { id: other, stripe_customer_id: null },
+      { id: COMPANY_ID, stripe_customer_id: null, purge_receipt_email: null },
+      { id: other, stripe_customer_id: null, purge_receipt_email: null },
     ]);
     sb.on("GET", "/rest/v1/message_attachments", () => []);
     sb.on("GET", "/rest/v1/attachments", () => []);
@@ -163,6 +193,75 @@ describe("purgeClosedWorkspaces", () => {
       expect.stringContaining(COMPANY_ID),
       "error",
     );
+  });
+
+  describe("the erasure receipt (#371)", () => {
+    it("emails the confirmation once the workspace is actually erased", async () => {
+      // The artefact a regulator asks for: proof the deletion was carried out,
+      // and the date it finished.
+      const { routes, emails } = world();
+      stubFetch(...routes);
+
+      const summary = await purgeClosedWorkspaces(
+        env,
+        new Date("2026-08-25T00:00:00Z"),
+      );
+
+      expect(summary).toMatchObject({ completed: 1, receiptsSent: 1 });
+      expect(emails).toHaveLength(1);
+      expect(emails[0].to).toEqual(["owner@acme.test"]);
+      expect(emails[0].subject).toBe("Your Loonext data has been erased");
+      expect(emails[0].text).toContain("Acme Plumbing");
+      expect(emails[0].text).toContain("August 25, 2026");
+      // Same two survivors as every other deletion surface.
+      expect(emails[0].text).toContain("do-not-text list");
+      expect(emails[0].text).toContain("three years");
+    });
+
+    it("reads the name and the address before the anonymise clears them", async () => {
+      // The purge deletes `company_members` on its way through, and the
+      // anonymise wipes the name and the address. Both have to be in hand
+      // before either happens, which means reading them at the top of the run.
+      const { sb, routes } = world();
+      stubFetch(...routes);
+      await purgeClosedWorkspaces(env);
+
+      const columns = sb
+        .find("GET", "/rest/v1/companies")[0]
+        .url.searchParams.get("select");
+      expect(columns).toContain("name");
+      expect(columns).toContain("purge_receipt_email");
+    });
+
+    it("does not send twice, or before the erasure has finished", async () => {
+      const { routes, emails } = world({
+        steps: [{ step: "messages", deleted: 500, done: false }],
+      });
+      stubFetch(...routes);
+
+      const summary = await purgeClosedWorkspaces(env);
+
+      // Out of budget, not out of work: tomorrow resumes, and the customer is
+      // told when it is actually done rather than when it started.
+      expect(summary).toMatchObject({ completed: 0, receiptsSent: 0 });
+      expect(emails).toEqual([]);
+    });
+
+    it("counts the erasure as complete even when the receipt cannot be sent", async () => {
+      // The data is gone. A mail failure is ours to chase — re-running the
+      // purge would not un-erase anything, and must not look like a failure.
+      const { routes, emails } = world({ mailFails: true });
+      stubFetch(...routes);
+
+      const summary = await purgeClosedWorkspaces(env);
+
+      expect(summary).toMatchObject({ completed: 1, receiptsSent: 0 });
+      expect(emails).toHaveLength(1);
+      expect(Sentry.captureMessage).toHaveBeenCalledWith(
+        expect.stringContaining("deletion receipt not sent"),
+        "error",
+      );
+    });
   });
 
   it("asks only for workspaces past their window that are not already erased", async () => {

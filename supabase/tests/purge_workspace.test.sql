@@ -178,14 +178,19 @@ end $$;
 do $$
 declare
   v_company uuid := 'a9000000-0000-4000-8000-000000000001';
-  v_name text; v_cus text; v_cnam text; v_mctb text;
+  v_name text; v_cus text; v_cnam text; v_mctb text; v_receipt text;
   v_country text; v_created timestamptz; v_purged timestamptz;
 begin
+  -- #371: the receipt address is carried across the 30-day window so the
+  -- erasure can be confirmed to a customer whose membership row is long gone.
+  update public.companies set purge_receipt_email = 'owner@purge.test'
+   where id = v_company;
+
   perform public.anonymize_purged_workspace(v_company);
 
   select name, stripe_customer_id, cnam_display_name, mctb_message,
-         country, created_at, purged_at
-    into v_name, v_cus, v_cnam, v_mctb, v_country, v_created, v_purged
+         country, created_at, purged_at, purge_receipt_email
+    into v_name, v_cus, v_cnam, v_mctb, v_country, v_created, v_purged, v_receipt
     from public.companies where id = v_company;
 
   if v_cus is not null or v_cnam is not null or v_mctb is not null then
@@ -197,6 +202,12 @@ begin
   end if;
   if v_purged is null then
     raise exception 'PW-4 FAILED: purged_at was not stamped';
+  end if;
+  -- #371: the sweep reads it before this runs. Keeping an address on a
+  -- workspace whose whole point is that it has been erased would be the
+  -- contradiction the receipt exists to avoid.
+  if v_receipt is not null then
+    raise exception 'PW-4 FAILED: the receipt address outlived the erasure';
   end if;
   -- Kept, deliberately.
   if v_country is null or v_created is null then
