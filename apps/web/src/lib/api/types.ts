@@ -1607,3 +1607,24 @@ export interface WorkspaceClosure {
   numbers_released: number;
   subscription_cancelled: boolean;
 }
+
+/**
+ * What deleting your account would touch (#346), asked before anything
+ * happens. `blocked_by: "owner"` means the workspaces below have to be handed
+ * on or closed first — there is no ownership transfer yet (#332), so the rule
+ * has to be stated rather than discovered.
+ */
+export interface AccountDeletionPreview {
+  blocked_by: "owner" | null;
+  owned_workspaces: { id: string; name: string }[];
+  memberships: number;
+  open_conversations: number;
+  open_tasks: number;
+}
+
+/** What deleting your account did (#346). */
+export interface AccountDeletionResult {
+  deleted: boolean;
+  workspaces_left: number;
+  personal_rows_removed: number;
+}
