@@ -248,13 +248,26 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       }
       seedThreadFromDetail(queryClient, companyId, detail);
       const cachedRow = findListRow(queryClient, companyId, conversationId);
-      patchConversationLists(queryClient, companyId, (list, filters) =>
-        listApplyConversation(
-          list,
-          listItemFromDetail(detail, cachedRow?.unread ?? false),
-          filters,
-        ),
-      );
+      // Unread is per-viewer and the detail response does not carry it, so it
+      // is only knowable from a row already on a loaded page. When there is no
+      // such row, inserting one meant GUESSING read, and the guess stuck: it
+      // became what the next lookup returned and what later updates carried
+      // forward. A thread that was genuinely unread appeared at the top of the
+      // inbox with no dot, while the server, the focus queue and the bell all
+      // still counted it.
+      //
+      // So patch the rows that exist and leave the list alone otherwise. The
+      // conversation is still reachable, and the next real fetch places it with
+      // its true unread state.
+      if (cachedRow) {
+        patchConversationLists(queryClient, companyId, (list, filters) =>
+          listApplyConversation(
+            list,
+            listItemFromDetail(detail, cachedRow.unread),
+            filters,
+          ),
+        );
+      }
       // #13: a pin/unpin from another client moves the thread in/out of the
       // pinned-first supplement (usePinnedConversations) — refresh it when the
       // pin state actually changed, so a teammate's pin floats live.
@@ -295,6 +308,29 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             ? threadPatchMessage(thread, event.message_id, patch)
             : thread,
       );
+      // #13: the pinned-message banner has its own query, and a message past
+      // the loaded pages has no cached thread row for the patch above to hit.
+      // Without this, a teammate pinning or unpinning something far up a long
+      // thread never reached the other viewers' banner at all: the stale copy
+      // from the pinned query simply survived.
+      //
+      // Every status broadcast carries the pin fields, so refetching on all of
+      // them would put the banner behind a request per delivery receipt. The
+      // cached list already says what the banner believes, so compare against
+      // it and only refetch when this event actually disagrees.
+      if ("pinned_at" in patch) {
+        const nowPinned = patch.pinned_at != null;
+        for (const query of queryClient.getQueryCache().findAll({
+          queryKey: [companyId, "conversations", "pinned-messages"],
+        })) {
+          const cached = query.state.data as Message[] | undefined;
+          if (!cached) continue;
+          const listed = cached.some((row) => row.id === event.message_id);
+          if (listed !== nowPinned) {
+            void queryClient.invalidateQueries({ queryKey: query.queryKey });
+          }
+        }
+      }
       // Detail responses embed a message page too — keep badges in sync.
       queryClient.setQueriesData<ConversationDetail>(
         { queryKey: [companyId, "conversations", "detail"] },
@@ -497,7 +533,6 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener("focus", maybeResync);
 
     let hadDrop = false;
-    let everSubscribed = false;
 
     // Private-topic authorization uses the Supabase session token; keep the
     // realtime connection's token fresh across refreshes (SPEC §8).
@@ -543,8 +578,15 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       }
       channel.subscribe((status) => {
         if (status === "SUBSCRIBED") {
-          if (everSubscribed && hadDrop) refetchFirstPages();
-          everSubscribed = true;
+          // Backfill whenever there WAS a gap, whether or not this channel had
+          // joined before. The old guard also required a previous successful
+          // join, which swallowed the case that needs the backfill most: a
+          // first join that FAILED and succeeded on a retry. There a gap is
+          // open from page load until the retry lands, and nothing else closes
+          // it — mounted queries stay fresh for thirty seconds and the
+          // away-tab resync never fires for someone who never left. A clean
+          // first join records no gap, so it still refetches nothing.
+          if (hadDrop) refetchFirstPages();
           hadDrop = false;
         } else if (
           status === "CHANNEL_ERROR" ||
