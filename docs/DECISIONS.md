@@ -1795,3 +1795,37 @@ date/time from the message text via Cloudflare Workers AI
   it "manual". Session-cached per (company, message) so re-opening the composer
   reuses the result instead of spending another call. Parity across
   web / iOS / Android.
+
+## D47
+
+**D47 — D32 stands: no dedicated review feature, and none is needed
+(2026-07-26, #322).** #229 proposed rebuilding the review-request flow that D32
+deleted twice by explicit owner direction ("remove the Reviews section
+completely, we don't need that"), whose schema is gone in two migrations
+(`20260704060000_drop_claim_review_request.sql`,
+`20260705010000_drop_google_review_link.sql`) and whose research framing is
+already marked "[WITHDRAWN — removed by D32, do not build]" in
+`docs/customer-gap-analysis.md` §6. Re-affirmed rather than amended, for three
+reasons:
+
+- **The original objection has strengthened, not weakened.** D32's stated
+  reason was that a dedicated one-tap ask is a SECOND send path carrying its
+  own suppression and quiet-hours plumbing for something a saved template
+  already does. Since then the pre-send gate surface has grown — carrier-truth
+  opt-out, the #226 consent ledger, #225 quiet hours, #292 recipient timezone —
+  and every automated outbound path has to satisfy all of it. A second pipeline
+  is more expensive today than it was when the decision was made, not less.
+- **The gap closes without it.** Templates plus merge fields (#274) let an
+  owner keep "Thanks for having us out — if you have a minute: <their link>" as
+  a saved reply and send it from the thread that is already open. That is one
+  tap through the ordinary compose gates, which is what D32 said the answer was.
+- **Reversing a binding owner decision is the owner's call, not ours.** The
+  research behind #229 is genuinely strong (SMS review asks outperform email,
+  and reviews matter to a local trade). If the owner wants it back, this
+  decision is the thing to amend — and the amendment should route through the
+  shared send gate rather than reintroducing a bespoke path.
+
+**Consequences.** #229 is closed as won't-do, citing this. #313 (post-job
+satisfaction) is rescoped to an INTERNAL quality signal only — no public-review
+path, no review-gating question — which is still worth building and is a
+different issue from the one that was written.

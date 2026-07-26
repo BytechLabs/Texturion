@@ -83,15 +83,24 @@ an amount → Loonext mints a payment link → sends it in-thread → webhook ma
 a truck rolls, balance on completion. No new vendor, and it's the feature most likely to make a
 $29/mo tool feel like it prints money.
 
-### 6. Get a REVIEW  [WITHDRAWN — removed by D32, do not build]
+### 6. Get a REVIEW  [WITHDRAWN — removed by D32, re-affirmed by D47, do not build]
 Reviews are existential for local trades, and SMS review requests beat email 3:1 and routinely
-*double* Google review volume. Loonext ships this only as saved-reply #6 ("a Google review goes a
-long way: {link}") — a human must paste a link and remember to send it. The gap is **automation +
-the link itself**: store the company's Google review deep-link once (free — Place ID →
-`search.google.com/local/writereview?placeid=…`, or the `g.page/r` short link; no vendor), then
-offer a one-tap "Ask for a review" that fires when a job/message is marked **done** (Loonext
-already has message-done + Task-done as the trigger). Best practice is to send ~90–120 min after
-completion — a short cron delay, not a new pipeline.
+*double* Google review volume. That research is sound and is why this section exists; it is not
+why the product should have the feature. D32 removed the dedicated review flow twice by owner
+direction, and **D47 (#322) re-affirmed it** rather than amending it: a one-tap ask is a second
+send path carrying its own opt-out, consent, quiet-hours and recipient-timezone plumbing, and
+that surface has grown since D32 was written, not shrunk.
+
+**The answer the product actually ships** is a saved reply with a merge field (#274): an owner
+keeps "Thanks for having us out — if you have a minute: <their link>" as a template and sends it
+from the thread that is already open, in one tap, through the ordinary compose gates. Read the
+paragraph below as the case a future amendment would have to answer, not as work to pick up.
+
+~~The gap is **automation + the link itself**: store the company's Google review deep-link once
+(free — Place ID → `search.google.com/local/writereview?placeid=…`, or the `g.page/r` short link;
+no vendor), then offer a one-tap "Ask for a review" that fires when a job/message is marked
+**done**. Best practice is to send ~90–120 min after completion — a short cron delay, not a new
+pipeline.~~
 
 ### 7. Coordinate the crew  [MOSTLY COVERED — small edges]
 Assignment, internal notes, /for-you queue, tasks, and the Map view already serve this well; it's
