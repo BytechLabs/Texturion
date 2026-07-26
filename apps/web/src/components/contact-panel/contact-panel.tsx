@@ -584,7 +584,7 @@ function PriorConversations({
         <li key={row.id}>
           <Link
             href={`/inbox/${row.id}`}
-            className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 transition-colors duration-150 ease-out hover:bg-secondary/60"
+            className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 transition-colors duration-150 ease-out hover:bg-app-hover"
           >
             <span className="flex items-center gap-2">
               <StatusPill status={row.status} />

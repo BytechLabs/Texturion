@@ -519,7 +519,7 @@ export function NewConversation() {
                       onClick={() => selectContact(contact)}
                       onMouseMove={() => setActiveIndex(index)}
                       className={cn(
-                        "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors duration-150 ease-out hover:bg-secondary/60",
+                        "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors duration-150 ease-out hover:bg-app-hover",
                         index === active && "bg-secondary/60",
                       )}
                     >
@@ -541,7 +541,7 @@ export function NewConversation() {
                       onClick={confirmTypedNumber}
                       onMouseMove={() => setActiveIndex(contactRows.length)}
                       className={cn(
-                        "flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-primary transition-colors duration-150 ease-out hover:bg-secondary/60",
+                        "flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-primary transition-colors duration-150 ease-out hover:bg-app-hover",
                         contactRows.length === active && "bg-secondary/60",
                       )}
                     >

@@ -250,6 +250,7 @@
   --color-app-amber-ink: var(--app-amber-ink);
   --color-app-clay: var(--app-clay);
   --color-app-slate: var(--app-slate);
+  --color-app-hover: var(--app-hover);
 
   /* Radii utilities: rounded-app-card / rounded-app-ctrl / rounded-app-bub. */
   --radius-app-card: var(--app-r-card);
@@ -510,6 +511,14 @@
      used for selected/active moments. */
   --secondary: #f3f2ee; /* --line-soft */
   --secondary-foreground: #1a2420;
+  /* The HOVER fill, deliberately separate from --secondary.
+     --secondary doubles as a resting surface (chips, segments, muted blocks),
+     so it has to sit close to paper, and at #f3f2ee on a #ffffff card it is
+     about 5% darker. Most hovers then dilute it further with /60, which halves
+     that again: hovering a row in light mode was barely perceptible. This tone
+     stays in the same warm neutral family and is used at full strength, so a
+     row plainly lights up under the pointer. */
+  --app-hover: #eae8e1;
   --muted: #f3f2ee;
   /* #61: was #79837d (3.78:1 on paper — below AA). #5d6761 measures 5.87:1 on
      white, 5.66:1 on #fbfbf9 paper, 5.24:1 on the #f3f2ee hover/chip fill —
@@ -638,6 +647,9 @@
 
   --secondary: #172019; /* raised fill on dark */
   --secondary-foreground: #e8efeb;
+  /* Dark hover lifts instead of deepening: the eye reads "raised" on a dark
+     surface the way it reads "pressed in" on a light one. */
+  --app-hover: #1f2a25;
   --muted: #172019;
   --muted-foreground: #96a29d; /* quiet on dark, ≥AA */
   --foreground-tertiary: #74807b;

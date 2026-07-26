@@ -136,7 +136,7 @@ function NotificationRow({
     <button
       type="button"
       onClick={() => onSelect(item)}
-      className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors duration-150 ease-out hover:bg-secondary/60"
+      className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors duration-150 ease-out hover:bg-app-hover"
     >
       {body}
     </button>
@@ -341,7 +341,7 @@ export function NotificationBell({
             aria-label={
               count > 0 ? `Notifications, ${count} unread` : "Notifications"
             }
-            className="relative grid size-[38px] place-items-center rounded-app-ctrl border border-app-line bg-app-white text-app-ink shadow-[0_1px_1px_rgba(20,32,30,0.03)] transition-[border-color,background,box-shadow] duration-150 ease-out hover:border-app-tint-line hover:bg-app-stone-1 hover:app-shadow-row focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="relative grid size-[38px] place-items-center rounded-app-ctrl border border-app-line bg-app-white text-app-ink shadow-[0_1px_1px_rgba(20,32,30,0.03)] transition-[border-color,background,box-shadow] duration-150 ease-out hover:border-app-tint-line hover:bg-app-hover hover:app-shadow-row focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Bell className="size-[18px]" strokeWidth={1.7} aria-hidden />
             {count > 0 && (

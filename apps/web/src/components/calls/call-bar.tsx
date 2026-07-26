@@ -106,7 +106,7 @@ function TransferMenu({
                 },
               )
             }
-            className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm text-app-ink transition-colors duration-150 hover:bg-app-stone-1 disabled:opacity-50"
+            className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm text-app-ink transition-colors duration-150 hover:bg-app-hover disabled:opacity-50"
           >
             <span className="truncate">{nameOf(target.user_id)}</span>
             {target.busy && (

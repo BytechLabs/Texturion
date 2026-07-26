@@ -116,7 +116,7 @@ function ImageAttachmentRow({
         onClick={() => setOpen(true)}
         disabled={!loaded}
         aria-label={`Open ${label}`}
-        className="flex w-full items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 text-left transition-colors duration-150 ease-out hover:bg-secondary/60 disabled:cursor-default"
+        className="flex w-full items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 text-left transition-colors duration-150 ease-out hover:bg-app-hover disabled:cursor-default"
       >
         <span className="relative size-10 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
           {!loaded && (
@@ -243,7 +243,7 @@ function FileAttachmentRow({
       rel="noopener noreferrer"
       download={attachment.file_name ?? undefined}
       aria-label={`Download ${label}`}
-      className={cn(className, "hover:bg-secondary/60")}
+      className={cn(className, "hover:bg-app-hover")}
     >
       {inner}
     </a>

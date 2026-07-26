@@ -183,7 +183,7 @@ export const ConversationRow = memo(function ConversationRow({
         "relative flex items-start gap-[11px] rounded-app-card border p-[11px] transition-[background,box-shadow,border-color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         active
           ? "border-app-line bg-app-white"
-          : "border-transparent hover:border-app-line-soft hover:bg-app-stone-1",
+          : "border-transparent hover:border-app-line-soft hover:bg-app-hover",
       )}
     >
       {/* Colored-initial avatar (stable per contact). */}

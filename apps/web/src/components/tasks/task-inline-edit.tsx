@@ -64,7 +64,7 @@ export function InlineAssignee({ task }: { task: Task }) {
     >
       <SelectTrigger
         aria-label="Assignee"
-        className="h-auto min-h-8 w-auto gap-1.5 border-none bg-transparent px-1.5 py-1 text-[13px] shadow-none hover:bg-app-stone-1 focus-visible:ring-2 focus-visible:ring-ring/50 data-[size=default]:h-auto"
+        className="h-auto min-h-8 w-auto gap-1.5 border-none bg-transparent px-1.5 py-1 text-[13px] shadow-none hover:bg-app-hover focus-visible:ring-2 focus-visible:ring-ring/50 data-[size=default]:h-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {name ? (
@@ -120,7 +120,7 @@ export function InlineDue({ task }: { task: Task }) {
           }
           onClick={(e) => e.stopPropagation()}
           className={cn(
-            "tap-target inline-flex items-center gap-1 rounded-app-ctrl px-1.5 py-1 text-[12px] tabular-nums transition-colors hover:bg-app-stone-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+            "tap-target inline-flex items-center gap-1 rounded-app-ctrl px-1.5 py-1 text-[12px] tabular-nums transition-colors hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
             task.due_at === null && "text-app-muted-2",
             overdue ? "font-medium text-warning" : "text-app-muted",
           )}

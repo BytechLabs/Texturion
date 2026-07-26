@@ -81,7 +81,7 @@ export function InlineTextField({
         // the button role already conveys the click-to-edit affordance.
         aria-label={value ? `${label}: ${value}` : `Add ${label.toLowerCase()}`}
         className={cn(
-          "w-full rounded-md px-2 py-1 text-left text-sm transition-colors duration-150 ease-out hover:bg-secondary/60",
+          "w-full rounded-md px-2 py-1 text-left text-sm transition-colors duration-150 ease-out hover:bg-app-hover",
           wrap ? "line-clamp-2 break-words" : "truncate",
           value ? "text-foreground" : "text-muted-foreground",
           className,

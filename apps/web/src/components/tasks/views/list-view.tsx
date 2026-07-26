@@ -128,7 +128,7 @@ function TaskRow({ task }: { task: Task }) {
   const { openTask } = useTaskDrawer();
   return (
     <li className="group border-b border-border-subtle">
-      <div className="flex items-center gap-3 px-3 py-3 transition-colors duration-150 ease-out hover:bg-secondary/40 md:grid md:min-w-[640px] md:grid-cols-[minmax(0,1fr)_160px_128px_96px] md:gap-4">
+      <div className="flex items-center gap-3 px-3 py-3 transition-colors duration-150 ease-out hover:bg-app-hover md:grid md:min-w-[640px] md:grid-cols-[minmax(0,1fr)_160px_128px_96px] md:gap-4">
         <div className="flex min-w-0 flex-1 items-start gap-3 md:items-center">
           <TaskDoneCheckbox task={task} className="mt-0.5 md:mt-0" />
           <div className="min-w-0 flex-1">

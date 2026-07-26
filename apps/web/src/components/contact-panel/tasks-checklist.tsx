@@ -141,7 +141,7 @@ function TaskRow({
     // in place. A keyboard user gets there via the title button below.
     <li
       onClick={() => openTask(task.id)}
-      className="flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-1.5 transition-colors duration-150 ease-out hover:bg-secondary/50"
+      className="flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-1.5 transition-colors duration-150 ease-out hover:bg-app-hover"
     >
       <span onClick={(e) => e.stopPropagation()} className="contents">
         <Checkbox

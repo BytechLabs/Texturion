@@ -253,7 +253,7 @@ export function ThreadHeader({
           onClick={onToggleContactPanel}
           aria-pressed={panelOpen}
           aria-label={`View contact details for ${name}, ${formatPhone(phone)}`}
-          className="block max-w-full truncate rounded-md px-1 text-left text-[15px] font-bold leading-tight text-app-ink transition-colors duration-150 ease-out hover:bg-app-stone-1 md:leading-normal"
+          className="block max-w-full truncate rounded-md px-1 text-left text-[15px] font-bold leading-tight text-app-ink transition-colors duration-150 ease-out hover:bg-app-hover md:leading-normal"
         >
           {name}
         </button>

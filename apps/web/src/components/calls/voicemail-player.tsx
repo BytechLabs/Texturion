@@ -68,7 +68,7 @@ export function VoicemailPlayer({
           setOpen(true);
         }
       }}
-      className="inline-flex items-center gap-1.5 rounded-full border border-app-line bg-app-white px-2.5 py-1 text-[12px] font-medium text-app-ink transition-colors duration-150 hover:bg-app-stone-1"
+      className="inline-flex items-center gap-1.5 rounded-full border border-app-line bg-app-white px-2.5 py-1 text-[12px] font-medium text-app-ink transition-colors duration-150 hover:bg-app-hover"
     >
       <Play className="size-3.5" strokeWidth={1.75} aria-hidden />
       {voicemail.isFetching

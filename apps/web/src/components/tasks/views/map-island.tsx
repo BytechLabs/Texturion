@@ -212,12 +212,20 @@ function Clusters({ tasks }: { tasks: LocatedTask[] }) {
             key={cluster.key}
             position={[cluster.lat, cluster.lng]}
             icon={clusterIcon(cluster.tasks.length)}
-            eventHandlers={{
-              click: () => map.setView([cluster.lat, cluster.lng], map.getZoom() + 2),
-            }}
           >
+            {/* Clicking a stack opens its list. It used to ALSO zoom in, and
+                the zoom re-clustered, remounted the markers and closed the
+                popup on the way: the jobs at that address could not be reached
+                at all until you had zoomed far enough for the stack to split
+                into single pins. Zooming is now a deliberate choice inside the
+                card. */}
             <Popup>
-              <ClusterPeek tasks={cluster.tasks} />
+              <ClusterPeek
+                tasks={cluster.tasks}
+                onZoom={() =>
+                  map.setView([cluster.lat, cluster.lng], map.getZoom() + 2)
+                }
+              />
             </Popup>
           </Marker>
         ),
@@ -258,7 +266,13 @@ function TaskPeek({ task }: { task: LocatedTask }) {
 }
 
 /** The cluster peek card — a short list of the tasks stacked at this point. */
-function ClusterPeek({ tasks }: { tasks: LocatedTask[] }) {
+function ClusterPeek({
+  tasks,
+  onZoom,
+}: {
+  tasks: LocatedTask[];
+  onZoom: () => void;
+}) {
   return (
     <div className="min-w-[200px] space-y-1.5">
       <p className="text-[12px] font-semibold text-foreground">
@@ -276,11 +290,26 @@ function ClusterPeek({ tasks }: { tasks: LocatedTask[] }) {
           </li>
         ))}
         {tasks.length > 6 && (
-          <li className="text-[12px] text-muted-foreground">
-            +{tasks.length - 6} more, zoom in
+          <li>
+            <button
+              type="button"
+              onClick={onZoom}
+              className="text-[12px] font-medium text-primary underline-offset-4 hover:underline"
+            >
+              +{tasks.length - 6} more, zoom in
+            </button>
           </li>
         )}
       </ul>
+      {tasks.length <= 6 && (
+        <button
+          type="button"
+          onClick={onZoom}
+          className="text-[12px] font-medium text-primary underline-offset-4 hover:underline"
+        >
+          Zoom in
+        </button>
+      )}
     </div>
   );
 }

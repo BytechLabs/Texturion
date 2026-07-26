@@ -105,7 +105,7 @@ export function AttachmentFileChip({
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`Open ${label.toLowerCase()}`}
-      className={cn(className, "hover:bg-secondary/60")}
+      className={cn(className, "hover:bg-app-hover")}
     >
       {inner}
     </a>

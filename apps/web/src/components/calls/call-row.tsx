@@ -141,7 +141,7 @@ export function CallRow({ call }: { call: Call }) {
         aria-label={`Call from ${name}, ${callOutcomeLabel(call).toLowerCase()}`}
         className={cn(
           rowClass,
-          "transition-colors duration-150 hover:bg-app-stone-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+          "transition-colors duration-150 hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         )}
       >
         {body}
