@@ -395,6 +395,20 @@ export async function handleCheckoutCompleted(
   const period = subscriptionPeriod(subscription);
   const plan = subscriptionPlan(env, subscription);
 
+  // A checkout session stays "paid" forever, so replaying an old one must not
+  // be able to resurrect a subscription Stripe has since ended. The activation
+  // claim clears `canceled_at` unconditionally, and that column IS the grace
+  // clock: nulling it drops the company out of the daily grace scan for good,
+  // so the release never runs, the customer is never warned their number is
+  // going, and the number rent plus the monthly campaign fee bill a churned
+  // tenant forever. Nothing re-stamps it either, because the subscription
+  // deleted event fires once and the daily reconcile skips canceled companies.
+  //
+  // Reachable without a webhook at all: the setting-up page polls
+  // confirm-checkout every few seconds for anyone sitting on a bookmarked
+  // ?checkout=success URL.
+  if (status === "canceled") return;
+
   const db = getDb(env);
   // §9 double-charge fail-safe: attach EXACTLY ONE live subscription per company,
   // atomically (row-locked conditional claim). Two checkout completions — a raced
