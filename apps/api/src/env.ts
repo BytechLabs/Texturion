@@ -278,6 +278,24 @@ const envSchema = z.object({
    * applies).
    */
   AI_REPLY_RATE_LIMITER: rateLimiterSchema.optional(),
+  /**
+   * The same AI spend bounded per MEMBER, keyed on company + user.
+   *
+   * The monthly caps are a COMPANY ceiling, which is right, but they let one
+   * member spend the whole crew's month: a runaway client, a stuck retry, or a
+   * stolen token could exhaust every draft and enrichment for everyone else,
+   * and the cap alert was the first anyone heard of it. OPTIONAL, like the
+   * others.
+   */
+  AI_MEMBER_RATE_LIMITER: rateLimiterSchema.optional(),
+  /**
+   * Burst limiter for voicemail transcription, keyed on company + user. It is
+   * the most expensive AI call in the product (a whole recording, a 20s
+   * timeout) and had no burst gate at all: only the monthly cap and the
+   * once-per-recording guard stood between opening voicemails in a row and the
+   * cap. OPTIONAL, like the others.
+   */
+  AI_TRANSCRIBE_RATE_LIMITER: rateLimiterSchema.optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

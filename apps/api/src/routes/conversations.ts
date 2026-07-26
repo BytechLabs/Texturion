@@ -826,6 +826,18 @@ conversationsRoutes.post(
         return c.json({ suggestions: [], reason: "rate_limited" as const });
       }
     }
+    // And per MEMBER. The monthly cap is a company ceiling, so without this one
+    // member could spend the whole crew's month on their own: a runaway client,
+    // a stuck retry, or a stolen token exhausts everyone else's drafts and the
+    // cap alert is the first anyone hears of it.
+    if (env.AI_MEMBER_RATE_LIMITER) {
+      const { success } = await env.AI_MEMBER_RATE_LIMITER.limit({
+        key: `${companyId}:${c.get("userId")}`,
+      });
+      if (!success) {
+        return c.json({ suggestions: [], reason: "rate_limited" as const });
+      }
+    }
 
     // Both reads are best effort — a draft is worth offering with less
     // context — but NOT silent. A discarded error here degrades every draft

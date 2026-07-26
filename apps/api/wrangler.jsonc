@@ -99,6 +99,32 @@
         "type": "ratelimit",
         "namespace_id": "1004",
         "simple": { "limit": 20, "period": 60 }
+      },
+      {
+        // The same AI spend, bounded per MEMBER as well as per company.
+        //
+        // The monthly caps are a company ceiling, which is right (it is the
+        // company's bill), but nothing stopped ONE member spending the whole
+        // crew's month: a runaway client, a stuck retry loop, or a stolen token
+        // could exhaust every draft and every enrichment for everyone else, and
+        // the first anyone knew was the cap alert. Keyed on company + user, and
+        // set below the company limit so a single person cannot be the entire
+        // burst. Optional in src/env.ts → dev/tests skip it.
+        "name": "AI_MEMBER_RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1005",
+        "simple": { "limit": 8, "period": 60 }
+      },
+      {
+        // Voicemail transcription had NO burst limiter at all, only the monthly
+        // cap and the once-per-recording guard. It is the most expensive AI call
+        // in the product (a whole audio file, a 20s timeout), so opening one
+        // voicemail after another walked straight at the cap with nothing in
+        // between. Keyed on company + user.
+        "name": "AI_TRANSCRIBE_RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1006",
+        "simple": { "limit": 6, "period": 60 }
       }
     ]
   },

@@ -198,7 +198,22 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) 
   // off never pays for a download it had already declined, since the opt-in used
   // to be checked only after the file had been fetched.
   const settings = await loadAiSettings(db, c.get("companyId"));
+  // Transcription is the most expensive AI call in the product (a whole
+  // recording, a 20s timeout) and had no burst gate at all: only the monthly
+  // cap and the once-per-recording guard stood between someone opening
+  // voicemail after voicemail and the cap. Bounded per member, so one person
+  // cannot walk the crew's month down on their own. Over the burst the
+  // recording still PLAYS; only the transcript waits for the next open, which
+  // is why this reads as one more condition rather than an error.
+  const withinTranscribeBurst = env.AI_TRANSCRIBE_RATE_LIMITER
+    ? (
+        await env.AI_TRANSCRIBE_RATE_LIMITER.limit({
+          key: `${c.get("companyId")}:${c.get("userId")}`,
+        })
+      ).success
+    : true;
   const willTranscribe =
+    withinTranscribeBurst &&
     call.voicemail_transcript === null &&
     call.voicemail_transcript_attempted_at === null &&
     shouldTranscribe(call.voicemail_seconds ?? 0) &&

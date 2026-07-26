@@ -552,6 +552,13 @@ tasksRoutes.post("/tasks/enrich", requireRole("member"), async (c) => {
     });
     if (!success) return c.json(EMPTY_ENRICHMENT);
   }
+  // And per MEMBER, so one member cannot spend the whole crew's month alone.
+  if (env.AI_MEMBER_RATE_LIMITER) {
+    const { success } = await env.AI_MEMBER_RATE_LIMITER.limit({
+      key: `${companyId}:${c.get("userId")}`,
+    });
+    if (!success) return c.json(EMPTY_ENRICHMENT);
+  }
 
   const messages = buildEnrichmentMessages({
     text,
