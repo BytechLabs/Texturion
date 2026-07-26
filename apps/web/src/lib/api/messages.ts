@@ -13,6 +13,8 @@ import {
   doneMutationPatch,
   pinMutationPatch,
   snippetFromMessage,
+  detailInversePatch,
+  threadInversePatch,
   threadPatchMessage,
   threadUpsertMessages,
   type ThreadData,
@@ -190,20 +192,31 @@ export function useSetMessageDone(conversationId: string) {
           detailPatchMessage(previousDetail, input.messageId, patch),
         );
       }
-      return { previousThread, previousDetail };
+      return {
+        // Undo only the fields this mutation changed. Restoring the whole
+        // snapshot also reverted anything that arrived while the request was
+        // in flight: a customer's reply appended by realtime mid-mutation was
+        // deleted from the open thread and never came back, because nothing
+        // refetches afterwards.
+        threadInverse: threadInversePatch(previousThread, input.messageId, patch),
+        detailInverse: detailInversePatch(previousDetail, input.messageId, patch),
+      };
     },
-    onError: (_error, _input, context) => {
-      // Roll back both caches to their pre-mutation snapshots.
-      if (context?.previousThread) {
-        queryClient.setQueryData(
+    onError: (_error, input, context) => {
+      if (context?.threadInverse) {
+        queryClient.setQueryData<ThreadData>(
           keys.thread(companyId, conversationId),
-          context.previousThread,
+          (thread) =>
+            thread
+              ? threadPatchMessage(thread, input.messageId, context.threadInverse!)
+              : thread,
         );
       }
-      if (context?.previousDetail) {
-        queryClient.setQueryData(
+      if (context?.detailInverse) {
+        queryClient.setQueryData<ConversationDetail>(
           keys.conversations.detail(companyId, conversationId),
-          context.previousDetail,
+          (detail) =>
+            detailPatchMessage(detail, input.messageId, context.detailInverse!),
         );
       }
     },
@@ -275,19 +288,29 @@ export function useSetMessagePinned(conversationId: string) {
           detailPatchMessage(previousDetail, input.messageId, patch),
         );
       }
-      return { previousThread, previousDetail };
+      return {
+        // Field-level undo, for the same reason as the done mutation: a
+        // whole-snapshot restore also deletes whatever realtime appended while
+        // the request was in flight.
+        threadInverse: threadInversePatch(previousThread, input.messageId, patch),
+        detailInverse: detailInversePatch(previousDetail, input.messageId, patch),
+      };
     },
-    onError: (_error, _input, context) => {
-      if (context?.previousThread) {
-        queryClient.setQueryData(
+    onError: (_error, input, context) => {
+      if (context?.threadInverse) {
+        queryClient.setQueryData<ThreadData>(
           keys.thread(companyId, conversationId),
-          context.previousThread,
+          (thread) =>
+            thread
+              ? threadPatchMessage(thread, input.messageId, context.threadInverse!)
+              : thread,
         );
       }
-      if (context?.previousDetail) {
-        queryClient.setQueryData(
+      if (context?.detailInverse) {
+        queryClient.setQueryData<ConversationDetail>(
           keys.conversations.detail(companyId, conversationId),
-          context.previousDetail,
+          (detail) =>
+            detailPatchMessage(detail, input.messageId, context.detailInverse!),
         );
       }
     },

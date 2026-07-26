@@ -267,3 +267,47 @@ export function listSetUnread(
 ): ConversationListData {
   return listPatchConversation(list, conversationId, { unread });
 }
+
+/**
+ * The fields a patch touched, as they stand in the cache right now.
+ *
+ * This is what an optimistic mutation needs to undo itself. Rolling back by
+ * restoring a whole-thread snapshot also reverted anything that arrived while
+ * the request was in flight, so a customer's reply that landed over realtime
+ * mid-mutation was deleted from an open thread and did not come back.
+ *
+ * Returns null when the message is not cached, which is also the right answer:
+ * there is nothing to put back.
+ */
+export function threadInversePatch(
+  thread: ThreadData | undefined,
+  messageId: string,
+  patch: Partial<Message>,
+): Partial<Message> | null {
+  if (!thread) return null;
+  for (const page of thread.pages) {
+    const current = page.data.find((message) => message.id === messageId);
+    if (!current) continue;
+    const inverse: Record<string, unknown> = {};
+    for (const key of Object.keys(patch)) {
+      inverse[key] = (current as unknown as Record<string, unknown>)[key];
+    }
+    return inverse as Partial<Message>;
+  }
+  return null;
+}
+
+/** The same, for the conversation-detail projection's embedded first page. */
+export function detailInversePatch(
+  detail: ConversationDetail | undefined,
+  messageId: string,
+  patch: Partial<Message>,
+): Partial<Message> | null {
+  const current = detail?.messages.data.find((message) => message.id === messageId);
+  if (!current) return null;
+  const inverse: Record<string, unknown> = {};
+  for (const key of Object.keys(patch)) {
+    inverse[key] = (current as unknown as Record<string, unknown>)[key];
+  }
+  return inverse as Partial<Message>;
+}

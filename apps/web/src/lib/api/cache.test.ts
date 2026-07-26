@@ -8,6 +8,7 @@ import {
   pinMutationPatch,
   snippetFromMessage,
   threadApplyStatus,
+  threadInversePatch,
   threadPatchMessage,
   threadUpsertMessages,
   type ConversationListData,
@@ -205,6 +206,38 @@ describe("threadPatchMessage / threadApplyStatus", () => {
     expect(threadPatchMessage(existing, "missing", { status: "sent" })).toBe(
       existing,
     );
+  });
+});
+
+describe("threadInversePatch", () => {
+  it("undoes only the fields the mutation touched, keeping messages that arrived meanwhile", () => {
+    // The bug this replaces: an optimistic done/pin rolled back by restoring
+    // the whole thread snapshot, which also deleted a customer's reply that
+    // realtime had appended while the request was in flight. Nothing refetches
+    // afterwards, so the message was gone from the open thread for good.
+    const before = thread([[message("m1", T1)]]);
+    const patch = { done_at: "2026-07-26T10:00:00Z", done_by_user_id: "u1" };
+    const inverse = threadInversePatch(before, "m1", patch);
+    expect(inverse).toEqual({ done_at: null, done_by_user_id: null });
+
+    // Realtime appends a reply, THEN the mutation fails.
+    const withReply = threadUpsertMessages(
+      threadPatchMessage(before, "m1", patch),
+      [message("m2", T2)],
+    );
+    const rolledBack = threadPatchMessage(withReply!, "m1", inverse!);
+
+    const ids = rolledBack.pages.flatMap((page) => page.data.map((m) => m.id));
+    expect(ids).toContain("m2");
+    const restored = rolledBack.pages
+      .flatMap((page) => page.data)
+      .find((m) => m.id === "m1");
+    expect(restored?.done_at).toBeNull();
+  });
+
+  it("has nothing to put back when the message is not cached", () => {
+    expect(threadInversePatch(thread([[message("m1", T1)]]), "gone", { status: "sent" })).toBeNull();
+    expect(threadInversePatch(undefined, "m1", { status: "sent" })).toBeNull();
   });
 });
 
