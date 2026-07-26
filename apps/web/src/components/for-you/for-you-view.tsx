@@ -104,7 +104,7 @@ function Card({
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 border-b border-app-line-soft px-4 py-3 transition-colors duration-150 ease-out last:border-b-0 hover:bg-app-line-soft"
+      className="flex items-center gap-3 border-b border-app-line-soft px-4 py-3 transition-colors duration-150 ease-out last:border-b-0 hover:bg-app-hover"
     >
       {children}
       <ArrowRight
@@ -193,7 +193,7 @@ function TaskRow({ task }: { task: ForYouTask }) {
   return (
     <div
       className={cn(
-        "flex items-center gap-3 border-b border-app-line-soft px-4 py-3 last:border-b-0",
+        "flex items-center gap-3 border-b border-app-line-soft px-4 py-3 transition-colors duration-150 ease-out last:border-b-0 hover:bg-app-hover",
         leaving && "app-motion-row-leave",
       )}
     >
@@ -365,7 +365,7 @@ function RecentCallsSection() {
       ))}
       <Link
         href="/calls"
-        className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-[12.5px] font-medium text-app-muted transition-colors duration-150 ease-out hover:bg-app-line-soft hover:text-app-ink"
+        className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-[12.5px] font-medium text-app-muted transition-colors duration-150 ease-out hover:bg-app-hover hover:text-app-ink"
       >
         View all calls
         <ArrowRight className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
@@ -489,7 +489,7 @@ export function ForYouView() {
             onClick={openCommand}
             aria-label="Search"
             aria-keyshortcuts="Meta+K Control+K"
-            className="grid size-8 place-items-center rounded-[9px] border border-app-line bg-app-white text-app-muted transition-colors hover:bg-app-line-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="grid size-8 place-items-center rounded-[9px] border border-app-line bg-app-white text-app-muted transition-colors hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Search className="size-[15px]" strokeWidth={1.9} aria-hidden />
           </button>
