@@ -88,6 +88,18 @@ export function GettingStartedCard() {
 
   const items: StepItem[] = [
     {
+      // The work already done, credited. This card only renders AFTER payment,
+      // so choosing a plan is a real finished step, not padding: the reader
+      // picked a plan and paid before ever seeing this. Starting a setup list
+      // at zero for someone who has already done something reads as "none of
+      // that counted", and the two steps below it are not even theirs to act
+      // on — a number provisions itself, and the first text arrives when a
+      // customer decides to send one.
+      key: "signup",
+      done: true,
+      label: "Set your workspace up",
+    },
+    {
       key: "number",
       done: numberDone,
       label: "Get your business number",
@@ -134,6 +146,7 @@ export function GettingStartedCard() {
   }
 
   const doneCount = items.filter((i) => i.done).length;
+  const pct = Math.round((doneCount / items.length) * 100);
 
   return (
     <section
@@ -155,6 +168,18 @@ export function GettingStartedCard() {
         >
           <X className="size-4" strokeWidth={1.75} aria-hidden />
         </Button>
+      </div>
+      {/* Progress you can see, not only count. The bar is the momentum; the
+          numbers above are the detail. */}
+      <div
+        className="mt-3 h-1 w-full overflow-hidden rounded-full bg-app-line-soft"
+        role="img"
+        aria-label={`${doneCount} of ${items.length} setup steps done`}
+      >
+        <div
+          className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
+          style={{ width: `${pct}%` }}
+        />
       </div>
       <ul className="mt-3 space-y-2.5">
         {items.map((item) => (
