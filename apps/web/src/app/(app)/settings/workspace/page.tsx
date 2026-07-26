@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { CloseWorkspaceCard } from "@/components/settings/close-workspace-card";
+import { ExportDataCard } from "@/components/settings/export-data-card";
 import { TimezoneSelect } from "@/components/settings/timezone-select";
 import {
   LoadError,
@@ -339,6 +340,9 @@ export default function WorkspaceSettingsPage() {
           <CompanyNameCard company={company.data} />
           <BusinessIdentityCard company={company.data} />
           <TimezoneCard company={company.data} />
+          {/* #227: above the close card on purpose — taking a copy of your
+              data is the thing you want BEFORE destroying it. */}
+          {(role === "owner" || role === "admin") && <ExportDataCard />}
           {/* #341: last, and only for the owner — ending the account is not an
               everyday setting and should not sit among them. */}
           {role === "owner" && <CloseWorkspaceCard company={company.data} />}

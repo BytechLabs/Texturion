@@ -1628,3 +1628,20 @@ export interface AccountDeletionResult {
   workspaces_left: number;
   personal_rows_removed: number;
 }
+
+/**
+ * One data export (#227). Built on a cron rather than in the request, so a
+ * workspace with tens of thousands of messages can still have one.
+ */
+export interface DataExport {
+  id: string;
+  status: "pending" | "running" | "ready" | "failed";
+  /** Rows written per table — the receipt that it is whole, not truncated. */
+  row_counts: Record<string, number>;
+  error: string | null;
+  requested_at: string;
+  completed_at: string | null;
+  expires_at: string | null;
+  /** Signed links, minted at read time. Empty unless ready and unexpired. */
+  files: { name: string; url: string }[];
+}

@@ -53,44 +53,58 @@ const EXPORT_TABLES = [
   {
     table: "contacts",
     columns:
-      "id,phone_e164,name,email,address,notes,opted_out,created_at,updated_at",
+      "id,phone_e164,name,address,notes,consent_source,consent_at,created_at,updated_at",
+    liveOnly: true,
   },
   {
     table: "conversations",
     columns:
       "id,contact_id,phone_number_id,assigned_user_id,status,is_spam,last_message_at,closed_at,created_at",
+    liveOnly: false,
   },
   {
     table: "messages",
     columns:
       "id,conversation_id,direction,body,status,sent_by_user_id,done_at,created_at",
+    liveOnly: false,
   },
   {
     table: "tasks",
     columns:
-      "id,conversation_id,message_id,title,description,assigned_user_id,due_at,address,created_at,updated_at",
+      "id,conversation_id,message_id,title,description,assigned_user_id,due_at," +
+      "addr_street,addr_unit,addr_city,addr_state,addr_postal_code,addr_country," +
+      "created_at,updated_at",
+    liveOnly: true,
   },
   {
     table: "calls",
     columns:
-      "id,conversation_id,caller_e164,outcome,answered_by_user_id,voicemail_seconds,voicemail_transcript,started_at",
+      "id,conversation_id,caller_e164,direction,outcome,answered_by_user_id," +
+      "voicemail_seconds,voicemail_transcript,started_at,ended_at",
+    liveOnly: false,
   },
-  { table: "templates", columns: "id,title,body,created_at,updated_at" },
-  { table: "tags", columns: "id,name,color,created_at" },
+  {
+    table: "templates",
+    columns: "id,name,body,created_at,updated_at",
+    liveOnly: false,
+  },
+  { table: "tags", columns: "id,name,color,created_at", liveOnly: false },
   {
     table: "opt_outs",
     columns: "id,phone_e164,source,created_at,revoked_at",
+    liveOnly: false,
   },
   // The attachments manifest: what exists and where, not the bytes.
   {
     table: "attachments",
     columns:
       "id,conversation_id,owner_type,owner_id,file_name,content_type,size_bytes,storage_path,created_at",
+    liveOnly: true,
   },
   {
     table: "message_attachments",
-    columns:
-      "id,message_id,content_type,size_bytes,storage_path,created_at",
+    columns: "id,message_id,content_type,size_bytes,storage_path,created_at",
+    liveOnly: false,
   },
 ] as const;
 
@@ -180,10 +194,15 @@ async function buildOne(
     let written = 0;
     let page = 0;
     for (;;) {
-      const { data, error } = await db
+      // Soft-deleted rows stay out: the customer deleted them, and an export
+      // that hands them back is not a copy of their workspace, it is a copy of
+      // things they thought were gone.
+      let query = db
         .from(spec.table)
         .select(spec.columns)
-        .eq("company_id", row.company_id)
+        .eq("company_id", row.company_id);
+      if (spec.liveOnly) query = query.is("deleted_at", null);
+      const { data, error } = await query
         .order("id", { ascending: true })
         .range(page * PAGE, page * PAGE + PAGE - 1);
       if (error) {
