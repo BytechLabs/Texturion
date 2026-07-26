@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import com.loonext.android.core.model.AlertPause
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -135,6 +136,9 @@ fun NotificationsScreen(
         graph.storeCache.flowOf<Int>(CacheKeys.unreadNotifications(companyId))
     }
     val unreadCount = unreadFlow.collectAsState().value ?: 0
+    // #343: whether the workspace's daily notification allowance is spent. It
+    // rides the badge poll below, so it costs nothing extra.
+    var alertPause by remember(companyId) { mutableStateOf<AlertPause?>(null) }
     val feed = feedFlow.collectAsState().value
     val items = feed?.data.orEmpty()
     val nextCursor = feed?.next_cursor
@@ -157,7 +161,10 @@ fun NotificationsScreen(
     // old feed effect carried); ignored while a mark POST is in flight.
     LaunchedEffect(companyId, refreshKey) {
         runCatching { repo.unreadCount(companyId) }
-            .onSuccess { readState.offerServerCount(unreadFlow, it.count) }
+            .onSuccess {
+                readState.offerServerCount(unreadFlow, it.count)
+                alertPause = it.alert_pause
+            }
     }
 
     // The feed is derived from messages/conversations/tasks/calls — any of
@@ -403,6 +410,11 @@ fun NotificationsScreen(
                         }
                     }
 
+                    // #343: before the list AND before the caught-up state —
+                    // "all caught up" is the exact wrong thing to read when
+                    // alerts have been switched off underneath you.
+                    NotificationPauseNotice(alertPause)
+
                     if (items.isEmpty()) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text(
@@ -626,4 +638,53 @@ private fun iconFor(type: String): ImageVector = when (type) {
     NotificationType.MISSED_CALL -> Icons.Outlined.PhoneMissed
     NotificationType.MENTION -> Icons.Outlined.AlternateEmail
     else -> Icons.Outlined.Notifications
+}
+
+/**
+ * #343 — "your notifications are paused", said to the crew rather than only to
+ * the owner.
+ *
+ * At the workspace's daily ceiling, alerts stop reaching every member while an
+ * email goes to the owner alone. A tech's phone simply goes quiet, and the
+ * reasonable inference from that side is that the business had a slow
+ * afternoon. Same failure shape as a spam thread absorbing messages (#342) and
+ * a queue count that stopped at the page size (#306).
+ *
+ * Renders nothing on almost every day. A notice, not an alarm — it never
+ * carries a badge of its own, because a workspace at its ceiling is already
+ * getting fewer notifications and does not need another one about it.
+ */
+@Composable
+private fun NotificationPauseNotice(pause: AlertPause?) {
+    if (pause == null || !pause.anyPaused) return
+
+    val what = when {
+        pause.email_paused && pause.push_paused -> "Notifications are paused"
+        pause.email_paused -> "Email alerts are paused"
+        else -> "Push alerts are paused"
+    }
+    // When only one channel is spent, saying which is the difference between
+    // "we are broken" and "you are still covered".
+    val still = if (pause.email_paused && !pause.push_paused) {
+        " You're still getting push."
+    } else {
+        ""
+    }
+    val resumes = pause.resets_at?.let { " They resume ${relativeTime(it)}." } ?: ""
+
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.errorContainer,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+    ) {
+        Text(
+            "$what for today — this workspace hit its daily limit.$still$resumes " +
+                "Your messages are all still here.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+        )
+    }
 }

@@ -20,6 +20,9 @@ final class NotificationsFeedModel {
 
     private(set) var state: LoadState<Void> = .loading
     private(set) var items: [NotificationItem] = []
+    /// #343: whether the workspace's daily notification allowance is spent. It
+    /// rides the badge poll, so it costs no extra request.
+    private(set) var alertPause: AlertPause?
     private(set) var nextCursor: String?
     private(set) var loadingMore = false
     /// Transient bottom notice (the Android snackbar equivalent).
@@ -71,10 +74,11 @@ final class NotificationsFeedModel {
     /// server count while a mark POST is in flight (it would resurrect the
     /// pre-mark badge).
     func pollUnread() async {
-        guard let count = (try? await api.unreadCount(companyId: companyId))?.count else {
+        guard let unread = try? await api.unreadCount(companyId: companyId) else {
             return
         }
-        readState.offerServerCount(count)
+        alertPause = unread.alert_pause
+        readState.offerServerCount(unread.count)
     }
 
     func markItemRead(_ item: NotificationItem) {

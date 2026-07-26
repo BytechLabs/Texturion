@@ -102,6 +102,11 @@ struct NotificationsView: View {
             .padding(.top, 16)
             .padding(.bottom, 12)
 
+            // #343: before the list AND before the caught-up line — "all
+            // caught up" is the exact wrong thing to read when alerts have
+            // been switched off underneath you.
+            NotificationPauseNotice(pause: model.alertPause)
+
             if model.items.isEmpty {
                 Text("You're all caught up.")
                     .font(.golos(13))
@@ -294,4 +299,53 @@ private func iconFor(_ type: String) -> String {
         )
     }
     .listStyle(.plain)
+}
+
+/// #343 — "your notifications are paused", said to the crew rather than only to
+/// the owner.
+///
+/// At the workspace's daily ceiling, alerts stop reaching every member while an
+/// email goes to the owner alone. A tech's phone simply goes quiet, and the
+/// reasonable inference from that side is that the business had a slow
+/// afternoon. Same failure shape as a spam thread absorbing messages (#342) and
+/// a queue count that stopped at the page size (#306).
+///
+/// Renders nothing on almost every day. A notice, not an alarm.
+private struct NotificationPauseNotice: View {
+    let pause: AlertPause?
+
+    private var headline: String {
+        guard let pause else { return "" }
+        if pause.email_paused && pause.push_paused { return "Notifications are paused" }
+        return pause.email_paused ? "Email alerts are paused" : "Push alerts are paused"
+    }
+
+    /// When only one channel is spent, saying which is the difference between
+    /// "we are broken" and "you are still covered".
+    private var stillCovered: String {
+        guard let pause, pause.email_paused, !pause.push_paused else { return "" }
+        return " You're still getting push."
+    }
+
+    private var resumes: String {
+        guard let at = pause?.resets_at else { return "" }
+        return " They resume \(relativeTime(at))."
+    }
+
+    var body: some View {
+        if let pause, pause.anyPaused {
+            Text(
+                "\(headline) for today — this workspace hit its daily limit."
+                    + "\(stillCovered)\(resumes) Your messages are all still here."
+            )
+            .font(.golos(11.5))
+            .foregroundStyle(BrandColor.coral)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(BrandColor.cream, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.horizontal, 18)
+            .padding(.bottom, 10)
+        }
+    }
 }
