@@ -72,6 +72,47 @@ export function emptyThread(): ThreadData {
  * into page 1, which is then re-sorted on (created_at, id) DESC. Used for
  * send results, note creation, and `message.created` refetches.
  */
+/**
+ * How far along an outbound message is. A send only ever moves FORWARD:
+ * queued (accepted by us) → sent (Telnyx took it) → delivered/failed (final).
+ *
+ * `received` is the inbound resting state and shares the floor, since an
+ * inbound message never transitions.
+ */
+const STATUS_RANK: Record<string, number> = {
+  received: 0,
+  queued: 0,
+  sent: 1,
+  delivered: 2,
+  failed: 2,
+};
+
+/**
+ * Keep whichever status is further along.
+ *
+ * The status broadcast and a page refetch race constantly, because the send
+ * inserts the queued row and bumps the conversation in ONE transaction, before
+ * Telnyx is even called: the refetch that bump triggers reads the row while it
+ * still says queued, and lands AFTER the broadcast that says sent. Replacing
+ * the cached row wholesale then walked the bubble backwards to "Sending…" and
+ * left it there, because nothing refetches again and the broadcast does not
+ * replay. The message had in fact been sent.
+ */
+function mergeMessage(existing: Message, incoming: Message): Message {
+  const existingRank = STATUS_RANK[existing.status ?? ""] ?? 0;
+  const incomingRank = STATUS_RANK[incoming.status ?? ""] ?? 0;
+  if (existing.status === null || incoming.status === null) return incoming;
+  if (incomingRank >= existingRank) return incoming;
+  // The incoming row is otherwise newer (it may carry attachments or edits the
+  // broadcast never had), so take it and keep only the status it is behind on.
+  return {
+    ...incoming,
+    status: existing.status,
+    error_code: existing.error_code,
+    error_detail: existing.error_detail,
+  };
+}
+
 export function threadUpsertMessages(
   thread: ThreadData | undefined,
   incoming: readonly Message[],
@@ -86,9 +127,11 @@ export function threadUpsertMessages(
   const pages = base.pages.map((page) => {
     let pageChanged = false;
     const data = page.data.map((existing) => {
-      const replacement = byId.get(existing.id);
-      if (!replacement) return existing;
+      const incoming = byId.get(existing.id);
+      if (!incoming) return existing;
       inserted.add(existing.id);
+      if (existing === incoming) return existing;
+      const replacement = mergeMessage(existing, incoming);
       if (existing === replacement) return existing;
       pageChanged = true;
       return replacement;
