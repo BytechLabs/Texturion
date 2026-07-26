@@ -392,6 +392,35 @@ begin
 end $$;
 
 -- ===========================================================================
+-- M9b. [#331] A 'carrier' opt-out gates a send exactly like a keyword one.
+--      The source records HOW we learned (Telnyx refused with 40300, or the
+--      nightly reconciliation found it on their list and not ours) — it must
+--      never change WHETHER the send is blocked. A gate that only recognised
+--      the sources it had seen before would let every carrier-sourced opt-out
+--      through and wait for Telnyx to refuse each one individually.
+-- ===========================================================================
+do $$
+declare
+  res jsonb;
+begin
+  insert into public.opt_outs (company_id, phone_e164, source)
+  values ('20000000-0000-4000-8000-000000000001', '+16135551009', 'carrier');
+
+  res := public.thread_inbound_message(
+    '20000000-0000-4000-8000-000000000001',
+    '30000000-0000-4000-8000-000000000001',
+    '+16135551009', 'hello?', 'tx-m9b-1');
+  if not (res->>'opted_out')::boolean then
+    raise exception 'M9b FAILED: a carrier-sourced opt-out was not reported';
+  end if;
+  if not (res->>'created')::boolean then
+    raise exception 'M9b FAILED: inbound blocked by opt-out (must always store)';
+  end if;
+
+  raise notice 'M9b PASSED: a carrier-sourced opt-out gates like any other';
+end $$;
+
+-- ===========================================================================
 -- Gate fixtures: a contact + open conversation per gate company.
 -- ===========================================================================
 insert into public.contacts (id, company_id, phone_e164)

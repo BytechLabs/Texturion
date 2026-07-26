@@ -17,19 +17,52 @@ import type { Env } from "../env";
 import { TELNYX_TIMEOUT_MS } from "../telnyx/client";
 import { ApiError } from "../http/errors";
 import { getSendGates } from "../telnyx/registration";
+import { recordCarrierOptOut, TELNYX_OPT_OUT_ERROR_CODE } from "./opt-out";
 import type { GateResult, MessageRow } from "./types";
+
+/**
+ * #331 — proof that {@link runPreSendGates} ran, and for WHICH number.
+ *
+ * The gate was already structural in the sense that every send path calls it.
+ * What it was not is ENFORCED: a new outbound path — send later (#233),
+ * reminders (#237), ratings (#313), the public API (#243) — is written later,
+ * by someone who has not read the comment below, and nothing would have
+ * stopped it reaching Telnyx ungated. A comment is not a guarantee.
+ *
+ * So the clearance is a value only this module can mint, and
+ * {@link dispatchOutbound} demands one. A path that skips the gate has nothing
+ * to pass and does not compile. That converts "every current path remembers"
+ * into "no future path can forget", which is the property the issue asks for
+ * and the only version of it that survives people.
+ *
+ * It carries the destination as well, which closes a subtler hole the earlier
+ * shape allowed: gating number A and then sending to number B — a mis-threaded
+ * retry, a conversation whose contact changed underneath — passed every check
+ * and texted somebody who had opted out. Now the numbers have to match.
+ */
+declare const clearanceBrand: unique symbol;
+
+export interface SendClearance {
+  /** The E.164 destination the gates were actually run for. */
+  readonly destinationE164: string;
+  readonly [clearanceBrand]: true;
+}
 
 /**
  * SPEC §7 gate order, steps 2–4 (membership is the /v1 middleware):
  * subscription `active` (402) → destination is a US/CA NANP area code (422;
  * §10 layer 2 — `+1` alone is never enough) → per-destination registration
  * gate (403 `registration_pending`). Throws the matching ApiError.
+ *
+ * Returns the {@link SendClearance} `dispatchOutbound` requires. Discarding it
+ * is allowed — several callers gate a send they then hand to a queue — but
+ * nothing can dispatch without one.
  */
 export async function runPreSendGates(
   env: Env,
   companyId: string,
   destinationE164: string,
-): Promise<void> {
+): Promise<SendClearance> {
   const gates = await getSendGates(env, companyId);
   if (!gates.subscriptionActive) {
     throw new ApiError(
@@ -80,6 +113,9 @@ export async function runPreSendGates(
       "This recipient has opted out of receiving texts.",
     );
   }
+
+  // Past every gate: this destination is cleared, and only this line says so.
+  return { destinationE164 } as SendClearance;
 }
 
 /**
@@ -415,8 +451,28 @@ export async function dispatchOutbound(
   env: Env,
   db: SupabaseClient,
   message: MessageRow,
-  args: { from: string; to: string; text: string; mediaUrls: string[] },
+  args: {
+    from: string;
+    to: string;
+    text: string;
+    mediaUrls: string[];
+    /**
+     * #331: proof the shared gate ran for THIS destination. Only
+     * {@link runPreSendGates} can produce one, so an outbound path that skips
+     * the gate does not compile.
+     */
+    clearance: SendClearance;
+  },
 ): Promise<MessageRow> {
+  if (args.clearance.destinationE164 !== args.to) {
+    // Cleared one number, sending to another. Not reachable through any
+    // current path — which is the point of checking: the compiler proves a
+    // clearance exists, only this can prove it is the right one.
+    throw new Error(
+      `send clearance is for a different destination than ${args.to}`,
+    );
+  }
+
   if (env.SEND_RATE_LIMITER) {
     const { success } = await env.SEND_RATE_LIMITER.limit({
       key: message.company_id,
@@ -448,6 +504,22 @@ export async function dispatchOutbound(
         error_detail: result.errorDetail.slice(0, 2000),
       };
   const row = await persistMessagePatch(db, message, patch);
+
+  // #331: a 40300 is not just a failed message, it is the carrier telling us
+  // this person opted out and we did not know. Treating it only as a failure
+  // meant the composer stayed open, the crew retried, and every attempt was
+  // refused the same way — with nothing anywhere saying why. Recording it
+  // closes the gate for the next send.
+  if (!result.ok && result.errorCode === TELNYX_OPT_OUT_ERROR_CODE) {
+    await recordCarrierOptOut(db, {
+      companyId: message.company_id,
+      phoneE164: args.to,
+      signal: "send_rejected",
+      conversationId: message.conversation_id,
+      detail: result.errorDetail,
+    });
+  }
+
   if (result.ok) {
     // §12 step 18: after the accepted send is durably recorded (instant
     // no-op when analytics is off).

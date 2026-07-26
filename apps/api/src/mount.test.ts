@@ -12,6 +12,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { runGraceJob } from "./billing/grace";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
+import { reconcileOptOuts } from "./messaging/opt-out-reconcile";
 import { runOverageWarningJob } from "./billing/overage-warning";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
 import { sweepDeletedAttachments } from "./attachments/sweep";
@@ -423,6 +424,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
         "10 13 * * *", // port reconcile & resume (PORTING.md §5.2)
         "0 14 * * *", // grace & release
         "0 15 * * *", // subscription reconcile
+        "45 15 * * *", // opt-out reconciliation against the carrier (#331)
         "30 15 * * *", // webhook_events ledger retention
       ].sort(),
     );
@@ -456,6 +458,8 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     expect(CRON_JOBS["10 13 * * *"]).toEqual([pollPortRequests]);
     expect(CRON_JOBS["0 14 * * *"]).toEqual([runGraceJob]);
     expect(CRON_JOBS["0 15 * * *"]).toEqual([runSubscriptionReconcileJob]);
+    // #331: our opt-out list against the carrier's.
+    expect(CRON_JOBS["45 15 * * *"]).toEqual([reconcileOptOuts]);
     // Both ledger retentions ride the same daily slot (#231).
     expect(CRON_JOBS["30 15 * * *"]).toEqual([
       pruneWebhookEvents,

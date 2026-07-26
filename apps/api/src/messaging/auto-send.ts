@@ -24,7 +24,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env";
 import { ApiError } from "../http/errors";
 import { isCarrierKeyword } from "./keywords";
-import { dispatchOutbound } from "./send";
+import { dispatchOutbound, type SendClearance } from "./send";
 import type { MessageRow } from "./types";
 
 /** Default throttle: one auto-reply per conversation per 3 hours. */
@@ -68,6 +68,14 @@ export async function guardedAutoSend(
     body: string;
     triggerBody: string;
     throttleSeconds?: number;
+    /**
+     * #331: the caller's proof that the shared pre-send gates ran for `to`.
+     * Threaded rather than re-derived here because the gates are per
+     * destination and this function does not know how the destination was
+     * chosen — the caller does, and the caller is the one that must have
+     * asked.
+     */
+    clearance: SendClearance;
   },
 ): Promise<AutoSendOutcome> {
   // (b) Never fire on a STOP/HELP/START keyword (Telnyx handles those, D3).
@@ -103,6 +111,7 @@ export async function guardedAutoSend(
       to: args.to,
       text: args.body,
       mediaUrls: [],
+      clearance: args.clearance,
     });
   } catch (cause) {
     // The §10 layer-3 per-company rate limiter denied the dispatch AFTER the

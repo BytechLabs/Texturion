@@ -1,7 +1,9 @@
 import { lookupAreaCode } from "@loonext/shared";
 
+import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 import type {
   CompanyView,
+  OptOutSource,
   SubscriptionStatus,
   Usage,
 } from "@/lib/api/types";
@@ -43,7 +45,7 @@ export interface ComposerGateInput {
   /** GET /v1/contacts/:id `opted_out`. */
   contactOptedOut: boolean;
   /** GET /v1/contacts/:id `opt_out_source` — null when not opted out. */
-  contactOptOutSource: "stop_keyword" | "manual" | null;
+  contactOptOutSource: OptOutSource | null;
   /** companies.subscription_status. */
   subscriptionStatus: SubscriptionStatus;
   /** Destination country from the NANP table; null = unknown yet. */
@@ -60,7 +62,9 @@ export function selectComposerBanner(input: ComposerGateInput): ComposerBanner {
   if (input.contactOptedOut) {
     return {
       kind: "opted_out",
-      carrierBlocked: input.contactOptOutSource === "stop_keyword",
+      // #331: two sources are carrier blocks, not one. Asking the predicate
+      // rather than naming a literal is what keeps a third from being missed.
+      carrierBlocked: isCarrierEnforcedOptOut(input.contactOptOutSource),
     };
   }
   if (input.subscriptionStatus !== "active") {

@@ -11,7 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.loonext.android.core.model.OPT_OUT_SOURCE_STOP
+import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.SubscriptionStatus
 import com.loonext.android.core.model.Usage
@@ -61,7 +61,7 @@ fun selectComposerBanner(
     usage: Usage?,
 ): ComposerBanner? {
     if (contactOptedOut) {
-        return ComposerBanner.OptedOut(contactOptOutSource == OPT_OUT_SOURCE_STOP)
+        return ComposerBanner.OptedOut(isCarrierEnforcedOptOut(contactOptOutSource))
     }
     if (subscriptionStatus != SubscriptionStatus.ACTIVE) {
         return ComposerBanner.Subscription(subscriptionStatus)

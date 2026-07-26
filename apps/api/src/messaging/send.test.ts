@@ -27,7 +27,7 @@ import {
   stubRoute,
   type Stub,
 } from "../test/messaging-support";
-import { completeEnv, stubFetch } from "../test/support";
+import { clearedFor, completeEnv, stubFetch } from "../test/support";
 
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
 const MESSAGE_ID = "aaaaaaaa-0000-4000-8000-00000000000a";
@@ -38,6 +38,10 @@ const SEND_ARGS = {
   to: "+16135551000",
   text: "On our way!",
   mediaUrls: [] as string[],
+  // #331: the dispatch tail cannot be called without proof the shared gate
+  // ran. These tests exercise the tail directly, so they mint one through the
+  // single test-only door.
+  clearance: clearedFor("+16135551000"),
 };
 
 /** A fake Workers ratelimit binding recording its keys. */
@@ -391,5 +395,153 @@ describe("persistSendInterruption (#20)", () => {
     // the fail-stuck sweeper cron is the durable backstop.
     await persistSendInterruption(getDb(env), message(), "upload died");
     expect(consoleError).toHaveBeenCalled();
+  });
+});
+
+describe("dispatchOutbound — a 40300 is the carrier telling us they opted out (#331)", () => {
+  const isTelnyxSend = (url: URL, request: Request) =>
+    request.method === "POST" &&
+    url.href === "https://api.telnyx.com/v2/messages";
+
+  const refuseAsOptedOut = () =>
+    Response.json(
+      {
+        errors: [
+          {
+            code: "40300",
+            title: "Destination opted out",
+            detail: "The destination number has opted out of messages.",
+          },
+        ],
+      },
+      { status: 400 },
+    );
+
+  function optOutStubs(options: { alreadyOptedOut?: boolean } = {}) {
+    const env = completeEnv();
+    const telnyx = stubRoute(isTelnyxSend, refuseAsOptedOut);
+    const persist = stubRoute(restMatch(env, "PATCH", "messages"), (call) => [
+      messageRow({
+        id: MESSAGE_ID,
+        company_id: COMPANY_ID,
+        ...(call.body as Record<string, unknown>),
+      }),
+    ]);
+    // The revive-a-revoked-row leg. Empty unless the number was previously
+    // opted out and revoked.
+    const revive = stubRoute(restMatch(env, "PATCH", "opt_outs"), () => []);
+    const upsert = stubRoute(restMatch(env, "POST", "opt_outs"), () =>
+      options.alreadyOptedOut ? [] : [{ id: "new-opt-out" }],
+    );
+    const events = stubRoute(
+      restMatch(env, "POST", "conversation_events"),
+      () => [],
+    );
+    const audit = stubRoute(restMatch(env, "POST", "audit_log"), () => []);
+    stubFetch(
+      telnyx.route,
+      persist.route,
+      revive.route,
+      upsert.route,
+      events.route,
+      audit.route,
+    );
+    return { env, persist, revive, upsert, events, audit };
+  }
+
+  it("records the opt-out, the timeline event and the audit row", async () => {
+    // Before this, a 40300 was only ever a failed message: the composer stayed
+    // open, the crew retried, and every attempt came back the same way with
+    // nothing anywhere saying why.
+    const { env, persist, upsert, events, audit } = optOutStubs();
+
+    const row = await dispatchOutbound(env, getDb(env), message(), SEND_ARGS);
+
+    // Still a failed message on the thread — the customer sees what happened.
+    expect(row.status).toBe("failed");
+    expect(persist.calls[0].body).toMatchObject({ error_code: "40300" });
+
+    // And now also an opt-out, sourced so nobody mistakes it for a keyword we
+    // parsed ourselves.
+    expect(upsert.calls).toHaveLength(1);
+    expect(upsert.calls[0].body).toMatchObject({
+      company_id: COMPANY_ID,
+      phone_e164: SEND_ARGS.to,
+      source: "carrier",
+      created_by: null,
+      revoked_at: null,
+    });
+
+    expect(events.calls[0].body).toMatchObject({
+      type: "opted_out",
+      actor_user_id: null,
+      payload: { source: "carrier", signal: "send_rejected" },
+    });
+    expect(audit.calls[0].body).toMatchObject({
+      action: "opt_out.recorded",
+      actor_user_id: null,
+      target_id: SEND_ARGS.to,
+    });
+  });
+
+  it("writes no second timeline event for a number already opted out", async () => {
+    // The common case: a second send to a number the carrier is already
+    // blocking. The state transition is the arbiter, so nothing new is said.
+    const { env, events, audit } = optOutStubs({ alreadyOptedOut: true });
+
+    await dispatchOutbound(env, getDb(env), message(), SEND_ARGS);
+
+    expect(events.calls).toHaveLength(0);
+    expect(audit.calls).toHaveLength(0);
+  });
+
+  it("leaves other carrier failures alone", async () => {
+    const env = completeEnv();
+    const telnyx = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        url.href === "https://api.telnyx.com/v2/messages",
+      () =>
+        Response.json(
+          { errors: [{ code: "40001", detail: "Invalid destination" }] },
+          { status: 400 },
+        ),
+    );
+    const persist = stubRoute(restMatch(env, "PATCH", "messages"), (call) => [
+      messageRow({
+        id: MESSAGE_ID,
+        company_id: COMPANY_ID,
+        ...(call.body as Record<string, unknown>),
+      }),
+    ]);
+    const upsert = stubRoute(restMatch(env, "POST", "opt_outs"), () => []);
+    stubFetch(telnyx.route, persist.route, upsert.route);
+
+    const row = await dispatchOutbound(env, getDb(env), message(), SEND_ARGS);
+
+    expect(row.status).toBe("failed");
+    // A bad number is not an opt-out. Blocking on any 4xx would quietly make
+    // every typo permanent.
+    expect(upsert.calls).toHaveLength(0);
+  });
+
+  it("still returns the failed row when the opt-out cannot be written", async () => {
+    const env = completeEnv();
+    const telnyx = stubRoute(isTelnyxSend, refuseAsOptedOut);
+    const persist = stubRoute(restMatch(env, "PATCH", "messages"), (call) => [
+      messageRow({
+        id: MESSAGE_ID,
+        company_id: COMPANY_ID,
+        ...(call.body as Record<string, unknown>),
+      }),
+    ]);
+    const revive = stubRoute(restMatch(env, "PATCH", "opt_outs"), () =>
+      Response.json({ message: "db down" }, { status: 500 }),
+    );
+    stubFetch(telnyx.route, persist.route, revive.route);
+
+    const row = await dispatchOutbound(env, getDb(env), message(), SEND_ARGS);
+    expect(row.status).toBe("failed");
+    expect(row.error_code).toBe("40300");
   });
 });

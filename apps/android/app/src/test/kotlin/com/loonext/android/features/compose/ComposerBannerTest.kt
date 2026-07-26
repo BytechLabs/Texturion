@@ -7,6 +7,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.loonext.android.core.model.OPT_OUT_SOURCE_CARRIER
 import com.loonext.android.core.model.OPT_OUT_SOURCE_STOP
 
 /** Banner precedence: opted_out > subscription > registration > cap > none. */
@@ -85,6 +86,41 @@ class ComposerBannerTest {
                 usApproved = false,
                 usTextingOff = false,
                 usage = usage(200, 100),
+            ),
+        )
+    }
+
+    @Test
+    fun `a carrier-sourced opt-out is a carrier block too`() {
+        // #331: Telnyx refused the send, or the nightly reconciliation found
+        // the number on their list. The customer said stop either way, so the
+        // banner must not offer an undo the server answers with a 409.
+        assertEquals(
+            ComposerBanner.OptedOut(carrierBlocked = true),
+            selectComposerBanner(
+                contactOptedOut = true,
+                contactOptOutSource = OPT_OUT_SOURCE_CARRIER,
+                subscriptionStatus = SubscriptionStatus.ACTIVE,
+                destinationCountry = "CA",
+                usApproved = true,
+                usTextingOff = false,
+                usage = usage(10, 100),
+            ),
+        )
+    }
+
+    @Test
+    fun `a manual opt-out can still be undone from here`() {
+        assertEquals(
+            ComposerBanner.OptedOut(carrierBlocked = false),
+            selectComposerBanner(
+                contactOptedOut = true,
+                contactOptOutSource = "manual",
+                subscriptionStatus = SubscriptionStatus.ACTIVE,
+                destinationCountry = "CA",
+                usApproved = true,
+                usTextingOff = false,
+                usage = usage(10, 100),
             ),
         )
     }

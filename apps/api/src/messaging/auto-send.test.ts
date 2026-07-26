@@ -14,7 +14,7 @@ import {
   stubRoute,
   type Stub,
 } from "../test/messaging-support";
-import { completeEnv, stubFetch } from "../test/support";
+import { clearedFor, completeEnv, stubFetch } from "../test/support";
 import { guardedAutoSend } from "./auto-send";
 
 const env: Env = completeEnv();
@@ -53,6 +53,7 @@ function run(args: {
     to: "+16135551000",
     body: "Got your message — we reply by 8am.",
     triggerBody: args.triggerBody ?? "no hot water",
+    clearance: clearedFor("+16135551000"),
   });
 }
 
@@ -68,6 +69,7 @@ describe("guardedAutoSend — keyword short-circuit (b)", () => {
       to: "+16135551000",
       body: "away text",
       triggerBody: "STOP",
+      clearance: clearedFor("+16135551000"),
     });
     expect(outcome).toEqual({ sent: false, reason: "carrier_keyword" });
     expect(claim.calls).toHaveLength(0);

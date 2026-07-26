@@ -113,7 +113,7 @@ export async function maybeSendAwayReply(
   // §7 send gates (subscription active, US/CA destination registration-clear).
   // These are per-destination and would 403/402 a not-ready send; a throw here
   // is caught by the caller and the inbound ingest is unaffected.
-  await runPreSendGates(env, args.companyId, slice.to);
+  const clearance = await runPreSendGates(env, args.companyId, slice.to);
 
   // Merge fields into the owner-authored away message at send time.
   const body = applySendMergeFields(message, {
@@ -128,5 +128,6 @@ export async function maybeSendAwayReply(
     to: slice.to,
     body,
     triggerBody: args.triggerBody,
+    clearance,
   });
 }

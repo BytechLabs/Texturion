@@ -19,6 +19,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { isCarrierEnforcedOptOut } from "@/lib/api/types";
+
 import { CallButton } from "@/components/calls/call-button";
 import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
@@ -458,7 +460,7 @@ export function ThreadHeader({
               // A STOP the customer sent is a carrier block, and only they can
               // lift it. Offering to undo it here promised something the next
               // send would immediately contradict.
-              contact.opt_out_source === "stop_keyword" ? (
+              isCarrierEnforcedOptOut(contact.opt_out_source) ? (
                 <DropdownMenuLabel className="max-w-64 whitespace-normal text-xs font-normal text-muted-foreground">
                   This customer texted STOP. Only they can undo it, by texting
                   START to your number.

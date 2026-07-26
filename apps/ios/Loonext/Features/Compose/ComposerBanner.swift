@@ -38,7 +38,7 @@ func selectComposerBanner(
     usage: Usage?
 ) -> ComposerBanner? {
     if contactOptedOut {
-        return .optedOut(carrierBlocked: contactOptOutSource == optOutSourceStop)
+        return .optedOut(carrierBlocked: isCarrierEnforcedOptOut(contactOptOutSource))
     }
     if subscriptionStatus != SubscriptionStatus.active {
         return .subscription(subscriptionStatus)

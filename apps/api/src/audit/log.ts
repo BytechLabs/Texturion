@@ -58,6 +58,11 @@ export type AuditAction =
   // here, and the one an owner is most likely to ask us about afterwards.
   | "workspace.closed"
   | "workspace.reopened"
+  // Who this business may still contact (#331). The one kind of change
+  // nobody on the crew can undo, and the first thing anyone reaches for when
+  // a customer says they asked to be left alone.
+  | "opt_out.recorded"
+  | "opt_out.revoked"
   // The departing-employee signature (#231: "bulk-export alarm")
   | "contacts.imported"
   | "contacts.exported"

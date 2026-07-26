@@ -29,6 +29,7 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 
+import { recordAuditFromRequest } from "../audit/log";
 import { requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -1140,6 +1141,16 @@ contactsRoutes.post(
         payload: { phone_e164: phone, source: "manual" },
       },
     ]);
+    // #331/#231: who this business may still contact, on the timeline an
+    // incident is reconstructed from. The conversation event covers the thread;
+    // this covers the workspace, and outlives the conversation.
+    await recordAuditFromRequest(db, c, {
+      companyId,
+      action: "opt_out.recorded",
+      targetType: "contact",
+      targetId: id,
+      after: { source: "manual" },
+    });
     return c.json(transitioned, 201);
   },
 );
@@ -1176,7 +1187,11 @@ async function revokeOptOut(c: Context<AppEnv>) {
   if (active.length === 0) {
     return errorResponse(c, "not_found", "Contact is not opted out.");
   }
-  if (active[0].source === "stop_keyword") {
+  // #331: `carrier` is the same fact arriving by a different route — Telnyx
+  // refused a send with 40300, or the nightly reconciliation found the number
+  // on their list and not ours. Either way the block lives at the carrier, so
+  // it refuses for exactly the reason `stop_keyword` does.
+  if (active[0].source === "stop_keyword" || active[0].source === "carrier") {
     return errorResponse(
       c,
       "conflict",
@@ -1208,6 +1223,16 @@ async function revokeOptOut(c: Context<AppEnv>) {
       payload: { phone_e164: phone },
     },
   ]);
+  // #331/#231: the one that matters most. Texting someone who had asked not to
+  // be texted starts with somebody lifting their opt-out, and this is the row
+  // that says who.
+  await recordAuditFromRequest(db, c, {
+    companyId,
+    action: "opt_out.revoked",
+    targetType: "contact",
+    targetId: id,
+    before: { source: active[0].source },
+  });
   return c.json(rows[0]);
 }
 

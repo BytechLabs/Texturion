@@ -23,7 +23,7 @@ import { ApiError } from "../http/errors";
 import { notifyMissedCall } from "../notifications/missed-call";
 import { guardedMissedCallText } from "./auto-send-missed";
 import { applySendMergeFields } from "./merge";
-import { dispatchOutbound, runPreSendGates } from "./send";
+import { dispatchOutbound, runPreSendGates, type SendClearance } from "./send";
 
 /** Hangup causes that mean the forward leg was NOT answered by a human. */
 const MISSED_HANGUP_CAUSES = new Set([
@@ -179,8 +179,9 @@ export async function sendMissedCallText(
   // like the non-textable caller above. Throwing would burn all 5 ledger
   // retries + a Sentry page on EVERY missed call until the gate clears. A
   // non-gate error (DB/network) still propagates so the sweeper can retry it.
+  let clearance: SendClearance;
   try {
-    await runPreSendGates(env, args.companyId, args.callerE164);
+    clearance = await runPreSendGates(env, args.companyId, args.callerE164);
   } catch (cause) {
     if (cause instanceof ApiError) return NO_TEXT;
     throw cause;
@@ -224,6 +225,7 @@ export async function sendMissedCallText(
     to: args.callerE164,
     text: body,
     mediaUrls: [],
+    clearance,
   });
   const textSent =
     dispatched.telnyx_message_id !== null && dispatched.status !== "failed";

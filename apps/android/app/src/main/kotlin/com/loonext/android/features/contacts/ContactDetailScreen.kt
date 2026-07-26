@@ -62,7 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.core.data.CacheKeys
-import com.loonext.android.core.model.OPT_OUT_SOURCE_STOP
+import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.Member
@@ -436,7 +436,7 @@ private fun ContactDetailBody(
                     // to press. A STOP is a carrier block: undoing our record
                     // would not lift it, and the next send comes back rejected
                     // anyway, which is what used to happen.
-                    if (contact.opt_out_source == OPT_OUT_SOURCE_STOP) {
+                    if (isCarrierEnforcedOptOut(contact.opt_out_source)) {
                         Text(
                             "They texted STOP, so their carrier is blocking your texts. " +
                                 "Only they can undo it, by texting START to your number.",

@@ -75,6 +75,19 @@ describe("selectComposerBanner precedence", () => {
     ).toEqual({ kind: "opted_out", carrierBlocked: false });
   });
 
+  it("treats a carrier-sourced opt-out as a carrier block", () => {
+    // #331: Telnyx refused the send, or the nightly reconciliation found the
+    // number on their list. The customer said stop either way, so offering an
+    // undo here would promise something the API answers with a 409.
+    expect(
+      selectComposerBanner({
+        ...clear,
+        contactOptedOut: true,
+        contactOptOutSource: "carrier",
+      }),
+    ).toEqual({ kind: "opted_out", carrierBlocked: true });
+  });
+
   it("subscription beats registration and cap", () => {
     expect(
       selectComposerBanner({

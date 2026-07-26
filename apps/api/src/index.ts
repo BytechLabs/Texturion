@@ -25,6 +25,7 @@ import {
   sweepStaleCalls,
   sweepWebhookEvents,
 } from "./messaging/crons";
+import { reconcileOptOuts } from "./messaging/opt-out-reconcile";
 import { sentryOptions } from "./observability/sentry";
 import { attachmentsRoutes } from "./routes/attachments";
 import { availableNumbersRoutes } from "./routes/available-numbers";
@@ -297,6 +298,12 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
   // Subscription reconcile: re-mirror non-active companies from Stripe;
   // report stale invites.
   "0 15 * * *": [runSubscriptionReconcileJob],
+  // #331: compare our opt-out list against the carrier's. A number Telnyx is
+  // blocking that we have no record for is an inbound STOP whose webhook we
+  // missed — the composer stays open and every send comes back 40300 until
+  // somebody notices. Recorded here, and reported to ops, because a run of
+  // them is a webhook-delivery failure rather than a change in behaviour.
+  "45 15 * * *": [reconcileOptOuts],
   // Ledger retention: drop PROCESSED webhook_events past the 30-day dedupe
   // window. The */5 sweeper only replays the unprocessed tail, so without this
   // the ledger grows without bound for the life of the install.

@@ -362,7 +362,7 @@ struct ContactDetailView: View {
             // A STOP is a carrier block: undoing our record would not lift it,
             // and the next send comes back rejected anyway, which is what used
             // to happen.
-            if contact.opt_out_source == optOutSourceStop {
+            if isCarrierEnforcedOptOut(contact.opt_out_source) {
                 Text(
                     "They texted STOP, so their carrier is blocking your texts. "
                         + "Only they can undo it, by texting START to your number."

@@ -327,11 +327,14 @@ Status transitions are driven by **Telnyx webhooks** to `/webhooks/telnyx` — `
 ### Opt-out model (D3)
 
 - **Telnyx default keyword auto-handling stays enabled** on every messaging profile: Telnyx auto-replies to STOP/HELP and maintains a profile-level block (sends to blocked numbers fail with Telnyx error **40300**). The app **never sends its own duplicate auto-reply**.
-- **App-side mirror — `opt_outs` table** (`company_id`, `phone_e164`, `source: stop_keyword | manual | import`, `created_at`, `revoked_at`, UNIQUE(company_id, phone_e164)). The inbound webhook detects opt-out keywords **app-side only**: case-insensitive exact match of the trimmed message body against the standard standalone keyword list (STOP, STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT) — no Telnyx payload flag is relied on. START/UNSTOP/YES revokes (`revoked_at` set).
+- **App-side mirror — `opt_outs` table** (`company_id`, `phone_e164`, `source: stop_keyword | manual | import | carrier`, `created_at`, `revoked_at`, UNIQUE(company_id, phone_e164)). The inbound webhook detects opt-out keywords **app-side only**: case-insensitive exact match of the trimmed message body against the standard standalone keyword list (STOP, STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT) — no Telnyx payload flag is relied on. START/UNSTOP/YES revokes (`revoked_at` set).
 - **Manual "Mark opted out"** staff action on every contact/conversation (FCC 2025 rule: honor *any reasonable* revocation phrasing, e.g. "please stop texting me" — Telnyx only catches exact standalone keywords). Manual opt-outs are enforced **solely app-side** by the send-time `recipient_opted_out` rejection below — no block rule is pushed to Telnyx (Telnyx exposes no write API for its opt-out list; its profile-level keyword block remains the carrier backstop for STOP-keyword opt-outs only). Revoke ("Mark opted in again") exists and is logged.
-- **Send-time enforcement:** `POST /v1/messages/send` **hard-rejects** sends to opted-out numbers with error code `recipient_opted_out`. The conversation renders an "Opted out" banner and disables the composer. If a send ever slips through to Telnyx and comes back 40300, `messages.error_code = '40300'` is stored and displayed — blocked sends are never silent.
+- **Send-time enforcement:** `POST /v1/messages/send` **hard-rejects** sends to opted-out numbers with error code `recipient_opted_out`. The conversation renders an "Opted out" banner and disables the composer. If a send ever slips through to Telnyx and comes back 40300, `messages.error_code = '40300'` is stored and displayed — blocked sends are never silent — **and (#331) an `opt_outs` row is recorded with `source='carrier'`**: the code is the carrier telling us this number opted out and we did not know, so the next send is blocked here rather than refused there again.
 - All opt-out/opt-in changes write `conversation_events` rows (`opted_out` / `opt_out_revoked`), attached to the most recent conversation for the (company, phone) pair when one exists, with `conversation_id` null otherwise (§6 permits null for contact-level event types).
 - CSV contact import supports an optional `opted_out` column → creates `opt_outs` rows with `source='import'`.
+- **Carrier reconciliation (#331), daily.** Telnyx's opt-out list is READ-only to us, and the two lists diverge in both directions. A number Telnyx blocks that we have no record of is an inbound STOP whose webhook we missed: it is recorded with `source='carrier'` and reported to ops, because a run of them is a webhook-delivery failure rather than a change in customer behaviour. A number only WE hold is app-side enforcement working as designed and is never touched — deleting it would erase a manual opt-out on every run.
+- **`carrier` and `stop_keyword` cannot be revoked in-app.** Both are enforced at the carrier, so clearing our row would leave the contact page claiming the person is textable while every send came back 40300. Only the customer texting START lifts either.
+- **The gate is structural, and enforced by the compiler (#331).** `runPreSendGates` returns a `SendClearance` that only it can mint, and `dispatchOutbound` requires one for the destination it is about to text. A new outbound path that skips the gate does not compile; `messaging/send-paths.test.ts` additionally asserts nobody fabricates the proof.
 
 ### Consent attestation (D4)
 
@@ -377,7 +380,7 @@ create type registration_status as enum ('draft','submitted','pending','approved
 create type conversation_status as enum ('new','open','waiting','closed');
 create type message_direction   as enum ('inbound','outbound','note');
 create type message_status      as enum ('received','queued','sent','delivered','failed');
-create type opt_out_source      as enum ('stop_keyword','manual','import');
+create type opt_out_source      as enum ('stop_keyword','manual','import','carrier');  -- 'carrier' (#331): learned from Telnyx, not observed by us
 create type consent_source_t    as enum ('inbound_sms','attested');
 create type usage_event_type    as enum ('sms_outbound','mms_outbound','adjustment');
 create type conversation_event_type as enum

@@ -291,7 +291,7 @@ messageRoutes.post("/messages/send", requireRole("member"), async (c) => {
   const fromNumber = requireActiveSendingNumber(view);
 
   // §7 gate order: subscription → destination US/CA → registration.
-  await runPreSendGates(env, companyId, view.contacts.phone_e164);
+  const clearance = await runPreSendGates(env, companyId, view.contacts.phone_e164);
 
   // #97: picture messages are ungated — MMS meters as 3 segments (MMS_SEGMENTS,
   // below) through gateOutboundSend, counting against the plan allowance + the
@@ -366,6 +366,7 @@ messageRoutes.post("/messages/send", requireRole("member"), async (c) => {
     to: view.contacts.phone_e164,
     text,
     mediaUrls,
+    clearance,
   });
   return c.json(messageJson(sent, attachments), 201);
 });
@@ -422,7 +423,7 @@ messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
   // Gates re-run: the world may have changed since the failed attempt. The
   // opt-out check used to be duplicated here; it now lives inside
   // runPreSendGates so every send path gets it, not just this one.
-  await runPreSendGates(env, companyId, view.contacts.phone_e164);
+  const clearance = await runPreSendGates(env, companyId, view.contacts.phone_e164);
 
   // Stored outbound media, loaded up front so its signed URLs can be re-minted
   // BEFORE the atomic claim (below). #97: a picture re-send is ungated — it
@@ -463,6 +464,7 @@ messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
     to: view.contacts.phone_e164,
     text: message.body,
     mediaUrls,
+    clearance,
   });
   return c.json(
     messageJson(

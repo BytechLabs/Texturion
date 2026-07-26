@@ -48,7 +48,7 @@ export type RegistrationStatus =
   | "approved"
   | "rejected";
 export type ConsentSource = "inbound_sms" | "attested";
-export type OptOutSource = "stop_keyword" | "manual" | "import";
+export type OptOutSource = "stop_keyword" | "manual" | "import" | "carrier";
 export type ConversationEventType =
   | "status_changed"
   | "assigned"
@@ -713,13 +713,32 @@ export interface Contact {
 export interface ContactDetail extends Contact {
   opted_out: boolean;
   /**
-   * Which kind of opt-out this is, because only one of them can be undone from
-   * inside the app. "stop_keyword" is a CARRIER block the customer created by
-   * texting STOP: clearing our record would not clear theirs, so every send
-   * would still be rejected. "manual" is a note someone in the office made,
+   * Which kind of opt-out this is, because only some of them can be undone
+   * from inside the app.
+   *
+   * "stop_keyword" and "carrier" are both CARRIER blocks (#331): the first is
+   * a STOP our webhook saw, the second one we learned about afterwards —
+   * Telnyx refused a send, or the nightly reconciliation found the number on
+   * their list and not ours. Either way the block lives at the carrier, so
+   * clearing our record would not lift it and every send would still be
+   * rejected. Use {@link isCarrierEnforcedOptOut} rather than comparing to one
+   * of them. "manual" and "import" are records someone in the office made,
    * with no carrier involved. Null when the contact is not opted out.
    */
-  opt_out_source: "stop_keyword" | "manual" | null;
+  opt_out_source: OptOutSource | null;
+}
+
+/**
+ * Whether this opt-out is enforced by the carrier — the ones nobody here can
+ * undo, whatever the UI offers. A predicate rather than a comparison because
+ * #331 added a second source that behaves identically, and every site that
+ * had hard-coded "stop_keyword" would silently have started offering a revoke
+ * the API answers with a 409.
+ */
+export function isCarrierEnforcedOptOut(
+  source: OptOutSource | null | undefined,
+): boolean {
+  return source === "stop_keyword" || source === "carrier";
 }
 
 /**

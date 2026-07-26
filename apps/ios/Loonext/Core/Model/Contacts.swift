@@ -1,7 +1,21 @@
 import Foundation
 
-/// The customer texted STOP: a carrier block only they can lift.
+/// The customer texted STOP and our webhook saw it: a block only they can lift.
 let optOutSourceStop = "stop_keyword"
+
+/// #331: the same block, learned afterwards — Telnyx refused a send with
+/// 40300, or the nightly reconciliation found the number on their list and not
+/// ours. The customer still said stop; we just were not told at the time.
+let optOutSourceCarrier = "carrier"
+
+/// Whether this opt-out is enforced by the carrier, and so cannot be undone
+/// from in here whatever the screen offers. A function rather than a
+/// comparison because there are now two such sources, and every site that
+/// named one would quietly start offering a revoke the server answers with a
+/// 409.
+func isCarrierEnforcedOptOut(_ source: String?) -> Bool {
+    source == optOutSourceStop || source == optOutSourceCarrier
+}
 
 /// Contact rows. Detail + list share the shape; `opted_out` rides every read,
 /// `last_activity_at` only on list rows (conversation activity, never edits).
@@ -18,11 +32,12 @@ struct Contact: Codable, Sendable {
     let created_at: String
     let updated_at: String
     @Default<DefaultFalse> var opted_out: Bool
-    /// Which kind of opt-out this is, because only one of them can be undone
-    /// from inside the app. "stop_keyword" is a CARRIER block the customer
-    /// created by texting STOP: clearing our record would not clear theirs, so
-    /// every send would still be rejected. "manual" is a note someone in the
-    /// office made, with no carrier involved. Nil when not opted out.
+    /// Which kind of opt-out this is, because only some of them can be undone
+    /// from inside the app. "stop_keyword" and "carrier" are both CARRIER
+    /// blocks: clearing our record would not clear theirs, so every send would
+    /// still be rejected. Ask `isCarrierEnforcedOptOut` rather than comparing
+    /// to one of them. "manual" and "import" are records someone in the office
+    /// made, with no carrier involved. Nil when not opted out.
     var opt_out_source: String?
     let last_activity_at: String?
     /// #191 record attribution — who created (or resurrected) and who last

@@ -8,6 +8,7 @@ import { vi } from "vitest";
 
 import type { Env } from "../env";
 import { generateVapidPair } from "./vapid-keys";
+import type { SendClearance } from "../messaging/send";
 
 /**
  * One VAPID pair per test process — stable across every `completeEnv()` call
@@ -182,4 +183,18 @@ export function companyMembersRoute(
     }
     return Response.json(rows);
   };
+}
+
+/**
+ * #331: a {@link SendClearance} for a test that calls `dispatchOutbound`
+ * directly instead of coming in through a route.
+ *
+ * This is the ONLY place outside `messaging/send.ts` allowed to mint one, and
+ * `messaging/send-paths.test.ts` proves it — the whole point of the brand is
+ * that product code cannot fabricate the proof that the opt-out gate ran. A
+ * test asserting the dispatch tail is not a send path, so it gets a door;
+ * anything under `src/` that is not a test does not.
+ */
+export function clearedFor(destinationE164: string): SendClearance {
+  return { destinationE164 } as SendClearance;
 }

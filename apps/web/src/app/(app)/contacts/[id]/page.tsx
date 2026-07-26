@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { isCarrierEnforcedOptOut } from "@/lib/api/types";
+
 import { CallButton } from "@/components/calls/call-button";
 import { ContactCallHistory } from "@/components/contacts/contact-call-history";
 import { LoadError, SettingsCard } from "@/components/settings/section";
@@ -238,9 +240,11 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
             This customer opted out of texting. Sends to them are blocked.
           </p>
           {/* Which kind of opt-out decides whether there is anything to press.
-              A STOP is a carrier block: undoing our record would not lift it,
-              and the very next send would come back rejected anyway. */}
-          {contact.opt_out_source === "stop_keyword" ? (
+              A carrier block is a carrier block: undoing our record would not
+              lift it, and the very next send would come back rejected anyway.
+              #331 added a second source with the same consequence, so this
+              asks the predicate rather than naming one. */}
+          {isCarrierEnforcedOptOut(contact.opt_out_source) ? (
             <p className="mt-2 text-xs text-muted-foreground">
               They texted STOP, so their carrier is blocking your texts. Only
               they can undo it, by texting START to your number.

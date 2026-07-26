@@ -1,0 +1,30 @@
+-- ===========================================================================
+-- [#331] opt_out_source 'carrier' — in its OWN migration, because a new enum
+-- value cannot be USED in the transaction that adds it (Postgres restriction;
+-- each migration file is one transaction). First used by the application code
+-- in apps/api/src/messaging/opt-out.ts and by the SQL tests, never here.
+--
+-- WHY A FOURTH SOURCE. The three we had all describe something WE observed:
+-- a STOP keyword our webhook parsed, a person clicking the button, a CSV
+-- column. 'carrier' is the one we did not: Telnyx is refusing to deliver to
+-- this number and we had no record of why. It arrives two ways —
+--
+--   * a send comes back 40300 (Telnyx blocks it at the moment we try), or
+--   * the daily reconciliation finds the number on Telnyx's opt-out list and
+--     not on ours (an inbound STOP whose webhook we missed).
+--
+-- Both mean the same thing: the customer told this business to stop, and the
+-- carrier heard it when we did not. Folding it into 'stop_keyword' would be
+-- easier and would be a lie — it would claim we saw the keyword. The
+-- provenance is what makes the reconciliation report readable and what tells
+-- a support conversation whether we dropped a webhook.
+--
+-- LIKE 'stop_keyword', A CARRIER OPT-OUT CANNOT BE LIFTED BY US. The revoke
+-- route refuses both, for the same reason: clearing our row does not clear
+-- Telnyx's, so the contact page would say "textable" while every send came
+-- back 40300. Only the customer texting START lifts it.
+--
+-- IF NOT EXISTS makes the ADD VALUE idempotent (re-runnable safely).
+-- ===========================================================================
+
+alter type public.opt_out_source add value if not exists 'carrier';
