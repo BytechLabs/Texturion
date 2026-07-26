@@ -30,10 +30,31 @@ Merging writes each app's `CHANGELOG.md`, bumps its version, tags it
 If nothing release-worthy has landed (only `chore`/`ci`/`docs`/`test`), no PR
 appears — that is the correct answer, not a failure.
 
-**Merging does not oblige you to upload anything.** A mobile version bump means
-"this app has unreleased changes"; you upload when you actually want to ship.
-`api`/`web` are already live either way — they deployed when their commit went
-green.
+**Merging the PR is what ships (D50).** Every commit to `main` runs the whole
+gate — SQL suites from zero, e2e golden paths, typecheck, lint, unit tests, both
+Worker builds. What a green CI does *not* do is deploy. Production changes when
+this PR merges and at no other time:
+
+- `api` and `web` deploy themselves the moment it merges — migrations, both
+  Workers, cache purge.
+- `android` and `ios` are the version you archive and upload **that day**, by
+  hand (see *Archiving mobile* below). That part is not automated because the
+  repo holds no signing credentials.
+
+So the tag means the same thing for all four: *this is what shipped*. It used to
+mean "live" for the Workers and "somebody should build this eventually" for the
+phones, which is exactly as confusing as it sounds.
+
+**What that costs.** Migrations sit on `main` unapplied until you merge. A batch
+of work reaches production at once, so a bad release has a wider blast radius
+than a bad commit did — `wrangler rollback` is still seconds, `supabase db push`
+still is not.
+
+**If nothing releasable has landed and you need to deploy anyway** — a stretch of
+`chore`/`ci`/`docs` work produces no release PR at all — run the **Deploy**
+workflow manually from the Actions tab. It requires a written reason and records
+it on the run. That door exists precisely so "no release PR" can never mean "no
+way to ship".
 
 ## What is automatic and never needs thinking about
 
@@ -65,11 +86,19 @@ error message). The tag names must match the config's component names.
 error maps to the exact commit that shipped it. That is what makes Sentry's
 regression detection and suspect-commits work.
 
-## What a release does NOT do
+## What runs when
 
-It does not gate deployment. `api` and `web` deploy on every green CI, exactly as
-before — one version of a service exists at a time and nobody installs it, so the
-tag is the *record* of what shipped, not a gate in front of it.
+| Event | Gate | Ships |
+|---|---|---|
+| Pull request | CI, and Mobile if `apps/android` or `apps/ios` changed | nothing |
+| Any commit to `main` | the same | **nothing** — release-please just rewrites the open PR |
+| **Merging the release PR** | the same | migrations, api Worker, web Worker, cache purge. You archive and upload the phone apps |
+| Deploy run manually | the deployed commit already passed CI on `main` | the same as a release, with your reason on the run |
+
+The release commit skips the Mobile workflow: release-please edits
+`app/build.gradle.kts` and `project.yml`, which sit inside its path filter, and
+building a macOS iOS image to compile a version number is fifteen minutes spent
+on nothing. The code in it already passed on its own commit.
 
 For `android`/`ios` the released version is the one you archive and upload, and
 the generated notes are the "What's new" text. Those are the only artifacts where
@@ -179,7 +208,7 @@ changelog reads better and the diff's intent is obvious.
 
 ## Rolling back
 
-A Worker rolls back in seconds — this is the reason continuous deploy is safe:
+A Worker rolls back in seconds — this is what makes shipping a batch safe:
 
 ```bash
 pnpm --filter @loonext/api exec wrangler rollback

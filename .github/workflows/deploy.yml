@@ -1,18 +1,133 @@
 name: Deploy
 
+# MERGE-TO-SHIP (D50). Production changes when the release PR merges, and at no
+# other time. Every commit to `main` still runs the full CI gate; what a green
+# CI no longer does is deploy.
+#
+# The trigger stays `workflow_run: [CI]` on purpose — it is what makes "nothing
+# reaches production that has not passed every gate" structural rather than a
+# rule someone has to remember. The release check below is a SECOND gate on top
+# of it, never a replacement.
+#
+# `workflow_dispatch` is the escape hatch, and it is load-bearing: a stretch of
+# work typed entirely `chore`/`docs`/`ci` produces no release PR at all, so
+# without a manual door such a change could never reach production.
 on:
   workflow_run:
     workflows: [CI]
     types: [completed]
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this is being deployed outside a release (recorded in the run)"
+        required: true
+        type: string
+
+# `contents: write` is for the deployed marker ref at the end of the deploy
+# job, and nothing else. Without it the reachability gate above never learns
+# what shipped, and would re-deploy every release on every green commit.
+permissions:
+  contents: write
 
 concurrency:
   group: deploy-production
   cancel-in-progress: false
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Is there a release here that has NOT been deployed yet?
+  #
+  # Deliberately not "does this commit carry a tag". That question loses a
+  # release whenever the release commit's own CI is not green — and on this
+  # repo that is the common case, not the edge: three of the four release
+  # merges in history had a failing CI run, and 43% of main's runs are not
+  # green. The model this replaces papered over it, because the next green
+  # commit deployed the whole tree and carried the earlier release's code along
+  # as a side effect. Removing that safety net without replacing it would make
+  # a red release commit permanent, with its tag and GitHub Release both
+  # claiming it shipped.
+  #
+  # So the question is reachability: which release tags are in this commit's
+  # history but not in the last one we deployed? A release whose own CI failed
+  # is picked up by the next green commit on main, exactly as it used to be,
+  # while an ordinary commit with nothing pending still ships nothing.
+  #
+  # "Last deployed" is a ref this workflow pushes on success. When it does not
+  # exist yet (the first run after this landed) the check falls back to the
+  # tag-on-this-commit question, so the bootstrap release still ships and
+  # establishes the marker.
+  #
+  # Asked of the TAGS, not of the commit message: release-please titles its
+  # merge "chore: release main", but a squash-merge title is editable and a
+  # wrong answer here means a release that silently never ships.
+  #
+  # It polls, because CI and Release both start on the same push and nothing
+  # orders them. Release-please finishes in well under a minute and CI takes
+  # several, so in practice the tags are long since pushed — the loop is for
+  # the day that is not true, not for the common case.
+  # ---------------------------------------------------------------------------
+  gate:
+    name: Release check
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      ship: ${{ steps.check.outputs.ship }}
+      tags: ${{ steps.check.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Look for an undeployed release
+        id: check
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          if [ "$MANUAL" = "true" ]; then
+            echo "::notice::Manual deploy — $REASON"
+            echo "ship=true" >> "$GITHUB_OUTPUT"
+            echo "tags=manual" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Release tags reachable from this commit, minus the ones already
+          # shipped. `--merged` is the whole point: a release whose own CI was
+          # red stays pending and the next green commit picks it up.
+          pending_tags() {
+            git fetch --tags --force --quiet
+            git fetch --quiet origin "+refs/deployed/production:refs/deployed/production" 2>/dev/null || true
+            if git rev-parse --verify --quiet refs/deployed/production >/dev/null; then
+              comm -13 <(git tag --merged refs/deployed/production | sort) <(git tag --merged "$SHA" | sort)
+            else
+              # No marker yet (first run after D50 landed). Bootstrap on the
+              # old question; the deploy job below writes the marker and
+              # reachability takes over from the next release on.
+              git tag --points-at "$SHA"
+            fi
+          }
+
+          for attempt in $(seq 1 12); do
+            tags=$(pending_tags | tr '\n' ' ' | sed 's/ *$//')
+            if [ -n "$tags" ]; then
+              echo "::notice::Shipping undeployed release(s): $tags"
+              echo "ship=true" >> "$GITHUB_OUTPUT"
+              echo "tags=$tags" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::notice::Nothing undeployed at $SHA — merged to main, not shipped. Production changes when the release PR merges (D50)."
+          echo "ship=false" >> "$GITHUB_OUTPUT"
+
   deploy:
-    if: github.event.workflow_run.conclusion == 'success'
+    needs: gate
+    if: needs.gate.outputs.ship == 'true'
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -50,7 +165,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          # `github.sha` is the fallback for a manual dispatch, where there is
+          # no triggering CI run to take the commit from.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # Full history so the marker push at the end of this job works —
+          # git refuses to push from a shallow clone ("shallow update not
+          # allowed"), and a marker that fails to move makes the next green
+          # commit re-deploy a release that already shipped.
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
 
@@ -85,7 +207,7 @@ jobs:
       - name: Deploy api Worker
         run: |
           pnpm --filter @loonext/api exec wrangler deploy \
-            --var GIT_SHA:"${{ github.event.workflow_run.head_sha }}"
+            --var GIT_SHA:"${{ github.event.workflow_run.head_sha || github.sha }}"
 
       - name: Deploy web Worker (OpenNext build + deploy)
         run: pnpm --filter @loonext/web run deploy
@@ -109,3 +231,20 @@ jobs:
             --data '{"purge_everything":true}')
           echo "$resp"
           echo "$resp" | grep -q '"success":true'
+
+      # What we just shipped, recorded where the gate can read it.
+      #
+      # LAST STEP ON PURPOSE. If any step above failed, the marker does not
+      # move, the release stays pending, and the next green commit on main
+      # retries it — which is exactly the recovery the old
+      # deploy-on-every-commit model gave for free and this one has to earn.
+      #
+      # A plain ref rather than a tag or an API call: it is one force-update,
+      # it needs no extra token, and `git ls-remote origin refs/deployed/production`
+      # answers "what is live" from anywhere.
+      - name: Record what shipped
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          git push --force origin "$SHA:refs/deployed/production"
+          echo "::notice::Production marker moved to $SHA"

@@ -19,10 +19,16 @@ Every push stands up Supabase, applies all migrations **from zero** (`db reset`)
 runs the SQL suite, the unit suites, and the launch-pass e2e golden paths, and
 builds both Workers. Nothing deploys unless all of that is green.
 
-**Production — continuous deploy.**
-Green CI on `main` deploys the API and web Workers and pushes migrations. One
-version exists at a time; the deployed commit is stamped into the Worker and
-reported to Sentry as the release.
+**Production — merge-to-ship (D50).**
+Green CI on `main` deploys nothing. Production changes when the release PR
+merges: that commit pushes migrations and deploys both Workers, and the same
+event is when the phone apps are archived and uploaded by hand. One version
+exists at a time; the deployed commit is stamped into the Worker and reported to
+Sentry as the release. `docs/RELEASING.md` is the whole procedure.
+
+The gate is unchanged and still runs on every commit — what moved is only *when*
+a green gate turns into a deploy. A release that has to wait for the next merge
+is a batch, so the migration guard below matters more than it did, not less.
 
 ## The gap that actually matters
 
@@ -50,8 +56,10 @@ A guard people ignore is not a guard.
 pnpm --filter @loonext/api exec wrangler rollback
 ```
 
-Seconds, no rebuild. This is *why* continuous deploy is safe for the Workers, and
-why the migration guard above carries the weight for the part that isn't.
+Seconds, no rebuild. This is *why* shipping a batch is safe for the Workers, and
+why the migration guard above carries the weight for the part that isn't — a
+release now carries several commits' worth of migrations at once, and none of
+them roll back.
 
 ## Why there is no staging environment (yet)
 

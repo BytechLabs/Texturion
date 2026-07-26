@@ -20,9 +20,26 @@ concurrency:
   group: mobile-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# release-please writes the version into apps/android/app/build.gradle.kts and
+# apps/ios/project.yml, both of which sit inside the path filter above — so
+# every release merge used to burn a full macOS iOS build to compile a
+# one-line version change that had already passed on its own commit.
+#
+# A path filter cannot express "ignore this commit if only the version line
+# moved", so the release commit is recognised by its title instead. The prefix
+# is release-please's own and was read off this repo's history rather than
+# recalled — every release merge here is titled "chore: release main", with the
+# PR number appended by the squash. Unlike the deploy gate, being wrong here
+# costs a build that did not need to run, not a release that never shipped.
+#
+# Written inline on each job rather than hoisted into a workflow-level `env`:
+# job-level `if` is evaluated before `env` exists, so a hoisted value reads as
+# empty and every job runs anyway. `head_commit` is null on a pull_request,
+# which makes startsWith false and leaves PR builds untouched.
 jobs:
   android:
     name: Android (assemble + unit tests)
+    if: "${{ !startsWith(github.event.head_commit.message, 'chore: release main') }}"
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -66,6 +83,7 @@ jobs:
 
   ios:
     name: iOS (build + unit tests)
+    if: "${{ !startsWith(github.event.head_commit.message, 'chore: release main') }}"
     runs-on: macos-latest
     defaults:
       run:

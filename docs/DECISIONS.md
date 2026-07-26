@@ -1916,3 +1916,83 @@ against the wrong instant. The failure mode is silent — a path that simply
 never asks produces a 3am text with no error anywhere — so the resolver is the
 only implementation, the compose gate uses it too, and a test enumerates the
 files allowed to decide quiet hours.
+
+---
+
+## D50 — merge-to-ship: the release PR is the only thing that reaches production
+
+**Reverses the continuous-deploy half of the previous model.** Until now `api`
+and `web` deployed on every green CI on `main`, while `android` and `ios` shipped
+by hand through store review. That was defensible on its own terms, and it left
+one thing genuinely broken: a version tag meant two different things depending
+on which app it named.
+
+`api-v0.5.0` recorded something live in production. `android-v0.3.0` was
+published as a GitHub Release for a binary that had never been built as a release
+artifact, never signed, and never uploaded anywhere — the repo has no keystore,
+no export options, no store credentials. One tag was a record; the other was an
+intention, and from the outside they were indistinguishable.
+
+**One rule now: merging the release PR is what ships.** Every commit to `main`
+still runs the whole gate — SQL suites from zero, e2e golden paths, typecheck,
+lint, unit tests, both Worker builds. What a green CI no longer does is deploy.
+Production changes when the release PR merges, and at no other time, for all
+four apps: `api` and `web` deploy themselves at that moment, `android` and `ios`
+are archived and uploaded by hand at that moment. Same event, same tag, same
+meaning.
+
+**What this costs, said plainly.** Migrations now sit on `main` unapplied until
+the next release merge. The window between "merged" and "live" grows from
+minutes to however long the release cadence is — the founder's own rule is a
+release every ~10 issues. Two consequences follow and neither is optional:
+
+- **Expand/contract stops being a nicety.** A schema change and the code that
+  needs it now ship together, which is safer, but a migration that assumes
+  same-commit deployment of its code is no longer a thing anyone can write.
+- **A batch of work reaches production at once.** A bad release is a bigger
+  blast radius than a bad commit. `wrangler rollback` is still seconds, and
+  `supabase db push` still is not — the migration guard in CI carries that
+  weight exactly as before.
+
+**The escape hatch is load-bearing, not a convenience.** A stretch of work typed
+entirely `chore`/`docs`/`ci`/`test` produces no release PR at all, because those
+types are hidden from the changelog by design. Without a manual door, such a
+change could never reach production. `Deploy` therefore accepts a
+`workflow_dispatch` with a required written reason, recorded on the run.
+
+**The gate asks whether a release is UNDEPLOYED, not whether a tag is here.**
+The obvious check — "does this commit carry a release tag" — loses a release
+whenever the release commit's own CI is not green. On this repo that is the
+common case: **three of the four release merges in history had a failing CI
+run**, and 43% of `main`'s runs are not green. Continuous deploy hid it, because
+the next green commit deployed the whole tree and carried the earlier release's
+code along as a side effect. Removing that without replacing it would have made
+a red release commit permanent, with its tag and GitHub Release both claiming
+it shipped.
+
+So the gate compares reachability: which release tags are in this commit's
+history but not in the last one we deployed. A release whose own CI failed is
+picked up by the next green commit, exactly as before. The "last deployed"
+state is a ref (`refs/deployed/production`) the deploy job force-updates as its
+final step — last on purpose, so a failed deploy leaves the release pending and
+the next green commit retries it. `git ls-remote origin refs/deployed/production`
+answers "what is live" from anywhere.
+
+It asks the TAGS rather than the commit message: release-please titles its merge
+`chore: release main`, but a squash-merge title is editable, and a wrong answer
+means a release that silently never ships. The check polls briefly because `CI`
+and `Release` start on the same push with nothing ordering them.
+
+**`main` no longer cancels its own CI.** `cancel-in-progress` was justified as
+"main cancels its own older runs so the deploy that workflow_run triggers is
+always for the newest commit" — true when every green commit deployed, and
+actively harmful now that only a release does. A cancelled run has no `success`
+conclusion, so Deploy never fires for it. Measured here, release CI takes
+137-300s and has twice been followed by another push 61s later, so the window
+was real, not theoretical. Branches still cancel; `main` does not.
+
+**Store upload is still manual, and that is the remaining gap.** Automating it
+needs an Android keystore, a Play service account and an App Store Connect API
+key — credentials only the founder can create. Until those exist, the mobile
+half of "merge-to-ship" is a person following `docs/RELEASING.md` on release day
+rather than a workflow. The tag no longer claims otherwise.

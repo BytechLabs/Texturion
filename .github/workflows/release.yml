@@ -8,11 +8,14 @@ name: Release
 # Each commit is routed by the FILES it touches, so an api-only change never
 # bumps the mobile versions — nothing is "released" unless its own code changed.
 #
-# It does NOT gate deployment. api/web still deploy on every green CI exactly as
-# before — one version of a service exists at a time and nobody installs it, so
-# the tag is the RECORD of what shipped, not a gate in front of it. For the store
-# apps the merged version is what you archive and upload, and the generated notes
-# are the "What's new" text.
+# Merging it IS the deploy (D50). Every commit to main runs the full CI gate;
+# what a green CI no longer does is ship. deploy.yml looks for a release tag on
+# the commit CI passed on, and only then pushes migrations and deploys both
+# Workers — so production changes when this PR merges and at no other time.
+#
+# The store apps are archived and uploaded by hand at the same moment, because
+# the repo holds no signing credentials. That is the one part of "merge-to-ship"
+# a person still performs; the tag no longer pretends otherwise.
 on:
   push:
     branches: [main]

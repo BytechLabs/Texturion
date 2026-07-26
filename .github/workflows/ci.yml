@@ -5,14 +5,25 @@ on:
   push:
     branches: [main]
 
-# #122: cancel superseded runs. Pushing a new commit to a PR (or to main)
+# #122: cancel superseded runs on a BRANCH. Pushing a new commit to a PR
 # supersedes the in-flight CI for that ref, so the old run is wasted work and
 # just delays the queue. Scoped per workflow+ref so unrelated branches never
-# cancel each other; main cancels its own older runs so the deploy that
-# workflow_run triggers is always for the newest commit.
+# cancel each other.
+#
+# main is exempt (D50). The original rationale was "main cancels its own older
+# runs so the deploy that workflow_run triggers is always for the newest
+# commit" — true when every green commit deployed, and actively harmful now
+# that only a release does. A cancelled run has no 'success' conclusion, so
+# Deploy never fires for it; cancelling main's CI would mean a release merge
+# followed closely by another push loses its deploy. Measured on this repo,
+# release CI takes 137-300s and has twice been followed by a push 61s later,
+# so this is not a theoretical window.
+#
+# The cost is a few duplicate runs on a busy main. That is cheaper than a
+# release that silently never ships.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   schema:
