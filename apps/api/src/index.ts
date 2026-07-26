@@ -48,6 +48,7 @@ import { registrationRoutes } from "./routes/registration";
 import { searchRoutes } from "./routes/search";
 import { pruneAuditLog } from "./audit/retention";
 import { purgeClosedWorkspaces } from "./workspace/purge";
+import { accountRoutes } from "./routes/account";
 import { auditLogRoutes } from "./routes/audit-log";
 import { workspaceClosureRoutes } from "./routes/workspace-closure";
 import { tagsRoutes } from "./routes/tags";
@@ -134,6 +135,7 @@ app.route("/v1", tasksRoutes); // D17 tasks + GET /v1/conversations/:id/tasks
 app.route("/v1", messageRoutes);
 app.route("/v1", attachmentsRoutes);
 app.route("/v1", contactsRoutes);
+app.route("/v1", accountRoutes);
 app.route("/v1", auditLogRoutes);
 app.route("/v1", workspaceClosureRoutes);
 app.route("/v1", tagsRoutes);

@@ -1,0 +1,214 @@
+/**
+ * #346 — DELETE /v1/account and its preview.
+ *
+ * The teardown itself is asserted in SQL (supabase/tests/delete_account.test.sql).
+ * What these pin is the route's part: that it is about the caller and nobody
+ * else, that an owner is refused with copy naming their workspaces, that every
+ * membership is offboarded on the way out, and that the auth identity is
+ * severed rather than left signable.
+ */
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+
+import {
+  apiRequest,
+  buildTestApp,
+  supabaseStub,
+  type SupabaseStub,
+} from "../test/routes-harness";
+import {
+  completeEnv,
+  createTestAuth,
+  jwksRoute,
+  stubFetch,
+  type TestAuth,
+} from "../test/support";
+import { accountRoutes } from "./account";
+
+vi.mock("@sentry/cloudflare", () => ({
+  captureMessage: vi.fn(),
+  captureException: vi.fn(),
+}));
+
+const env = completeEnv();
+const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
+const MEMBER_ROW = "eeeeeeee-1111-4222-8333-444444444444";
+
+let auth: TestAuth;
+const app = buildTestApp(accountRoutes);
+
+beforeAll(async () => {
+  auth = await createTestAuth(env);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.clearAllMocks();
+});
+
+function world(
+  options: {
+    preview?: Record<string, unknown>;
+    deleteResult?: Record<string, unknown>;
+  } = {},
+): SupabaseStub {
+  const sb = supabaseStub(env);
+  sb.on("POST", "/rest/v1/rpc/account_deletion_preview", () =>
+    options.preview ?? {
+      blocked_by: null,
+      memberships: 1,
+      conversations: 2,
+      tasks: 3,
+    },
+  );
+  sb.on("GET", "/rest/v1/company_members", () => [
+    { id: MEMBER_ROW, company_id: COMPANY_ID },
+  ]);
+  sb.on("POST", "/rest/v1/rpc/offboard_member", () => ({
+    outcome: "deactivated",
+    user_id: auth.subject,
+    conversations: 2,
+    tasks: 3,
+  }));
+  sb.on("POST", "/rest/v1/audit_log", () => []);
+  sb.on("POST", "/rest/v1/rpc/delete_account", () =>
+    options.deleteResult ?? { outcome: "deleted", personal_rows: 7 },
+  );
+  sb.on("PUT", /^\/auth\/v1\/admin\/users\//, () => ({ id: auth.subject }));
+  return sb;
+}
+
+describe("GET /v1/account/deletion-preview", () => {
+  it("says what deleting would touch", async () => {
+    const sb = world();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    // Company-exempt: this is about the person, and someone with no membership
+    // at all must still be able to leave.
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/account/deletion-preview",
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      blocked_by: null,
+      owned_workspaces: [],
+      memberships: 1,
+      open_conversations: 2,
+      open_tasks: 3,
+    });
+    expect(
+      sb.find("POST", "/rest/v1/rpc/account_deletion_preview")[0].body,
+    ).toEqual({ p_user_id: auth.subject });
+  });
+
+  it("names the workspaces an owner has to deal with first", async () => {
+    const sb = world({
+      preview: {
+        blocked_by: "owner",
+        owned: [{ id: COMPANY_ID, name: "Brightside Plumbing" }],
+      },
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/account/deletion-preview",
+    );
+    expect(await res.json()).toMatchObject({
+      blocked_by: "owner",
+      owned_workspaces: [{ name: "Brightside Plumbing" }],
+    });
+  });
+});
+
+describe("DELETE /v1/account", () => {
+  it("offboards every workspace, then severs the identity", async () => {
+    const sb = world();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/account", {
+      method: "DELETE",
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      deleted: true,
+      workspaces_left: 1,
+      personal_rows_removed: 7,
+    });
+
+    // #276 runs per membership, releasing their open work to the crew — there
+    // is nobody to nominate on a leaver's behalf.
+    expect(sb.find("POST", "/rest/v1/rpc/offboard_member")[0].body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_member_id: MEMBER_ROW,
+      p_reassign_to: null,
+    });
+    // #231: the business's record of why one of its people vanished.
+    expect(sb.find("POST", "/rest/v1/audit_log")[0].body).toMatchObject({
+      company_id: COMPANY_ID,
+      action: "member.deactivated",
+      after: { reason: "account_deleted" },
+    });
+    // The auth identity: no address to mail, no credential to present.
+    const severed = sb.find("PUT", /^\/auth\/v1\/admin\/users\//)[0].body as {
+      email: string;
+      ban_duration: string;
+    };
+    expect(severed.email).toContain("@account.invalid");
+    expect(severed.ban_duration).toBeTruthy();
+  });
+
+  it("refuses an owner, naming what they have to do", async () => {
+    // A generic failure leaves them with no idea what to change — and there is
+    // no ownership transfer yet (#332), so the rule has to be stated.
+    const sb = world({
+      preview: {
+        blocked_by: "owner",
+        owned: [{ id: COMPANY_ID, name: "Brightside Plumbing" }],
+      },
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/account", {
+      method: "DELETE",
+    });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("Brightside Plumbing");
+    // Nothing was touched.
+    expect(sb.find("POST", "/rest/v1/rpc/offboard_member")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/delete_account")).toHaveLength(0);
+  });
+
+  it("still reports success when the auth identity cannot be severed", async () => {
+    // The data is already gone by then — telling someone their deletion did
+    // not happen when most of it did would be worse. It raises for US instead.
+    const sb = world();
+    sb.on(
+      "PUT",
+      /^\/auth\/v1\/admin\/users\//,
+      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/account", {
+      method: "DELETE",
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ deleted: true });
+  });
+
+  it("handles becoming an owner between the preview and the delete", async () => {
+    const sb = world({ deleteResult: { outcome: "owner" } });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/account", {
+      method: "DELETE",
+    });
+    expect(res.status).toBe(409);
+  });
+});

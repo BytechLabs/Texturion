@@ -37,6 +37,11 @@ const COMPANY_EXEMPT_ROUTES = new Set([
   // time (§8) — so no company scope exists to require.
   "POST /v1/device-push-tokens",
   "DELETE /v1/device-push-tokens",
+  // #346: deleting your own account is about the PERSON, not one of their
+  // workspaces — and somebody with no membership at all must still be able to
+  // leave. Both act on the caller's own userId; there is no id to get wrong.
+  "GET /v1/account/deletion-preview",
+  "DELETE /v1/account",
 ]);
 
 /**
