@@ -16,6 +16,7 @@ import { runOverageWarningJob } from "./billing/overage-warning";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
 import { sweepDeletedAttachments } from "./attachments/sweep";
 import { pruneAuditLog } from "./audit/retention";
+import { buildDataExports } from "./workspace/export";
 import { purgeClosedWorkspaces } from "./workspace/purge";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
@@ -460,6 +461,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       pruneWebhookEvents,
       pruneAuditLog,
       purgeClosedWorkspaces,
+      buildDataExports,
     ]);
   });
 });

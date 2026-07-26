@@ -47,8 +47,10 @@ import { portingRoutes } from "./routes/porting";
 import { registrationRoutes } from "./routes/registration";
 import { searchRoutes } from "./routes/search";
 import { pruneAuditLog } from "./audit/retention";
+import { buildDataExports } from "./workspace/export";
 import { purgeClosedWorkspaces } from "./workspace/purge";
 import { accountRoutes } from "./routes/account";
+import { exportsRoutes } from "./routes/exports";
 import { auditLogRoutes } from "./routes/audit-log";
 import { workspaceClosureRoutes } from "./routes/workspace-closure";
 import { tagsRoutes } from "./routes/tags";
@@ -136,6 +138,7 @@ app.route("/v1", messageRoutes);
 app.route("/v1", attachmentsRoutes);
 app.route("/v1", contactsRoutes);
 app.route("/v1", accountRoutes);
+app.route("/v1", exportsRoutes);
 app.route("/v1", auditLogRoutes);
 app.route("/v1", workspaceClosureRoutes);
 app.route("/v1", tagsRoutes);
@@ -299,7 +302,14 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
   // the ledger grows without bound for the life of the install.
   // Ledger retention, both daily: the webhook ledger's dedupe window and the
   // #231 audit log's 12 months. Neither can grow without bound.
-  "30 15 * * *": [pruneWebhookEvents, pruneAuditLog, purgeClosedWorkspaces],
+  "30 15 * * *": [
+    pruneWebhookEvents,
+    pruneAuditLog,
+    purgeClosedWorkspaces,
+    // #227: exports build here for the same reason the purge does — a busy
+    // workspace cannot be processed inside a request.
+    buildDataExports,
+  ],
 };
 
 // Exported (not just the Sentry-wrapped default) so the outermost fetch guard
