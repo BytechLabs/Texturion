@@ -424,3 +424,79 @@ describe("notifyInboundMessage — native device push (#151)", () => {
     expect(world.resend.calls).toHaveLength(1); // email still went out
   });
 });
+
+describe("an emergency reply is escalated, not threaded (#414)", () => {
+  // The default away message — on by default, kept by most owners — tells a
+  // homeowner "for a no-heat or burst-pipe emergency, reply URGENT and we'll
+  // call you". Until now that reply became an ordinary message: normal push
+  // priority, deferred in Doze, on a phone face-down on a bedside table.
+  const EMERGENCY = { ...INPUT, body: "URGENT no heat", emergency: true };
+
+  it("wakes the WHOLE crew, not just the assignee", async () => {
+    // Narrowing to one person is right for an ordinary message — it stops ten
+    // people answering the same customer — and wrong for the one message where
+    // the cost of that person being asleep is a family in a cold house.
+    const world = buildWorld({ assignedUserId: MEMBER });
+    stubFetch(...world.routes);
+
+    await notifyInboundMessage(env, EMERGENCY);
+
+    const email = world.resend.calls[0] as { to: string[] };
+    expect(email.to.length).toBeGreaterThan(1);
+    const subsCall = world.sb.find("GET", "/rest/v1/push_subscriptions")[0];
+    expect(subsCall.url.searchParams.get("user_id")).not.toBe(`in.(${MEMBER})`);
+  });
+
+  it("says what it is before it says who it is from", async () => {
+    // A phone on a bedside table shows one line. Web Push bodies are
+    // encrypted, so the payload is read through the FCM double — the same
+    // string reaches both.
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const world = buildWorld({ members: [OWNER] });
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      { id: DEVICE_ROW_ID, user_id: OWNER, platform: "android", token: "tok-a" },
+    ]);
+    stubFetch(...world.routes, ...service.routes);
+
+    await notifyInboundMessage(fcmEnv(account), EMERGENCY);
+
+    const email = world.resend.calls[0] as { subject: string };
+    expect(email.subject).toContain("EMERGENCY");
+    const data = service.sends[0].message.data as Record<string, string>;
+    expect(data.title).toContain("EMERGENCY");
+  });
+
+  it("wakes the phone, and keeps its own place on the lock screen", async () => {
+    // HIGH is the whole mechanism — at NORMAL the alert is deferred in Doze,
+    // which is precisely where this promise died. And coalescing it under
+    // `conversation:<id>` would let the next ordinary text in the thread
+    // replace it thirty seconds later.
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const world = buildWorld({ members: [OWNER] });
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      { id: DEVICE_ROW_ID, user_id: OWNER, platform: "android", token: "tok-a" },
+    ]);
+    stubFetch(...world.routes, ...service.routes);
+
+    await notifyInboundMessage(fcmEnv(account), EMERGENCY);
+
+    const sent = service.sends[0].message;
+    expect((sent.data as Record<string, string>).tag).toBe(
+      `emergency:${CONVERSATION_ID}`,
+    );
+    expect(JSON.stringify(sent)).toContain("HIGH");
+  });
+
+  it("leaves an ordinary message exactly as it was", async () => {
+    const world = buildWorld({ assignedUserId: MEMBER });
+    stubFetch(...world.routes);
+
+    await notifyInboundMessage(env, INPUT);
+
+    const email = world.resend.calls[0] as { to: string[]; subject: string };
+    expect(email.to).toEqual([`${MEMBER}@team.example`]);
+    expect(email.subject).not.toContain("EMERGENCY");
+  });
+});

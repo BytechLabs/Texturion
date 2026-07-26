@@ -23,7 +23,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
 import { ApiError } from "../http/errors";
-import { isCarrierKeyword } from "./keywords";
+import { suppressesAutoReply } from "./keywords";
 import { dispatchOutbound, type SendClearance } from "./send";
 import type { MessageRow } from "./types";
 
@@ -78,8 +78,13 @@ export async function guardedAutoSend(
     clearance: SendClearance;
   },
 ): Promise<AutoSendOutcome> {
-  // (b) Never fire on a STOP/HELP/START keyword (Telnyx handles those, D3).
-  if (isCarrierKeyword(args.triggerBody)) {
+  // (b) Never fire on a STOP/HELP/START keyword (Telnyx handles those, D3),
+  // and never on an EMERGENCY reply (#414). Without the second, someone who
+  // did exactly what the away message asked receives that same instruction
+  // back — "reply URGENT and we'll call you" — in answer to having replied
+  // URGENT. A robot telling a person with a gas smell to wait until morning is
+  // worse than saying nothing.
+  if (suppressesAutoReply(args.triggerBody)) {
     return { sent: false, reason: "carrier_keyword" };
   }
 

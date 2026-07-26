@@ -51,6 +51,13 @@ export interface InboundNotificationInput {
    */
   allowEmail?: boolean;
   allowPush?: boolean;
+  /**
+   * #414: the customer replied with the emergency word the away message asked
+   * for. Changes three things — the whole crew is told rather than only the
+   * assignee, the push goes at HIGH priority so it wakes a phone in Doze, and
+   * neither the debounce nor the daily budget applies (decided upstream).
+   */
+  emergency?: boolean;
 }
 
 interface ConversationView {
@@ -125,7 +132,14 @@ export async function notifyInboundMessage(
     phoneNumberId: conversation.phone_number_id,
   });
   const members = viewers.map((row) => row.user_id);
+  //
+  // #414: an EMERGENCY goes to everyone who can see the thread, assignee or
+  // not. Narrowing to one person is right for an ordinary message — it is what
+  // stops a crew of ten all answering the same customer — and wrong for the
+  // one message where the cost of that person being asleep is a family in a
+  // cold house.
   const audience =
+    !input.emergency &&
     conversation.assigned_user_id !== null &&
     members.includes(conversation.assigned_user_id)
       ? [conversation.assigned_user_id]
@@ -162,6 +176,17 @@ export async function notifyInboundMessage(
   const contactName =
     conversation.contacts.name?.trim() || conversation.contacts.phone_e164;
   const snippet = notificationSnippet(input.body, input.mediaCount);
+  // #414: the first line has to say WHAT this is before it says who it is
+  // from — a phone on a bedside table shows one line. The push title and the
+  // email subject were never the same string and must not become the same
+  // string: the push has always led with the contact name, and only the
+  // emergency prefix is new.
+  const pushTitle = input.emergency
+    ? `EMERGENCY — ${contactName}`
+    : contactName;
+  const emailSubject = input.emergency
+    ? `EMERGENCY — ${contactName}`
+    : `New text from ${contactName}`;
   // The web thread route is /inbox/[conversationId]; a /conversations/:id
   // email link would 404 (only the service worker's push normalizer knows the
   // legacy shape).
@@ -210,7 +235,7 @@ export async function notifyInboundMessage(
           `Turn these alerts off: ${settingsUrl}\n`;
         await sendEmail(env, {
           to,
-          subject: `New text from ${contactName}`,
+          subject: emailSubject,
           text,
           html: emailLayout(
             `<p><strong>${escapeHtml(contactName)}</strong> sent a new text:</p>` +
@@ -232,8 +257,17 @@ export async function notifyInboundMessage(
   // than stacking, on the `conversation:<id>` tag the clients coalesce on.
   await deliverPush(env, db, {
     userIds: pushUsers,
-    web: { title: contactName, body: snippet, url: link },
-    collapseKey: `conversation:${input.conversationId}`,
+    web: { title: pushTitle, body: snippet, url: link },
+    collapseKey: input.emergency
+      ? // #414: an emergency must NOT be coalesced away by the ordinary texts
+        // that follow it in the same thread. Its own key keeps it on the lock
+        // screen instead of being replaced by "on my way?" thirty seconds
+        // later.
+        `emergency:${input.conversationId}`
+      : `conversation:${input.conversationId}`,
+    // #414: HIGH wakes a phone in Doze; NORMAL is deferred, which is exactly
+    // where this promise died. Same urgency an incoming call already uses.
+    urgency: input.emergency ? "high" : "normal",
     failures,
   });
 

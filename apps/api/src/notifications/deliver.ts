@@ -89,6 +89,12 @@ export interface PushDelivery {
    */
   collapseKey: string;
   /**
+   * #414: "high" wakes a phone in Doze (FCM HIGH / APNs priority 10); "normal"
+   * is power-considerate and can be deferred for hours. Ordinary alerts are
+   * worth delivering late — an emergency is not.
+   */
+  urgency?: "normal" | "high";
+  /**
    * Every failure lands here rather than throwing, so one dead device cannot
    * stop the rest of the fan-out. The caller decides what a non-empty list
    * means.
@@ -170,7 +176,7 @@ export async function deliverPush(
         subscription,
         webPayload,
         undefined,
-        undefined,
+        delivery.urgency ?? "normal",
         delivery.collapseKey,
       );
       if (result.gone) {
@@ -218,14 +224,16 @@ export async function deliverPush(
 
   for (const device of newestPerUser(tokenRows, MAX_TARGETS_PER_USER)) {
     try {
-      // TTL and urgency ride the sender defaults: these alerts are worth
-      // delivering late, unlike a ring.
+      // TTL rides the sender default: an ordinary alert is worth delivering
+      // late, unlike a ring. Urgency does NOT — #414 needs HIGH to wake a
+      // phone in Doze, which is the whole mechanism behind the emergency
+      // promise.
       const result = await sendFcm(
         env,
         device,
         nativePayload,
         undefined,
-        undefined,
+        delivery.urgency ?? "normal",
         delivery.collapseKey,
       );
       if (result.gone) {

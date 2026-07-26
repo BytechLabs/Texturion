@@ -24,7 +24,11 @@ import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { notifyInboundMessage } from "../notifications/inbound";
 import { maybeSendAwayReply } from "./away-reply";
-import { START_KEYWORDS, STOP_KEYWORDS } from "./keywords";
+import {
+  isEmergencyKeyword,
+  START_KEYWORDS,
+  STOP_KEYWORDS,
+} from "./keywords";
 import {
   INBOUND_MEDIA_TYPES,
   MAX_INBOUND_MEDIA_BYTES,
@@ -80,7 +84,8 @@ export async function handleInboundMessage(
     // whose ceilings apply, plus any ops override.
     .select(
       "id,company_id," +
-        "companies(timezone,plan,notify_email_limit,notify_push_limit)",
+        "companies(timezone,plan,notify_email_limit,notify_push_limit," +
+        "emergency_keyword_enabled)",
     )
     .eq("number_e164", toE164)
     .neq("status", "released")
@@ -97,6 +102,7 @@ export async function handleInboundMessage(
           plan?: PlanId | null;
           notify_email_limit?: number | null;
           notify_push_limit?: number | null;
+          emergency_keyword_enabled?: boolean | null;
         } | null;
       }
     | undefined;
@@ -223,7 +229,46 @@ export async function handleInboundMessage(
   // Resend bill ran out was never the intent.
   const allowEmail = threaded.notify_email ?? threaded.notify === true;
   const allowPush = threaded.notify_push ?? threaded.notify === true;
-  if (threaded.created && (allowEmail || allowPush)) {
+
+  // #414: the reply we asked for. The default away message — on by default,
+  // kept by most owners — tells a homeowner "for a no-heat or burst-pipe
+  // emergency, reply URGENT and we'll call you", and until now that reply
+  // threaded as an ordinary message.
+  //
+  // It bypasses BOTH gates above, and each for its own reason:
+  //
+  //   the 15-minute debounce — a customer who texted two minutes ago and then
+  //   types URGENT is the exact case the debounce would silence, and it is the
+  //   one case that must never be silent.
+  //
+  //   the #343 daily budget — a cost ceiling dropping a no-heat call in
+  //   January is not a trade-off anybody would choose. An emergency is not
+  //   metered.
+  const emergency =
+    (company?.emergency_keyword_enabled ?? true) &&
+    isEmergencyKeyword(payload.text ?? "");
+
+  // The timeline needs a word for it. Without one, the most consequential
+  // message a workspace can receive leaves the same trace as any other — and
+  // "why did my phone go off at 3am" has no answer anyone can look up.
+  // Best-effort: a failed timeline row must never cost the alert itself.
+  if (threaded.created && emergency) {
+    const { error: flagError } = await db.from("conversation_events").insert({
+      company_id: number.company_id,
+      conversation_id: threaded.conversation_id,
+      actor_user_id: null, // the customer acted, not a member
+      type: "emergency_flagged",
+      payload: { matched: (payload.text ?? "").trim().slice(0, 80) },
+    });
+    if (flagError) {
+      console.error(
+        `emergency flag not recorded for ${threaded.conversation_id}:`,
+        flagError.message,
+      );
+    }
+  }
+
+  if (threaded.created && (emergency || allowEmail || allowPush)) {
     await notifyInboundMessage(
       env,
       {
@@ -231,8 +276,10 @@ export async function handleInboundMessage(
         conversationId: threaded.conversation_id,
         body: payload.text ?? "",
         mediaCount: media.length,
-        allowEmail,
-        allowPush,
+        // An emergency reaches every channel it can, whatever the budget says.
+        allowEmail: emergency || allowEmail,
+        allowPush: emergency || allowPush,
+        emergency,
       },
       db,
     );
