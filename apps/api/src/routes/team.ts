@@ -43,6 +43,7 @@ import {
   expectOk,
   isUniqueViolation,
   parseJsonBody,
+  parseWith,
   pathUuid,
   unwrap,
 } from "./core/http";
@@ -207,73 +208,174 @@ teamRoutes.patch("/members/:id", requireRole("admin"), async (c) => {
   return c.json(updated[0]);
 });
 
-teamRoutes.delete("/members/:id", requireRole("admin"), async (c) => {
+/**
+ * #276: what a member is holding, so the offboarding flow can ask where it
+ * should go instead of silently orphaning it. Also takes any member — including
+ * one deactivated long ago — which is how an owner finds work already left
+ * behind by people who have gone.
+ */
+teamRoutes.get("/members/:id/holdings", requireRole("admin"), async (c) => {
   const id = pathUuid(c, "id");
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));
 
-  const rows = unwrap<
-    {
-      id: string;
-      user_id: string;
-      role: string;
-      deactivated_at: string | null;
-    }[]
-  >(
+  const rows = unwrap<{ user_id: string }[]>(
     await db
       .from("company_members")
-      .select("id,user_id,role,deactivated_at")
+      .select("user_id")
       .eq("company_id", companyId)
       .eq("id", id)
       .limit(1),
     "member lookup",
   );
-  const target = rows[0];
-  if (!target) {
+  if (!rows[0]) return errorResponse(c, "not_found", "No such member.");
+
+  const { data, error } = await db.rpc("api_member_holdings", {
+    p_company_id: companyId,
+    p_user_id: rows[0].user_id,
+  });
+  if (error) throw new Error(`api_member_holdings failed: ${error.message}`);
+  const holdings = data as { conversations: number; tasks: number };
+  return c.json({
+    conversations: Number(holdings.conversations ?? 0),
+    tasks: Number(holdings.tasks ?? 0),
+  });
+});
+
+/** Where a leaver's open work goes. Omitted = released to the whole crew. */
+const offboardSchema = z.object({
+  reassign_to: z.uuid().nullable().optional(),
+});
+
+teamRoutes.delete("/members/:id", requireRole("admin"), async (c) => {
+  const id = pathUuid(c, "id");
+  const companyId = c.get("companyId");
+  const env = getEnv(c.env);
+  const db = getDb(env);
+
+  // #276: the destination rides as a query param so DELETE keeps its shape for
+  // every existing client. Omitting it RELEASES the work to unassigned, which
+  // is a real choice a person can make — what is not on the table any more is
+  // leaving it pointing at someone who is gone.
+  const query = parseWith(offboardSchema, c.req.query());
+
+  const { data, error } = await db.rpc("offboard_member", {
+    p_company_id: companyId,
+    p_member_id: id,
+    p_reassign_to: query.reassign_to ?? null,
+  });
+  if (error) throw new Error(`offboard_member failed: ${error.message}`);
+  const result = data as {
+    outcome: "deactivated" | "already" | "not_found" | "owner" | "bad_destination";
+    user_id?: string;
+    conversations?: number;
+    tasks?: number;
+  };
+
+  if (result.outcome === "not_found") {
     return errorResponse(c, "not_found", "No such member.");
   }
-  if (target.role === "owner") {
+  if (result.outcome === "owner") {
     // The owner membership cannot be deactivated (SPEC §10).
     return errorResponse(c, "conflict", "The owner cannot be deactivated.");
   }
-
-  if (target.deactivated_at === null) {
-    expectOk(
-      await db
-        .from("company_members")
-        .update({ deactivated_at: new Date().toISOString() })
-        .eq("company_id", companyId)
-        .eq("id", id),
-      "member deactivate",
+  if (result.outcome === "bad_destination") {
+    return errorResponse(
+      c,
+      "validation_failed",
+      "Hand the work to someone who is still on the team, or leave it unassigned.",
     );
-    // D43 (#135): a deactivated member's softphone dies with the seat —
-    // best-effort (deactivation must never fail on Telnyx weather; the
-    // orphaned credential costs nothing and can be re-deleted).
-    try {
-      await revokeMemberTelephonyCredential(
-        getEnv(c.env),
-        companyId,
-        target.user_id,
-      );
-    } catch (cause) {
-      console.error(
-        `softphone revoke on deactivation failed for member ${id}:`,
-        cause instanceof Error ? cause.message : String(cause),
-      );
-    }
-    // #231: "did the person we let go on Friday still have access on Monday"
-    // is the question this row exists to answer.
-    await recordAuditFromRequest(db, c, {
-      companyId,
-      action: "member.deactivated",
-      targetType: "member",
-      targetId: id,
-      before: { role: target.role, active: true },
-      after: { role: target.role, active: false },
-    });
   }
-  return c.body(null, 204);
+
+  const userId = result.user_id as string;
+  const moved = {
+    conversations: Number(result.conversations ?? 0),
+    tasks: Number(result.tasks ?? 0),
+  };
+
+  // Removing someone has to mean their access is over, not that they are
+  // hidden from lists (#236). All three are best-effort AFTER the atomic
+  // deactivate+reassign above: a Telnyx or GoTrue blip must not leave the
+  // member half-removed, and every one of these is safely repeatable.
+  try {
+    // D43 (#135): the softphone dies with the seat.
+    await revokeMemberTelephonyCredential(env, companyId, userId);
+  } catch (cause) {
+    console.error(
+      `softphone revoke on deactivation failed for member ${id}:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+  }
+  const ended = await endMemberAccess(db, userId);
+
+  // #231/#276: the offboarding and everything it moved, on the record.
+  await recordAuditFromRequest(db, c, {
+    companyId,
+    action: "member.deactivated",
+    targetType: "member",
+    targetId: id,
+    before: { active: result.outcome === "deactivated" },
+    after: {
+      active: false,
+      reassigned_to: query.reassign_to ?? null,
+      conversations_moved: moved.conversations,
+      tasks_moved: moved.tasks,
+      sessions_ended: ended.sessions,
+      push_devices_removed: ended.devices,
+    },
+  });
+
+  return c.json({
+    conversations_moved: moved.conversations,
+    tasks_moved: moved.tasks,
+    sessions_ended: ended.sessions,
+    push_devices_removed: ended.devices,
+  });
 });
+
+/**
+ * #236/#276: end the person's sessions and stop push reaching their devices.
+ *
+ * Best-effort and never throws — the member IS deactivated by the time this
+ * runs, and failing the request would tell the owner the removal did not
+ * happen when it did. Each step is safely repeatable, so a retry (or the next
+ * removal attempt) finishes the job.
+ */
+async function endMemberAccess(
+  db: Db,
+  userId: string,
+): Promise<{ sessions: number; devices: number }> {
+  let sessions = 0;
+  let devices = 0;
+  try {
+    const { data, error } = await db.rpc("api_revoke_user_sessions", {
+      p_user_id: userId,
+    });
+    if (error) throw new Error(error.message);
+    sessions = Number(data ?? 0);
+  } catch (cause) {
+    console.error(
+      `session revoke on deactivation failed for user ${userId}:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+  }
+  // Push rows are per person, not per company: a token left behind keeps
+  // delivering another workspace's customer messages to a phone we have just
+  // said goodbye to (the same leak #264 fixed on the web).
+  for (const table of ["push_subscriptions", "device_push_tokens"] as const) {
+    const { data, error } = await db
+      .from(table)
+      .delete()
+      .eq("user_id", userId)
+      .select("id");
+    if (error) {
+      console.error(`${table} cleanup on deactivation failed:`, error.message);
+      continue;
+    }
+    devices += (data ?? []).length;
+  }
+  return { sessions, devices };
+}
 
 teamRoutes.get("/invites", requireRole("admin"), async (c) => {
   const db = getDb(getEnv(c.env));

@@ -1,8 +1,4 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useCompanyId } from "@/lib/company/provider";
 
@@ -13,7 +9,9 @@ import type {
   CreatedInvite,
   Invite,
   Member,
+  MemberHoldings,
   MyInvite,
+  OffboardResult,
   Page,
 } from "./types";
 
@@ -53,28 +51,58 @@ export function useUpdateMemberRole() {
 }
 
 /** DELETE /v1/members/:id — deactivate (frees the seat, never a row delete). */
+/**
+ * GET /v1/members/:id/holdings (#276) — the open conversations and tasks this
+ * person is carrying, so the removal flow can ask where they should go.
+ * Enabled only while the dialog is open; asking on every list render would be
+ * two queries per member for a number nobody is looking at.
+ */
+export function useMemberHoldings(memberId: string | null) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: [companyId, "members", memberId, "holdings"] as const,
+    enabled: memberId !== null,
+    queryFn: () =>
+      apiFetch<MemberHoldings>(`/v1/members/${memberId}/holdings`, {
+        companyId,
+      }),
+  });
+}
+
+/**
+ * DELETE /v1/members/:id (#276) — remove someone and hand their open work on.
+ *
+ * `reassignTo` null RELEASES the work to the whole crew, which is a real
+ * choice; what is no longer possible is leaving it pointing at someone who is
+ * gone. The response says what actually moved so the confirmation can be
+ * specific instead of a shrug.
+ */
 export function useDeactivateMember() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (memberId: string) =>
-      apiFetch<void>(`/v1/members/${memberId}`, {
+    mutationFn: (input: { memberId: string; reassignTo: string | null }) =>
+      apiFetch<OffboardResult>(`/v1/members/${input.memberId}`, {
         method: "DELETE",
         companyId,
+        searchParams: { reassign_to: input.reassignTo ?? undefined },
       }),
-    onSuccess: (_void, memberId) => {
+    onSuccess: (_result, input) => {
       queryClient.setQueryData<Page<Member>>(keys.members(companyId), (page) =>
         page
           ? {
               ...page,
               data: page.data.map((m) =>
-                m.id === memberId
+                m.id === input.memberId
                   ? { ...m, deactivated_at: new Date().toISOString() }
                   : m,
               ),
             }
           : page,
       );
+      // The work moved, so every list that shows an assignee is now stale.
+      void queryClient.invalidateQueries({ queryKey: [companyId, "conversations"] });
+      void queryClient.invalidateQueries({ queryKey: [companyId, "tasks"] });
     },
   });
 }

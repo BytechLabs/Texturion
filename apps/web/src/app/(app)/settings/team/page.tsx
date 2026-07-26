@@ -44,6 +44,7 @@ import { ApiError } from "@/lib/api/error";
 import {
   useCreateInvite,
   useDeactivateMember,
+  useMemberHoldings,
   useInvites,
   useMembers,
   useRevokeInvite,
@@ -75,13 +76,15 @@ function MemberRow({
   member,
   canManage,
   isSelf,
+  teammates = [],
 }: {
   member: Member;
   canManage: boolean;
   isSelf: boolean;
+  /** Active members this person's open work could be handed to (#276). */
+  teammates?: Member[];
 }) {
   const updateRole = useUpdateMemberRole();
-  const deactivate = useDeactivateMember();
   const [confirming, setConfirming] = useState(false);
   const name = member.display_name || "Teammate";
   const deactivated = member.deactivated_at !== null;
@@ -142,56 +145,184 @@ function MemberRow({
       ) : (
         <Badge variant="secondary">{ROLE_LABELS[member.role]}</Badge>
       )}
-      {canManage && member.role !== "owner" && !isSelf && !deactivated && (
+      {canManage && member.role !== "owner" && !isSelf && (
         <>
           <Button
             variant="ghost"
             size="sm"
-            className="text-muted-foreground hover:text-destructive"
+            className={
+              deactivated
+                ? "text-muted-foreground hover:text-foreground"
+                : "text-muted-foreground hover:text-destructive"
+            }
             onClick={() => setConfirming(true)}
           >
-            Deactivate
+            {/* #276: every workspace that has ever removed someone has work
+                still pointing at them — this is how an owner finds it. */}
+            {deactivated ? "Move their work" : "Deactivate"}
           </Button>
-          <Dialog open={confirming} onOpenChange={setConfirming}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Deactivate {name}?</DialogTitle>
-                <DialogDescription>
-                  They lose access right away and their seat frees up.
-                  Conversations and messages they worked on stay put.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setConfirming(false)}>
-                  Keep them
-                </Button>
-                <Button
-                  variant="destructive"
-                  disabled={deactivate.isPending}
-                  onClick={() =>
-                    deactivate.mutate(member.id, {
-                      onSuccess: () => {
-                        setConfirming(false);
-                        toast.success(`${name} deactivated.`);
-                      },
-                      onError: (cause) =>
-                        toast.error(
-                          cause instanceof ApiError
-                            ? cause.message
-                            : "Couldn't deactivate. Try again.",
-                        ),
-                    })
-                  }
-                >
-                  {deactivate.isPending ? "Deactivating…" : "Deactivate"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <OffboardDialog
+            open={confirming}
+            onOpenChange={setConfirming}
+            member={member}
+            name={name}
+            teammates={teammates}
+            alreadyGone={deactivated}
+          />
         </>
       )}
     </div>
   );
+}
+
+/** Sentinel for "nobody" — a Select cannot hold null. */
+const UNASSIGNED = "unassigned";
+
+/**
+ * #276 — removing someone, with their work accounted for.
+ *
+ * Deactivation used to hide the person and leave everything they were holding
+ * pointing at them: assigned conversations owned by someone who would never
+ * open the app again, open tasks nobody would pick up. It did not fail loudly;
+ * it just stopped, and the first sign was a customer asking why nobody called
+ * back. So this asks the one question that was missing — where does their work
+ * go — and only asks it when there is work to move.
+ */
+function OffboardDialog({
+  open,
+  onOpenChange,
+  member,
+  name,
+  teammates,
+  alreadyGone = false,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  member: Member;
+  name: string;
+  teammates: Member[];
+  /** They left before this flow existed — this is only about their work. */
+  alreadyGone?: boolean;
+}) {
+  const deactivate = useDeactivateMember();
+  const holdings = useMemberHoldings(open ? member.id : null);
+  const [destination, setDestination] = useState<string>(UNASSIGNED);
+
+  const carrying =
+    (holdings.data?.conversations ?? 0) + (holdings.data?.tasks ?? 0);
+  const hasWork = carrying > 0;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {alreadyGone ? `Move ${name}'s work?` : `Remove ${name}?`}
+          </DialogTitle>
+          <DialogDescription>
+            {alreadyGone
+              ? `${name} already left, but work was left pointing at them. Send it somewhere a person will look.`
+              : "They lose access right away — signed out everywhere, and notifications stop reaching their phone. Their past messages stay theirs."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {holdings.isPending ? (
+          <p className="text-sm text-muted-foreground">
+            Checking what {name} is working on…
+          </p>
+        ) : hasWork ? (
+          <div className="space-y-3">
+            <p className="text-sm">
+              {name} is still on{" "}
+              <strong>{plural(holdings.data?.conversations ?? 0, "conversation")}</strong>{" "}
+              and <strong>{plural(holdings.data?.tasks ?? 0, "task")}</strong>.
+              Where should that go?
+            </p>
+            <Select value={destination} onValueChange={setDestination}>
+              <SelectTrigger aria-label="Hand their work to">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={UNASSIGNED}>
+                  Leave it unassigned for the crew
+                </SelectItem>
+                {teammates.map((mate) => (
+                  <SelectItem key={mate.user_id} value={mate.user_id}>
+                    Hand it to {mate.display_name || "a teammate"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {name} isn&apos;t holding any open conversations or tasks.
+          </p>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {alreadyGone ? "Cancel" : "Keep them"}
+          </Button>
+          <Button
+            variant={alreadyGone ? "default" : "destructive"}
+            disabled={
+              deactivate.isPending ||
+              holdings.isPending ||
+              // Nothing to move for someone already gone — nothing to press.
+              (alreadyGone && !hasWork)
+            }
+            onClick={() =>
+              deactivate.mutate(
+                {
+                  memberId: member.id,
+                  reassignTo: destination === UNASSIGNED ? null : destination,
+                },
+                {
+                  onSuccess: (result) => {
+                    onOpenChange(false);
+                    // Say what actually happened, not just that it did.
+                    const moved =
+                      result.conversations_moved + result.tasks_moved;
+                    const where =
+                      destination === UNASSIGNED
+                        ? `${plural(moved, "item")} left for the crew`
+                        : `${plural(moved, "item")} handed on`;
+                    toast.success(
+                      alreadyGone
+                        ? `${where.charAt(0).toUpperCase()}${where.slice(1)}.`
+                        : moved === 0
+                          ? `${name} removed.`
+                          : `${name} removed. ${where}.`,
+                    );
+                  },
+                  onError: (cause) =>
+                    toast.error(
+                      cause instanceof ApiError
+                        ? cause.message
+                        : "Couldn't remove them. Try again.",
+                    ),
+                },
+              )
+            }
+          >
+            {deactivate.isPending
+              ? alreadyGone
+                ? "Moving…"
+                : "Removing…"
+              : alreadyGone
+                ? "Move the work"
+                : "Remove"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** "1 task" / "3 tasks" — the count belongs in the sentence, not beside it. */
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 function isPendingInvite(invite: Invite, now: Date): boolean {
@@ -446,6 +577,11 @@ export default function TeamSettingsPage() {
                     member={member}
                     canManage={canManage}
                     isSelf={member.user_id === userId}
+                    // #276: everyone still here is somewhere this person's
+                    // open work could go.
+                    teammates={
+                      active?.filter((mate) => mate.id !== member.id) ?? []
+                    }
                   />
                 ))}
               </div>
@@ -459,8 +595,11 @@ export default function TeamSettingsPage() {
                       <MemberRow
                         key={member.id}
                         member={member}
-                        canManage={false}
+                        // #276: an owner must be able to reach work these
+                        // people were still holding when they left.
+                        canManage={canManage}
                         isSelf={member.user_id === userId}
+                        teammates={active ?? []}
                       />
                     ))}
                   </div>

@@ -28,6 +28,8 @@ const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const MEMBER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
 const TARGET_MEMBER_ID = "eeeeeeee-1111-4222-8333-444444444444";
+/** #276: where a leaver's open work is handed. */
+const REASSIGN_TO = "cccccccc-1111-4222-8333-444444444444";
 const INVITE_ID = "ffffffff-1111-4222-8333-444444444444";
 const FUTURE = "2027-01-01T00:00:00+00:00";
 
@@ -682,17 +684,170 @@ describe("PATCH /v1/members/:id (O/A; owner immutable)", () => {
   });
 });
 
-describe("DELETE /v1/members/:id (deactivate, not delete)", () => {
-  it("sets deactivated_at (never row-deletes); owner cannot be deactivated", async () => {
+describe("DELETE /v1/members/:id (offboard, not delete)", () => {
+  /** The stubs an offboarding needs: the RPC, the softphone, and the cleanups. */
+  function offboardStub(
+    outcome: Record<string, unknown> = {
+      outcome: "deactivated",
+      user_id: "u-target",
+      conversations: 2,
+      tasks: 3,
+    },
+  ): SupabaseStub {
     const sb = stubWithRole("owner");
-    sb.on("GET", "/rest/v1/company_members", (call) =>
-      call.url.searchParams.get("id") === `eq.${TARGET_MEMBER_ID}`
-        ? [{ id: TARGET_MEMBER_ID, user_id: "u-target", role: "member", deactivated_at: null }]
-        : undefined,
-    );
-    sb.on("PATCH", "/rest/v1/company_members", () => new Response(null, { status: 204 }));
+    sb.on("POST", "/rest/v1/rpc/offboard_member", () => outcome);
     // D43 (#135): deactivation revokes the softphone — no credential row here.
     sb.on("GET", "/rest/v1/member_telephony_credentials", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_revoke_user_sessions", () => 2);
+    sb.on("DELETE", "/rest/v1/push_subscriptions", () => [{ id: "s-1" }]);
+    sb.on("DELETE", "/rest/v1/device_push_tokens", () => [
+      { id: "d-1" },
+      { id: "d-2" },
+    ]);
+    return sb;
+  }
+
+  it("hands the work on, ends access, and never row-deletes the member", async () => {
+    const sb = offboardStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/members/${TARGET_MEMBER_ID}?reassign_to=${REASSIGN_TO}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      conversations_moved: 2,
+      tasks_moved: 3,
+      sessions_ended: 2,
+      push_devices_removed: 3,
+    });
+
+    // #276: deactivate + reassign are ONE transaction. A crash between them is
+    // exactly how work ended up pointing at people who had gone.
+    const rpc = sb.find("POST", "/rest/v1/rpc/offboard_member")[0];
+    expect(rpc.body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_member_id: TARGET_MEMBER_ID,
+      p_reassign_to: REASSIGN_TO,
+    });
+    // The membership row is never deleted — history keeps its attribution.
+    expect(sb.find("DELETE", "/rest/v1/company_members")).toHaveLength(0);
+
+    // #236: removing someone means their access is over, not that they are
+    // hidden from a list. Sessions end and push stops reaching their devices.
+    expect(sb.find("POST", "/rest/v1/rpc/api_revoke_user_sessions")[0].body).toEqual({
+      p_user_id: "u-target",
+    });
+    expect(sb.find("DELETE", "/rest/v1/push_subscriptions")).toHaveLength(1);
+    expect(sb.find("DELETE", "/rest/v1/device_push_tokens")).toHaveLength(1);
+
+    // #231: the offboarding and everything it moved, on the record.
+    expect(auditRow(sb)).toMatchObject({
+      company_id: COMPANY_ID,
+      action: "member.deactivated",
+      target_type: "member",
+      target_id: TARGET_MEMBER_ID,
+      after: {
+        active: false,
+        reassigned_to: REASSIGN_TO,
+        conversations_moved: 2,
+        tasks_moved: 3,
+        sessions_ended: 2,
+        push_devices_removed: 3,
+      },
+    });
+  });
+
+  it("releases the work to the crew when no destination is named", async () => {
+    // Releasing is a real choice — the crew picks it up from the shared inbox.
+    // What is gone is leaving it pointing at someone who will never look.
+    const sb = offboardStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/members/${TARGET_MEMBER_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+
+    expect(sb.find("POST", "/rest/v1/rpc/offboard_member")[0].body).toMatchObject(
+      { p_reassign_to: null },
+    );
+    expect(auditRow(sb)).toMatchObject({ after: { reassigned_to: null } });
+  });
+
+  it("refuses a destination who is not on the team any more", async () => {
+    // Handing a leaver's work to another leaver is the same hole twice.
+    const sb = offboardStub({ outcome: "bad_destination" });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/members/${TARGET_MEMBER_ID}?reassign_to=${REASSIGN_TO}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(422);
+    // Nothing was touched: no sessions ended, no push removed.
+    expect(sb.find("POST", "/rest/v1/rpc/api_revoke_user_sessions")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/audit_log")).toHaveLength(0);
+  });
+
+  it("409s the owner and 404s a stranger", async () => {
+    const ownerStub = offboardStub({ outcome: "owner" });
+    stubFetch(jwksRoute(auth), ownerStub.route);
+    const owner = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/members/${TARGET_MEMBER_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(owner.status).toBe(409);
+
+    vi.unstubAllGlobals();
+    const missing = offboardStub({ outcome: "not_found" });
+    stubFetch(jwksRoute(auth), missing.route);
+    const gone = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/members/${TARGET_MEMBER_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(gone.status).toBe(404);
+  });
+
+  it("still completes when session or push cleanup fails", async () => {
+    // The member IS deactivated by the time these run. Failing the request
+    // would tell the owner the removal did not happen when it did, and every
+    // step here is safely repeatable.
+    const sb = stubWithRole("owner");
+    sb.on("POST", "/rest/v1/rpc/offboard_member", () => ({
+      outcome: "deactivated",
+      user_id: "u-target",
+      conversations: 0,
+      tasks: 0,
+    }));
+    sb.on("GET", "/rest/v1/member_telephony_credentials", () => []);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_revoke_user_sessions",
+      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+    );
+    sb.on(
+      "DELETE",
+      "/rest/v1/push_subscriptions",
+      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+    );
+    sb.on("DELETE", "/rest/v1/device_push_tokens", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -702,38 +857,62 @@ describe("DELETE /v1/members/:id (deactivate, not delete)", () => {
       `/v1/members/${TARGET_MEMBER_ID}`,
       { method: "DELETE", companyId: COMPANY_ID },
     );
-    expect(res.status).toBe(204);
-    const patch = sb.find("PATCH", "/rest/v1/company_members")[0];
-    expect(
-      typeof (patch.body as Record<string, unknown>).deactivated_at,
-    ).toBe("string");
-    expect(sb.find("DELETE", "/rest/v1/company_members")).toHaveLength(0);
-    // #231: "did the person we let go on Friday still have access on Monday"
-    // is the question this row exists to answer.
-    expect(auditRow(sb)).toMatchObject({
-      company_id: COMPANY_ID,
-      action: "member.deactivated",
-      target_type: "member",
-      target_id: TARGET_MEMBER_ID,
-      after: { role: "member", active: false },
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      sessions_ended: 0,
+      push_devices_removed: 0,
     });
+    // And the audit row says honestly that nothing was ended.
+    expect(auditRow(sb)).toMatchObject({
+      after: { sessions_ended: 0, push_devices_removed: 0 },
+    });
+  });
+});
 
-    vi.unstubAllGlobals();
-    const sb2 = stubWithRole("admin");
-    sb2.on("GET", "/rest/v1/company_members", (call) =>
+describe("GET /v1/members/:id/holdings (#276)", () => {
+  it("reports the open work a member is holding", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/company_members", (call) =>
       call.url.searchParams.get("id") === `eq.${TARGET_MEMBER_ID}`
-        ? [{ id: TARGET_MEMBER_ID, role: "owner", deactivated_at: null }]
+        ? [{ user_id: "u-target" }]
         : undefined,
     );
-    stubFetch(jwksRoute(auth), sb2.route);
-    const owner = await apiRequest(
+    sb.on("POST", "/rest/v1/rpc/api_member_holdings", () => ({
+      conversations: 4,
+      tasks: 7,
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
       app,
       env,
       await auth.token(),
-      `/v1/members/${TARGET_MEMBER_ID}`,
-      { method: "DELETE", companyId: COMPANY_ID },
+      `/v1/members/${TARGET_MEMBER_ID}/holdings`,
+      { companyId: COMPANY_ID },
     );
-    expect(owner.status).toBe(409);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ conversations: 4, tasks: 7 });
+    expect(sb.find("POST", "/rest/v1/rpc/api_member_holdings")[0].body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_user_id: "u-target",
+    });
+  });
+
+  it("404s a member of another workspace", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/company_members", (call) =>
+      call.url.searchParams.get("id") === `eq.${TARGET_MEMBER_ID}` ? [] : undefined,
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/members/${TARGET_MEMBER_ID}/holdings`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(404);
   });
 });
 

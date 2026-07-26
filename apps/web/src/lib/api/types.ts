@@ -772,6 +772,23 @@ export interface Member {
 }
 
 /**
+ * What a member is still carrying (#276) — open conversations assigned to
+ * them and live tasks they own. The numbers the removal flow asks about.
+ */
+export interface MemberHoldings {
+  conversations: number;
+  tasks: number;
+}
+
+/** What removing someone actually did (#276) — so the confirmation can say. */
+export interface OffboardResult {
+  conversations_moved: number;
+  tasks_moved: number;
+  sessions_ended: number;
+  push_devices_removed: number;
+}
+
+/**
  * One privileged change, from GET /v1/audit-log (#231). The table it comes
  * from is append-only at the database level, so a row here is what actually
  * happened — not what someone later decided it should say.
