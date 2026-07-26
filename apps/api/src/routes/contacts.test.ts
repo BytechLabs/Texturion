@@ -874,6 +874,38 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
   });
 });
 
+describe("import row numbering", () => {
+  it("reports the line the reader sees, counting blank rows", async () => {
+    // Entirely blank rows are dropped, and numbering the survivors by position
+    // shifted every row after one. The wizard joins these numbers back against
+    // its own preview to build the skipped-rows file, so a reason landed on the
+    // wrong original line: an empty phone shown against a name that had one.
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", () => []);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    // Line 1 header, line 2 blank, line 3 the bad row.
+    const csv = ["phone,name", ",", "not-a-phone,Bob"].join("\r\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { errors: { row: number; reason: string }[] };
+    expect(body.errors).toEqual([
+      { row: 3, reason: "invalid phone: not-a-phone" },
+    ]);
+  });
+});
+
 describe("import name handling", () => {
   it("a blank name cell leaves an existing contact's name alone", async () => {
     // The name column is decided for the WHOLE file, so one nameless row among

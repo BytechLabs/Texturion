@@ -35,7 +35,7 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { buildPage } from "../http/pagination";
-import { csvSafeText, parseCsv, serializeCsv } from "./core/csv";
+import { csvSafeText, parseCsvRows, serializeCsv } from "./core/csv";
 import {
   insertConversationEvents,
   latestConversationId,
@@ -634,7 +634,8 @@ contactsRoutes.post(
       throw new ApiError("validation_failed", "file: too large (max 2 MB).");
     }
 
-    const rows = parseCsv(text);
+    const parsed = parseCsvRows(text);
+    const rows = parsed.map((row) => row.cells);
     if (rows.length < 2) {
       throw new ApiError(
         "validation_failed",
@@ -656,7 +657,7 @@ contactsRoutes.post(
     const notesCol = mapping.notes ?? -1;
     const optedOutCol = mapping.opted_out ?? -1;
 
-    const dataRows = rows.slice(1);
+    const dataRows = parsed.slice(1);
     if (dataRows.length > IMPORT_MAX_ROWS) {
       throw new ApiError(
         "validation_failed",
@@ -676,9 +677,12 @@ contactsRoutes.post(
     }
     const byPhone = new Map<string, ImportRow>();
 
-    dataRows.forEach((cells, index) => {
-      // +2: 1-based line numbers, +1 for the header row.
-      const rowNumber = index + 2;
+    dataRows.forEach(({ line, cells }) => {
+      // The row's TRUE line in the uploaded file. Numbering by position instead
+      // shifted every row after a blank one, and the wizard joins these numbers
+      // back against its own preview to build the skipped-rows file, so each
+      // reason was pinned to the wrong original line.
+      const rowNumber = line;
       const rawPhone = cells[phoneCol]?.trim() ?? "";
       const phone = normalizeNanpPhone(rawPhone);
       if (!phone) {

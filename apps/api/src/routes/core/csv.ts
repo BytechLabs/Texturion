@@ -1,3 +1,10 @@
+/** One parsed row, with the 1-based line it came from in the source file. */
+export interface CsvRow {
+  /** 1-based line number in the uploaded file, blank lines included. */
+  line: number;
+  cells: string[];
+}
+
 /**
  * Minimal RFC 4180 CSV parser for `POST /v1/contacts/import` (SPEC §7).
  * No dependencies: handles quoted fields, embedded commas/newlines, escaped
@@ -5,6 +12,19 @@
  * raw string arrays; header mapping and validation are the route's job.
  */
 export function parseCsv(text: string): string[][] {
+  return parseCsvRows(text).map((row) => row.cells);
+}
+
+/**
+ * The same parse, keeping each row's TRUE line number.
+ *
+ * Entirely blank rows are dropped, and numbering the survivors by position
+ * shifted every row after one: the importer reported "row 4" for what the
+ * person sees as row 5. The wizard joins those numbers back against its own
+ * preview to build the skipped-rows file, so each reason was pinned to the
+ * wrong original line, showing an empty phone against a name that had one.
+ */
+export function parseCsvRows(text: string): CsvRow[] {
   const input = text.startsWith("﻿") ? text.slice(1) : text;
   const rows: string[][] = [];
   let row: string[] = [];
@@ -58,8 +78,11 @@ export function parseCsv(text: string): string[][] {
   }
   if (field !== "" || row.length > 0) endRow();
 
-  // Drop rows that are entirely empty (trailing newline, blank lines).
-  return rows.filter((r) => r.some((cell) => cell.trim() !== ""));
+  // Drop rows that are entirely empty (trailing newline, blank lines), keeping
+  // the line each survivor actually came from.
+  return rows
+    .map((cells, index) => ({ line: index + 1, cells }))
+    .filter((row) => row.cells.some((cell) => cell.trim() !== ""));
 }
 
 /**
