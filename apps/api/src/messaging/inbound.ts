@@ -16,6 +16,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { canonicalMmsType } from "@loonext/shared";
 
+import { PLAN_NOTIFY_LIMITS, type PlanId } from "../billing/plans";
 import { billingRecipients } from "../billing/recipients";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
@@ -40,6 +41,14 @@ import type { TelnyxEvent, ThreadResult } from "./types";
  */
 type InboundThreadResult = ThreadResult & {
   notification_alert?: number | null;
+  /**
+   * #343: the per-channel verdicts and the crossings, both additive. An older
+   * database returns neither, and the fallbacks below reproduce today's
+   * behaviour exactly — one budget, both channels together.
+   */
+  notify_email?: boolean;
+  notify_push?: boolean;
+  notification_alerts?: { channel: "email" | "push"; threshold: number }[];
 };
 
 /** message.received entry point (dispatched from /webhooks/telnyx, §7). */
@@ -65,20 +74,46 @@ export async function handleInboundMessage(
   // not know (e.g. released) is an acked no-op.
   const { data: numbers, error: numberError } = await db
     .from("phone_numbers")
-    .select("id,company_id")
+    // #343: the company row rides along on the lookup this path already makes,
+    // so the notification budget costs ZERO extra round trips on the hot
+    // inbound path — the timezone that decides when the day ends, and the plan
+    // whose ceilings apply, plus any ops override.
+    .select(
+      "id,company_id," +
+        "companies(timezone,plan,notify_email_limit,notify_push_limit)",
+    )
     .eq("number_e164", toE164)
     .neq("status", "released")
     .limit(1);
   if (numberError) {
     throw new Error(`phone_numbers lookup failed: ${numberError.message}`);
   }
-  const number = (numbers ?? [])[0] as
-    | { id: string; company_id: string }
+  const number = (numbers ?? [])[0] as unknown as
+    | {
+        id: string;
+        company_id: string;
+        companies?: {
+          timezone?: string | null;
+          plan?: PlanId | null;
+          notify_email_limit?: number | null;
+          notify_push_limit?: number | null;
+        } | null;
+      }
     | undefined;
   if (!number) {
     console.warn(`message.received for unknown number — ignored`);
     return;
   }
+
+  // #343: the ceilings, per plan, with an ops-only per-company override on
+  // top. They live in TypeScript beside every other plan number rather than in
+  // a second SQL CASE — that is how 500/2500 ended up in three places — and
+  // are passed in, so raising one for a customer who needs it is a column
+  // write rather than a migration and a deploy.
+  const company = number.companies ?? null;
+  const planLimits =
+    PLAN_NOTIFY_LIMITS[(company?.plan ?? "starter") as PlanId] ??
+    PLAN_NOTIFY_LIMITS.starter;
 
   // The §6 threading transaction, atomically in the database.
   const { data, error } = await db.rpc("thread_inbound_message", {
@@ -87,6 +122,9 @@ export async function handleInboundMessage(
     p_from_e164: fromE164,
     p_body: payload.text ?? "",
     p_telnyx_message_id: telnyxMessageId,
+    p_timezone: company?.timezone ?? null,
+    p_email_limit: company?.notify_email_limit ?? planLimits.email,
+    p_push_limit: company?.notify_push_limit ?? planLimits.push,
   });
   if (error) throw new Error(`thread_inbound_message failed: ${error.message}`);
   const threaded = data as InboundThreadResult | null;
@@ -178,7 +216,14 @@ export async function handleInboundMessage(
   // stamped last_notified_at atomically; `notify` is true at most once per
   // claim, so duplicates and sweeper replays never re-send. Past the #39 daily
   // budget the RPC reports notify=false (cap-and-drop).
-  if (threaded.created && threaded.notify === true) {
+  //
+  // #343: `notify` is the EMAIL verdict now, so the trigger asks about either
+  // channel. A workspace past its email ceiling but under its push one still
+  // gets notified — push is free at both ends, and silencing it because a
+  // Resend bill ran out was never the intent.
+  const allowEmail = threaded.notify_email ?? threaded.notify === true;
+  const allowPush = threaded.notify_push ?? threaded.notify === true;
+  if (threaded.created && (allowEmail || allowPush)) {
     await notifyInboundMessage(
       env,
       {
@@ -186,6 +231,8 @@ export async function handleInboundMessage(
         conversationId: threaded.conversation_id,
         body: payload.text ?? "",
         mediaCount: media.length,
+        allowEmail,
+        allowPush,
       },
       db,
     );

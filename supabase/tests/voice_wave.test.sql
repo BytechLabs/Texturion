@@ -582,7 +582,11 @@ begin
     raise exception 'VW-19 FAILED: PK is % (want company_id,day)', pk;
   end if;
 
-  foreach pk in array array['notify_count','warned_at','capped_at'] loop
+  -- #343: warned_at/capped_at are now per channel, plus the ceilings that
+  -- were in force when the row was written.
+  foreach pk in array array['notify_count','email_warned_at','email_capped_at',
+                            'push_warned_at','push_capped_at',
+                            'email_limit','push_limit'] loop
     perform 1 from information_schema.columns
      where table_schema='public' and table_name='inbound_notification_days' and column_name=pk;
     if not found then raise exception 'VW-19 FAILED: column % missing', pk; end if;
@@ -598,6 +602,11 @@ end $$;
 --        notification_alert key; past the ceiling claims DROP (notify=false)
 --        while the message row itself is always stored. Distinct callers so
 --        every claim is a "new conversation" §8 trigger.
+--
+--        #343: the ceiling is a PARAMETER now, so this passes it explicitly
+--        (200/160) rather than depending on a constant welded into the
+--        function. The ladder under test is unchanged; what changed is that
+--        the number arrives from the caller.
 -- ===========================================================================
 do $$
 declare res jsonb; cnt int; warned timestamptz; capped timestamptz; today date;
@@ -608,7 +617,7 @@ begin
   res := public.thread_inbound_message(
     'facade00-0000-4000-8000-000000000002',
     'facade00-0000-4000-8000-000000000003',
-    '+14166660001', 'hi', 'tx-vw20-1');
+    '+14166660001', 'hi', 'tx-vw20-1', 'UTC', 200, 200);
   if (res->>'notify')::boolean is not true then
     raise exception 'VW-20 FAILED: first claim expected notify=true, got %', res;
   end if;
@@ -625,11 +634,11 @@ begin
   res := public.thread_inbound_message(
     'facade00-0000-4000-8000-000000000002',
     'facade00-0000-4000-8000-000000000003',
-    '+14166660002', 'hi', 'tx-vw20-2');
+    '+14166660002', 'hi', 'tx-vw20-2', 'UTC', 200, 200);
   if (res->>'notify')::boolean is not true or (res->>'notification_alert')::int <> 80 then
     raise exception 'VW-20 FAILED: 160th claim expected notify + alert 80, got %', res;
   end if;
-  select warned_at into warned from public.inbound_notification_days
+  select email_warned_at into warned from public.inbound_notification_days
    where company_id='facade00-0000-4000-8000-000000000002' and day=today;
   if warned is null then raise exception 'VW-20 FAILED: warned_at not stamped'; end if;
 
@@ -637,7 +646,7 @@ begin
   res := public.thread_inbound_message(
     'facade00-0000-4000-8000-000000000002',
     'facade00-0000-4000-8000-000000000003',
-    '+14166660003', 'hi', 'tx-vw20-3');
+    '+14166660003', 'hi', 'tx-vw20-3', 'UTC', 200, 200);
   if res->>'notification_alert' is not null then
     raise exception 'VW-20 FAILED: 161st claim re-alerted: %', res;
   end if;
@@ -648,11 +657,11 @@ begin
   res := public.thread_inbound_message(
     'facade00-0000-4000-8000-000000000002',
     'facade00-0000-4000-8000-000000000003',
-    '+14166660004', 'hi', 'tx-vw20-4');
+    '+14166660004', 'hi', 'tx-vw20-4', 'UTC', 200, 200);
   if (res->>'notify')::boolean is not true or (res->>'notification_alert')::int <> 100 then
     raise exception 'VW-20 FAILED: 200th claim expected notify + alert 100, got %', res;
   end if;
-  select capped_at into capped from public.inbound_notification_days
+  select email_capped_at into capped from public.inbound_notification_days
    where company_id='facade00-0000-4000-8000-000000000002' and day=today;
   if capped is null then raise exception 'VW-20 FAILED: capped_at not stamped'; end if;
 
@@ -661,7 +670,7 @@ begin
   res := public.thread_inbound_message(
     'facade00-0000-4000-8000-000000000002',
     'facade00-0000-4000-8000-000000000003',
-    '+14166660005', 'hi', 'tx-vw20-5');
+    '+14166660005', 'hi', 'tx-vw20-5', 'UTC', 200, 200);
   if (res->>'notify')::boolean is not false then
     raise exception 'VW-20 FAILED: 201st claim expected notify=false, got %', res;
   end if;
@@ -675,7 +684,7 @@ begin
   res := public.thread_inbound_message(
     'facade00-0000-4000-8000-000000000002',
     'facade00-0000-4000-8000-000000000003',
-    '+14166660006', 'hi', 'tx-vw20-6');
+    '+14166660006', 'hi', 'tx-vw20-6', 'UTC', 200, 200);
   if (res->>'notify')::boolean is not false then
     raise exception 'VW-20 FAILED: 202nd claim expected notify=false, got %', res;
   end if;
@@ -684,6 +693,168 @@ begin
   if cnt <> 202 then raise exception 'VW-20 FAILED: counter expected 202, got %', cnt; end if;
 
   raise notice 'VW-20 PASSED: daily notification budget counts, warns once, caps once, and drops past the ceiling';
+end $$;
+
+-- ===========================================================================
+-- VW-20b. [#343] The day ends when the BUSINESS's day ends, not UTC's.
+--
+--         For a Vancouver shop the old UTC key rolled the counter over at 5pm
+--         local: a busy morning could exhaust the budget, the afternoon went
+--         silent, and the reset landed as the crew packed up. The ledger row
+--         must be keyed on the company's local date.
+-- ===========================================================================
+do $$
+declare res jsonb; local_day date; utc_day date; n int;
+begin
+  utc_day := (now() at time zone 'utc')::date;
+  local_day := (now() at time zone 'Pacific/Kiritimati')::date;
+
+  -- Kiritimati is UTC+14, so for a good part of every UTC day its local date
+  -- is already tomorrow. Picking a zone where the two dates differ is the
+  -- whole point — a test in UTC could not tell the two keyings apart.
+  if local_day = utc_day then
+    raise notice 'VW-20b SKIPPED: UTC and UTC+14 share a date right now';
+  else
+    delete from public.inbound_notification_days
+     where company_id = 'facade00-0000-4000-8000-000000000002';
+
+    res := public.thread_inbound_message(
+      'facade00-0000-4000-8000-000000000002',
+      'facade00-0000-4000-8000-000000000003',
+      '+14166660101', 'hi', 'tx-vw20b-1', 'Pacific/Kiritimati', 200, 200);
+
+    select count(*) into n from public.inbound_notification_days
+     where company_id = 'facade00-0000-4000-8000-000000000002' and day = local_day;
+    if n <> 1 then
+      raise exception 'VW-20b FAILED: no ledger row on the company local day %', local_day;
+    end if;
+    select count(*) into n from public.inbound_notification_days
+     where company_id = 'facade00-0000-4000-8000-000000000002' and day = utc_day;
+    if n <> 0 then
+      raise exception 'VW-20b FAILED: a row was written on the UTC day %', utc_day;
+    end if;
+
+    raise notice 'VW-20b PASSED: the ledger keys on the company local day';
+  end if;
+end $$;
+
+-- ===========================================================================
+-- VW-20c. [#343] A rubbish timezone must not wedge inbound threading.
+--
+--         The column is constrained and API-validated, so this only fires if
+--         tzdata drops a zone underneath a stored value. Inbound is never
+--         dropped (D6): the message must still land, on the UTC day.
+-- ===========================================================================
+do $$
+declare res jsonb; n int;
+begin
+  delete from public.inbound_notification_days
+   where company_id = 'facade00-0000-4000-8000-000000000002';
+
+  res := public.thread_inbound_message(
+    'facade00-0000-4000-8000-000000000002',
+    'facade00-0000-4000-8000-000000000003',
+    '+14166660102', 'hi', 'tx-vw20c-1', 'Nowhere/Fictional', 200, 200);
+
+  if (res->>'notify')::boolean is not true then
+    raise exception 'VW-20c FAILED: an unknown zone suppressed the notification: %', res;
+  end if;
+  select count(*) into n from public.inbound_notification_days
+   where company_id = 'facade00-0000-4000-8000-000000000002'
+     and day = (now() at time zone 'utc')::date;
+  if n <> 1 then
+    raise exception 'VW-20c FAILED: no UTC-day fallback row';
+  end if;
+  perform 1 from public.messages where telnyx_message_id = 'tx-vw20c-1';
+  if not found then
+    raise exception 'VW-20c FAILED: an unknown zone dropped the MESSAGE';
+  end if;
+
+  raise notice 'VW-20c PASSED: an unknown zone falls back to UTC and never wedges ingest';
+end $$;
+
+-- ===========================================================================
+-- VW-20d. [#343] Email and push are capped SEPARATELY.
+--
+--         The 200 was sized to bound a Resend bill. Push is free at both ends,
+--         so a workspace that has exhausted its email allowance must keep
+--         getting push — that is the whole reason the channels split.
+-- ===========================================================================
+do $$
+declare res jsonb; alerts jsonb;
+begin
+  delete from public.inbound_notification_days
+   where company_id = 'facade00-0000-4000-8000-000000000002';
+
+  -- One past the email ceiling, far below the push one.
+  insert into public.inbound_notification_days
+    (company_id, day, notify_count, email_limit, push_limit)
+  values ('facade00-0000-4000-8000-000000000002',
+          (now() at time zone 'UTC')::date, 10, 10, 1000);
+
+  res := public.thread_inbound_message(
+    'facade00-0000-4000-8000-000000000002',
+    'facade00-0000-4000-8000-000000000003',
+    '+14166660103', 'hi', 'tx-vw20d-1', 'UTC', 10, 1000);
+
+  if (res->>'notify_email')::boolean is not false then
+    raise exception 'VW-20d FAILED: email kept sending past its ceiling: %', res;
+  end if;
+  if (res->>'notify_push')::boolean is not true then
+    raise exception 'VW-20d FAILED: push was silenced by the EMAIL ceiling: %', res;
+  end if;
+  -- The legacy scalar carries the EMAIL verdict, so a Worker mid-deploy can
+  -- under-deliver free push and can never over-spend metered email.
+  if (res->>'notify')::boolean is not false then
+    raise exception 'VW-20d FAILED: legacy notify should mirror email, got %', res;
+  end if;
+
+  raise notice 'VW-20d PASSED: exhausting email leaves push alone';
+end $$;
+
+-- ===========================================================================
+-- VW-20e. [#343] A member can see that notifications are paused, and when
+--         they resume — the company's next LOCAL midnight, which is the number
+--         the alert copy has been implying and getting wrong everywhere.
+-- ===========================================================================
+do $$
+declare pause jsonb; resets timestamptz;
+begin
+  delete from public.inbound_notification_days
+   where company_id = 'facade00-0000-4000-8000-000000000002';
+  update public.companies set timezone = 'America/Vancouver'
+   where id = 'facade00-0000-4000-8000-000000000002';
+
+  -- Nothing sent yet: nothing paused.
+  pause := public.api_notification_pause('facade00-0000-4000-8000-000000000002');
+  if (pause->>'email_paused')::boolean or (pause->>'push_paused')::boolean then
+    raise exception 'VW-20e FAILED: paused with an empty ledger: %', pause;
+  end if;
+
+  insert into public.inbound_notification_days
+    (company_id, day, notify_count, email_limit, push_limit)
+  values ('facade00-0000-4000-8000-000000000002',
+          (now() at time zone 'America/Vancouver')::date, 100, 100, 2000);
+
+  pause := public.api_notification_pause('facade00-0000-4000-8000-000000000002');
+  if (pause->>'email_paused')::boolean is not true then
+    raise exception 'VW-20e FAILED: email not reported paused at the ceiling: %', pause;
+  end if;
+  if (pause->>'push_paused')::boolean is not false then
+    raise exception 'VW-20e FAILED: push reported paused far below its ceiling: %', pause;
+  end if;
+
+  resets := (pause->>'resets_at')::timestamptz;
+  if resets is null or resets <= now() then
+    raise exception 'VW-20e FAILED: resets_at is not in the future: %', pause;
+  end if;
+  -- Midnight where the BUSINESS is, not where the server is.
+  if extract(hour from (resets at time zone 'America/Vancouver')) <> 0 then
+    raise exception 'VW-20e FAILED: resets_at is not local midnight: %',
+      resets at time zone 'America/Vancouver';
+  end if;
+
+  raise notice 'VW-20e PASSED: a suppressed member can see it, and when it lifts';
 end $$;
 
 rollback;

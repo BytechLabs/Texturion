@@ -8,6 +8,7 @@
 import { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { PLAN_NOTIFY_LIMITS } from "../billing/plans";
 import type { AppEnv } from "../context";
 import type { Env } from "../env";
 // Resolved to the contract double (vitest alias) until src/telnyx lands in
@@ -172,7 +173,14 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
     expect(lookupUrl.searchParams.get("number_e164")).toBe("eq.+16135550100");
     expect(lookupUrl.searchParams.get("status")).toBe("neq.released");
 
-    // The threading RPC got exactly the §6 transaction inputs.
+    // The number lookup carries the company row along (#343), so the
+    // notification budget costs no extra round trip on the inbound path.
+    expect(lookupUrl.searchParams.get("select")).toContain("companies(");
+
+    // The threading RPC got exactly the §6 transaction inputs, plus the #343
+    // budget inputs. This stub returns no companies embed, so the timezone is
+    // null (the RPC falls back to UTC — today's behaviour) and the ceilings
+    // are the Starter defaults.
     expect(threadRpc.calls).toHaveLength(1);
     expect(threadRpc.calls[0].body).toEqual({
       p_company_id: COMPANY_ID,
@@ -180,6 +188,9 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
       p_from_e164: "+16135551000",
       p_body: "Hi, do you do gutters?",
       p_telnyx_message_id: "40385f64-5717-4562-b3fc-2c963f66aaaa",
+      p_timezone: null,
+      p_email_limit: PLAN_NOTIFY_LIMITS.starter.email,
+      p_push_limit: PLAN_NOTIFY_LIMITS.starter.push,
     });
 
     // processed_at stamped.

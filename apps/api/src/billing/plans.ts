@@ -48,7 +48,67 @@ export const PLAN_INCLUDED_SEGMENTS: Record<PlanId, number> = {
   pro: 2500,
 };
 
-/** Overage price per extra outbound segment, in cents (SPEC §2). */
+/**
+ * #343 - the daily inbound-notification ceilings, per plan, per channel.
+ *
+ * These replace a single `v_notify_limit constant int := 200` buried in a
+ * migration: identical for a sole proprietor and a ten-tech crew, unraisable
+ * for a customer who legitimately needs more, unlowerable during an abuse
+ * event, and unchangeable without a migration and a deploy.
+ *
+ * WHY EMAIL AND PUSH ARE SEPARATE. The 200 was sized to bound a Resend bill,
+ * and since then D45 retired missed-call emails as noise and the mix moved
+ * heavily to push. Push is free at both ends - Web Push and FCM charge
+ * nothing, and the only marginal cost is a few Worker CPU-milliseconds - so a
+ * limit sized for email was throttling notifications that cost essentially
+ * nothing. One number could not be right for both.
+ *
+ * HOW THESE WERE PICKED, monthly on both sides. A daily cost compared against
+ * monthly revenue reads thirty times better than it is, which is exactly the
+ * error that made an earlier draft of this look affordable:
+ *
+ *   cost/claim = UNIT_COST_CENTS.notificationEmail
+ *                  x min(seats, MAX_EMAIL_RECIPIENTS_PER_CLAIM)
+ *              = 0.09c x 3 = 0.27c
+ *
+ *   starter 100/day -> $8.10/mo against $27.71 net  = 29%
+ *   pro     250/day -> $20.25/mo against $76.01 net = 27%
+ *
+ * at the ABSOLUTE ceiling, which a real trades business never approaches - a
+ * cap is a runaway guard, not a budget. Both plans land near 28% of net in the
+ * worst case, and they only line up because the fan-out is bounded: without
+ * that bound a Pro claim costs five times a Starter one, so Pro would need a
+ * LOWER ceiling than Starter to stay solvent. Paying more for fewer
+ * notifications is not a product worth shipping.
+ *
+ * Push is capped purely as a runaway guard - a loop, a spam flood, a webhook
+ * storm - at a level no real workspace reaches.
+ *
+ * Overridable per company via `companies.notify_email_limit` /
+ * `notify_push_limit`, which are OPS-ONLY: they are deliberately not on
+ * PATCH /v1/company, because a ceiling the customer can raise is not a
+ * ceiling (#12).
+ */
+export const PLAN_NOTIFY_LIMITS: Record<
+  PlanId,
+  { email: number; push: number }
+> = {
+  starter: { email: 100, push: 2000 },
+  pro: { email: 250, push: 5000 },
+};
+
+/**
+ * #343: how many people one inbound notification emails, at most.
+ *
+ * The claim still fans out to every viewer; this bounds only the EMAIL arm,
+ * and push reaches everyone as before. It exists so the per-claim cost does
+ * not scale with crew size (see the derivation above), and it stands on its
+ * own terms too: an inbound text does not need fifteen inboxes to hear about
+ * it, and D45 already retired a whole class of email as noise.
+ */
+export const MAX_EMAIL_RECIPIENTS_PER_CLAIM = 3;
+
+/** Overage price per extra outbound segment, in cents (SPEC 2). */
 export const PLAN_OVERAGE_CENTS_PER_SEGMENT: Record<PlanId, number> = {
   starter: 3,
   pro: 2.5,

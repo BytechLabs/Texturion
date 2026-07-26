@@ -25,6 +25,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listConversationViewers } from "../auth/conversation-audience";
+import { MAX_EMAIL_RECIPIENTS_PER_CLAIM } from "../billing/plans";
 import { getDb } from "../db";
 import { emailLayout, escapeHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
@@ -40,6 +41,16 @@ export interface InboundNotificationInput {
   body: string;
   /** Count of media items on the inbound message (snippet fallback). */
   mediaCount: number;
+  /**
+   * #343: which channels the daily budget still allows. Push is free at both
+   * ends and gets a far higher ceiling, so a workspace that has exhausted its
+   * email allowance keeps getting notified on the phones — that split is the
+   * whole reason the channels have separate limits.
+   *
+   * Defaulted so a caller that has not been updated behaves exactly as before.
+   */
+  allowEmail?: boolean;
+  allowPush?: boolean;
 }
 
 interface ConversationView {
@@ -131,12 +142,22 @@ export async function notifyInboundMessage(
     "notification prefs lookup",
   );
   const prefs = new Map(prefRows.map((row) => [row.user_id, row]));
-  const emailUsers = audience.filter(
-    (userId) => prefs.get(userId)?.email_enabled ?? true,
-  );
-  const pushUsers = audience.filter(
-    (userId) => prefs.get(userId)?.push_enabled ?? true,
-  );
+  // #343: the daily ceiling is checked per channel BEFORE the per-user
+  // preference, because it is a spending limit rather than a preference — a
+  // member who wants email still does not get one past the company's cap.
+  const emailUsers = (input.allowEmail ?? true)
+    ? audience
+        .filter((userId) => prefs.get(userId)?.email_enabled ?? true)
+        // The claim is ONE Resend call carrying every recipient, so this bound
+        // is what keeps the per-claim cost from scaling with crew size — see
+        // the derivation on PLAN_NOTIFY_LIMITS. Push below is unbounded and
+        // still reaches everyone; an inbound text does not need fifteen
+        // inboxes to hear about it.
+        .slice(0, MAX_EMAIL_RECIPIENTS_PER_CLAIM)
+    : [];
+  const pushUsers = (input.allowPush ?? true)
+    ? audience.filter((userId) => prefs.get(userId)?.push_enabled ?? true)
+    : [];
 
   const contactName =
     conversation.contacts.name?.trim() || conversation.contacts.phone_e164;

@@ -56,6 +56,24 @@ export const UNIT_COST_CENTS = {
   storageGbMonth: 2.1,
   /** Signed-URL egress, per GB: Supabase $0.09/GB (egress.ts:41, PRICING-AUDIT §4). */
   egressGb: 9,
+  /**
+   * One notification email: Resend $0.90/1k (PRICING-AUDIT §4).
+   *
+   * PER RECIPIENT, not per send — and that is an ASSUMPTION rather than a
+   * measurement, which is the honest state of this number.
+   * `notifyInboundMessage` makes ONE Resend call carrying every recipient in a
+   * `to` array, so if Resend bills per message a claim costs 0.09c flat and
+   * this over-counts by the crew size. Nothing in this repo settles which it
+   * is; the audit's own note ("one email/member/new thread") assumed the
+   * per-recipient reading too.
+   *
+   * The expensive reading is the one kept, because the cost-protection
+   * mandate is asymmetric: a ceiling sized against a cost that turns out
+   * lower is merely conservative, while one sized against a cost that turns
+   * out higher is the founder eating the difference. Confirm per-message
+   * billing and this becomes a flat 0.09c, and PLAN_NOTIFY_LIMITS can rise.
+   */
+  notificationEmail: 0.09,
 } as const;
 
 /**
