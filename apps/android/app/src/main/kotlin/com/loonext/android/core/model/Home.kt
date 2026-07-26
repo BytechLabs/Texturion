@@ -179,7 +179,6 @@ data class NotificationItem(
     val unread: Boolean = false,
 )
 
-@Serializable
 /**
  * #343 - whether the workspace's daily notification allowance is spent.
  *
