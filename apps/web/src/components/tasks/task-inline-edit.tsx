@@ -139,18 +139,20 @@ export function InlineDue({ task }: { task: Task }) {
             type="datetime-local"
             aria-label="Due date and time"
             defaultValue={toLocalInput(task.due_at)}
-            onChange={(e) =>
+            onChange={(e) => {
+              // A datetime-local reads "" while ANY segment is blank, so
+              // clearing the hour to retype it looked like "remove the due
+              // date" and wrote that immediately. Removing one is the explicit
+              // control below.
+              if (e.target.value === "") return;
               update.mutate(
                 {
                   taskId: task.id,
-                  due_at:
-                    e.target.value === ""
-                      ? null
-                      : new Date(e.target.value).toISOString(),
+                  due_at: new Date(e.target.value).toISOString(),
                 },
                 { onError: () => toast.error("Couldn't change the due date.") },
-              )
-            }
+              );
+            }}
             className="rounded-app-ctrl border border-app-line bg-app-white px-2 py-1.5 text-[13px] text-app-ink outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           />
           {task.due_at !== null && (

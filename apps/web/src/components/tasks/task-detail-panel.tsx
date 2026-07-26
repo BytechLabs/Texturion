@@ -192,14 +192,28 @@ function TaskDetailLoaded({
   };
 
   const saveDue = (value: string) => {
+    // A datetime-local reports "" whenever ANY segment is blank, and fires on
+    // every segment change. Clearing the hour to retype it therefore looked
+    // exactly like "remove the due date", and the write went out immediately:
+    // the deadline was gone, the timeline recorded that someone cleared it, and
+    // the assignee's reminder was discarded, with no undo. Removing a due date
+    // is a deliberate act with its own control below.
+    if (value === "") return;
     update.mutate(
       {
         taskId: task.id,
         // <input type="datetime-local"> yields a local wall-clock string; store
-        // an ISO instant. An empty field clears the due date.
-        due_at: value === "" ? null : new Date(value).toISOString(),
+        // an ISO instant.
+        due_at: new Date(value).toISOString(),
       },
       { onError: () => toast.error("Couldn't change the due date.") },
+    );
+  };
+
+  const clearDue = () => {
+    update.mutate(
+      { taskId: task.id, due_at: null },
+      { onError: () => toast.error("Couldn't clear the due date.") },
     );
   };
 
@@ -252,7 +266,20 @@ function TaskDetailLoaded({
           own close (X, top-right) so the actions menu no longer sits under it
           (#81 — an accidental delete when reaching for close). */}
       <div className="flex items-start gap-3 border-b border-app-line pb-4 pl-5 pr-12 pt-5">
-        <TaskDoneCheckbox task={task} className="mt-1" />
+        {/* Completion is derived from the source message, so marking a task
+            done needs access to the conversation it came from. Without it the
+            API refuses every attempt, and offering the control produced a
+            circle that flipped, snapped back, and said "Couldn't move that
+            task. Try again." forever. */}
+        {noAccess ? (
+          <span
+            aria-hidden
+            className="mt-1 size-5 shrink-0 rounded-full border border-dashed border-app-line"
+            title="Marking this done needs access to the conversation it came from"
+          />
+        ) : (
+          <TaskDoneCheckbox task={task} className="mt-1" />
+        )}
         <div className="min-w-0 flex-1">
           <input
             aria-label="Task title"
@@ -284,11 +311,14 @@ function TaskDetailLoaded({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
-            {/* Mirrors the check-circle — the same derived-done write. */}
-            <DropdownMenuItem onSelect={toggleDone} disabled={done.isPending}>
-              <Check className="size-4" strokeWidth={1.75} aria-hidden />
-              {task.done ? "Mark not done" : "Mark done"}
-            </DropdownMenuItem>
+            {/* Mirrors the check-circle — the same derived-done write, and the
+                same access requirement. */}
+            {!noAccess && (
+              <DropdownMenuItem onSelect={toggleDone} disabled={done.isPending}>
+                <Check className="size-4" strokeWidth={1.75} aria-hidden />
+                {task.done ? "Mark not done" : "Mark done"}
+              </DropdownMenuItem>
+            )}
             {/* #89: a real, destructive Delete (creator or owner/admin only).
                 Confirms first when the task carries notes or files. */}
             {canDelete && (
@@ -367,12 +397,26 @@ function TaskDetailLoaded({
             </Select>
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="task-due">Due</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="task-due">Due</Label>
+              {task.due_at && (
+                <button
+                  type="button"
+                  onClick={clearDue}
+                  className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
             <Input
               id="task-due"
               type="datetime-local"
               defaultValue={toLocalInput(task.due_at)}
-              key={task.due_at ?? "none"}
+              // Keyed on the task, not on the value. Keying on due_at remounted
+              // the field the moment an edit was accepted, which took focus and
+              // the caret away mid-entry.
+              key={task.id}
               onChange={(e) => saveDue(e.target.value)}
             />
           </div>
