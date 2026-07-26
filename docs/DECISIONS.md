@@ -1079,7 +1079,7 @@ cookie-policy update so tags added in the GTM UI are lawful (GDPR/PIPEDA/Quebec 
 - **No GTM `<noscript>` iframe.** It cannot read consent state, so it would fire the container
   unconditionally for no-JS visitors. With JS off, GTM never loads and the banner never shows.
 - **Gate = GTM configured.** No `NEXT_PUBLIC_GTM_ID` (dev/CI/previews/forks) → no GTM, no
-  banner, no preferences control; there is nothing to consent to. deploy.yml carries the var as
+  banner, no preferences control; there is nothing to consent to. ship.yml carries the var as
   a repo secret (set 2026-07-10) so production builds with it.
 - **PostHog unchanged:** cookieless, memory-persistence, consent-free by design (D8/D12).
 
@@ -1960,36 +1960,33 @@ types are hidden from the changelog by design. Without a manual door, such a
 change could never reach production. `Deploy` therefore accepts a
 `workflow_dispatch` with a required written reason, recorded on the run.
 
-**The gate asks whether a release is UNDEPLOYED, not whether a tag is here.**
-The obvious check — "does this commit carry a release tag" — loses a release
-whenever the release commit's own CI is not green. On this repo that is the
-common case: **three of the four release merges in history had a failing CI
-run**, and 43% of `main`'s runs are not green. Continuous deploy hid it, because
-the next green commit deployed the whole tree and carried the earlier release's
-code along as a side effect. Removing that without replacing it would have made
-a red release commit permanent, with its tag and GitHub Release both claiming
-it shipped.
+**Three workflow files, and `needs:` is what orders them.**
 
-So the gate compares reachability: which release tags are in this commit's
-history but not in the last one we deployed. A release whose own CI failed is
-picked up by the next green commit, exactly as before. The "last deployed"
-state is a ref (`refs/deployed/production`) the deploy job force-updates as its
-final step — last on purpose, so a failed deploy leaves the release pending and
-the next green commit retries it. `git ls-remote origin refs/deployed/production`
-answers "what is live" from anywhere.
+- `checks.yml` — the gate. Every pull request runs it, and `main.yml` CALLS the
+  same file on every push to `main`, so a PR and a merge cannot be checked
+  differently. It deploys nothing.
+- `main.yml` — the only pipeline for `main`: `gate` → `release` → `ship`.
+- `ship.yml` — production, all four apps, called only when the release PR
+  merged.
 
-It asks the TAGS rather than the commit message: release-please titles its merge
-`chore: release main`, but a squash-merge title is editable, and a wrong answer
-means a release that silently never ships. The check polls briefly because `CI`
-and `Release` start on the same push with nothing ordering them.
+This replaced four workflows chained by `workflow_run`, and the chain was the
+problem rather than the count. `workflow_run` is a TRIGGER, not an ordering:
+nothing guaranteed release-please had pushed its tags before the deploy looked
+for them, so the deploy had to poll for tags and keep a marker ref to work out
+what it had already shipped. A cancelled gate produced no deploy and no
+complaint. And "did this ship?" could only be answered by opening three
+different runs and correlating them by SHA.
 
-**`main` no longer cancels its own CI.** `cancel-in-progress` was justified as
-"main cancels its own older runs so the deploy that workflow_run triggers is
-always for the newest commit" — true when every green commit deployed, and
-actively harmful now that only a release does. A cancelled run has no `success`
-conclusion, so Deploy never fires for it. Measured here, release CI takes
-137-300s and has twice been followed by another push 61s later, so the window
-was real, not theoretical. Branches still cancel; `main` does not.
+On 2026-07-26 six commits in a row failed the gate and shipped nothing, for a
+whole day, while every workflow page looked ordinary. `needs:` cannot do that:
+`ship` runs after `release`, reads `releases_created` straight off it, and one
+run page shows the whole story.
+
+**The phone apps are built by the ship run.** Not uploaded — built, and attached
+to the run. Release day is "download these two artifacts and upload them",
+rather than "build them on your laptop first and hope the release
+configuration still compiles". The build being part of the pipeline is what
+catches a release-config break on release day instead of after it.
 
 **Store upload is still manual, and that is the remaining gap.** Automating it
 needs an Android keystore, a Play service account and an App Store Connect API

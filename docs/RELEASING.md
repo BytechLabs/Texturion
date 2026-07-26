@@ -2,8 +2,9 @@
 
 **A version per app, because they ship on different clocks.**
 
-`api` and `web` deploy continuously — many times a day, always together, from
-the same commit. `android` and `ios` go through store review every few weeks.
+`api` and `web` deploy themselves the moment a release merges. `android` and
+`ios` are built by the same run and then go through store review, which takes
+days.
 
 A single shared version sounds tidier but is a lie in practice: after forty web
 releases the repo would read `0.9.0` while the App Store still served `0.1.0`,
@@ -37,9 +38,10 @@ this PR merges and at no other time:
 
 - `api` and `web` deploy themselves the moment it merges — migrations, both
   Workers, cache purge.
-- `android` and `ios` are the version you archive and upload **that day**, by
-  hand (see *Archiving mobile* below). That part is not automated because the
-  repo holds no signing credentials.
+- `android` and `ios` are BUILT by the same run and attached to it: an Android
+  release bundle and an iOS archive. You download and upload those. Uploading
+  is not automated because the repo holds no signing credentials — see
+  *Archiving mobile* for what that would take.
 
 So the tag means the same thing for all four: *this is what shipped*. It used to
 mean "live" for the Workers and "somebody should build this eventually" for the
@@ -50,11 +52,10 @@ of work reaches production at once, so a bad release has a wider blast radius
 than a bad commit did — `wrangler rollback` is still seconds, `supabase db push`
 still is not.
 
-**If nothing releasable has landed and you need to deploy anyway** — a stretch of
-`chore`/`ci`/`docs` work produces no release PR at all — run the **Deploy**
-workflow manually from the Actions tab. It requires a written reason and records
-it on the run. That door exists precisely so "no release PR" can never mean "no
-way to ship".
+**If nothing releasable has landed and you need to ship anyway** — a stretch of
+`chore`/`ci`/`docs` work produces no release PR at all — run **Main** manually
+from the Actions tab. It requires a written reason and records it on the run.
+That door exists precisely so "no release PR" can never mean "no way to ship".
 
 ## What is automatic and never needs thinking about
 
@@ -81,24 +82,28 @@ entire history as unreleased and builds a PR body past GitHub's 65,536-character
 limit, which is exactly how the first attempts failed (silently, with an empty
 error message). The tag names must match the config's component names.
 
-**Release traceability.** Deploy stamps the deployed commit into the API Worker
+**Release traceability.** `ship.yml` stamps the deployed commit into the API Worker
 (`--var GIT_SHA:<sha>`) and Sentry reports it as the release, so a production
 error maps to the exact commit that shipped it. That is what makes Sentry's
 regression detection and suspect-commits work.
 
 ## What runs when
 
-| Event | Gate | Ships |
-|---|---|---|
-| Pull request | CI, and Mobile if `apps/android` or `apps/ios` changed | nothing |
-| Any commit to `main` | the same | **nothing** — release-please just rewrites the open PR |
-| **Merging the release PR** | the same | migrations, api Worker, web Worker, cache purge. You archive and upload the phone apps |
-| Deploy run manually | the deployed commit already passed CI on `main` | the same as a release, with your reason on the run |
+Three workflow files, and each name is what it does.
 
-The release commit skips the Mobile workflow: release-please edits
-`app/build.gradle.kts` and `project.yml`, which sit inside its path filter, and
-building a macOS iOS image to compile a version number is fifteen minutes spent
-on nothing. The code in it already passed on its own commit.
+| File | When | What it is |
+|---|---|---|
+| **`checks.yml`** | every pull request, and called by `main.yml` on every push to `main` | **the gate.** SQL suites from zero, e2e golden paths, typecheck, lint, unit tests, both Workers built, both phone apps compiled and tested. Deploys nothing |
+| **`main.yml`** | every push to `main` | **the pipeline.** `gate` → `release` → `ship`, in that order, ordered by `needs:` |
+| **`ship.yml`** | called by `main.yml`, only when the release PR merged | **production.** Migrations, api Worker, web Worker, cache purge, and both phone release builds |
+
+So there is one question per file: *is this ok?* (checks), *what happens on main?* (main), *what reaches customers?* (ship).
+
+`main.yml` also takes a manual run with a written reason — the door for a stretch of `chore`/`docs`/`ci` work that produces no release PR at all and could otherwise never ship.
+
+**Why the gate is a separate file at all:** so a pull request and a merge run *the same checks*, not two copies that drift. `main.yml` calls it rather than repeating it.
+
+**What replaced what.** There used to be four workflows chained by `workflow_run`, which is a trigger and not an ordering — nothing guaranteed the release tags existed before the deploy looked for them, a cancelled run produced no deploy and no complaint, and answering "did this ship?" meant opening three runs. On 2026-07-26 six commits in a row failed and shipped nothing while every page looked ordinary. `needs:` cannot do that.
 
 For `android`/`ios` the released version is the one you archive and upload, and
 the generated notes are the "What's new" text. Those are the only artifacts where

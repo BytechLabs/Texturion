@@ -1,0 +1,93 @@
+name: Main
+
+# THE ONLY PIPELINE FOR `main`. Three jobs, in order, and each one's name says
+# what it is for:
+#
+#   gate     — does this commit pass everything? (calls checks.yml, the same gate
+#              a pull request runs, so a PR and a merge cannot be checked
+#              differently)
+#   release  — release-please keeps ONE pull request open and rewrites it on
+#              every push. Merging that PR is what cuts the versions and tags.
+#   ship     — production. Runs ONLY when the release PR was the thing that
+#              merged, so merging to main and shipping to customers are
+#              different events (D50).
+#
+# `needs:` is what orders them, and that is the whole point of this file. The
+# previous shape had four workflows chained by `workflow_run`, which is a
+# trigger, not an ordering: nothing guaranteed the release tags existed before
+# the deploy asked about them, a cancelled CI run silently produced no deploy
+# at all, and "did this ship?" could only be answered by opening three
+# different runs. On 2026-07-26 six commits in a row failed and deployed
+# nothing while every workflow page looked ordinary.
+on:
+  push:
+    branches: [main]
+  # The manual door. A run of chore/docs/ci commits produces no release PR at
+  # all, so without this such a change could never reach production.
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this is shipping outside a release (recorded on the run)"
+        required: true
+        type: string
+
+# NEVER cancel a run on main. The old CI config cancelled main's older runs,
+# which was harmless when every green commit deployed and destroys releases now
+# that only one does — a cancelled run has no success to act on.
+concurrency:
+  group: main
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # The same checks a pull request gets. Not a copy of them — the same file.
+  # ---------------------------------------------------------------------------
+  gate:
+    name: Gate
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/checks.yml
+    secrets: inherit
+
+  # ---------------------------------------------------------------------------
+  # Keeps the release PR current, and on the merge of that PR, cuts the
+  # versions, changelogs, tags and GitHub Releases.
+  #
+  # `releases_created` is the answer to "did the release PR just merge?",
+  # straight from the action. The previous version worked this out by polling
+  # git for tags and keeping a marker ref, because a separate workflow had no
+  # way to ask.
+  # ---------------------------------------------------------------------------
+  release:
+    name: Release
+    needs: gate
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.please.outputs.releases_created }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: please
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # ---------------------------------------------------------------------------
+  # Production. api and web deploy themselves; the phone apps are built as
+  # release artifacts and attached to the GitHub Release.
+  #
+  # `always()` so a manual dispatch (which skips gate and release entirely)
+  # still reaches this job.
+  # ---------------------------------------------------------------------------
+  ship:
+    name: Ship to production
+    needs: release
+    if: >-
+      always() &&
+      (github.event_name == 'workflow_dispatch' ||
+       needs.release.outputs.released == 'true')
+    uses: ./.github/workflows/ship.yml
+    secrets: inherit

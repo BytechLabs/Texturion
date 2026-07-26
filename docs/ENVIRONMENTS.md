@@ -14,21 +14,24 @@ signed-in session and screenshots, so a change can be *used*, not just compiled.
 This is the "somewhere to test before release" — it is simply local rather than
 a shared URL.
 
-**CI — a real database, not a mock.**
-Every push stands up Supabase, applies all migrations **from zero** (`db reset`),
-runs the SQL suite, the unit suites, and the launch-pass e2e golden paths, and
-builds both Workers. Nothing deploys unless all of that is green.
+**The gate — a real database, not a mock.**
+`checks.yml` stands up Supabase, applies all migrations **from zero**
+(`db reset`), runs the SQL suite, the unit suites, and the launch-pass e2e
+golden paths, builds both Workers, and compiles both phone apps. Every pull
+request runs it, and `main.yml` calls the same file on every push to `main` —
+one gate, not two that can drift.
 
 **Production — merge-to-ship (D50).**
-Green CI on `main` deploys nothing. Production changes when the release PR
-merges: that commit pushes migrations and deploys both Workers, and the same
-event is when the phone apps are archived and uploaded by hand. One version
-exists at a time; the deployed commit is stamped into the Worker and reported to
-Sentry as the release. `docs/RELEASING.md` is the whole procedure.
+A green gate on `main` deploys nothing. Production changes when the release PR
+merges, and `main.yml` orders it: gate → release → ship. `ship.yml` pushes the
+migrations, deploys both Workers, purges the cache, and builds the two phone
+release artifacts. One version exists at a time; the deployed commit is stamped
+into the Worker and reported to Sentry as the release. `docs/RELEASING.md` is
+the whole procedure.
 
-The gate is unchanged and still runs on every commit — what moved is only *when*
-a green gate turns into a deploy. A release that has to wait for the next merge
-is a batch, so the migration guard below matters more than it did, not less.
+The gate runs on every commit exactly as before — what moved is only *when* a
+green gate turns into a deploy. A release that waits for the next merge is a
+batch, so the migration guard below matters more than it did, not less.
 
 ## The gap that actually matters
 

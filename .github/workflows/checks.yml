@@ -1,29 +1,29 @@
-name: CI
+name: Checks
 
+# THE GATE. Everything that has to be true before a change is allowed anywhere:
+# the SQL suites against a database built from zero, the end-to-end golden
+# paths, typecheck/lint/unit across every package, both Workers built, and both
+# phone apps compiled and unit-tested.
+#
+# It runs on every pull request, and `main.yml` CALLS this same file on every
+# push to main — the same file, not a copy, so a PR and a merge can never be
+# checked differently.
+#
+# It deploys NOTHING. Passing here means "this is safe to merge"; what reaches
+# customers is decided in main.yml, and only when the release PR merges (D50).
 on:
   pull_request:
-  push:
-    branches: [main]
+  workflow_call:
 
-# #122: cancel superseded runs on a BRANCH. Pushing a new commit to a PR
-# supersedes the in-flight CI for that ref, so the old run is wasted work and
-# just delays the queue. Scoped per workflow+ref so unrelated branches never
-# cancel each other.
+# #122: cancel superseded runs on a pull request. Pushing a new commit
+# supersedes the in-flight checks for that branch, so the old run is wasted
+# work and just delays the queue.
 #
-# main is exempt (D50). The original rationale was "main cancels its own older
-# runs so the deploy that workflow_run triggers is always for the newest
-# commit" — true when every green commit deployed, and actively harmful now
-# that only a release does. A cancelled run has no 'success' conclusion, so
-# Deploy never fires for it; cancelling main's CI would mean a release merge
-# followed closely by another push loses its deploy. Measured on this repo,
-# release CI takes 137-300s and has twice been followed by a push 61s later,
-# so this is not a theoretical window.
-#
-# The cost is a few duplicate runs on a busy main. That is cheaper than a
-# release that silently never ships.
+# main is NOT cancelled — but that is main.yml's concurrency group, not this
+# one, because a run called through `workflow_call` inherits the caller's.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   schema:
@@ -188,7 +188,7 @@ jobs:
       # next build inlines these; web/src/env.ts fails the build if they are
       # missing. env.ts only validates SHAPE (NEXT_PUBLIC_SUPABASE_URL is
       # z.url(), the publishable key is a non-empty string) and the CI build
-      # artifact is NEVER deployed — deploy.yml rebuilds with the real secrets —
+      # artifact is NEVER deployed — ship.yml rebuilds with the real secrets —
       # so ALL of these are fixed placeholders that keep this job deterministic
       # and independent of repo-secret configuration.
       NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
@@ -228,3 +228,126 @@ jobs:
 
       - name: Validate api Worker (wrangler deploy --dry-run)
         run: pnpm --filter @loonext/api exec wrangler deploy --dry-run --outdir=dist
+
+  # ---------------------------------------------------------------------------
+  # The phone apps, folded in from what used to be a separate Mobile workflow.
+  #
+  # Separate was the wrong shape: it meant a change could be green in one place
+  # and red in another, with nothing tying them together, and "is this commit
+  # ok?" needed two browser tabs. They are part of the gate now, so the answer
+  # is one word.
+  #
+  # Not path-filtered any more either. The filter saved macOS minutes and cost
+  # something worse — on 2026-07-26 the iOS app had not compiled for a whole
+  # commit because the change that broke it touched no path the filter watched.
+  # ---------------------------------------------------------------------------
+
+  android:
+    name: Android (assemble + unit tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # compileSdk 37 — newer than the image's preinstalled set. NOTE the repo
+      # package id is the minor-versioned "android-37.0" (run 2: plain
+      # "android-37" does not exist); build-tools top out at 36.x, which AGP 9.3
+      # is happy with.
+      - name: Install SDK 37
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-37.0 build-tools;36.0.0 platform-tools"
+          log-accepted-android-sdk-licenses: false
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest
+
+      # Google Play rejects a versionCode that is not strictly greater than the
+      # last accepted one, so it cannot stay hardcoded at 1. The git commit count
+      # is monotonic by construction and needs no stored state — the same source
+      # the iOS build number uses, so the platforms stay in step.
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleDebug -PloonextVersionCode="$(git rev-list --count HEAD)"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: loonext-debug-apk
+          path: apps/android/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+
+  ios:
+    name: iOS (build + unit tests)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@v4
+
+      # The app targets iOS 26 (Liquid Glass) — Xcode 26+ is required. Runner
+      # images ship several Xcodes; pick the newest 26.x and fail with the
+      # available list if none exists (means the image is too old).
+      - name: Select Xcode 26
+        run: |
+          ls -d /Applications/Xcode*.app
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            echo "::error::No Xcode 26 on this image — see the list above; bump runs-on to a newer macOS image."
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Pick a simulator
+        id: sim
+        run: |
+          xcrun simctl list devices available
+          UDID=$(xcrun simctl list devices available | grep -Eo 'iPhone [^(]*\(([0-9A-F-]+)\)' | head -1 | grep -Eo '[0-9A-F-]{36}')
+          if [ -z "$UDID" ]; then
+            echo "::error::No available iPhone simulator on this image."
+            exit 1
+          fi
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      # App Store Connect rejects an upload whose CFBundleVersion repeats one it
+      # already accepted, so the build number cannot stay hardcoded at 1. The git
+      # commit count is monotonic by construction and needs no stored state — the
+      # same source Android's versionCode uses, so the two platforms stay in step.
+      # project.yml keeps 1/1.0.0 as the local-dev fallback; archives should pass
+      # the same override (see docs/RELEASING.md).
+      - name: Compute build number
+        id: build_number
+        run: echo "value=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project Loonext.xcodeproj \
+            -scheme Loonext \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            CURRENT_PROJECT_VERSION="${{ steps.build_number.outputs.value }}" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Unit tests
+        run: |
+          xcodebuild test \
+            -project Loonext.xcodeproj \
+            -scheme Loonext \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            CODE_SIGNING_ALLOWED=NO

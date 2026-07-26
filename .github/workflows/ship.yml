@@ -1,0 +1,224 @@
+name: Ship
+
+# PRODUCTION, all four apps, one file. Called by main.yml when the release PR
+# merges — never on its own, so there is exactly one way for anything to reach
+# a customer.
+#
+# api and web deploy themselves. android and ios are BUILT here and attached to
+# the run, so release day is "download and upload" rather than "build it on
+# your laptop first, hope the release config still compiles, then upload".
+#
+# Store upload is the one thing this cannot do, and it is a credentials gap
+# rather than a design choice: it needs an Android keystore, a Play service
+# account, and an App Store Connect key + distribution certificate. None are in
+# this repo, and none can be invented. Each phone job ends by saying so on the
+# run itself, because a release-day instruction belongs where you are standing,
+# not in a document.
+on:
+  workflow_call:
+
+concurrency:
+  group: ship-production
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Migrations, then the API Worker, then web. In that order deliberately: the
+  # schema a new Worker expects has to be there before the Worker is.
+  # ---------------------------------------------------------------------------
+  backend:
+    name: api + web + database
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+      # Optional (blank = no captcha widget). MUST be set BEFORE enabling the
+      # Supabase Auth captcha dashboard setting, or every deployed email/password
+      # signup, login, and password-reset request fails captcha verification.
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ secrets.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+      # Optional (blank = no host split). D27: when set (https://app.loonext.com),
+      # the middleware serves ONLY marketing pages on loonext.com and ONLY the
+      # product on this origin. Both hostnames must be attached to the web Worker.
+      NEXT_PUBLIC_APP_ORIGIN: ${{ secrets.NEXT_PUBLIC_APP_ORIGIN }}
+      # #130: the blog subdomain. When set, the middleware serves the blog at
+      # blog.loonext.com's root (blog.loonext.com/<slug> renders /blog/<slug>).
+      # The value is public (it ships in the browser bundle), so it's inlined
+      # here directly rather than via a secret. blog.loonext.com must also be
+      # attached as a custom domain on the web Worker for the host to resolve.
+      NEXT_PUBLIC_BLOG_ORIGIN: https://blog.loonext.com
+      # Optional client telemetry (blank = off — env.ts coerces "" → undefined,
+      # both are schema-optional). Browser Sentry (D13) and PostHog (D8/D12)
+      # activate only when set. NEXT_PUBLIC_* are inlined by `next build`, so
+      # they must be present at BUILD time here, not as runtime Worker vars.
+      NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+      NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
+      # Optional (blank = no GTM, no consent banner). #124: marketing-only
+      # Google Tag Manager. When set, the marketing pages load the container
+      # under Consent Mode v2 (default denied) and show the consent banner.
+      # The id is public (it ships in the browser bundle); it lives in a secret
+      # only to follow the pattern above. The gate's build job deliberately
+      # omits it — that artifact is never deployed and must not load GTM.
+      NEXT_PUBLIC_GTM_ID: ${{ secrets.NEXT_PUBLIC_GTM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Pinned, not "latest": resolving "latest" costs an unauthenticated
+      # GitHub API call, and when that rate-limits the whole job dies before it
+      # runs anything (it took a deploy down on 2026-07-24).
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+
+      - name: Push database migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+          supabase db push
+
+      # GIT_SHA is the Sentry release: it maps a production error back to the
+      # exact commit that shipped it, and drives Sentry's regression detection
+      # and suspect commits.
+      - name: Deploy api Worker
+        run: |
+          pnpm --filter @loonext/api exec wrangler deploy \
+            --var GIT_SHA:"${{ github.sha }}"
+
+      - name: Deploy web Worker (OpenNext build + deploy)
+        run: pnpm --filter @loonext/web run deploy
+
+      # The marketing HTML is edge-cached (Cloudflare Cache Rule on
+      # http.host eq "loonext.com" + Cache-Control s-maxage=3600 from
+      # next.config.ts), so a fresh deploy stays hidden behind stale cache for
+      # up to an hour unless we purge. purge_everything is safe: only the
+      # marketing apex is cacheable, and _next/static assets are content-hashed
+      # so they re-cache under new URLs.
+      - name: Purge Cloudflare cache
+        env:
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          resp=$(curl -fsS -X POST \
+            "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"purge_everything":true}')
+          echo "$resp"
+          echo "$resp" | grep -q '"success":true'
+
+  # ---------------------------------------------------------------------------
+  # The phone apps. Runs alongside the backend rather than after it — a store
+  # review takes days, so there is nothing to sequence.
+  # ---------------------------------------------------------------------------
+  android:
+    name: android
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/android
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # versionCode is the commit count
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install SDK 37
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-37.0 build-tools;36.0.0 platform-tools"
+          log-accepted-android-sdk-licenses: false
+
+      # Play rejects a versionCode that is not strictly greater than the last
+      # accepted one. The commit count is monotonic by construction and needs
+      # no stored state — the same source the iOS build number uses, so the two
+      # platforms stay in step.
+      - name: Build release bundle
+        run: |
+          ./gradlew :app:bundleRelease \
+            -PloonextVersionCode="$(git rev-list --count HEAD)"
+
+      - name: Attach the bundle to the release
+        uses: actions/upload-artifact@v4
+        with:
+          name: loonext-android-release
+          path: apps/android/app/build/outputs/bundle/release/*.aab
+          retention-days: 90
+
+      # What a person still has to do, said on the run rather than in a doc
+      # nobody opens on release day.
+      - name: What is left to do by hand
+        run: |
+          echo "::notice::Android bundle built and attached to this run."
+          echo "::notice::Upload it at play.google.com/console — automating that"
+          echo "::notice::needs ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD"
+          echo "::notice::and PLAY_SERVICE_ACCOUNT_JSON, which this repo does not have."
+
+  ios:
+    name: ios
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # CURRENT_PROJECT_VERSION is the commit count
+
+      - name: Select Xcode 26
+        run: |
+          ls -d /Applications/Xcode*.app
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            echo "::error::No Xcode 26 on this image — bump runs-on."
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      # Unsigned: signing needs a distribution certificate and a provisioning
+      # profile, neither of which is in this repo. The archive still proves the
+      # release configuration builds, which is the part that goes wrong.
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -project Loonext.xcodeproj \
+            -scheme Loonext \
+            -archivePath build/Loonext.xcarchive \
+            CURRENT_PROJECT_VERSION="$(git rev-list --count HEAD)" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Attach the archive to the release
+        uses: actions/upload-artifact@v4
+        with:
+          name: loonext-ios-archive
+          path: apps/ios/build/Loonext.xcarchive
+          retention-days: 90
+
+      - name: What is left to do by hand
+        run: |
+          echo "::notice::iOS archive built (unsigned) and attached to this run."
+          echo "::notice::Sign and upload it from Xcode — automating that needs an"
+          echo "::notice::App Store Connect API key and a distribution certificate,"
+          echo "::notice::which this repo does not have."
