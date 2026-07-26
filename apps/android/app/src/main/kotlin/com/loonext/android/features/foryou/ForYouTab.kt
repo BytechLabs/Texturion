@@ -83,6 +83,7 @@ import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import androidx.compose.runtime.rememberCoroutineScope
 import com.loonext.android.core.model.SpamReviewItem
+import com.loonext.android.core.model.forYouHeadlineWork
 import com.loonext.android.core.model.spamReviewReason
 import kotlinx.coroutines.launch
 import androidx.compose.material3.OutlinedButton
@@ -254,9 +255,19 @@ private fun ForYouList(
     onOpenNotifications: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val triageCount = forYou.triage?.let { it.conversations.size + it.tasks.size } ?: 0
-    val total = forYou.waiting_on_you.size + forYou.my_tasks.size + forYou.unread.size +
-        triageCount
+    // #306: what each section HOLDS, not how many rows came back. Counting the
+    // rows meant a member 60 conversations behind read "20 things need you",
+    // and the queue looked finished after twenty items — the product reassuring
+    // the crew at exactly the moment it should alarm them. Falling back to the
+    // row count keeps a build running ahead of the Worker on today's behaviour.
+    val t = forYou.totals
+    val waitingTotal = t?.waiting_on_you ?: forYou.waiting_on_you.size
+    val tasksTotal = t?.my_tasks ?: forYou.my_tasks.size
+    val unreadTotal = t?.unread ?: forYou.unread.size
+    val triageConvTotal = t?.triage_conversations ?: forYou.triage?.conversations?.size ?: 0
+    val triageTaskTotal = t?.triage_tasks ?: forYou.triage?.tasks?.size ?: 0
+    val triageCount = triageConvTotal + triageTaskTotal
+    val total = forYouHeadlineWork(forYou)
 
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
@@ -329,7 +340,7 @@ private fun ForYouList(
                 item(key = "triage") {
                     QueueSection(
                         "Triage",
-                        count = triage.conversations.size + triage.tasks.size,
+                        count = triageCount,
                         // Sections glide as queues above them empty or fill.
                         modifier = Modifier.animateItem(),
                     ) {
@@ -360,7 +371,7 @@ private fun ForYouList(
             item(key = "waiting") {
                 QueueSection(
                     "Waiting on you",
-                    count = forYou.waiting_on_you.size,
+                    count = waitingTotal,
                     modifier = Modifier.animateItem(),
                 ) {
                     forYou.waiting_on_you.forEachIndexed { index, row ->
@@ -380,7 +391,7 @@ private fun ForYouList(
             item(key = "tasks") {
                 QueueSection(
                     "My tasks",
-                    count = forYou.my_tasks.size,
+                    count = tasksTotal,
                     modifier = Modifier.animateItem(),
                 ) {
                     forYou.my_tasks.forEachIndexed { index, row ->
@@ -400,7 +411,7 @@ private fun ForYouList(
             item(key = "unread") {
                 QueueSection(
                     "Unread",
-                    count = forYou.unread.size,
+                    count = unreadTotal,
                     modifier = Modifier.animateItem(),
                 ) {
                     forYou.unread.forEachIndexed { index, row ->

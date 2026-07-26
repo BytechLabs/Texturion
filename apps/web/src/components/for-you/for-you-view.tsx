@@ -449,6 +449,13 @@ function SummaryTile({ label, count }: { label: string; count: number }) {
  * queue. Conversations are counted once however many sections carry them:
  * "waiting on you" and "unread" overlap by design, since the second is a
  * cross-cut of the first rather than a separate pile of work.
+ *
+ * #306: this counts the ROWS, and the rows are capped at the section limit, so
+ * it is bounded by the page size rather than by the work — a member with 60
+ * conversations waiting on them read "20 things need you". The server now
+ * sends the real numbers; this stays as the fallback for a client running
+ * ahead of the Worker, where an undercount is at least today's behaviour
+ * rather than a new wrong answer.
  */
 export function countDistinctWork(data: ForYou): number {
   const conversations = new Set<string>();
@@ -463,6 +470,48 @@ export function countDistinctWork(data: ForYou): number {
   return conversations.size + tasks.size;
 }
 
+/** #306: the honest headline, or the row-derived one if the server is older. */
+export function headlineWork(data: ForYou): number {
+  return data.totals?.distinct_work ?? countDistinctWork(data);
+}
+
+/**
+ * #306 — the footer a section grows when it is showing a page of something
+ * bigger. Without it the queue simply ends at twenty and reads as finished.
+ *
+ * It states the shape of the truncation ("20 of 63") rather than just offering
+ * a link, because the number is the information: the reader needs to know how
+ * far behind they are, which is the whole point of the issue.
+ *
+ * Applying: Meaningful Highlights (the count is context, not decoration) and
+ * the repo's standing rule that a limited view says it is limited.
+ */
+function Overflow({
+  shown,
+  total,
+  href,
+  label,
+}: {
+  shown: number;
+  total: number;
+  href: string;
+  label: string;
+}) {
+  if (total <= shown) return null;
+  return (
+    <Link
+      href={href}
+      className="flex items-center justify-between gap-2 border-t border-app-line-soft px-4 py-2.5 text-[12.5px] text-app-muted transition-colors duration-150 ease-out hover:bg-app-hover"
+    >
+      <span>
+        Showing {shown} of <span className="tabular-nums">{total}</span> ·{" "}
+        {label}
+      </span>
+      <ArrowRight className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
+    </Link>
+  );
+}
+
 export function ForYouView() {
   const { role } = useActiveCompany();
   const forYou = useForYou();
@@ -472,7 +521,11 @@ export function ForYouView() {
   // section is a cross-cut, so a thread assigned to you that nobody has read
   // appears there and under "waiting on you" as well. Adding the sections up
   // counted that thread twice and reported more work than there was.
-  const total = forYou.data ? countDistinctWork(forYou.data) : 0;
+  //
+  // #306: and not how many rows the SERVER sent either — that was capped at 20,
+  // so the busiest crews were told they were the least busy.
+  const total = forYou.data ? headlineWork(forYou.data) : 0;
+  const totals = forYou.data?.totals;
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8 lg:max-w-5xl">
@@ -512,17 +565,25 @@ export function ForYouView() {
             <SummaryTile
               label="Triage"
               count={
-                (forYou.data.triage?.conversations.length ?? 0) +
-                (forYou.data.triage?.tasks.length ?? 0)
+                totals
+                  ? totals.triage_conversations + totals.triage_tasks
+                  : (forYou.data.triage?.conversations.length ?? 0) +
+                    (forYou.data.triage?.tasks.length ?? 0)
               }
             />
           )}
           <SummaryTile
             label="Waiting on you"
-            count={forYou.data.waiting_on_you.length}
+            count={totals?.waiting_on_you ?? forYou.data.waiting_on_you.length}
           />
-          <SummaryTile label="My tasks" count={forYou.data.my_tasks.length} />
-          <SummaryTile label="Unread" count={forYou.data.unread.length} />
+          <SummaryTile
+            label="My tasks"
+            count={totals?.my_tasks ?? forYou.data.my_tasks.length}
+          />
+          <SummaryTile
+            label="Unread"
+            count={totals?.unread ?? forYou.data.unread.length}
+          />
         </div>
       )}
 
@@ -653,8 +714,16 @@ function SpamReviewRow({ item }: { item: SpamReviewItem }) {
 
 function ForYouSections({ data, isLead }: { data: ForYou; isLead: boolean }) {
   const { waiting_on_you, my_tasks, unread, triage } = data;
-  const triageCount =
-    (triage?.conversations.length ?? 0) + (triage?.tasks.length ?? 0);
+  const t = data.totals;
+  // #306: the header count is what the section HOLDS; the rows are a page of
+  // it. Falling back to the row count keeps a client running ahead of the
+  // Worker on today's behaviour rather than a new wrong number.
+  const waitingTotal = t?.waiting_on_you ?? waiting_on_you.length;
+  const tasksTotal = t?.my_tasks ?? my_tasks.length;
+  const unreadTotal = t?.unread ?? unread.length;
+  const triageConvTotal = t?.triage_conversations ?? triage?.conversations.length ?? 0;
+  const triageTaskTotal = t?.triage_tasks ?? triage?.tasks.length ?? 0;
+  const triageCount = triageConvTotal + triageTaskTotal;
 
   const everythingEmpty =
     waiting_on_you.length === 0 &&
@@ -710,33 +779,72 @@ function ForYouSections({ data, isLead }: { data: ForYou; isLead: boolean }) {
           {triage?.conversations.map((item) => (
             <TriageConvRow key={item.conversation_id} item={item} />
           ))}
+          {/* Triage carries two kinds of thing under one heading, so it gets
+              two footers — one "view all" cannot land a reader on the rows
+              they are missing when only the other half is truncated. */}
+          <Overflow
+            shown={triage?.conversations.length ?? 0}
+            total={triageConvTotal}
+            href="/inbox"
+            label="unassigned conversations in the inbox"
+          />
           {triage?.tasks.map((task) => (
             <TriageTaskRow key={task.task_id} task={task} />
           ))}
+          <Overflow
+            shown={triage?.tasks.length ?? 0}
+            total={triageTaskTotal}
+            href="/tasks"
+            label="all tasks"
+          />
         </Section>
       )}
 
       {waiting_on_you.length > 0 && (
-        <Section label="Waiting on you" count={waiting_on_you.length}>
+        <Section label="Waiting on you" count={waitingTotal}>
           {waiting_on_you.map((item) => (
             <WaitingRow key={item.conversation_id} item={item} />
           ))}
+          {/* /inbox?assignee=me is a SUPERSET of this section — the Mine
+              segment carries no status filter — so the link is offered as a
+              place to continue, not as "the other 43". */}
+          <Overflow
+            shown={waiting_on_you.length}
+            total={waitingTotal}
+            href="/inbox?assignee=me"
+            label="see the rest in your inbox"
+          />
         </Section>
       )}
 
       {my_tasks.length > 0 && (
-        <Section label="My tasks" count={my_tasks.length}>
+        <Section label="My tasks" count={tasksTotal}>
           {my_tasks.map((task) => (
             <TaskRow key={task.task_id} task={task} />
           ))}
+          {/* Bare /tasks, which is List · Open · Mine — the exact match for
+              this section. `?tab=mine` drops the status filter and would land
+              the reader in a list that includes everything they finished. */}
+          <Overflow
+            shown={my_tasks.length}
+            total={tasksTotal}
+            href="/tasks"
+            label="see all your open tasks"
+          />
         </Section>
       )}
 
       {unread.length > 0 && (
-        <Section label="Unread" count={unread.length}>
+        <Section label="Unread" count={unreadTotal}>
           {unread.map((item) => (
             <UnreadRow key={item.conversation_id} item={item} />
           ))}
+          <Overflow
+            shown={unread.length}
+            total={unreadTotal}
+            href="/inbox?assignee=me&unread=true"
+            label="see the rest in your inbox"
+          />
         </Section>
       )}
 

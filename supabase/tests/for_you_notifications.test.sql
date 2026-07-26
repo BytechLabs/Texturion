@@ -183,6 +183,129 @@ begin
 end $$;
 
 -- ===========================================================================
+-- FY2b. [#306] `totals` reports what each section ACTUALLY holds, and
+--       `distinct_work` counts a conversation once however many lenses it
+--       shows up in.
+--
+--       The member fixture: W and U are both assigned+open and both unread, so
+--       waiting_on_you=2 and unread=2 — but they are the SAME two threads. A
+--       client summing the section totals would say 4 things need it; the
+--       honest answer is 2 conversations + 1 task = 3.
+--
+--       Every assertion guards on the key existing first and compares with
+--       `is distinct from`. Without that, a missing `totals` makes
+--       `(r->'totals'->>'x')::int` NULL, `NULL <> 3` evaluates to NULL, and
+--       the `if` never fires — a test that passes against the very function it
+--       is supposed to reject.
+-- ===========================================================================
+do $$
+declare r jsonb;
+begin
+  r := public.api_for_you('c0000000-0000-4000-8000-000000000001',
+                          'a0000000-0000-4000-8000-000000000002', false, now(), 20);
+
+  if not (r ? 'totals') then
+    raise exception 'FY2b FAILED: no totals key at all: %', r;
+  end if;
+
+  if (r->'totals'->>'waiting_on_you')::int is distinct from 2 then
+    raise exception 'FY2b FAILED: waiting_on_you total %, expected 2',
+      r->'totals'->>'waiting_on_you';
+  end if;
+  if (r->'totals'->>'unread')::int is distinct from 2 then
+    raise exception 'FY2b FAILED: unread total %, expected 2',
+      r->'totals'->>'unread';
+  end if;
+  if (r->'totals'->>'my_tasks')::int is distinct from 1 then
+    raise exception 'FY2b FAILED: my_tasks total %, expected 1',
+      r->'totals'->>'my_tasks';
+  end if;
+
+  -- The whole point: 2 + 2 + 1 = 5 is the wrong answer. W and U are one pair
+  -- of conversations seen twice.
+  if (r->'totals'->>'distinct_work')::int is distinct from 3 then
+    raise exception 'FY2b FAILED: distinct_work %, expected 3 (2 conversations + 1 task)',
+      r->'totals'->>'distinct_work';
+  end if;
+
+  -- A member gets no triage strip, so its totals must be zero rather than
+  -- leaking a company-wide number to somebody who cannot see the rows.
+  if (r->'totals'->>'triage_conversations')::int is distinct from 0
+     or (r->'totals'->>'triage_tasks')::int is distinct from 0 then
+    raise exception 'FY2b FAILED: a member saw triage totals: %', r->'totals';
+  end if;
+
+  raise notice 'FY2b PASSED: totals are honest and distinct_work counts each thread once';
+end $$;
+
+-- ===========================================================================
+-- FY2c. [#306] THE BUG ITSELF: with more work than the section limit, the rows
+--       are capped and the totals are not.
+--
+--       Called with p_limit = 1 rather than by seeding 21 conversations — the
+--       cap is the same code path at any size, and a fixture that inserts
+--       twenty rows to prove one property is a fixture nobody maintains.
+-- ===========================================================================
+do $$
+declare r jsonb;
+begin
+  r := public.api_for_you('c0000000-0000-4000-8000-000000000001',
+                          'a0000000-0000-4000-8000-000000000002', false, now(), 1);
+
+  if jsonb_array_length(r->'waiting_on_you') <> 1 then
+    raise exception 'FY2c FAILED: the cap stopped working: %', r->'waiting_on_you';
+  end if;
+  if (r->'totals'->>'waiting_on_you')::int is distinct from 2 then
+    raise exception 'FY2c FAILED: the total was capped too (%), which is the bug',
+      r->'totals'->>'waiting_on_you';
+  end if;
+  if (r->'totals'->>'distinct_work')::int is distinct from 3 then
+    raise exception 'FY2c FAILED: distinct_work followed the page size (%), expected 3',
+      r->'totals'->>'distinct_work';
+  end if;
+
+  raise notice 'FY2c PASSED: rows are bounded, totals are not';
+end $$;
+
+-- ===========================================================================
+-- FY2d. [#306] A lead's triage totals are real, and the narrowed `conv`
+--       relation did not change which rows come back.
+-- ===========================================================================
+do $$
+declare r jsonb;
+begin
+  r := public.api_for_you('c0000000-0000-4000-8000-000000000001',
+                          'a0000000-0000-4000-8000-000000000001', true, now(), 20);
+
+  if (r->'totals'->>'triage_conversations')::int is distinct from
+     jsonb_array_length(r->'triage'->'conversations') then
+    raise exception 'FY2d FAILED: triage total % disagrees with its rows %',
+      r->'totals'->>'triage_conversations',
+      jsonb_array_length(r->'triage'->'conversations');
+  end if;
+  if (r->'totals'->>'triage_tasks')::int is distinct from
+     jsonb_array_length(r->'triage'->'tasks') then
+    raise exception 'FY2d FAILED: triage task total % disagrees with its rows %',
+      r->'totals'->>'triage_tasks',
+      jsonb_array_length(r->'triage'->'tasks');
+  end if;
+
+  -- Under the page limit, every section total must equal its row count. If the
+  -- narrowed `conv` had dropped a row this is where it shows up.
+  if (r->'totals'->>'waiting_on_you')::int is distinct from
+     jsonb_array_length(r->'waiting_on_you')
+     or (r->'totals'->>'unread')::int is distinct from
+        jsonb_array_length(r->'unread')
+     or (r->'totals'->>'my_tasks')::int is distinct from
+        jsonb_array_length(r->'my_tasks') then
+    raise exception 'FY2d FAILED: a total disagrees with its own rows below the cap: %',
+      r->'totals';
+  end if;
+
+  raise notice 'FY2d PASSED: lead totals agree with their rows, narrowing changed nothing';
+end $$;
+
+-- ===========================================================================
 -- FY3. Completing the source message removes the derived-open task from
 --      my_tasks (completion DERIVES from messages.done_at, D17) and drops W's
 --      urgency below 0 (no overdue task remaining).

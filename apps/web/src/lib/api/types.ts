@@ -1555,12 +1555,38 @@ export interface ForYouTriage {
 }
 
 /** GET /v1/for-you — the four-section focus queue (api_for_you RPC). */
+/**
+ * #306 — what each section ACTUALLY holds, independent of the 20 rows returned.
+ *
+ * The rows are capped at the section limit (D23: a calm card list, not a
+ * paginated inbox). Counting them was counting the page, so a member with 60
+ * conversations waiting on them was told about 20 and the queue looked finished.
+ *
+ * `distinct_work` is the only one to render as "N things need you" — the
+ * per-section totals overlap, and a client cannot dedupe them because it only
+ * ever holds 20 of the N ids. The server does it.
+ *
+ * Optional: a client that ships ahead of the Worker falls back to counting rows,
+ * which is today's behaviour rather than a wrong number.
+ */
+export interface ForYouTotals {
+  waiting_on_you: number;
+  my_tasks: number;
+  unread: number;
+  triage_conversations: number;
+  triage_tasks: number;
+  /** Each conversation counted once, plus every task. The headline number. */
+  distinct_work: number;
+}
+
 export interface ForYou {
   waiting_on_you: ForYouWaiting[];
   my_tasks: ForYouTask[];
   unread: ForYouUnread[];
   /** null for a plain member (never leaked); the strip for owner/admin. */
   triage: ForYouTriage | null;
+  /** #306. Absent from an older Worker; see {@link ForYouTotals}. */
+  totals?: ForYouTotals;
 }
 
 /** One derived notification (api_notifications RPC row). */

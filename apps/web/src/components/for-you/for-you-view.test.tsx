@@ -324,3 +324,88 @@ describe("marked spam, still texting (#342)", () => {
     expect(html).toContain("Still spam");
   });
 });
+
+describe("the headline is the work, not the page (#306)", () => {
+  const totals = {
+    waiting_on_you: 63,
+    my_tasks: 4,
+    unread: 41,
+    triage_conversations: 0,
+    triage_tasks: 0,
+    distinct_work: 67,
+  };
+
+  it("reports the server's number, not the number of rows on screen", () => {
+    // The defect: twenty rows came back, so the busiest crew was told
+    // "20 things need you" and the queue looked finished.
+    state.forYou = queue({
+      waiting_on_you: Array.from({ length: 20 }, (_, i) => ({
+        ...waitingItem,
+        conversation_id: `c${i}`,
+      })),
+      totals,
+    });
+    state.spamReview = [];
+    const html = render();
+
+    expect(html).toContain("67 things need you");
+    expect(html).not.toContain("20 things need you");
+  });
+
+  it("says a section is a page of something bigger, and where the rest is", () => {
+    state.forYou = queue({
+      waiting_on_you: Array.from({ length: 20 }, (_, i) => ({
+        ...waitingItem,
+        conversation_id: `c${i}`,
+      })),
+      totals,
+    });
+    const html = render();
+
+    expect(html).toContain("Showing 20 of");
+    expect(html).toContain("63");
+    expect(html).toContain('href="/inbox?assignee=me"');
+  });
+
+  it("sends the my-tasks overflow to the open list, not one that includes done", () => {
+    // `/tasks?tab=mine` drops the status filter, so it lists completed tasks
+    // too — the wrong place to send someone looking for the work they are
+    // behind on. Bare /tasks is List · Open · Mine.
+    state.forYou = queue({
+      my_tasks: Array.from({ length: 20 }, (_, i) => ({
+        task_id: `t${i}`,
+        title: "Call back about the quote",
+        conversation_id: "conv-w",
+        message_id: `m${i}`,
+        assigned_user_id: null,
+        due_at: null,
+        overdue: false,
+      })) as ForYou["my_tasks"],
+      totals: { ...totals, waiting_on_you: 0, my_tasks: 44 },
+    });
+    const html = render();
+
+    expect(html).toContain('href="/tasks"');
+    expect(html).not.toContain("tab=mine");
+  });
+
+  it("shows no overflow when the section fits", () => {
+    state.forYou = queue({
+      waiting_on_you: [waitingItem],
+      totals: { ...totals, waiting_on_you: 1, unread: 0, my_tasks: 0, distinct_work: 1 },
+    });
+    expect(render()).not.toContain("Showing 1 of");
+  });
+
+  it("falls back to counting rows when the server sends no totals", () => {
+    // A client running ahead of the Worker keeps today's behaviour — an
+    // undercount — rather than rendering a new wrong number or nothing.
+    state.forYou = queue({
+      waiting_on_you: [waitingItem],
+    });
+    const html = render();
+
+    expect(html).toContain("1 thing needs you");
+    expect(html).not.toContain("Showing 1 of");
+  });
+});

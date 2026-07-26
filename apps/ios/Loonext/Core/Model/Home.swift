@@ -94,12 +94,55 @@ func spamReviewReason(_ item: SpamReviewItem) -> String {
     return "\(item.inbound_since) messages since it was marked"
 }
 
+/// #306 — what each section ACTUALLY holds, independent of the 20 rows returned.
+///
+/// Counting the rows was counting the PAGE: a member with 60 conversations
+/// waiting on them was told "20 things need you" and the queue looked finished.
+/// `distinct_work` is the only one to render as that headline — the per-section
+/// totals overlap, and a client cannot dedupe them because it only ever holds
+/// 20 of the N ids.
+struct ForYouTotals: Codable, Sendable {
+    @Default<DefaultZero> var waiting_on_you: Int
+    @Default<DefaultZero> var my_tasks: Int
+    @Default<DefaultZero> var unread: Int
+    @Default<DefaultZero> var triage_conversations: Int
+    @Default<DefaultZero> var triage_tasks: Int
+    @Default<DefaultZero> var distinct_work: Int
+}
+
 /// GET /v1/for-you — the four-section focus queue.
 struct ForYou: Codable, Sendable {
     @Default<DefaultEmptyList<ForYouWaiting>> var waiting_on_you: [ForYouWaiting]
     @Default<DefaultEmptyList<ForYouTask>> var my_tasks: [ForYouTask]
     @Default<DefaultEmptyList<ForYouUnread>> var unread: [ForYouUnread]
     let triage: ForYouTriage?
+    /// #306. Nil from an older Worker; see `ForYouTotals`.
+    ///
+    /// Declared `var … = nil`, NOT `let`: a `let` optional has no implicit
+    /// default, so it becomes a REQUIRED parameter of the synthesized
+    /// memberwise initializer and every preview that builds a `ForYou` stops
+    /// compiling. That exact trap broke the iOS build earlier today.
+    var totals: ForYouTotals? = nil
+}
+
+/// #306: the headline number — honest when the server sends totals, and the
+/// old row-derived count when it does not.
+///
+/// The fallback deduplicates the way the shipped web helper does: "waiting on
+/// you" and "unread" overlap by design, since the second is a cross-cut of the
+/// first rather than a separate pile of work.
+func forYouHeadlineWork(_ forYou: ForYou) -> Int {
+    if let totals = forYou.totals { return totals.distinct_work }
+    var conversations = Set<String>()
+    for row in forYou.waiting_on_you { conversations.insert(row.conversation_id) }
+    for row in forYou.unread { conversations.insert(row.conversation_id) }
+    for row in forYou.triage?.conversations ?? [] {
+        conversations.insert(row.conversation_id)
+    }
+    var tasks = Set<String>()
+    for row in forYou.my_tasks { tasks.insert(row.task_id) }
+    for row in forYou.triage?.tasks ?? [] { tasks.insert(row.task_id) }
+    return conversations.count + tasks.count
 }
 
 // MARK: - Notifications (D24 derived feed)

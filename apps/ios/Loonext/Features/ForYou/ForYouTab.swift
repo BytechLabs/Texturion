@@ -143,9 +143,19 @@ private struct ForYouList: View {
     /// when the screen is actually current rather than when the gesture ends.
     let onRefresh: @MainActor () async -> Void
 
-    private var total: Int {
-        forYou.waiting_on_you.count + forYou.my_tasks.count + forYou.unread.count +
-            (forYou.triage.map { $0.conversations.count + $0.tasks.count } ?? 0)
+    /// #306: the work, not the page. Counting the rows meant a member 60
+    /// conversations behind read "20 things need you", and the queue looked
+    /// finished after twenty items.
+    private var total: Int { forYouHeadlineWork(forYou) }
+
+    private var waitingTotal: Int { forYou.totals?.waiting_on_you ?? forYou.waiting_on_you.count }
+    private var tasksTotal: Int { forYou.totals?.my_tasks ?? forYou.my_tasks.count }
+    private var unreadTotal: Int { forYou.totals?.unread ?? forYou.unread.count }
+    private var triageConvTotal: Int {
+        forYou.totals?.triage_conversations ?? forYou.triage?.conversations.count ?? 0
+    }
+    private var triageTaskTotal: Int {
+        forYou.totals?.triage_tasks ?? forYou.triage?.tasks.count ?? 0
     }
 
     // Extracted with explicit types — the interpolated nested ternary and the
@@ -233,7 +243,7 @@ private struct ForYouList: View {
             VStack(alignment: .leading, spacing: 0) {
                 SectionHeader(
                     label: "Triage",
-                    count: triage.conversations.count + triage.tasks.count
+                    count: triageConvTotal + triageTaskTotal
                 )
                 PaperCard {
                     ForEach(
@@ -267,7 +277,7 @@ private struct ForYouList: View {
     private var waitingSection: some View {
         if !forYou.waiting_on_you.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeader(label: "Waiting on you", count: forYou.waiting_on_you.count)
+                SectionHeader(label: "Waiting on you", count: waitingTotal)
                 PaperCard {
                     ForEach(
                         Array(forYou.waiting_on_you.enumerated()),
@@ -289,7 +299,7 @@ private struct ForYouList: View {
     private var tasksSection: some View {
         if !forYou.my_tasks.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeader(label: "My tasks", count: forYou.my_tasks.count)
+                SectionHeader(label: "My tasks", count: tasksTotal)
                 PaperCard {
                     ForEach(
                         Array(forYou.my_tasks.enumerated()),
@@ -311,7 +321,7 @@ private struct ForYouList: View {
     private var unreadSection: some View {
         if !forYou.unread.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeader(label: "Unread", count: forYou.unread.count)
+                SectionHeader(label: "Unread", count: unreadTotal)
                 PaperCard {
                     ForEach(
                         Array(forYou.unread.enumerated()),

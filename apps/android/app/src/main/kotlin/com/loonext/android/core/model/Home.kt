@@ -103,13 +103,59 @@ data class ForYouTriage(
 )
 
 /** GET /v1/for-you — the four-section focus queue. */
+/**
+ * #306 — what each section ACTUALLY holds, independent of the 20 rows returned.
+ *
+ * Counting the rows was counting the PAGE: a member with 60 conversations
+ * waiting on them was told "20 things need you" and the queue looked finished.
+ * `distinct_work` is the only one to render as that headline — the per-section
+ * totals overlap, and a client cannot dedupe them because it only ever holds
+ * 20 of the N ids.
+ *
+ * Nullable: a client running ahead of the Worker falls back to counting rows,
+ * which is today's behaviour rather than a new wrong number.
+ */
+@Serializable
+data class ForYouTotals(
+    val waiting_on_you: Int = 0,
+    val my_tasks: Int = 0,
+    val unread: Int = 0,
+    val triage_conversations: Int = 0,
+    val triage_tasks: Int = 0,
+    val distinct_work: Int = 0,
+)
+
 @Serializable
 data class ForYou(
     val waiting_on_you: List<ForYouWaiting> = emptyList(),
     val my_tasks: List<ForYouTask> = emptyList(),
     val unread: List<ForYouUnread> = emptyList(),
     val triage: ForYouTriage? = null,
+    /** #306. Null from an older Worker; see [ForYouTotals]. */
+    val totals: ForYouTotals? = null,
 )
+
+/**
+ * #306: the headline number, honest when the server sends totals and the old
+ * row-derived count when it does not.
+ *
+ * The fallback deduplicates the way the shipped web helper does: "waiting on
+ * you" and "unread" overlap by design — the second is a cross-cut of the first
+ * — so a thread in both is one thing to do, not two.
+ */
+fun forYouHeadlineWork(forYou: ForYou): Int {
+    forYou.totals?.let { return it.distinct_work }
+    val conversations = buildSet {
+        forYou.waiting_on_you.forEach { add(it.conversation_id) }
+        forYou.unread.forEach { add(it.conversation_id) }
+        forYou.triage?.conversations?.forEach { add(it.conversation_id) }
+    }
+    val tasks = buildSet {
+        forYou.my_tasks.forEach { add(it.task_id) }
+        forYou.triage?.tasks?.forEach { add(it.task_id) }
+    }
+    return conversations.size + tasks.size
+}
 
 // --- Notifications (D24 derived feed) ---
 
