@@ -87,13 +87,29 @@ function formatPushNotification(rawText, origin) {
       // numbers as DISTINCT notifications — a shared 'loonext:call' tag would let
       // the second silently overwrite the first, hiding a still-live call — while
       // repeat pushes for the SAME call still coalesce.
-      tag: isCall ? callTag(url, origin) : `loonext:${url}`,
+      tag: isCall ? callTag(url, origin) : coalescingTag(payload, url),
       renotify: true,
       requireInteraction: isCall,
       vibrate: isCall ? [200, 100, 200, 100, 200] : undefined,
       data: { url },
     },
   };
+}
+
+/**
+ * Coalescing tag for a non-call notification (#266).
+ *
+ * The server decides what "the same subject" means and sends it as `tag`: a
+ * mention keys on the NOTE, so two asks in one thread stay two alerts, while
+ * repeat texts key on the conversation and collapse. Deriving it from the url
+ * here — which is what this did — silently rewrote every one of those keys to
+ * "per thread", so a customer's text could replace a teammate's direct ask.
+ * The url stays the fallback for a payload sent by an older server.
+ */
+function coalescingTag(payload, url) {
+  const tag =
+    payload && typeof payload.tag === "string" ? payload.tag.trim() : "";
+  return `loonext:${tag !== "" ? tag : url}`;
 }
 
 /**

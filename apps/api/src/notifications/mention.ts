@@ -115,11 +115,11 @@ export async function notifyNoteMention(
   const failures: unknown[] = [];
   await deliverPush(env, db, {
     userIds: pushUsers,
-    webPayload: JSON.stringify({
+    web: {
       title: `${authorName} mentioned you`,
       body: notificationSnippet(input.body, 0),
       url: `${env.APP_ORIGIN}/inbox/${input.conversationId}`,
-    }),
+    },
     // Per NOTE, not per conversation: two mentions in one thread are two
     // separate asks and must not replace each other.
     collapseKey: `mention:${input.messageId}`,

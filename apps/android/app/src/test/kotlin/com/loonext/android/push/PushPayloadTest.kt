@@ -2,6 +2,7 @@ package com.loonext.android.push
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -227,6 +228,43 @@ class PushPayloadTest {
         val tag = coalescingTag(null, "https://app.loonext.com/tasks")
 
         assertEquals("notice:https://app.loonext.com/tasks", tag)
+    }
+
+    @Test
+    fun `the server's tag wins, so a mention is not erased by the thread`() {
+        // The server keys a mention on the NOTE (#266): two asks in one thread
+        // are two separate asks. Deriving the tag from the url collapsed them
+        // onto the conversation, so the second replaced the first — and the
+        // customer's next text replaced the mention entirely.
+        val url = "$APP_ORIGIN/inbox/conv-1"
+        val first = parsePush(mapOf("url" to url, "tag" to "mention:note-1"))
+        val second = parsePush(mapOf("url" to url, "tag" to "mention:note-2"))
+        val text = parsePush(mapOf("url" to url, "tag" to "conversation:conv-1"))
+
+        assertEquals("mention:note-1", first.tag)
+        assertEquals("mention:note-2", second.tag)
+        assertNotEquals(first.tag, text.tag)
+        // Repeat texts in one thread still collapse — that key is per thread.
+        assertEquals(text.tag, parsePush(mapOf("url" to url, "tag" to "conversation:conv-1")).tag)
+    }
+
+    @Test
+    fun `a call keeps its session tag whatever the server sends`() {
+        // `call:<session>` is the key call_end cancels by (§9.2); overriding it
+        // would leave the ring on screen after the call is over.
+        val ring = parsePush(
+            mapOf("kind" to "call", "url" to "/calls?call=sess-A", "tag" to "conversation:conv-1"),
+        )
+
+        assertEquals("call:sess-A", ring.tag)
+    }
+
+    @Test
+    fun `a blank server tag falls back to the url-derived one`() {
+        val url = "$APP_ORIGIN/inbox/conv-1"
+
+        assertEquals("conversation:conv-1", parsePush(mapOf("url" to url, "tag" to "  ")).tag)
+        assertEquals("conversation:conv-1", parsePush(mapOf("url" to url)).tag)
     }
 
     // --- queryParam ---

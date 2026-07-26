@@ -77,7 +77,7 @@ fun parsePush(data: Map<String, String>): PushContent {
     val url = normalizeDeepLink(data["url"])
     val title = data["title"]?.trim()?.takeIf { it.isNotEmpty() }
     val body = data["body"]?.trim().orEmpty()
-    val tag = coalescingTag(kind, url)
+    val tag = coalescingTag(kind, url, data["tag"])
 
     if (kind == PushKind.CALL || kind == PushKind.CALL_END) {
         // call_end shares the call's channel and — critically — its
@@ -134,21 +134,30 @@ fun normalizeDeepLink(raw: String?): String {
 }
 
 /**
- * Derive the notification coalescing tag from a NORMALIZED url:
- * - calls tag per call SESSION (#149: two concurrent calls ring as two
- *   notifications; repeats for one call replace each other; the matching
- *   `call_end` revocation cancels by this exact tag, calls-v3 §9.2)
+ * Derive the notification coalescing tag.
+ *
+ * The SERVER's `tag` wins when it sends one (#266): it is the single collapse
+ * identity shared with iOS's apns-collapse-id and the web tag, and it knows
+ * things this url does not — a mention keys on the NOTE, so two asks in one
+ * thread stay two alerts instead of the second erasing the first.
+ *
+ * Calls are the one exception: `call:<session>` is the REVOCATION key
+ * `call_end` cancels by (§9.2), so it stays derived from the session on the
+ * link and is never overridden.
+ *
+ * Without a server tag (older server, malformed payload) fall back to the url:
  * - task reminders tag per TASK, not per conversation: the reminder deep-links
  *   to the job over its customer's thread, and tagging on the thread would let
  *   a reminder and an incoming text replace one another
  * - thread pushes tag per conversation (repeat texts in one thread coalesce)
  * - anything else tags per deep link
  */
-fun coalescingTag(kind: String?, normalizedUrl: String): String {
+fun coalescingTag(kind: String?, normalizedUrl: String, serverTag: String? = null): String {
     if (kind == PushKind.CALL || kind == PushKind.CALL_END) {
         val session = queryParam(normalizedUrl, "call")
         return if (session != null) "call:$session" else "call:$normalizedUrl"
     }
+    serverTag?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
     if (kind == PushKind.TASK_DUE) {
         val task = queryParam(normalizedUrl, "task")
         return if (task != null) "task:$task" else "task:$normalizedUrl"

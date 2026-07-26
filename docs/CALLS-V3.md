@@ -915,6 +915,13 @@ extension must be revisited first.
     row lacks the cap and receives nothing). iOS (future) may additionally
     use apns-collapse-id, which genuinely replaces in Notification Center —
     Android must never be claimed to.
+  - **Since #266** the shared fan-out (`notifications/deliver.ts`) puts its
+    collapse key in the payload as `tag`, and web + Android coalesce on that
+    instead of deriving one from the deep link. Calls are exempt on both
+    clients: `call:<session>` / `loonext:call:<session>` stays derived from
+    the link, because it is the key `call_end` cancels by. Nothing above
+    changes — Android tray replacement is still 100% client-side, the tag it
+    uses is simply now the server's.
 - Android tray timeout aligns to 45s (LoonextMessagingService's 30s constant
   and its wrong "server ring window is ~30s" comment are corrected).
 

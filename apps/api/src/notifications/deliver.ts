@@ -16,6 +16,7 @@
  * the ring could not reach. Folding those in would mean an option for every
  * difference, which is the shape this file exists to avoid.
  */
+import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
@@ -23,11 +24,16 @@ import { isFcmConfigured, sendFcm } from "./fcm";
 import { sendWebPush } from "./webpush";
 
 /**
- * Defensive bound on both queries. POST /v1/push-subscriptions caps each user
- * at 10 live rows, but a bad table state must never leave a fan-out unbounded:
- * the newest 50 across the audience is far above any legitimate team's devices.
+ * Defensive bound, applied PER RECIPIENT rather than across the audience.
+ *
+ * A single ceiling over the whole fan-out looks safe and is not: with a
+ * 10-row-per-user cap (MAX_PUSH_SUBSCRIPTIONS_PER_USER), five heavy users fill
+ * a 50-row window, and because the sort is `created_at DESC` the rows that fall
+ * off are always the same longest-tenured members — a permanent, silent
+ * blackout for a fixed slice of the crew instead of an occasional miss. The
+ * bound belongs where the real limit is: each person's own devices.
  */
-const MAX_TARGETS = 50;
+const MAX_TARGETS_PER_USER = 10;
 
 interface SubscriptionRow {
   id: string;
@@ -44,21 +50,42 @@ interface DeviceTokenRow {
   token: string;
 }
 
+/**
+ * The notification body both clients parse. `tag` is added here, never by a
+ * caller — see `PushDelivery.collapseKey`.
+ */
+export interface PushPayload {
+  title: string;
+  body: string;
+  /** Absolute deep link on APP_ORIGIN. */
+  url: string;
+  /** Structural discriminator the native clients branch on (channel routing). */
+  kind?: string;
+}
+
 export interface PushDelivery {
   /** Push-enabled recipients. Nothing is sent for an empty list. */
   userIds: string[];
-  /** Web Push body, as the apps/web service worker expects it. */
-  webPayload: string;
+  /** Notification content, as the apps/web service worker expects it. */
+  web: PushPayload;
   /**
-   * FCM body. Defaults to the Web Push one; set it only where the native
+   * Native content. Defaults to the web one; set it only where the native
    * clients need something the service worker must not see, such as the
    * structural `kind` discriminator that picks an Android channel.
    */
-  nativePayload?: string;
+  native?: PushPayload;
   /**
-   * apns-collapse-id / FCM collapse key: repeats about the same subject
-   * REPLACE the pending alert instead of stacking. Must match what the clients
-   * coalesce on.
+   * The one coalescing identity for this alert: repeats about the same subject
+   * REPLACE the pending notification instead of stacking, and two DIFFERENT
+   * subjects never replace each other.
+   *
+   * It reaches all three clients from here, which is the point — every client
+   * deriving its own tag is how `mention:<messageId>` silently degraded to
+   * "per conversation" on web and Android and let a customer's text erase a
+   * teammate's direct ask. It rides as `tag` in the payload (web sw.js and the
+   * Android client coalesce on it), as `apns-collapse-id` (iOS can't retag a
+   * remote alert, so coalescing is server-side), as the FCM collapse key, and
+   * as the Web Push `Topic` header for messages still queued at the service.
    */
   collapseKey: string;
   /**
@@ -69,6 +96,42 @@ export interface PushDelivery {
   failures: unknown[];
 }
 
+/**
+ * Newest `perUser` rows for each recipient, from a `created_at DESC` result.
+ * The input order is already newest-first, so the first N seen per user ARE
+ * their newest N — no re-sorting, and every recipient keeps at least one
+ * device however many the noisiest member has registered.
+ */
+export function newestPerUser<T extends { user_id: string }>(
+  rows: T[],
+  perUser: number,
+): T[] {
+  const counts = new Map<string, number>();
+  const kept: T[] = [];
+  for (const row of rows) {
+    const seen = counts.get(row.user_id) ?? 0;
+    if (seen >= perUser) continue;
+    counts.set(row.user_id, seen + 1);
+    kept.push(row);
+  }
+  return kept;
+}
+
+/**
+ * A fan-out query that came back full may have been cut short by the ceiling,
+ * which would drop somebody's alert with nothing to show for it. Say so: a
+ * silent blackout that nobody can see is the failure mode this whole bound
+ * exists to avoid.
+ */
+function warnIfTruncated(table: string, rowCount: number, ceiling: number): void {
+  if (rowCount < ceiling) return;
+  const message =
+    `push fan-out: ${table} returned the full ${ceiling}-row ceiling — ` +
+    `some recipients may not have been reached`;
+  console.warn(message);
+  Sentry.captureMessage(message, "warning");
+}
+
 export async function deliverPush(
   env: Env,
   db: SupabaseClient,
@@ -76,19 +139,40 @@ export async function deliverPush(
 ): Promise<void> {
   if (delivery.userIds.length === 0) return;
 
+  // The collapse key IS the tag: one identity, serialized once, so no client
+  // has to invent its own (#266).
+  const webPayload = JSON.stringify({ ...delivery.web, tag: delivery.collapseKey });
+  const nativePayload = JSON.stringify({
+    ...(delivery.native ?? delivery.web),
+    tag: delivery.collapseKey,
+  });
+  const ceiling = delivery.userIds.length * MAX_TARGETS_PER_USER;
+
   const { data: subData, error: subError } = await db
     .from("push_subscriptions")
     .select("id,user_id,endpoint,p256dh,auth")
     .in("user_id", delivery.userIds)
     .order("created_at", { ascending: false })
-    .limit(MAX_TARGETS);
+    .limit(ceiling);
   if (subError) {
     throw new Error(`push subscriptions lookup failed: ${subError.message}`);
   }
+  const subscriptionRows = (subData ?? []) as SubscriptionRow[];
+  warnIfTruncated("push_subscriptions", subscriptionRows.length, ceiling);
 
-  for (const subscription of (subData ?? []) as SubscriptionRow[]) {
+  for (const subscription of newestPerUser(
+    subscriptionRows,
+    MAX_TARGETS_PER_USER,
+  )) {
     try {
-      const result = await sendWebPush(env, subscription, delivery.webPayload);
+      const result = await sendWebPush(
+        env,
+        subscription,
+        webPayload,
+        undefined,
+        undefined,
+        delivery.collapseKey,
+      );
       if (result.gone) {
         // Permanently dead endpoint (unsubscribed/expired): drop the row.
         const { error } = await db
@@ -125,13 +209,14 @@ export async function deliverPush(
     .select("id,user_id,platform,token")
     .in("user_id", delivery.userIds)
     .order("created_at", { ascending: false })
-    .limit(MAX_TARGETS);
+    .limit(ceiling);
   if (tokenError) {
     throw new Error(`device push tokens lookup failed: ${tokenError.message}`);
   }
+  const tokenRows = (tokenData ?? []) as DeviceTokenRow[];
+  warnIfTruncated("device_push_tokens", tokenRows.length, ceiling);
 
-  const nativePayload = delivery.nativePayload ?? delivery.webPayload;
-  for (const device of (tokenData ?? []) as DeviceTokenRow[]) {
+  for (const device of newestPerUser(tokenRows, MAX_TARGETS_PER_USER)) {
     try {
       // TTL and urgency ride the sender defaults: these alerts are worth
       // delivering late, unlike a ring.

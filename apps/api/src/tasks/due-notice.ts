@@ -232,13 +232,13 @@ export async function notifyDueTasksJob(
 
     await deliverPush(env, db, {
       userIds: [task.assigned_user_id],
-      webPayload: JSON.stringify(alert),
+      web: alert,
       // Structural discriminator for the native clients. No client routes on
       // it yet, so it renders on the default channel; it is sent ahead of that
       // so a dedicated channel needs no server change (the same order
       // missed_call went in). Web Push stays kind-less: the service worker
       // renders unmarked pushes as ordinary notices and must not change shape.
-      nativePayload: JSON.stringify({ kind: "task_due", ...alert }),
+      native: { kind: "task_due", ...alert },
       // One task, one alert: a reminder never stacks with itself.
       collapseKey: `task:${task.id}`,
       failures,

@@ -358,11 +358,12 @@ describe("notifyInboundMessage — native device push (#151)", () => {
 
     await notifyInboundMessage(fcmEnv(account), INPUT);
 
-    // Audience-scoped, newest-first, #30-style bounded query.
+    // Audience-scoped, newest-first, #30-style bounded query. The bound is ten
+    // devices PER recipient (#267), so a one-person audience asks for ten.
     const lookup = world.sb.find("GET", "/rest/v1/device_push_tokens")[0];
     expect(lookup.url.searchParams.get("user_id")).toBe(`in.(${OWNER})`);
     expect(lookup.url.searchParams.get("order")).toBe("created_at.desc");
-    expect(lookup.url.searchParams.get("limit")).toBe("50");
+    expect(lookup.url.searchParams.get("limit")).toBe("10");
 
     // One send per row, carrying the §8 payload contract verbatim.
     expect(service.sends).toHaveLength(2);
@@ -371,6 +372,8 @@ describe("notifyInboundMessage — native device push (#151)", () => {
       title: "Dana Smith",
       body: "Hi, do you do gutters?",
       url: `${env.APP_ORIGIN}/inbox/${CONVERSATION_ID}`,
+      // #266: the one collapse identity, shared with web and iOS.
+      tag: `conversation:${CONVERSATION_ID}`,
     });
 
     // #162 iOS coalescing: the iOS send tags apns-collapse-id per

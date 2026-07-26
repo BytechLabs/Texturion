@@ -211,7 +211,7 @@ export async function notifyInboundMessage(
   // than stacking, on the `conversation:<id>` tag the clients coalesce on.
   await deliverPush(env, db, {
     userIds: pushUsers,
-    webPayload: JSON.stringify({ title: contactName, body: snippet, url: link }),
+    web: { title: contactName, body: snippet, url: link },
     collapseKey: `conversation:${input.conversationId}`,
     failures,
   });

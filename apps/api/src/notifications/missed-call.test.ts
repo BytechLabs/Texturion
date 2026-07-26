@@ -257,10 +257,11 @@ describe("notifyMissedCall — native device push (#151)", () => {
 
     await notifyMissedCall(fcmEnv(account), INPUT);
 
-    // Audience-scoped, newest-first, #30-style bounded query.
+    // Audience-scoped, newest-first, #30-style bounded query. The bound is ten
+    // devices PER recipient (#267), so a one-person audience asks for ten.
     const lookup = world.sb.find("GET", "/rest/v1/device_push_tokens")[0];
     expect(lookup.url.searchParams.get("user_id")).toBe(`in.(${OWNER})`);
-    expect(lookup.url.searchParams.get("limit")).toBe("50");
+    expect(lookup.url.searchParams.get("limit")).toBe("10");
 
     expect(service.sends).toHaveLength(2);
     const data = service.sends[0].message.data as Record<string, string>;
@@ -302,7 +303,15 @@ describe("notifyMissedCall — native device push (#151)", () => {
 
     await notifyMissedCall(fcmEnv(account), INPUT);
 
+    // `tag` is the shared collapse identity every client coalesces on (#266);
+    // `kind` is the only field the service worker must not see.
     const data = service.sends[0].message.data as Record<string, string>;
-    expect(Object.keys(data).sort()).toEqual(["body", "kind", "title", "url"]);
+    expect(Object.keys(data).sort()).toEqual([
+      "body",
+      "kind",
+      "tag",
+      "title",
+      "url",
+    ]);
   });
 });

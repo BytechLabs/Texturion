@@ -153,7 +153,8 @@ describe("push payload → notification mapping (SPEC §8 payload)", () => {
       renotify: true,
       data: { url: "/inbox/7c9e6679-7425-40de-944b-e07fc1f90ae7" },
     });
-    // Same-thread pushes collapse into one notification.
+    // Same-thread pushes collapse into one notification. A payload with no
+    // server tag (an older API) still falls back to the deep link.
     expect(options.tag).toBe(
       "loonext:/inbox/7c9e6679-7425-40de-944b-e07fc1f90ae7",
     );
@@ -200,6 +201,52 @@ describe("push payload → notification mapping (SPEC §8 payload)", () => {
       ORIGIN,
     );
     expect(repeat.options.tag).toBe(one.options.tag);
+  });
+
+  it("coalesces on the server's tag, so a mention is not erased by the thread (#266)", () => {
+    // apps/api/src/notifications/mention.ts keys a mention on the NOTE: two
+    // asks in one thread are two separate asks. Deriving the tag from the deep
+    // link collapsed them onto the conversation, so the second replaced the
+    // first — and a customer's text replaced the mention entirely.
+    const url = `${ORIGIN}/inbox/t-1`;
+    const first = sw.formatPushNotification(
+      JSON.stringify({ title: "Sam mentioned you", url, tag: "mention:note-1" }),
+      ORIGIN,
+    );
+    const second = sw.formatPushNotification(
+      JSON.stringify({ title: "Sam mentioned you", url, tag: "mention:note-2" }),
+      ORIGIN,
+    );
+    const customerText = sw.formatPushNotification(
+      JSON.stringify({ title: "Dana", url, tag: "conversation:t-1" }),
+      ORIGIN,
+    );
+
+    expect(first.options.tag).toBe("loonext:mention:note-1");
+    expect(second.options.tag).toBe("loonext:mention:note-2");
+    expect(first.options.tag).not.toBe(second.options.tag);
+    expect(customerText.options.tag).not.toBe(first.options.tag);
+    // Repeat texts in one thread still collapse — that key is per conversation.
+    const repeatText = sw.formatPushNotification(
+      JSON.stringify({ title: "Dana", url, tag: "conversation:t-1" }),
+      ORIGIN,
+    );
+    expect(repeatText.options.tag).toBe(customerText.options.tag);
+  });
+
+  it("keeps a call's tag on its session even when the server sends one", () => {
+    // `loonext:call:<session>` is the key the call_end revocation cancels by;
+    // nothing may override it or the ring outlives the call.
+    const { options } = sw.formatPushNotification(
+      JSON.stringify({
+        kind: "call",
+        title: "Call",
+        url: "/calls?call=sess-A",
+        tag: "conversation:t-1",
+      }),
+      ORIGIN,
+    );
+    expect(options.tag).toBe("loonext:call:sess-A");
   });
 
   it("still shows a calm generic notification for empty or garbage payloads", () => {

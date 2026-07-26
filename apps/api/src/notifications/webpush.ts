@@ -253,6 +253,25 @@ export async function vapidAuthorization(
 }
 
 /**
+ * RFC 8030 §5.4 `Topic`: a push service replaces a still-undelivered message
+ * with a later one carrying the same topic, which is the queue-side half of
+ * what the payload `tag` does on the device (a phone that was off all morning
+ * wakes to one alert per subject, not forty).
+ *
+ * The header's alphabet is strict — at most 32 characters of base64url — and
+ * our collapse keys are neither (`conversation:<uuid>`), so hash rather than
+ * truncate: a truncated `conversation:<uuid>` would collide across every
+ * thread in the company and collapse unrelated alerts into one.
+ */
+export async function pushTopic(collapseKey: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    encoder.encode(collapseKey) as BufferSource,
+  );
+  return encodeBase64Url(new Uint8Array(digest)).slice(0, 32);
+}
+
+/**
  * Deliver one push message. Never throws for delivery outcomes — the caller
  * branches on `{ ok, gone }` (410/404 → drop the subscription, SPEC §8);
  * only malformed subscription keys / local crypto failures throw.
@@ -263,22 +282,29 @@ export async function sendWebPush(
   payload: string,
   ttlSeconds = 24 * 60 * 60,
   urgency: "normal" | "high" = "normal",
+  /** Coalescing key (#266) — hashed into the RFC 8030 `Topic` header. */
+  collapseKey?: string,
 ): Promise<PushResult> {
-  const [authorization, body] = await Promise.all([
+  const [authorization, body, topic] = await Promise.all([
     vapidAuthorization(env, target.endpoint),
     encryptPushPayload(target, payload),
+    collapseKey !== undefined && collapseKey.length > 0
+      ? pushTopic(collapseKey)
+      : Promise.resolve(null),
   ]);
+  const headers: Record<string, string> = {
+    Authorization: authorization,
+    TTL: String(ttlSeconds),
+    // A ringing call needs immediate delivery + device wake; a message push
+    // is normal. (Web Push urgency, RFC 8030 §5.3.)
+    Urgency: urgency,
+    "Content-Encoding": "aes128gcm",
+    "Content-Type": "application/octet-stream",
+  };
+  if (topic !== null) headers.Topic = topic;
   const response = await fetch(target.endpoint, {
     method: "POST",
-    headers: {
-      Authorization: authorization,
-      TTL: String(ttlSeconds),
-      // A ringing call needs immediate delivery + device wake; a message push
-      // is normal. (Web Push urgency, RFC 8030 §5.3.)
-      Urgency: urgency,
-      "Content-Encoding": "aes128gcm",
-      "Content-Type": "application/octet-stream",
-    },
+    headers,
     body: body as BodyInit,
   });
   // On success there's no body we need — drain to release the socket. On a

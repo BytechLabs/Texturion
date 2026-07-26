@@ -141,8 +141,8 @@ export async function notifyMissedCall(
   const alert = { title: `Missed call from ${contactName}`, body, url: link };
   await deliverPush(env, db, {
     userIds: pushUsers,
-    webPayload: JSON.stringify(alert),
-    nativePayload: JSON.stringify({ kind: "missed_call", ...alert }),
+    web: alert,
+    native: { kind: "missed_call", ...alert },
     collapseKey: `conversation:${input.conversationId}`,
     failures,
   });
