@@ -3,6 +3,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { ApiError } from "@/lib/api/error";
+
 import { apiFetch } from "@/lib/api/client";
 import { keys } from "@/lib/api/keys";
 import { useCompanyId } from "@/lib/company/provider";
@@ -78,13 +80,24 @@ export function useTaskDone() {
       }
       return { snapshots };
     },
-    onError: (_error, _input, context) => {
+    onError: (error, _input, context) => {
       for (const [key, data] of context?.snapshots ?? []) {
         queryClient.setQueryData(key, data);
       }
       // The card visibly rolls back to its old column — say why, or the move
       // silently undoing itself reads as a bug.
-      toast.error("Couldn't move that task. Try again.");
+      //
+      // Completion is derived from the source message, so it needs access to
+      // the conversation the task came from. A member denied that number is
+      // refused every time, and "Try again" invited them to retry something
+      // that can never work. Tasks are deliberately visible to everyone, so
+      // this is a real state to be in, not an error.
+      const denied = error instanceof ApiError && error.code === "not_found";
+      toast.error(
+        denied
+          ? "Marking this done needs access to the conversation it came from."
+          : "Couldn't move that task. Try again.",
+      );
     },
     onSettled: (_data, _error, input) => {
       // The lists re-read the derived done; the affected thread + checklist +
