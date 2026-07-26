@@ -54,6 +54,10 @@ export type AuditAction =
   // Billing — the plan, the modules, the seats
   | "billing.plan_changed"
   | "billing.module_changed"
+  // The end of the account (#341). The most consequential thing anyone does
+  // here, and the one an owner is most likely to ask us about afterwards.
+  | "workspace.closed"
+  | "workspace.reopened"
   // The departing-employee signature (#231: "bulk-export alarm")
   | "contacts.imported"
   | "contacts.exported"
