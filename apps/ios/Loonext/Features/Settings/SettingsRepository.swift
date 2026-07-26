@@ -81,6 +81,21 @@ struct SettingsRepository: Sendable {
         try await api.delete("/v1/members/\(memberId)", companyId: companyId)
     }
 
+    // MARK: - Account (#346)
+    //
+    // Company-EXEMPT, both of them: deleting your account is about the person,
+    // not one of their workspaces, and somebody who belongs to none must still
+    // be able to leave. Passing a company id here would be wrong, not merely
+    // unnecessary.
+
+    func accountDeletionPreview() async throws -> AccountDeletionPreview {
+        try await api.get("/v1/account/deletion-preview")
+    }
+
+    func deleteAccount() async throws -> AccountDeletionResult {
+        try await api.deleteReturning("/v1/account")
+    }
+
     func invites(_ companyId: String) async throws -> Page<Invite> {
         try await api.get("/v1/invites", companyId: companyId)
     }

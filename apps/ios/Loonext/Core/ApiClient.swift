@@ -98,6 +98,17 @@ actor ApiClient {
         _ = try await raw("DELETE", path, companyId: companyId)
     }
 
+    /// DELETE whose response body matters. Most of ours return 204 and the
+    /// plain `delete` is right; account deletion (#346) reports what it
+    /// actually did, and a screen that says "deleted" without reading that is
+    /// guessing.
+    func deleteReturning<T: Decodable & Sendable>(
+        _ path: String,
+        companyId: String? = nil
+    ) async throws -> T {
+        try Self.decode(await raw("DELETE", path, companyId: companyId))
+    }
+
     // MARK: - Core
 
     /// Execute a request and return the response body. 401 triggers ONE

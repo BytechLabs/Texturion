@@ -173,3 +173,34 @@ struct DocumentUpload: Sendable {
     let mimeType: String
     let bytes: Data
 }
+
+// MARK: - Account deletion (#346)
+
+/// GET /v1/account/deletion-preview — what deleting your account would touch,
+/// asked before anything happens. `blocked_by == "owner"` means the workspaces
+/// below have to be handed on or closed first: a workspace cannot be left with
+/// no owner, and there is no transfer path yet (#332).
+struct AccountDeletionPreview: Codable, Sendable {
+    let blocked_by: String?
+    let owned_workspaces: [OwnedWorkspace]
+    let memberships: Int
+    let open_conversations: Int
+    let open_tasks: Int
+
+    var blockedByOwnership: Bool { blocked_by == "owner" }
+
+    /// What the crew picks up when this person leaves.
+    var openWork: Int { open_conversations + open_tasks }
+}
+
+struct OwnedWorkspace: Codable, Sendable {
+    let id: String
+    let name: String
+}
+
+/// DELETE /v1/account (#346).
+struct AccountDeletionResult: Codable, Sendable {
+    let deleted: Bool
+    let workspaces_left: Int
+    let personal_rows_removed: Int
+}

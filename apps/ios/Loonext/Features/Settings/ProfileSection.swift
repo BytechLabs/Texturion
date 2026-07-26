@@ -19,6 +19,8 @@ struct ProfileSectionView: View {
                 .buttonStyle(.bordered)
                 .tint(BrandColor.destructive)
         }
+        // #346: last — leaving is not one of the everyday account settings.
+        DeleteAccountCard(scope: scope, onDeleted: onSignOut)
     }
 }
 
