@@ -1,3 +1,6 @@
+import { ENRICHMENT_FEATURE_SPEC } from "../tasks/enrichment";
+import { SUGGEST_REPLY_FEATURE_SPEC } from "../messaging/reply-suggestions";
+import { VOICEMAIL_TRANSCRIPT_FEATURE_SPEC } from "../calls/voicemail-transcript";
 import { describe, expect, it, vi } from "vitest";
 
 import { MODULE_CATALOG } from "./modules";
@@ -7,6 +10,7 @@ import {
   FIXED_MONTHLY_COST_CENTS,
   PLAN_MONTHLY_REVENUE_CENTS,
   stripeNetCents,
+  AI_UNIT_COST_CENTS,
   UNIT_COST_CENTS,
 } from "./costs";
 
@@ -103,5 +107,46 @@ describe("companyMonthlyRevenueCents (DB helper)", () => {
     );
     vi.doUnmock("./company-modules");
     vi.resetModules();
+  });
+});
+
+describe("#380 — every AI cost centre is priced, and says so where it is declared", () => {
+  it("prices every feature the specs declare, with the spec agreeing", () => {
+    // The duplication is deliberate: a cost centre states its own price beside
+    // its own cap, so the two are read together. This is what stops the copy
+    // drifting from the table the projection actually sums.
+    const specs = [
+      ENRICHMENT_FEATURE_SPEC,
+      SUGGEST_REPLY_FEATURE_SPEC,
+      VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
+    ];
+    for (const spec of specs) {
+      expect(AI_UNIT_COST_CENTS[spec.key]).toBeDefined();
+      expect(spec.unitCostCents).toBe(AI_UNIT_COST_CENTS[spec.key]);
+    }
+  });
+
+  it("has no priced feature without a live cost centre declaring it", () => {
+    // The other direction: a price left behind after a feature is retired is a
+    // phantom line in the profitability model.
+    const declared = new Set([
+      ENRICHMENT_FEATURE_SPEC.key,
+      SUGGEST_REPLY_FEATURE_SPEC.key,
+      VOICEMAIL_TRANSCRIPT_FEATURE_SPEC.key,
+    ]);
+    for (const key of Object.keys(AI_UNIT_COST_CENTS)) {
+      expect(declared.has(key as never)).toBe(true);
+    }
+  });
+
+  it("bounds what AI can cost one tenant in a month", () => {
+    // All three at their caps. Recorded so the "can AI flip a tenant" question
+    // (#380 ask 3) has a number rather than an intuition.
+    const atCap =
+      ENRICHMENT_FEATURE_SPEC.cap * ENRICHMENT_FEATURE_SPEC.unitCostCents +
+      SUGGEST_REPLY_FEATURE_SPEC.cap * SUGGEST_REPLY_FEATURE_SPEC.unitCostCents +
+      VOICEMAIL_TRANSCRIPT_FEATURE_SPEC.cap *
+        VOICEMAIL_TRANSCRIPT_FEATURE_SPEC.unitCostCents;
+    expect(atCap).toBeCloseTo(195, 6); // $1.95
   });
 });

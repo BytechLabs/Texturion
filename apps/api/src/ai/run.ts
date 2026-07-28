@@ -31,17 +31,40 @@
 import { loadAiSettings, reserveAiUsage, sendAiCapAlert, type CompanyAiSettings } from "./settings";
 import type { getDb } from "../db";
 import type { Env } from "../env";
+import type { AiCostFeature } from "../billing/costs";
 
 type Db = ReturnType<typeof getDb>;
 
 /** Everything a cost center must declare before it may spend anything. */
 export interface AiFeatureSpec {
-  /** The per-feature key in the monthly ledger (`ai_usage_reserve`). */
-  key: string;
+  /**
+   * The per-feature key in the monthly ledger (`ai_usage_reserve`).
+   *
+   * #380: typed as the PRICED keys rather than `string`, so a new cost centre
+   * cannot reach the model without also existing in the profitability model.
+   * Adding a feature now fails to compile until `AI_UNIT_COST_CENTS` in
+   * billing/costs.ts carries a price for it — the guard sits where the thing is
+   * declared, not in a document someone has to remember.
+   */
+  key: AiCostFeature;
   /** Human label for the ops alert ("voicemail transcript"). */
   label: string;
   /** Hard monthly cap per company. */
   cap: number;
+  /**
+   * #380: what ONE request of this feature costs us, in cents.
+   *
+   * Required, and deliberately duplicated from `AI_UNIT_COST_CENTS` rather
+   * than only looked up there: a cost centre should state its own price at the
+   * point it declares its cap, so the two are read together. A test asserts the
+   * two agree, so the duplication cannot drift.
+   *
+   * Before this existed, every AI feature declared a cap, an alert and a
+   * timeout — all of which bound BLAST RADIUS — and nothing that answered
+   * "does this tenant still make money". The caps guaranteed the loss was
+   * bounded; they said nothing about whether it was happening.
+   */
+  unitCostCents: number;
   /** Alert threshold, below the cap. */
   alertThreshold: number;
   /** Plain sentence for the alert: what the company loses at the cap. */

@@ -113,7 +113,46 @@ accounted for: it post‑dates the January basis and extends the charge to
 traffic *coming in*, which is the line with no offsetting revenue (D50) and no
 ceiling.
 
-### 4.2 Original basis (2026‑07‑04)
+### 4.2 AI cost basis (#380, 2026‑07‑28)
+
+Cloudflare Workers AI published rates, fetched 2026‑07‑28
+(`developers.cloudflare.com/workers-ai/platform/pricing`):
+
+| Model | Used by | Rate |
+|---|---|---|
+| `@cf/meta/llama-3.2-1b-instruct` | task enrichment | $0.027/M in · $0.201/M out |
+| `@cf/meta/llama-3.1-8b-instruct-fast` | reply drafting | $0.045/M in · $0.384/M out |
+| `@cf/openai/whisper-large-v3-turbo` | voicemail transcripts | $0.0005 / audio minute |
+
+The ledger counts **requests**, not tokens, so each rate is converted to a
+worst‑case cost per request using the bounds the feature code already enforces:
+
+| Feature | Bound | Cost/request | At its monthly cap |
+|---|---|---|---|
+| `enrich` | ≤256 output tokens | **0.01¢** | 1,000 ⇒ $0.10 |
+| `suggest_reply` | 12 msgs × 600 chars in, ≤700 out | **0.04¢** | 1,500 ⇒ $0.60 |
+| `voicemail_transcript` | 5‑minute recording | **0.25¢** | 500 ⇒ $1.25 |
+| | | | **$1.95 total** |
+
+**$1.95/month is the most AI can cost one tenant**, all three features at their
+caps. Against Starter's $27.71 net that is 7% — real, but not on its own
+capable of flipping a tenant.
+
+> **A stale price found in passing:** `reply-suggestions.ts` cites $0.287 per
+> million output tokens; Cloudflare now publishes $0.384. The figures above use
+> the published rate. Same failure mode as #445 — a dated external fact that
+> moved after it was written down.
+
+**Ask 3, the backfill, answered from production (2026‑07‑28):** across all
+active tenants the current month holds 11 enrichments, 61 reply drafts and 4
+voicemail transcripts — about **3.6¢ in total**. **No tenant flips from
+profitable to unprofitable.** That is the genuinely useful negative result the
+issue asked for: the value of this change is structural, not corrective.
+
+It stops being negligible the month an AI feature scales with call volume
+rather than crew clicks — #367's AI receptionist is the one to re‑run this for.
+
+### 4.3 Original basis (2026‑07‑04)
 
 **Telnyx** (`telnyx.com/pricing`, `support.telnyx.com/.../5634625`):
 - Outbound US SMS **$0.004** base **+ carrier $0.003–0.0045** ⇒ **~$0.007–0.0085/segment true cost**.

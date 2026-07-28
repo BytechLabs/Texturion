@@ -127,6 +127,62 @@ export const UNIT_COST_CENTS = {
 } as const;
 
 /**
+ * #380 — per-REQUEST cost of each AI cost centre, in cents.
+ *
+ * Keyed on `company_ai_usage.feature`, which is what the ledger counts: one row
+ * per company per calendar month per feature, incremented once per request. So
+ * the unit here must be a whole request, not a token — tokens are what
+ * Cloudflare bills, requests are what we can attribute to a tenant.
+ *
+ * Every figure is the bounded WORST CASE for one request, from the caps the
+ * feature code already enforces, priced at Cloudflare's published Workers AI
+ * rates (2026-07-28, developers.cloudflare.com/workers-ai/platform/pricing).
+ * That is the never-under-count rule applied: a typical request costs a
+ * fraction of these.
+ *
+ * NB a stale price found while deriving this: `reply-suggestions.ts` cites
+ * $0.287 per million output tokens; Cloudflare now publishes $0.384 for that
+ * model. The figures below use the published rate.
+ */
+export const AI_UNIT_COST_CENTS = {
+  /**
+   * Task enrichment on `@cf/meta/llama-3.2-1b-instruct`
+   * ($0.027/M in, $0.201/M out). Output is capped at 256 tokens
+   * (ENRICHMENT_MAX_OUTPUT_TOKENS); input is one task's text, taken generously
+   * at ~1,000 tokens. 1000x0.027/1e6 + 256x0.201/1e6 = $0.0000785 ⇒ 0.008c,
+   * carried at 0.01c.
+   */
+  enrich: 0.01,
+  /**
+   * Reply drafting on `@cf/meta/llama-3.1-8b-instruct-fast`
+   * ($0.045/M in, $0.384/M out) — the expensive shape, and the one that scales
+   * with how much a customer LIKES the product.
+   *
+   * Input is genuinely bounded by the feature: 12 messages
+   * (SUGGEST_REPLY_CONTEXT_MESSAGES) x 600 chars
+   * (SUGGEST_REPLY_MAX_MESSAGE_CHARS) + a 500-char draft + the business
+   * description ⇒ ~8,500 chars ⇒ ~2,125 tokens. Output is capped at 700
+   * (SUGGEST_REPLY_MAX_OUTPUT_TOKENS).
+   * 2125x0.045/1e6 + 700x0.384/1e6 = $0.000364 ⇒ 0.036c, carried at 0.04c.
+   */
+  suggest_reply: 0.04,
+  /**
+   * Voicemail transcription on `@cf/openai/whisper-large-v3-turbo`
+   * ($0.0005 per audio minute). Nothing bounds recording length in-product, so
+   * this takes the 5-minute case the module's own comment uses as its
+   * reference: 5 x $0.0005 = $0.0025 ⇒ 0.25c.
+   *
+   * Deliberately far above the typical voicemail, which runs under a minute.
+   * Over-counting a cost is this file's stated posture, and at the 500/month
+   * cap the whole line is $1.25 either way.
+   */
+  voicemail_transcript: 0.25,
+} as const;
+
+/** The `company_ai_usage.feature` keys the cost model knows how to price. */
+export type AiCostFeature = keyof typeof AI_UNIT_COST_CENTS;
+
+/**
  * Per-company FIXED monthly cost, in cents — incurred regardless of usage, but
  * still a per-tenant cost the revenue must cover. INCLUDED in a tenant's cost
  * baseline (unlike the shared platform cost below).

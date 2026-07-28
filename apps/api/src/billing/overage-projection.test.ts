@@ -35,6 +35,7 @@ function usage(over: Partial<PeriodUsage> = {}): PeriodUsage {
     egressBytes: 0,
     storageBytes: 0,
     actualTelecomCostCents: 0,
+    aiRequests: {},
     ...over,
   };
 }
@@ -427,5 +428,65 @@ describe("decideOverage (DB orchestrator)", () => {
     const d = await decideOverage(db, company, new Date("2026-06-16T00:00:00Z"));
     expect(d.trendingOver).toBe(false);
     expect(d.marginCents).toBeGreaterThan(0);
+  });
+});
+
+describe("#380 — AI enters the profitability model", () => {
+  it("prices each AI feature per request, extrapolated like every other flow", () => {
+    // 100 drafts at 0.04c + 50 enrichments at 0.01c + 4 transcripts at 0.25c
+    // = 4 + 0.5 + 1 = 5.5c so far; x2 multiplier = 11c projected.
+    const u = usage({
+      aiRequests: { suggest_reply: 100, enrich: 50, voicemail_transcript: 4 },
+    });
+    const p = projectUsage(u, "starter", 3, 2);
+    expect(p.costCents).toBeCloseTo(11, 6);
+  });
+
+  it("was previously invisible: the same usage used to cost nothing", () => {
+    // The regression this issue is about — a tenant running AI hard showed an
+    // identical cost to one running none, because the model had no line for it.
+    const withAi = projectUsage(
+      usage({ aiRequests: { suggest_reply: 1500 } }),
+      "starter",
+      3,
+      1,
+    );
+    const withoutAi = projectUsage(usage(), "starter", 3, 1);
+    expect(withAi.costCents).toBeGreaterThan(withoutAi.costCents);
+    // 1,500 drafts is the monthly cap — the most this feature can cost one
+    // tenant in a month is 60c.
+    expect(withAi.costCents - withoutAi.costCents).toBeCloseTo(60, 6);
+  });
+
+  it("ignores a feature key it has no price for, rather than throwing", () => {
+    // The type system stops a new cost centre being DECLARED without a price;
+    // this only covers historic ledger rows for a retired key.
+    const p = projectUsage(
+      usage({ aiRequests: { retired_feature: 10_000 } }),
+      "starter",
+      3,
+      1,
+    );
+    expect(p.costCents).toBe(0);
+  });
+
+  it("caps the whole AI line at $1.95/month per tenant", () => {
+    // All three features at their monthly caps: 1000x0.01 + 1500x0.04 +
+    // 500x0.25 = 10 + 60 + 125 = 195c. Useful as a bound when reasoning about
+    // whether AI can flip a tenant (#380 ask 3) — on a $29 plan it cannot on
+    // its own, but it is no longer invisible.
+    const p = projectUsage(
+      usage({
+        aiRequests: {
+          enrich: 1000,
+          suggest_reply: 1500,
+          voicemail_transcript: 500,
+        },
+      }),
+      "starter",
+      3,
+      1,
+    );
+    expect(p.costCents).toBeCloseTo(195, 6);
   });
 });

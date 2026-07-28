@@ -44,6 +44,10 @@
  *   of very short calls accrues near-zero minutes and a real $0.10 each — so
  *   #448 gave it its own count ceiling (`dialCeilings`), and the projection is
  *   clamped to that, the same way the minute term is clamped to the minute cap.
+ * - AI (#380) is priced per REQUEST from company_ai_usage, extrapolated on the
+ *   same multiplier as the other flows. It was previously absent entirely: every
+ *   AI feature declared a cap, an alert and a timeout — all of which bound how
+ *   BAD it can get — and none of them told this model it was happening.
  * - Revenue is NET of Stripe's cut (stripeNetCents) — the money we actually keep.
  * - STALE-PERIOD FAIL-SAFE: the multiplier is clamped to >= 1, so an overdue
  *   period (renewal webhook not yet fired, elapsed > periodDays) can never scale
@@ -55,6 +59,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { storedBytes, type StorageUsageRow } from "./stored-bytes";
 
 import {
+  AI_UNIT_COST_CENTS,
+  type AiCostFeature,
   companyRevenueCents,
   FIXED_MONTHLY_COST_CENTS,
   stripeNetCents,
@@ -110,6 +116,16 @@ export interface PeriodUsage {
    *  telecom as max(estimate, this × multiplier) so ground truth catches
    *  estimate misses without ever under-counting during the cost-webhook lag. */
   actualTelecomCostCents: number;
+  /**
+   * #380: AI requests this period, per `company_ai_usage.feature`
+   * (api_period_ai_requests).
+   *
+   * Every AI feature was already CALLED a cost centre, metered per company,
+   * capped per company and alerted on per company — and then left out of the
+   * one model whose job is deciding whether a company is profitable. A cap
+   * bounds how bad it can get; it does not notice that it is happening.
+   */
+  aiRequests: Record<string, number>;
 }
 
 export interface OverageDecision {
@@ -247,8 +263,24 @@ export function projectUsage(
     estimatedTelecomCents,
     usage.actualTelecomCostCents * multiplier,
   );
+  // #380: AI. Extrapolated on the same multiplier as every other flow, priced
+  // per REQUEST because that is the unit the ledger counts. An unpriced feature
+  // key contributes 0 rather than throwing — the type system already stops one
+  // being DECLARED without a price, so this only covers historic rows for a
+  // retired key.
+  const projectedAiCents = Object.entries(usage.aiRequests).reduce(
+    (sum, [feature, requests]) =>
+      sum +
+      requests *
+        multiplier *
+        (AI_UNIT_COST_CENTS[feature as AiCostFeature] ?? 0),
+    0,
+  );
+
   const costCents =
-    telecomCents + (projectedEgressBytes / GB) * UNIT_COST_CENTS.egressGb;
+    telecomCents +
+    (projectedEgressBytes / GB) * UNIT_COST_CENTS.egressGb +
+    projectedAiCents;
 
   const projectedVoiceOverageMinutes = Math.max(
     0,
@@ -380,6 +412,7 @@ export async function readPeriodUsage(
     forwardedCalls,
     egressBytes,
     actualTelecomCostCents,
+    aiRequests,
     storage,
   ] = await Promise.all([
     rpcNumber(db, "api_period_segments", windowed),
@@ -388,6 +421,16 @@ export async function readPeriodUsage(
     rpcNumber(db, "api_period_forwarded_calls", windowed),
     rpcNumber(db, "api_period_egress_bytes", windowed),
     periodProviderCostCents(db, company.id, company.current_period_start),
+    (async () => {
+      const { data, error } = await db.rpc("api_period_ai_requests", windowed);
+      // Best-effort: AI is cents at current volumes, and losing it must never
+      // take down the whole profitability answer with it.
+      if (error) return {} as Record<string, number>;
+      const raw = (data ?? {}) as Record<string, unknown>;
+      return Object.fromEntries(
+        Object.entries(raw).map(([k, v]) => [k, Number(v) || 0]),
+      );
+    })(),
     (async () => {
       const { data, error } = await db.rpc("api_storage_usage", {
         p_company_id: company.id,
@@ -402,6 +445,7 @@ export async function readPeriodUsage(
     voiceSeconds,
     forwardedCalls,
     egressBytes,
+    aiRequests,
     storageBytes: storage,
     actualTelecomCostCents,
   };

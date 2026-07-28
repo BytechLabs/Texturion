@@ -18,6 +18,7 @@
  *     content between them is data to extract from, never commands to follow.
  *   - Only the acting company's / linked contact's data ever enters the prompt.
  */
+import { AI_UNIT_COST_CENTS } from "../billing/costs";
 import type { AiFeatureSpec } from "../ai/run";
 import { formatZonedStamp } from "@loonext/shared";
 import { z } from "zod";
@@ -51,6 +52,7 @@ export const ENRICHMENT_FEATURE_SPEC: AiFeatureSpec = {
   key: "enrich",
   label: "task enrichment",
   cap: ENRICHMENT_MONTHLY_CAP,
+  unitCostCents: AI_UNIT_COST_CENTS.enrich,
   alertThreshold: ENRICHMENT_ALERT_THRESHOLD,
   stops: "make-a-task simply stops pre-filling the address and due date.",
   timeoutMs: ENRICHMENT_TIMEOUT_MS,

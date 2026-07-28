@@ -1,3 +1,4 @@
+import { AI_UNIT_COST_CENTS } from "../billing/costs";
 import type { AiFeatureSpec } from "../ai/run";
 
 /**
@@ -82,6 +83,7 @@ export const VOICEMAIL_TRANSCRIPT_FEATURE_SPEC: AiFeatureSpec = {
   key: VOICEMAIL_TRANSCRIPT_FEATURE,
   label: "voicemail transcript",
   cap: VOICEMAIL_TRANSCRIPT_MONTHLY_CAP,
+  unitCostCents: AI_UNIT_COST_CENTS.voicemail_transcript,
   alertThreshold: VOICEMAIL_TRANSCRIPT_ALERT_THRESHOLD,
   stops:
     "new voicemails are still recorded and playable, just not transcribed.",

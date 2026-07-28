@@ -33,6 +33,7 @@
  *   - No em dashes (brand rule): the model is told, and the sanitizer rewrites
  *     any that survive.
  */
+import { AI_UNIT_COST_CENTS } from "../billing/costs";
 import type { AiFeatureSpec } from "../ai/run";
 import {
   type BusinessHours,
@@ -103,6 +104,7 @@ export const SUGGEST_REPLY_FEATURE_SPEC: AiFeatureSpec = {
   key: "suggest_reply",
   label: "reply drafting",
   cap: SUGGEST_REPLY_MONTHLY_CAP,
+  unitCostCents: AI_UNIT_COST_CENTS.suggest_reply,
   alertThreshold: SUGGEST_REPLY_ALERT_THRESHOLD,
   stops: "the composer simply stops offering drafts.",
   timeoutMs: SUGGEST_REPLY_TIMEOUT_MS,

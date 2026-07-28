@@ -2,13 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 
 import { runAiFeature, type AiFeatureSpec } from "./run";
 
+// #380: `key` is typed to the PRICED features, so this fixture names a real
+// one. That is the guard working — a cost centre that does not exist in the
+// profitability model cannot be declared, not even in a test.
 const SPEC: AiFeatureSpec = {
-  key: "test_feature",
+  key: "suggest_reply",
   label: "test feature",
   cap: 100,
   alertThreshold: 80,
   stops: "the thing stops.",
   timeoutMs: 50,
+  unitCostCents: 0.04,
   enabled: (s) => s.suggest_replies,
 };
 
