@@ -668,20 +668,58 @@ teamRoutes.post("/invites/accept", async (c) => {
       role: invite.role,
     })
     .select(MEMBER_COLUMNS);
+
+  let memberRows: Record<string, unknown>[];
   if (isUniqueViolation(insertResult.error)) {
-    // The invitee is already a member (a duplicate or stale invite). Consume
-    // the invite so it stops counting toward the seat cap — otherwise it lingers
-    // as a phantom pending seat that can block a real invite — then 409.
-    await db
-      .from("invites")
-      .update({ accepted_at: new Date().toISOString() })
-      .eq("id", invite.id);
-    return errorResponse(c, "conflict", "Already a member of this company.");
+    // A membership row already exists — but "exists" is two different states.
+    //
+    // #383: offboarding (#276) does NOT delete this row. It stamps
+    // `deactivated_at`, deliberately, because message attribution and audit
+    // history point at it. Re-inviting someone who left is the supported way
+    // back in, so refusing on the mere existence of the row locked them out
+    // of a workspace they had been invited to rejoin, with "already a member"
+    // and no access — the two features were correct alone and disagreed here.
+    const existing = unwrap<
+      { id: string; deactivated_at: string | null }[]
+    >(
+      await db
+        .from("company_members")
+        .select(MEMBER_COLUMNS)
+        .eq("company_id", invite.company_id)
+        .eq("user_id", userId)
+        .limit(1),
+      "membership lookup",
+    );
+    const priorMembership = existing[0];
+
+    if (!priorMembership || priorMembership.deactivated_at === null) {
+      // Genuinely an active member: a duplicate or stale invite. Consume the
+      // invite so it stops counting toward the seat cap — otherwise it lingers
+      // as a phantom pending seat that can block a real invite — then 409.
+      await db
+        .from("invites")
+        .update({ accepted_at: new Date().toISOString() })
+        .eq("id", invite.id);
+      return errorResponse(c, "conflict", "Already a member of this company.");
+    }
+
+    // They left and were invited back. Clear the mark and take the role from
+    // THIS invite, not the one they held before — whoever re-invited them
+    // chose it, and a returning admin should not silently regain admin.
+    memberRows = unwrap<Record<string, unknown>[]>(
+      await db
+        .from("company_members")
+        .update({ deactivated_at: null, role: invite.role })
+        .eq("id", priorMembership.id)
+        .select(MEMBER_COLUMNS),
+      "membership reactivate",
+    );
+  } else {
+    memberRows = unwrap<Record<string, unknown>[]>(
+      insertResult,
+      "membership create",
+    );
   }
-  const memberRows = unwrap<Record<string, unknown>[]>(
-    insertResult,
-    "membership create",
-  );
 
   // notification_prefs row, defaults true/true (SPEC §7).
   expectOk(

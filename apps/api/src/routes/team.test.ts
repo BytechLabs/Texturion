@@ -596,6 +596,11 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
     sb.on("POST", "/rest/v1/company_members", () =>
       pgError("23505", "company_members_company_id_user_id_key"),
     );
+    // An ACTIVE membership — deactivated_at null. This is the case the 409 is
+    // for, and #383 is what happened when it was the only case considered.
+    sb.on("GET", "/rest/v1/company_members", () => [
+      { id: TARGET_MEMBER_ID, user_id: auth.subject, role: "member", deactivated_at: null },
+    ]);
     stubFetch(jwksRoute(auth), sb.route);
     const res = await apiRequest(
       app,
@@ -605,6 +610,59 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
       { method: "POST", companyId: null, body: { invite_id: INVITE_ID } },
     );
     expect(res.status).toBe(409);
+  });
+
+  it("#383: someone who was offboarded can accept a new invite and rejoin", async () => {
+    // Offboarding (#276) stamps deactivated_at rather than deleting the row,
+    // so the insert still collides. Refusing on the collision alone told a
+    // returning crew member they were "already a member" of a workspace they
+    // could not open — the bug a real user hit.
+    const sb = acceptStub(pendingInvite({ role: "member" }), authUser(), {
+      plan: "starter",
+      active: 1,
+      pending: 1,
+    });
+    sb.on("POST", "/rest/v1/company_members", () =>
+      pgError("23505", "company_members_company_id_user_id_key"),
+    );
+    sb.on("GET", "/rest/v1/company_members", () => [
+      {
+        id: TARGET_MEMBER_ID,
+        user_id: auth.subject,
+        role: "admin", // what they held BEFORE they left
+        deactivated_at: "2026-07-01T00:00:00+00:00",
+      },
+    ]);
+    let patched: Record<string, unknown> | null = null;
+    sb.on("PATCH", "/rest/v1/company_members", (call) => {
+      patched = call.body as Record<string, unknown>;
+      return [
+        {
+          id: TARGET_MEMBER_ID,
+          user_id: auth.subject,
+          role: "member",
+          deactivated_at: null,
+          created_at: "2026-07-01T00:00:00+00:00",
+        },
+      ];
+    });
+    sb.on("POST", "/rest/v1/notification_prefs", () => new Response(null, { status: 201 }));
+    sb.on("PATCH", "/rest/v1/invites", () => new Response(null, { status: 204 }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/invites/accept",
+      { method: "POST", companyId: null, body: { invite_id: INVITE_ID } },
+    );
+
+    expect(res.status).toBe(201);
+    // The mark is cleared, and the role comes from THIS invite — a returning
+    // admin does not silently regain admin because they once had it.
+    expect(patched).toMatchObject({ deactivated_at: null, role: "member" });
+    expect(await res.json()).toMatchObject({ deactivated_at: null });
   });
 });
 
