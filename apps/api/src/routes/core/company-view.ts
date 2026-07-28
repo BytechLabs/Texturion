@@ -28,6 +28,8 @@ export const COMPANY_COLUMNS =
   // the promise have to be readable in one place, or an owner turns one off
   // and leaves the other making an offer nobody answers.
   "business_hours,away_enabled,away_message,emergency_keyword_enabled," +
+  // #388: the unanswered-lead ladder switches.
+  "lead_chase_enabled,lead_chase_crew_enabled," +
   // FEATURE-GAPS voice wave: missed-call text-back settings. (D43 deleted
   // forward_to_cell — the browser is the phone; the column is dropped.)
   "mctb_enabled,mctb_message," +

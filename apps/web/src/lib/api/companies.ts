@@ -64,6 +64,10 @@ export interface CompanyPatch {
   away_message?: string | null;
   /** #414: whether a reply of URGENT wakes the whole crew. */
   emergency_keyword_enabled?: boolean;
+  /** #388: chase a lead nobody has answered, and whether that chase ends up
+   *  waking the whole crew (O/A). */
+  lead_chase_enabled?: boolean;
+  lead_chase_crew_enabled?: boolean;
   /** FEATURE-GAPS voice wave — missed-call text-back (O/A). */
   mctb_enabled?: boolean;
   mctb_message?: string | null;

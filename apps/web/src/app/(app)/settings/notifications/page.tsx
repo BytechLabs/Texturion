@@ -3,6 +3,7 @@
 import { toast } from "sonner";
 
 import { PermissionCard } from "@/components/notifications/permission-card";
+import { LeadChaseCard } from "@/components/settings/lead-chase-card";
 import {
   LoadError,
   SettingsCard,
@@ -97,6 +98,14 @@ export default function NotificationsSettingsPage() {
           </SettingsCard>
 
           <PermissionCard />
+
+          {/* #388. Last, because the two cards above are about THIS person and
+              this device, and this one is about the workspace. Scope widens as
+              you scroll rather than alternating, so a reader never has to
+              re-check whose settings they are looking at.
+              *Applying: Relationship Strength — grouping follows meaning, not
+              convenience.* */}
+          <LeadChaseCard />
 
           <p className="px-1 text-xs text-muted-foreground">
             Billing, usage, and registration emails always go to owners and

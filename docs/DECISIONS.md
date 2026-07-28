@@ -2220,3 +2220,53 @@ migration and the Worker can ship in either order. Dropping the parameter is
 the contract half and is filed separately; the route keeps deriving the flag
 from the verified membership role, never the request, for as long as it sends
 it at all.
+
+## D54 — the escalation ladder that makes FIRST RESPONSE a mechanism (#388)
+
+**Decision.** A clock starts when a new or reopened conversation takes its
+first inbound. At **2 minutes** unanswered, the same people who got the first
+alert are notified again. At **5 minutes**, an *assigned* thread widens to
+everyone who can see it. Rung one ships **on**; rung two is **opt-in**.
+
+**Why this existed to be built.** The brand is FIRST RESPONSE and nothing in
+the product caused one. A single notification fired on a 15-minute debounce and
+then the system went quiet — so inside the five-minute window the whole
+positioning rests on, the debounce was actively *suppressing* the one nudge
+that would have won the job.
+
+**Why the ladder stops on an unassigned thread.** Rung two widens; on a thread
+nobody has claimed, everyone was already told twice, so a third buzz reaches no
+new person and carries no new fact. #244 is already open about every alert
+waking everybody forever, and a crew that mutes the app loses far more leads
+than this feature can win. The asymmetric defaults follow the same rule: rung
+one re-alerts only people already told once, rung two reaches people who were
+not, so only the second needs consent.
+
+**Hard limits, none of them configurable.** Strictly inside business hours
+(the same shared implementation the away reply and MCTB use — there is one
+definition of "are we open" in this product). Push only, so the ladder is
+outside the #343 email budget and can never spend a workspace's Resend
+allowance on its least useful copy. `notification_prefs` is honoured at every
+rung: a member who turned push off does not get it back through a side door.
+A rung dropped by the hours gate is **not claimed**, so it survives the night
+rather than being silently spent at 08:59.
+
+**What stops the clock.** A human reply, claiming the thread, closing it, or
+marking it spam. Reading it does not — opening a message at a red light is not
+a response, and counting it as one would let the promise fail silently.
+
+**The thing this uncovered: the ledger could not tell a robot from a person.**
+`messages_outbound_actor` requires an actor on every outbound row, so the away
+reply, MCTB and the emergency acknowledgment are all attributed to the company
+**owner**. Nothing recorded that a machine wrote them. That is wrong well
+beyond this feature — #239 would have clocked the away auto-reply as the first
+response and reported an average no human produced. `messages.automated` now
+exists, defaulting **false** so a forgotten path is recorded as human: a missed
+nudge costs one lead, while an alarm firing after you have already replied
+teaches the whole crew to mute the app.
+
+**Cadence.** The only per-minute cron in the product. A five-minute scan cannot
+express a two-minute rung, and rounding the reminder up to the deadline it
+exists to beat would leave the feature named after a promise it no longer
+keeps. The scan is a partial index over live clocks, so a quiet minute costs
+one indexed lookup returning nothing.

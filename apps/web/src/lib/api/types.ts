@@ -226,6 +226,13 @@ export interface CompanyView {
    *  whole crew at high priority, exempt from the daily notification limit.
    *  On by default, because the away-message copy that asks for it is. */
   emergency_keyword_enabled: boolean;
+  /** #388: chase a new lead nobody has answered. On by default — it re-alerts
+   *  only the people who were already told once. */
+  lead_chase_enabled: boolean;
+  /** #388: widen an unanswered ASSIGNED lead to the whole crew at five
+   *  minutes. Off by default — this is the rung that tells people who were
+   *  not told before, and the one that can become a klaxon. */
+  lead_chase_crew_enabled: boolean;
   /** FEATURE-GAPS voice wave — missed-call text-back settings. */
   mctb_enabled: boolean;
   mctb_message: string | null;

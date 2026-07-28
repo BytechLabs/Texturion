@@ -142,6 +142,15 @@ data class CompanyView(
      * that asks a homeowner to send it is on by default too.
      */
     val emergency_keyword_enabled: Boolean = true,
+    /**
+     * #388: chase a new lead nobody has answered. The defaults MATCH the
+     * server's and are asymmetric on purpose — rung one re-alerts only people
+     * already told once, so it ships on; rung two reaches people who were not
+     * told, so an owner opts in. A lagging client that guessed the second one
+     * true would render a klaxon as already-enabled.
+     */
+    val lead_chase_enabled: Boolean = true,
+    val lead_chase_crew_enabled: Boolean = false,
     val mctb_enabled: Boolean = false,
     val mctb_message: String? = null,
     /** Server-resolved template that will actually send (custom else default). */

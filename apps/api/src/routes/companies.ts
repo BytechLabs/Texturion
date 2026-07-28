@@ -117,6 +117,11 @@ const patchSchema = z
     // and should then take the offer out of its away message too, which is
     // why the switch lives next to the message on every client.
     emergency_keyword_enabled: z.boolean().optional(),
+    // #388: the unanswered-lead ladder. Two switches rather than one because
+    // they carry different risks — the first reaches only people who were
+    // already told once, the second reaches people who were not.
+    lead_chase_enabled: z.boolean().optional(),
+    lead_chase_crew_enabled: z.boolean().optional(),
     // FEATURE-GAPS voice wave — missed-call text-back (O/A). mctb_message is
     // owner-authored (null clears it). D43: forward_to_cell is DELETED —
     // calls ring the browser, never a cell.
@@ -155,6 +160,8 @@ const patchSchema = z
       body.away_enabled !== undefined ||
       "away_message" in body ||
       body.emergency_keyword_enabled !== undefined ||
+      body.lead_chase_enabled !== undefined ||
+      body.lead_chase_crew_enabled !== undefined ||
       body.mctb_enabled !== undefined ||
       "mctb_message" in body ||
       "voicemail_greeting" in body ||
@@ -402,6 +409,13 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   }
   if (body.emergency_keyword_enabled !== undefined) {
     patch.emergency_keyword_enabled = body.emergency_keyword_enabled;
+  }
+  // #388: unanswered-lead chasing.
+  if (body.lead_chase_enabled !== undefined) {
+    patch.lead_chase_enabled = body.lead_chase_enabled;
+  }
+  if (body.lead_chase_crew_enabled !== undefined) {
+    patch.lead_chase_crew_enabled = body.lead_chase_crew_enabled;
   }
   // FEATURE-GAPS voice wave: missed-call text-back settings.
   if (body.mctb_enabled !== undefined) patch.mctb_enabled = body.mctb_enabled;

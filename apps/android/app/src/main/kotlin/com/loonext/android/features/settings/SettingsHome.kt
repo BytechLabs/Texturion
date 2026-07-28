@@ -302,7 +302,9 @@ fun SettingsHome(
                                 settingsScope, company, onRefreshCompany = { refreshKey++ },
                             )
 
-                            SettingsSection.Notifications -> NotificationsSection(settingsScope)
+                            SettingsSection.Notifications -> NotificationsSection(
+                                settingsScope, company, onCompanyUpdated,
+                            )
 
                             SettingsSection.Ai -> AiSection(settingsScope)
 

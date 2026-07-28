@@ -302,7 +302,9 @@ struct SettingsHome: View {
                 case .billing:
                     BillingSectionView(scope: scope, company: company, onRefreshCompany: refreshCompany)
                 case .notifications:
-                    NotificationsSectionView(scope: scope)
+                    NotificationsSectionView(
+                        scope: scope, company: company, onCompanyUpdated: onCompanyUpdated
+                    )
                 case .profile:
                     ProfileSectionView(scope: scope, onSignOut: onSignOut)
                 case .help:

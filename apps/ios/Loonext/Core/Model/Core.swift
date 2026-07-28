@@ -161,6 +161,13 @@ struct CompanyView: Codable, Sendable {
     /// Defaults TRUE against a lagging server, matching it — the away copy
     /// that asks a homeowner to send it is on by default too.
     @Default<DefaultTrue> var emergency_keyword_enabled: Bool
+    /// #388: chase a new lead nobody has answered. The defaults MATCH the
+    /// server's and are asymmetric on purpose — rung one re-alerts only people
+    /// already told once, so it ships on; rung two reaches people who were not
+    /// told, so an owner opts in. A lagging client that guessed the second one
+    /// true would render a klaxon as already-enabled.
+    @Default<DefaultTrue> var lead_chase_enabled: Bool
+    @Default<DefaultFalse> var lead_chase_crew_enabled: Bool
     @Default<DefaultFalse> var mctb_enabled: Bool
     let mctb_message: String?
     /// #192: server-resolved template that will actually send (custom else the
