@@ -4,6 +4,8 @@
  * module — and are re-exported/derived here so route code keeps its short
  * import path without duplicating the values.
  */
+import { PLAN_SEATS as SHARED_PLAN_SEATS } from "@loonext/shared";
+
 import {
   PLAN_INCLUDED_SEGMENTS,
   PLAN_LIMITS,
@@ -28,6 +30,19 @@ export const PLAN_SEATS: Record<PlanId, number> = {
   starter: PLAN_LIMITS.starter.seats,
   pro: PLAN_LIMITS.pro.seats,
 };
+
+// #392: the shared module is the one place this rule lives now. Asserting the
+// two agree at module load rather than exporting the shared copy directly
+// keeps PLAN_LIMITS (which also carries `numbers`) as the billing source of
+// truth, while making a divergence impossible to ship quietly.
+if (
+  PLAN_SEATS.starter !== SHARED_PLAN_SEATS.starter ||
+  PLAN_SEATS.pro !== SHARED_PLAN_SEATS.pro
+) {
+  throw new Error(
+    "PLAN_LIMITS seats and @loonext/shared PLAN_SEATS disagree — a seat change landed in one of them only.",
+  );
+}
 
 /**
  * Seat allowance for a company. A company that has never checked out has plan

@@ -287,7 +287,9 @@ private struct ChangePlanSheet: View {
     }
 
     private var numbersOk: Bool { activeNumbers <= 1 }
-    private var seatsOk: Bool { (activeMembers ?? Int.max) <= 3 }
+    // #392: the Starter allowance, not a literal. A downgrade gate that
+    // disagrees with the API blocks a plan change the server would allow.
+    private var seatsOk: Bool { (activeMembers ?? Int.max) <= starterSeats }
     private var downgradeBlocked: Bool { !upgrading && (!numbersOk || !seatsOk || membersFailed) }
 
     var body: some View {

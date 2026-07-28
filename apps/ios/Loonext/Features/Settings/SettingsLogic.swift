@@ -73,8 +73,24 @@ enum SettingsRoleGate {
 
 // MARK: - Seat math — exact mirror of routes/team.ts + routes/core/plans.ts
 
-/// Seats per plan (SPEC §2: Starter 3, Pro 15; NULL plan reads as Starter).
-func seatLimit(_ plan: String?) -> Int { plan == "pro" ? 15 : 3 }
+// #392: the server SENDS the allowance now (CompanyView.seat_limit). Starter 3
+// / Pro 15 was written out four times in four languages, had already moved
+// twice, and is a pricing lever rather than an architectural fact — pulling it
+// should not require an App Store review before it is true everywhere.
+//
+// The literal below is now only the offline fallback, for a client that has
+// never successfully loaded a company.
+
+/// The ONE place these integers are written in Swift (#392).
+///
+/// They were in three: here, `planFacts`, and BillingSection's downgrade gate.
+/// The downgrade one is the nastiest — a native gate that disagrees with the
+/// API blocks or permits a plan change the server does not.
+let starterSeats = 3
+let proSeats = 15
+
+/// Fallback allowance ONLY. Prefer `CompanyView.seat_limit` from the server.
+func seatLimit(_ plan: String?) -> Int { plan == "pro" ? proSeats : starterSeats }
 
 /// Active members — the API's filter (`deactivated_at IS NULL`).
 func countActiveMembers(_ members: [Member]) -> Int {
@@ -94,19 +110,31 @@ struct SeatUsage: Equatable, Sendable {
     let used: Int
     let limit: Int
     let full: Bool
+    /// Full AND there is a bigger self-serve plan: show the upgrade action.
+    let canUpgrade: Bool
     /// The G8 seat line, e.g. "2 of 3 seats. Upgrade for more".
     let line: String
 }
 
-func seatUsage(activeMembers: Int, pendingInvites: Int, plan: String?) -> SeatUsage {
-    let limit = seatLimit(plan)
+/// - Parameter servedLimit: the server's allowance (`CompanyView.seat_limit`).
+///   Wins whenever we have it; the plan-derived fallback is for a client that
+///   has never loaded. A client number HIGHER than the API's tells an owner
+///   they have room and then the invite is refused, at the exact moment they
+///   are trying to add somebody.
+func seatUsage(
+    activeMembers: Int,
+    pendingInvites: Int,
+    plan: String?,
+    servedLimit: Int? = nil
+) -> SeatUsage {
+    let limit = (servedLimit.map { $0 > 0 ? $0 : nil } ?? nil) ?? seatLimit(plan)
     let used = activeMembers + pendingInvites
     let full = used >= limit
-    let canUpgrade = plan != "pro"
-    let line = full && canUpgrade
+    let canUpgrade = full && plan != "pro"
+    let line = canUpgrade
         ? "\(used) of \(limit) seats. Upgrade for more"
         : "\(used) of \(limit) seats"
-    return SeatUsage(used: used, limit: limit, full: full, line: line)
+    return SeatUsage(used: used, limit: limit, full: full, canUpgrade: canUpgrade, line: line)
 }
 
 // MARK: - CNAM (carrier rule: 1-15 letters, digits, or spaces)
@@ -390,9 +418,9 @@ struct PlanFacts: Equatable, Sendable {
 func planFacts(_ plan: String?) -> PlanFacts? {
     switch plan {
     case "starter":
-        return PlanFacts(name: "Starter", price: "$29/mo", seats: 3, numbers: 1, voiceMinutes: 2500)
+        return PlanFacts(name: "Starter", price: "$29/mo", seats: starterSeats, numbers: 1, voiceMinutes: 2500)
     case "pro":
-        return PlanFacts(name: "Pro", price: "$79/mo", seats: 15, numbers: 2, voiceMinutes: 6000)
+        return PlanFacts(name: "Pro", price: "$79/mo", seats: proSeats, numbers: 2, voiceMinutes: 6000)
     default:
         return nil
     }

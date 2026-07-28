@@ -473,4 +473,46 @@ class SettingsLogicTest {
             ),
         )
     }
+
+    // -- #392: THE SHARED SEAT FIXTURE ------------------------------------
+    // Hand-ported case for case from packages/shared/src/seats.test.ts.
+    // Adding a case there means adding it here. The seat ceiling is the
+    // Starter-to-Pro upgrade trigger and has already moved twice; a drifted
+    // copy does not degrade a feature, it misprices the product on Android.
+
+    private data class SeatCase(
+        val members: Int,
+        val invites: Int,
+        val plan: String?,
+        val served: Int?,
+        val used: Int,
+        val limit: Int,
+        val full: Boolean,
+        val canUpgrade: Boolean,
+        val line: String,
+    )
+
+    @Test
+    fun `seat cases match the shared fixture`() {
+        val cases = listOf(
+        SeatCase(1, 0, "starter", null, 1, 3, false, false, "1 of 3 seats"),
+        SeatCase(2, 0, "pro", null, 2, 15, false, false, "2 of 15 seats"),
+        SeatCase(2, 1, "starter", null, 3, 3, true, true, "3 of 3 seats. Upgrade for more"),
+        SeatCase(3, 0, "starter", null, 3, 3, true, true, "3 of 3 seats. Upgrade for more"),
+        SeatCase(15, 0, "pro", null, 15, 15, true, false, "15 of 15 seats"),
+        SeatCase(3, 0, null, null, 3, 3, true, true, "3 of 3 seats. Upgrade for more"),
+        SeatCase(5, 0, "starter", null, 5, 3, true, true, "5 of 3 seats. Upgrade for more"),
+        SeatCase(16, 0, "pro", 20, 16, 20, false, false, "16 of 20 seats"),
+        SeatCase(1, 0, "starter", 0, 1, 3, false, false, "1 of 3 seats"),
+        )
+        for (c in cases) {
+            val usage = seatUsage(c.members, c.invites, c.plan, c.served)
+            val label = "${c.members}+${c.invites} on ${c.plan} served ${c.served}"
+            assertEquals(label, c.used, usage.used)
+            assertEquals(label, c.limit, usage.limit)
+            assertEquals(label, c.full, usage.full)
+            assertEquals(label, c.canUpgrade, usage.canUpgrade)
+            assertEquals(label, c.line, usage.line)
+        }
+    }
 }

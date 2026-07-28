@@ -54,6 +54,10 @@ describe("seatUsage", () => {
       used: 3,
       limit: 3,
       full: true,
+      // #392: `canUpgrade` is returned now because it drives the capacity CTA.
+      // It is full AND there is a bigger self-serve plan — Pro is the top one,
+      // and unlimited seats are a conversation rather than a button.
+      canUpgrade: true,
       line: "3 of 3 seats. Upgrade for more",
     });
   });
@@ -83,5 +87,31 @@ describe("seatUsage", () => {
 
   it("treats a NULL plan as the Starter allowance", () => {
     expect(seatUsage(3, 0, null).line).toBe("3 of 3 seats. Upgrade for more");
+  });
+});
+
+describe("the served limit wins over the local formula (#392)", () => {
+  it("uses the server's number when it disagrees with the local one", () => {
+    // The whole point of serving it. If pricing moves Pro to 20 seats, an
+    // owner on an old client build must not be told they are full at 15 —
+    // and must never be told they have room the API will refuse.
+    const usage = seatUsage(16, 0, "pro", 20);
+    expect(usage.limit).toBe(20);
+    expect(usage.full).toBe(false);
+  });
+
+  it("falls back to the local formula when the server sent nothing", () => {
+    // A client that has never loaded still has to render something. A stale
+    // fallback used while disconnected is a far smaller hazard than four
+    // authoritative copies.
+    expect(seatUsage(1, 0, "pro", undefined).limit).toBe(15);
+    expect(seatUsage(1, 0, "starter", null).limit).toBe(3);
+  });
+
+  it("ignores a nonsensical served limit rather than rendering it", () => {
+    // Zero or negative would make every workspace read as full and block
+    // every invite in the product. Falling back is the safe direction.
+    expect(seatUsage(1, 0, "starter", 0).limit).toBe(3);
+    expect(seatUsage(1, 0, "starter", -5).limit).toBe(3);
   });
 });

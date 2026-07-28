@@ -183,6 +183,10 @@ struct CompanyView: Codable, Sendable {
     /// already told once, so it ships on; rung two reaches people who were not
     /// told, so an owner opts in. A lagging client that guessed the second one
     /// true would render a klaxon as already-enabled.
+    /// #392: the seat allowance, served rather than recomputed. Nil only when
+    /// talking to a Worker older than #392, in which case the plan-derived
+    /// fallback in SettingsLogic applies.
+    let seat_limit: Int?
     @Default<DefaultTrue> var lead_chase_enabled: Bool
     @Default<DefaultFalse> var lead_chase_crew_enabled: Bool
     @Default<DefaultFalse> var mctb_enabled: Bool

@@ -334,7 +334,9 @@ private fun ChangePlanDialog(
 
     val activeNumbers = company.numbers.count { it.status != NumberStatus.RELEASED }
     val numbersOk = activeNumbers <= 1
-    val seatsOk = (activeMembers ?: Int.MAX_VALUE) <= 3
+    // #392: the Starter allowance, not a literal. A downgrade gate that
+    // disagrees with the API blocks a plan change the server would allow.
+    val seatsOk = (activeMembers ?: Int.MAX_VALUE) <= STARTER_SEATS
     val downgradeBlocked = !upgrading && (!numbersOk || !seatsOk || membersFailed)
 
     ConfirmDialog(

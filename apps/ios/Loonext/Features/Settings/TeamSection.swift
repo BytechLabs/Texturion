@@ -245,7 +245,11 @@ private struct InvitesCard: View {
         seatUsage(
             activeMembers: countActiveMembers(members),
             pendingInvites: pendingInviteCount(invites),
-            plan: company.plan
+            plan: company.plan,
+            // #392: the server's number wins. A client copy higher than the
+            // API's tells an owner they have room and then the invite is
+            // refused.
+            servedLimit: company.seat_limit
         )
     }
 

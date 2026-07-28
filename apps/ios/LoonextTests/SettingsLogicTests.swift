@@ -500,4 +500,38 @@ final class SettingsLogicTests: XCTestCase {
         XCTAssertNil(company.mctb_effective_message)
         XCTAssertFalse(company.mctb_message_is_custom)
     }
+
+    // MARK: - #392: THE SHARED SEAT FIXTURE
+    // Hand-ported case for case from packages/shared/src/seats.test.ts.
+    // Adding a case there means adding it here. The seat ceiling is the
+    // Starter-to-Pro upgrade trigger and has already moved twice; a drifted
+    // copy does not degrade a feature, it misprices the product on iOS.
+
+    func testSeatCasesMatchTheSharedFixture() {
+        let cases: [(members: Int, invites: Int, plan: String?, served: Int?, used: Int, limit: Int, full: Bool, canUpgrade: Bool, line: String)] = [
+            (members: 1, invites: 0, plan: "starter", served: nil, used: 1, limit: 3, full: false, canUpgrade: false, line: "1 of 3 seats"),
+            (members: 2, invites: 0, plan: "pro", served: nil, used: 2, limit: 15, full: false, canUpgrade: false, line: "2 of 15 seats"),
+            (members: 2, invites: 1, plan: "starter", served: nil, used: 3, limit: 3, full: true, canUpgrade: true, line: "3 of 3 seats. Upgrade for more"),
+            (members: 3, invites: 0, plan: "starter", served: nil, used: 3, limit: 3, full: true, canUpgrade: true, line: "3 of 3 seats. Upgrade for more"),
+            (members: 15, invites: 0, plan: "pro", served: nil, used: 15, limit: 15, full: true, canUpgrade: false, line: "15 of 15 seats"),
+            (members: 3, invites: 0, plan: nil, served: nil, used: 3, limit: 3, full: true, canUpgrade: true, line: "3 of 3 seats. Upgrade for more"),
+            (members: 5, invites: 0, plan: "starter", served: nil, used: 5, limit: 3, full: true, canUpgrade: true, line: "5 of 3 seats. Upgrade for more"),
+            (members: 16, invites: 0, plan: "pro", served: 20, used: 16, limit: 20, full: false, canUpgrade: false, line: "16 of 20 seats"),
+            (members: 1, invites: 0, plan: "starter", served: 0, used: 1, limit: 3, full: false, canUpgrade: false, line: "1 of 3 seats"),
+        ]
+        for c in cases {
+            let usage = seatUsage(
+                activeMembers: c.members,
+                pendingInvites: c.invites,
+                plan: c.plan,
+                servedLimit: c.served
+            )
+            let label = "\(c.members)+\(c.invites) on \(c.plan ?? "nil") served \(c.served.map(String.init) ?? "nil")"
+            XCTAssertEqual(usage.used, c.used, label)
+            XCTAssertEqual(usage.limit, c.limit, label)
+            XCTAssertEqual(usage.full, c.full, label)
+            XCTAssertEqual(usage.canUpgrade, c.canUpgrade, label)
+            XCTAssertEqual(usage.line, c.line, label)
+        }
+    }
 }

@@ -1,3 +1,5 @@
+import { PLAN_SEATS } from "@loonext/shared";
+
 /**
  * API resource shapes, derived by reading apps/api/src/routes/*.ts (never
  * guessed — SPEC §7 is the contract, the route files are the truth).
@@ -247,6 +249,12 @@ export interface CompanyView {
    *  whole crew at high priority, exempt from the daily notification limit.
    *  On by default, because the away-message copy that asks for it is. */
   emergency_keyword_enabled: boolean;
+  /**
+   * #392: the seat allowance, served rather than recomputed. A pricing lever
+   * that needed a client release to pull was not a lever, and a client copy
+   * higher than the API's tells an owner they have room and then 409s them.
+   */
+  seat_limit?: number;
   /** #388: chase a new lead nobody has answered. On by default — it re-alerts
    *  only the people who were already told once. */
   lead_chase_enabled: boolean;
@@ -1363,14 +1371,18 @@ export const PLAN_PRICING: Record<
 > = {
   starter: {
     monthlyDollars: 29,
-    seats: 3,
+    // #392: derived, never retyped. Web carried TWO unlinked copies of the
+    // seat number — this one and lib/settings/seat-line.ts — and nothing kept
+    // them equal. The seat ceiling is the Starter-to-Pro upgrade trigger, so a
+    // drift here misprices the plan card while the team page says otherwise.
+    seats: PLAN_SEATS.starter,
     numbers: 1,
     includedTexts: 500,
     overageCentsPerText: 3,
   },
   pro: {
     monthlyDollars: 79,
-    seats: 15,
+    seats: PLAN_SEATS.pro,
     numbers: 2,
     includedTexts: 2500,
     overageCentsPerText: 2.5,

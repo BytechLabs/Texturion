@@ -6,6 +6,7 @@
 import {
   effectiveAwayMessage,
   effectiveMctbMessage,
+  seatLimit,
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -241,7 +242,7 @@ export async function loadCompanyView(
   );
 
   return {
-    ...withCallerIdDerived(withMctbDerived(withAwayDerived(company))),
+    ...withSeatDerived(withCallerIdDerived(withMctbDerived(withAwayDerived(company)))),
     numbers,
     enabled_modules: modules.map((row) => row.module),
     billing_writes_enabled: billingWritesEnabled(env),
@@ -249,5 +250,25 @@ export async function loadCompanyView(
       brand: registrations.find((row) => row.kind === "brand") ?? null,
       campaign: registrations.find((row) => row.kind === "campaign") ?? null,
     },
+  };
+}
+
+/**
+ * #392: the seat allowance, served rather than recomputed.
+ *
+ * Starter 3 / Pro 15 was hardcoded on the API, web, Android and iOS. A pricing
+ * lever that requires an App Store review before it is true everywhere is not
+ * a lever. Sending the number means a client renders server truth and can
+ * never show a figure the API will refuse — the failure that reads as a bug at
+ * the exact moment an owner is trying to add somebody.
+ */
+export function withSeatDerived<T extends Record<string, unknown>>(
+  company: T,
+): T & { seat_limit: number } {
+  return {
+    ...company,
+    seat_limit: seatLimit(
+      typeof company.plan === "string" ? company.plan : null,
+    ),
   };
 }

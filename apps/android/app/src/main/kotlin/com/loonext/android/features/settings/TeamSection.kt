@@ -289,6 +289,9 @@ private fun InvitesCard(
         activeMembers = countActiveMembers(members),
         pendingInvites = pendingInviteCount(invites),
         plan = company.plan,
+        // #392: the server's number wins. A client copy higher than the API's
+        // tells an owner they have room and then the invite is refused.
+        servedLimit = company.seat_limit,
     )
     var email by remember { mutableStateOf("") }
     var role by remember { mutableStateOf(MemberRole.MEMBER) }

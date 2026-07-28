@@ -71,6 +71,15 @@ export {
 } from "./business-hours";
 
 export {
+  PLAN_SEATS,
+  seatLimit,
+  canUpgradeSeats,
+  seatUsage,
+  type SeatPlan,
+  type SeatUsage,
+} from "./seats";
+
+export {
   AI_DISCLOSURES,
   AI_TRAINING_STATEMENT,
   type AiDisclosure,

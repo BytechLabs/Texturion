@@ -1,6 +1,8 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -433,6 +435,11 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
     activeMemberCount,
     countPendingInvites(invites.data.data, now),
     company.data.plan,
+    // #392: the server's number wins. The local formula is the fallback for a
+    // client that has never loaded — a client copy HIGHER than the API's tells
+    // an owner they have room and then the invite 409s, at the exact moment
+    // they are trying to grow.
+    company.data.seat_limit,
   );
 
   function onSubmit(values: InviteValues) {
@@ -466,7 +473,30 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
     <SettingsCard
       title="Invites"
       description="Teammates get an email link that adds them to this workspace. If they already have a Loonext account, share their invite link instead."
-      footer={<p className="text-sm text-muted-foreground">{seats.line}</p>}
+      footer={
+        seats.canUpgrade ? (
+          // #392. At 3 of 3 the owner has a real person in front of them and a
+          // reason — the highest-intent upgrade moment this product has, and it
+          // was a sentence telling them to go and find billing themselves.
+          // *Applying: Loss Aversion (they are blocked from adding somebody
+          // right now, which is the strongest honest framing available) and §5
+          // Paywalls (a CTA at the decision point, with a chevron, not prose).*
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              {seats.used} of {seats.limit} seats. Upgrade to add more of your
+              crew.
+            </p>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/settings/billing?reason=seats">
+                See plans
+                <ChevronRight className="size-4" aria-hidden />
+              </Link>
+            </Button>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{seats.line}</p>
+        )
+      }
     >
       <Form {...form}>
         <form

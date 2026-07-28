@@ -66,11 +66,32 @@ object SettingsRoleGate {
 }
 
 // ---------------------------------------------------------------------------
-// Seat math — exact mirror of routes/team.ts + routes/core/plans.ts
+// Seat math
 // ---------------------------------------------------------------------------
+// #392: the server SENDS the allowance now (CompanyView.seat_limit). Starter 3
+// / Pro 15 was written out four times in four languages, it had already moved
+// twice, and it is a pricing lever rather than an architectural fact — pulling
+// it should not require an App Store review before it is true everywhere.
+//
+// The literal below is now only the offline fallback, used when this client has
+// never successfully loaded a company. A stale fallback while disconnected is a
+// far smaller hazard than four authoritative copies, and it makes the drift
+// visible rather than silent.
 
-/** Seats per plan (SPEC §2: Starter 3, Pro 15; NULL plan reads as Starter). */
-fun seatLimit(plan: String?): Int = if (plan == "pro") 15 else 3
+/**
+ * The ONE place these integers are written in Kotlin (#392).
+ *
+ * They were in three: here, `planFacts`, and BillingSection's downgrade gate.
+ * The downgrade one is the nastiest — a native gate that disagrees with the
+ * API blocks or permits a plan change the server does not, so an owner is
+ * either stopped from downgrading for no reason or told they may and then
+ * refused.
+ */
+const val STARTER_SEATS = 3
+const val PRO_SEATS = 15
+
+/** Fallback allowance ONLY. Prefer `CompanyView.seat_limit` from the server. */
+fun seatLimit(plan: String?): Int = if (plan == "pro") PRO_SEATS else STARTER_SEATS
 
 /** Active members — the API's filter (`deactivated_at IS NULL`). */
 fun countActiveMembers(members: List<Member>): Int =
@@ -89,19 +110,33 @@ data class SeatUsage(
     val used: Int,
     val limit: Int,
     val full: Boolean,
+    /** Full AND there is a bigger self-serve plan: show the upgrade action. */
+    val canUpgrade: Boolean,
     /** The G8 seat line, e.g. "2 of 3 seats. Upgrade for more". */
     val line: String,
 )
 
-fun seatUsage(activeMembers: Int, pendingInvites: Int, plan: String?): SeatUsage {
-    val limit = seatLimit(plan)
+/**
+ * @param servedLimit the server's allowance ([CompanyView.seat_limit]). Wins
+ *   whenever we have it; the plan-derived fallback is for a client that has
+ *   never loaded. A client number HIGHER than the API's tells an owner they
+ *   have room and then the invite is refused, at the exact moment they are
+ *   trying to add somebody.
+ */
+fun seatUsage(
+    activeMembers: Int,
+    pendingInvites: Int,
+    plan: String?,
+    servedLimit: Int? = null,
+): SeatUsage {
+    val limit = if (servedLimit != null && servedLimit > 0) servedLimit else seatLimit(plan)
     val used = activeMembers + pendingInvites
     val full = used >= limit
-    val canUpgrade = plan != "pro"
+    val canUpgrade = full && plan != "pro"
     val line =
-        if (full && canUpgrade) "$used of $limit seats. Upgrade for more"
+        if (canUpgrade) "$used of $limit seats. Upgrade for more"
         else "$used of $limit seats"
-    return SeatUsage(used = used, limit = limit, full = full, line = line)
+    return SeatUsage(used = used, limit = limit, full = full, canUpgrade = canUpgrade, line = line)
 }
 
 // ---------------------------------------------------------------------------
@@ -460,8 +495,8 @@ data class PlanFacts(
 )
 
 fun planFacts(plan: String?): PlanFacts? = when (plan) {
-    "starter" -> PlanFacts("Starter", "$29/mo", 3, 1, 2500)
-    "pro" -> PlanFacts("Pro", "$79/mo", 15, 2, 6000)
+    "starter" -> PlanFacts("Starter", "$29/mo", STARTER_SEATS, 1, 2500)
+    "pro" -> PlanFacts("Pro", "$79/mo", PRO_SEATS, 2, 6000)
     else -> null
 }
 

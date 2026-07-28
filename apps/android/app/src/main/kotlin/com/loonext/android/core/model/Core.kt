@@ -171,6 +171,12 @@ data class CompanyView(
      * told, so an owner opts in. A lagging client that guessed the second one
      * true would render a klaxon as already-enabled.
      */
+    /**
+     * #392: the seat allowance, served rather than recomputed. Null only when
+     * talking to a Worker older than #392, in which case the plan-derived
+     * fallback in SettingsLogic applies.
+     */
+    val seat_limit: Int? = null,
     val lead_chase_enabled: Boolean = true,
     val lead_chase_crew_enabled: Boolean = false,
     val mctb_enabled: Boolean = false,
