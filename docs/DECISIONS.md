@@ -119,7 +119,7 @@ spec-review team (7 reviewers, 56 verified findings) and 5 web-verified research
   `starter`/`pro`, so seats are always finite there.
 - Positioning: flat team pricing ("one price for your whole crew") vs per-seat rivals
   (Quo $19/user, Heymarket $49/user). No per-seat add-ons in MVP; upgrade is the path.
-- **Inbound is free and unmetered** (market table-stakes; COGS ~0.7¢/segment absorbed).
+- **Inbound is free and unmetered** (market table-stakes; COGS ~1.0¢/segment absorbed — raised from 0.7¢ by #445, which measured the real four-carrier composition).
   Only outbound segments count against the quota. Outbound MMS meters as **3 segments**;
   inbound MMS free.
 - **US registration fee: $29 one-time** (covers $4.50 brand + $15 vetting + resubmission risk).
@@ -2022,9 +2022,16 @@ rather than a workflow. The tag no longer claims otherwise.
 
 ---
 
-## D50 — inbound texts are an uncapped cost, deliberately and permanently (#449, 2026-07-28)
+## D58 — inbound texts are an uncapped cost, deliberately and permanently (#449, 2026-07-28)
 
-**Inbound segments cost us 0.7¢ each, are free to the customer, and have no
+*(Renumbered from D50 by #353: two decisions were both numbered D50. The
+merge-to-ship one above keeps the number; this one was the later insertion.
+Note D5 already answers the ALLOWANCE question — "only outbound segments count
+against the quota" — and is the decision to cite for that. This one is about
+inbound being an uncappable COST, which is a different claim.)*
+
+**Inbound segments cost us 1.0¢ each (#445 measured it; it was carried at
+0.7¢ when this was written), are free to the customer, and have no
 ceiling. There will not be one.** This sits beside D34's free storage as the
 second deliberate unbounded cost in the product, and unlike D34 it is not even
 a choice.
@@ -2049,7 +2056,7 @@ protects nothing not already protected.
 
 **What we do instead: make it visible.** `usage_alerts` gains an
 `inbound_volume` arm on absolute segment tiers (2,500 / 5,000 / 10,000 /
-25,000 / 50,000 — $17.50 to $350 of our money at 0.7¢), emailing the customer
+25,000 / 50,000 — $25 to $500 of our money at 1.0¢), emailing the customer
 and ops, blocking nothing. The storage-abuse shape from #121, for the same
 reason: when a cost cannot be refused, the failure to avoid is not the cost, it
 is the cost being invisible.

@@ -110,7 +110,7 @@ than one (#445 ask 2):
 
 The AT&T line is the one the old single‑carrier comment could not have
 accounted for: it post‑dates the January basis and extends the charge to
-traffic *coming in*, which is the line with no offsetting revenue (D50) and no
+traffic *coming in*, which is the line with no offsetting revenue (D58) and no
 ceiling.
 
 ### 4.2 AI cost basis (#380, 2026‑07‑28)
@@ -230,7 +230,7 @@ own included allowance and overage priced **above true cost**:
 ## 7. Decisions needed from the user before Phases 2–3
 
 1. **Plan shape:** modular builder (§5.2) vs a few fixed tiers? Which modules are opt‑in vs base?
-2. **Allowances & prices:** included amounts + overage for each of segments (in+out), MMS, voice minutes, storage GB, egress GB. (Must clear true cost.)
+2. **Allowances & prices:** included amounts + overage for each of segments (OUTBOUND only, D5 — inbound is free and unmetered), MMS, voice minutes, storage GB, egress GB. (Must clear true cost.)
 3. **Inbound policy:** what inbound volume is "normal" before we throttle/charge? Is inbound counted against the same allowance as outbound, or its own?
 4. **Voice:** offer forwarding as a paid module, or hard‑cap it, or drop it?
 5. **10DLC recovery:** activation fee, monthly floor, or absorb?

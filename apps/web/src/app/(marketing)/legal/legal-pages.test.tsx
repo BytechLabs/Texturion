@@ -170,6 +170,20 @@ describe("refunds — the guarantee promise survives, word for word where it cou
 
 describe("fair-use — the plain limits survive", () => {
   const html = PAGES[6].html;
+
+  it("says outright that only sent texts count (#353)", () => {
+    // The one question #353 asked, on the page D34 makes canonical for it.
+    // Every other surface already said this; §2 described the allowance
+    // without ever naming the direction, while §7 named it for photos and for
+    // voice minutes. A customer comparing the three could reasonably conclude
+    // texts were the exception.
+    //
+    // D5 is the decision: "only outbound segments count against the quota".
+    // Enforced by the `usage_event_type` enum having no inbound member, so a
+    // received text is structurally unrecordable as usage.
+    expect(html).toContain("Only the texts you send count");
+    expect(html).toContain("Receiving is free and unlimited");
+  });
   it("states the included allowances and the spending-cap pause", () => {
     expect(html).toContain("500 texts");
     expect(html).toContain("2,500 texts");

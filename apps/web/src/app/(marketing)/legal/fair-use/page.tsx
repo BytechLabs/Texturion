@@ -35,7 +35,7 @@ export default function FairUsePage() {
   return (
     <LegalPage
       title="Fair use policy"
-      summary="Loonext is a flat monthly price with texting included under an automated fair-use policy, and this page is the one place the concrete mechanics live. Starter includes 500 texts a month and Pro includes 2,500; extra texts are billed at 3¢ (Starter) or 2.5¢ (Pro) each up to a monthly spending cap you control, which pauses sending before a bill can surprise you. Calling is included on every plan and works the same way: 2,500 calling minutes on Starter and 6,000 on Pro, both directions, extra minutes at 1¢ each under the same cap. Storage is free, with no caps. We reserve a narrow right to step in only when usage stops looking like one business texting its own customers."
+      summary="Loonext is a flat monthly price with texting included under an automated fair-use policy, and this page is the one place the concrete mechanics live. Starter includes 500 texts a month and Pro includes 2,500, and only the texts you send count because receiving is always free; extra texts are billed at 3¢ (Starter) or 2.5¢ (Pro) each up to a monthly spending cap you control, which pauses sending before a bill can surprise you. Calling is included on every plan and works the same way: 2,500 calling minutes on Starter and 6,000 on Pro, both directions, extra minutes at 1¢ each under the same cap. Storage is free, with no caps. We reserve a narrow right to step in only when usage stops looking like one business texting its own customers."
       lastUpdated={LAST_UPDATED}
       lastUpdatedIso="2026-07-11"
       breadcrumbLabel="Fair use"
@@ -66,8 +66,10 @@ export default function FairUsePage() {
           one number. Pro is $79/mo for up to 15 people, includes 2,500 texts,
           and adds a second number. A text is counted in segments (about 160
           characters each), the same way the carriers count them, so one long
-          message can use more than one segment. This page is the canonical
-          home of those figures; the{" "}
+          message can use more than one segment. Only the texts you send count.
+          Receiving is free and unlimited on every plan, in every month, and
+          never counts against what your plan includes. This page is the
+          canonical home of those figures; the{" "}
           <LegalLink href="/pricing">pricing page</LegalLink> describes plans
           in plain fair-use terms and points here for the mechanics.
           Think of the allowances as a fair-use line for one business texting its own

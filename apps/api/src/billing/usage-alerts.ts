@@ -60,7 +60,7 @@ export type UsageAlertMetric =
   // bound. One ledger row per (company, period) — this is our cost, not the
   // customer's bill, so it goes to ops only.
   | "voice_dials"
-  // #449: inbound segments — free to the customer, 0.7c to us, and the one
+  // #449: inbound segments — free to the customer, 1.0c to us (#445), and the one
   // cost that cannot be capped because it is already paid for by the time we
   // see it. Absolute tiers, the storage-abuse shape.
   | "inbound_volume";
@@ -538,7 +538,7 @@ export async function runUsageAlertsJob(
       // #449 inbound arm — the one cost centre that has no ceiling and cannot
       // be given one.
       //
-      // Inbound is free to the customer and costs us 0.7c a segment. It is not
+      // Inbound is free to the customer and costs us 1.0c a segment (#445). It is not
       // cappable in principle: refusing to receive a customer's texts is
       // refusing the product, and in practice the segment is already received
       // and billed by Telnyx before this Worker runs, so no gate of ours could
@@ -602,7 +602,7 @@ export async function runUsageAlertsJob(
               `Trailing 30 days before this: ${baseline === null ? "unavailable" : baseline.toLocaleString()} segments\n\n` +
               `Inbound cannot be capped — the segment is billed by Telnyx ` +
               `before our webhook runs, so only suspending the number stops ` +
-              `it (#449, DECISIONS D50). This is a visibility alert, not a ` +
+              `it (#449, DECISIONS D58). This is a visibility alert, not a ` +
               `gate; nothing was blocked.\n\n` +
               `Compare against the trailing figure before acting: a storm is ` +
               `many senders, abuse is usually one.`,

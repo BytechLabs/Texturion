@@ -1,7 +1,14 @@
 /**
  * #12 modular plan builder — the opt-in module catalog. The BASE plan (starter
- * or pro, see plans.ts) always includes texting (in+out segment allowance), one
- * US number, and US 10DLC. Everything here is a toggleable add-on so a customer
+ * or pro, see plans.ts) always includes texting (an OUTBOUND segment
+ * allowance — receiving is free and never metered, D5), one US number, and US
+ * 10DLC.
+ *
+ * #353: this said "in+out" and was the only source in the product that did.
+ * It is enforced three ways and none of them are this comment: the
+ * `usage_event_type` enum has no inbound member, so inbound is structurally
+ * unrecordable as usage; `messaging/status.ts` returns before the meter for
+ * any non-outbound row; and plans.ts prices "outbound segments" throughout. Everything here is a toggleable add-on so a customer
  * only pays for what they use ("not everyone needs everything").
  *
  * Each module gates one cost-incurring capability and — when billed — maps to a

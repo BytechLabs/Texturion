@@ -75,7 +75,7 @@ export const UNIT_COST_CENTS = {
    * ⇒ ~0.95¢, carried at 1.0¢ as the high end.
    *
    * This is the line with NO offsetting revenue (inbound is free to the
-   * customer, D50) and no ceiling, so an understatement here goes straight
+   * customer, D5; uncappable per D58) and no ceiling, so an understatement here goes straight
    * through to the profitability answer. It is also the least verifiable number
    * in the file, which is the honest state of it.
    *
