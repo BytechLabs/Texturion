@@ -37,6 +37,7 @@ import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.MarkEmailRead
 import androidx.compose.material.icons.outlined.MarkEmailUnread
@@ -73,6 +74,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -1162,6 +1164,45 @@ private fun SwipeableConversationRow(
     ) { ConversationRow(row, assigneeName) }
 }
 
+/**
+ * #414: the one row state worth breaking the row's own visual rhythm for.
+ *
+ * A fourth quiet icon beside the attachment clip and the unread dot would
+ * blend into that rhythm, which is the opposite of what this state needs — the
+ * whole point is to be found at a glance, at 11pm, by someone a push
+ * notification just woke.
+ */
+@Composable
+private fun UrgentBadge() {
+    Row(
+        Modifier
+            .background(
+                MaterialTheme.colorScheme.errorContainer,
+                RoundedCornerShape(999.dp),
+            )
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .semantics { contentDescription = "Urgent" },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Outlined.WarningAmber,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.size(11.dp),
+        )
+        Spacer(Modifier.width(3.dp))
+        Text(
+            "URGENT",
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 9.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.4.sp,
+            ),
+            color = MaterialTheme.colorScheme.onErrorContainer,
+        )
+    }
+}
+
 @Composable
 private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
     val name = row.contact.name ?: formatPhone(row.contact.phone_e164)
@@ -1219,6 +1260,15 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+                // #414 ask 2 — "visibly flagged in the inbox". Flagged until
+                // the crew CLOSES the thread: closing is the product's
+                // existing word for "handled", so nothing here invents a
+                // second notion of resolved or lets a timer quietly decide an
+                // emergency stopped mattering.
+                if (row.emergency_at != null && row.closed_at == null) {
+                    Spacer(Modifier.width(6.dp))
+                    UrgentBadge()
+                }
                 Spacer(Modifier.width(8.dp))
                 Text(
                     relativeTime(row.last_message_at),

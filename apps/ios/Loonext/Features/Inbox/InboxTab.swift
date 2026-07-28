@@ -1017,6 +1017,27 @@ private struct ConversationRow: View {
                                 .padding(.vertical, 2)
                                 .background(BrandColor.inset, in: Capsule())
                         }
+                        // #414 ask 2 — "visibly flagged in the inbox". Same
+                        // chip shape as Spam so the row keeps one vocabulary,
+                        // in the destructive pair so it is the thing the eye
+                        // lands on first. Flagged until the crew CLOSES the
+                        // thread: closing is the product's existing word for
+                        // "handled", so nothing here invents a second notion
+                        // of resolved or lets a timer decide an emergency
+                        // stopped mattering.
+                        if row.emergency_at != nil, row.closed_at == nil {
+                            HStack(spacing: 3) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 8.5, weight: .bold))
+                                Text("URGENT")
+                                    .font(.golos(9.5, weight: .bold))
+                            }
+                            .foregroundStyle(BrandColor.destructive)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(BrandColor.destructiveContainer, in: Capsule())
+                            .accessibilityLabel("Urgent")
+                        }
                     }
                     if !snippet.isEmpty {
                         // A message carrying media reads differently at a glance

@@ -56,6 +56,11 @@ data class Conversation(
     val pinned_by_user_id: String? = null,
     val last_message_at: String,
     val closed_at: String? = null,
+    /**
+     * #414: when this thread last carried an emergency reply (URGENT/
+     * EMERGENCY/911/SOS). The inbox badges it while the thread is open.
+     */
+    val emergency_at: String? = null,
     val created_at: String,
     val updated_at: String,
 )
@@ -90,6 +95,8 @@ data class ConversationListItem(
     val pinned_by_user_id: String? = null,
     val last_message_at: String,
     val closed_at: String? = null,
+    /** #414: set when a customer replied URGENT; badged while the thread is open. */
+    val emergency_at: String? = null,
     val created_at: String,
     val updated_at: String,
     val contact: ContactSummary,

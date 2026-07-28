@@ -111,6 +111,11 @@ const patchSchema = z
     // Owner-authored away text; null clears it. Max 1000 for a comfortable
     // multi-line emergency-aware message.
     away_message: z.string().trim().max(1000).nullable().optional(),
+    // #414: whether a customer replying URGENT wakes the whole crew at high
+    // priority. A shop that does not offer emergency service turns this off —
+    // and should then take the offer out of its away message too, which is
+    // why the switch lives next to the message on every client.
+    emergency_keyword_enabled: z.boolean().optional(),
     // FEATURE-GAPS voice wave — missed-call text-back (O/A). mctb_message is
     // owner-authored (null clears it). D43: forward_to_cell is DELETED —
     // calls ring the browser, never a cell.
@@ -148,6 +153,7 @@ const patchSchema = z
       body.business_hours !== undefined ||
       body.away_enabled !== undefined ||
       "away_message" in body ||
+      body.emergency_keyword_enabled !== undefined ||
       body.mctb_enabled !== undefined ||
       "mctb_message" in body ||
       "voicemail_greeting" in body ||
@@ -384,6 +390,9 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
       body.away_message && body.away_message.length > 0
         ? body.away_message
         : null;
+  }
+  if (body.emergency_keyword_enabled !== undefined) {
+    patch.emergency_keyword_enabled = body.emergency_keyword_enabled;
   }
   // FEATURE-GAPS voice wave: missed-call text-back settings.
   if (body.mctb_enabled !== undefined) patch.mctb_enabled = body.mctb_enabled;

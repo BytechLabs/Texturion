@@ -19,8 +19,12 @@ export const COMPANY_COLUMNS =
   "subscription_status,current_period_start,current_period_end," +
   "overage_cap_multiplier,registration_fee_paid_at,canceled_at," +
   "cancel_at_period_end," +
-  // FEATURE-GAPS Step 1: after-hours away settings.
-  "business_hours,away_enabled,away_message," +
+  // FEATURE-GAPS Step 1: after-hours away settings. #414:
+  // emergency_keyword_enabled belongs beside them because the away message is
+  // what asks a customer to reply URGENT in the first place — the switch and
+  // the promise have to be readable in one place, or an owner turns one off
+  // and leaves the other making an offer nobody answers.
+  "business_hours,away_enabled,away_message,emergency_keyword_enabled," +
   // FEATURE-GAPS voice wave: missed-call text-back settings. (D43 deleted
   // forward_to_cell — the browser is the phone; the column is dropped.)
   "mctb_enabled,mctb_message," +

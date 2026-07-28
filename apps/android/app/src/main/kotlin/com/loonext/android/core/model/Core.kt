@@ -126,6 +126,13 @@ data class CompanyView(
     val business_hours: Map<String, DayHours?> = emptyMap(),
     val away_enabled: Boolean = false,
     val away_message: String? = null,
+    /**
+     * #414: whether a customer replying URGENT/EMERGENCY/911/SOS wakes the
+     * whole crew at high priority, exempt from the daily notification limit.
+     * Defaults TRUE for a lagging client, matching the server — the away copy
+     * that asks a homeowner to send it is on by default too.
+     */
+    val emergency_keyword_enabled: Boolean = true,
     val mctb_enabled: Boolean = false,
     val mctb_message: String? = null,
     /** Server-resolved template that will actually send (custom else default). */

@@ -215,6 +215,10 @@ export interface CompanyView {
   business_hours: BusinessHours;
   away_enabled: boolean;
   away_message: string | null;
+  /** #414: whether a customer replying URGENT/EMERGENCY/911/SOS wakes the
+   *  whole crew at high priority, exempt from the daily notification limit.
+   *  On by default, because the away-message copy that asks for it is. */
+  emergency_keyword_enabled: boolean;
   /** FEATURE-GAPS voice wave — missed-call text-back settings. */
   mctb_enabled: boolean;
   mctb_message: string | null;
@@ -300,6 +304,9 @@ export interface Conversation {
   pinned_by_user_id: string | null;
   last_message_at: string;
   closed_at: string | null;
+  /** #414: when this thread last carried an emergency reply (URGENT/EMERGENCY/
+   *  911/SOS). The inbox badges it while the thread is open. */
+  emergency_at: string | null;
   created_at: string;
   updated_at: string;
 }

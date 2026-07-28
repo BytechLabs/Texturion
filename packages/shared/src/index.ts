@@ -82,3 +82,13 @@ export {
   GENERIC_SEND_FAILURE,
   sendFailureMessage,
 } from "./send-failures";
+
+export {
+  CARRIER_REPLY_KEYWORDS,
+  EMERGENCY_KEYWORDS,
+  awayEmergencyNotice,
+  isEmergencyKeyword,
+  mentionsEmergencyKeyword,
+  unrecognizedReplyKeyword,
+} from "./emergency";
+export type { AwayEmergencyNotice } from "./emergency";

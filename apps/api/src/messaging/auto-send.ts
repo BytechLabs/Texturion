@@ -23,7 +23,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
 import { ApiError } from "../http/errors";
-import { suppressesAutoReply } from "./keywords";
+import { isCarrierKeyword, suppressesAutoReply } from "./keywords";
 import { dispatchOutbound, type SendClearance } from "./send";
 import type { MessageRow } from "./types";
 
@@ -39,7 +39,10 @@ export type AutoSendOutcome =
         | "recipient_opted_out"
         | "throttled"
         | "subscription_inactive"
-        | "not_found";
+        | "not_found"
+        // #414, emergency acknowledgment only.
+        | "emergency_disabled"
+        | "daily_cap";
     };
 
 interface ClaimResult {
@@ -47,7 +50,9 @@ interface ClaimResult {
     | "recipient_opted_out"
     | "throttled"
     | "subscription_inactive"
-    | "not_found";
+    | "not_found"
+    | "emergency_disabled"
+    | "daily_cap";
   message?: MessageRow;
 }
 
@@ -76,6 +81,17 @@ export async function guardedAutoSend(
      * asked.
      */
     clearance: SendClearance;
+    /**
+     * #414: this send IS the answer to an emergency, so the emergency
+     * suppression below must not silence it — that rule exists to stop the
+     * away reply telling someone to reply URGENT in answer to having replied
+     * URGENT, and this is the message it was cleared out of the way FOR.
+     * Exactly one caller may set it (emergency-ack.ts). Carrier keywords are
+     * still absolute: a contact who sent STOP hears nothing, ever.
+     */
+    answersEmergency?: boolean;
+    /** #414: per-company rolling-24h ceiling, emergency acknowledgment only. */
+    dailyCap?: number;
   },
 ): Promise<AutoSendOutcome> {
   // (b) Never fire on a STOP/HELP/START keyword (Telnyx handles those, D3),
@@ -84,21 +100,31 @@ export async function guardedAutoSend(
   // back — "reply URGENT and we'll call you" — in answer to having replied
   // URGENT. A robot telling a person with a gas smell to wait until morning is
   // worse than saying nothing.
-  if (suppressesAutoReply(args.triggerBody)) {
+  const suppressed = args.answersEmergency
+    ? isCarrierKeyword(args.triggerBody)
+    : suppressesAutoReply(args.triggerBody);
+  if (suppressed) {
     return { sent: false, reason: "carrier_keyword" };
   }
 
   const segments = Math.max(1, estimateSegments(args.body).segments);
 
   // (a) opt-out + (c) throttle + the insert-before-Telnyx queued row, atomic.
-  const { data, error } = await db.rpc("claim_auto_reply", {
+  // The emergency acknowledgment claims through its own function: it uses a
+  // separate throttle stamp, is exempt from the overage cap, and carries a
+  // daily ceiling instead. See the migration for each of those decisions.
+  const claimRpc = args.answersEmergency
+    ? "claim_emergency_ack"
+    : "claim_auto_reply";
+  const { data, error } = await db.rpc(claimRpc, {
     p_company_id: args.companyId,
     p_conversation_id: args.conversationId,
     p_body: args.body,
     p_segments_estimate: segments,
     p_throttle_seconds: args.throttleSeconds ?? AUTO_REPLY_THROTTLE_SECONDS,
+    ...(args.answersEmergency ? { p_daily_cap: args.dailyCap ?? 0 } : {}),
   });
-  if (error) throw new Error(`claim_auto_reply failed: ${error.message}`);
+  if (error) throw new Error(`${claimRpc} failed: ${error.message}`);
 
   const result = data as ClaimResult | null;
   if (!result || result.skipped) {
@@ -128,12 +154,16 @@ export async function guardedAutoSend(
     if (cause instanceof ApiError && cause.code === "rate_limited") {
       const { error: releaseError } = await db
         .from("conversations")
-        .update({ last_auto_reply_at: null })
+        .update(
+          args.answersEmergency
+            ? { last_emergency_ack_at: null }
+            : { last_auto_reply_at: null },
+        )
         .eq("id", args.conversationId)
         .eq("company_id", args.companyId);
       if (releaseError) {
         console.error(
-          `auto-reply throttle release failed for conversation ${args.conversationId}: ${releaseError.message}`,
+          `${claimRpc} throttle release failed for conversation ${args.conversationId}: ${releaseError.message}`,
         );
       }
     }

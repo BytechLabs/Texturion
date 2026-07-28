@@ -22,44 +22,14 @@ export const START_KEYWORDS = new Set(["START", "UNSTOP", "YES"]);
 export const HELP_KEYWORDS = new Set(["HELP", "INFO"]);
 
 /**
- * #414 — the words the product told a homeowner to send.
- *
- * The default away message, shipped enabled and kept by most owners, says:
- * "For a no-heat or burst-pipe emergency, reply URGENT and we'll call you."
- * Nothing handled URGENT. It threaded as an ordinary message, at normal push
- * priority, on a phone face-down on a bedside table.
- *
- * That promise is the PRODUCT's, not the owner's — the homeowner never agreed
- * to anything with us and had no way to know it was unimplemented.
+ * #414 — the emergency keywords live in `shared`, not here, because the
+ * settings screen needs the SAME list to tell an owner whether their away
+ * message still invites the reply. Two lists would drift apart in exactly the
+ * way that caused the bug.
  */
-export const EMERGENCY_KEYWORDS = new Set([
-  "URGENT",
-  "EMERGENCY",
-  "911",
-  "SOS",
-]);
+import { isEmergencyKeyword } from "@loonext/shared";
 
-/**
- * True when an inbound reads as the emergency reply we asked for.
- *
- * Matched on the FIRST WORD rather than the whole body, unlike the carrier
- * keywords above. Those are protocol — a subscriber sends exactly "STOP" — and
- * an exact match is right for them. This one is a frightened person at 11pm,
- * who types "URGENT!!", "Urgent - no heat", "URGENT house is freezing". An
- * exact-match rule would have caught none of those and kept none of the
- * promise.
- *
- * Anchoring to the first word is what keeps it from firing on "it's not
- * urgent" or "call me when it's less urgent" — the reply we asked for leads
- * with the word.
- */
-export function isEmergencyKeyword(body: string): boolean {
-  const first = body
-    .trim()
-    .split(/[\s,.!?:;-]+/, 1)[0]
-    ?.toUpperCase();
-  return first !== undefined && EMERGENCY_KEYWORDS.has(first);
-}
+export { EMERGENCY_KEYWORDS, isEmergencyKeyword } from "@loonext/shared";
 
 /**
  * True when the inbound body is a standalone STOP/START/HELP-family keyword

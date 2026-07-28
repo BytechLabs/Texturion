@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import { skipToken, useQuery } from "@tanstack/react-query";
-import { Lock, Paperclip, Pin } from "lucide-react";
+import { Lock, Paperclip, Pin, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 
 import { mmsMediaKind, type MmsMediaKind } from "@loonext/shared";
@@ -144,6 +144,12 @@ export const ConversationRow = memo(function ConversationRow({
   const snippet = useSnippet(conversation);
   const unread = conversation.unread;
   const pinned = conversation.pinned_at !== null;
+  // #414: flagged until the crew closes the thread. A badge that never clears
+  // is decoration; closing is the product's existing word for "handled", so
+  // it is the honest thing to clear on — no second notion of resolved, and no
+  // timer quietly deciding an emergency stopped mattering.
+  const emergency =
+    conversation.emergency_at !== null && conversation.closed_at === null;
   const assigneeName = conversation.assigned_user_id
     ? memberNames.get(conversation.assigned_user_id)
     : undefined;
@@ -210,6 +216,17 @@ export const ConversationRow = memo(function ConversationRow({
             {name}
           </span>
           <span className="flex shrink-0 items-center gap-1">
+            {/* #414 ask 2 — "visibly flagged in the inbox". A fourth quiet
+                icon beside the pin and the clip would blend into the row's
+                own rhythm, which is the opposite of what this state needs.
+                Breaking that rhythm on purpose is what makes the thread
+                findable at 11pm, and this is the one row state worth it. */}
+            {emergency && (
+              <span className="flex items-center gap-1 rounded-full bg-app-clay/12 px-1.5 py-0.5 text-[10.5px] font-semibold tracking-wide text-app-clay uppercase">
+                <TriangleAlert className="size-3" strokeWidth={2.25} />
+                Urgent
+              </span>
+            )}
             {pinned && (
               <Pin
                 className="size-3 text-app-muted-2"

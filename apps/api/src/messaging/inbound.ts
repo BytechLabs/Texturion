@@ -24,6 +24,7 @@ import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { notifyInboundMessage } from "../notifications/inbound";
 import { maybeSendAwayReply } from "./away-reply";
+import { sendEmergencyAcknowledgment } from "./emergency-ack";
 import {
   isEmergencyKeyword,
   START_KEYWORDS,
@@ -155,11 +156,21 @@ export async function handleInboundMessage(
     recordEvent: threaded.created,
   });
 
+  // #414: the reply we asked for. The default away message — on by default,
+  // kept by most owners — tells a homeowner "for a no-heat or burst-pipe
+  // emergency, reply URGENT and we'll call you", and until now that reply
+  // threaded as an ordinary message.
+  const emergency =
+    (company?.emergency_keyword_enabled ?? true) &&
+    isEmergencyKeyword(payload.text ?? "");
+
   // After-hours away auto-reply (FEATURE-GAPS Step 1) — only on the first
   // delivery. Best-effort: a failure here (e.g. a not-ready send gate) must
   // NOT wedge the already-durable inbound message in a retry loop, and the
   // guard's per-conversation throttle makes a sweeper replay a no-op anyway.
-  // Reply-exempt (D4); opt-out + STOP/HELP honored inside the guard.
+  // Reply-exempt (D4); opt-out + STOP/HELP honored inside the guard. An
+  // emergency is suppressed inside the guard too (#414 ask 4) — it gets the
+  // acknowledgment below instead, which promises no human.
   if (threaded.created) {
     try {
       await maybeSendAwayReply(env, db, {
@@ -172,6 +183,32 @@ export async function handleInboundMessage(
     } catch (cause) {
       console.error(
         `away-reply for conversation ${threaded.conversation_id} failed:`,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
+  }
+
+  // #414 ask 4: the honest answer. Silence would be better than false
+  // reassurance, but it is not the best we can do — someone who did exactly
+  // what we told them to deserves to know the word worked, and to be told the
+  // numbers that are staffed when ours may not be. The claim also stamps the
+  // inbox flag and writes the timeline event, so those can never disagree
+  // with whether an emergency happened.
+  //
+  // Best-effort for the same reason as the away reply, and the same throttle
+  // discipline makes a replay a no-op. Note it runs regardless of business
+  // hours: an emergency at 2pm with the crew on a roof is still an emergency.
+  if (threaded.created && emergency) {
+    try {
+      await sendEmergencyAcknowledgment(env, db, {
+        companyId: number.company_id,
+        conversationId: threaded.conversation_id,
+        fromE164,
+        triggerBody: payload.text ?? "",
+      });
+    } catch (cause) {
+      console.error(
+        `emergency acknowledgment for conversation ${threaded.conversation_id} failed:`,
         cause instanceof Error ? cause.message : String(cause),
       );
     }
@@ -230,12 +267,7 @@ export async function handleInboundMessage(
   const allowEmail = threaded.notify_email ?? threaded.notify === true;
   const allowPush = threaded.notify_push ?? threaded.notify === true;
 
-  // #414: the reply we asked for. The default away message — on by default,
-  // kept by most owners — tells a homeowner "for a no-heat or burst-pipe
-  // emergency, reply URGENT and we'll call you", and until now that reply
-  // threaded as an ordinary message.
-  //
-  // It bypasses BOTH gates above, and each for its own reason:
+  // #414: an emergency bypasses BOTH gates above, each for its own reason:
   //
   //   the 15-minute debounce — a customer who texted two minutes ago and then
   //   types URGENT is the exact case the debounce would silence, and it is the
@@ -244,30 +276,6 @@ export async function handleInboundMessage(
   //   the #343 daily budget — a cost ceiling dropping a no-heat call in
   //   January is not a trade-off anybody would choose. An emergency is not
   //   metered.
-  const emergency =
-    (company?.emergency_keyword_enabled ?? true) &&
-    isEmergencyKeyword(payload.text ?? "");
-
-  // The timeline needs a word for it. Without one, the most consequential
-  // message a workspace can receive leaves the same trace as any other — and
-  // "why did my phone go off at 3am" has no answer anyone can look up.
-  // Best-effort: a failed timeline row must never cost the alert itself.
-  if (threaded.created && emergency) {
-    const { error: flagError } = await db.from("conversation_events").insert({
-      company_id: number.company_id,
-      conversation_id: threaded.conversation_id,
-      actor_user_id: null, // the customer acted, not a member
-      type: "emergency_flagged",
-      payload: { matched: (payload.text ?? "").trim().slice(0, 80) },
-    });
-    if (flagError) {
-      console.error(
-        `emergency flag not recorded for ${threaded.conversation_id}:`,
-        flagError.message,
-      );
-    }
-  }
-
   if (threaded.created && (emergency || allowEmail || allowPush)) {
     await notifyInboundMessage(
       env,

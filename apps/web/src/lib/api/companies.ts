@@ -62,6 +62,8 @@ export interface CompanyPatch {
   business_hours?: BusinessHours;
   away_enabled?: boolean;
   away_message?: string | null;
+  /** #414: whether a reply of URGENT wakes the whole crew. */
+  emergency_keyword_enabled?: boolean;
   /** FEATURE-GAPS voice wave — missed-call text-back (O/A). */
   mctb_enabled?: boolean;
   mctb_message?: string | null;

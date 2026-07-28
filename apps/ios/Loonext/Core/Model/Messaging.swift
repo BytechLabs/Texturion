@@ -50,6 +50,11 @@ struct Conversation: Codable, Sendable {
     let pinned_by_user_id: String?
     let last_message_at: String
     let closed_at: String?
+    /// #414: when this thread last carried an emergency reply (URGENT/
+    /// EMERGENCY/911/SOS). The inbox badges it while the thread is open.
+    /// `var … = nil` rather than `let`: a `let` optional becomes a REQUIRED
+    /// memberwise-init parameter and breaks every existing construction site.
+    var emergency_at: String? = nil
     let created_at: String
     let updated_at: String
 }
@@ -82,6 +87,10 @@ struct ConversationListItem: Codable, Sendable {
     let pinned_by_user_id: String?
     let last_message_at: String
     let closed_at: String?
+    /// #414: set when a customer replied URGENT; badged while the thread is
+    /// open. `var … = nil` rather than `let` so it does not become a required
+    /// memberwise-init parameter at every existing construction site.
+    var emergency_at: String? = nil
     let created_at: String
     let updated_at: String
     let contact: ContactSummary

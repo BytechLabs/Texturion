@@ -78,6 +78,7 @@ function listItem(
     assigned_user_id: null,
     pinned_at: null,
     pinned_by_user_id: null,
+    emergency_at: null,
     last_message_at: lastMessageAt,
     closed_at: null,
     created_at: "2026-06-01T00:00:00.000Z",

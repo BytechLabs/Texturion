@@ -11,7 +11,12 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { CARRIER_REPLY_KEYWORDS } from "@loonext/shared";
+
 import {
+  HELP_KEYWORDS,
+  START_KEYWORDS,
+  STOP_KEYWORDS,
   isCarrierKeyword,
   isEmergencyKeyword,
   suppressesAutoReply,
@@ -73,5 +78,24 @@ describe("an emergency never draws the away reply (#414 ask 4)", () => {
 
   it("leaves an ordinary message alone", () => {
     expect(suppressesAutoReply("do you do gutters?")).toBe(false);
+  });
+});
+
+describe("#453 — the settings warning and the opt-out path agree on carrier words", () => {
+  it("has the same carrier vocabulary on both sides", () => {
+    // THIS FILE is canonical for the opt-out path: carrier truth is not moved
+    // around casually. `shared` keeps its own copy so the settings screen can
+    // decide whether an owner's "reply X" names something already handled.
+    //
+    // Two lists is the arrangement that caused #414, so this test is the thing
+    // that makes it safe: add a keyword on either side alone and the build
+    // fails here rather than in a settings screen telling an owner that STOP
+    // is unrecognised.
+    const canonical = [
+      ...STOP_KEYWORDS,
+      ...START_KEYWORDS,
+      ...HELP_KEYWORDS,
+    ].sort();
+    expect([...CARRIER_REPLY_KEYWORDS].sort()).toEqual(canonical);
   });
 });

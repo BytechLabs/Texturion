@@ -149,6 +149,11 @@ struct CompanyView: Codable, Sendable {
     @Default<DefaultEmptyBusinessHours> var business_hours: [String: DayHours?]
     @Default<DefaultFalse> var away_enabled: Bool
     let away_message: String?
+    /// #414: whether a customer replying URGENT/EMERGENCY/911/SOS wakes the
+    /// whole crew at high priority, exempt from the daily notification limit.
+    /// Defaults TRUE against a lagging server, matching it — the away copy
+    /// that asks a homeowner to send it is on by default too.
+    @Default<DefaultTrue> var emergency_keyword_enabled: Bool
     @Default<DefaultFalse> var mctb_enabled: Bool
     let mctb_message: String?
     /// #192: server-resolved template that will actually send (custom else the

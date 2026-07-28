@@ -97,7 +97,11 @@ const MMS_SIGNED_URL_TTL_SECONDS = 3600;
 
 const CONVERSATION_COLUMNS =
   "id,company_id,contact_id,phone_number_id,status,is_spam,assigned_user_id," +
-  "pinned_at,pinned_by_user_id,last_message_at,closed_at,created_at,updated_at";
+  "pinned_at,pinned_by_user_id,last_message_at,closed_at,created_at,updated_at," +
+  // #414 ask 2 — "visibly flagged in the inbox". Set when a customer replies
+  // URGENT; the clients badge the row while the thread is open, and closing
+  // the thread is the crew saying it was handled.
+  "emergency_at";
 
 const MESSAGE_COLUMNS =
   "id,conversation_id,direction,body,status,segments,encoding," +
