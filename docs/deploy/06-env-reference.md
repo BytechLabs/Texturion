@@ -56,6 +56,7 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 | `STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — Extra storage add-on, $5/mo | `price_xxxxxxxxxxxx` |
 | `STRIPE_MODULE_REGIONS_CA_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — Canada numbers add-on, $5/mo. Set it now so the live flip is complete, but the module itself stays **coming soon**: the API refuses to sell `regions_ca` regardless of the price id until multi-region provisioning ships (`apps/api/src/billing/company-modules.ts:26-33`). | `price_xxxxxxxxxxxx` |
 | `POSTHOG_API_KEY` | yes — **OPTIONAL** | PostHog → Project Settings → Project API key | `phc_xxxxxxxxxxxx` |
+| `OPS_ALERT_EMAIL` | yes — **OPTIONAL** | Operator decision; the address FOUNDER alerts go to. Unset falls back to `support@loonext.com`, so nothing is lost by omitting it — but every founder-facing alert then lands in the support inbox rather than wherever you actually read them. Carries: storage-abuse tiers (#121), AI per-feature cap alerts, the per-dial volume alert (#448), the "this tenant is projected to cost more than they pay" copy and its weekly digest (#447), and the opt-out reconciliation report (#331). | `founder@loonext.com` |
 
 **Validation notes** (`apps/api/src/env.ts`): `SUPABASE_URL`, `SUPABASE_JWKS_URL`,
 `SENTRY_DSN`, `APP_ORIGIN`, `API_ORIGIN` must parse as URLs (`z.url()`, lines

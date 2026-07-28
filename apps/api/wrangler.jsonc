@@ -41,7 +41,8 @@
       "0 14 * * *", // grace & release (daily)
       "0 15 * * *", // subscription reconcile
       "45 15 * * *", // opt-out reconciliation against the carrier list (daily)
-      "30 15 * * *" // webhook_events ledger retention (daily)
+      "30 15 * * *", // webhook_events ledger retention (daily)
+      "50 13 * * 1" // #447 founder digest: tenants projected over revenue (weekly, Mon)
     ]
   },
   "unsafe": {

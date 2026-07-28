@@ -9,7 +9,10 @@ import { CallSessionDO as CallSessionDOImpl } from "./calls/session-do";
 import { jwtAuth } from "./auth/jwt";
 import { runGraceJob } from "./billing/grace";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
-import { runOverageWarningJob } from "./billing/overage-warning";
+import {
+  runOverageDigestJob,
+  runOverageWarningJob,
+} from "./billing/overage-warning";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
 import type { AppEnv } from "./context";
 import { getEnv, type Bindings, type Env } from "./env";
@@ -312,6 +315,11 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
   // the ledger grows without bound for the life of the install.
   // Ledger retention, both daily: the webhook ledger's dedupe window and the
   // #231 audit log's 12 months. Neither can grow without bound.
+  // #447: the weekly founder digest — how many tenants were projected over
+  // revenue in the last 7 days. The per-tenant copies go out hourly with the
+  // warning; this is the only place the PATTERN shows up, which is the
+  // question #446 asks. Monday morning, off the hour.
+  "50 13 * * 1": [runOverageDigestJob],
   "30 15 * * *": [
     pruneWebhookEvents,
     pruneAuditLog,

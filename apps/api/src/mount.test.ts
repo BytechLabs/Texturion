@@ -426,6 +426,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
         "0 15 * * *", // subscription reconcile
         "45 15 * * *", // opt-out reconciliation against the carrier (#331)
         "30 15 * * *", // webhook_events ledger retention
+        "50 13 * * 1", // #447 founder digest: tenants projected over revenue (weekly)
       ].sort(),
     );
   });
