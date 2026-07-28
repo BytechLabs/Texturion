@@ -21,7 +21,7 @@ Prices, and a Billing Meter, so the key must have **write** on all three.
   (`apps/api/scripts/stripe-setup.ts:6,32`).
 - The **runtime** key the Worker uses (`STRIPE_SECRET_KEY` secret) can be a
   narrower **restricted key** `rk_live_...` — see the scope note in
-  [env-and-secrets.md](./env-and-secrets.md) §Stripe. The catalog script and the
+  [06-env-reference.md](./06-env-reference.md) §A. The catalog script and the
   runtime Worker read the same env var name but do not have to be the same key.
 
 Source: `apps/api/src/billing/stripe.ts:25` constructs the client from
@@ -158,7 +158,7 @@ per-product tax-code entry is needed in the dashboard.
 ## Step 5 — Register the webhook endpoint
 
 This can only be done once the API custom domain exists (the `API_ORIGIN` value
-— see [runbook.md](./runbook.md) §1/§6). The endpoint URL is:
+— see [README.md](./README.md) and [05-workers-deploy.md](./05-workers-deploy.md)). The endpoint URL is:
 
 ```
 https://api.loonext.com/webhooks/stripe

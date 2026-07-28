@@ -3,7 +3,7 @@
 The vendor-side actions for **Telnyx**, **Resend**, and **Sentry/PostHog**, and
 where each webhook URL is registered. Stripe's own setup (catalog, tax, its
 webhook endpoint) is in [09](./09-stripe-catalog-setup.md). Supabase is in
-[05](./05-supabase-migrations.md). Every fact cites `file:line`.
+[05](./vendor-supabase-migrations.md). Every fact cites `file:line`.
 
 The one webhook URL rule for Loonext: **there is exactly one Telnyx webhook path
 and one Stripe webhook path**, both on the API Worker, both outside the JWT/CORS
@@ -156,7 +156,7 @@ Two uses, both need one verified domain and one API key.
 2. **Supabase Auth custom SMTP.** Invite/signup/reset emails are sent by
    Supabase Auth using **Resend as the custom SMTP provider**
    (`SPEC.md:100,1065`). Configured in the Supabase dashboard — see
-   [05](./05-supabase-migrations.md).
+   [05](./vendor-supabase-migrations.md).
 
 **Operator actions in the Resend dashboard:**
 
@@ -169,7 +169,7 @@ Two uses, both need one verified domain and one API key.
 2. **Create an API key** → `RESEND_API_KEY` (`re_...`)
    (`apps/api/src/env.ts:37`).
 3. For Supabase SMTP: Resend → SMTP credentials; plug host/port/user/pass into
-   Supabase Auth (see [05](./05-supabase-migrations.md)).
+   Supabase Auth (see [05](./vendor-supabase-migrations.md)).
 
 **Yields env vars:** `RESEND_API_KEY`, `RESEND_FROM`.
 

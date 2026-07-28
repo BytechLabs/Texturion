@@ -51,7 +51,8 @@
     "db:test:workspace-closure": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/workspace_closure.test.sql",
     "db:test:purge-workspace": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/purge_workspace.test.sql",
     "db:test:delete-account": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/delete_account.test.sql",
-    "db:test:spam-review": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/spam_review.test.sql"
+    "db:test:spam-review": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/spam_review.test.sql",
+    "check:env-doc": "node scripts/check-env-doc.mjs"
   },
   "devDependencies": {
     "playwright": "^1.61.1"

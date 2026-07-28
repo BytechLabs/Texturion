@@ -57,6 +57,15 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 | `STRIPE_MODULE_REGIONS_CA_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — Canada numbers add-on, $5/mo. Set it now so the live flip is complete, but the module itself stays **coming soon**: the API refuses to sell `regions_ca` regardless of the price id until multi-region provisioning ships (`apps/api/src/billing/company-modules.ts:26-33`). | `price_xxxxxxxxxxxx` |
 | `POSTHOG_API_KEY` | yes — **OPTIONAL** | PostHog → Project Settings → Project API key | `phc_xxxxxxxxxxxx` |
 | `OPS_ALERT_EMAIL` | yes — **OPTIONAL** | Operator decision; the address FOUNDER alerts go to. Unset falls back to `support@loonext.com`, so nothing is lost by omitting it — but every founder-facing alert then lands in the support inbox rather than wherever you actually read them. Carries: storage-abuse tiers (#121), AI per-feature cap alerts, the per-dial volume alert (#448), the "this tenant is projected to cost more than they pay" copy and its weekly digest (#447), and the opt-out reconciliation report (#331). | `founder@loonext.com` |
+| `STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — extra number on Starter. Unset does NOT give a free number: `billing/extra-numbers.ts` fails CLOSED and refuses to sell one. | `price_xxxxxxxxxxxx` |
+| `STRIPE_EXTRA_NUMBER_PRO_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — extra number on Pro. Same fail-closed behaviour as the Starter id. | `price_xxxxxxxxxxxx` |
+| `TELNYX_WEBRTC_CONNECTION_ID` | yes — **required for calling** | Telnyx → Voice → Credential connection used to mint softphone tokens. Unset boots fine and the token endpoint 503s honestly, which means **the browser phone does not work** — every call feature is dark. | `2XXXXXXXXXXXXXXXXX` |
+| `TURNSTILE_SECRET_KEY` | yes — **OPTIONAL** | Cloudflare → Turnstile → widget secret. Unset leaves signup on its honeypot, rate limits and daily cap only, and no token is required — weaker, not broken. | `0x4AAAAAAA...` |
+| `FCM_SERVICE_ACCOUNT_JSON` | yes — **required for Android push** | Firebase → Project settings → Service accounts → generate key, pasted as one JSON line. Unset makes an Android push a logged no-op; Web Push is unaffected. | `{"type":"service_account",…}` |
+| `RESEND_REPLY_TO` | yes — **OPTIONAL** | Operator decision; the Reply-To stamped on every outbound email. A per-send value overrides it. | `support@loonext.com` |
+| `BILLING_WRITES_DISABLED` | no — **incident switch** | Set only to pause Stripe WRITES during an incident. Reads are never gated; absent is the normal posture and the one to deploy with. | `1` |
+| `STRIPE_API_BASE` | no — **local/e2e only** | Points the Stripe client at a stub (`http://127.0.0.1:8791`). Must be **absent in production** or billing talks to nothing. | *(unset)* |
+| `TELNYX_API_BASE` | no — **local/e2e only** | Points the Telnyx client at a stub. Must be **absent in production** or messaging and calling talk to nothing. | *(unset)* |
 
 **Validation notes** (`apps/api/src/env.ts`): `SUPABASE_URL`, `SUPABASE_JWKS_URL`,
 `SENTRY_DSN`, `APP_ORIGIN`, `API_ORIGIN` must parse as URLs (`z.url()`, lines
@@ -85,7 +94,7 @@ Cloudflare account** — change it if it collides with another Worker's limiter.
 
 ---
 
-## B. Web build-time public vars (`loonext-web`) — 3 required + 3 optional
+## B. Web build-time public vars (`loonext-web`) — 3 required + 6 optional
 
 Inlined at `next build`; the build **fails** if any of the three required ones is
 missing (`apps/web/src/env.ts:3-17,22-38`). They are public (shipped in the
@@ -99,6 +108,9 @@ browser bundle).
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — **OPTIONAL** | no (public) | Cloudflare → Turnstile → your widget → **Site key** | `0x4AAAAAAA...` |
 | `NEXT_PUBLIC_APP_ORIGIN` — **OPTIONAL** | no (public) | Operator decision; must equal the api Worker's `APP_ORIGIN` secret | `https://app.loonext.com` |
 | `NEXT_PUBLIC_GTM_ID` — **OPTIONAL** | no (public) | Google Tag Manager → container → **Container ID** (#124) | `GTM-MTL658DD` |
+| `NEXT_PUBLIC_SENTRY_DSN` — **OPTIONAL** | no (public) | Sentry → the WEB project → Client Keys (DSN). Unset means client-side error reporting is silently off — the server Worker keeps reporting either way. | `https://abc123@o0.ingest.sentry.io/1` |
+| `NEXT_PUBLIC_POSTHOG_KEY` — **OPTIONAL** | no (public) | PostHog → Project Settings → Project API key. Unset means product analytics is silently off. Distinct from the Worker's `POSTHOG_API_KEY`. | `phc_xxxxxxxxxxxx` |
+| `NEXT_PUBLIC_BLOG_ORIGIN` — **OPTIONAL** | no (public) | Operator decision (#130). When set, the middleware serves the blog at this host's root; `loonext.com/blog` keeps working either way. Unset = no blog host. | `https://blog.loonext.com` |
 
 > `NEXT_PUBLIC_GTM_ID` (`apps/web/src/env.ts`, #124): when set, the MARKETING
 > layout loads Google Tag Manager (marketing pages only — never the app) under

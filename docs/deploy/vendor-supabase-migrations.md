@@ -67,7 +67,7 @@ Supabase Auth sends invite/signup/reset emails via `inviteUserByEmail` using
 **Resend as the custom SMTP provider** (`SPEC.md:100,1065`; invites at
 `SPEC.md:832`). Configure Supabase dashboard → Authentication → Emails / SMTP
 with Resend's SMTP credentials, and a sender at the **verified Resend domain**
-(same domain as `RESEND_FROM`). See [07](./07-webhooks-and-vendor-setup.md)
+(same domain as `RESEND_FROM`). See [07](./vendor-webhooks-setup.md)
 §Resend for the domain-verification step. (Note: `supabase/config.toml:237-244`
 shows the SMTP block commented out — SMTP is set on the **hosted** project, not
 via committed local config.)

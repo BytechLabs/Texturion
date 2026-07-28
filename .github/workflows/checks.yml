@@ -137,6 +137,14 @@ jobs:
       - name: Guard destructive migrations
         run: node scripts/check-migrations.mjs
 
+      # #377: there is ONE deployed environment, so a variable that reaches
+      # code without reaching the deploy reference is discovered in production
+      # or on an invoice. The two env docs that used to disagree each shipped a
+      # broken config when followed alone; this is what stops a third from
+      # growing. Cheap, so it runs beside the migration guard.
+      - name: Guard the env reference
+        run: node scripts/check-env-doc.mjs
+
       # feat/fix/perf subjects are published verbatim in the release notes, so
       # they are checked like changelog copy. The commit-msg hook catches this
       # locally; this is the gate that --no-verify cannot skip. Only the commits

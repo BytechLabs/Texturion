@@ -40,11 +40,20 @@ by earlier ones.
 | 8 | Ongoing operations, crons, rotation, backups, incidents | [08-operations.md](./08-operations.md) | — |
 
 There are additional vendor deep-dive pages in this directory
-(`05-supabase-migrations.md`, `06-cron-triggers.md`, `07-webhooks-and-vendor-setup.md`,
-`09-stripe-catalog-setup.md`, `vendor-setup.md`, `runbook.md`, `env-and-secrets.md`)
-authored by a parallel effort; they cover the same facts from a per-vendor angle
-and can be read as cross-references. **This numbered `01`–`08` set is the
+(`vendor-supabase-migrations.md`, `vendor-cron-triggers.md`,
+`vendor-webhooks-setup.md`, `09-stripe-catalog-setup.md`, `10-email-inbox.md`)
+covering the same facts from a per-vendor angle. **This numbered set is the
 operator walkthrough — start here.**
+
+#377: three pages that duplicated the walkthrough (`env-and-secrets.md`,
+`runbook.md`, `vendor-setup.md`) were DELETED rather than merged, because the
+two env inventories disagreed in both directions and each one, followed alone,
+shipped a broken production — one with no voice-overage metering, the other
+with every cost alert going to the wrong inbox. The deep-dives lost their
+number prefixes at the same time: three prefixes collided, so the sequence
+ordered nothing. **[06-env-reference.md](./06-env-reference.md) is the only
+variable inventory**, and `scripts/check-env-doc.mjs` fails CI if it and the
+zod schemas ever disagree again.
 
 ---
 
