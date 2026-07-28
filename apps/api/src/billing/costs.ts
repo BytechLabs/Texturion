@@ -49,8 +49,16 @@ export const UNIT_COST_CENTS = {
   voiceMinute: 1.2,
   /** Per-forwarded-call transfer/dial fee: ~$0.10 on every forwarded call — one
    *  dial command per call (PRICING-AUDIT §4; voice-webhook.ts). Scales with call
-   *  COUNT, not minutes, so the voice spending cap can't bound it — priced from
-   *  api_period_forwarded_calls, not the minute sum (#98). */
+   *  COUNT, not minutes, so the voice SPENDING cap can't bound it — priced from
+   *  api_period_forwarded_calls, not the minute sum (#98).
+   *
+   *  #448: it has its own count ceiling now (`companyOverDialCap`), because a
+   *  cost centre the money cap structurally cannot reach is exactly the kind
+   *  this product does not leave uncapped. Only legs we DIAL are counted
+   *  ('forward','out_agent','out_customer'); an inbound call is never one of
+   *  them — it lands as 'in_browser'/'vm_inbound'/'inbound_untagged' and the
+   *  member ring legs are SIP legs we absorb — so the exposure is outbound
+   *  origination, not a stranger dialling our number. */
   voiceTransfer: 10,
   /** Stored file/media, per GB per month: Supabase $0.021/GB/mo (PRICING-AUDIT §4). */
   storageGbMonth: 2.1,

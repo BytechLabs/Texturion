@@ -15,8 +15,10 @@ import * as Sentry from "@sentry/cloudflare";
 import { storedBytes, type StorageUsageRow } from "./stored-bytes";
 
 import { billingRecipients } from "./recipients";
+import { UNIT_COST_CENTS } from "./costs";
 import { EGRESS_ALLOWANCE_BYTES } from "../attachments/egress";
 import {
+  dialCeilings,
   PLAN_INCLUDED_SEGMENTS,
   PLAN_VOICE_MINUTES,
   type PlanId,
@@ -52,13 +54,21 @@ export type UsageAlertMetric =
   // write it again.
   | "egress"
   // #85/#92: dynamic overage warning — one ledger row per (company, period).
-  | "cost_projection";
+  | "cost_projection"
+  // #448: per-dial fees, which the SECONDS-denominated spending cap cannot
+  // bound. One ledger row per (company, period) — this is our cost, not the
+  // customer's bill, so it goes to ops only.
+  | "voice_dials";
 
 export interface ActiveCompanyRow {
   id: string;
   name: string;
   plan: PlanId;
   current_period_start: string;
+  /** #448: the dial-count lines scale with the same ceiling the minute cap
+   *  uses, so a tenant who raised their cap is not alerted at a tenth of the
+   *  point where dialing actually stops. */
+  overage_cap_multiplier: number | string | null;
 }
 
 /** "5 GB" / "2.3 GB" for the storage-alert copy. */
@@ -304,7 +314,7 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
   const db = getDb(env);
   const { data, error } = await db
     .from("companies")
-    .select("id,name,plan,current_period_start")
+    .select("id,name,plan,current_period_start,overage_cap_multiplier")
     .eq("subscription_status", "active")
     .not("plan", "is", null)
     .not("current_period_start", "is", null)
@@ -417,6 +427,62 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
             ),
           );
         }
+      }
+
+      // #448 dial arm. The voice arm above measures SECONDS, which is exactly
+      // what a run of very short calls does not accrue — each dial costs ~10c
+      // whatever happens next, so a dialer stuck in a loop reports as
+      // comfortably inside its minute allowance while spending real money.
+      //
+      // Ops only, and no customer copy: the per-dial fee is OUR cost
+      // (UNIT_COST_CENTS.voiceTransfer), never billed to the customer, so
+      // there is nothing for them to act on and telling them would read as a
+      // charge they cannot find. #447 is the general form of this — the person
+      // who eats the cost is the one who has to be told.
+      const { data: dialCount, error: dialError } = await db.rpc(
+        "api_period_forwarded_calls",
+        { p_company_id: company.id, p_since: company.current_period_start },
+      );
+      if (dialError) {
+        throw new Error(`dial count failed: ${dialError.message}`);
+      }
+      const dials = Number(dialCount);
+      const lines = dialCeilings(company.plan, company.overage_cap_multiplier);
+      if (dials >= lines.alertAt) {
+        const spentCents = dials * UNIT_COST_CENTS.voiceTransfer;
+        await recordAndSendAlert(
+          env,
+          company,
+          "voice_dials",
+          // One row per (company, period): the ledger PK treats the threshold
+          // purely as a dedupe key, and there is only one line to cross.
+          lines.alertAt,
+          {
+            subject: `${company.name}: unusual call volume`,
+            text:
+              `${company.name} has placed ${dials} calls this period.\n\n` +
+              `Calling still works. This is a heads-up, not a limit — you can ` +
+              `keep calling as normal.\n\nIf that number looks wrong, something ` +
+              `may be dialling on its own. Get in touch and we'll look at it ` +
+              `with you.`,
+          },
+          {
+            subject: `[ops] ${company.name}: ${dials} dials this period ($${(spentCents / 100).toFixed(2)} in per-dial fees)`,
+            text:
+              `Company: ${company.name} (${company.id})\n` +
+              `Plan: ${company.plan}\n` +
+              `Dials this period: ${dials}\n` +
+              `Per-dial cost so far: $${(spentCents / 100).toFixed(2)} ` +
+              `(${UNIT_COST_CENTS.voiceTransfer}c each)\n` +
+              `Alert line: ${lines.alertAt} dials\n` +
+              `Calling pauses at: ${lines.stopAt} dials\n\n` +
+              `The voice spending cap counts SECONDS and cannot bound this ` +
+              `(#448). Short calls accrue ~0 seconds and 10c each, so this ` +
+              `tenant can look well inside its minute allowance while this ` +
+              `runs. Worth checking for a dialer in a retry loop before it ` +
+              `reaches the pause.`,
+          },
+        );
       }
 
       // #97/#103: no mms arm — picture messages have no separate cap anymore

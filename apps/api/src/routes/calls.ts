@@ -42,6 +42,7 @@ import { buildPage } from "../http/pagination";
 import { resolveActorNames } from "./core/attribution";
 import {
   buildOutboundState,
+  companyOverDialCap,
   companyOverVoiceCap,
   OUTBOUND_CUSTOMER_STATE,
   type CompanyVoiceState,
@@ -622,6 +623,18 @@ async function authorizeOutboundCall(
       c,
       "usage_cap_reached",
       "You've reached your calling spending cap for this period.",
+    );
+  }
+
+  // #448: the spending cap counts SECONDS, so a run of very short calls slips
+  // under it while costing ~10c per dial. This is the count ceiling — set five
+  // times higher than the tenant's own minute cap could ever cost us, so it
+  // catches a dialer stuck in a loop and nothing a crew could do by hand.
+  if (await companyOverDialCap(db, companyId, company)) {
+    return errorResponse(
+      c,
+      "usage_cap_reached",
+      "You've placed an unusual number of calls this period, so calling is paused. Get in touch and we'll sort it out.",
     );
   }
 

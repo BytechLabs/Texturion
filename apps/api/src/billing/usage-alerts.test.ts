@@ -37,6 +37,10 @@ interface UsageState {
   voiceSeconds?: number;
   /** api_period_egress_bytes (default 0 → no egress alerts). */
   egressBytes?: number;
+  /** #448 api_period_forwarded_calls (default 0 → no dial alert). */
+  dials?: number;
+  /** #448: the cap the dial ceilings scale with (default 1x). */
+  capMultiplier?: number;
 }
 
 function usageEndpoints(state: UsageState): StubEndpoint[] {
@@ -47,6 +51,7 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
         name: "Acme Plumbing",
         plan: state.plan ?? "starter",
         current_period_start: PERIOD_START,
+        overage_cap_multiplier: state.capMultiplier ?? 1,
       },
     ]),
     endpoint("POST", /\/rest\/v1\/rpc\/api_period_segments/, () => state.used),
@@ -63,6 +68,11 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
       "POST",
       /\/rest\/v1\/rpc\/api_period_egress_bytes/,
       () => state.egressBytes ?? 0,
+    ),
+    endpoint(
+      "POST",
+      /\/rest\/v1\/rpc\/api_period_forwarded_calls/,
+      () => state.dials ?? 0,
     ),
     // #134/D42: NO company_modules stub — the voice arm reads plan allowances
     // for everyone now (a module read would fail loudly as unstubbed).
@@ -284,6 +294,52 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     expect(sentEmails(harness)).toHaveLength(0);
   });
 
+  it("#448: a dial run the minute cap cannot see still reaches the founder", async () => {
+    // The whole point: near-zero minutes, real money. 300 dials on a starter
+    // plan at 1x is $30 of per-dial fees while the voice arm reports the
+    // tenant as using 1,000 of 2,500 allowance minutes — comfortably inside.
+    const state: UsageState = {
+      used: 0,
+      ledger: new Set(),
+      voiceSeconds: 1000 * 60,
+      dials: 300,
+    };
+    const { harness, done } = run(state);
+    await done;
+
+    const emails = sentEmails(harness);
+    // One to the customer, one to ops — the ops copy carries the money,
+    // because the per-dial fee is our cost and never their bill.
+    const ops = emails.find((e) => e.subject.startsWith("[ops]"));
+    expect(ops).toBeDefined();
+    expect(ops?.subject).toContain("$30.00");
+    expect(ops?.text).toContain("300");
+    expect(ops?.text).toContain("Calling pauses at: 1500");
+
+    const customer = emails.find((e) => !e.subject.startsWith("[ops]"));
+    expect(customer?.subject).toContain("unusual call volume");
+    // Never quote OUR cost at the customer — they are not billed for it.
+    expect(customer?.text).not.toContain("$");
+  });
+
+  it("#448: below the dial line, and on a re-run, it says nothing", async () => {
+    const quiet: UsageState = { used: 0, ledger: new Set(), dials: 299 };
+    const first = run(quiet);
+    await first.done;
+    expect(sentEmails(first.harness)).toHaveLength(0);
+
+    // Ledger already holds the row → the second pass sends nothing, the same
+    // once-per-period guarantee every other arm has.
+    const repeat: UsageState = {
+      used: 0,
+      ledger: new Set(["voice_dials:300"]),
+      dials: 400,
+    };
+    const second = run(repeat);
+    await second.done;
+    expect(sentEmails(second.harness)).toHaveLength(0);
+  });
+
   it("#103: never reads or alerts on a picture-message count (the cap is gone)", async () => {
     // Pictures meter as segments now — a heavy-MMS period surfaces through the
     // `segments` arm, never a phantom "picture-message limit" warning about a
@@ -403,6 +459,7 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
       })),
       endpoint("POST", /\/rest\/v1\/rpc\/api_period_forward_seconds/, () => 0),
       endpoint("POST", /\/rest\/v1\/rpc\/api_period_egress_bytes/, () => 0),
+      endpoint("POST", /\/rest\/v1\/rpc\/api_period_forwarded_calls/, () => 0),
       endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
         const row = call.json() as { threshold: number };
         ledger.add(row.threshold);

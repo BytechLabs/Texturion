@@ -221,3 +221,49 @@ export function mirrorSubscriptionStatus(
 export function hasLiveSubscription(status: LocalSubscriptionStatus): boolean {
   return status === "active" || status === "past_due" || status === "unpaid";
 }
+
+/**
+ * #448 — the dial-count lines, the ceiling the SECONDS-denominated spending
+ * cap structurally cannot express.
+ *
+ * Every dial command costs ~10c whatever happens next
+ * (UNIT_COST_CENTS.voiceTransfer), so a run of very short calls accrues almost
+ * nothing against the minute cap and real money against us. Both lines are
+ * derived from the ceiling the customer already chose rather than invented:
+ *
+ *   alertAt — dial fees reach what this tenant's minutes could cost us AT the
+ *             cap (capMinutes x 1.2c). Starter at 1x: $30, so ~300 dials. The
+ *             founder hears while it is happening, per the alert-before-the-cap
+ *             rule the AI features already follow.
+ *   stopAt  — five times that. Fifty outbound calls a day every day on a
+ *             starter plan is not a busy week, it is a loop.
+ *
+ * Deliberately generous, because the failure mode of a tight ceiling is
+ * refusing to dial a real customer, which is worse than the fee. Where the
+ * ECONOMIC ceiling belongs is #446's question; this is only the runaway
+ * backstop, sized so it can catch nothing else.
+ *
+ * The cents are inlined rather than imported from costs.ts to keep this module
+ * dependency-free (it is imported by both billing and messaging); the drift
+ * guard is a test asserting they still match UNIT_COST_CENTS.
+ */
+export const DIAL_STOP_MULTIPLE = 5;
+
+/** Hard ceiling on the customer-set cap multiplier (mirrors voice-webhook). */
+const MAX_DIAL_CAP_MULTIPLIER = 10;
+
+export function dialCeilings(
+  plan: PlanId,
+  overageCapMultiplier: number | string | null,
+): { alertAt: number; stopAt: number } {
+  const multiplier = Number(overageCapMultiplier);
+  const capMultiplier =
+    Number.isFinite(multiplier) && multiplier > 0
+      ? Math.min(multiplier, MAX_DIAL_CAP_MULTIPLIER)
+      : MAX_DIAL_CAP_MULTIPLIER;
+  const capMinutes = PLAN_VOICE_MINUTES[plan] * capMultiplier;
+  // What those minutes cost US at the cap (1.2c/min), converted to dials at
+  // 10c each — "dial fees may not exceed what the minute cap already allows".
+  const alertAt = Math.max(1, Math.floor((capMinutes * 1.2) / 10));
+  return { alertAt, stopAt: alertAt * DIAL_STOP_MULTIPLE };
+}

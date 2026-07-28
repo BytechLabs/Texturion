@@ -40,9 +40,10 @@
  *   dynamic warning exists to catch.
  * - The ~$0.10 per-forwarded-call transfer fee IS modeled (#98): forwarded-call
  *   COUNT (api_period_forwarded_calls) is extrapolated and priced at
- *   UNIT_COST_CENTS.voiceTransfer, UNCAPPED by the minute ceiling — so a
- *   high-frequency short/unanswered-call flood (near-zero minutes) still shows
- *   its real per-call cost, the direction the 300-min cap alone can't catch.
+ *   UNIT_COST_CENTS.voiceTransfer. The minute ceiling cannot bound it — a run
+ *   of very short calls accrues near-zero minutes and a real $0.10 each — so
+ *   #448 gave it its own count ceiling (`dialCeilings`), and the projection is
+ *   clamped to that, the same way the minute term is clamped to the minute cap.
  * - Revenue is NET of Stripe's cut (stripeNetCents) — the money we actually keep.
  * - STALE-PERIOD FAIL-SAFE: the multiplier is clamped to >= 1, so an overdue
  *   period (renewal webhook not yet fired, elapsed > periodDays) can never scale
@@ -63,6 +64,7 @@ import { enabledModuleFlags } from "./company-modules";
 import { periodProviderCostCents } from "./provider-costs";
 import { EXTRA_NUMBER_MONTHLY_CENTS } from "./extra-numbers";
 import {
+  dialCeilings,
   PLAN_INCLUDED_SEGMENTS,
   PLAN_OVERAGE_CENTS_PER_SEGMENT,
   PLAN_VOICE_MINUTES,
@@ -218,10 +220,15 @@ export function projectUsage(
     usage.voiceSeconds * multiplier,
     voiceCeilingSeconds(plan, overageCapMultiplier),
   );
-  // The per-transfer fee is per CALL, so it is extrapolated UNCAPPED — the
-  // voice spending cap bounds minutes, not call count (#98): a short/
-  // unanswered-call flood accrues ~0 minutes yet a real $0.10 each.
-  const projectedForwardedCalls = usage.forwardedCalls * multiplier;
+  // The per-transfer fee is per CALL, so the voice spending cap — which bounds
+  // MINUTES — cannot bound it (#98). #448 gave it a ceiling of its own, and the
+  // projection is clamped to that ceiling for the same reason the minute
+  // projection is clamped to the minute cap: past it, calling stops, so a
+  // month-end figure above it is a cost that cannot actually be reached.
+  const projectedForwardedCalls = Math.min(
+    usage.forwardedCalls * multiplier,
+    dialCeilings(plan, overageCapMultiplier).stopAt,
+  );
   const projectedEgressBytes = usage.egressBytes * multiplier;
 
   // #103: no MMS term — each MMS is already 3 of outboundSegments (see header).

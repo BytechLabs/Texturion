@@ -362,6 +362,8 @@ describe("POST /v1/calls/browser (D43)", () => {
       numbers?: { id: string; number_e164: string }[];
       /** The stored number for a contact_id call. */
       contactPhone?: string | null;
+      /** #448 api_period_forwarded_calls — the per-dial COUNT this period. */
+      dials?: number;
     } = {},
   ): SupabaseStub {
     const sb = supabaseStub(env);
@@ -402,6 +404,11 @@ describe("POST /v1/calls/browser (D43)", () => {
       "POST",
       "/rest/v1/rpc/api_period_forward_seconds",
       () => opts.voiceSeconds ?? 0,
+    );
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_period_forwarded_calls",
+      () => opts.dials ?? 0,
     );
     sb.on("GET", "/rest/v1/calls", () => opts.inflight ?? []);
     // D43: the endpoint atomically claims the line + mints the single-use
@@ -518,6 +525,41 @@ describe("POST /v1/calls/browser (D43)", () => {
     expect(await res.json()).toMatchObject({
       error: { code: "usage_cap_reached" },
     });
+  });
+
+  it("#448: 402s at the dial-count ceiling, which the minute cap cannot see", async () => {
+    // The exposure the SECONDS cap misses: zero minutes used, 1,500 dials
+    // placed (starter at 3x → 900 alert, 4,500 stop... at 1x it is 1,500).
+    // voiceSeconds 0 means the minute gate passes cleanly, so this asserts the
+    // dial gate and nothing else.
+    const sb = browserWorld({ voiceSeconds: 0, dials: 4500 });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: { conversation_id: CONVERSATION },
+    });
+    expect(res.status).toBe(402);
+    expect(await res.json()).toMatchObject({
+      error: { code: "usage_cap_reached" },
+    });
+  });
+
+  it("#448: a normal outbound day is nowhere near the dial ceiling", async () => {
+    // 200 calls in a period must not be refused — the ceiling exists to catch
+    // a loop, and refusing a real customer's call is the worse failure (#401).
+    // Asserted on the GATE rather than a 200: what matters here is that this
+    // request is not the one turned away for volume.
+    const sb = browserWorld({ voiceSeconds: 0, dials: 200 });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+      companyId: COMPANY_ID,
+      method: "POST",
+      body: { conversation_id: CONVERSATION },
+    });
+    expect(res.status).not.toBe(402);
   });
 
   it("402s when live in-flight calls' reserved minutes push a near-cap tenant over (#144)", async () => {

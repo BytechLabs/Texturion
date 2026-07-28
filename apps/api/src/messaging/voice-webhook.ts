@@ -27,6 +27,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { reportVoiceSeconds } from "../billing/meter";
 import { requiresUnauthorizedHangup } from "../calls/outbound-leg-gate";
 import {
+  dialCeilings,
   PLAN_VOICE_MINUTES,
   type PlanId,
 } from "../billing/plans";
@@ -168,6 +169,75 @@ export async function companyOverVoiceCap(
       : MAX_CAP_MULTIPLIER;
   const capSeconds = PLAN_VOICE_MINUTES[company.plan] * 60 * capMultiplier;
   return usedSeconds >= capSeconds;
+}
+
+/**
+ * #448 — the cost the minute cap structurally cannot bound.
+ *
+ * Every dial command costs ~10c whatever happens next
+ * (UNIT_COST_CENTS.voiceTransfer). The spending cap above is denominated in
+ * SECONDS, so a run of very short calls accrues ~0 seconds against it and a
+ * real 10c each. costs.ts and overage-projection.ts both named this hole and
+ * neither closed it; `dialCeilings` (billing/plans.ts) is the ceiling.
+ *
+ * WHAT IS ACTUALLY EXPOSED is narrower than #448 assumed, and worth stating
+ * because the issue's scenario was an inbound spam wave:
+ *
+ *   `api_period_forwarded_calls` counts only legs WE DIAL — 'forward',
+ *   'out_agent', 'out_customer'. An inbound call is never one of them: it
+ *   lands as 'in_browser' / 'vm_inbound' / 'inbound_untagged', and the member
+ *   ring legs are SIP legs the migration says we absorb. So no sequence of
+ *   inbound calls accrues a per-dial fee at all.
+ *
+ *   Of the three counted legs, 'forward' and 'out_agent' are INERT post-D43
+ *   (see the header — cell forwarding and the D38 bridge were deleted and
+ *   nothing creates those tags). The live one is 'out_customer', minted by
+ *   POST /v1/calls/browser. The exposure is therefore OUTBOUND origination on
+ *   an authenticated session — a retry loop or a runaway dialer — not a
+ *   stranger with a phone.
+ *
+ * That makes the gate cheap to place correctly: it belongs on the one route
+ * that originates calls, which is where it is.
+ */
+
+/**
+ * Billable dials this company has made this period, or null when there is no
+ * live period to measure against (pre-checkout — nothing can dial anyway).
+ */
+export async function companyPeriodDials(
+  db: SupabaseClient,
+  companyId: string,
+  company: CompanyVoiceState,
+): Promise<number | null> {
+  if (!company.plan || !company.current_period_start) return null;
+  const { data, error } = await db.rpc("api_period_forwarded_calls", {
+    p_company_id: companyId,
+    p_since: company.current_period_start,
+  });
+  if (error) {
+    throw new Error(`dial count lookup failed: ${error.message}`);
+  }
+  return Number(data);
+}
+
+/**
+ * True when this company has dialed so many times this period that the next
+ * dial is refused. Never throws the caller off its own path: a broken ledger
+ * reads as NOT over, because refusing to place a customer's call on a failed
+ * count is the one outcome worse than the fee.
+ */
+export async function companyOverDialCap(
+  db: SupabaseClient,
+  companyId: string,
+  company: CompanyVoiceState,
+): Promise<boolean> {
+  try {
+    const dials = await companyPeriodDials(db, companyId, company);
+    if (dials === null || !company.plan) return false;
+    return dials >= dialCeilings(company.plan, company.overage_cap_multiplier).stopAt;
+  } catch {
+    return false;
+  }
 }
 
 function decodeClientState(raw: string | null | undefined): string | null {
