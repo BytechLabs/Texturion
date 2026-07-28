@@ -20,6 +20,11 @@ import { getEnv, type Bindings, type Env } from "./env";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { runLeadChaseJob } from "./notifications/lead-chase";
+import { runLivenessCheckJob } from "./observability/liveness-check";
+import {
+  recordHeartbeatBestEffort,
+  type CronSchedule,
+} from "./observability/liveness";
 import { notifyDueTasksJob } from "./tasks/due-notice";
 import { ApiError, errorResponse } from "./http/errors";
 import {
@@ -239,7 +244,13 @@ type ScheduledJob = (env: Env, now: Date) => Promise<unknown>;
  * trigger's own scheduledTime is passed through. Exported so tests can assert
  * this map stays in lockstep with wrangler.jsonc and the §11 schedule set.
  */
-export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
+/**
+ * #387: keyed by `CronSchedule`, which is derived from the `cron:` entries of
+ * LIVENESS_EXPECTATIONS. Adding a trigger here without first declaring what
+ * its ABSENCE means does not compile — the guard lives at the point of
+ * definition rather than in a doc somebody has to remember.
+ */
+export const CRON_JOBS: Record<CronSchedule, readonly ScheduledJob[]> = {
   // #388: the unanswered-lead ladder. Every minute, because the rungs are at
   // two and five and the finest existing cadence is five — a five-minute scan
   // cannot express a two-minute rung, and rounding the rung UP to fit the
@@ -261,6 +272,11 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
   // the signed-URL grace window (D19 §2 sweep) — piggybacks this 15-min cadence,
   // comfortably longer than the 300s signed-URL TTL.
   "*/15 * * * *": [
+    // #387: the liveness checker rides an existing trigger rather than taking
+    // one of its own. A checker with its own schedule is one more thing that
+    // can quietly stop, and the schedule it rides on is watched by the very
+    // ledger it reads — so if this stops, its own absence is the alert.
+    runLivenessCheckJob,
     // Task due-date reminders: one push to the assignee as a task comes due,
     // at most once per due date. A quarter hour is close enough to "now" for
     // a day of trade work and keeps the scan cheap.
@@ -415,13 +431,25 @@ export const handler = {
    */
   async scheduled(controller, env) {
     const validated = getEnv(env);
-    const jobs = CRON_JOBS[controller.cron];
+    const jobs = CRON_JOBS[controller.cron as CronSchedule];
     if (!jobs) {
       throw new Error(
         `No scheduled jobs are mapped to cron "${controller.cron}" — wrangler.jsonc and CRON_JOBS are out of sync.`,
       );
     }
     const now = new Date(controller.scheduledTime);
+
+    // #387: the trigger FIRED, and that is what the heartbeat records — before
+    // the jobs run and regardless of whether any of them throws. The two
+    // signals are deliberately orthogonal: a job that throws is Sentry's, a
+    // schedule that stops firing leaves no exception at all and is this
+    // ledger's. Recording it only on success would conflate them and leave the
+    // absence undetectable behind a job that is merely broken.
+    await recordHeartbeatBestEffort(
+      validated,
+      `cron:${controller.cron}` as `cron:${CronSchedule}`,
+      now,
+    );
 
     const failures: unknown[] = [];
     for (const job of jobs) {

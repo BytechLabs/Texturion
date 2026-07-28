@@ -2270,3 +2270,60 @@ express a two-minute rung, and rounding the reminder up to the deadline it
 exists to beat would leave the feature named after a promise it no longer
 keeps. The scan is a partial index over live clocks, so a quiet minute costs
 one indexed lookup returning nothing.
+
+## D55 — absences are a first-class failure, with one mechanism (#387)
+
+**Posture.** Sentry answers *"what threw?"*. A whole class of this product's
+failures never throws: the carrier accepts a message and drops it, Resend
+accepts a request and the mailbox bounces it, a cron simply stops firing.
+Nothing is raised, because the defining characteristic is that nothing
+occurred — and silence is byte-for-byte identical to health.
+
+For this product that is not ops hygiene. A plumber gets no error when their
+texts stop arriving; the phone just stops buzzing, which is also what a slow
+week looks like. Per #382 they cannot tell us either, so without this the
+detection path is: we do not notice, and they cannot report it.
+
+**One primitive, not nine detectors.** A declared expectation ("X should happen
+at least every N minutes"), a recorded occurrence, an alert on absence.
+Everything is a heartbeat — a cron records one by firing, a delivery channel
+gets one from a probe or from its own send path. Same ledger, same alert path.
+Nine bespoke detectors would have been nine new things that can themselves fail
+silently, and the tenth instance of the pattern would arrive uncovered.
+
+**Declaration is mandatory at the point of definition, enforced by the
+compiler.** `CRON_JOBS` is keyed by `CronSchedule`, which is derived from the
+`cron:` keys of `LIVENESS_EXPECTATIONS`. A trigger added to wrangler.jsonc
+without declaring what its absence means does not typecheck. This is the same
+structural move as `AiFeatureSpec.key` being typed to priced keys, and it is a
+type rather than a test on purpose: a test can be deleted by whoever it annoys.
+The reverse direction — an expectation for a cron that no longer exists — the
+compiler cannot see, so that one is a test.
+
+**The alert must be believable, which is mostly about staying quiet.** A key
+never seen before is *seeded*, not alerted, so the first deploy does not
+produce a wall of email about nothing. An overdue key shouts once and then not
+again for six hours. A heartbeat during an outage ends it and says so, because
+a founder told something broke and never told it recovered reads every later
+alert against an unknown baseline. An out-of-order heartbeat cannot move the
+clock backwards and manufacture a false alarm. Every one of these is about the
+same thing: a channel that cries wolf is worse than no channel, because the
+founder now believes they are covered.
+
+**Recorded vs probed, and why the asymmetry is not sloppiness.** SMS is probed
+from the messages table by the checker — a heartbeat write per text would put a
+database round-trip on the hot path of every send to learn something one query
+an hour answers. Email is recorded by `sendEmail` itself, because it is low
+volume and *nothing anywhere records that an email was sent*, which is half of
+why #386 can happen at all. The asymmetry is in how an occurrence is observed,
+never in what it means.
+
+**The checker rides an existing trigger.** A checker with its own schedule is
+one more thing that can quietly stop. It runs on the 15-minute trigger, which
+is itself watched by the ledger the checker reads — so if the checker stops,
+its own absence is the alert.
+
+**What this does not cover.** #359 (two SQL functions kept in agreement by a
+test rather than by construction) and #342 (a spam suppression with no expiry)
+share the symptom and not the mechanism; they need their own logic and are not
+closed by this.

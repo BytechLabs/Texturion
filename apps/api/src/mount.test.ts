@@ -12,6 +12,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { runGraceJob } from "./billing/grace";
 import { runLeadChaseJob } from "./notifications/lead-chase";
+import { runLivenessCheckJob } from "./observability/liveness-check";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
 import { reconcileOptOuts } from "./messaging/opt-out-reconcile";
 import { runDeliveryByCountryJob } from "./messaging/delivery-by-country";
@@ -447,6 +448,11 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       sweepStuckProvisioning,
     ]);
     expect(CRON_JOBS["*/15 * * * *"]).toEqual([
+      // #387: the liveness checker rides this trigger rather than taking one
+      // of its own — a checker with its own schedule is one more thing that
+      // can quietly stop, and this schedule is watched by the ledger the
+      // checker reads, so its own absence is the alert.
+      runLivenessCheckJob,
       notifyDueTasksJob,
       reconcileNumbers,
       retryCampaignAssignments,

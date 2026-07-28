@@ -1,4 +1,5 @@
 import type { Env } from "../env";
+import { recordHeartbeatBestEffort } from "../observability/liveness";
 
 export interface SendEmailInput {
   /** One address or several (Resend accepts both). */
@@ -70,5 +71,14 @@ export async function sendEmail(
   if (typeof payload.id !== "string") {
     throw new Error("Resend send failed: response carried no email id.");
   }
+
+  // #387 liveness: nothing anywhere records that an email was sent, which is
+  // half of why #386 can happen at all. This is the one place that knows, so
+  // it is where the channel's heartbeat is taken. Best-effort by construction
+  // — a bookkeeping write must never be the reason a notification is reported
+  // as failed, and a heartbeat that did not land is itself an absence the
+  // checker notices one cadence later.
+  await recordHeartbeatBestEffort(env, "channel:email-outbound");
+
   return { id: payload.id };
 }
