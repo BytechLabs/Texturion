@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
-import { buildDataExports } from "./export";
+import { buildDataExports, pruneExpiredExports } from "./export";
 
 vi.mock("@sentry/cloudflare", () => ({
   captureMessage: vi.fn(),
@@ -196,5 +196,149 @@ describe("buildDataExports", () => {
 
     const query = sb.find("GET", "/rest/v1/data_exports")[0].url.searchParams;
     expect(query.get("status")).toBe("in.(pending,running)");
+  });
+});
+
+
+/**
+ * #378 — the export outlived the deletion.
+ *
+ * The completion email promises the download links are good for seven days
+ * "after which the export is deleted". That was enforced only as an ACCESS
+ * check: past `expires_at` the API refused to sign a URL and the object stayed
+ * in the bucket forever. Every export ever built, for every workspace,
+ * including workspaces that no longer existed.
+ *
+ * An export is a full copy of every message and contact a workspace holds, so
+ * these are about the difference between invisible and gone.
+ */
+describe("pruneExpiredExports (#378)", () => {
+  /** A storage double that records what was listed and what was removed. */
+  function storageWorld(files: string[]) {
+    const removed: string[][] = [];
+    const route: FetchRoute = async (url, request) => {
+      if (url.pathname === "/storage/v1/object/list/exports") {
+        return Response.json(files.map((name) => ({ name })));
+      }
+      if (url.pathname === "/storage/v1/object/exports" && request.method === "DELETE") {
+        const body = (await request.clone().json()) as { prefixes: string[] };
+        removed.push(body.prefixes);
+        return Response.json([]);
+      }
+      return undefined;
+    };
+    return { removed, route };
+  }
+
+  function world(rows: Record<string, unknown>[], files: string[]) {
+    const sb = supabaseStub(env);
+    const stamped: Record<string, unknown>[] = [];
+    sb.on("GET", "/rest/v1/data_exports", () => rows);
+    sb.on("PATCH", "/rest/v1/data_exports", (call) => {
+      stamped.push(call.body as Record<string, unknown>);
+      return [];
+    });
+    const storage = storageWorld(files);
+    return { sb, stamped, removed: storage.removed, routes: [storage.route, sb.route] };
+  }
+
+  const NOW = new Date("2026-07-28T12:00:00Z");
+
+  it("deletes the objects behind an expired export", async () => {
+    const w = world(
+      [{ id: EXPORT_ID, storage_prefix: `${COMPANY_ID}/${EXPORT_ID}` }],
+      ["messages.csv", "contacts.csv", "manifest.json"],
+    );
+    stubFetch(...w.routes);
+
+    const result = await pruneExpiredExports(env, NOW);
+
+    expect(result).toEqual({ reaped: 1, objectsRemoved: 3 });
+    expect(w.removed[0]).toEqual([
+      `${COMPANY_ID}/${EXPORT_ID}/messages.csv`,
+      `${COMPANY_ID}/${EXPORT_ID}/contacts.csv`,
+      `${COMPANY_ID}/${EXPORT_ID}/manifest.json`,
+    ]);
+  });
+
+  it("stamps the row AFTER the objects are gone, never before", async () => {
+    // Stamping first would leave a row that reads as reaped while a full copy
+    // of the workspace sits in the bucket — the exact shape of the bug this
+    // job exists to fix, reintroduced one layer down.
+    const sb = supabaseStub(env);
+    const stamped: Record<string, unknown>[] = [];
+    sb.on("GET", "/rest/v1/data_exports", () => [
+      { id: EXPORT_ID, storage_prefix: `${COMPANY_ID}/${EXPORT_ID}` },
+    ]);
+    sb.on("PATCH", "/rest/v1/data_exports", (call) => {
+      stamped.push(call.body as Record<string, unknown>);
+      return [];
+    });
+    stubFetch(async (url, request) => {
+      if (url.pathname === "/storage/v1/object/list/exports") {
+        return Response.json([{ name: "messages.csv" }]);
+      }
+      if (url.pathname === "/storage/v1/object/exports" && request.method === "DELETE") {
+        return new Response("storage is down", { status: 500 });
+      }
+      return undefined;
+    }, sb.route);
+
+    const result = await pruneExpiredExports(env, NOW);
+
+    expect(result.reaped).toBe(0);
+    expect(stamped).toHaveLength(0);
+    // Loud, so a bucket that quietly stops accepting deletes is not a silent
+    // retention policy.
+    expect(Sentry.captureMessage).toHaveBeenCalled();
+  });
+
+  it("keeps the ROW, because a customer should see they asked for one", async () => {
+    const w = world(
+      [{ id: EXPORT_ID, storage_prefix: `${COMPANY_ID}/${EXPORT_ID}` }],
+      ["messages.csv"],
+    );
+    stubFetch(...w.routes);
+
+    await pruneExpiredExports(env, NOW);
+
+    // reaped_at, not a delete. The row is the record of a request; the blob
+    // was the data.
+    expect(w.stamped[0]).toHaveProperty("reaped_at");
+    expect(w.sb.find("DELETE", "/rest/v1/data_exports")).toHaveLength(0);
+  });
+
+  it("one stuck export does not stop the rest", async () => {
+    const sb = supabaseStub(env);
+    let listCalls = 0;
+    sb.on("GET", "/rest/v1/data_exports", () => [
+      { id: "11111111-1111-4111-8111-111111111111", storage_prefix: "a/1" },
+      { id: "22222222-2222-4222-8222-222222222222", storage_prefix: "b/2" },
+    ]);
+    sb.on("PATCH", "/rest/v1/data_exports", () => []);
+    stubFetch(async (url, request) => {
+      if (url.pathname === "/storage/v1/object/list/exports") {
+        listCalls += 1;
+        // The first one is broken; the second must still be reclaimed.
+        if (listCalls === 1) return new Response("nope", { status: 500 });
+        return Response.json([{ name: "messages.csv" }]);
+      }
+      if (url.pathname === "/storage/v1/object/exports" && request.method === "DELETE") {
+        return Response.json([]);
+      }
+      return undefined;
+    }, sb.route);
+
+    const result = await pruneExpiredExports(env, NOW);
+
+    expect(result.reaped).toBe(1);
+  });
+
+  it("does nothing when nothing is expired", async () => {
+    const w = world([], []);
+    stubFetch(...w.routes);
+
+    expect(await pruneExpiredExports(env, NOW)).toEqual({ reaped: 0, objectsRemoved: 0 });
+    expect(w.removed).toHaveLength(0);
   });
 });

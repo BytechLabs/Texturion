@@ -31,6 +31,10 @@ interface WorldOptions {
   /** Steps returned in order; the last repeats. */
   steps?: Record<string, unknown>[];
   attachments?: Record<string, string>[];
+  /** #378: export rows whose objects must go with the workspace. */
+  exports?: Record<string, string>[];
+  /** #378: file names the exports bucket lists under a prefix. */
+  exportFiles?: string[];
   storageFails?: boolean;
   /** #371: make the erasure receipt's send fail. */
   mailFails?: boolean;
@@ -67,12 +71,22 @@ function world(options: WorldOptions = {}): {
   sb.on("GET", "/rest/v1/message_attachments", () => []);
   sb.on("GET", "/rest/v1/attachments", () => options.attachments ?? []);
   sb.on("GET", "/rest/v1/calls", () => []);
+  // #378: the fourth bucket. An export is a full copy of the workspace, so it
+  // is the one object whose survival would most obviously falsify the erasure
+  // receipt this job sends.
+  sb.on("GET", "/rest/v1/data_exports", () => options.exports ?? []);
 
   const removed: string[] = [];
   const storageRoute: FetchRoute = async (url, request) => {
     if (!url.pathname.startsWith("/storage/v1/object")) return undefined;
     if (options.storageFails) {
       return new Response(JSON.stringify({ message: "nope" }), { status: 500 });
+    }
+    // #378: LIST and REMOVE are different calls with different bodies. The
+    // export sweep has to list a prefix before it can remove anything, and
+    // treating a list as a remove made the whole harness throw.
+    if (url.pathname.startsWith("/storage/v1/object/list/")) {
+      return Response.json((options.exportFiles ?? []).map((name) => ({ name })));
     }
     const body = (await request.clone().json()) as { prefixes: string[] };
     removed.push(...body.prefixes);
@@ -176,6 +190,7 @@ describe("purgeClosedWorkspaces", () => {
     sb.on("GET", "/rest/v1/message_attachments", () => []);
     sb.on("GET", "/rest/v1/attachments", () => []);
     sb.on("GET", "/rest/v1/calls", () => []);
+    sb.on("GET", "/rest/v1/data_exports", () => []); // #378: the fourth bucket
     sb.on("POST", "/rest/v1/rpc/purge_workspace_step", (call) =>
       (call.body as { p_company_id: string }).p_company_id === COMPANY_ID
         ? new Response(JSON.stringify({ message: "boom" }), { status: 500 })
@@ -272,5 +287,44 @@ describe("purgeClosedWorkspaces", () => {
     const query = sb.find("GET", "/rest/v1/companies")[0].url.searchParams;
     expect(query.getAll("purge_after")).toContain("lte.2026-08-25T00:00:00.000Z");
     expect(query.get("purged_at")).toBe("is.null");
+  });
+});
+
+describe("purgeClosedWorkspaces — the export blob (#378)", () => {
+  it("removes the export objects along with the workspace", async () => {
+    // The sequence this closes: owner requests an export (a complete copy of
+    // every message and contact), owner closes the workspace, the purge runs,
+    // the erasure receipt goes out — and the complete copy is still sitting in
+    // the exports bucket, forever. An undocumented survivor of D48, which is
+    // worse than a documented one because it means the survivor list in
+    // DELETION.md was never the whole list.
+    const w = world({
+      exports: [{ id: "77777777-1111-4222-8333-444444444444", storage_prefix: `${COMPANY_ID}/e1` }],
+      exportFiles: ["messages.csv", "manifest.json"],
+    });
+    stubFetch(...w.routes);
+
+    await purgeClosedWorkspaces(env);
+
+    expect(w.removed).toContain(`${COMPANY_ID}/e1/messages.csv`);
+    expect(w.removed).toContain(`${COMPANY_ID}/e1/manifest.json`);
+  });
+
+  it("takes EXPIRED exports too, not only live ones", async () => {
+    // `expires_at` governs whether a customer may still download it. Erasure
+    // is about whether the data exists at all, and a six-month-old export is
+    // exactly as complete a copy as yesterday's. The query filters on
+    // company_id and a non-null prefix — deliberately not on expiry.
+    const w = world({
+      exports: [{ id: "88888888-1111-4222-8333-444444444444", storage_prefix: `${COMPANY_ID}/old` }],
+      exportFiles: ["messages.csv"],
+    });
+    stubFetch(...w.routes);
+
+    await purgeClosedWorkspaces(env);
+
+    const query = w.sb.find("GET", "/rest/v1/data_exports")[0];
+    expect(query?.url.href).not.toContain("expires_at");
+    expect(w.removed).toContain(`${COMPANY_ID}/old/messages.csv`);
   });
 });

@@ -60,7 +60,7 @@ import { portingRoutes } from "./routes/porting";
 import { registrationRoutes } from "./routes/registration";
 import { searchRoutes } from "./routes/search";
 import { pruneAuditLog } from "./audit/retention";
-import { buildDataExports } from "./workspace/export";
+import { buildDataExports, pruneExpiredExports } from "./workspace/export";
 import { purgeClosedWorkspaces } from "./workspace/purge";
 import { accountRoutes } from "./routes/account";
 import { exportsRoutes } from "./routes/exports";
@@ -379,6 +379,9 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // #227: exports build here for the same reason the purge does — a busy
     // workspace cannot be processed inside a request.
     job("job:build-data-exports", buildDataExports),
+    // #378: and reclaim the expired ones, so the seven-day promise in the
+    // completion email means deleted rather than merely unreachable.
+    job("job:prune-expired-exports", pruneExpiredExports),
   ],
 };
 

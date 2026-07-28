@@ -29,6 +29,7 @@ import type { Env } from "../env";
 import { MMS_BUCKET } from "../messaging/media";
 import { VOICEMAILS_BUCKET } from "../messaging/inbound-ring";
 import { ATTACHMENTS_BUCKET } from "../routes/core/attachments";
+import { removeExportObjects } from "./export";
 import { sendDeletionEmail, workspacePurgedEmail } from "./deletion-emails";
 
 /** Rows per delete, and objects per Storage call. */
@@ -44,8 +45,14 @@ const MAX_STEPS_PER_RUN = 200;
 const MAX_WORKSPACES_PER_RUN = 5;
 
 /**
- * The three places a closed workspace's files live, and the column holding
- * each path. Swept before the owning table's rows are deleted.
+ * Three of the four places a closed workspace's files live, and the column
+ * holding each path. Swept before the owning table's rows are deleted.
+ *
+ * #378: the EXPORTS bucket is the fourth and is swept separately below,
+ * because it stores a PREFIX per row rather than one path per object — the
+ * files under it have to be listed. It was missing entirely until #378, which
+ * left the most concentrated personal-data object in the product sitting in
+ * storage after a workspace had been erased.
  */
 const OBJECT_SOURCES = [
   {
@@ -212,6 +219,10 @@ async function removeObjects(
   companyId: string,
 ): Promise<number> {
   let removed = 0;
+  // #378: the export blob first. It is the single object whose survival would
+  // most obviously falsify the erasure receipt we are about to send.
+  removed += await removeCompanyExports(db, companyId);
+
   for (const source of OBJECT_SOURCES) {
     const { data, error } = await db
       .from(source.table)
@@ -264,4 +275,35 @@ async function deleteStripeCustomer(
       "error",
     );
   }
+}
+
+
+/**
+ * #378: delete every export this workspace ever built.
+ *
+ * Not just the unexpired ones. `expires_at` governs whether a customer may
+ * still download it; erasure is about whether the data exists at all, and a
+ * six-month-old export is exactly as complete a copy as yesterday's.
+ *
+ * The rows themselves are removed with the rest of the workspace's tables —
+ * this only has to get the objects out of storage first, because once the row
+ * is gone the prefix is unrecoverable and the object is orphaned forever.
+ */
+async function removeCompanyExports(
+  db: SupabaseClient,
+  companyId: string,
+): Promise<number> {
+  const { data, error } = await db
+    .from("data_exports")
+    .select("id,storage_prefix")
+    .eq("company_id", companyId)
+    .not("storage_prefix", "is", null)
+    .limit(BATCH);
+  if (error) throw new Error(`purge export query failed: ${error.message}`);
+
+  let removed = 0;
+  for (const row of (data ?? []) as { id: string; storage_prefix: string }[]) {
+    removed += await removeExportObjects(db, row.storage_prefix);
+  }
+  return removed;
 }

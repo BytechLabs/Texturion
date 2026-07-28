@@ -301,6 +301,13 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "job:prune-expired-exports": {
+    what:
+      "Expired data exports are not being deleted from storage. Each one is a full " +
+      "copy of a workspace's messages and contacts, kept past its own seven-day promise (#378).",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
   "job:build-data-exports": {
     what: "Requested data exports are never built, so a customer's export request silently never completes.",
     everyMinutes: 1440,

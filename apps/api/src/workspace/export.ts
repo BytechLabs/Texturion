@@ -32,6 +32,9 @@ import type { Env } from "../env";
 
 export const EXPORTS_BUCKET = "exports";
 
+/** #378: how many expired exports one daily run reclaims. */
+const REAP_BATCH = 200;
+
 /** Rows per query and per written part. */
 const PAGE = 1000;
 /**
@@ -333,4 +336,111 @@ async function notifyReady(
       "warning",
     );
   }
+}
+
+
+/**
+ * #378 — delete the objects behind one export prefix.
+ *
+ * An export is, by its own header, "a copy of every message, contact and note
+ * the workspace holds": the single most concentrated personal-data object this
+ * system ever produces. Nothing deleted from this bucket until now — the
+ * seven-day window was an ACCESS check (`routes/exports.ts` refuses to sign a
+ * URL past `expires_at`), so "expired" meant invisible rather than gone.
+ *
+ * That made the export blob an undocumented survivor of D48's erasure. The
+ * survivor list in docs/DELETION.md gets its integrity from being complete and
+ * deliberate — opt-outs survive because a STOP belongs to the person who sent
+ * it, consent artifacts survive at the CASL floor. Those are defended choices.
+ * This one was an oversight, and one unaccounted survivor damages that document
+ * more than the accounted ones do.
+ *
+ * Returns how many objects went. Listing is bounded because an export writes
+ * one file per table, not one per row.
+ */
+export async function removeExportObjects(
+  db: SupabaseClient,
+  prefix: string,
+): Promise<number> {
+  const { data, error } = await db.storage
+    .from(EXPORTS_BUCKET)
+    .list(prefix, { limit: 200 });
+  if (error) throw new Error(`export object list failed: ${error.message}`);
+
+  // The bucket is flat under the prefix and every real object has an
+  // extension; Storage also returns placeholder entries for folders.
+  const paths = (data ?? [])
+    .filter((entry) => entry.name.includes("."))
+    .map((entry) => `${prefix}/${entry.name}`);
+  if (paths.length === 0) return 0;
+
+  const { error: removeError } = await db.storage.from(EXPORTS_BUCKET).remove(paths);
+  if (removeError) {
+    throw new Error(`export object remove failed: ${removeError.message}`);
+  }
+  return paths.length;
+}
+
+
+/**
+ * #378 — the reaper that makes the seven-day promise true.
+ *
+ * The completion email says "the download links are good for 7 days, after
+ * which the export is deleted". That was enforced only as an ACCESS check:
+ * past `expires_at` the API refuses to sign a URL, and the object stayed in
+ * the bucket forever. Every export ever built was retained for every
+ * workspace, with no cap, no ledger, no alert and nothing to reclaim it — the
+ * uncapped cost centre the cost-protection mandate exists to kill, on the one
+ * object that is far larger than any attachment.
+ *
+ * `reaped_at` rather than deleting the row: a customer looking at their export
+ * history should see that they requested one and that it has since expired,
+ * not a gap where it used to be. The row is a record of a request; the blob is
+ * the data.
+ */
+export async function pruneExpiredExports(
+  env: Env,
+  now: Date = new Date(),
+  db: SupabaseClient = getDb(env),
+): Promise<{ reaped: number; objectsRemoved: number }> {
+  const { data, error } = await db
+    .from("data_exports")
+    .select("id,storage_prefix")
+    .lt("expires_at", now.toISOString())
+    .is("reaped_at", null)
+    .not("storage_prefix", "is", null)
+    .limit(REAP_BATCH);
+  if (error) throw new Error(`expired export query failed: ${error.message}`);
+
+  const rows = (data ?? []) as { id: string; storage_prefix: string }[];
+  let objectsRemoved = 0;
+  let reaped = 0;
+
+  for (const row of rows) {
+    try {
+      objectsRemoved += await removeExportObjects(db, row.storage_prefix);
+      // Stamped only after the objects are gone. Stamping first would mean a
+      // failure here leaves the row looking reaped while the copy of every
+      // message in the workspace is still sitting in the bucket — the exact
+      // shape of the bug this job exists to fix.
+      const { error: stampError } = await db
+        .from("data_exports")
+        .update({ reaped_at: now.toISOString() })
+        .eq("id", row.id)
+        .is("reaped_at", null);
+      if (stampError) throw new Error(stampError.message);
+      reaped += 1;
+    } catch (cause) {
+      // One stuck export must not stop the others, and tomorrow's run retries
+      // it: the row is still unstamped and still expired.
+      Sentry.captureMessage(
+        `export reap failed for ${row.id}: ${
+          cause instanceof Error ? cause.message : String(cause)
+        }`,
+        "error",
+      );
+    }
+  }
+
+  return { reaped, objectsRemoved };
 }

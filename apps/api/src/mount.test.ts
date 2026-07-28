@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { runEmailHealthJob } from "./email/health";
+import { pruneExpiredExports } from "./workspace/export";
 import { runGraceJob } from "./billing/grace";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runLivenessCheckJob } from "./observability/liveness-check";
@@ -492,6 +493,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       pruneAuditLog,
       purgeClosedWorkspaces,
       buildDataExports,
+      pruneExpiredExports, // #378: expired exports are deleted, not just hidden
     ]);
   });
 

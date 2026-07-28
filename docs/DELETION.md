@@ -97,12 +97,28 @@ deleted explicitly at step 14: `call_member_legs`, `company_ai_settings`,
 ### Outside the database
 
 A teardown that leaves a customer's voicemail audio in a bucket has not deleted
-anything meaningful. All three are **Supabase Storage**, not R2:
+anything meaningful. All four are **Supabase Storage**, not R2:
 
 - **`attachments`** — note and task files. Paths come from step 5.
 - **`mms-media`** — inbound and outbound picture messages. Paths from step 4.
 - **`voicemails`** — the recordings, which are ours: the audio is downloaded
   into our bucket and the Telnyx copy deleted at ingest.
+- **`exports`** — the data exports (#227). Added by **#378**, which found this
+  list saying "all three" while a fourth bucket held, by its own header, "a
+  copy of every message, contact and note the workspace holds" — the most
+  concentrated personal-data object the system produces, and one nothing ever
+  deleted. Unlike the other three it stores a PREFIX per row rather than a path
+  per object, so the sweep lists the prefix first.
+
+  Every export goes, not only unexpired ones: `expires_at` governs whether a
+  customer may still download it, and erasure is about whether the data exists
+  at all. A six-month-old export is exactly as complete a copy as yesterday's.
+
+  Expired exports are also reclaimed **daily**, independently of any deletion
+  request (`pruneExpiredExports`). The completion email promises the links are
+  good for seven days "after which the export is deleted"; until #378 that was
+  enforced only as an access check, so expired meant invisible rather than
+  gone, and every export ever built was retained forever for every workspace.
 
 And the third-party records: the **Stripe** customer (phase 1 cancels the
 subscription; phase 2 deletes the customer), the **Telnyx** number (released in
