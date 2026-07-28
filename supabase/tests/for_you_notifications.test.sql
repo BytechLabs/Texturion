@@ -884,4 +884,58 @@ begin
   raise notice 'N8 PASSED: mention bell arm (mentioned-only, author excluded, #106-filtered, badge in lockstep)';
 end $$;
 
+-- ===========================================================================
+-- FY-417. A member DENIED the number sees the task (it is theirs, #107 keeps
+--         tasks global) but NOT its title, because the default title is up to
+--         500 characters of the customer's own message.
+-- ===========================================================================
+do $$
+declare
+  r        jsonb;
+  title    text;
+  n_tasks  int;
+begin
+  -- Unrestricted first: the member's own task title is their own message.
+  r := public.api_for_you('c0000000-0000-4000-8000-000000000001',
+                          'a0000000-0000-4000-8000-000000000002', false, now(), 20,
+                          null);
+  n_tasks := jsonb_array_length(r->'my_tasks');
+  if n_tasks < 1 then
+    raise exception 'FY-417 SETUP FAILED: member has no tasks: %', r->'my_tasks';
+  end if;
+  title := r->'my_tasks'->0->>'title';
+  if title = 'Task on a number you don''t have access to' then
+    raise exception 'FY-417 FAILED: title redacted with NO deny list: %', title;
+  end if;
+
+  -- Now deny the number the task's conversation sits on.
+  r := public.api_for_you('c0000000-0000-4000-8000-000000000001',
+                          'a0000000-0000-4000-8000-000000000002', false, now(), 20,
+                          array['d0000000-0000-4000-8000-000000000001']::uuid[]);
+
+  -- #107 intact: the task is STILL listed. Hiding a task assigned TO someone
+  -- would hide their own work from them.
+  if jsonb_array_length(r->'my_tasks') <> n_tasks then
+    raise exception 'FY-417 FAILED: task disappeared for a denied member (#107 broken): %',
+      r->'my_tasks';
+  end if;
+
+  -- ...but the customer's words are gone.
+  if (r->'my_tasks'->0->>'title') <> 'Task on a number you don''t have access to' then
+    raise exception 'FY-417 FAILED: message snippet leaked in title to a denied member: %',
+      r->'my_tasks'->0->>'title';
+  end if;
+  if (r->'my_tasks'->0->>'title') = title then
+    raise exception 'FY-417 FAILED: title unchanged for a denied member: %', title;
+  end if;
+
+  -- The ids and due date survive, so the card is still usable.
+  if (r->'my_tasks'->0->>'task_id') is null
+     or (r->'my_tasks'->0->>'conversation_id') is null then
+    raise exception 'FY-417 FAILED: redaction removed the ids too: %', r->'my_tasks'->0;
+  end if;
+
+  raise notice 'FY-417 PASSED: denied member keeps the task, loses the message snippet';
+end $$;
+
 rollback;
