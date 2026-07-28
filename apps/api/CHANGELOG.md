@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.7.0](https://github.com/BytechLabs/Texturion/compare/api-v0.6.0...api-v0.7.0) (2026-07-28)
+
+
+### Features
+
+* **api:** a crew member can now let themselves out of a workspace ([eea1a3c](https://github.com/BytechLabs/Texturion/commit/eea1a3cc78d65fa1bc01b52244137b37e8a2cedf))
+* **api:** a customer who replies URGENT now gets an honest answer back ([ebe0511](https://github.com/BytechLabs/Texturion/commit/ebe0511fd50f6ee29bcd793011662e97df23c0a8))
+* **api:** a flood of incoming texts stops being invisible ([fbcc14b](https://github.com/BytechLabs/Texturion/commit/fbcc14b7e0a09c9547431027eeb53f55f8ea976d))
+* **api:** a number being taken off us is no longer silent ([4fb18f7](https://github.com/BytechLabs/Texturion/commit/4fb18f7e74cad7a584673f2f9b0e8dd2fa2c0f67))
+* **api:** chase a new lead that nobody has answered yet ([6ea56df](https://github.com/BytechLabs/Texturion/commit/6ea56df3b4f1ce646765ae5b378664ea832bd462))
+* **api:** replying URGENT now wakes the crew, because we said it would ([aae99d4](https://github.com/BytechLabs/Texturion/commit/aae99d4255028c0c372dca1ae4cedf75880b821b)), closes [#414](https://github.com/BytechLabs/Texturion/issues/414)
+* **api:** show a crew whether their texts are actually arriving ([cf419d4](https://github.com/BytechLabs/Texturion/commit/cf419d4405681699dd583101f1dcb180703e40f0))
+* **api:** tell the founder when something that should happen did not ([57f0311](https://github.com/BytechLabs/Texturion/commit/57f03110d04c9a695923f974fcfb5df64608b7e4))
+* **api:** the founder hears when a customer costs more than they pay ([7b139cc](https://github.com/BytechLabs/Texturion/commit/7b139cc2f7396bb55b77d33e6e329fe488a025b1))
+* **api:** the per-call dial fee gets the ceiling the spending cap cannot give it ([dc9e384](https://github.com/BytechLabs/Texturion/commit/dc9e38487182235cbc3fec4f67f87b99fa56431c))
+* **api:** warn the crew when a customer has asked to be left alone ([80fa415](https://github.com/BytechLabs/Texturion/commit/80fa415cc9eea450ed8c3681249ffbf538650415))
+* **api:** watch whether our texts actually land, split by which country ([520f5e9](https://github.com/BytechLabs/Texturion/commit/520f5e99acc21fca05d87ff5088ea6f3f8ca9d49))
+* **api:** what Lou costs now counts toward whether a customer pays for itself ([1e55558](https://github.com/BytechLabs/Texturion/commit/1e555585b3b14cc175f2a2484900c6d266d496ef))
+* **clients:** owners can turn lead chasing on or off everywhere ([440d57c](https://github.com/BytechLabs/Texturion/commit/440d57c4b659bf24ba0e29f89962edaee0fb3a43))
+* **for-you:** anyone on the crew can pick up an unclaimed lead ([92fe855](https://github.com/BytechLabs/Texturion/commit/92fe8553d23be9cfef8a31fa68f03fb51b109ede))
+
+
+### Bug Fixes
+
+* **api:** a new lead now wakes the phone instead of waiting for Doze ([538dcf0](https://github.com/BytechLabs/Texturion/commit/538dcf0a8a8badd1018563e07ca23f0787058b2d))
+* **api:** an away reply that is switched on always has something to say ([d9c734d](https://github.com/BytechLabs/Texturion/commit/d9c734dfe87644d4c64697fd05409e55191a4e98))
+* **api:** saving a Lou setting works before you have written a description ([d7e0c1e](https://github.com/BytechLabs/Texturion/commit/d7e0c1e857f0455f944fc45e5d66c60bdea38f7b))
+* **api:** someone who left the crew can be invited back ([4e91bf3](https://github.com/BytechLabs/Texturion/commit/4e91bf3f32bd4f83cea1dc1b8e7c1c7b10c82822))
+* **api:** the cost of sending a text was a third lower than what we pay ([e36f21a](https://github.com/BytechLabs/Texturion/commit/e36f21aae3a37ad98049a57253daa9f4efb3f4b7))
+
 ## [0.6.0](https://github.com/BytechLabs/Texturion/compare/api-v0.5.0...api-v0.6.0) (2026-07-26)
 
 
