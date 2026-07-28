@@ -207,4 +207,85 @@ begin
   raise notice 'ED-6 PASSED: the address ledger is service_role only, RLS on';
 end $$;
 
+-- ===========================================================================
+-- ED-7. The member-facing clear: a hard bounce is theirs to fix, a complaint
+--       is not. This is the one write in the feature a member can trigger, and
+--       letting it clear a complaint would restart mail to somebody who
+--       reported us as spam — the fastest route to a blocklist there is.
+-- ===========================================================================
+do $$
+declare uid uuid := '38600000-0000-4000-8000-000000000001';
+        uid2 uuid := '38600000-0000-4000-8000-000000000002';
+        r jsonb; st jsonb;
+begin
+  insert into auth.users (id, email) values
+    (uid,  'bouncer@deliver.test'),
+    (uid2, 'complainer@deliver.test');
+
+  perform public.record_email_event('bouncer@deliver.test', 'bounced', now(), 'Permanent', null, null);
+  perform public.record_email_event('complainer@deliver.test', 'complained', now(), null, null, null);
+
+  -- The signed-in member sees their own state, resolved from the verified id
+  -- rather than from anything the request could name.
+  st := public.api_user_email_state(uid);
+  if st is null or (st->>'reason') <> 'hard_bounce' or not (st->>'fixable')::boolean then
+    raise exception 'ED-7 FAILED: bounced member state wrong: %', st;
+  end if;
+
+  r := public.api_clear_email_suppression(uid);
+  if not (r->>'cleared')::boolean then
+    raise exception 'ED-7 FAILED: a member could not clear their own hard bounce: %', r;
+  end if;
+  if public.api_user_email_state(uid) is not null then
+    raise exception 'ED-7 FAILED: state persisted after clearing';
+  end if;
+
+  -- And the complaint cannot be cleared, by them or anybody.
+  r := public.api_clear_email_suppression(uid2);
+  if (r->>'cleared')::boolean then
+    raise exception 'ED-7 FAILED: a complaint was cleared from the app';
+  end if;
+  if (r->>'reason') <> 'complaint' then
+    raise exception 'ED-7 FAILED: refusal did not name the reason: %', r;
+  end if;
+
+  -- Clearing nothing is a no-op rather than an error: they may have fixed it
+  -- on another device a second earlier.
+  r := public.api_clear_email_suppression(uid);
+  if (r->>'cleared')::boolean or (r->>'reason') <> 'not_suppressed' then
+    raise exception 'ED-7 FAILED: clearing a healthy address was not a clean no-op: %', r;
+  end if;
+
+  raise notice 'ED-7 PASSED: a member fixes their own bounce and cannot undo a complaint';
+end $$;
+
+-- ===========================================================================
+-- ED-8. api_email_delivery_state reports the LAST word about a message.
+--       A delivered message can still be followed by a complaint, and the
+--       complaint is the one a legal receipt has to reflect.
+-- ===========================================================================
+do $$
+declare d jsonb;
+begin
+  perform public.record_email_event('receipt@deliver.test', 'delivered', now() - interval '2 hours', null, 're_legal', 'Your export');
+  d := public.api_email_delivery_state('re_legal');
+  if (d->>'event') <> 'delivered' then
+    raise exception 'ED-8 FAILED: delivery not reported: %', d;
+  end if;
+
+  perform public.record_email_event('receipt@deliver.test', 'complained', now(), null, 're_legal', 'Your export');
+  d := public.api_email_delivery_state('re_legal');
+  if (d->>'event') <> 'complained' then
+    raise exception 'ED-8 FAILED: the later event did not win: %', d;
+  end if;
+
+  -- No outcome yet is null, not a guess. An email sent four seconds ago has
+  -- neither been delivered nor bounced.
+  if public.api_email_delivery_state('re_never_seen') is not null then
+    raise exception 'ED-8 FAILED: invented an outcome for an unseen message';
+  end if;
+
+  raise notice 'ED-8 PASSED: the last word wins, and no news is null';
+end $$;
+
 rollback;

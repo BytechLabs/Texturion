@@ -53,6 +53,12 @@ class SettingsRepository(
     suspend fun updateCompany(companyId: String, patch: JsonObject): CompanyView =
         api.patch("/v1/company", patch, companyId = companyId)
 
+    /**
+     * #386: re-open your own bounced address after fixing it. Company-exempt
+     * server-side — an address belongs to a person, not to a workspace.
+     */
+    suspend fun retryOwnEmail(): JsonObject = api.post("/v1/me/email/retry")
+
     suspend fun usage(companyId: String): Usage =
         api.get("/v1/usage", companyId = companyId)
 

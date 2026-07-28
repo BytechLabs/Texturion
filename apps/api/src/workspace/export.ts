@@ -296,7 +296,7 @@ async function notifyReady(
     const { data, error } = await db.auth.admin.getUserById(row.requested_by);
     if (error || !data.user?.email) return;
     const link = `${env.APP_ORIGIN}/settings/workspace`;
-    await sendEmail(env, {
+    const { id: emailId } = await sendEmail(env, {
       to: [data.user.email],
       subject: "Your Loonext data export is ready",
       text:
@@ -311,6 +311,18 @@ async function notifyReady(
           `after which the export is deleted and you can ask for a fresh one.</p>`,
       ),
     });
+
+    // #386 ask 4: keep the id the delivery outcome is recorded against. An
+    // access request asks whether the person actually got their data — an
+    // accepted-id only says we handed a message to a queue, and a bounced
+    // export link is worth knowing about inside the seven-day window rather
+    // than after it closes.
+    if (emailId) {
+      await db
+        .from("data_exports")
+        .update({ notify_email_id: emailId })
+        .eq("id", row.id);
+    }
   } catch (cause) {
     // The export IS ready and visible in settings; a failed email is worth
     // knowing about but must not mark a finished export as failed.

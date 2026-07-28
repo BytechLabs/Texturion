@@ -25,6 +25,12 @@ struct SettingsRepository: Sendable {
         try await api.patch("/v1/company", body: patch, companyId: companyId)
     }
 
+    /// #386: re-open your own bounced address after fixing it. Company-exempt
+    /// server-side — an address belongs to a person, not to a workspace.
+    func retryOwnEmail() async throws -> JSONValue {
+        try await api.post("/v1/me/email/retry")
+    }
+
     func usage(_ companyId: String) async throws -> Usage {
         try await api.get("/v1/usage", companyId: companyId)
     }

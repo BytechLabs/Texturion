@@ -122,7 +122,28 @@ export interface Me {
    * 'email' identity, so Settings must read this instead.
    */
   has_password?: boolean;
+  /**
+   * #386: null when email can reach this person, which is the common case.
+   * Present when their address hard-bounced or reported us as spam — the only
+   * symptom otherwise is that their notifications stop, which looks exactly
+   * like a quiet week.
+   */
+  email_state?: EmailState | null;
   company?: CompanyView;
+}
+
+/** #386: why we cannot email this member, and whether they can fix it. */
+export interface EmailState {
+  email: string;
+  /** `hard_bounce` — the address rejected us. `complaint` — they reported us as spam. */
+  reason: "hard_bounce" | "complaint";
+  since: string;
+  /**
+   * True only for a hard bounce. A complaint is not ours to undo: pressing a
+   * button in our app is not consent to resume mailing somebody who marked us
+   * as spam.
+   */
+  fixable: boolean;
 }
 
 /** Numbers summary embedded in company views (routes/core/company-view.ts). */

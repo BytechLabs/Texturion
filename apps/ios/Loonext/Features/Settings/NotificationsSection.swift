@@ -29,6 +29,12 @@ struct NotificationsSectionView: View {
     let onCompanyUpdated: @MainActor (CompanyView) -> Void
 
     var body: some View {
+        // #386. ABOVE the toggles, because it contradicts the one directly
+        // below it: an Email switch reading ON while every message bounces is
+        // the screen telling a comfortable lie. Renders nothing when email is
+        // working.
+        EmailReachabilityCardView(scope: scope)
+
         VStack(alignment: .leading, spacing: 0) {
             NotificationPrefsCard(graph: scope.graph, companyId: scope.companyId)
         }
@@ -135,6 +141,81 @@ private struct LeadChaseCardView: View {
                 self.error = error.userMessage
             }
             saving = false
+        }
+    }
+}
+
+
+/// #386 — "we can't reach this address."
+///
+/// A hard-bounced address is otherwise completely invisible to the person it
+/// belongs to: their notifications simply stop, which is indistinguishable
+/// from a quiet week. The point of this surface is that the failure becomes
+/// FIXABLE rather than merely broken.
+///
+/// Renders nothing when email is working. A false "we can't reach you" is
+/// worse than none — it sends somebody to fix an address that was never
+/// broken.
+///
+/// Same words as web and Android, deliberately: this one explains why a person
+/// is not hearing from us, and three wordings would be three different stories.
+@MainActor
+private struct EmailReachabilityCardView: View {
+    let scope: SettingsScope
+
+    @State private var cleared = false
+    @State private var retrying = false
+    @State private var error: String?
+
+    var body: some View {
+        // Driven by the `me` loaded when settings opened, so after a
+        // successful retry it hides itself rather than waiting for a refetch
+        // this screen has no trigger for. The server has already cleared it.
+        if let state = scope.me.email_state, !cleared {
+            SettingsCard(title: "We can't email you at \(state.email)") {
+                if state.fixable {
+                    Text(
+                        "Emails to this address are bouncing, so we've stopped sending "
+                            + "them. Push notifications still work. If the address was "
+                            + "mistyped, fix it in your account first, then tell us to "
+                            + "try again."
+                    )
+                    .font(.golos(12))
+                    .foregroundStyle(BrandColor.muted600)
+
+                    InlineError(error)
+
+                    Button(retrying ? "Trying…" : "Try this address again") { retry() }
+                        .disabled(retrying)
+                        .padding(.top, 10)
+                } else {
+                    // No button, on purpose. The address reported us as spam,
+                    // and one tap in our own app is not that person's consent
+                    // to start again.
+                    Text(
+                        "This address reported our email as spam, so we've stopped "
+                            + "sending to it for good. Push notifications still work. To "
+                            + "get email again, change your account to a different address."
+                    )
+                    .font(.golos(12))
+                    .foregroundStyle(BrandColor.muted600)
+                }
+            }
+        }
+    }
+
+    private func retry() {
+        error = nil
+        retrying = true
+        Task {
+            do {
+                _ = try await scope.repo.retryOwnEmail()
+                cleared = true
+                scope.showMessage("We'll try that address again on your next notification.")
+            } catch {
+                self.error = error.userMessage
+            }
+            retrying = false
         }
     }
 }

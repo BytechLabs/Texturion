@@ -1,6 +1,7 @@
 package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,6 +50,11 @@ fun NotificationsSection(
     company: CompanyView,
     onCompanyUpdated: (CompanyView) -> Unit,
 ) {
+    // #386. ABOVE the toggles, because it contradicts the one directly below
+    // it: an Email switch reading ON while every message bounces is the screen
+    // telling a comfortable lie. Renders nothing when email is working.
+    EmailReachabilityCard(scope)
+
     NotificationPrefsCard(
         graph = scope.graph,
         companyId = scope.companyId,
@@ -137,6 +143,78 @@ private fun LeadChaseCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+    }
+}
+
+/**
+ * #386 — "we can't reach this address."
+ *
+ * A hard-bounced address is otherwise completely invisible to the person it
+ * belongs to: their notifications simply stop, which is indistinguishable from
+ * a quiet week. The point of this surface is that the failure becomes FIXABLE
+ * rather than merely broken.
+ *
+ * Renders nothing when email is working. A false "we can't reach you" is worse
+ * than none — it sends somebody to fix an address that was never broken.
+ *
+ * Same words as web and iOS, deliberately: this one explains why a person is
+ * not hearing from us, and three wordings would be three different stories.
+ */
+@Composable
+private fun EmailReachabilityCard(scope: SettingsScope) {
+    val state = scope.me.email_state ?: return
+    val coroutines = rememberCoroutineScope()
+    var cleared by remember { mutableStateOf(false) }
+    var retrying by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    // The card is driven by the `me` loaded when settings opened, so after a
+    // successful retry it hides itself rather than waiting for a refetch that
+    // this screen has no trigger for. The server has already cleared it.
+    if (cleared) return
+
+    SettingsCard(title = "We can't email you at ${state.email}") {
+        if (state.fixable) {
+            Text(
+                "Emails to this address are bouncing, so we've stopped sending them. " +
+                    "Push notifications still work. If the address was mistyped, fix it " +
+                    "in your account first, then tell us to try again.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            InlineError(error)
+            Button(
+                onClick = {
+                    error = null
+                    retrying = true
+                    coroutines.launch {
+                        try {
+                            scope.repo.retryOwnEmail()
+                            cleared = true
+                            scope.showMessage(
+                                "We'll try that address again on your next notification.",
+                            )
+                        } catch (cause: Exception) {
+                            error = cause.userMessage()
+                        } finally {
+                            retrying = false
+                        }
+                    }
+                },
+                enabled = !retrying,
+                modifier = Modifier.padding(top = 10.dp),
+            ) { Text(if (retrying) "Trying…" else "Try this address again") }
+        } else {
+            // No button, on purpose. The address reported us as spam, and one
+            // tap in our own app is not that person's consent to start again.
+            Text(
+                "This address reported our email as spam, so we've stopped sending to " +
+                    "it for good. Push notifications still work. To get email again, " +
+                    "change your account to a different address.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

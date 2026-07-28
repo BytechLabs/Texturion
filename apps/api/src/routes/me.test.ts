@@ -62,6 +62,9 @@ describe("GET /v1/me", () => {
     expect(await res.json()).toEqual({
       user_id: auth.subject,
       display_name: "Casey Owner",
+      // #386: null means "we can reach you" — the common case, and the one
+      // that needs no interpretation on three clients.
+      email_state: null,
       has_password: true,
       memberships: [
         {

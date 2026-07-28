@@ -57,6 +57,38 @@ meRoutes.patch("/me", async (c) => {
   return c.json({ display_name: rows[0]?.display_name ?? body.display_name });
 });
 
+/**
+ * #386: the member re-opens their own address after fixing it.
+ *
+ * Only a HARD BOUNCE can be cleared, and only by the person whose address it
+ * is — enforced in SQL from the verified `sub`, never from the request body,
+ * so nobody can un-suppress somebody else. A COMPLAINT is permanent: pressing
+ * a button in our app is not consent to resume mailing somebody who reported
+ * us as spam, and continuing to is the fastest route to a blocklist.
+ *
+ * Company-exempt for the same reason the rest of this file is: an address
+ * belongs to a person, not to a workspace, and the same broken address is
+ * broken in every workspace they belong to.
+ */
+meRoutes.post("/me/email/retry", async (c) => {
+  const db = getDb(getEnv(c.env));
+  const { data, error } = await db.rpc("api_clear_email_suppression", {
+    p_user_id: c.get("userId"),
+  });
+  if (error) {
+    throw new Error(`clear email suppression failed: ${error.message}`);
+  }
+  const result = (data ?? {}) as { cleared?: boolean; reason?: string };
+  if (result.cleared !== true && result.reason === "complaint") {
+    return errorResponse(
+      c,
+      "validation_failed",
+      "This address reported our email as spam, so we can't start sending to it again. Use a different address.",
+    );
+  }
+  return c.json({ cleared: result.cleared === true });
+});
+
 meRoutes.get("/me", async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
@@ -64,7 +96,7 @@ meRoutes.get("/me", async (c) => {
 
   // Both key only on userId — one parallel round-trip instead of two serial
   // (GET /v1/me is on every app load).
-  const [profilesRes, membershipRes, hasPasswordRes] = await Promise.all([
+  const [profilesRes, membershipRes, hasPasswordRes, emailStateRes] = await Promise.all([
     db.from("profiles").select("display_name").eq("user_id", userId).limit(1),
     db
       .from("company_members")
@@ -78,6 +110,12 @@ meRoutes.get("/me", async (c) => {
     // password on an OAuth account creates no 'email' identity, so the array
     // says google-only forever. auth.users is the only source that knows.
     db.rpc("api_user_has_password", { p_user_id: userId }),
+    // #386: is this person's own email address unreachable? A hard bounce is
+    // otherwise completely invisible to them — their notifications just stop,
+    // which looks exactly like a quiet week. Resolved in SQL rather than by
+    // asking GoTrue for the address first, so it costs one more parallel query
+    // instead of two serial round trips on the hottest route in the product.
+    db.rpc("api_user_email_state", { p_user_id: userId }),
   ]);
   const profiles = unwrap<{ display_name: string }[]>(
     profilesRes,
@@ -102,6 +140,11 @@ meRoutes.get("/me", async (c) => {
     // A failed lookup reports false, which only ever offers "Set a password" —
     // harmless, and it never claims a password the account may not have.
     has_password: hasPasswordRes.data === true,
+    // Null when the address is fine, so "no news" needs no interpretation on
+    // three clients. A failed lookup also reports null: a false "we can't
+    // reach you" banner is worse than none, because it sends somebody to fix
+    // an address that was never broken.
+    email_state: emailStateRes.error ? null : (emailStateRes.data ?? null),
   };
 
   // Optional hydration for the X-Company-Id workspace. The route is exempt

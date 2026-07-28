@@ -22,6 +22,11 @@ const COMPANY_EXEMPT_ROUTES = new Set([
   // #112: setting your own display name — the invite flow needs it BEFORE the
   // caller is a member of any company.
   "PATCH /v1/me",
+  // #386: re-opening your own bounced email address. An address belongs to a
+  // person, not to a workspace — the same broken address is broken in every
+  // workspace they belong to, and requiring one to be named would make the fix
+  // arbitrarily unavailable depending on which one they had selected.
+  "POST /v1/me/email/retry",
   "POST /v1/companies",
   "POST /v1/invites/accept",
   // #109: the caller's own pending invites, matched on their confirmed email —

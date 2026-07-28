@@ -133,15 +133,17 @@ export async function purgeClosedWorkspaces(
         // this is the final moment either exists.
         if (
           row.purge_receipt_email &&
-          (await sendDeletionEmail(
+          (
+            await sendDeletionEmail(
             env,
             row.purge_receipt_email,
             workspacePurgedEmail({
               companyName: row.name ?? "your workspace",
               purgedAt: now,
             }),
-            `workspace purge ${row.id}`,
-          ))
+              `workspace purge ${row.id}`,
+            )
+          ).sent
         ) {
           summary.receiptsSent += 1;
         }

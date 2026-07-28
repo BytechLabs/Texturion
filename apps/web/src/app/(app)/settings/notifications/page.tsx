@@ -3,6 +3,7 @@
 import { toast } from "sonner";
 
 import { PermissionCard } from "@/components/notifications/permission-card";
+import { EmailReachabilityCard } from "@/components/settings/email-reachability-card";
 import { LeadChaseCard } from "@/components/settings/lead-chase-card";
 import {
   LoadError,
@@ -56,6 +57,14 @@ export default function NotificationsSettingsPage() {
         <LoadError onRetry={() => prefs.refetch()} />
       ) : (
         <div className="space-y-6">
+          {/* #386. ABOVE the toggles, because it contradicts the one directly
+              below it: an Email switch reading ON while every message bounces
+              is the screen telling a comfortable lie. Renders nothing when
+              email is working.
+              *Applying: the Zen of Clarity — the surface is silent unless it
+              has something true to say.* */}
+          <EmailReachabilityCard />
+
           <SettingsCard title="When something needs you">
             <div className="space-y-5">
               <div className="flex items-start justify-between gap-4">

@@ -49,7 +49,24 @@ struct Me: Codable, Sendable {
     let user_id: String
     let display_name: String
     let memberships: [Membership]
+    /// #386: nil when email can reach this person, which is the common case.
+    /// Present when their address hard-bounced or reported us as spam — the
+    /// only other symptom is that their notifications stop, which looks
+    /// exactly like a quiet week.
+    let email_state: EmailState?
     let company: CompanyView?
+}
+
+/// #386: why we cannot email this member, and whether they can fix it.
+struct EmailState: Codable, Sendable {
+    let email: String
+    /// "hard_bounce" — the address rejected us. "complaint" — reported as spam.
+    let reason: String
+    let since: String?
+    /// True only for a hard bounce. A complaint is not ours to undo: tapping a
+    /// button in our app is not consent to resume mailing somebody who marked
+    /// us as spam.
+    @Default<DefaultFalse> var fixable: Bool
 }
 
 enum NumberStatus {

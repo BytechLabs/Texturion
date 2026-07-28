@@ -224,19 +224,23 @@ export async function sendDeletionEmail(
   to: string | null,
   email: DeletionEmail,
   context: string,
-): Promise<boolean> {
+): Promise<{ sent: boolean; emailId: string | null }> {
   // No address is a legitimate outcome, not an error: an account with no email
   // on it, or one already severed by an earlier attempt. Callers pass the
   // lookup straight through rather than branching on it.
-  if (!to) return false;
+  if (!to) return { sent: false, emailId: null };
   try {
-    await sendEmail(env, {
+    // #386: the id comes back so the caller can store it against the row this
+    // receipt belongs to. PIPEDA and Law 25 care that we RESPONDED, and an
+    // accepted-id only proves we handed a message to a queue — the id is what
+    // turns that into "delivered at 14:02" once the webhook lands.
+    const { id } = await sendEmail(env, {
       to: [to],
       subject: email.subject,
       text: `${email.text}\n`,
       html: email.html,
     });
-    return true;
+    return { sent: true, emailId: id };
   } catch (cause) {
     Sentry.captureMessage(
       `deletion receipt not sent (${context}): ${
@@ -244,7 +248,7 @@ export async function sendDeletionEmail(
       }`,
       "error",
     );
-    return false;
+    return { sent: false, emailId: null };
   }
 }
 

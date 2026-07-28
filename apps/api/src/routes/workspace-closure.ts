@@ -163,7 +163,7 @@ async function mailTheOwner(
   }
 
   const row = (company ?? null) as { name?: string; purge_after?: string } | null;
-  return sendDeletionEmail(
+  const receipt = await sendDeletionEmail(
     env,
     email,
     workspaceClosedEmail({
@@ -174,6 +174,26 @@ async function mailTheOwner(
     }),
     `workspace close ${companyId}`,
   );
+
+  // #386 ask 4: store the id the delivery outcome will be recorded against.
+  // A Law 25 or PIPEDA request asks whether we RESPONDED — this turns "we
+  // handed it to a queue" into "delivered at 14:02", or into an honest "it
+  // bounced" that somebody can act on while the address still exists.
+  if (receipt.emailId) {
+    const { error: stampError } = await db
+      .from("companies")
+      .update({ purge_receipt_email_id: receipt.emailId })
+      .eq("id", companyId);
+    if (stampError) {
+      // Never fatal: the receipt was sent, and losing the reference costs
+      // evidence rather than the response itself.
+      Sentry.captureMessage(
+        `workspace close: receipt id not stored for ${companyId}: ${stampError.message}`,
+        "error",
+      );
+    }
+  }
+  return receipt.sent;
 }
 
 /**

@@ -2352,3 +2352,58 @@ and is exactly the gap #242 (an external status page) exists to close.
 test rather than by construction) and #342 (a spam suppression with no expiry)
 share the symptom and not the mechanism; they need their own logic and are not
 closed by this.
+
+## D56 — a bounced address is one tenant's typo and everyone's problem (#386)
+
+**Decision.** Delivery outcomes come back from Resend over a signed webhook. A
+permanent bounce or a spam complaint **suppresses** the address, enforced inside
+`sendEmail` so all eighteen send sites are covered by construction rather than
+by convention. The domain's bounce and complaint rates are checked hourly and
+alert to `OPS_ALERT_EMAIL`.
+
+**Why it is urgent rather than merely incomplete.** One crew member mistypes an
+address at invite, or a tech leaves and IT disables the mailbox. Every inbound-
+text notification to it hard-bounces forever, and those bounces accumulate
+against **our sending domain**, not against that customer. Mailbox providers
+act on domain reputation, so one stale address in one workspace degrades
+delivery for the entire book — and the first symptom is every customer's
+notifications quietly landing in spam.
+
+**Permanent suppresses, transient does not.** This is the load-bearing line. A
+transient bounce is a full mailbox or a greylist — a bad week, not a dead
+address — and suppressing on it would silence a real crew member permanently,
+with no error anywhere and nothing for them to see. The permanence verdict is
+the provider's call, not ours.
+
+**A complaint is permanent and outranks everything.** It survives a clear, and
+a member cannot undo it from the app: pressing a button in our own product is
+not that person's consent to resume mail they reported as spam, and continuing
+is the fastest route to a blocklist there is.
+
+**The lookup fails open.** A database blip must not be why a customer never
+learns their payment failed. Failing open costs a handful of bounces; failing
+closed costs the message.
+
+**Member-facing, on all three clients.** A hard bounce is otherwise invisible to
+the person it belongs to — their notifications simply stop, which is
+indistinguishable from a quiet week. They see the address, why, and a single
+action when it is theirs to fix. The surface renders nothing when email works:
+a false "we can't reach you" is worse than none, because it sends somebody to
+fix an address that was never broken and teaches them to disbelieve the next
+one.
+
+**Evidence for the legal sends.** The export-ready email and the erasure receipt
+store their Resend id, so a PIPEDA or Law 25 request is answered with a delivery
+outcome rather than an accepted-id — which only ever proved we handed a message
+to a queue.
+
+**Found while building it.** The webhook sweeper dispatched `if telnyx … else
+stripe`, so the moment a third provider joined the ledger its rows went to
+Stripe's processor and would have replayed forever against a handler that could
+never understand them. Now an explicit branch per provider, and a throw on an
+unknown one.
+
+**Verified against live DNS, and two real defects found** (recorded in
+`docs/deploy/10-email-inbox.md`, both operator actions): the domain publishes
+**no DMARC record at all**, and `RESEND_FROM` sends from the root domain whose
+SPF does not authorize Resend — DKIM carries it alone.
