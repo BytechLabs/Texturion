@@ -7,6 +7,7 @@ import {
   Clock,
   CreditCard,
   Gauge,
+  LifeBuoy,
   MessageSquareText,
   Phone,
   PhoneMissed,
@@ -122,6 +123,16 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "History",
     description: "Who changed what, and when",
     icon: ScrollText,
+  },
+  {
+    // #382 — the route to a human. Fourteen sections and not one of them was
+    // help, so a signed-in customer had to leave the product, find the
+    // marketing site, and use the form built for strangers. Last in the list
+    // because it is what you go looking for when something is wrong.
+    slug: "help",
+    label: "Help",
+    description: "Get in touch when something isn't right",
+    icon: LifeBuoy,
   },
 ];
 

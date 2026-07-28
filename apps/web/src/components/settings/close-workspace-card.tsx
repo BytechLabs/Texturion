@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { supportMailto } from "@loonext/shared";
+
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import {
@@ -92,7 +94,23 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
             voicemails, contacts, tasks — is erased 30 days from now.
           </li>
           <li>
-            Until then, contact us and we can undo it. After that nobody can.
+            Until then,{" "}
+            {/* #382: this sentence promised a human on the one screen with no
+                route to one. A high-stakes irreversible action has to offer a
+                genuine way back, not the description of one. */}
+            <a
+              className="font-medium underline underline-offset-2 hover:no-underline"
+              href={supportMailto({
+                companyId: company.id,
+                companyName: company.name,
+                plan: company.plan,
+                platform: "web",
+                subject: `Please undo the closure of ${company.name}`,
+              })}
+            >
+              email us
+            </a>{" "}
+            and we can undo it. After that nobody can.
           </li>
           <li>
             Anyone who replied STOP stays on the do-not-text list. That record

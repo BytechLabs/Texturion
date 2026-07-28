@@ -42,6 +42,7 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Quickreply
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Storefront
+import androidx.compose.material.icons.outlined.SupportAgent
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -116,6 +117,12 @@ enum class SettingsSection(val title: String, val blurb: String) {
     Notifications("Notifications", "Email and push for new conversations"),
     Ai("Lou", "Loonext's assistant: drafts replies and fills in task details"),
     Profile("Profile & account", "Your name, theme, email, and password"),
+
+    /**
+     * #382: the route to a human. Last because it is what you go looking for
+     * when something is wrong, not a screen you pass through.
+     */
+    Help("Help", "Get in touch when something isn't right"),
 }
 
 /** Everything a section needs, threaded once instead of eight parameters. */
@@ -298,6 +305,12 @@ fun SettingsHome(
 
                             SettingsSection.Profile -> ProfileSection(
                                 settingsScope, onSignOut = onSignOut,
+                            )
+
+                            SettingsSection.Help -> HelpSection(
+                                settingsScope,
+                                companyName = company.name,
+                                plan = company.plan,
                             )
                         }
                     }
@@ -736,6 +749,7 @@ private fun iconFor(section: SettingsSection): ImageVector = when (section) {
     SettingsSection.Notifications -> Icons.Outlined.Notifications
     SettingsSection.Ai -> Icons.Outlined.AutoAwesome
     SettingsSection.Profile -> Icons.Outlined.Person
+    SettingsSection.Help -> Icons.Outlined.SupportAgent
 }
 
 /**

@@ -98,3 +98,10 @@ export {
   effectiveAwayMessage,
 } from "./away";
 export type { EffectiveAwayMessage } from "./away";
+
+export {
+  SUPPORT_EMAIL,
+  supportBody,
+  supportMailto,
+} from "./support";
+export type { SupportContext } from "./support";

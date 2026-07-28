@@ -14,6 +14,9 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     case billing
     case notifications
     case profile
+    /// #382: the route to a human. Last because it is what you go looking
+    /// for when something is wrong, not a screen you pass through.
+    case help
 
     var id: String { rawValue }
 
@@ -30,6 +33,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .billing: "Billing"
         case .notifications: "Notifications"
         case .profile: "Profile & account"
+        case .help: "Help"
         }
     }
 
@@ -46,6 +50,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .billing: "Plan, payment, and invoices"
         case .notifications: "Email and push for new conversations"
         case .profile: "Your name, theme, email, and password"
+        case .help: "Get in touch when something isn't right"
         }
     }
 
@@ -63,6 +68,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .billing: "creditcard"
         case .notifications: "bell"
         case .profile: "person.crop.circle"
+        case .help: "lifepreserver"
         }
     }
 }
@@ -292,6 +298,8 @@ struct SettingsHome: View {
                     NotificationsSectionView(scope: scope)
                 case .profile:
                     ProfileSectionView(scope: scope, onSignOut: onSignOut)
+                case .help:
+                    HelpSectionView(scope: scope, company: company)
                 }
             }
             .padding(.vertical, 10)
