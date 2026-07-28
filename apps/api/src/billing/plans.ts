@@ -167,6 +167,30 @@ export const VOICE_OVERAGE_CENTS_PER_MINUTE = 1;
  */
 export const STORAGE_ABUSE_TIERS_GB = [25, 50, 100, 200, 400] as const;
 
+/**
+ * #449 — absolute inbound-segment tiers, the one cost centre with no ceiling.
+ *
+ * Inbound is free to the customer and costs us 0.7c a segment, and it CANNOT
+ * be capped: refusing to receive a customer's texts is refusing the product.
+ * Worse, the cost is already incurred before any of our code runs — Telnyx has
+ * received and billed the segment by the time the webhook fires, so no throttle
+ * of ours can prevent it. Only suspending the number can, which is an abuse
+ * call a human makes.
+ *
+ * So this is not a cap and cannot become one. It is the storage-abuse shape
+ * (#121): absolute tiers, customer AND ops told, nothing blocked. It exists so
+ * the one unbounded cost in the product stops being invisible.
+ *
+ * The tiers are chosen in OUR money rather than round segment counts, because
+ * the point is the spend: at 0.7c they are $17.50, $35, $70, $175 and $350. The
+ * first tier already exceeds half a Starter tenant's net monthly revenue
+ * ($27.71, PRICING-AUDIT.md section 10), which is the right place for the
+ * first word about it.
+ */
+export const INBOUND_ABUSE_TIERS_SEGMENTS = [
+  2_500, 5_000, 10_000, 25_000, 50_000,
+] as const;
+
 
 export interface PlanPrices {
   licensed: string;

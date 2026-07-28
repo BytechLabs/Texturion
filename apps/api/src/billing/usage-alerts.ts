@@ -19,6 +19,7 @@ import { UNIT_COST_CENTS } from "./costs";
 import { EGRESS_ALLOWANCE_BYTES } from "../attachments/egress";
 import {
   dialCeilings,
+  INBOUND_ABUSE_TIERS_SEGMENTS,
   PLAN_INCLUDED_SEGMENTS,
   PLAN_VOICE_MINUTES,
   type PlanId,
@@ -58,7 +59,11 @@ export type UsageAlertMetric =
   // #448: per-dial fees, which the SECONDS-denominated spending cap cannot
   // bound. One ledger row per (company, period) — this is our cost, not the
   // customer's bill, so it goes to ops only.
-  | "voice_dials";
+  | "voice_dials"
+  // #449: inbound segments — free to the customer, 0.7c to us, and the one
+  // cost that cannot be capped because it is already paid for by the time we
+  // see it. Absolute tiers, the storage-abuse shape.
+  | "inbound_volume";
 
 export interface ActiveCompanyRow {
   id: string;
@@ -69,6 +74,46 @@ export interface ActiveCompanyRow {
    *  uses, so a tenant who raised their cap is not alerted at a tenth of the
    *  point where dialing actually stops. */
   overage_cap_multiplier: number | string | null;
+}
+
+/**
+ * #449 — the tenant's inbound over the 30 days BEFORE the last 30, so an ops
+ * reader can tell a flood from a busy season without opening a console.
+ *
+ * Derived by subtraction because `api_period_inbound_segments` counts from a
+ * point forward rather than over a range: everything since 60 days ago, minus
+ * everything since 30 days ago. Deliberately a rolling window rather than the
+ * previous billing period — periods vary in length and a tenant mid-migration
+ * may not have a clean previous one, and the comparison only has to be
+ * indicative.
+ *
+ * Returns null rather than throwing: this is context on an alert, and losing
+ * the context must never lose the alert.
+ */
+async function trailingInboundBaseline(
+  db: ReturnType<typeof getDb>,
+  companyId: string,
+  now: Date,
+): Promise<number | null> {
+  try {
+    const day = 24 * 60 * 60 * 1000;
+    const since60 = new Date(now.getTime() - 60 * day).toISOString();
+    const since30 = new Date(now.getTime() - 30 * day).toISOString();
+    const [older, recent] = await Promise.all([
+      db.rpc("api_period_inbound_segments", {
+        p_company_id: companyId,
+        p_since: since60,
+      }),
+      db.rpc("api_period_inbound_segments", {
+        p_company_id: companyId,
+        p_since: since30,
+      }),
+    ]);
+    if (older.error || recent.error) return null;
+    return Math.max(0, Number(older.data) - Number(recent.data));
+  } catch {
+    return null;
+  }
 }
 
 /** "5 GB" / "2.3 GB" for the storage-alert copy. */
@@ -310,7 +355,12 @@ const USAGE_ALERTS_BATCH = 200;
  * app-side source of truth — same `api_period_segments` RPC as GET /v1/usage)
  * and send each crossed-threshold alert through the ledger.
  */
-export async function runUsageAlertsJob(env: Env): Promise<void> {
+export async function runUsageAlertsJob(
+  env: Env,
+  /** #449: the cron already passes the scheduled time to every job; this arm
+   *  is the first here to need it (the trailing-inbound baseline window). */
+  now: Date = new Date(),
+): Promise<void> {
   const db = getDb(env);
   const { data, error } = await db
     .from("companies")
@@ -481,6 +531,81 @@ export async function runUsageAlertsJob(env: Env): Promise<void> {
               `tenant can look well inside its minute allowance while this ` +
               `runs. Worth checking for a dialer in a retry loop before it ` +
               `reaches the pause.`,
+          },
+        );
+      }
+
+      // #449 inbound arm — the one cost centre that has no ceiling and cannot
+      // be given one.
+      //
+      // Inbound is free to the customer and costs us 0.7c a segment. It is not
+      // cappable in principle: refusing to receive a customer's texts is
+      // refusing the product, and in practice the segment is already received
+      // and billed by Telnyx before this Worker runs, so no gate of ours could
+      // decline it. Only suspending the number stops it, which is a human's
+      // abuse call.
+      //
+      // It is therefore deliberately NOT enforcement. It is the storage-abuse
+      // shape: absolute tiers, both audiences told, nothing blocked — so the
+      // one unbounded cost in the product stops being invisible.
+      //
+      // Its own metric, never the notification budget's. That budget is about
+      // ATTENTION and merely correlates: a flood into one already-active
+      // conversation claims almost no notifications while spending real money,
+      // which is exactly the case that would otherwise pass unseen.
+      const { data: inboundSum, error: inboundError } = await db.rpc(
+        "api_period_inbound_segments",
+        { p_company_id: company.id, p_since: company.current_period_start },
+      );
+      if (inboundError) {
+        throw new Error(`inbound segment sum failed: ${inboundError.message}`);
+      }
+      const inbound = Number(inboundSum);
+      for (const tier of INBOUND_ABUSE_TIERS_SEGMENTS) {
+        if (inbound < tier) continue;
+        const costCents = inbound * UNIT_COST_CENTS.inboundSegment;
+        // #449 ask 2: a freeze or a heat wave produces a genuinely huge inbound
+        // month (#401), and an alert that cannot tell that from an attack
+        // teaches the reader to ignore it. The TRIGGER stays absolute — $70 is
+        // $70 whatever caused it — but the ops copy carries the tenant's own
+        // trailing 30 days, which is what says "ten times normal" or "a busy
+        // week" at a glance. Best-effort: a failed baseline must not sink the
+        // alert that matters.
+        const baseline = await trailingInboundBaseline(db, company.id, now);
+        await recordAndSendAlert(
+          env,
+          company,
+          "inbound_volume",
+          tier,
+          {
+            subject: `A note about the texts coming in to ${company.name}`,
+            text:
+              `Hi,\n\nNothing is blocked and nothing is charged for this — ` +
+              `incoming texts are free on every plan, and they always will ` +
+              `be. This is just a heads-up that ${company.name} has received ` +
+              `about ${inbound.toLocaleString()} incoming messages this ` +
+              `billing period, which is well above what a typical crew sees.` +
+              `\n\nIf that is simply a busy season, ignore this and carry ` +
+              `on. If it looks surprising, it can be a sign that a number is ` +
+              `sending you the same thing over and over, and we can help you ` +
+              `look.\n\nLoonext`,
+          },
+          {
+            subject: `[ops] ${company.name}: ${inbound.toLocaleString()} inbound segments ($${(costCents / 100).toFixed(2)})`,
+            text:
+              `Company: ${company.name} (${company.id})\n` +
+              `Plan: ${company.plan}\n` +
+              `Inbound this period: ${inbound.toLocaleString()} segments\n` +
+              `Our cost: $${(costCents / 100).toFixed(2)} ` +
+              `(${UNIT_COST_CENTS.inboundSegment}c each, free to the customer)\n` +
+              `Tier crossed: ${tier.toLocaleString()}\n` +
+              `Trailing 30 days before this: ${baseline === null ? "unavailable" : baseline.toLocaleString()} segments\n\n` +
+              `Inbound cannot be capped — the segment is billed by Telnyx ` +
+              `before our webhook runs, so only suspending the number stops ` +
+              `it (#449, DECISIONS D50). This is a visibility alert, not a ` +
+              `gate; nothing was blocked.\n\n` +
+              `Compare against the trailing figure before acting: a storm is ` +
+              `many senders, abuse is usually one.`,
           },
         );
       }

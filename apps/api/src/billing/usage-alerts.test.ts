@@ -20,6 +20,10 @@ import { completeEnv, stubFetch } from "../test/support";
 const env = completeEnv();
 const COMPANY_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
 const PERIOD_START = "2026-06-15T00:00:00.000Z";
+/** #449: midpoint between the 60-day and 30-day probes, for telling them apart. */
+const RECENT_PROBE_BOUNDARY = "2026-06-01T00:00:00.000Z";
+/** Fixed job clock: 30d back is 2026-06-16, 60d back is 2026-05-17. */
+const NOW = "2026-07-16T00:00:00.000Z";
 
 interface UsageState {
   /** Sum api_period_segments reports for the company. */
@@ -41,6 +45,10 @@ interface UsageState {
   dials?: number;
   /** #448: the cap the dial ceilings scale with (default 1x). */
   capMultiplier?: number;
+  /** #449 api_period_inbound_segments (default 0 → no inbound alert). */
+  inboundSegments?: number;
+  /** #449: what the trailing-baseline probes report, oldest window first. */
+  inboundTrailing?: [number, number];
 }
 
 function usageEndpoints(state: UsageState): StubEndpoint[] {
@@ -74,6 +82,16 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
       /\/rest\/v1\/rpc\/api_period_forwarded_calls/,
       () => state.dials ?? 0,
     ),
+    // #449: the period sum and the two trailing-baseline probes all hit the
+    // same RPC; they are told apart by p_since (the period start vs a rolling
+    // window), which is also what the production code relies on.
+    endpoint("POST", /\/rest\/v1\/rpc\/api_period_inbound_segments/, (call) => {
+      const body = call.json() as { p_since: string };
+      if (body.p_since === PERIOD_START) return state.inboundSegments ?? 0;
+      const [older, recent] = state.inboundTrailing ?? [0, 0];
+      // The 60-day probe is the earlier timestamp of the two.
+      return body.p_since < RECENT_PROBE_BOUNDARY ? older : recent;
+    }),
     // #134/D42: NO company_modules stub — the voice arm reads plan allowances
     // for everyone now (a module read would fail loudly as unstubbed).
     endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
@@ -100,7 +118,8 @@ const GB = 1024 * 1024 * 1024;
 function run(state: UsageState): { harness: Harness; done: Promise<void> } {
   const harness = makeHarness(usageEndpoints(state));
   stubFetch(harness.route);
-  return { harness, done: runUsageAlertsJob(env) };
+  // #449: a fixed clock so the trailing-baseline probe windows are stable.
+  return { harness, done: runUsageAlertsJob(env, new Date(NOW)) };
 }
 
 function sentEmails(
@@ -460,6 +479,7 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
       endpoint("POST", /\/rest\/v1\/rpc\/api_period_forward_seconds/, () => 0),
       endpoint("POST", /\/rest\/v1\/rpc\/api_period_egress_bytes/, () => 0),
       endpoint("POST", /\/rest\/v1\/rpc\/api_period_forwarded_calls/, () => 0),
+      endpoint("POST", /\/rest\/v1\/rpc\/api_period_inbound_segments/, () => 0),
       endpoint("POST", /\/rest\/v1\/usage_alerts/, (call) => {
         const row = call.json() as { threshold: number };
         ledger.add(row.threshold);
@@ -482,5 +502,107 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     // Fine Co still got both alerts despite Broken Co's failure.
     expect(ledger).toEqual(new Set([80, 100]));
     expect(sentEmails(harness)).toHaveLength(2);
+  });
+});
+
+describe("#449 — inbound is uncapped, so it is at least visible", () => {
+  it("tells both audiences when inbound crosses an absolute tier", async () => {
+    const state: UsageState = {
+      used: 0,
+      ledger: new Set(),
+      inboundSegments: 10_000,
+      // The RPC counts forward from a timestamp, so the 60-day figure INCLUDES
+      // the last 30: 1,700 - 900 = 800 in the month before last.
+      inboundTrailing: [1_700, 900],
+    };
+    const { harness, done } = run(state);
+    await done;
+
+    const emails = sentEmails(harness);
+    const ops = emails.find((e) => e.subject.startsWith("[ops]"));
+    // 10,000 x 0.7c = $70 of our money, free to the customer.
+    expect(ops?.subject).toContain("$70.00");
+    // The trailing figure is what separates a freeze from an attack (#401).
+    expect(ops?.text).toContain("Trailing 30 days before this: 800");
+
+    const customer = emails.find((e) => !e.subject.startsWith("[ops]"));
+    expect(customer?.to).toEqual(["owner@example.com"]);
+    // Incoming texts are free and always will be — the customer note must
+    // never read as a bill or a threat.
+    expect(customer?.text).toContain("free on every plan");
+    expect(customer?.text).not.toContain("$");
+  });
+
+  it("records every tier crossed at once, like the storage arm", async () => {
+    const state: UsageState = {
+      used: 0,
+      ledger: new Set(),
+      inboundSegments: 26_000,
+    };
+    const { harness, done } = run(state);
+    await done;
+    // 2,500 / 5,000 / 10,000 / 25,000 crossed; 50,000 not.
+    expect(state.ledger).toEqual(
+      new Set([
+        "inbound_volume:2500",
+        "inbound_volume:5000",
+        "inbound_volume:10000",
+        "inbound_volume:25000",
+      ]),
+    );
+    expect(sentEmails(harness).length).toBeGreaterThan(0);
+  });
+
+  it("stays quiet for an ordinary month, and on a re-run", async () => {
+    const quiet: UsageState = {
+      used: 0,
+      ledger: new Set(),
+      inboundSegments: 2_499,
+    };
+    const first = run(quiet);
+    await first.done;
+    expect(sentEmails(first.harness)).toHaveLength(0);
+
+    const repeat: UsageState = {
+      used: 0,
+      ledger: new Set(["inbound_volume:2500"]),
+      inboundSegments: 3_000,
+    };
+    const second = run(repeat);
+    await second.done;
+    expect(sentEmails(second.harness)).toHaveLength(0);
+  });
+
+  it("fires on the case the notification budget cannot see", async () => {
+    // The whole reason this is its OWN metric: a flood into one already-active
+    // conversation claims almost no notification budget (#343 counts NEW
+    // conversations) while spending real money on segments. Zero outbound,
+    // zero everything else — only inbound moved, and it still alerts.
+    const state: UsageState = {
+      used: 0,
+      ledger: new Set(),
+      inboundSegments: 50_000,
+    };
+    const { harness, done } = run(state);
+    await done;
+    const ops = sentEmails(harness).find((e) => e.subject.startsWith("[ops]"));
+    expect(ops?.subject).toContain("$350.00");
+    expect(ops?.text).toContain("cannot be capped");
+  });
+
+  it("still alerts when the trailing baseline cannot be read", async () => {
+    // Context is nice; the alert is the point. A baseline probe that fails
+    // must never take the money signal down with it.
+    const state: UsageState = {
+      used: 0,
+      ledger: new Set(),
+      inboundSegments: 5_000,
+      inboundTrailing: [0, 0],
+    };
+    const { harness, done } = run(state);
+    await done;
+    expect(
+      sentEmails(harness).find((e) => e.subject.startsWith("[ops]")),
+    ).toBeDefined();
   });
 });

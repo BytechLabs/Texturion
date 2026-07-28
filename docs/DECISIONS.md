@@ -1993,3 +1993,56 @@ needs an Android keystore, a Play service account and an App Store Connect API
 key — credentials only the founder can create. Until those exist, the mobile
 half of "merge-to-ship" is a person following `docs/RELEASING.md` on release day
 rather than a workflow. The tag no longer claims otherwise.
+
+---
+
+## D50 — inbound texts are an uncapped cost, deliberately and permanently (#449, 2026-07-28)
+
+**Inbound segments cost us 0.7¢ each, are free to the customer, and have no
+ceiling. There will not be one.** This sits beside D34's free storage as the
+second deliberate unbounded cost in the product, and unlike D34 it is not even
+a choice.
+
+**Why a cap is impossible, not merely unwanted.** Two independent reasons, and
+either alone is decisive:
+
+1. **It is the product.** Refusing to receive a customer's texts is refusing
+   the thing being sold. A crew whose customer texted them and got nothing has
+   no product, whatever the invoice says.
+2. **The money is already spent when we find out.** Telnyx receives the segment
+   and bills us for it, *then* calls our webhook. By the first line of our code
+   the cost is incurred. No gate, throttle or gate-shaped thing we could write
+   changes that — the only lever that exists is suspending the number, which is
+   a human abuse decision, not an automatic one.
+
+Point 2 is the one that settles it, and it also answers #449's ask 3: a
+**per-sender throttle cannot save money**. It could reduce what we spend
+*downstream* of receipt — notifications, storage — but both of those already
+have their own ceilings (#343, #121). Building it would add a mechanism that
+protects nothing not already protected.
+
+**What we do instead: make it visible.** `usage_alerts` gains an
+`inbound_volume` arm on absolute segment tiers (2,500 / 5,000 / 10,000 /
+25,000 / 50,000 — $17.50 to $350 of our money at 0.7¢), emailing the customer
+and ops, blocking nothing. The storage-abuse shape from #121, for the same
+reason: when a cost cannot be refused, the failure to avoid is not the cost, it
+is the cost being invisible.
+
+**Why not reuse the notification budget as the signal.** The #343 daily
+notification cap correlates with floods and is not a cost control. It measures
+attention: a flood into one already-active conversation claims almost no
+notification budget while spending real money on segments. Using it as the
+inbound cost signal would miss precisely the case worth catching, so
+`inbound_volume` is its own metric with its own threshold.
+
+**Distinguishing a flood from a busy day (#401).** The trigger is absolute —
+$70 is $70 whether it was an attacker or a January freeze — but the ops email
+carries the tenant's own trailing 30 days, which is what separates "ten times
+normal" from "a hard week". A storm is many senders; abuse is usually one. The
+alert gives a human what they need to tell those apart rather than guessing on
+their behalf.
+
+**What would change this decision:** nothing about the arithmetic. Only a
+provider relationship where inbound is not billed on receipt, or a carrier-side
+filter we can configure before delivery. Until one of those exists, this is the
+shape.
