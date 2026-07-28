@@ -149,6 +149,13 @@ struct CompanyView: Codable, Sendable {
     @Default<DefaultEmptyBusinessHours> var business_hours: [String: DayHours?]
     @Default<DefaultFalse> var away_enabled: Bool
     let away_message: String?
+    /// #414 ask 5: the template that will ACTUALLY send — the owner's text if
+    /// they wrote one, else the product default, resolved by the SERVER. This
+    /// screen used to carry its own copy of that default; so did web and
+    /// Android, and nothing kept the three equal.
+    @Default<DefaultEmptyString> var away_effective_message: String
+    /// True when the owner's own away text is in effect.
+    @Default<DefaultFalse> var away_message_is_custom: Bool
     /// #414: whether a customer replying URGENT/EMERGENCY/911/SOS wakes the
     /// whole crew at high priority, exempt from the daily notification limit.
     /// Defaults TRUE against a lagging server, matching it — the away copy

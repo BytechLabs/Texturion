@@ -1,0 +1,62 @@
+/**
+ * After-hours away-reply defaults — #414 ask 5.
+ *
+ * The same contract MCTB already uses (`mctb.ts`): the TOGGLE decides whether
+ * an away reply happens at all; the MESSAGE always exists. A product default
+ * lives here as server-side truth, and an owner-authored message overrides it
+ * only when non-blank.
+ *
+ * WHY THIS MODULE EXISTS, which is the whole of #414 ask 5. The away reply did
+ * NOT work that way. The server sent the owner's text and returned early when
+ * it was blank:
+ *
+ *     if (message.length === 0) return; // enabled but unauthored
+ *
+ * while web, Android and iOS each carried their OWN copy of the default and
+ * showed it in the Preview panel. So an owner who switched away replies on
+ * without writing anything saw a preview of a message that would never be
+ * sent, and after-hours customers got silence. Neither file looked wrong on
+ * its own — the copy and the handler lived apart, which is exactly the class of
+ * defect #414 asked us to go looking for in the neighbours.
+ *
+ * Three hand-copied literals also had no guard keeping them equal. They happened
+ * to agree; nothing made them.
+ */
+
+/**
+ * The product default away reply. Sent verbatim (after merge fields) whenever
+ * the toggle is ON and the owner has not written their own.
+ *
+ * The emergency clause is load-bearing and must stay in step with
+ * `EMERGENCY_KEYWORDS`: it is the sentence that made #414 a real defect, and it
+ * is only honest because replying URGENT now wakes the crew.
+ */
+export const DEFAULT_AWAY_MESSAGE =
+  "Thanks for texting us. We're out of the office right now and will reply " +
+  "first thing. For a no-heat or burst-pipe emergency, reply URGENT and we'll " +
+  "call you.";
+
+/** The effective away template + whether it is owner-authored. */
+export interface EffectiveAwayMessage {
+  /** The template that will actually be sent (custom if non-blank, else default). */
+  message: string;
+  /** True when the owner's own text is in effect. */
+  custom: boolean;
+}
+
+/**
+ * The single fallback rule: a non-blank owner message wins; anything blank
+ * (null, empty, whitespace) falls back to the product default.
+ *
+ * Deliberately identical in shape to {@link effectiveMctbMessage} — two
+ * auto-send surfaces that resolve their copy differently is how the two drifted
+ * apart in the first place.
+ */
+export function effectiveAwayMessage(
+  ownerMessage: string | null | undefined,
+): EffectiveAwayMessage {
+  const trimmed = (ownerMessage ?? "").trim();
+  return trimmed.length > 0
+    ? { message: trimmed, custom: true }
+    : { message: DEFAULT_AWAY_MESSAGE, custom: false };
+}

@@ -19,7 +19,11 @@
  * inbound ingest (the message is already stored + threaded). The guard's own
  * throttle makes a sweeper replay safe (a re-run within the window is throttled).
  */
-import { isAfterHours, type BusinessHours } from "@loonext/shared";
+import {
+  effectiveAwayMessage,
+  isAfterHours,
+  type BusinessHours,
+} from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
@@ -72,8 +76,12 @@ export async function maybeSendAwayReply(
   const settings = (companyRows ?? [])[0] as AwaySettings | undefined;
   if (!settings || !settings.away_enabled) return;
 
-  const message = (settings.away_message ?? "").trim();
-  if (message.length === 0) return; // enabled but unauthored → send nothing
+  // #414 ask 5: blank no longer means silence. The toggle decides WHETHER an
+  // away reply happens; the message always exists, resolving to the product
+  // default — the same contract MCTB has had since #192. Before this, an owner
+  // who switched away replies on without writing anything got a Preview of the
+  // default on all three clients and a customer who got nothing.
+  const { message } = effectiveAwayMessage(settings.away_message);
 
   // The away CLOCK: outside business hours in the COMPANY timezone (not the
   // contact's — FEATURE-GAPS §2). An unresolvable zone returns "open" so we

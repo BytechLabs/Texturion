@@ -33,9 +33,6 @@ import {
 import type { CompanyView } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 
-const DEFAULT_AWAY_MESSAGE =
-  "Thanks for texting us. We're out of the office right now and will reply first thing. For a no-heat or burst-pipe emergency, reply URGENT and we'll call you.";
-
 function AwaySkeleton() {
   return (
     <div className="space-y-4" aria-label="Loading away-reply settings">
@@ -196,8 +193,11 @@ function AwayMessageCard({
   // What will actually go out — the owner's text if they wrote one, else the
   // product default. Both the preview and the emergency check read THIS, so
   // the screen can never approve of a message that isn't the one sending.
+  // #414 ask 5: the SERVER says what will actually send. This screen used to
+  // hold its own copy of the default and preview that, while the server sent
+  // nothing at all when the owner had not written one.
   const effectiveMessage =
-    message.trim().length > 0 ? message : DEFAULT_AWAY_MESSAGE;
+    message.trim().length > 0 ? message : company.away_effective_message;
   const preview = previewAwayMessage(effectiveMessage, company.name);
   const notice = awayEmergencyNotice({
     emergencyEnabled: emergency,
@@ -284,7 +284,7 @@ function AwayMessageCard({
             disabled={!canEdit || update.isPending}
             maxLength={1000}
             rows={4}
-            placeholder={DEFAULT_AWAY_MESSAGE}
+            placeholder={company.away_effective_message}
             onChange={(e) => setMessage(e.target.value)}
           />
           <p className="text-xs text-muted-foreground">

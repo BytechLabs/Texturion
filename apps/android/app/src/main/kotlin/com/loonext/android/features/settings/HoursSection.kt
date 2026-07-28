@@ -34,11 +34,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 
-/** The default owner-authored away text shown as the placeholder (web parity). */
-private const val DEFAULT_AWAY_MESSAGE =
-    "Thanks for texting us. We're out of the office right now and will reply first thing. " +
-        "For a no-heat or burst-pipe emergency, reply URGENT and we'll call you."
-
 /** One weekday row's editable state. */
 private data class DayForm(val weekday: String, val enabled: Boolean, val open: String, val close: String)
 
@@ -235,7 +230,8 @@ private fun AwayReplyCard(
     // What actually goes out — the owner's text if they wrote one, else the
     // product default. The preview and the #414 emergency check both read
     // THIS, so the screen can never approve of a message that isn't sending.
-    val effectiveMessage = trimmed.ifEmpty { DEFAULT_AWAY_MESSAGE }
+    // #414 ask 5: the SERVER says what will actually send.
+    val effectiveMessage = trimmed.ifEmpty { company.away_effective_message }
     // The preview reuses the wire's drop-empty semantics: {first_name} resolves
     // to a sample name here because the away reply DOES carry the contact.
     val preview = applyMergeFields(
@@ -283,7 +279,7 @@ private fun AwayReplyCard(
                     .padding(top = 6.dp),
                 minLines = 3,
                 enabled = !saving,
-                placeholder = { Text(DEFAULT_AWAY_MESSAGE) },
+                placeholder = { Text(company.away_effective_message) },
                 supportingText = { Text("${message.length}/1000 · {first_name} and {business_name} fill in automatically.") },
             )
         }

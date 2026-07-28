@@ -174,19 +174,42 @@ describe("maybeSendAwayReply — fires after hours", () => {
     expect(telnyx.calls).toHaveLength(1);
     expect(telnyx.calls[0].body).toMatchObject({ from: NUMBER, to: CONTACT });
   });
+
+  it("#414 ask 5: sends the product default when the owner wrote nothing", async () => {
+    // This used to return early and send NOTHING, while all three clients
+    // previewed the default as though it would go out. Each client guards
+    // against saving that state, so it is only reachable through the API — but
+    // "the UI stops you" is not a reason for the send path to read a
+    // switched-ON feature as silence. The toggle decides WHETHER; the message
+    // always exists, exactly as MCTB has worked since #192.
+    const company = awayCompanyStub({ away_message: null });
+    const conv = convStub();
+    const gates = sendGateStubs();
+    const telnyx = telnyxStub();
+    let claimBody: Record<string, unknown> | undefined;
+    const claim = stubRoute(rpcMatch(env, "claim_auto_reply"), (c) => {
+      claimBody = c.body as Record<string, unknown>;
+      return { message: messageRow({ status: "queued" }) };
+    });
+    const persist = stubRoute(
+      (url, request) =>
+        request.method === "PATCH" && url.pathname === "/rest/v1/messages",
+      () => [messageRow({ telnyx_message_id: "telnyx-away-2" })],
+    );
+    serve(company, conv, ...gates, claim, telnyx, persist);
+
+    await call();
+
+    expect(claim.calls).toHaveLength(1);
+    // The product default went out, merged — and it still carries the
+    // emergency invitation, which is only honest because URGENT is handled.
+    expect(String(claimBody?.p_body)).toContain("reply URGENT");
+  });
 });
 
 describe("maybeSendAwayReply — skips", () => {
   it("does nothing when away is disabled (no further lookups)", async () => {
     const company = awayCompanyStub({ away_enabled: false });
-    const claim = stubRoute(rpcMatch(env, "claim_auto_reply"), () => ({}));
-    serve(company, claim);
-    await call();
-    expect(claim.calls).toHaveLength(0);
-  });
-
-  it("does nothing when enabled but the message is unauthored", async () => {
-    const company = awayCompanyStub({ away_message: null });
     const claim = stubRoute(rpcMatch(env, "claim_auto_reply"), () => ({}));
     serve(company, claim);
     await call();

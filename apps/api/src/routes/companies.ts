@@ -41,6 +41,7 @@ import {
   COMPANY_COLUMNS,
   loadCompanyView,
   withCallerIdDerived,
+  withAwayDerived,
   withMctbDerived,
 } from "./core/company-view";
 import { executionCtxOf, parseJsonBody, unwrap } from "./core/http";
@@ -668,7 +669,7 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   // That silently restores the in-app plan-change and module controls the
   // switch exists to hide, after nothing more than saving a business hour.
   return c.json({
-    ...withCallerIdDerived(withMctbDerived(company)),
+    ...withCallerIdDerived(withMctbDerived(withAwayDerived(company))),
     billing_writes_enabled: billingWritesEnabled(env),
   });
 });

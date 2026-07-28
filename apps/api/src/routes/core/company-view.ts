@@ -3,7 +3,10 @@
  * safe company columns (never Stripe/Telnyx internals) + numbers summary +
  * registration snapshot (brand and campaign rows).
  */
-import { effectiveMctbMessage } from "@loonext/shared";
+import {
+  effectiveAwayMessage,
+  effectiveMctbMessage,
+} from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../../env";
@@ -121,6 +124,28 @@ export function withMctbDerived<T extends Record<string, unknown>>(
 }
 
 /**
+ * #414 ask 5: the away-reply twin of {@link withMctbDerived}.
+ *
+ * Three clients each carried their own copy of the default away message and
+ * previewed it, while the server sent nothing at all when the owner had not
+ * written one. Resolving it here makes the Preview panel show what will
+ * actually send, and lets the clients delete their literals — nothing kept
+ * those three strings equal but luck.
+ */
+export function withAwayDerived<T extends Record<string, unknown>>(
+  company: T,
+): T & { away_effective_message: string; away_message_is_custom: boolean } {
+  const effective = effectiveAwayMessage(
+    typeof company.away_message === "string" ? company.away_message : null,
+  );
+  return {
+    ...company,
+    away_effective_message: effective.message,
+    away_message_is_custom: effective.custom,
+  };
+}
+
+/**
  * #193: stamp the derived caller ID fields on a raw companies row — the
  * EFFECTIVE outbound display name (explicit cnam_display_name, else the
  * company name in the carrier alphabet) and its source. Applied everywhere
@@ -214,7 +239,7 @@ export async function loadCompanyView(
   );
 
   return {
-    ...withCallerIdDerived(withMctbDerived(company)),
+    ...withCallerIdDerived(withMctbDerived(withAwayDerived(company))),
     numbers,
     enabled_modules: modules.map((row) => row.module),
     billing_writes_enabled: billingWritesEnabled(env),

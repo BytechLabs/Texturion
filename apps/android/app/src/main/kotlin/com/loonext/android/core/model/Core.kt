@@ -127,6 +127,15 @@ data class CompanyView(
     val away_enabled: Boolean = false,
     val away_message: String? = null,
     /**
+     * #414 ask 5: the template that will ACTUALLY send — the owner's text if
+     * they wrote one, else the product default, resolved by the SERVER. This
+     * screen used to carry its own copy of that default; so did web and iOS,
+     * and nothing kept the three equal.
+     */
+    val away_effective_message: String = "",
+    /** True when the owner's own away text is in effect. */
+    val away_message_is_custom: Boolean = false,
+    /**
      * #414: whether a customer replying URGENT/EMERGENCY/911/SOS wakes the
      * whole crew at high priority, exempt from the daily notification limit.
      * Defaults TRUE for a lagging client, matching the server — the away copy

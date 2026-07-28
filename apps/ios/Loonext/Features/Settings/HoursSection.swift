@@ -1,9 +1,5 @@
 import SwiftUI
 
-/// The default owner-authored away text shown as the placeholder (web parity).
-private let defaultAwayMessage =
-    "Thanks for texting us. We're out of the office right now and will reply first thing. "
-        + "For a no-heat or burst-pipe emergency, reply URGENT and we'll call you."
 
 /// One weekday row's editable state.
 struct DayForm: Equatable, Sendable {
@@ -189,7 +185,10 @@ private struct AwayReplyCard: View {
     /// What actually goes out — the owner's text if they wrote one, else the
     /// product default. The preview and the #414 emergency check both read
     /// THIS, so the screen can never approve of a message that isn't sending.
-    private var effectiveMessage: String { trimmed.isEmpty ? defaultAwayMessage : trimmed }
+    // #414 ask 5: the SERVER says what will actually send.
+    private var effectiveMessage: String {
+        trimmed.isEmpty ? company.away_effective_message : trimmed
+    }
     private var emergencyNotice: AwayEmergencyNotice? {
         awayEmergencyNotice(emergencyEnabled: emergency, awayMessage: effectiveMessage)
     }
@@ -218,7 +217,7 @@ private struct AwayReplyCard: View {
                     : "Customers with US numbers won't get this reply until your registration is approved. Canadian numbers get it now.")
             }
             if canEdit {
-                TextField(defaultAwayMessage, text: Binding(
+                TextField(company.away_effective_message, text: Binding(
                     get: { message },
                     set: { next in
                         if next.count <= 1000 { message = next }

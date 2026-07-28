@@ -215,6 +215,13 @@ export interface CompanyView {
   business_hours: BusinessHours;
   away_enabled: boolean;
   away_message: string | null;
+  /** #414 ask 5: the template that will ACTUALLY send — the owner's text if
+   *  they wrote one, else the product default. The server resolves it so no
+   *  client has to carry its own copy of the default (three did, and nothing
+   *  kept them equal). */
+  away_effective_message: string;
+  /** True when the owner's own away text is in effect. */
+  away_message_is_custom: boolean;
   /** #414: whether a customer replying URGENT/EMERGENCY/911/SOS wakes the
    *  whole crew at high priority, exempt from the daily notification limit.
    *  On by default, because the away-message copy that asks for it is. */

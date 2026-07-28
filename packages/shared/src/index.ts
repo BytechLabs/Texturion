@@ -92,3 +92,9 @@ export {
   unrecognizedReplyKeyword,
 } from "./emergency";
 export type { AwayEmergencyNotice } from "./emergency";
+
+export {
+  DEFAULT_AWAY_MESSAGE,
+  effectiveAwayMessage,
+} from "./away";
+export type { EffectiveAwayMessage } from "./away";
