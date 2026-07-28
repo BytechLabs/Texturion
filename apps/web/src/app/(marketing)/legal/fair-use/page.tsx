@@ -22,13 +22,14 @@ const sections = [
   { id: "why", number: "1", heading: "Why this exists" },
   { id: "included", number: "2", heading: "What your plan includes" },
   { id: "overage", number: "3", heading: "Overage and your spending cap" },
-  { id: "what-for", number: "4", heading: "What Loonext is for" },
-  { id: "reasonable", number: "5", heading: "Reasonable use" },
-  { id: "numbers", number: "6", heading: "Phone numbers" },
-  { id: "add-ons", number: "7", heading: "Voice and picture messages" },
-  { id: "storage", number: "8", heading: "Storage" },
-  { id: "enforcement", number: "9", heading: "If usage is out of bounds" },
-  { id: "contact", number: "10", heading: "Contact" },
+  { id: "carrier-limits", number: "4", heading: "The carrier's own daily limit" },
+  { id: "what-for", number: "5", heading: "What Loonext is for" },
+  { id: "reasonable", number: "6", heading: "Reasonable use" },
+  { id: "numbers", number: "7", heading: "Phone numbers" },
+  { id: "add-ons", number: "8", heading: "Voice and picture messages" },
+  { id: "storage", number: "9", heading: "Storage" },
+  { id: "enforcement", number: "10", heading: "If usage is out of bounds" },
+  { id: "contact", number: "11", heading: "Contact" },
 ];
 
 export default function FairUsePage() {
@@ -98,7 +99,43 @@ export default function FairUsePage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="what-for" number="4" heading="What Loonext is for">
+      {/* #351: the ceiling that is not ours. Every tenant is registered on a
+          10DLC use case whose throughput the CARRIERS enforce, and a customer
+          could hit it on their busiest day with nothing to distinguish it from
+          a bug or an outage. The product names every other gate it applies;
+          this was the one it could not name. Figures dated and sourced in
+          packages/shared/src/carrier-throughput.ts. */}
+      <LegalSectionBlock
+        id="carrier-limits"
+        number="4"
+        heading="The carrier's own daily limit"
+      >
+        <p>
+          Separately from your plan, the US mobile carriers set their own daily
+          ceiling on every registered business, and it applies to us the same
+          way it applies to everyone. On the registration we use for most
+          businesses, T-Mobile allows up to 2,000 messages a day to T-Mobile
+          numbers, and AT&amp;T limits how fast you can send rather than how
+          many. A sole proprietor registration is half that. These are the
+          carriers&rsquo; numbers, not ours, and they can change them.
+        </p>
+        <p>
+          For almost every crew this never comes up: a Pro plan includes 2,500
+          texts for the whole month, so an ordinary day is nowhere near a daily
+          ceiling. It matters if you send a large batch in one go on one day.
+          If a send is ever refused for this reason we will say so plainly,
+          name the carrier, and tell you when it clears, rather than letting it
+          look like a failure on our side.
+        </p>
+        <p>
+          If your business grows past it, moving to a higher registration tier
+          means a fresh carrier registration with its own review, which takes
+          days rather than minutes. Tell us before you need it and we will
+          start it early.
+        </p>
+      </LegalSectionBlock>
+
+      <LegalSectionBlock id="what-for" number="5" heading="What Loonext is for">
         <p>
           Loonext is a shared inbox for conversational texting with customers who
           agreed to hear from you: quotes, scheduling, on-my-way texts, and
@@ -111,7 +148,7 @@ export default function FairUsePage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="reasonable" number="5" heading="Reasonable use">
+      <LegalSectionBlock id="reasonable" number="6" heading="Reasonable use">
         <p>
           Almost every business stays well inside its plan. For the rare account
           whose usage stops looking normal, fair, and reasonable for one business
@@ -126,7 +163,7 @@ export default function FairUsePage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="numbers" number="6" heading="Phone numbers">
+      <LegalSectionBlock id="numbers" number="7" heading="Phone numbers">
         <p>
           Your plan includes its numbers (one on Starter, two on Pro), and you
           can choose, release, and set up a replacement number yourself at no
@@ -142,7 +179,7 @@ export default function FairUsePage() {
 
       <LegalSectionBlock
         id="add-ons"
-        number="7"
+        number="8"
         heading="Voice and picture messages"
       >
         <p>
@@ -165,7 +202,7 @@ export default function FairUsePage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="storage" number="8" heading="Storage">
+      <LegalSectionBlock id="storage" number="9" heading="Storage">
         <p>
           Storage is free. Files you attach to notes and the pictures customers
           send you are kept with no storage caps, no storage add-on, and no
@@ -181,7 +218,7 @@ export default function FairUsePage() {
 
       <LegalSectionBlock
         id="enforcement"
-        number="9"
+        number="10"
         heading="If usage is out of bounds"
       >
         <p>
@@ -198,7 +235,7 @@ export default function FairUsePage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="contact" number="10" heading="Contact">
+      <LegalSectionBlock id="contact" number="11" heading="Contact">
         <p>
           Expecting a busy month, or not sure whether a use fits? Tell us first
           and we will help you land on the right plan:{" "}

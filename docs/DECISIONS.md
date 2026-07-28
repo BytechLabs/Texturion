@@ -2470,3 +2470,43 @@ DATA-INVENTORY says every party it lists must also appear on
 preview carries the sender's name and a message excerpt, so that is message
 content reaching a vendor the page never named. Google is now listed, with the
 onward relay to Apple's push service stated.
+
+## D59 — LOW_VOLUME is the right 10DLC tier, and the ceiling gets said out loud (#351)
+
+**Decision.** Every tenant registers on `LOW_VOLUME` (or `SOLE_PROPRIETOR` for
+a sole trader), and that stays. What changes is that the tier is a named,
+typed decision with a documented ceiling instead of a string literal, and the
+ceiling is disclosed to customers.
+
+**Why the default is right.** D12's ICP is 1–10 field staff having
+conversations, not campaigns. `LOW_VOLUME` skips secondary vetting entirely, so
+a plumber is texting the same day instead of waiting on a review. Moving
+everyone to a higher use case would mean heavier vetting and slower approvals
+for the overwhelming majority who will never approach the ceiling.
+
+**Why it still had to be fixed.** The customers who DO hit it are by definition
+the best ones — the growing crews with the most traffic and the most to lose —
+and they hit it blind, on their busiest day, with nothing to distinguish a
+registration-tier ceiling from a bug or an outage. This product names every
+other gate it applies; this was the one it could not name, because the number
+existed nowhere in the codebase.
+
+**The figures, dated and sourced** (`packages/shared/src/carrier-throughput.ts`,
+verified 2026-07-28): `LOW_VOLUME` is 2,000 messages/day to T-Mobile per BRAND,
+and 75 segments/minute on AT&T. `SOLE_PROPRIETOR` is 1,000/day. Neither can be
+raised by vetting — the way up is a fresh registration on a higher tier, which
+takes days.
+
+**Reconciled against our own quotas.** Pro includes 2,500 outbound segments for
+a MONTH, so an ordinary day is nowhere near a daily ceiling; even the per-period
+hard cap of 25,000 averages ~830/day. The ceiling is reachable only by a large
+batch sent in one go. That reconciliation is why the disclosure says "it
+matters if you send a large batch in one day" rather than implying a limit
+customers meet routinely — overstating it would frighten people away from a
+product they will never strain.
+
+**The staleness is a test, not a promise.** These are the carriers' numbers and
+they move. `TEN_DLC_CEILINGS_RECHECK_AFTER` is six months out and a test fails
+when it passes, which is #326's revisit trigger expressed as something that
+cannot be quietly ignored. When it fails, the job is to re-read the carriers'
+published rules and move both dates — not to push the date forward.

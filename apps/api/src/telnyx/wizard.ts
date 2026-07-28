@@ -2,6 +2,7 @@ import { isUsCaDestination } from "@loonext/shared";
 import { z } from "zod";
 
 import type { Env } from "../env";
+import type { TenDlcUseCase } from "@loonext/shared";
 
 /**
  * The §4.4 wizard → Telnyx payload field mapping. The wizard stores brand and
@@ -283,6 +284,25 @@ export function buildCampaignContentUpdate(options: {
   };
 }
 
+
+/**
+ * #351: the 10DLC use case every tenant is registered on.
+ *
+ * It was a bare string literal here and recorded nowhere else, so the tier —
+ * and the carrier ceiling that comes with it — was invisible to us as well as
+ * to the customer. Typed to `TenDlcUseCase`, whose ceilings are documented,
+ * dated and sourced in packages/shared/src/carrier-throughput.ts: a new tier
+ * cannot be introduced without a ceiling to go with it, because it will not
+ * typecheck.
+ *
+ * LOW_VOLUME remains the right default for D12's ICP — crews having
+ * conversations, not campaigns — and nothing here changes it. What changes is
+ * that the choice is now a named decision rather than an expression.
+ */
+export function campaignUseCase(soleProprietor: boolean): TenDlcUseCase {
+  return soleProprietor ? "SOLE_PROPRIETOR" : "LOW_VOLUME";
+}
+
 /**
  * Build the `POST /v2/10dlc/campaignBuilder` payload (§4.4 mapping):
  * LOW_VOLUME (SOLE_PROPRIETOR on the sole-prop path), the wizard's opt-in
@@ -306,7 +326,7 @@ export function buildCampaignPayload(
   const webhook = telnyxWebhookUrl(env);
   return {
     brandId: options.brandId,
-    usecase: options.soleProprietor ? "SOLE_PROPRIETOR" : "LOW_VOLUME",
+    usecase: campaignUseCase(options.soleProprietor),
     autoRenewal: true,
     ...buildCampaignContent({
       campaign: options.campaign,

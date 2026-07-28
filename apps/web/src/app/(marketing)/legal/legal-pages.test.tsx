@@ -171,6 +171,21 @@ describe("refunds — the guarantee promise survives, word for word where it cou
 describe("fair-use — the plain limits survive", () => {
   const html = PAGES[6].html;
 
+  it("discloses the carrier's own daily ceiling (#351)", () => {
+    // Every tenant is registered on a 10DLC use case whose throughput the
+    // CARRIERS enforce. A growing crew could hit it on their busiest day with
+    // nothing to distinguish a registration-tier ceiling from a bug or an
+    // outage — the one gate this product could not name. It is not our limit,
+    // which is exactly why it has to be said out loud rather than inferred
+    // from our own allowances.
+    // The apostrophe renders as &#x27; in static markup, so match around it.
+    expect(html).toContain("daily limit");
+    expect(html).toContain("2,000 messages a day");
+    // And the path up, because discovering the ceiling is only half the
+    // problem: the other half is that moving past it takes days.
+    expect(html).toContain("fresh carrier registration");
+  });
+
   it("says outright that only sent texts count (#353)", () => {
     // The one question #353 asked, on the page D34 makes canonical for it.
     // Every other surface already said this; §2 described the allowance

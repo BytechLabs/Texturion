@@ -71,6 +71,18 @@ export {
 } from "./business-hours";
 
 export {
+  TEN_DLC_CEILINGS,
+  TEN_DLC_CEILINGS_VERIFIED_ON,
+  TEN_DLC_CEILINGS_RECHECK_AFTER,
+  CARRIER_CEILING_WARN_FRACTION,
+  dailyCeiling,
+  approachingCarrierCeiling,
+  type TenDlcUseCase,
+  type TierCeiling,
+  type CarrierCeiling,
+} from "./carrier-throughput";
+
+export {
   PLAN_SEATS,
   seatLimit,
   canUpgradeSeats,
