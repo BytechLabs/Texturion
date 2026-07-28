@@ -663,6 +663,9 @@ private fun ThreadLoaded(
             usApproved = controller.company?.let { usSendApproved(it) } ?: true,
             usTextingOff = controller.company?.let { usTextingOff(it) } ?: false,
             usage = controller.usage,
+            // #396: a shared inbox means the person replying is often not the
+            // person who read the request.
+            optOutHint = detail.opt_out_hint_at != null,
         )
         ThreadComposer(
             state = composer,

@@ -314,6 +314,15 @@ export interface Conversation {
   /** #414: when this thread last carried an emergency reply (URGENT/EMERGENCY/
    *  911/SOS). The inbox badges it while the thread is open. */
   emergency_at: string | null;
+  /**
+   * #396: when an inbound message on this thread last READ as a plain-English
+   * opt-out ("stop texting me", "take me off your list").
+   *
+   * A WARNING for whoever replies next, never an opt-out. Only the contact can
+   * opt out and only they can lift it, so the product refuses to guess on their
+   * behalf — a wrong guess would silence a real lead permanently.
+   */
+  opt_out_hint_at?: string | null;
   created_at: string;
   updated_at: string;
 }

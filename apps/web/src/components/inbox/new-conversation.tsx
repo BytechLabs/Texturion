@@ -251,6 +251,8 @@ export function NewConversation() {
           usApproved: usSendApproved(company.data),
           usTextingOff: usTextingOff(company.data),
           usage: usage.data ?? null,
+          // A brand-new conversation has no history to have asked in.
+          optOutHint: false,
         })
       : null;
 

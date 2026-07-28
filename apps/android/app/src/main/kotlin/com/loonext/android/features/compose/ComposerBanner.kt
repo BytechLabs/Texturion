@@ -49,6 +49,16 @@ sealed interface ComposerBanner {
      */
     data object UsTextingOff : ComposerBanner
     data object UsageCap : ComposerBanner
+
+    /**
+     * #396: an inbound message on this thread READ as a plain-English opt-out.
+     *
+     * The only banner here that does not describe a block — every other one
+     * says why a message cannot go. This one says a message SHOULD not, and
+     * leaves the decision with the person: an opt-out cannot be lifted by us
+     * (#331), so acting on a guess would silence a real lead for good.
+     */
+    data object OptOutHint : ComposerBanner
 }
 
 fun selectComposerBanner(
@@ -59,6 +69,7 @@ fun selectComposerBanner(
     usApproved: Boolean,
     usTextingOff: Boolean,
     usage: Usage?,
+    optOutHint: Boolean = false,
 ): ComposerBanner? {
     if (contactOptedOut) {
         return ComposerBanner.OptedOut(isCarrierEnforcedOptOut(contactOptOutSource))
@@ -73,6 +84,11 @@ fun selectComposerBanner(
     if (usage != null && cap != null && usage.used_segments >= cap) {
         return ComposerBanner.UsageCap
     }
+    // #396 LAST, deliberately: every banner above says a message CANNOT go, and
+    // where nothing can be sent no obligation can be breached. This one matters
+    // exactly when the composer is otherwise open — the moment somebody is
+    // about to reply to a person who asked them not to.
+    if (optOutHint) return ComposerBanner.OptOutHint
     return null
 }
 
@@ -124,6 +140,13 @@ fun bannerCopy(banner: ComposerBanner): Pair<String, String> = when (banner) {
     ComposerBanner.UsageCap ->
         "You've hit this month's cap" to
             "Outbound texts pause until the cap is raised or the month rolls over. Internal notes still work."
+
+    // #396: says what was seen and who decides. It does NOT opt anyone out —
+    // only the customer can, and only they can lift it, so a wrong guess would
+    // silence a real lead for good.
+    ComposerBanner.OptOutHint ->
+        "They asked not to be contacted" to
+            "Someone on this thread asked to be left alone. That request is binding however it's worded, so don't reply unless you're sure it wasn't one. To stop texts for good, they need to text STOP."
 }
 
 /**

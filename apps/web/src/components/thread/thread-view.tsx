@@ -259,6 +259,10 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           usApproved: usSendApproved(company.data),
           usTextingOff: usTextingOff(company.data),
           usage: usage.data ?? null,
+          // #396: the thread itself is the only place this is known, and the
+          // only place it matters — a shared inbox means the person replying
+          // is often not the person who read the request.
+          optOutHint: Boolean(conversation.opt_out_hint_at),
         })
       : null;
 

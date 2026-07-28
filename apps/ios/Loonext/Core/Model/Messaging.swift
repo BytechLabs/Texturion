@@ -185,6 +185,11 @@ struct ConversationDetail: Codable, Sendable {
     let pinned_by_user_id: String?
     let last_message_at: String
     let closed_at: String?
+    /// #396: when an inbound message here last READ as a plain-English
+    /// opt-out. A warning for whoever replies next, never an opt-out — only
+    /// the contact can opt out, and only they can lift it. `var … = nil` so it
+    /// does not become a required memberwise-init parameter everywhere.
+    var opt_out_hint_at: String? = nil
     let created_at: String
     let updated_at: String
     let contact: ConversationDetailContact

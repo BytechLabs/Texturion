@@ -18,6 +18,9 @@ import { canonicalMmsType } from "@loonext/shared";
 
 import { PLAN_NOTIFY_LIMITS, type PlanId } from "../billing/plans";
 import { billingRecipients } from "../billing/recipients";
+import { looksLikeOptOut } from "@loonext/shared";
+
+import { recordAudit } from "../audit/log";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
@@ -163,6 +166,44 @@ export async function handleInboundMessage(
   const emergency =
     (company?.emergency_keyword_enabled ?? true) &&
     isEmergencyKeyword(payload.text ?? "");
+
+  // #396: a plain-English opt-out is legally binding and only the KEYWORD was
+  // ever detected. "Please stop texting me" is not an exact STOP, so Telnyx
+  // does not block it, `stop_keyword` never fires, and no 40300 is produced for
+  // the carrier reconciliation to find. It lands as ordinary text.
+  //
+  // This FLAGS the thread and does not opt anyone out — deliberately. An
+  // opt-out cannot be lifted by us (#331): only the contact texting START
+  // clears it, so a false positive would permanently silence a paying
+  // customer's real lead with no way back for either of them. Warn loudly, let
+  // a human decide.
+  //
+  // Best-effort: the inbound message is already durable, and a failure to raise
+  // a WARNING must never wedge it in a retry loop.
+  if (looksLikeOptOut(payload.text)) {
+    try {
+      await db
+        .from("conversations")
+        .update({ opt_out_hint_at: new Date().toISOString() })
+        .eq("id", threaded.conversation_id)
+        .eq("company_id", number.company_id);
+      // #345/D22: "we were told, and we knew" is the fact that matters if this
+      // is ever disputed. The actor is the CONTACT, not a member.
+      await recordAudit(db, {
+        companyId: number.company_id,
+        actorUserId: null,
+        action: "opt_out.language_detected",
+        targetType: "conversation",
+        targetId: threaded.conversation_id,
+        after: { from: fromE164 },
+      });
+    } catch (cause) {
+      console.error(
+        `opt-out language flag for conversation ${threaded.conversation_id} failed:`,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
+  }
 
   // After-hours away auto-reply (FEATURE-GAPS Step 1) — only on the first
   // delivery. Best-effort: a failure here (e.g. a not-ready send gate) must

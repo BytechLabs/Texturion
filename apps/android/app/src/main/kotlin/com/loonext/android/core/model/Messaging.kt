@@ -61,6 +61,12 @@ data class Conversation(
      * EMERGENCY/911/SOS). The inbox badges it while the thread is open.
      */
     val emergency_at: String? = null,
+    /**
+     * #396: when an inbound message here last READ as a plain-English opt-out.
+     * A warning for whoever replies next, never an opt-out — only the contact
+     * can opt out, and only they can lift it.
+     */
+    val opt_out_hint_at: String? = null,
     val created_at: String,
     val updated_at: String,
 )
@@ -179,6 +185,12 @@ data class ConversationDetail(
     val pinned_by_user_id: String? = null,
     val last_message_at: String,
     val closed_at: String? = null,
+    /**
+     * #396: when an inbound message here last READ as a plain-English opt-out.
+     * A warning for whoever replies next, never an opt-out — only the contact
+     * can opt out, and only they can lift it.
+     */
+    val opt_out_hint_at: String? = null,
     val created_at: String,
     val updated_at: String,
     val contact: ConversationDetailContact,

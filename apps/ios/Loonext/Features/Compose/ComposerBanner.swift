@@ -26,6 +26,12 @@ enum ComposerBanner: Equatable, Sendable {
     /// outcome that could not arrive however long the reader waited.
     case usTextingOff
     case usageCap
+    /// #396: an inbound message on this thread READ as a plain-English
+    /// opt-out. The only case here that does not describe a block — every
+    /// other says why a message cannot go. This says a message SHOULD not, and
+    /// leaves the decision with the person: an opt-out cannot be lifted by us
+    /// (#331), so acting on a guess would silence a real lead for good.
+    case optOutHint
 }
 
 func selectComposerBanner(
@@ -35,7 +41,8 @@ func selectComposerBanner(
     destinationCountry: String?,
     usApproved: Bool,
     usTextingOff: Bool,
-    usage: Usage?
+    usage: Usage?,
+    optOutHint: Bool = false
 ) -> ComposerBanner? {
     if contactOptedOut {
         return .optedOut(carrierBlocked: isCarrierEnforcedOptOut(contactOptOutSource))
@@ -49,6 +56,11 @@ func selectComposerBanner(
     if let usage, let cap = usage.cap_segments, usage.used_segments >= cap {
         return .usageCap
     }
+    // #396 LAST, deliberately: every case above says a message CANNOT go, and
+    // where nothing can be sent no obligation can be breached. This one matters
+    // exactly when the composer is otherwise open — the moment somebody is
+    // about to reply to a person who asked them not to.
+    if optOutHint { return .optOutHint }
     return nil
 }
 
@@ -103,6 +115,14 @@ func bannerCopy(_ banner: ComposerBanner) -> (title: String, body: String) {
             "You've hit this month's cap",
             "Outbound texts pause until the cap is raised or the month rolls over. Internal notes still work."
         )
+    // #396: says what was seen and who decides. It does NOT opt anyone out —
+    // only the customer can, and only they can lift it, so a wrong guess would
+    // silence a real lead for good.
+    case .optOutHint:
+        return (
+            "They asked not to be contacted",
+            "Someone on this thread asked to be left alone. That request is binding however it's worded, so don't reply unless you're sure it wasn't one. To stop texts for good, they need to text STOP."
+        )
     }
 }
 
@@ -115,7 +135,9 @@ func bannerCopy(_ banner: ComposerBanner) -> (title: String, body: String) {
 func offersCallInstead(_ banner: ComposerBanner) -> Bool {
     switch banner {
     case .registrationPending, .usTextingOff: return true
-    case .optedOut, .subscription, .usageCap: return false
+    // #396: never offer the phone as a way around a request to be left alone —
+    // the same reasoning that excludes an opted-out contact.
+    case .optedOut, .subscription, .usageCap, .optOutHint: return false
     }
 }
 

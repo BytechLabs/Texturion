@@ -105,3 +105,5 @@ export {
   supportMailto,
 } from "./support";
 export type { SupportContext } from "./support";
+
+export { looksLikeOptOut } from "./opt-out-language";

@@ -2072,3 +2072,64 @@ their behalf.
 provider relationship where inbound is not billed on receipt, or a carrier-side
 filter we can configure before delivery. Until one of those exists, this is the
 shape.
+
+---
+
+## D51 — a plain-English opt-out is flagged, never acted on (#396, 2026-07-28)
+
+**Since April 2025 an opt-out is binding however it is worded, not only as
+STOP. We detect that now — and deliberately do not act on it.**
+
+**The asymmetry that decides this.** An opt-out cannot be lifted by us by
+design (#331, D3): only the contact texting START clears it, because the record
+is theirs. So the two errors are not symmetric.
+
+- A **missed** opt-out is a TCPA exposure, and leaves the thread looking exactly
+  as it does today.
+- A **wrong** opt-out would permanently silence a paying customer's real lead,
+  with no way back for the customer, the crew, or us.
+
+One is a risk we already carry. The other is unrecoverable and self-inflicted.
+So the product **warns loudly and a human decides**: the thread carries
+`opt_out_hint_at`, every composer on all three clients shows a destructive-toned
+banner before anyone replies, and nothing changes the contact's state.
+
+**Why it matters more here than in a single-operator tool**, which is the part
+worth stating: the shared inbox is the product's whole point, and it is also
+what makes the manual approach fail. The tech who reads *"stop texting me"* at
+4pm is not the one who follows up at 9am, and until now nothing in the thread
+said a word.
+
+**Deterministic, not a model.** A classifier would need the AI gate, a cap, an
+alert threshold, a timeout and the #389 disclosure question — and would answer
+differently on different days at a compliance boundary. These are fixed phrases
+people actually type. A regex table can be audited, quoted in a dispute, and
+reasoned about by the person who has to defend it.
+
+The false-POSITIVE list is as load-bearing as the matches: *"stop by the shop"*
+is an invitation, and *"don't text me until after 5"* is a scheduling
+instruction. A banner that fires on those teaches a crew to ignore the banner,
+which would cost more than never having built it.
+
+**A message that is exactly a carrier keyword is left alone** — Telnyx blocks it
+and `stop_keyword` records it. Raising a second, weaker signal about a message
+already handled would only dilute this one.
+
+### Cross-channel opt-out, and the January 2027 date (#396 ask 4)
+
+The FCC's requirement that **one opt-out applies to every channel** takes effect
+**31 January 2027**. The codebase currently holds both postures:
+
+- `offersCallInstead()` returns NO for an opted-out contact, reasoned as *"a
+  STOP revokes consent to reach out at all rather than only to text"* — already
+  ahead of the rule.
+- The thread header's call button stays enabled, reasoned as *"voice consent is
+  not SMS consent"* — defensible today, non-compliant from January 2027.
+
+**Decision: the composer posture is the correct one and the header should
+follow it, before 2027-01-31.** Not changed in this commit, because disabling a
+call button is a product change of its own and belongs in a change that can be
+reviewed as one — but it is recorded here as decided rather than open, so the
+next person does not have to re-litigate it from two contradictory comments.
+The new banner already declines to offer the call as a way around a request to
+be left alone.

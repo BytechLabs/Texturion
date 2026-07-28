@@ -62,6 +62,10 @@ export type AuditAction =
   // nobody on the crew can undo, and the first thing anyone reaches for when
   // a customer says they asked to be left alone.
   | "opt_out.recorded"
+  // #396: an inbound message READ as a plain-English opt-out. Not an opt-out
+  // — a warning to the crew. Recorded because "we were told, and we knew" is
+  // the fact that decides a TCPA dispute.
+  | "opt_out.language_detected"
   // A number leaving us (#398). The actor is a CARRIER, not a person — the
   // customer moving on, or somebody taking the number from them. Recorded at
   // every status because "has anyone tried this before" is the question asked

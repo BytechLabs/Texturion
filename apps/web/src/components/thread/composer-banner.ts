@@ -39,6 +39,15 @@ export type ComposerBanner =
    */
   | { kind: "us_texting_off" }
   | { kind: "usage_cap" }
+  /**
+   * #396: an inbound message on this thread READ as a plain-English opt-out.
+   *
+   * The only banner here that does not describe a block — everything else says
+   * why a message cannot go. This one says a message SHOULD not, and leaves the
+   * decision with the person: an opt-out cannot be lifted by us (#331), so
+   * acting on a guess would silence a real lead forever.
+   */
+  | { kind: "opt_out_hint" }
   | null;
 
 export interface ComposerGateInput {
@@ -56,6 +65,8 @@ export interface ComposerGateInput {
   usTextingOff: boolean;
   /** GET /v1/usage — null while loading (cap banner needs real data). */
   usage: Pick<Usage, "used_segments" | "cap_segments"> | null;
+  /** #396: conversations.opt_out_hint_at — a plain-English opt-out was seen. */
+  optOutHint: boolean;
 }
 
 export function selectComposerBanner(input: ComposerGateInput): ComposerBanner {
@@ -81,6 +92,13 @@ export function selectComposerBanner(input: ComposerGateInput): ComposerBanner {
     input.usage.used_segments >= input.usage.cap_segments
   ) {
     return { kind: "usage_cap" };
+  }
+  // #396 LAST, and deliberately: every banner above says a message CANNOT go,
+  // and where nothing can be sent no obligation can be breached. This one
+  // matters exactly when the composer is otherwise open — the moment somebody
+  // is about to reply to a person who asked them not to.
+  if (input.optOutHint) {
+    return { kind: "opt_out_hint" };
   }
   return null;
 }

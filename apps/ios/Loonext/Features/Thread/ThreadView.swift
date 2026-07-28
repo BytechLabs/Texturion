@@ -578,7 +578,10 @@ private struct ThreadBody: View {
             destinationCountry: Nanp.destinationCountry(detail.contact.phone_e164),
             usApproved: controller.company.map(usSendApproved) ?? true,
             usTextingOff: controller.company.map(usTextingOff) ?? false,
-            usage: controller.usage
+            usage: controller.usage,
+            // #396: a shared inbox means the person replying is often not the
+            // person who read the request.
+            optOutHint: detail.opt_out_hint_at != nil
         )
         // #106: calling is outreach like texting, so a notes-only member gets
         // no control the API would refuse.

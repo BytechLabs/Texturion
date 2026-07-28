@@ -101,7 +101,13 @@ const CONVERSATION_COLUMNS =
   // #414 ask 2 — "visibly flagged in the inbox". Set when a customer replies
   // URGENT; the clients badge the row while the thread is open, and closing
   // the thread is the crew saying it was handled.
-  "emergency_at";
+  "emergency_at," +
+  // #396 — a plain-English opt-out is legally binding, and only the keyword was
+  // ever detected. Set when an inbound message READS as one. A warning to
+  // whoever replies next, never an opt-out: only the contact can opt out, and
+  // only they can lift it, so the product cannot afford to guess on their
+  // behalf.
+  "opt_out_hint_at";
 
 const MESSAGE_COLUMNS =
   "id,conversation_id,direction,body,status,segments,encoding," +

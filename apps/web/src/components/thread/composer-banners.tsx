@@ -59,8 +59,12 @@ export function ComposerBannerCard({
     );
   };
 
+  // #396: the hint reads as DESTRUCTIVE alongside a real opt-out, not as the
+  // amber "you cannot send" family. Sending here is possible and probably
+  // unlawful, which is a heavier thing than a blocked composer, and a warning
+  // that looks like the routine ones gets read like the routine ones.
   const tone =
-    banner.kind === "opted_out"
+    banner.kind === "opted_out" || banner.kind === "opt_out_hint"
       ? "border-destructive/30 bg-destructive/10 text-foreground"
       : "border-warning/40 bg-warning/10 text-foreground";
 
@@ -148,11 +152,19 @@ export function ComposerBannerCard({
         );
       }
       break;
+    case "opt_out_hint":
+      // #396: says what was seen and who decides. It does NOT opt anyone out —
+      // only the customer can, and only they can lift it, so a wrong guess
+      // would silence a real lead for good.
+      sentence =
+        "Someone on this thread asked not to be contacted. That request is binding however it is worded, so don't reply unless you are sure it wasn't one. To stop texts for good, they need to text STOP.";
+      break;
   }
 
   return (
     <div
-      role="status"
+      // A legal obligation, not a status line — announced rather than polled.
+      role={banner.kind === "opt_out_hint" ? "alert" : "status"}
       className={cn(
         "flex items-center justify-between gap-3 border-t px-4 py-3",
         tone,

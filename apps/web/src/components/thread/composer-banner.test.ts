@@ -15,6 +15,7 @@ const clear: ComposerGateInput = {
   usApproved: true,
   usTextingOff: false,
   usage: { used_segments: 100, cap_segments: 1500 },
+  optOutHint: false,
 };
 
 describe("selectComposerBanner precedence", () => {
@@ -205,5 +206,42 @@ describe("destinationCountry", () => {
     expect(destinationCountry("+14165550182")).toBe("CA"); // 416 Toronto
     expect(destinationCountry("+12125550100")).toBe("US");
     expect(destinationCountry("+18765550100")).toBeNull(); // Jamaica
+  });
+});
+
+describe("#396 — a plain-English opt-out on the thread", () => {
+  it("warns when nothing else is blocking the composer", () => {
+    // The whole point: this is the moment somebody is about to reply to a
+    // person who asked them not to.
+    expect(selectComposerBanner({ ...clear, optOutHint: true })).toEqual({
+      kind: "opt_out_hint",
+    });
+  });
+
+  it("never outranks a real opt-out", () => {
+    // A recorded opt-out is a fact; this is a reading of one. The fact wins,
+    // and its copy is the one that says who can lift it.
+    const banner = selectComposerBanner({
+      ...clear,
+      contactOptedOut: true,
+      contactOptOutSource: "stop_keyword",
+      optOutHint: true,
+    });
+    expect(banner).toMatchObject({ kind: "opted_out" });
+  });
+
+  it("yields to anything that actually blocks the send", () => {
+    // Where no message can go, no obligation can be breached — so the banner
+    // that explains why sending is off is the more useful one to show.
+    const banner = selectComposerBanner({
+      ...clear,
+      subscriptionStatus: "past_due",
+      optOutHint: true,
+    });
+    expect(banner).toMatchObject({ kind: "subscription" });
+  });
+
+  it("stays silent without the flag", () => {
+    expect(selectComposerBanner({ ...clear, optOutHint: false })).toBeNull();
   });
 });
