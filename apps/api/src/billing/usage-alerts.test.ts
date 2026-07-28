@@ -520,8 +520,8 @@ describe("#449 — inbound is uncapped, so it is at least visible", () => {
 
     const emails = sentEmails(harness);
     const ops = emails.find((e) => e.subject.startsWith("[ops]"));
-    // 10,000 x 0.7c = $70 of our money, free to the customer.
-    expect(ops?.subject).toContain("$70.00");
+    // 10,000 x 1.0c = $100 of our money, free to the customer (#445).
+    expect(ops?.subject).toContain("$100.00");
     // The trailing figure is what separates a freeze from an attack (#401).
     expect(ops?.text).toContain("Trailing 30 days before this: 800");
 
@@ -586,7 +586,7 @@ describe("#449 — inbound is uncapped, so it is at least visible", () => {
     const { harness, done } = run(state);
     await done;
     const ops = sentEmails(harness).find((e) => e.subject.startsWith("[ops]"));
-    expect(ops?.subject).toContain("$350.00");
+    expect(ops?.subject).toContain("$500.00");
     expect(ops?.text).toContain("cannot be capped");
   });
 

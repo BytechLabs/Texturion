@@ -29,18 +29,60 @@ import type { PlanId } from "./plans";
  * api_period_egress_bytes) get multiplied by to reconstruct cost-so-far.
  */
 export const UNIT_COST_CENTS = {
-  /** Outbound US SMS segment: $0.004 base + $0.003–0.0045 carrier ⇒ ~$0.007–0.0085.
-   *  High end (PRICING-AUDIT §4). NB: unrelated to the 3¢/2.5¢ overage PRICE.
-   *  #103: outbound MMS (~$0.025 true cost: Telnyx $0.015 + up to $0.01 carrier)
-   *  is covered THROUGH this rate — each MMS meters as 3 segments into
-   *  usage_events, and 3 × 0.85¢ = 2.55¢ ≥ its true cost, so no separate MMS
-   *  term exists (it would double-count). */
-  outboundSegment: 0.85,
-  /** Inbound US SMS segment: $0.004 base + $0.003 T-Mobile receive surcharge on
-   *  registered traffic (SPEC §2 "COGS ~0.7¢/segment"; PRICING-AUDIT §4).
-   *  Inbound MMS receive ($0.005) rides within this conservatism; its stored
-   *  media draws storage + egress cost, counted via those units. */
-  inboundSegment: 0.7,
+  /**
+   * Outbound US SMS segment. **1.15¢, raised from 0.85¢ (#445, 2026-07-28).**
+   *
+   * This is the one unit cost in this file measured rather than estimated.
+   * Telnyx reports the real cost of every outbound message on the delivery
+   * webhook (`messages.provider_cost`, #216), and production says:
+   *
+   *     0.91c x3   0.98c x8   1.05c x1   1.13c x11   1.135c x1
+   *
+   * — modal 1.13¢, mean 1.05¢ excluding one 3.27¢ outlier, over 26 segments.
+   * The old 0.85¢ figure UNDER-counted by roughly a third, against this
+   * module's own rule that a never-lose-money model must not under-count. 1.15¢
+   * is the high end of the observed range, which is the rule applied.
+   *
+   * It also answers #445 ask 5: **Telnyx passes the 2026 carrier surcharges
+   * through** rather than absorbing them. A $0.004 base plus the old assumed
+   * $0.003 surcharge cannot produce a measured 1.13¢; the three A2P increases
+   * that landed in 2026 (T-Mobile and US Cellular in January, AT&T in April)
+   * are inside what Telnyx bills us.
+   *
+   * NB: unrelated to the 3¢/2.5¢ overage PRICE. #103: outbound MMS (~$0.025
+   * true cost) is covered THROUGH this rate — each MMS meters as 3 segments, so
+   * 3 × 1.15¢ = 3.45¢ ≥ its true cost and no separate MMS term exists.
+   */
+  outboundSegment: 1.15,
+  /**
+   * Inbound US SMS segment. **1.0¢, raised from 0.7¢ (#445, 2026-07-28).**
+   *
+   * ESTIMATED, and it cannot currently be anything else: Telnyx reports message
+   * cost on the DELIVERY-status webhook, which only fires for messages we send.
+   * Production holds 21 inbound messages and zero costed ones, so
+   * `api_period_provider_cost` — the "ground truth" arm of the projection — is
+   * outbound-only and silently omits this line entirely. The projection takes
+   * the HIGHER of estimate and actual, which is what keeps that omission from
+   * under-reporting; the estimate is load-bearing here, not decorative.
+   *
+   * Composition, naming every carrier that charges rather than one (#445 ask 2):
+   *   $0.004  Telnyx base receive
+   *   $0.0025 T-Mobile MO surcharge on registered traffic (19 Jan 2026)
+   *   $0.0025 AT&T, which from 1 Apr 2026 applies its pass-through to
+   *           mobile-ORIGINATED traffic as well as terminated — the change the
+   *           old single-carrier comment could not have accounted for
+   *   +       US Cellular (19 Jan 2026), small share, inside the rounding
+   * ⇒ ~0.95¢, carried at 1.0¢ as the high end.
+   *
+   * This is the line with NO offsetting revenue (inbound is free to the
+   * customer, D50) and no ceiling, so an understatement here goes straight
+   * through to the profitability answer. It is also the least verifiable number
+   * in the file, which is the honest state of it.
+   *
+   * Inbound MMS receive ($0.005) rides within this conservatism; its stored
+   * media draws storage + egress cost, counted via those units.
+   */
+  inboundSegment: 1.0,
   /** Forwarded voice minute: ~$0.01–0.012 for BOTH legs of one forwarded
    *  minute; high end (PRICING-AUDIT §4). D36: multiplied against the
    *  forward-leg (dialed) minute sum — the same measure the 1¢/min overage

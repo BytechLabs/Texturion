@@ -58,7 +58,7 @@ describe("#216 telecom cost = max(estimate, actual × multiplier)", () => {
       null,
       1,
     );
-    expect(p.costCents).toBeCloseTo(85, 5); // 100 × 0.85¢ > 10¢
+    expect(p.costCents).toBeCloseTo(115, 5); // 100 × 1.15¢ > 10¢
   });
 
   it("extrapolates the actual on the SAME multiplier as the estimate", () => {
@@ -133,38 +133,38 @@ describe("projectUsage (per-volume cost + overage revenue)", () => {
       forwardedCalls: 2,
       egressBytes: GB,
     });
-    // 400*0.85 + 1000*0.7 + 10*1.2 + 2*10 + 1*9 = 340 + 700 + 12 + 20 + 9.
+    // 400*1.15 + 1000*1.0 + 10*1.2 + 2*10 + 1*9 = 460 + 1000 + 12 + 20 + 9.
     // (#103: MMS has no term — a picture send already rides in outboundSegments.)
     expect(projectUsage(u, "starter", 3, 1)).toEqual({
-      costCents: 1081,
+      costCents: 1501,
       overageRevenueGrossCents: 0,
     });
   });
 
   it("counts FULL outbound cost and the overage revenue past the allowance", () => {
     const u = usage({ outboundSegments: 400 });
-    // multiplier 2 -> 800 projected (< 1500 ceiling): full 800*0.85 = 680 cost;
+    // multiplier 2 -> 800 projected (< 1500 ceiling): full 800*1.15 = 920 cost;
     // overage (800 - 500) * 3c = 900 revenue.
-    expect(projectUsage(u, "starter", 3, 2)).toEqual({
-      costCents: 680,
-      overageRevenueGrossCents: 900,
-    });
+    // 1.15c does not divide exactly in binary, so the cost is compared with a
+    // tolerance rather than pretending 800 x 1.15 lands on a round number.
+    const p = projectUsage(u, "starter", 3, 2);
+    expect(p.costCents).toBeCloseTo(920, 6);
+    expect(p.overageRevenueGrossCents).toBe(900);
   });
 
   it("bounds outbound at the spending-cap ceiling (sending pauses there)", () => {
     const u = usage({ outboundSegments: 1000 });
-    // multiplier 2 -> 2000, capped to 1500 ceiling: 1500*0.85 = 1275 cost;
+    // multiplier 2 -> 2000, capped to 1500 ceiling: 1500*1.15 = 1725 cost;
     // overage (1500 - 500) * 3c = 3000 revenue.
-    expect(projectUsage(u, "starter", 3, 2)).toEqual({
-      costCents: 1275,
-      overageRevenueGrossCents: 3000,
-    });
+    const p = projectUsage(u, "starter", 3, 2);
+    expect(p.costCents).toBeCloseTo(1725, 6);
+    expect(p.overageRevenueGrossCents).toBe(3000);
   });
 
   it("is unbounded outbound when the owner cleared the cap", () => {
     const u = usage({ outboundSegments: 1000 });
     expect(projectUsage(u, "starter", null, 2)).toEqual({
-      costCents: 1700, // 2000 * 0.85
+      costCents: 2300, // 2000 * 1.15
       overageRevenueGrossCents: 4500, // (2000 - 500) * 3c
     });
   });
@@ -209,7 +209,7 @@ describe("projectUsage (per-volume cost + overage revenue)", () => {
   it("prices uncapped inbound in full (the real loss driver, no revenue)", () => {
     const u = usage({ inboundSegments: 5000 });
     expect(projectUsage(u, "starter", 3, 2)).toEqual({
-      costCents: 7000, // 10000 * 0.7
+      costCents: 10000, // 10000 * 1.0
       overageRevenueGrossCents: 0,
     });
   });
@@ -257,8 +257,8 @@ describe("overageDecision (pure)", () => {
       },
       midPeriod,
     );
-    // flow 5000*2*0.7 = 7000, fixed 110 + 1000 = 1110, storage 0.
-    expect(d.extrapolatedCostCents).toBe(8110);
+    // flow 5000*2*1.0 = 10000, fixed 110 + 1000 = 1110, storage 0.
+    expect(d.extrapolatedCostCents).toBe(11110);
     expect(d.revenueCents).toBeCloseTo(2771.4, 4); // stripeNet($29), no overage
     expect(d.trendingOver).toBe(true);
   });
@@ -278,8 +278,8 @@ describe("overageDecision (pure)", () => {
       },
       midPeriod,
     );
-    // cost: 10000*0.85 + 6000*0.7 + fixed 1110 = 8500 + 4200 + 1110 = 13810.
-    expect(d.extrapolatedCostCents).toBe(13810);
+    // cost: 10000*1.15 + 6000*1.0 + fixed 1110 = 11500 + 6000 + 1110 = 18610.
+    expect(d.extrapolatedCostCents).toBe(18610);
     // revenue: stripeNet(2900 + (10000-500)*3) = stripeNet(31400).
     expect(d.revenueCents).toBeCloseTo(31400 * 0.966 - 30, 3);
     expect(d.marginCents).toBeGreaterThan(0);
@@ -336,8 +336,8 @@ describe("overageDecision (pure)", () => {
       },
       overdue,
     );
-    // multiplier clamped to 1: flow 5000*0.7 = 3500 (NOT 5000*0.75).
-    expect(d.extrapolatedCostCents).toBe(3500 + 1110);
+    // multiplier clamped to 1: flow 5000*1.0 = 5000 (NOT 5000*1.07).
+    expect(d.extrapolatedCostCents).toBe(5000 + 1110);
     expect(d.trendingOver).toBe(true);
   });
 });
@@ -412,12 +412,12 @@ describe("decideOverage (DB orchestrator)", () => {
       new Date("2026-06-16T00:00:00Z"), // 15 days in, multiplier 2
     );
 
-    // flow @ x2: min(800,1500)*0.85 + 2000*0.7 + 20*1.2 + 10*10 + 2*9
-    //          = 680 + 1400 + 24 + 100 + 18 = 2222; + fixed (110+1000) = 3332.
-    expect(d.extrapolatedCostCents).toBe(3332);
+    // flow @ x2: min(800,1500)*1.15 + 2000*1.0 + 20*1.2 + 10*10 + 2*9
+    //          = 920 + 2000 + 24 + 100 + 18 = 3062; + fixed (110+1000) = 4172.
+    expect(d.extrapolatedCostCents).toBe(4172);
     // revenue: stripeNet(2900 + (800-500)*3 = 900) = stripeNet(3800).
     expect(d.revenueCents).toBeCloseTo(3800 * 0.966 - 30, 3);
-    expect(d.marginCents).toBeCloseTo(3800 * 0.966 - 30 - 3332, 3);
+    expect(d.marginCents).toBeCloseTo(3800 * 0.966 - 30 - 4172, 3);
   });
 
   it("stays quiet for a quiet company", async () => {

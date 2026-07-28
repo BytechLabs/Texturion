@@ -56,19 +56,19 @@ describe("#446 — where break-even actually sits", () => {
   it("prices a Starter tenant at the ceiling as a loss", () => {
     const net = stripeNetCents(PLAN_MONTHLY_REVENUE_CENTS.starter);
     const cost = costAtCeilingCents("starter", 1);
-    // $27.71 net against $45.35 of cost.
+    // $27.71 net against $46.85 of cost (#445 raised both segment rates).
     expect(Math.round(net)).toBe(2771);
-    expect(cost).toBe(4535);
-    expect(Math.round(net - cost)).toBe(-1764);
+    expect(cost).toBe(4685);
+    expect(Math.round(net - cost)).toBe(-1914);
   });
 
   it("prices a Pro tenant at the ceiling as a bigger loss", () => {
     const net = stripeNetCents(PLAN_MONTHLY_REVENUE_CENTS.pro);
     const cost = costAtCeilingCents("pro", 2);
-    // $76.01 net against $105.45 of cost.
+    // $76.01 net against $112.95 of cost (#445 raised both segment rates).
     expect(Math.round(net)).toBe(7601);
-    expect(cost).toBe(10545);
-    expect(Math.round(net - cost)).toBe(-2944);
+    expect(cost).toBe(11295);
+    expect(Math.round(net - cost)).toBe(-3694);
   });
 
   it("puts Starter break-even at 1,384 voice minutes with no texts", () => {
@@ -99,11 +99,14 @@ describe("#446 — where break-even actually sits", () => {
   });
 
   it("holds the unit costs the decision was made against", () => {
-    // #445 (carrier increases) and #380 (AI has no term yet) both push these
-    // the wrong way. Pinning them here means neither can land quietly.
+    // #445 landed here: outbound went 0.85c -> 1.15c (MEASURED from Telnyx's
+    // own per-message cost in production) and inbound 0.7c -> 1.0c (estimated,
+    // now naming all three carriers). This assertion is what caught it — the
+    // guard did its job on its first real test. #380 (AI has no term yet) is
+    // the remaining one that can move these.
     expect(UNIT_COST_CENTS.voiceMinute).toBe(1.2);
-    expect(UNIT_COST_CENTS.outboundSegment).toBe(0.85);
-    expect(UNIT_COST_CENTS.inboundSegment).toBe(0.7);
+    expect(UNIT_COST_CENTS.outboundSegment).toBe(1.15);
+    expect(UNIT_COST_CENTS.inboundSegment).toBe(1.0);
     expect(FIXED_MONTHLY_COST_CENTS.us10dlcCampaign).toBe(1000);
     expect(FIXED_MONTHLY_COST_CENTS.perNumber).toBe(110);
   });

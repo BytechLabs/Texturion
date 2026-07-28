@@ -12,8 +12,15 @@ import {
 
 describe("UNIT_COST_CENTS matches the audited provider basis (PRICING-AUDIT §4)", () => {
   it("encodes the high end of each cost range in cents", () => {
-    expect(UNIT_COST_CENTS.outboundSegment).toBe(0.85); // $0.007–0.0085, high end
-    expect(UNIT_COST_CENTS.inboundSegment).toBe(0.7); // SPEC §2 COGS ~0.7¢
+    // #445 (2026-07-28): both segment rates were raised. Outbound is now
+    // MEASURED from Telnyx's own per-message cost in production (modal 1.13c
+    // over 26 segments), not estimated — the old 0.85c under-counted by about
+    // a third, against this module's own never-under-count rule. Inbound is
+    // still an estimate (Telnyx reports cost only on the delivery webhook,
+    // which never fires for messages we receive), now built from all three
+    // 2026 carrier surcharges rather than T-Mobile alone. PRICING-AUDIT 4.1.
+    expect(UNIT_COST_CENTS.outboundSegment).toBe(1.15); // measured high end
+    expect(UNIT_COST_CENTS.inboundSegment).toBe(1.0); // base + T-Mobile + AT&T
     expect(UNIT_COST_CENTS.voiceMinute).toBe(1.2); // ~$0.012 both legs, high end
     expect(UNIT_COST_CENTS.voiceTransfer).toBe(10); // ~$0.10 per forwarded call (#98)
     expect(UNIT_COST_CENTS.storageGbMonth).toBe(2.1); // $0.021/GB/mo

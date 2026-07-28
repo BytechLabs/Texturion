@@ -56,7 +56,64 @@ Legend: **M** metered · **C** capped · **B** billed to customer · **U** unpro
 
 ---
 
-## 4. Factual provider cost basis (2026‑07‑04)
+## 4. Factual provider cost basis (2026‑07‑04 · **revised 2026‑07‑28** · next review **2026‑10‑28**)
+
+> **Review interval: 3 months, not years (#403, #445 ask 3).** Carrier A2P fees
+> changed *twice* in 2026 alone — T‑Mobile and US Cellular on 19 January, AT&T
+> on 1 April. A yearly review cannot track that. `break-even.test.ts` pins the
+> unit costs so a change cannot land silently, but the pin only catches a change
+> we *make*; the calendar is what catches a change the carriers make.
+
+### 4.1 What the segment rates actually are (#445, measured 2026‑07‑28)
+
+**The outbound rate was measured, not estimated, and the old figure was wrong.**
+Telnyx reports the true cost of every outbound message on the delivery webhook
+(`messages.provider_cost`, #216). Production, all costed outbound messages:
+
+| Observed cost/segment | Messages |
+|---|---|
+| 0.91¢ | 3 |
+| 0.98¢ | 8 |
+| 1.05¢ | 1 |
+| **1.13¢** | **11** |
+| 1.135¢ | 1 (2‑segment) |
+| 3.27¢ | 1 (outlier) |
+
+Modal **1.13¢**, mean **1.05¢** excluding the outlier, over 26 segments. The
+model carried **0.85¢** — an under‑count of about a third, against this file's
+own rule that a never‑lose‑money model must not under‑count. Raised to **1.15¢**
+(the high end of the observed range).
+
+**This answers #445 ask 5: Telnyx passes the carrier surcharges through, it does
+not absorb them.** A $0.004 base plus the previously assumed $0.003 surcharge
+cannot produce a measured 1.13¢. The 2026 increases are inside what Telnyx bills
+us, so they are our cost.
+
+**Inbound cannot be measured, and that is a finding in itself.** Telnyx reports
+message cost on the DELIVERY‑status webhook, which only fires for messages we
+send. Production holds 21 inbound messages and **zero** costed ones. So
+`api_period_provider_cost` — the "ground truth" arm of the #85 projection — is
+**outbound‑only** and silently omits inbound. The projection takes the HIGHER of
+estimate and actual, which is what stops that omission from under‑reporting, but
+it means the inbound estimate is load‑bearing rather than a cross‑check.
+
+Inbound is therefore estimated, now naming every carrier that charges rather
+than one (#445 ask 2):
+
+| Component | Rate | Source |
+|---|---|---|
+| Telnyx base receive | $0.0040 | Telnyx pricing |
+| T‑Mobile MO surcharge | $0.0025 | 19 Jan 2026 |
+| **AT&T MO surcharge** | **$0.0025** | **1 Apr 2026 — applies to mobile‑ORIGINATED as well as terminated** |
+| US Cellular | small share | 19 Jan 2026, inside rounding |
+| **Total** | **~0.95¢ ⇒ carried at 1.0¢** | |
+
+The AT&T line is the one the old single‑carrier comment could not have
+accounted for: it post‑dates the January basis and extends the charge to
+traffic *coming in*, which is the line with no offsetting revenue (D50) and no
+ceiling.
+
+### 4.2 Original basis (2026‑07‑04)
 
 **Telnyx** (`telnyx.com/pricing`, `support.telnyx.com/.../5634625`):
 - Outbound US SMS **$0.004** base **+ carrier $0.003–0.0045** ⇒ **~$0.007–0.0085/segment true cost**.
@@ -306,11 +363,16 @@ and it fails, which is the prompt to re‑read this section.
 |---|---|---|
 | Net revenue after Stripe | **$27.71** | **$76.01** |
 | Voice at ceiling (1.2¢/min) | $30.00 (2,500 min) | $72.00 (6,000 min) |
-| Outbound segments at ceiling (0.85¢) | $4.25 (500) | $21.25 (2,500) |
+| Outbound segments at ceiling (1.15¢) | $5.75 (500) | $28.75 (2,500) |
 | Number rental ($1.10 each) | $1.10 (1) | $2.20 (2) |
 | US 10DLC campaign | $10.00 | $10.00 |
-| **Total cost** | **$45.35** | **$105.45** |
-| **Net position** | **−$17.64** | **−$29.44** |
+| **Total cost** | **$46.85** | **$112.95** |
+| **Net position** | **−$19.14** | **−$36.94** |
+
+> **Revised 2026‑07‑28 by #445.** The outbound segment rate moved 0.85¢ → 1.15¢
+> (measured, not estimated — see §4.1) and inbound 0.7¢ → 1.0¢. The positions
+> above are the corrected ones; the loss at ceiling deepened by $1.50 on Starter
+> and $7.50 on Pro.
 
 The headline in #446 holds: **the included voice allowance on Starter costs
 $30 against a $29 plan** — voice alone, at the stated ceiling, exceeds the
@@ -372,6 +434,14 @@ Both push these numbers the wrong way and neither is priced yet:
 `break-even.test.ts` pins the unit costs this decision was made against, so
 neither can land quietly. When either ships, that test fails and this section
 is re‑run — which is what ask 4 asked for, enforced rather than remembered.
+
+**#445 has now landed, and the mechanism worked.** Raising the segment rates
+failed the pinned assertions on the first run, which is how the figures above
+came to be corrected in the same change rather than drifting. The decision in
+§10.3 is UNCHANGED — a deeper loss at a ceiling nobody reaches is still a
+ceiling nobody reaches, and the reasoning never rested on the size of the gap.
+What would reverse it remains evidence of real crossings, not arithmetic.
+**#380 (AI has no term in the model) is the one still outstanding.**
 
 ### 10.5 Ask 3 — what a crossing actually does
 
