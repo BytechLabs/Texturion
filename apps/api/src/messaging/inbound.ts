@@ -57,6 +57,17 @@ type InboundThreadResult = ThreadResult & {
   notify_email?: boolean;
   notify_push?: boolean;
   notification_alerts?: { channel: "email" | "push"; threshold: number }[];
+  /**
+   * #391: WHICH §8 trigger fired. 'new' and 'reopened' are LEADS — the push
+   * has to wake a phone in Doze, because a reply inside five minutes converts
+   * roughly 21x better than one at thirty and Doze holds a NORMAL message for
+   * longer than that. 'append' is a thread somebody is already working and is
+   * not worth the battery or the rate limit.
+   *
+   * Absent on an older database, and the fallback is 'append' — the safe
+   * direction, since it is exactly today's behaviour.
+   */
+  notify_reason?: "new" | "reopened" | "append";
 };
 
 /** message.received entry point (dispatched from /webhooks/telnyx, §7). */
@@ -329,6 +340,10 @@ export async function handleInboundMessage(
         allowEmail: emergency || allowEmail,
         allowPush: emergency || allowPush,
         emergency,
+        // #391: a first inbound on a new or reopened thread is a lead.
+        lead:
+          threaded.notify_reason === "new" ||
+          threaded.notify_reason === "reopened",
       },
       db,
     );

@@ -2133,3 +2133,55 @@ reviewed as one — but it is recorded here as decided rather than open, so the
 next person does not have to re-litigate it from two contradictory comments.
 The new banner already declines to offer the call as a way around a request to
 be left alone.
+
+---
+
+## D52 — a lead wakes the phone; a reply does not (#391, 2026-07-28)
+
+**A first inbound on a new or reopened conversation goes at HIGH push
+priority. Every other inbound stays NORMAL.**
+
+**What was wrong.** `deliver.ts` said it plainly — *"these alerts are worth
+delivering late, unlike a ring"* — and that was a fair reading when calls were
+the urgent thing and messages were background. It was never revisited. A NORMAL
+FCM message is **deferred during Doze**, and a phone in a pocket or on a truck
+seat, screen off and not charging, **is** Doze. That is not an edge case for a
+field crew; it is their working day. Meanwhile a reply inside five minutes
+converts roughly 21× better than one at thirty. The window Doze holds the
+message for and the window that decides whether the job is won are the same
+window — except Doze's is longer.
+
+So the notification that decides whether a plumber gets the job was flagged as
+worth delivering late, in a product whose positioning is FIRST RESPONSE.
+
+**Why the answer is not "send everything HIGH".** The counterweight is real and
+it is why this is a decision rather than a bug fix:
+
+- Google **rate-limits** apps that overuse high-priority FCM, and the penalty
+  lands on exactly the messages you most need delivered.
+- A crew that notices the app eating their battery turns notifications off or
+  uninstalls. **A late notification is recoverable; a disabled one is not.**
+- The tenth message in an active back-and-forth is not worth waking a device.
+
+**The split, and where it comes from.** `thread_inbound_message` already knew
+the difference and reported only a boolean: Rule 4 (reopened inside 30 days)
+and Rule 5 (new conversation) are §8 triggers in their own right, while an
+append fires under the 15-minute gate. It now returns `notify_reason`
+(`new` | `reopened` | `append`) and the urgency follows it. No new plumbing, no
+new heuristic — the database was already making this call.
+
+Absent on an older database, the fallback is `append`, which is exactly
+today's behaviour. The safe direction is never a fleet-wide jump to HIGH.
+
+**Both platforms, by construction.** `apns-priority` derives from the same
+`urgency` (10 immediate / 5 power-considerate), so iOS follows without a second
+decision — asserted in a test that registers an Android and an iOS device and
+checks both, because the two disagreeing about what a lead is worth is the
+failure this would otherwise have.
+
+**What this does not settle.** #452 asks who counts high-priority sends now
+that more than one feature requests them; Google throttling is precisely the
+silent degradation #387 describes, and nothing here measures it. And the
+behaviour itself **cannot be verified from CI** — it needs a real device left
+idle long enough to enter Doze, which is the founder-device check that #135
+already tracks.

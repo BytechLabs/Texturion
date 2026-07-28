@@ -500,3 +500,72 @@ describe("an emergency reply is escalated, not threaded (#414)", () => {
     expect(email.subject).not.toContain("EMERGENCY");
   });
 });
+
+describe("#391 — a lead has to wake a sleeping phone", () => {
+  // `deliver.ts` said these alerts were "worth delivering late, unlike a
+  // ring", which was fair when calls were the urgent thing. A NORMAL FCM
+  // message is DEFERRED during Doze, and a phone face-down on a truck seat is
+  // in Doze. The window Doze holds it for and the window that decides whether
+  // the job is won are the same window.
+  async function priorityFor(
+    input: Parameters<typeof notifyInboundMessage>[1],
+  ): Promise<{ android: string | undefined; apns: string | undefined }> {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const world = buildWorld({ members: [OWNER] });
+    // BOTH platforms: #391 ask 3 is that the split must land on each, or the
+    // two disagree about what a lead is worth.
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      { id: DEVICE_ROW_ID, user_id: OWNER, platform: "android", token: "tok-a" },
+      { id: crypto.randomUUID(), user_id: OWNER, platform: "ios", token: "tok-b" },
+    ]);
+    stubFetch(...world.routes, ...service.routes);
+    await notifyInboundMessage(fcmEnv(account), input);
+    const messages = service.sends.map(
+      (send) =>
+        send.message as {
+          android?: { priority?: string };
+          apns?: { headers?: Record<string, string> };
+        },
+    );
+    return {
+      android: messages.find((m) => m.android)?.android?.priority,
+      apns: messages.find((m) => m.apns)?.apns?.headers?.["apns-priority"],
+    };
+  }
+
+  it("sends a first inbound on a NEW conversation at high priority", async () => {
+    const { android, apns } = await priorityFor({ ...INPUT, lead: true });
+    expect(android).toBe("HIGH");
+    // #391 ask 3: the same split has to land on iOS, or the two platforms
+    // disagree about what a lead is worth. 5 is the power-considerate tier
+    // that carries the same deferral behaviour.
+    expect(apns).toBe("10");
+  });
+
+  it("leaves an append to a live thread at normal priority", async () => {
+    // The counterweight, and it is real: Google rate-limits apps that overuse
+    // high priority, and a crew that notices the battery turns notifications
+    // off — which is worse than late, because it is permanent. The tenth
+    // message in a back-and-forth is not worth waking the device for.
+    const { android, apns } = await priorityFor({ ...INPUT, lead: false });
+    expect(android).toBe("NORMAL");
+    expect(apns).toBe("5");
+  });
+
+  it("defaults to normal when the caller says nothing", async () => {
+    // An older database returns no notify_reason, and the safe direction is
+    // exactly today's behaviour rather than a fleet-wide jump to HIGH.
+    const { android } = await priorityFor(INPUT);
+    expect(android).toBe("NORMAL");
+  });
+
+  it("still wakes the phone for an emergency, lead or not", async () => {
+    const { android } = await priorityFor({
+      ...INPUT,
+      emergency: true,
+      lead: false,
+    });
+    expect(android).toBe("HIGH");
+  });
+});

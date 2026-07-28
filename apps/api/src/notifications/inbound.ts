@@ -52,6 +52,18 @@ export interface InboundNotificationInput {
   allowEmail?: boolean;
   allowPush?: boolean;
   /**
+   * #391: this is a LEAD — a first inbound on a new or reopened conversation,
+   * rather than an append to a thread somebody is already working.
+   *
+   * Decides the push priority and nothing else. A NORMAL FCM message is
+   * deferred during Doze, and a phone in a pocket on a job is in Doze; the
+   * window Doze holds it for and the window that decides whether the job is
+   * won are the same window. An append does NOT get this: Google rate-limits
+   * apps that overuse high priority, and a crew that notices the battery turns
+   * notifications off, which is worse than late because it is permanent.
+   */
+  lead?: boolean;
+  /**
    * #414: the customer replied with the emergency word the away message asked
    * for. Changes three things — the whole crew is told rather than only the
    * assignee, the push goes at HIGH priority so it wakes a phone in Doze, and
@@ -267,7 +279,11 @@ export async function notifyInboundMessage(
       : `conversation:${input.conversationId}`,
     // #414: HIGH wakes a phone in Doze; NORMAL is deferred, which is exactly
     // where this promise died. Same urgency an incoming call already uses.
-    urgency: input.emergency ? "high" : "normal",
+    // #414 emergency and #391 lead both need to wake a sleeping phone. An
+    // ordinary append stays NORMAL, deliberately — see `lead` above for why
+    // "set everything HIGH" is the wrong answer. #452 tracks counting how
+    // often we spend the high-priority budget.
+    urgency: input.emergency || input.lead ? "high" : "normal",
     failures,
   });
 
