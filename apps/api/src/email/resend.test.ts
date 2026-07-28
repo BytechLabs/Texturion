@@ -167,3 +167,90 @@ describe("sendEmail", () => {
     });
   });
 });
+
+
+describe("suppression (#386)", () => {
+  /** A Resend endpoint plus a suppression list holding `blocked`. */
+  function world(blocked: string[]) {
+    const sent: Record<string, unknown>[] = [];
+    const routes = [
+      async (url: URL) => {
+        if (url.pathname !== "/rest/v1/email_suppressions") return undefined;
+        return Response.json(blocked.map((email) => ({ email })));
+      },
+      async (url: URL, request: Request) => {
+        if (url.href !== "https://api.resend.com/emails") return undefined;
+        sent.push((await request.clone().json()) as Record<string, unknown>);
+        return Response.json({ id: "re_ok" });
+      },
+    ];
+    return { sent, routes };
+  }
+
+  it("drops a suppressed recipient and still mails the rest", async () => {
+    // The shared-fate fix. One dead mailbox in one workspace otherwise bounces
+    // every notification forever, and those bounces land against OUR sending
+    // domain rather than that customer's — degrading delivery for everyone.
+    const w = world(["dead@example.com"]);
+    stubFetch(...w.routes);
+
+    await sendEmail(env, {
+      to: ["dead@example.com", "alive@example.com"],
+      subject: "New text",
+      text: "hi",
+      html: "<p>hi</p>",
+    });
+
+    expect(w.sent).toHaveLength(1);
+    expect(w.sent[0].to).toEqual(["alive@example.com"]);
+  });
+
+  it("makes no request at all when every recipient is suppressed", async () => {
+    // Not an error and nothing to retry: the addresses are gone. Throwing here
+    // would fail a webhook or a cron over a mailbox we already know is dead.
+    const w = world(["dead@example.com"]);
+    stubFetch(...w.routes);
+
+    const result = await sendEmail(env, {
+      to: ["dead@example.com"],
+      subject: "New text",
+      text: "hi",
+      html: "<p>hi</p>",
+    });
+
+    expect(w.sent).toHaveLength(0);
+    expect(result.id).toBeNull();
+  });
+
+  it("matches case-insensitively, because a mailbox is not two mailboxes", async () => {
+    const w = world(["dead@example.com"]);
+    stubFetch(...w.routes);
+
+    await sendEmail(env, { to: ["DEAD@Example.COM"], subject: "s", text: "t", html: "<p>t</p>" });
+
+    expect(w.sent).toHaveLength(0);
+  });
+
+  it("SENDS ANYWAY when the suppression lookup fails", async () => {
+    // Fail open, deliberately. The list protects domain reputation over a long
+    // horizon; a database blip must not be the reason a customer never learns
+    // their payment failed. Failing open costs a few bounces, failing closed
+    // costs the message.
+    const sent: Record<string, unknown>[] = [];
+    stubFetch(
+      async (url) =>
+        url.pathname === "/rest/v1/email_suppressions"
+          ? new Response("boom", { status: 500 })
+          : undefined,
+      async (url, request) => {
+        if (url.href !== "https://api.resend.com/emails") return undefined;
+        sent.push((await request.clone().json()) as Record<string, unknown>);
+        return Response.json({ id: "re_ok" });
+      },
+    );
+
+    await sendEmail(env, { to: ["someone@example.com"], subject: "s", text: "t", html: "<p>t</p>" });
+
+    expect(sent).toHaveLength(1);
+  });
+});

@@ -134,6 +134,13 @@ const envSchema = z.object({
    */
   RESEND_REPLY_TO: z.string().min(1).optional(),
   /**
+   * #386: the Svix signing secret for the Resend webhook. OPTIONAL, but the
+   * endpoint refuses every request without it rather than trusting an unsigned
+   * body — an unauthenticated bounce feed would let anybody suppress any
+   * address in the product.
+   */
+  RESEND_WEBHOOK_SECRET: z.string().min(1).optional(),
+  /**
    * Cloudflare Turnstile SECRET key for server-side verification on the
    * public POST /contact endpoint (the sibling of the web app's
    * NEXT_PUBLIC_TURNSTILE_SITE_KEY). OPTIONAL: unset = the endpoint relies on

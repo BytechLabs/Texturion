@@ -133,6 +133,31 @@ export type FetchRoute = (
  * given routes. Any request no route claims fails the test loudly. Restore
  * with `vi.unstubAllGlobals()`.
  */
+/**
+ * Endpoints that hang off EVERY email send and assert nothing about the test
+ * that triggered them.
+ *
+ * `sendEmail` reads the #386 suppression list before sending and records the
+ * #387 delivery-channel heartbeat after. Neither is what any of the hundred
+ * tests that happen to send an email are about, and requiring each of them to
+ * stub both would be boilerplate that tests nothing — and that the next person
+ * to add an email would have to rediscover from a five-second timeout.
+ *
+ * They come LAST, so a suite that wants to assert on either one still can by
+ * registering its own route: the explicit stub matches first.
+ *
+ * Empty suppression list = nothing is blocked, which is the state every
+ * existing test was written against.
+ */
+const ambientEmailRoutes: FetchRoute[] = [
+  (url) =>
+    url.pathname === "/rest/v1/email_suppressions" ? Response.json([]) : undefined,
+  (url) =>
+    url.pathname === "/rest/v1/rpc/record_heartbeat"
+      ? Response.json({ recovered: false })
+      : undefined,
+];
+
 export function stubFetch(...routes: FetchRoute[]): void {
   vi.stubGlobal(
     "fetch",
@@ -142,7 +167,7 @@ export function stubFetch(...routes: FetchRoute[]): void {
         init,
       );
       const url = new URL(request.url);
-      for (const route of routes) {
+      for (const route of [...routes, ...ambientEmailRoutes]) {
         const response = await route(url, request);
         if (response) return response;
       }

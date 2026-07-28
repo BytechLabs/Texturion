@@ -38,6 +38,7 @@ import { getDb } from "../db";
 import { recordHeartbeatBestEffort } from "../observability/liveness";
 import type { Env } from "../env";
 import { telnyxRequest } from "../telnyx/client";
+import { processResendEvent } from "../webhooks/resend";
 import { processStripeEvent } from "../webhooks/stripe";
 import { dispatchTelnyxEvent } from "./dispatch";
 import { STUCK_SEND_SECONDS } from "./send";
@@ -68,7 +69,7 @@ const PRUNE_BATCH = 5000;
 const SWEEP_CLAIM_LEASE_MS = 10 * 60 * 1000;
 
 interface WebhookEventRow {
-  provider: "telnyx" | "stripe";
+  provider: "telnyx" | "stripe" | "resend";
   event_id: string;
   event_type: string;
   payload: Record<string, unknown>;
@@ -120,13 +121,31 @@ export async function sweepWebhookEvents(env: Env): Promise<void> {
     if ((claimed ?? []).length === 0) continue; // another run owns this row
 
     try {
-      if (row.provider === "telnyx") {
-        await dispatchTelnyxEvent(env, row.payload as TelnyxEvent);
-      } else {
-        await processStripeEvent(
-          env,
-          row.payload as unknown as Parameters<typeof processStripeEvent>[1],
-        );
+      // #386: an explicit branch per provider, and a throw on an unknown one.
+      // This was `if telnyx … else stripe`, which meant the moment a third
+      // provider joined the ledger its rows were silently handed to Stripe's
+      // processor — replayed forever against a handler that could never
+      // understand them.
+      switch (row.provider) {
+        case "telnyx":
+          await dispatchTelnyxEvent(env, row.payload as TelnyxEvent);
+          break;
+        case "resend":
+          await processResendEvent(
+            env,
+            row.payload as unknown as Parameters<typeof processResendEvent>[1],
+          );
+          break;
+        case "stripe":
+          await processStripeEvent(
+            env,
+            row.payload as unknown as Parameters<typeof processStripeEvent>[1],
+          );
+          break;
+        default:
+          throw new Error(
+            `sweep: no handler for webhook provider "${row.provider}"`,
+          );
       }
       const { error: stampError } = await db
         .from("webhook_events")

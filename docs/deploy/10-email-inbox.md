@@ -81,3 +81,53 @@ After A and B, the zone should have:
   cover launch volume.
 
 Total: **$0/month**, and every address on the site actually works.
+
+## Email authentication, verified 2026-07-28 (#386 ask 5)
+
+Queried live over DNS-over-HTTPS. This is what the internet actually returns
+for `loonext.com`, not what the setup guide says it should:
+
+| Record | State | Value |
+|---|---|---|
+| SPF (root `loonext.com`) | present, **does not authorize Resend** | `v=spf1 include:_spf.mx.cloudflare.net ~all` |
+| SPF (`send.loonext.com`) | present, correct for Resend | `v=spf1 include:amazonses.com ~all` |
+| DKIM (`resend._domainkey.loonext.com`) | **present at the root**, 1024-bit RSA | published |
+| DMARC (`_dmarc.loonext.com`) | **MISSING** | — |
+| DMARC (`_dmarc.send.loonext.com`) | **MISSING** | — |
+
+### Two findings, both operator actions (DNS is not changed from code)
+
+**1. No DMARC record anywhere.** This is the significant one. Gmail and Yahoo's
+bulk-sender rules require a DMARC policy of at least `p=none`, and without a
+record we also receive no aggregate reports — so we have no visibility into
+whether our mail authenticates, or into anyone spoofing the domain. That
+absence is the #386/D55 shape exactly: nothing fails loudly, and "authenticating
+fine" and "stopped authenticating" look identical from here.
+
+Suggested first step, deliberately the non-destructive one:
+
+```
+_dmarc.loonext.com  TXT  "v=DMARC1; p=none; rua=mailto:dmarc@loonext.com"
+```
+
+`p=none` changes no delivery behaviour and starts the reports. Tighten to
+`quarantine` only after the reports show alignment is clean.
+
+**2. `RESEND_FROM` sends from the root domain, whose SPF does not include
+Resend.** The root SPF is Cloudflare Email Routing's (that is inbound routing,
+which is correct and should stay). The Resend SPF is published on
+`send.loonext.com`, which the sender does not use. DKIM is published at the
+root and signs with `d=loonext.com`, so mail should still authenticate on DKIM
+alone — but it authenticates on one leg instead of two, and once DMARC exists
+SPF will fail alignment.
+
+Either is a fix; the first is less invasive:
+
+- point `RESEND_FROM` at `send.loonext.com` (already configured correctly), or
+- add Resend's include to the root SPF alongside Cloudflare's.
+
+Re-verify with:
+
+```bash
+curl -s 'https://dns.google/resolve?name=_dmarc.loonext.com&type=TXT'
+```

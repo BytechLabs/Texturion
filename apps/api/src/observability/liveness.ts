@@ -224,6 +224,13 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 60,
     graceMinutes: 60,
   },
+  "job:email-health": {
+    what:
+      "The email bounce/complaint rate check has stopped. The domain reputation " +
+      "cliff is one-way, so nobody would learn we were approaching it (#386).",
+    everyMinutes: 60,
+    graceMinutes: 60,
+  },
   "job:sweep-stale-calls": {
     what: "Calls wedged in-flight are not being closed, so /calls lies and the per-conversation dial guard stays shut.",
     everyMinutes: 60,

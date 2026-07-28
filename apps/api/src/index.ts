@@ -81,6 +81,8 @@ import {
   pollRegistrations,
   retryCampaignAssignments,
 } from "./telnyx/registration";
+import { runEmailHealthJob } from "./email/health";
+import { resendWebhookRoute } from "./webhooks/resend";
 import { stripeWebhookRoute } from "./webhooks/stripe";
 import { telnyxWebhookRoute } from "./webhooks/telnyx";
 
@@ -174,6 +176,8 @@ app.route("/v1", webrtcRoutes); // #135 D43 — browser softphone tokens
  */
 app.route("/webhooks/telnyx", telnyxWebhookRoute);
 app.route("/webhooks/stripe", stripeWebhookRoute);
+// #386: delivery outcomes for the eighteen places this product sends email.
+app.route("/webhooks/resend", resendWebhookRoute);
 
 /**
  * PUBLIC POST /contact (marketing contact form): unversioned and outside the
@@ -320,6 +324,10 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // #133: flip call sessions wedged in-flight >4h to 'missed' so /calls
     // stays honest and the per-conversation dial guard re-opens.
     job("job:sweep-stale-calls", sweepStaleCalls),
+    // #386: the domain's bounce and complaint rates. Hourly, over a rolling
+    // 24h window — reputation is not a per-message property and cannot be
+    // judged from one send.
+    job("job:email-health", runEmailHealthJob),
   ],
   // Sole-prop OTP nudge (≥12h outstanding, once per submission).
   "30 * * * *": [job("job:nudge-sole-prop-otp", nudgeSoleProprietorOtp)],

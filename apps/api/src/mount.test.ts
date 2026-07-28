@@ -10,6 +10,7 @@ import { readFileSync } from "node:fs";
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { runEmailHealthJob } from "./email/health";
 import { runGraceJob } from "./billing/grace";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runLivenessCheckJob } from "./observability/liveness-check";
@@ -471,6 +472,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       runUsageAlertsJob,
       runOverageWarningJob,
       sweepStaleCalls, // #133: stale-calls sweeper (in-flight >4h → missed)
+      runEmailHealthJob, // #386: domain bounce/complaint rates, rolling 24h
     ]);
     expect(runs("30 * * * *")).toEqual([nudgeSoleProprietorOtp]);
     expect(runs("20 * * * *")).toEqual([geocodeContactsJob]);

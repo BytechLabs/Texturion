@@ -1,3 +1,4 @@
+import { getDb } from "../db";
 import type { Env } from "../env";
 import { recordHeartbeatBestEffort } from "../observability/liveness";
 
@@ -21,7 +22,12 @@ export interface SendEmailInput {
 }
 
 export interface SentEmail {
-  id: string;
+  /**
+   * Resend's accepted-id, or null when every recipient was suppressed and no
+   * request was made. Null is a real outcome rather than a failure: there is
+   * nothing wrong and nothing to retry (#386).
+   */
+  id: string | null;
 }
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
@@ -40,6 +46,22 @@ export async function sendEmail(
   env: Env,
   input: SendEmailInput,
 ): Promise<SentEmail> {
+  // #386: never write to an address that hard-bounced or reported us as spam.
+  //
+  // This is the whole shared-fate fix. One crew member's dead mailbox bounces
+  // every notification forever, and those bounces accumulate against OUR
+  // sending domain rather than against that customer — so one stale address
+  // degrades delivery for every workspace we have. Continuing to mail somebody
+  // who pressed "spam" is the fastest route to a blocklist there is.
+  const to = Array.isArray(input.to) ? input.to : [input.to];
+  const deliverable = await filterSuppressed(env, to);
+  if (deliverable.length === 0) {
+    // Every recipient is suppressed. Not an error — there is nothing wrong and
+    // nothing to retry, and throwing would fail a webhook or a cron over a
+    // mailbox we already know is gone.
+    return { id: null };
+  }
+
   const replyTo = input.replyTo ?? env.RESEND_REPLY_TO;
   const response = await fetch(RESEND_ENDPOINT, {
     method: "POST",
@@ -49,7 +71,7 @@ export async function sendEmail(
     },
     body: JSON.stringify({
       from: env.RESEND_FROM,
-      to: Array.isArray(input.to) ? input.to : [input.to],
+      to: deliverable,
       subject: input.subject,
       html: input.html,
       text: input.text,
@@ -81,4 +103,34 @@ export async function sendEmail(
   await recordHeartbeatBestEffort(env, "channel:email-outbound");
 
   return { id: payload.id };
+}
+
+
+/**
+ * Drop addresses we are not allowed to write to.
+ *
+ * One query for the whole recipient list rather than one per address: email is
+ * low volume, but a fan-out to a ten-person crew should not be ten round trips
+ * on the inbound webhook's latency budget.
+ *
+ * A LOOKUP FAILURE SENDS ANYWAY, deliberately. The suppression list protects
+ * our domain reputation over a long horizon; a database blip must not be the
+ * reason a customer never learns their payment failed. Failing open costs a
+ * handful of bounces, failing closed costs the message.
+ */
+async function filterSuppressed(env: Env, to: string[]): Promise<string[]> {
+  if (to.length === 0) return [];
+  try {
+    const { data, error } = await getDb(env)
+      .from("email_suppressions")
+      .select("email")
+      .in("email", to.map((address) => address.trim().toLowerCase()))
+      .is("cleared_at", null);
+    if (error) throw new Error(error.message);
+    const blocked = new Set((data ?? []).map((row) => (row as { email: string }).email));
+    return to.filter((address) => !blocked.has(address.trim().toLowerCase()));
+  } catch (cause) {
+    console.error(`email suppression lookup failed, sending anyway: ${String(cause)}`);
+    return to;
+  }
 }

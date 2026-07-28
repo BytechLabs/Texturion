@@ -77,6 +77,29 @@ export function supabaseStub(env: Env): SupabaseStub {
     respond: SbResponder;
   }[] = [];
 
+  /**
+   * Endpoints that hang off EVERY email send and assert nothing about the test
+   * that triggered them: the #386 suppression lookup before, the #387
+   * delivery-channel heartbeat after.
+   *
+   * Registered LAST, so a suite that wants to assert on either still can by
+   * calling `on()` for it — explicit handlers win. An empty suppression list
+   * means nothing is blocked, which is the state every existing test was
+   * written against.
+   *
+   * The alternative was making a hundred tests stub two endpoints they are not
+   * about, and making the next person to send an email rediscover that from a
+   * five-second timeout.
+   */
+  const ambientHandlers = [
+    { method: "GET", matcher: "/rest/v1/email_suppressions", respond: () => [] },
+    {
+      method: "POST",
+      matcher: "/rest/v1/rpc/record_heartbeat",
+      respond: () => ({ recovered: false }),
+    },
+  ];
+
   const matches = (matcher: string | RegExp, path: string) =>
     typeof matcher === "string" ? matcher === path : matcher.test(path);
 
@@ -100,7 +123,7 @@ export function supabaseStub(env: Env): SupabaseStub {
         headers: request.headers,
       };
       calls.push(call);
-      for (const handler of handlers) {
+      for (const handler of [...handlers, ...ambientHandlers]) {
         if (handler.method !== request.method) continue;
         if (!matches(handler.matcher, url.pathname)) continue;
         const out = handler.respond(call);
