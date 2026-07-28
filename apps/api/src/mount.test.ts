@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { runGraceJob } from "./billing/grace";
+import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
 import { reconcileOptOuts } from "./messaging/opt-out-reconcile";
 import { runDeliveryByCountryJob } from "./messaging/delivery-by-country";
@@ -415,6 +416,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
   it("wrangler.jsonc carries exactly the §11 + porting schedules", () => {
     expect(wranglerCrons().sort()).toEqual(
       [
+        "* * * * *", // #388 unanswered-lead escalation (2-min and 5-min rungs)
         "*/5 * * * *", // webhook sweeper
         "*/15 * * * *", // provisioning retry & reconcile
         "0 * * * *", // usage re-reporter (+ 80%/100% usage alerts)
@@ -433,6 +435,12 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
   });
 
   it("each schedule dispatches to the §11 job(s), by identity", () => {
+    // #388: the only per-minute schedule in the product, and it carries one
+    // job. The rungs are at two and five minutes, so a five-minute scan
+    // cannot express the first one — rounding the reminder up to the deadline
+    // it exists to beat would leave the feature named after a promise it no
+    // longer keeps.
+    expect(CRON_JOBS["* * * * *"]).toEqual([runLeadChaseJob]);
     expect(CRON_JOBS["*/5 * * * *"]).toEqual([
       sweepWebhookEvents,
       failStuckOutboundSends,

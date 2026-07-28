@@ -71,6 +71,14 @@ export {
 } from "./business-hours";
 
 export {
+  LEAD_CHASE_NUDGE_MINUTES,
+  LEAD_CHASE_WIDEN_MINUTES,
+  LEAD_CHASE_RUNGS,
+  leadChaseNotification,
+  type LeadChaseRung,
+} from "./lead-chase";
+
+export {
   detectContactColumns,
   normalizeContactHeader,
   type ContactImportField,

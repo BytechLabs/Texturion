@@ -19,6 +19,7 @@ import type { AppEnv } from "./context";
 import { getEnv, type Bindings, type Env } from "./env";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
+import { runLeadChaseJob } from "./notifications/lead-chase";
 import { notifyDueTasksJob } from "./tasks/due-notice";
 import { ApiError, errorResponse } from "./http/errors";
 import {
@@ -239,6 +240,13 @@ type ScheduledJob = (env: Env, now: Date) => Promise<unknown>;
  * this map stays in lockstep with wrangler.jsonc and the §11 schedule set.
  */
 export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
+  // #388: the unanswered-lead ladder. Every minute, because the rungs are at
+  // two and five and the finest existing cadence is five — a five-minute scan
+  // cannot express a two-minute rung, and rounding the rung UP to fit the
+  // schedule would move the reminder to the deadline it exists to beat.
+  // The scan is a partial index over live clocks only, so a quiet minute costs
+  // one indexed lookup returning nothing.
+  "* * * * *": [runLeadChaseJob],
   // Webhook sweeper: replay unprocessed webhook_events (both providers).
   // Piggybacked on the same cadence (#20): fail out outbound rows stuck
   // 'queued' with no telnyx_message_id (a send that crashed before the
