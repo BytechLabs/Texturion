@@ -292,24 +292,61 @@ func copyToClipboard(_ text: String) {
     UIPasteboard.general.string = text
 }
 
+/// How loudly a ``ReachNote`` speaks.
+///
+/// ``neutral`` is the default because most notes explain a limit the owner has
+/// already accepted. ``warn`` is for the notes that report a CONTRADICTION the
+/// owner has not seen — where the setting and the copy disagree — and it exists
+/// because a muted grey line reads as an optional tip, which is the one thing
+/// such a note must never read as.
+enum NoteTone {
+    case neutral
+    case warn
+}
+
 /// A quiet line under a switch, for a feature that is ON but cannot reach every
 /// customer yet. Says which destinations it will not reach and why, so a switch
 /// never reads as working when it is not.
+///
+/// #453: ``NoteTone/warn`` carries the amber of ``PillTone/warn`` — the same
+/// colour this app already uses for "needs attention" — and names itself a
+/// warning to VoiceOver, because the state it reports is an away message
+/// promising an emergency path that is switched off. Web styles that state as
+/// a warning with `role="alert"`; matching it here keeps the clients honest.
 struct ReachNote: View {
     let text: String
+    var tone: NoteTone = .neutral
+
+    private var background: Color {
+        switch tone {
+        case .neutral: BrandColor.inset
+        case .warn: BrandColor.amberBg
+        }
+    }
+
+    private var foreground: Color {
+        switch tone {
+        case .neutral: BrandColor.muted600
+        case .warn: BrandColor.overdueAmber
+        }
+    }
 
     var body: some View {
         Text(text)
             .font(.golos(12))
-            .foregroundStyle(BrandColor.muted600)
+            .foregroundStyle(foreground)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
-                BrandColor.inset,
+                background,
                 in: RoundedRectangle(cornerRadius: 10, style: .continuous)
             )
             .padding(.top, 8)
+            // SwiftUI has no `role="alert"`. Prefixing the spoken label is the
+            // portable equivalent: VoiceOver conveys the severity that sighted
+            // users get from the amber, instead of reading it as another tip.
+            .accessibilityLabel(tone == .warn ? "Warning. \(text)" : text)
     }
 }

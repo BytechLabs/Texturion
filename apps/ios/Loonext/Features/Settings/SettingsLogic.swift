@@ -455,3 +455,125 @@ private func replacingPattern(
         withTemplate: template
     )
 }
+
+// ---------------------------------------------------------------------------
+// #414 emergency keyword — mirror of packages/shared/src/emergency.ts
+// ---------------------------------------------------------------------------
+
+/// The words the away-message default asks a homeowner to send.
+let emergencyKeywords = ["URGENT", "EMERGENCY", "911", "SOS"]
+
+/// The §5/D3 carrier keywords, answered by Telnyx before we see them. "Reply
+/// STOP to unsubscribe" is required compliance copy, so naming it unrecognised
+/// would be both wrong and the fastest way to teach an owner to ignore this
+/// warning. Mirrors `CARRIER_REPLY_KEYWORDS` in shared.
+let carrierReplyKeywords = [
+    "STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT",
+    "START", "UNSTOP", "YES",
+    "HELP", "INFO",
+]
+
+/// True when OWNER-AUTHORED copy still invites the emergency reply.
+///
+/// Reads what the owner wrote, not what a customer sent, so it must not
+/// UNDER-fire: missing an invitation means the settings screen tells an owner
+/// their message is fine while it promises a callback nothing will make. That
+/// is the whole of #414, re-created by the owner's own hand.
+///
+/// The boundaries are `\\b` in SOURCE, which is `\b` in the pattern. Swift has
+/// no `\b` string escape at all, so writing it unescaped is not a subtle bug —
+/// it does not compile.
+func mentionsEmergencyKeyword(_ copy: String) -> Bool {
+    emergencyKeywords.contains { keyword in
+        guard let regex = try? NSRegularExpression(
+            pattern: "\\b\(keyword)\\b",
+            options: [.caseInsensitive]
+        ) else { return false }
+        return regex.firstMatch(
+            in: copy,
+            range: NSRange(copy.startIndex..., in: copy)
+        ) != nil
+    }
+}
+
+/// Owners capitalise the word they want sent back. The verb matches
+/// case-insensitively; the WORD's capitalisation is checked separately, since
+/// it is the only thing telling a keyword instruction apart from a sentence
+/// that merely contains "reply".
+private let replyInstructionPattern =
+    "\\b(?:reply|replying|text|respond|send)\\s+(?:back\\s+)?(?:with\\s+)?[\"'“‘]?([A-Za-z0-9]{2,15})\\b"
+
+/// #453 — the word an owner told customers to send that nothing listens for.
+/// Returns it so the screen can quote it back; an owner cannot fix what we
+/// will not name. Mirror of `unrecognizedReplyKeyword` in shared.
+func unrecognizedReplyKeyword(_ copy: String) -> String? {
+    guard let regex = try? NSRegularExpression(
+        pattern: replyInstructionPattern,
+        options: [.caseInsensitive]
+    ) else { return nil }
+    let full = NSRange(copy.startIndex..., in: copy)
+    for match in regex.matches(in: copy, range: full) {
+        guard match.numberOfRanges > 1,
+              let range = Range(match.range(at: 1), in: copy) else { continue }
+        let raw = String(copy[range])
+        let word = raw.uppercased()
+        if emergencyKeywords.contains(word) || carrierReplyKeywords.contains(word) { continue }
+        // Must READ as a keyword: all-caps in the original, letters only. This
+        // is what keeps "reply within 24 hours" and "we'll reply Monday" out.
+        if raw != word { continue }
+        if word.count < 2 || !word.allSatisfy({ $0.isLetter && $0.isUppercase }) { continue }
+        return word
+    }
+    return nil
+}
+
+/// How loudly the away-reply screen should speak.
+enum AwayNoticeTone {
+    case warn
+    case hint
+}
+
+/// What the away-reply screen should say about the emergency path, if anything.
+struct AwayEmergencyNotice {
+    let tone: AwayNoticeTone
+    let text: String
+}
+
+/// #453 — the one decision every client renders, so all three say the SAME
+/// thing. Mirror of `awayEmergencyNotice` in shared; keep the copy identical.
+func awayEmergencyNotice(
+    emergencyEnabled: Bool,
+    awayMessage: String
+) -> AwayEmergencyNotice? {
+    let invites = mentionsEmergencyKeyword(awayMessage)
+    let unknown = unrecognizedReplyKeyword(awayMessage)
+
+    if !emergencyEnabled {
+        if !invites, unknown == nil { return nil }
+        return AwayEmergencyNotice(
+            tone: .warn,
+            text: "Your away message tells customers to reply for an emergency, but nothing "
+                + "will treat that reply as one. Turn this back on, or take the offer out of "
+                + "the message."
+        )
+    }
+
+    if let unknown {
+        return AwayEmergencyNotice(
+            tone: .warn,
+            text: "Your away message tells customers to reply \(unknown), which nothing "
+                + "watches for. Use URGENT, EMERGENCY, 911 or SOS instead, or take the offer "
+                + "out of the message."
+        )
+    }
+
+    if !invites {
+        return AwayEmergencyNotice(
+            tone: .hint,
+            text: "Nobody has been told they can. Mention it in your away message if you "
+                + "want customers to know."
+        )
+    }
+
+    return nil
+}

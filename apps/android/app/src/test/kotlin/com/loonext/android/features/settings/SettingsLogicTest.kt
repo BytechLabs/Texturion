@@ -410,4 +410,67 @@ class SettingsLogicTest {
     fun `invite link matches the web origin`() {
         assertEquals("https://app.loonext.com/invite/abc", inviteLink("abc"))
     }
+
+    // -- #414 / #453 emergency keyword ---------------------------------------
+
+    @Test
+    fun `owner copy inviting the emergency reply is recognised`() {
+        // Regression guard: written as "$keyword" in source this regex
+        // held literal BACKSPACE characters, matched nothing ever, and the
+        // settings warning was invisible on Android while passing review.
+        assertTrue(
+            mentionsEmergencyKeyword(
+                "For a no-heat emergency, reply URGENT and we'll call you.",
+            ),
+        )
+        assertTrue(mentionsEmergencyKeyword("text 911 if it can't wait"))
+        assertFalse(mentionsEmergencyKeyword("we respond urgently to every text"))
+        assertFalse(mentionsEmergencyKeyword("We're closed and will reply Monday."))
+    }
+
+    @Test
+    fun `a reply keyword we do not watch for is named`() {
+        assertEquals("ASAP", unrecognizedReplyKeyword("For a burst pipe, reply ASAP and we'll ring you back."))
+        assertEquals(null, unrecognizedReplyKeyword("reply URGENT and we'll call you"))
+        assertEquals(null, unrecognizedReplyKeyword("Reply STOP to unsubscribe"))
+        assertEquals(null, unrecognizedReplyKeyword("We're closed and will reply Monday morning."))
+        assertEquals(null, unrecognizedReplyKeyword("We reply to every message within 24 hours."))
+    }
+
+    @Test
+    fun `the away notice matches the shared decision table`() {
+        val shipped =
+            "Thanks for texting us. We're out of the office right now and will reply first thing. " +
+                "For a no-heat or burst-pipe emergency, reply URGENT and we'll call you."
+
+        assertEquals(null, awayEmergencyNotice(emergencyEnabled = true, awayMessage = shipped))
+
+        assertEquals(
+            AwayNoticeTone.Warn,
+            awayEmergencyNotice(emergencyEnabled = false, awayMessage = shipped)?.tone,
+        )
+
+        val unknown = awayEmergencyNotice(
+            emergencyEnabled = true,
+            awayMessage = "For a burst pipe, reply ASAP and we'll ring you back.",
+        )
+        assertEquals(AwayNoticeTone.Warn, unknown?.tone)
+        assertTrue(unknown!!.text.contains("ASAP"))
+
+        assertEquals(
+            AwayNoticeTone.Hint,
+            awayEmergencyNotice(
+                emergencyEnabled = true,
+                awayMessage = "Thanks for texting. We're closed and will reply Monday.",
+            )?.tone,
+        )
+
+        assertEquals(
+            null,
+            awayEmergencyNotice(
+                emergencyEnabled = false,
+                awayMessage = "Thanks for texting. We're closed and will reply Monday.",
+            ),
+        )
+    }
 }

@@ -472,3 +472,115 @@ fun planIncludedSegments(plan: String?): Long = when (plan) {
     "starter" -> 500L
     else -> 0L
 }
+
+// ---------------------------------------------------------------------------
+// #414 emergency keyword — mirror of packages/shared/src/emergency.ts
+// ---------------------------------------------------------------------------
+
+/** The words the away-message default asks a homeowner to send. */
+val EMERGENCY_KEYWORDS = listOf("URGENT", "EMERGENCY", "911", "SOS")
+
+/**
+ * The §5/D3 carrier keywords, answered by Telnyx before we see them. "Reply
+ * STOP to unsubscribe" is required compliance copy, so naming it unrecognised
+ * would be both wrong and the fastest way to teach an owner to ignore this
+ * warning. Mirrors `CARRIER_REPLY_KEYWORDS` in shared.
+ */
+val CARRIER_REPLY_KEYWORDS = listOf(
+    "STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT",
+    "START", "UNSTOP", "YES",
+    "HELP", "INFO",
+)
+
+/**
+ * True when OWNER-AUTHORED copy still invites the emergency reply.
+ *
+ * Reads what the owner wrote, not what a customer sent, so it must not
+ * UNDER-fire: missing an invitation means the settings screen tells an owner
+ * their message is fine while it promises a callback nothing will make. That
+ * is the whole of #414, re-created by the owner's own hand.
+ *
+ * The boundaries are `\\b` in SOURCE, which is `\b` in the pattern. Written as
+ * "\b" they would be a literal BACKSPACE — Kotlin's own escape — and the regex
+ * would never match anything, leaving this function silently returning false
+ * for every message and the warning permanently invisible.
+ */
+fun mentionsEmergencyKeyword(copy: String): Boolean = EMERGENCY_KEYWORDS.any { keyword ->
+    Regex("\\b$keyword\\b", RegexOption.IGNORE_CASE).containsMatchIn(copy)
+}
+
+/**
+ * Owners capitalise the word they want sent back. The verb matches
+ * case-insensitively; the WORD's capitalisation is checked separately, since
+ * it is the only thing telling a keyword instruction apart from a sentence
+ * that merely contains "reply".
+ */
+private val REPLY_INSTRUCTION = Regex(
+    """\b(?:reply|replying|text|respond|send)\s+(?:back\s+)?(?:with\s+)?["'“‘]?([A-Za-z0-9]{2,15})\b""",
+    RegexOption.IGNORE_CASE,
+)
+
+private val ALL_CAPS_WORD = Regex("^[A-Z]{2,}$")
+
+/**
+ * #453 — the word an owner told customers to send that nothing listens for.
+ * Returns it so the screen can quote it back; an owner cannot fix what we
+ * will not name. Mirror of `unrecognizedReplyKeyword` in shared.
+ */
+fun unrecognizedReplyKeyword(copy: String): String? {
+    for (match in REPLY_INSTRUCTION.findAll(copy)) {
+        val raw = match.groupValues[1]
+        val word = raw.uppercase()
+        if (word in EMERGENCY_KEYWORDS || word in CARRIER_REPLY_KEYWORDS) continue
+        if (raw != word || !ALL_CAPS_WORD.matches(word)) continue
+        return word
+    }
+    return null
+}
+
+/** How loudly the away-reply screen should speak. */
+enum class AwayNoticeTone { Warn, Hint }
+
+/** What the away-reply screen should say about the emergency path, if anything. */
+data class AwayEmergencyNotice(val tone: AwayNoticeTone, val text: String)
+
+/**
+ * #453 — the one decision every client renders, so all three say the SAME
+ * thing. Mirror of `awayEmergencyNotice` in shared; keep the copy identical.
+ */
+fun awayEmergencyNotice(
+    emergencyEnabled: Boolean,
+    awayMessage: String,
+): AwayEmergencyNotice? {
+    val invites = mentionsEmergencyKeyword(awayMessage)
+    val unknown = unrecognizedReplyKeyword(awayMessage)
+
+    if (!emergencyEnabled) {
+        if (!invites && unknown == null) return null
+        return AwayEmergencyNotice(
+            AwayNoticeTone.Warn,
+            "Your away message tells customers to reply for an emergency, but nothing " +
+                "will treat that reply as one. Turn this back on, or take the offer out of " +
+                "the message.",
+        )
+    }
+
+    if (unknown != null) {
+        return AwayEmergencyNotice(
+            AwayNoticeTone.Warn,
+            "Your away message tells customers to reply $unknown, which nothing " +
+                "watches for. Use URGENT, EMERGENCY, 911 or SOS instead, or take the offer " +
+                "out of the message.",
+        )
+    }
+
+    if (!invites) {
+        return AwayEmergencyNotice(
+            AwayNoticeTone.Hint,
+            "Nobody has been told they can. Mention it in your away message if you " +
+                "want customers to know.",
+        )
+    }
+
+    return null
+}

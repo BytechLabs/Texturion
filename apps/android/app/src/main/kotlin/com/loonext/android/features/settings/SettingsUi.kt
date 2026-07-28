@@ -26,6 +26,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.core.net.toUri
 import androidx.compose.ui.unit.dp
 import com.loonext.android.ui.common.assertAboveIme
@@ -231,23 +234,63 @@ fun openExternal(context: Context, url: String) {
 }
 
 /**
- * A quiet amber line under a switch, for a feature that is ON but cannot reach
- * every customer yet. Says which destinations it will not reach and why, so a
- * switch never reads as working when it is not.
+ * How loudly a [ReachNote] speaks.
+ *
+ * [Neutral] is the default because most notes explain a limit the owner has
+ * already accepted. [Warn] is for the notes that report a CONTRADICTION the
+ * owner has not seen — where the setting and the copy disagree — and it exists
+ * because a muted grey line reads as an optional tip, which is the one thing
+ * such a note must never read as.
+ */
+enum class NoteTone { Neutral, Warn }
+
+/**
+ * A quiet line under a switch, for a feature that is ON but cannot reach every
+ * customer yet. Says which destinations it will not reach and why, so a switch
+ * never reads as working when it is not.
+ *
+ * #453: [NoteTone.Warn] carries the amber of [PillTone.Warn] — the same colour
+ * this app already uses for "needs attention" — and announces itself, because
+ * the warning it carries is that an away message is promising an emergency
+ * path that is switched off. Web styles that state as a warning with
+ * `role="alert"`; matching it here is what keeps the three clients honest.
  */
 @Composable
-fun ReachNote(text: String, modifier: Modifier = Modifier) {
+fun ReachNote(
+    text: String,
+    modifier: Modifier = Modifier,
+    tone: NoteTone = NoteTone.Neutral,
+) {
+    val (bg, fg) = when (tone) {
+        NoteTone.Neutral ->
+            MaterialTheme.colorScheme.surfaceContainerHigh to
+                MaterialTheme.colorScheme.onSurfaceVariant
+
+        NoteTone.Warn ->
+            if (isSystemInDarkTheme()) {
+                BrandColor.DarkAmberBg to BrandColor.DarkAmber
+            } else {
+                BrandColor.AmberBg to BrandColor.Amber
+            }
+    }
     Text(
         text,
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = fg,
         modifier = modifier
             .fillMaxWidth()
             .padding(top = 8.dp)
-            .background(
-                MaterialTheme.colorScheme.surfaceContainerHigh,
-                RoundedCornerShape(10.dp),
-            )
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .background(bg, RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .then(
+                // Polite, not Assertive: it should be read when TalkBack
+                // reaches a natural break, not cut off the label the owner
+                // just toggled.
+                if (tone == NoteTone.Warn) {
+                    Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                } else {
+                    Modifier
+                },
+            ),
     )
 }

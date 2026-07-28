@@ -20,6 +20,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
+import { awayEmergencyNotice } from "@loonext/shared";
+
 import { previewAwayMessage } from "@/lib/settings/away-preview";
 import {
   isDirty,
@@ -173,21 +175,34 @@ function AwayMessageCard({
   const update = useUpdateCompany();
   const [enabled, setEnabled] = useState(company.away_enabled);
   const [message, setMessage] = useState(company.away_message ?? "");
+  const [emergency, setEmergency] = useState(company.emergency_keyword_enabled);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setEnabled(company.away_enabled);
     setMessage(company.away_message ?? "");
-  }, [company.away_enabled, company.away_message]);
+    setEmergency(company.emergency_keyword_enabled);
+  }, [
+    company.away_enabled,
+    company.away_message,
+    company.emergency_keyword_enabled,
+  ]);
 
   const dirty =
     enabled !== company.away_enabled ||
-    message.trim() !== (company.away_message ?? "").trim();
+    message.trim() !== (company.away_message ?? "").trim() ||
+    emergency !== company.emergency_keyword_enabled;
 
-  const preview = previewAwayMessage(
-    message.trim().length > 0 ? message : DEFAULT_AWAY_MESSAGE,
-    company.name,
-  );
+  // What will actually go out — the owner's text if they wrote one, else the
+  // product default. Both the preview and the emergency check read THIS, so
+  // the screen can never approve of a message that isn't the one sending.
+  const effectiveMessage =
+    message.trim().length > 0 ? message : DEFAULT_AWAY_MESSAGE;
+  const preview = previewAwayMessage(effectiveMessage, company.name);
+  const notice = awayEmergencyNotice({
+    emergencyEnabled: emergency,
+    awayMessage: effectiveMessage,
+  });
 
   function save() {
     setError(null);
@@ -197,7 +212,11 @@ function AwayMessageCard({
       return;
     }
     update.mutate(
-      { away_enabled: enabled, away_message: trimmed.length > 0 ? trimmed : null },
+      {
+        away_enabled: enabled,
+        away_message: trimmed.length > 0 ? trimmed : null,
+        emergency_keyword_enabled: emergency,
+      },
       {
         onSuccess: () => toast.success("Away reply saved."),
         onError: (cause) =>
@@ -280,6 +299,52 @@ function AwayMessageCard({
             . Write it so an emergency still reaches you, never just
             &ldquo;we&apos;re closed.&rdquo;
           </p>
+        </div>
+
+        {/* #414: the switch sits directly under the message that makes the
+            offer, not on a separate notifications page. They are one decision
+            — a message inviting URGENT with the mechanism off is the exact
+            defect this issue is about, and an owner can only notice it if
+            both are on screen at once. */}
+        <div className="space-y-3 border-t border-border-subtle pt-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="emergency-enabled" className="text-sm font-medium">
+                Treat a reply of URGENT as an emergency
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Texts back that start with URGENT, EMERGENCY, 911 or SOS reach
+                everyone on the crew straight away, at the priority that wakes a
+                phone — no away reply, and never held back by your daily
+                notification limit.
+              </p>
+            </div>
+            <Switch
+              id="emergency-enabled"
+              checked={emergency}
+              disabled={!canEdit || update.isPending}
+              onCheckedChange={setEmergency}
+            />
+          </div>
+
+          {/* #453: which sentence appears is decided in `shared`, so this
+              screen, Android and iOS cannot drift into three wordings of the
+              same warning. Only the tone-to-colour mapping is ours. A `warn`
+              gets amber and role="alert"; a `hint` stays a quiet aside,
+              because an owner who does not offer emergency service has done
+              nothing wrong. */}
+          {notice ? (
+            notice.tone === "warn" ? (
+              <p
+                role="alert"
+                className="rounded-md bg-warning/10 px-3 py-2 text-sm"
+              >
+                {notice.text}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">{notice.text}</p>
+            )
+          ) : null}
         </div>
 
         <div className="space-y-1.5">

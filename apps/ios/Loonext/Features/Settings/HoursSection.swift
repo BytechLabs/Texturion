@@ -165,6 +165,7 @@ private struct AwayReplyCard: View {
 
     @State private var enabled: Bool
     @State private var message: String
+    @State private var emergency: Bool
     @State private var saving = false
     @State private var error: String?
 
@@ -174,6 +175,7 @@ private struct AwayReplyCard: View {
         self.onCompanyUpdated = onCompanyUpdated
         _enabled = State(initialValue: company.away_enabled)
         _message = State(initialValue: company.away_message ?? "")
+        _emergency = State(initialValue: company.emergency_keyword_enabled)
     }
 
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
@@ -181,6 +183,15 @@ private struct AwayReplyCard: View {
     private var dirty: Bool {
         enabled != company.away_enabled
             || trimmed != (company.away_message ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            || emergency != company.emergency_keyword_enabled
+    }
+
+    /// What actually goes out — the owner's text if they wrote one, else the
+    /// product default. The preview and the #414 emergency check both read
+    /// THIS, so the screen can never approve of a message that isn't sending.
+    private var effectiveMessage: String { trimmed.isEmpty ? defaultAwayMessage : trimmed }
+    private var emergencyNotice: AwayEmergencyNotice? {
+        awayEmergencyNotice(emergencyEnabled: emergency, awayMessage: effectiveMessage)
     }
 
     var body: some View {
@@ -222,13 +233,36 @@ private struct AwayReplyCard: View {
                     .foregroundStyle(.secondary)
                     .padding(.top, 2)
             }
+            // #414: the switch sits with the message that makes the offer, not
+            // on a separate notifications screen. They are one decision — a
+            // message inviting URGENT with the mechanism off is the exact
+            // defect this issue is about, and an owner can only see it if the
+            // two are on screen together.
+            LabeledToggleRow(
+                label: "Treat a reply of URGENT as an emergency",
+                supporting: "Texts back starting with URGENT, EMERGENCY, 911 or SOS reach "
+                    + "everyone on the crew straight away, at the priority that wakes a phone — "
+                    + "no away reply, and never held back by your daily notification limit.",
+                isOn: emergency,
+                enabled: canEdit && !saving
+            ) { emergency = $0 }
+            // #453: which sentence appears is decided in SettingsLogic,
+            // mirroring shared, so this screen, web and Android cannot drift
+            // into three wordings of the same warning. Only the tone-to-colour
+            // mapping is ours.
+            if let notice = emergencyNotice {
+                ReachNote(
+                    text: notice.text,
+                    tone: notice.tone == .warn ? .warn : .neutral
+                )
+            }
             // The preview reuses the wire's drop-empty semantics: {first_name}
             // resolves to a sample name here because the away reply DOES carry
             // the contact.
             PreviewBubble(
                 label: "Preview",
                 text: applyMergeFields(
-                    trimmed.isEmpty ? defaultAwayMessage : trimmed,
+                    effectiveMessage,
                     contactName: sampleFirstName,
                     businessName: company.name
                 )
@@ -259,6 +293,7 @@ private struct AwayReplyCard: View {
         let body = JSONValue.object([
             "away_enabled": .bool(enabled),
             "away_message": trimmed.isEmpty ? .null : .string(trimmed),
+            "emergency_keyword_enabled": .bool(emergency),
         ])
         Task {
             do {

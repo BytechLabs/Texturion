@@ -221,19 +221,31 @@ private fun AwayReplyCard(
     var message by remember(company.away_message) {
         mutableStateOf(company.away_message.orEmpty())
     }
+    var emergency by remember(company.emergency_keyword_enabled) {
+        mutableStateOf(company.emergency_keyword_enabled)
+    }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
 
     val trimmed = message.trim()
     val dirty = enabled != company.away_enabled ||
-        trimmed != company.away_message.orEmpty().trim()
+        trimmed != company.away_message.orEmpty().trim() ||
+        emergency != company.emergency_keyword_enabled
+    // What actually goes out — the owner's text if they wrote one, else the
+    // product default. The preview and the #414 emergency check both read
+    // THIS, so the screen can never approve of a message that isn't sending.
+    val effectiveMessage = trimmed.ifEmpty { DEFAULT_AWAY_MESSAGE }
     // The preview reuses the wire's drop-empty semantics: {first_name} resolves
     // to a sample name here because the away reply DOES carry the contact.
     val preview = applyMergeFields(
-        text = trimmed.ifEmpty { DEFAULT_AWAY_MESSAGE },
+        text = effectiveMessage,
         contactName = SAMPLE_FIRST_NAME,
         businessName = company.name,
+    )
+    val emergencyNotice = awayEmergencyNotice(
+        emergencyEnabled = emergency,
+        awayMessage = effectiveMessage,
     )
 
     SettingsCard(
@@ -275,6 +287,31 @@ private fun AwayReplyCard(
                 supportingText = { Text("${message.length}/1000 · {first_name} and {business_name} fill in automatically.") },
             )
         }
+        // #414: the switch sits with the message that makes the offer, not on
+        // a separate notifications screen. They are one decision — a message
+        // inviting URGENT with the mechanism off is the exact defect this
+        // issue is about, and an owner can only see it if both are together.
+        LabeledSwitchRow(
+            label = "Treat a reply of URGENT as an emergency",
+            supporting = "Texts back starting with URGENT, EMERGENCY, 911 or SOS reach " +
+                "everyone on the crew straight away, at the priority that wakes a phone — " +
+                "no away reply, and never held back by your daily notification limit.",
+            checked = emergency,
+            onCheckedChange = { emergency = it },
+            enabled = canEdit && !saving,
+        )
+        // #453: which sentence appears is decided in SettingsLogic, mirroring
+        // shared, so this screen, web and iOS cannot drift into three wordings
+        // of the same warning. Only the tone-to-colour mapping is ours.
+        emergencyNotice?.let { notice ->
+            ReachNote(
+                notice.text,
+                tone = when (notice.tone) {
+                    AwayNoticeTone.Warn -> NoteTone.Warn
+                    AwayNoticeTone.Hint -> NoteTone.Neutral
+                },
+            )
+        }
         PreviewBubble(label = "Preview", text = preview)
         InlineError(error)
         if (canEdit) {
@@ -293,6 +330,7 @@ private fun AwayReplyCard(
                                     put("away_enabled", enabled)
                                     if (trimmed.isEmpty()) put("away_message", JsonNull)
                                     else put("away_message", trimmed)
+                                    put("emergency_keyword_enabled", emergency)
                                 }
                                 val updated = scope.repo.updateCompany(scope.companyId, body)
                                 onCompanyUpdated(updated)
