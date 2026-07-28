@@ -289,3 +289,93 @@ unbounded past the voice cap (now `time_limit_secs`-capped at 1h).
   sum. Bounded by simultaneous inbound-call volume to one number (self-limiting)
   and by the per-call 1h ceiling; a true fix needs an in-flight reservation
   (deferred — the catastrophic single-call case is already capped).
+
+---
+
+## 10. Break‑even utilisation & the fair‑use ceiling decision (#446)
+
+Every figure below is computed from this repo's own constants
+(`billing/costs.ts`, `billing/plans.ts`) and asserted in
+`apps/api/src/billing/break-even.test.ts`. That test is the reason these
+numbers can be trusted: change a unit cost, a plan allowance or a plan price
+and it fails, which is the prompt to re‑read this section.
+
+### 10.1 A tenant at the full published ceiling
+
+| | Starter ($29) | Pro ($79) |
+|---|---|---|
+| Net revenue after Stripe | **$27.71** | **$76.01** |
+| Voice at ceiling (1.2¢/min) | $30.00 (2,500 min) | $72.00 (6,000 min) |
+| Outbound segments at ceiling (0.85¢) | $4.25 (500) | $21.25 (2,500) |
+| Number rental ($1.10 each) | $1.10 (1) | $2.20 (2) |
+| US 10DLC campaign | $10.00 | $10.00 |
+| **Total cost** | **$45.35** | **$105.45** |
+| **Net position** | **−$17.64** | **−$29.44** |
+
+The headline in #446 holds: **the included voice allowance on Starter costs
+$30 against a $29 plan** — voice alone, at the stated ceiling, exceeds the
+entire plan price before a single text.
+
+### 10.2 Break‑even utilisation (ask 1)
+
+Voice minutes at which a tenant stops being profitable, assuming they send **no
+texts at all** — the most generous reading:
+
+| Plan | Break‑even | Published ceiling | Ceiling as % of break‑even |
+|---|---|---|---|
+| Starter | **1,384 min** | 2,500 min | 181% |
+| Pro | **5,317 min** | 6,000 min | 113% |
+
+**Starter is the exposed plan, not Pro.** That inverts the intuition. The
+reason is the $10 10DLC campaign fee, which is identical on both plans and
+therefore consumes 36% of Starter's net revenue against 13% of Pro's. Any
+future move to protect margin should look at Starter first.
+
+### 10.3 The decision (ask 2)
+
+**The published ceilings sit above break‑even, deliberately. They are
+catastrophe limits, not margin limits.** They are not being lowered.
+
+The reasoning, recorded so it is a position rather than an accident:
+
+1. **A ceiling and a margin control are different instruments.** The fair‑use
+   ceiling exists so no single tenant can cost an unbounded amount. Protecting
+   the margin of a tenant who is *inside* their allowance is the projection
+   model's job (#85), not the ceiling's.
+2. **The published ceiling is a promise already made** at `/legal/fair-use`.
+   Lowering it is a customer‑facing breach of something people bought on, for a
+   loss nobody has yet incurred — the wrong trade at this stage.
+3. **The detection now exists, which it did not when #446 was written.** A
+   tenant projected to cost more than they pay produces a warning to them *and*
+   to the founder, plus a weekly count of how many crossed (#447). The question
+   "is anyone actually hitting these ceilings" is answerable without a database
+   console, so this can be revisited from evidence rather than arithmetic.
+4. **The unbounded cost centre was the real risk, and it is now bounded.** The
+   per‑dial transfer fee scales with call *count* and the minute cap could never
+   see it (#446 ask 5, #98); it has its own ceiling and alert as of #448.
+5. **Nobody is near it.** 2,500 minutes is ~42 hours of talking a month for a
+   three‑person crew. At seven customers the realistic ceiling‑hitter does not
+   exist, and generous ceilings nobody reaches are a legitimate position.
+
+**What would reverse this decision:** the #447 weekly digest showing repeat
+crossings, or a single tenant sustaining a loss across two periods. Either is a
+pricing signal; the arithmetic alone is not.
+
+### 10.4 Standing dependencies (ask 4)
+
+Both push these numbers the wrong way and neither is priced yet:
+
+- **#445** — three carriers raised A2P fees in 2026 and AT&T now charges on
+  inbound; the inbound cost line names only T‑Mobile.
+- **#380** — AI has no term in the cost model at all.
+
+`break-even.test.ts` pins the unit costs this decision was made against, so
+neither can land quietly. When either ships, that test fails and this section
+is re‑run — which is what ask 4 asked for, enforced rather than remembered.
+
+### 10.5 Ask 3 — what a crossing actually does
+
+Answered by #447: it emails the customer's owner + admins with a plain‑language
+heads‑up (no figures of ours), emails the founder the same crossing with the
+cost/revenue/margin, and counts toward a weekly digest naming nobody. Nothing
+is paused — warning and enforcing are deliberately separate jobs.
