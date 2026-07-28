@@ -73,6 +73,7 @@ end $$;
 -- M-3. usage_alerts.metric (#12 storage alerts): the PK spans metric, so the
 --      same (company, period, threshold) coexists across the three metrics;
 --      the column defaults to 'segments' for the pre-#12 backfill.
+
 -- ===========================================================================
 do $$
 declare v_count int;
@@ -97,6 +98,47 @@ begin
     raise exception 'M-3 FAILED: metric did not default to segments';
   end if;
   raise notice 'M-3 PASSED: usage_alerts.metric widens the PK; defaults to segments';
+end $$;
+
+-- ===========================================================================
+-- M-3b. usage_alerts.threshold must hold the LARGEST tier any arm writes.
+--
+--       It was smallint, sized for the §6 percent arms where the only values
+--       are 80 and 100. Later arms reuse the column as a generic dedupe key
+--       holding an absolute tier, and #449's inbound-volume tiers reach
+--       50,000 — which does not fit. The upsert would have thrown "smallint
+--       out of range" for the top tier, so the alert that fails is the one
+--       telling the founder a tenant is flooding us with traffic they cannot
+--       cap. The louder the situation, the more certain the failure.
+--
+--       Pinned against the real top tier rather than against "integer", so
+--       raising the tiers past 2 billion fails here rather than in production.
+-- ===========================================================================
+do $$
+declare v_type text;
+begin
+  select data_type into v_type
+    from information_schema.columns
+   where table_schema = 'public'
+     and table_name = 'usage_alerts'
+     and column_name = 'threshold';
+
+  if v_type = 'smallint' then
+    raise exception 'M-3b FAILED: threshold is still smallint; the 50,000 inbound tier cannot be written';
+  end if;
+
+  -- The actual write, at the largest tier INBOUND_ABUSE_TIERS_SEGMENTS holds.
+  insert into public.usage_alerts (company_id, period_start, metric, threshold)
+  values ('66666666-6666-4666-8666-666000000000', '2026-05-01T00:00:00Z', 'inbound_volume', 50000);
+
+  if not exists (
+    select 1 from public.usage_alerts
+     where company_id = '66666666-6666-4666-8666-666000000000' and threshold = 50000
+  ) then
+    raise exception 'M-3b FAILED: the 50,000 tier did not survive the write';
+  end if;
+
+  raise notice 'M-3b PASSED: the alert ledger can hold its own largest threshold';
 end $$;
 
 -- ===========================================================================
