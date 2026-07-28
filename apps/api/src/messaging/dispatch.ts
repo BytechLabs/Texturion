@@ -11,6 +11,7 @@ import {
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { handlePortingEvent } from "../telnyx/porting";
+import { handlePortOutEvent } from "../telnyx/portout";
 import { handle10dlcEvent } from "../telnyx/registration";
 import { handleInboundMessage } from "./inbound";
 import { handleStatusEvent } from "./status";
@@ -72,6 +73,12 @@ export async function dispatchTelnyxEvent(
   if (eventType.startsWith("10dlc.")) {
     // Cross-track contract: the registration state machine (telnyx track).
     return handle10dlcEvent(env, event);
+  }
+  if (eventType.startsWith("portout.")) {
+    // #398: a number leaving US. Distinct family from porting_order.* (which
+    // is a number coming in) and distinct in what it means: the pending notice
+    // is the only window in which an unauthorised port can still be stopped.
+    return handlePortOutEvent(env, event);
   }
   if (eventType.startsWith("porting_order.")) {
     // PORTING.md §5.1: the port-in state machine. This single branch also

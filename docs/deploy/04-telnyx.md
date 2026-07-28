@@ -208,3 +208,51 @@ on the Worker, and ensure the account has US/CA + 10DLC permissions and balance.
 - Account with US/CA + 10DLC enabled and funded.
 
 Next: [05 — Workers deploy](./05-workers-deploy.md).
+
+---
+
+## Port-out: notifications and protection (#398)
+
+Two separate switches, both in the Telnyx portal, and **neither is on by
+default**. Together they are the only thing standing between a customer's
+business number and somebody taking it.
+
+### 1. Port-out notifications — REQUIRED, or the code below never runs
+
+`apps/api/src/telnyx/portout.ts` handles `portout.*` webhooks: it marks the
+number `ported_out`, writes the audit row, and emails the owner and ops. Telnyx
+does not send those events unless you switch them on:
+
+**Account Settings → Advanced Features → Notifications**
+1. Create a **Notification Profile**.
+2. Add a **New Channel** with the webhook URL `https://<API_ORIGIN>/webhooks/telnyx`.
+3. Add a **New Setting**, choose **Port Out Notifications**, bind it to that
+   profile and channel.
+
+Without this, a number can leave the account and the product will never know —
+inbound simply stops, which is the one failure it cannot detect on its own.
+
+### 2. Port-out PIN (`external_pin`) — the anti-theft control
+
+**Checked 2026-07-28 via the API: `external_pin` is NOT SET on our live number,
+and `deletion_lock_enabled` is `false`.**
+
+`external_pin` is the passcode a gaining carrier must supply to take a number
+away. With it unset, a port-out request needs only the information printed on
+the business's own website. Port-out fraud is an established attack, and the
+number is both the customer's public identity and, for many services, an
+authentication factor.
+
+This is **deliberately not set from code**. A PIN the operator does not know is
+worse than none — it blocks the customer's own legitimate port and turns a
+routine goodbye into a support incident. Set it in the portal (or via
+`PATCH /v2/phone_numbers/{id}` with `external_pin`), record it wherever account
+recovery details live, and note the date here.
+
+To re-check at any time:
+
+```bash
+curl -s -H "Authorization: Bearer $TELNYX_API_KEY" \
+  https://api.telnyx.com/v2/phone_numbers/<id> \
+  | python -c "import sys,json;d=json.load(sys.stdin)['data'];print('pin set:',bool(d.get('external_pin')),'| deletion lock:',d.get('deletion_lock_enabled'))"
+```

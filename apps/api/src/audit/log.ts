@@ -62,6 +62,17 @@ export type AuditAction =
   // nobody on the crew can undo, and the first thing anyone reaches for when
   // a customer says they asked to be left alone.
   | "opt_out.recorded"
+  // A number leaving us (#398). The actor is a CARRIER, not a person — the
+  // customer moving on, or somebody taking the number from them. Recorded at
+  // every status because "has anyone tried this before" is the question asked
+  // after the fact, and the pending notice is the only one that was ever
+  // actionable.
+  | "number.port_out.pending"
+  | "number.port_out.authorized"
+  | "number.port_out.ported"
+  | "number.port_out.rejected"
+  | "number.port_out.rejected-pending"
+  | "number.port_out.canceled"
   | "opt_out.revoked"
   // The departing-employee signature (#231: "bulk-export alarm")
   | "contacts.imported"
