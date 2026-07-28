@@ -130,6 +130,10 @@ struct UsageSectionView: View {
                     case .quiet:
                         QuietCard()
                     }
+                    // #426: the question that comes before cancelling. Above
+                    // the cap because "are my texts landing" outranks "what
+                    // will this cost" for somebody already worried.
+                    DeliveryCard(usage: usage)
                     // Reachable in every status, for every role, as on the web.
                     // #178 says usage is never a wall, and this is not one: it
                     // is a plain line saying what the cap is and who can change
@@ -659,5 +663,84 @@ private struct HistoryBars: View {
                 }
             }
         }
+    }
+}
+
+/// Human name for a destination bucket.
+private func countryLabel(_ code: String) -> String {
+    switch code {
+    case "US": "United States"
+    case "CA": "Canada"
+    default: "Elsewhere"
+    }
+}
+
+/// #426 — "are my texts arriving?"
+///
+/// The largest single reason buyers leave a texting provider is the suspicion
+/// that messages are not landing, and a customer had no way to check. The
+/// suspicion is what moves them, and it was unfalsifiable, so it won by default.
+///
+/// SMALL NUMBERS LIE, so below the sample floor the API sends a nil rate and
+/// this shows COUNTS. One failure out of forty reads as 2.5%, which looks
+/// alarming and usually means a disconnected number — manufacturing the exact
+/// worry the figure exists to remove.
+///
+/// CARRIER-REPORTED is the honest name: a receipt means a carrier acknowledged
+/// handoff, not that a person read it.
+private struct DeliveryCard: View {
+    let usage: Usage
+
+    var body: some View {
+        if let delivery = usage.delivery,
+           delivery.delivered + delivery.failed + delivery.pending > 0 {
+            let countries = delivery.by_country.filter {
+                $0.delivered + $0.failed + $0.pending > 0
+            }
+            SettingsCard(
+                title: "Are your texts arriving?",
+                description: "Carrier-reported delivery this period. A carrier confirming "
+                    + "it took the message is not the same as someone reading it, so this "
+                    + "is the most we can honestly tell you."
+            ) {
+                Text(summaryLine(delivery))
+                    .font(.golos(13.5))
+                    .foregroundStyle(BrandColor.ink)
+
+                // Only split when there IS more than one destination — a
+                // single-country shop does not need a row telling it every
+                // text went to Canada.
+                if countries.count > 1 {
+                    Spacer().frame(height: 8)
+                    ForEach(countries, id: \.country) { row in
+                        ReadOnlyLine("\(countryLabel(row.country)): \(rateText(row))")
+                    }
+                }
+
+                Spacer().frame(height: 8)
+                ReadOnlyLine(
+                    delivery.failed > 0
+                        ? "A text that doesn't get through is usually a disconnected "
+                            + "number or a handset that has been off for days. Open the "
+                            + "conversation and the message itself says what the carrier "
+                            + "reported."
+                        : "Nothing has bounced this period."
+                )
+            }
+        }
+    }
+
+    private func summaryLine(_ d: UsageDelivery) -> String {
+        var parts = ["\(d.delivered) confirmed delivered"]
+        if d.failed > 0 { parts.append("\(d.failed) didn't get through") }
+        if d.pending > 0 { parts.append("\(d.pending) still on their way") }
+        return parts.joined(separator: " · ")
+    }
+
+    private func rateText(_ row: UsageDeliveryCountry) -> String {
+        guard let rate = row.rate else {
+            return "\(row.delivered) of \(row.delivered + row.failed)"
+        }
+        return "\(Int((rate * 100).rounded()))%"
     }
 }

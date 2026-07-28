@@ -964,6 +964,36 @@ export interface UsageStorage {
   total_bytes: number;
 }
 
+/**
+ * #426 — carrier-reported delivery, split by where the message was going.
+ *
+ * The NAME is load-bearing. A delivery receipt means a carrier acknowledged
+ * handoff, not that a person read it, and some carriers report optimistically.
+ * Every surface must say "carrier-reported" rather than "delivered".
+ */
+export interface UsageDeliveryCountry {
+  /** "US" | "CA" | "other" — the destination's country, from its area code. */
+  country: string;
+  delivered: number;
+  failed: number;
+  /** Accepted by us, not yet acknowledged by a carrier. Not a failure. */
+  pending: number;
+  /**
+   * delivered / (delivered + failed), or NULL when too few have settled to
+   * mean anything. Render counts, never a percentage, when this is null: one
+   * failure out of forty reads as 2.5% and almost always means a disconnected
+   * number, which is manufactured anxiety rather than information.
+   */
+  rate: number | null;
+}
+
+export interface UsageDelivery {
+  by_country: UsageDeliveryCountry[];
+  delivered: number;
+  failed: number;
+  pending: number;
+}
+
 /** #12/D36 calling minutes embedded in GET /v1/usage (both directions, D38). */
 export interface UsageVoice {
   /** Whole billed-leg minutes this period (forwarded + outbound talk time) —
@@ -1049,6 +1079,12 @@ export interface Usage {
   ai?: AiFeatureUsage[];
   /** #12: calling minutes used vs the plan allowance (both directions). */
   voice: UsageVoice;
+  /**
+   * #426: carrier-reported delivery for this period, split by destination.
+   * Null when the read failed — the page still renders everything else.
+   * Absent from a Worker deployed before this shipped, so readers default it.
+   */
+  delivery?: UsageDelivery | null;
   // #97/#103: no `mms` meter — pictures count 3 segments each in the message
   // meter, with no separate cap.
 }

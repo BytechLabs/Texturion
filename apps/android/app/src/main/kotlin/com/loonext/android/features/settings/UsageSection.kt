@@ -57,6 +57,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import androidx.compose.material3.Button
 import androidx.compose.material3.Slider
+import kotlin.math.roundToInt
 
 private val PERIOD_FORMAT = DateTimeFormatter.ofPattern("MMM d")
 
@@ -133,6 +134,10 @@ fun UsageSection(
                 UsageStatus.PACING -> PacingCard(usage)
                 else -> QuietCard()
             }
+            // #426: the question that comes before cancelling. Above the cap
+            // because "are my texts landing" outranks "what will this cost"
+            // for somebody who is already worried.
+            DeliveryCard(usage)
             // Reachable in every status, for every role, as on the web. #178
             // says usage is never a wall, and this is not one: it is a plain
             // line saying what the cap is and who can change it. Hiding it from
@@ -700,5 +705,78 @@ private fun HistoryBars(history: List<UsageMonth>) {
                 )
             }
         }
+    }
+}
+
+/** Human name for a destination bucket. */
+private fun countryLabel(code: String): String = when (code) {
+    "US" -> "United States"
+    "CA" -> "Canada"
+    else -> "Elsewhere"
+}
+
+/**
+ * #426 — "are my texts arriving?"
+ *
+ * The largest single reason buyers leave a texting provider is the suspicion
+ * that messages are not landing, and a customer had no way to check. The
+ * suspicion is what moves them, and it was unfalsifiable, so it won by default.
+ *
+ * SMALL NUMBERS LIE, so below the sample floor the API sends a null rate and
+ * this shows COUNTS. One failure out of forty reads as 2.5%, which looks
+ * alarming and usually means a disconnected number — manufacturing the exact
+ * worry the figure exists to remove.
+ *
+ * CARRIER-REPORTED is the honest name: a receipt means a carrier acknowledged
+ * handoff, not that a person read it.
+ */
+@Composable
+private fun DeliveryCard(usage: Usage) {
+    val delivery = usage.delivery ?: return
+    if (delivery.delivered + delivery.failed + delivery.pending == 0L) return
+
+    val countries = delivery.by_country.filter {
+        it.delivered + it.failed + it.pending > 0L
+    }
+
+    SettingsCard(
+        title = "Are your texts arriving?",
+        description = "Carrier-reported delivery this period. A carrier confirming it " +
+            "took the message is not the same as someone reading it, so this is the " +
+            "most we can honestly tell you.",
+    ) {
+        Text(
+            buildString {
+                append("${delivery.delivered} confirmed delivered")
+                if (delivery.failed > 0) append(" · ${delivery.failed} didn't get through")
+                if (delivery.pending > 0) append(" · ${delivery.pending} still on their way")
+            },
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        // Only split when there IS more than one destination — a single-country
+        // shop does not need a table telling it every text went to Canada.
+        if (countries.size > 1) {
+            Spacer(Modifier.height(8.dp))
+            countries.forEach { row ->
+                ReadOnlyLine(
+                    "${countryLabel(row.country)}: " +
+                        if (row.rate == null) {
+                            "${row.delivered} of ${row.delivered + row.failed}"
+                        } else {
+                            "${(row.rate * 100).roundToInt()}%"
+                        },
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        ReadOnlyLine(
+            if (delivery.failed > 0) {
+                "A text that doesn't get through is usually a disconnected number " +
+                    "or a handset that has been off for days. Open the conversation " +
+                    "and the message itself says what the carrier reported."
+            } else {
+                "Nothing has bounced this period."
+            },
+        )
     }
 }

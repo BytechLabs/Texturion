@@ -51,7 +51,18 @@ export interface CountryDelivery {
   sent: number;
   delivered: number;
   failed: number;
-  /** delivered / (delivered + failed), or null when nothing has settled. */
+  /** #426: accepted by us but not yet acknowledged by a carrier. */
+  pending: number;
+  /**
+   * delivered / (delivered + failed).
+   *
+   * NULL below {@link DELIVERY_MIN_SAMPLE}, and that is a product decision
+   * rather than a rounding one: a shop sending forty texts a week sees one
+   * failure as 2.5%, which looks alarming and almost always means a
+   * disconnected number. A percentage over a tiny sample manufactures exactly
+   * the anxiety this figure exists to remove, so below the line the clients
+   * are handed counts and no rate to render.
+   */
   rate: number | null;
 }
 
@@ -77,30 +88,30 @@ export function summarize(rows: OutboundRow[]): CountryDelivery[] {
       sent: 0,
       delivered: 0,
       failed: 0,
+      pending: 0,
       rate: null,
     };
     bucket.sent += 1;
     if (row.status === "delivered") bucket.delivered += 1;
     if (row.status === "failed") bucket.failed += 1;
+    if (row.status === "queued" || row.status === "sent") bucket.pending += 1;
     buckets.set(country, bucket);
   }
 
   return [...buckets.values()]
     .map((b) => {
       const settled = b.delivered + b.failed;
-      return { ...b, rate: settled > 0 ? b.delivered / settled : null };
+      return {
+        ...b,
+        rate: settled >= DELIVERY_MIN_SAMPLE ? b.delivered / settled : null,
+      };
     })
     .sort((a, b) => a.country.localeCompare(b.country));
 }
 
 /** Countries whose rate is both meaningful and bad. */
 export function underperforming(rows: CountryDelivery[]): CountryDelivery[] {
-  return rows.filter(
-    (r) =>
-      r.delivered + r.failed >= DELIVERY_MIN_SAMPLE &&
-      r.rate !== null &&
-      r.rate < DELIVERY_ALERT_FLOOR,
-  );
+  return rows.filter((r) => r.rate !== null && r.rate < DELIVERY_ALERT_FLOOR);
 }
 
 /**

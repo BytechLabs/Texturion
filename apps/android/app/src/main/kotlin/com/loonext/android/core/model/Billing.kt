@@ -85,6 +85,42 @@ data class Usage(
      * failing to decode.
      */
     val ai: List<AiFeatureUsage> = emptyList(),
+    /**
+     * #426: carrier-reported delivery for the period. Null on a server that
+     * predates it, or when the read failed — the rest of the page still shows.
+     */
+    val delivery: UsageDelivery? = null,
+)
+
+/**
+ * #426 — carrier-reported delivery, split by where the message was going.
+ *
+ * The NAME is load-bearing: a receipt means a carrier acknowledged handoff,
+ * not that a person read it, so every surface says "carrier-reported".
+ */
+@Serializable
+data class UsageDeliveryCountry(
+    /** "US" | "CA" | "other", from the destination's area code. */
+    val country: String = "other",
+    val delivered: Long = 0,
+    val failed: Long = 0,
+    /** Accepted by us, not yet acknowledged by a carrier. Not a failure. */
+    val pending: Long = 0,
+    /**
+     * delivered / (delivered + failed), or NULL when too few have settled to
+     * mean anything. Render counts and never a percentage when null: one
+     * failure out of forty reads as 2.5% and usually means a disconnected
+     * number, which is manufactured worry rather than information.
+     */
+    val rate: Double? = null,
+)
+
+@Serializable
+data class UsageDelivery(
+    val by_country: List<UsageDeliveryCountry> = emptyList(),
+    val delivered: Long = 0,
+    val failed: Long = 0,
+    val pending: Long = 0,
 )
 
 /** One AI feature's month: what has been used against its limit. */

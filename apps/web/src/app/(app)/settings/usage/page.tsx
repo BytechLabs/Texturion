@@ -463,6 +463,99 @@ function UsageDetails({ usage }: { usage: Usage }) {
   );
 }
 
+/** Human name for a destination bucket. */
+function countryLabel(code: string): string {
+  if (code === "US") return "United States";
+  if (code === "CA") return "Canada";
+  return "Elsewhere";
+}
+
+/**
+ * #426 — "are my texts arriving?"
+ *
+ * The largest single reason buyers leave a texting provider is the suspicion
+ * that messages are not landing, and until now a customer had no way to check.
+ * The suspicion is what moves them and it was unfalsifiable, so it won by
+ * default.
+ *
+ * Two deliberate choices, both from the issue's own devil's advocate:
+ *
+ * SMALL NUMBERS LIE. Below the sample floor the API sends `rate: null` and this
+ * shows COUNTS instead. A shop sending forty texts a week reads one failure as
+ * 2.5%, which looks alarming and almost always means a disconnected number —
+ * manufacturing the exact anxiety the figure exists to remove.
+ *
+ * THE NAME IS THE HONEST PART. "Carrier-reported" rather than "delivered": a
+ * receipt means a carrier acknowledged handoff, not that a person read it.
+ */
+function DeliveryCard({ usage }: { usage: Usage }) {
+  const delivery = usage.delivery;
+  if (!delivery) return null;
+
+  const settled = delivery.delivered + delivery.failed;
+  if (settled === 0 && delivery.pending === 0) return null;
+
+  // Split only when there is more than one destination — a single-country
+  // shop does not need a table telling it that all its texts went to Canada.
+  const countries = delivery.by_country.filter(
+    (row) => row.delivered + row.failed + row.pending > 0,
+  );
+
+  return (
+    <SettingsCard
+      title="Are your texts arriving?"
+      description="Carrier-reported delivery this period. A carrier confirming it took the message is not the same as someone reading it, so this is the most we can honestly tell you."
+    >
+      <div className="space-y-4">
+        <p className="text-sm">
+          <span className="font-medium">
+            {delivery.delivered.toLocaleString()} confirmed delivered
+          </span>
+          {delivery.failed > 0 ? (
+            <>
+              {" · "}
+              {delivery.failed.toLocaleString()} didn&rsquo;t get through
+            </>
+          ) : null}
+          {delivery.pending > 0 ? (
+            <>
+              {" · "}
+              {delivery.pending.toLocaleString()} still on their way
+            </>
+          ) : null}
+        </p>
+
+        {countries.length > 1 ? (
+          <ul className="space-y-1.5 text-sm text-muted-foreground">
+            {countries.map((row) => (
+              <li key={row.country} className="flex justify-between gap-4">
+                <span>{countryLabel(row.country)}</span>
+                <span className="tabular-nums">
+                  {row.rate === null
+                    ? `${row.delivered.toLocaleString()} of ${(row.delivered + row.failed).toLocaleString()}`
+                    : `${Math.round(row.rate * 100)}%`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        {delivery.failed > 0 ? (
+          <p className="text-sm text-muted-foreground">
+            A text that doesn&rsquo;t get through is usually a disconnected
+            number or a handset that has been off for days. Open the
+            conversation and the message itself says what the carrier reported.
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Nothing has bounced this period.
+          </p>
+        )}
+      </div>
+    </SettingsCard>
+  );
+}
+
 export default function UsageSettingsPage() {
   const usage = useUsage();
   const company = useCompany();
@@ -513,6 +606,11 @@ export default function UsageSettingsPage() {
           ) : (
             <QuietCard />
           )}
+
+          {/* #426: the question that precedes cancelling. Placed above the
+              spending cap because "are my texts landing" outranks "what will
+              this cost" for someone who is already worried. */}
+          <DeliveryCard usage={usage.data} />
 
           {/* The owner's protection stays reachable in every status — framed
               as the thing that stops a bill, never as a quota. */}

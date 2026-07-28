@@ -70,6 +70,10 @@ function usageStub(
   );
   sb.on("GET", "/rest/v1/companies", () => [company]);
   sb.on("POST", "/rest/v1/rpc/api_period_segments", () => used);
+  // #426: the carrier-reported delivery read. Empty by default — the
+  // delivery card simply does not render, which is what every existing
+  // assertion here expects.
+  sb.on("GET", "/rest/v1/messages", () => []);
   sb.on("POST", "/rest/v1/rpc/api_period_inbound_segments", () => inbound);
   sb.on("POST", "/rest/v1/rpc/api_usage_history", () => HISTORY);
   sb.on("POST", "/rest/v1/rpc/api_storage_usage", () => storage);
@@ -168,6 +172,9 @@ describe("GET /v1/usage", () => {
       },
       // #103 one-release shim for pre-#103 bundles (zeros — no meter, no crash).
       mms: { used_messages: 0, included_messages: 0 },
+      // #426: carrier-reported delivery. Nothing sent in this fixture, so the
+      // clients render no card at all rather than a reassuring 100%.
+      delivery: { by_country: [], delivered: 0, failed: 0, pending: 0 },
     });
 
     const rpc = sb.find("POST", "/rest/v1/rpc/api_period_segments")[0];

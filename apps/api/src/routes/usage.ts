@@ -36,6 +36,7 @@
  */
 import { Hono } from "hono";
 
+import { summarize } from "../messaging/delivery-by-country";
 import { loadAiSettings } from "../ai/settings";
 import { requireRole } from "../auth/company";
 import { decideOverage } from "../billing/overage-projection";
@@ -211,6 +212,33 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
     }
   })();
 
+  // #426 — "are my texts arriving?", which is the single largest reason
+  // buyers leave a texting provider and a question a customer of ours could
+  // not answer anywhere in this product. The per-message lifecycle existed and
+  // was never totalled.
+  //
+  // Split by DESTINATION COUNTRY because US and Canada fail for entirely
+  // different reasons (#423 vs #379) and a blended figure hides either one.
+  // Degrades to null rather than failing the page: the segment and storage
+  // numbers are what most people came for.
+  const delivery = await (async () => {
+    try {
+      const { data, error } = await db
+        .from("messages")
+        .select("status,conversations(contacts(phone_e164))")
+        .eq("company_id", companyId)
+        .eq("direction", "outbound")
+        .gte("created_at", company.current_period_start)
+        .limit(5000);
+      if (error) return null;
+      return summarize(
+        (data ?? []) as unknown as Parameters<typeof summarize>[0],
+      );
+    } catch {
+      return null;
+    }
+  })();
+
   const overage = Math.max(0, used - included);
   // D36: voice mirrors the segment shape — used vs the fair-use allowance,
   // overage-so-far at 1¢/min rated to the second (the meter bills the same
@@ -279,6 +307,32 @@ usageRoutes.get("/usage", requireRole("member"), async (c) => {
           Number(storage.attachments_bytes) + Number(storage.mms_bytes),
       ),
     },
+    /**
+     * #426: CARRIER-REPORTED delivery, and the name is the honest part. A
+     * delivery receipt means a carrier acknowledged handoff, not that a person
+     * read it, and some carriers report optimistically. Calling this
+     * "delivered" would be the same lie DELETION.md refuses elsewhere.
+     *
+     * `rate` is null below the sample floor — a shop sending forty texts a
+     * week reads one failure as 2.5%, which looks alarming and usually means a
+     * disconnected number. Clients render counts in that case, never a
+     * percentage.
+     */
+    delivery:
+      delivery === null
+        ? null
+        : {
+            by_country: delivery.map((row) => ({
+              country: row.country,
+              delivered: row.delivered,
+              failed: row.failed,
+              pending: row.pending,
+              rate: row.rate,
+            })),
+            delivered: delivery.reduce((n, r) => n + r.delivered, 0),
+            failed: delivery.reduce((n, r) => n + r.failed, 0),
+            pending: delivery.reduce((n, r) => n + r.pending, 0),
+          },
     // What Lou has done this month, per feature. The caps were enforced
     // server-side and shown nowhere: a crew hit one mid-sentence, got a
     // failure, and had no way to have seen it coming or to check afterwards.

@@ -136,6 +136,9 @@ struct Usage: Codable, Sendable {
     /// What Lou has done this month, per feature. Empty against a server that
     /// predates it, so the section simply does not render.
     @Default<DefaultEmptyList<AiFeatureUsage>> var ai: [AiFeatureUsage]
+    /// #426: carrier-reported delivery for the period. Nil against a server
+    /// that predates it, or when the read failed — the page still renders.
+    var delivery: UsageDelivery? = nil
 
     init(
         status: String = UsageStatus.quiet,
@@ -203,4 +206,33 @@ struct ChangePlanResult: Codable, Sendable {
     let plan: String
     let effective: String
     let effective_at: String?
+}
+
+/// #426 — carrier-reported delivery, split by where the message was going.
+///
+/// The NAME is load-bearing: a receipt means a carrier acknowledged handoff,
+/// not that a person read it, so every surface says "carrier-reported".
+struct UsageDeliveryCountry: Codable, Sendable {
+    /// "US" | "CA" | "other", from the destination's area code.
+    @Default<DefaultOtherCountry> var country: String
+    @Default<DefaultZero> var delivered: Int
+    @Default<DefaultZero> var failed: Int
+    /// Accepted by us, not yet acknowledged by a carrier. Not a failure.
+    @Default<DefaultZero> var pending: Int
+    /// delivered / (delivered + failed), or NIL when too few have settled to
+    /// mean anything. Render counts and never a percentage when nil: one
+    /// failure out of forty reads as 2.5% and usually means a disconnected
+    /// number, which is manufactured worry rather than information.
+    let rate: Double?
+}
+
+struct UsageDelivery: Codable, Sendable {
+    @Default<DefaultEmptyList<UsageDeliveryCountry>> var by_country: [UsageDeliveryCountry]
+    @Default<DefaultZero> var delivered: Int
+    @Default<DefaultZero> var failed: Int
+    @Default<DefaultZero> var pending: Int
+}
+
+enum DefaultOtherCountry: DefaultCodableProvider {
+    static var defaultValue: String { "other" }
 }
