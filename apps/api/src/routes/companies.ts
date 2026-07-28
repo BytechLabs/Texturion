@@ -288,7 +288,15 @@ const aiSettingsSchema = z
     suggest_replies: z.boolean(),
     // Absent leaves whatever is stored; an empty string clears it. A toggle
     // save from any client must never wipe the description as a side effect.
-    business_description: z.string().max(280).optional(),
+    //
+    // #420: NULLABLE, because GET returns `business_description: null` for a
+    // workspace that never wrote one, and a client that reads the settings and
+    // sends them back is doing the obvious thing. Rejecting null here made the
+    // API refuse its own output: every Lou toggle on web 400'd with "expected
+    // string, received null" until a description existed. Null is the same
+    // instruction as absent — the RPC reads it as "leave whatever is stored" —
+    // so accepting it costs nothing and closes the round-trip.
+    business_description: z.string().max(280).nullable().optional(),
     // Absent means "leave it alone", so a client that predates the toggle
     // cannot turn transcription off just by saving the other switches.
     transcribe_voicemail: z.boolean().optional(),

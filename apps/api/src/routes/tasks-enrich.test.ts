@@ -392,6 +392,73 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
     expect(upsert.calls.length).toBe(1);
   });
 
+  it("#420: accepts the null description its own GET hands back", async () => {
+    // The web client reads the settings and sends them back with one switch
+    // flipped. On a workspace that never wrote a description that object
+    // carries `business_description: null` — which the schema rejected, so
+    // EVERY Lou toggle 400'd with "expected string, received null" until a
+    // description existed. An API that will not accept its own output is the
+    // whole bug; null means "leave it alone", exactly as absent does.
+    const upsert = stubRoute(
+      rpcMatch(baseEnv, "upsert_company_ai_settings"),
+      () => ({
+        company_id: COMPANY_ID,
+        enrich_task_address: false,
+        enrich_task_due: true,
+        suggest_replies: true,
+        business_description: null,
+        transcribe_voicemail: true,
+        updated_at: "2026-07-28T00:00:00.000Z",
+      }),
+    );
+    stubFetch(jwksRoute(auth), membersRoute("admin"), upsert.route);
+    const res = await req("PATCH", "/v1/company/ai-settings", {
+      enrich_task_address: false,
+      enrich_task_due: true,
+      suggest_replies: true,
+      business_description: null,
+      transcribe_voicemail: true,
+    });
+
+    expect(res.status).toBe(200);
+    // Passed through as null, which the RPC reads as "keep what is stored" —
+    // a toggle save must never clear the owner's own words as a side effect.
+    expect(
+      (upsert.calls[0]?.body as { p_business_description: string | null })
+        .p_business_description,
+    ).toBeNull();
+  });
+
+  it("#420: a stored description survives a toggle-only save", async () => {
+    // The same round-trip on a workspace that HAS a description: the client
+    // echoes the real string back, and it must come out the other side intact.
+    const upsert = stubRoute(
+      rpcMatch(baseEnv, "upsert_company_ai_settings"),
+      () => ({
+        company_id: COMPANY_ID,
+        enrich_task_address: false,
+        enrich_task_due: true,
+        suggest_replies: true,
+        business_description: "We paint houses.",
+        transcribe_voicemail: true,
+        updated_at: "2026-07-28T00:00:00.000Z",
+      }),
+    );
+    stubFetch(jwksRoute(auth), membersRoute("admin"), upsert.route);
+    const res = await req("PATCH", "/v1/company/ai-settings", {
+      enrich_task_address: false,
+      enrich_task_due: true,
+      suggest_replies: true,
+      business_description: "We paint houses.",
+      transcribe_voicemail: true,
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      business_description: "We paint houses.",
+    });
+  });
+
   it("PATCH is admin-gated (a member gets 403)", async () => {
     stubFetch(jwksRoute(auth), membersRoute("member"));
     const res = await req("PATCH", "/v1/company/ai-settings", {
