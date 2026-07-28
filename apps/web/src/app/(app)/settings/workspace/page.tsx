@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { CloseWorkspaceCard } from "@/components/settings/close-workspace-card";
+import { LeaveWorkspaceCard } from "@/components/settings/leave-workspace-card";
 import { ExportDataCard } from "@/components/settings/export-data-card";
 import { TimezoneSelect } from "@/components/settings/timezone-select";
 import {
@@ -346,6 +347,11 @@ export default function WorkspaceSettingsPage() {
           {/* #341: last, and only for the owner — ending the account is not an
               everyday setting and should not sit among them. */}
           {role === "owner" && <CloseWorkspaceCard company={company.data} />}
+          {/* #406: the mirror image, and the one the owner does NOT get — an
+              owner leaving would strand a workspace nobody can administer
+              (#332). Everyone else can end their own access without having to
+              ask the person they may have just stopped working for. */}
+          {role !== "owner" && <LeaveWorkspaceCard company={company.data} />}
         </div>
       )}
     </SettingsPage>

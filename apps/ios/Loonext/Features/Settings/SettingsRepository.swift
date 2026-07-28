@@ -81,6 +81,13 @@ struct SettingsRepository: Sendable {
         try await api.delete("/v1/members/\(memberId)", companyId: companyId)
     }
 
+    /// #406: leave this workspace yourself. Every membership action used to be
+    /// something done TO a member and never BY one, so a tech who quit on
+    /// Friday still had the customer list on Monday.
+    func leaveWorkspace(_ companyId: String) async throws {
+        try await api.delete("/v1/members/me", companyId: companyId)
+    }
+
     // MARK: - Account (#346)
     //
     // Company-EXEMPT, both of them: deleting your account is about the person,

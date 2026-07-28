@@ -9,11 +9,18 @@ struct WorkspaceSectionView: View {
     let scope: SettingsScope
     let company: CompanyView
     let onCompanyUpdated: @MainActor (CompanyView) -> Void
+    var onLeft: @MainActor () -> Void = {}
 
     var body: some View {
         NameCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
         BusinessIdentificationCard(scope: scope, company: company)
         TimezoneCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
+        // #406: everyone except the owner can end their own access. An owner
+        // leaving would strand a workspace nobody can administer (#332), which
+        // is why they are the one person this is not offered to.
+        if scope.role != "owner" {
+            LeaveWorkspaceCard(scope: scope, company: company, onLeft: onLeft)
+        }
     }
 }
 

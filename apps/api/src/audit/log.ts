@@ -46,6 +46,10 @@ export type AuditAction =
   | "member.joined"
   | "member.role_changed"
   | "member.deactivated"
+  // #406: the member removed THEMSELVES. Distinct from member.deactivated
+  // because "who ended this" is the first question anyone asks afterwards, and
+  // the answer is different in a way that matters.
+  | "member.left"
   | "member.reactivated"
   // Number access — who can see which number's conversations (#106)
   | "number_access.changed"

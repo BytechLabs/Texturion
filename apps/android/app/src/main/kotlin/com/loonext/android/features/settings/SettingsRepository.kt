@@ -68,6 +68,15 @@ class SettingsRepository(
         api.delete("/v1/members/$memberId", companyId = companyId)
     }
 
+    /**
+     * #406: leave this workspace yourself. Every membership action used to be
+     * something done TO a member and never BY one, so a tech who quit on Friday
+     * still had the customer list on Monday.
+     */
+    suspend fun leaveWorkspace(companyId: String) {
+        api.delete("/v1/members/me", companyId = companyId)
+    }
+
     // -- account (#346) -----------------------------------------------------
     //
     // Company-EXEMPT, both of them: deleting your account is about the person,

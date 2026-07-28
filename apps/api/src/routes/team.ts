@@ -31,6 +31,8 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
+import { billingRecipients } from "../billing/recipients";
+import { renderEmailHtml } from "../email/html";
 import { requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -246,6 +248,172 @@ teamRoutes.get("/members/:id/holdings", requireRole("admin"), async (c) => {
 const offboardSchema = z.object({
   reassign_to: z.uuid().nullable().optional(),
 });
+
+/**
+ * DELETE /v1/members/me (#406) — leave this workspace yourself.
+ *
+ * Every membership action was something done TO a member and never BY one, so
+ * a tech who quit on Friday still had the customer list on Monday: the app kept
+ * working until an owner — running a business, not administering software —
+ * remembered to open settings. **The person with the strongest reason to sever
+ * the connection was the only one who could not.**
+ *
+ * D48 gave the BUSINESS a way out. This is the one for the PERSON.
+ *
+ * Reuses `offboard_member` rather than adding a second path, so the soft-mark,
+ * the reassignment, the session clearing and the attribution-preservation are
+ * identical to an owner removing someone. Two ways to leave that behaved
+ * slightly differently is how #383 happened.
+ *
+ * The work is RELEASED to unassigned rather than handed to a named person: the
+ * one leaving should not be choosing who inherits, and unassigned is visible in
+ * triage rather than pointing at somebody who is gone.
+ *
+ * The owner cannot use this. Their row is immutable and untransferable, which
+ * is #332's problem — a self-leave that stranded a workspace with no owner
+ * would be worse than the gap it closed.
+ */
+teamRoutes.delete("/members/me", requireRole("member"), async (c) => {
+  const companyId = c.get("companyId");
+  const userId = c.get("userId");
+  const env = getEnv(c.env);
+  const db = getDb(env);
+
+  const rows = unwrap<{ id: string; role: string }[]>(
+    await db
+      .from("company_members")
+      .select("id,role")
+      .eq("company_id", companyId)
+      .eq("user_id", userId)
+      .is("deactivated_at", null)
+      .limit(1),
+    "own membership lookup",
+  );
+  const membership = rows[0];
+  if (!membership) {
+    return errorResponse(c, "not_found", "You are not on this workspace.");
+  }
+  if (membership.role === "owner") {
+    return errorResponse(
+      c,
+      "conflict",
+      "An owner can't leave their own workspace. Close it in settings, or contact us to move it to someone else.",
+    );
+  }
+
+  const { data, error } = await db.rpc("offboard_member", {
+    p_company_id: companyId,
+    p_member_id: membership.id,
+    p_reassign_to: null,
+  });
+  if (error) throw new Error(`offboard_member failed: ${error.message}`);
+  const result = data as {
+    outcome: "deactivated" | "already" | "not_found" | "owner" | "bad_destination";
+    conversations?: number;
+    tasks?: number;
+  };
+  if (result.outcome === "not_found" || result.outcome === "owner") {
+    return errorResponse(c, "conflict", "You can't leave this workspace.");
+  }
+
+  const moved = {
+    conversations: Number(result.conversations ?? 0),
+    tasks: Number(result.tasks ?? 0),
+  };
+
+  // Same best-effort tail as an owner-initiated removal, and for the same
+  // reason: leaving has to mean the access is over, not that the name is
+  // hidden from a list (#236).
+  try {
+    await revokeMemberTelephonyCredential(env, companyId, userId);
+  } catch (cause) {
+    console.error(
+      `softphone revoke on self-leave failed for user ${userId}:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+  }
+  const ended = await endMemberAccess(db, userId);
+
+  await recordAuditFromRequest(db, c, {
+    companyId,
+    action: "member.left",
+    targetType: "member",
+    targetId: membership.id,
+    before: { active: true },
+    after: {
+      active: false,
+      self: true,
+      conversations_released: moved.conversations,
+      tasks_released: moved.tasks,
+      sessions_ended: ended.sessions,
+      push_devices_removed: ended.devices,
+    },
+  });
+
+  // #406 ask 3: a seat just freed and work just landed in triage. The owner
+  // should not learn that by noticing threads going unanswered.
+  await notifyOwnerOfDeparture(env, db, companyId, userId, moved);
+
+  return c.json({
+    conversations_released: moved.conversations,
+    tasks_released: moved.tasks,
+    sessions_ended: ended.sessions,
+    push_devices_removed: ended.devices,
+  });
+});
+
+/**
+ * Tell the owner and admins somebody left. Best-effort: the person IS out by
+ * the time this runs, and failing the request would say otherwise.
+ */
+async function notifyOwnerOfDeparture(
+  env: Env,
+  db: Db,
+  companyId: string,
+  userId: string,
+  moved: { conversations: number; tasks: number },
+): Promise<void> {
+  try {
+    const [{ data: user }, companies, to] = await Promise.all([
+      db.auth.admin.getUserById(userId),
+      db.from("companies").select("name").eq("id", companyId).limit(1),
+      billingRecipients(env, companyId, db),
+    ]);
+    if (to.length === 0) return;
+    const who = user?.user?.email ?? "A member";
+    const name = (companies.data?.[0] as { name?: string } | undefined)?.name ?? "your workspace";
+    const text =
+      `Hi,
+
+${who} has left ${name}. Their access ended immediately and ` +
+      `their seat is free.
+
+` +
+      (moved.conversations > 0 || moved.tasks > 0
+        ? `${moved.conversations} open conversation(s) and ${moved.tasks} task(s) ` +
+          `they were working are now unassigned, so they show up for the team ` +
+          `to pick up rather than sitting with somebody who has gone.
+
+`
+        : `Nothing they were working was still open.
+
+`) +
+      `Everything they sent stays on the record under their name.
+
+Loonext`;
+    await sendEmail(env, {
+      to,
+      subject: `${who} has left ${name}`,
+      text,
+      html: renderEmailHtml(text),
+    });
+  } catch (cause) {
+    console.error(
+      `owner notification on self-leave failed for company ${companyId}:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+  }
+}
 
 teamRoutes.delete("/members/:id", requireRole("admin"), async (c) => {
   const id = pathUuid(c, "id");

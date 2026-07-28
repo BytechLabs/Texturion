@@ -56,10 +56,17 @@ fun WorkspaceSection(
     scope: SettingsScope,
     company: CompanyView,
     onCompanyUpdated: (CompanyView) -> Unit,
+    onLeft: () -> Unit = {},
 ) {
     NameCard(scope, company, onCompanyUpdated)
     BusinessIdentificationCard(scope, company)
     TimezoneCard(scope, company, onCompanyUpdated)
+    // #406: everyone except the owner can end their own access. An owner
+    // leaving would strand a workspace nobody can administer (#332), which is
+    // why they are the one person this is not offered to.
+    if (scope.role != "owner") {
+        LeaveWorkspaceCard(scope, company, onLeft)
+    }
 }
 
 @Composable

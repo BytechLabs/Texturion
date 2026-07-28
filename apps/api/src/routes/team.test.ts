@@ -1024,3 +1024,117 @@ describe("GET /v1/invites + DELETE /v1/invites/:id (O/A)", () => {
     expect(patch.url.searchParams.get("accepted_at")).toBe("is.null");
   });
 });
+
+describe("DELETE /v1/members/me (#406 — leaving on your own)", () => {
+  function leaveStub(role: string, opts: { deactivated?: boolean } = {}) {
+    const sb = supabaseStub(env);
+    sb.on("GET", "/rest/v1/company_members", (call) => {
+      // The owner-notification recipient lookup asks by ROLE, not user.
+      if (call.url.searchParams.get("role")?.startsWith("in.")) {
+        return [{ user_id: auth.subject }];
+      }
+      if (
+        call.url.searchParams.get("user_id") === `eq.${auth.subject}` &&
+        !opts.deactivated
+      ) {
+        return [{ id: TARGET_MEMBER_ID, role }];
+      }
+      return membershipResponder(MEMBER_ID, role)(call);
+    });
+    sb.on("GET", "/rest/v1/profiles", () => []);
+    sb.on("POST", "/rest/v1/rpc/offboard_member", () => ({
+      outcome: "deactivated",
+      user_id: auth.subject,
+      conversations: 2,
+      tasks: 1,
+    }));
+    // The same cleanup surface an owner-initiated removal touches — leaving
+    // has to mean the access is over, not that a name left a list (#236).
+    sb.on("GET", "/rest/v1/member_telephony_credentials", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_revoke_user_sessions", () => 2);
+    sb.on("DELETE", "/rest/v1/push_subscriptions", () => [{ id: "s-1" }]);
+    sb.on("DELETE", "/rest/v1/device_push_tokens", () => [{ id: "d-1" }]);
+    sb.on("GET", /\/auth\/v1\/admin\/users\//, () => ({
+      id: auth.subject,
+      email: "tech@crew.example",
+    }));
+    sb.on("POST", "/rest/v1/audit_log", () => new Response(null, { status: 201 }));
+    sb.on("GET", "/rest/v1/companies", () => [{ name: "Acme Plumbing" }]);
+    return sb;
+  }
+
+  it("lets a member remove themselves and releases their work", async () => {
+    // The whole point: the person with the strongest reason to sever the
+    // connection was the only one who could not.
+    const sb = leaveStub("member");
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/members/me", {
+      method: "DELETE",
+      companyId: COMPANY_ID,
+    });
+
+    expect(res.status).toBe(200);
+    // Released to UNASSIGNED, not handed to a name: the person leaving should
+    // not be choosing who inherits, and unassigned shows up in triage rather
+    // than pointing at somebody who has gone.
+    const rpc = sb.find("POST", "/rest/v1/rpc/offboard_member")[0];
+    expect((rpc.body as { p_reassign_to: string | null }).p_reassign_to).toBeNull();
+    expect(await res.json()).toMatchObject({
+      conversations_released: 2,
+      tasks_released: 1,
+    });
+  });
+
+  it("routes /me ahead of /:id rather than reading it as a member id", async () => {
+    // The failure this guards is silent: with the routes the other way round,
+    // "me" reaches the :id handler, fails to parse as a UUID, and a member
+    // gets a validation error instead of leaving.
+    const sb = leaveStub("member");
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/members/me", {
+      method: "DELETE",
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).not.toBe(422);
+    expect(sb.find("POST", "/rest/v1/rpc/offboard_member")).toHaveLength(1);
+  });
+
+  it("refuses the owner, who would strand the workspace", async () => {
+    // #332's problem, not this one: an owner who left would leave a workspace
+    // nobody can administer.
+    const sb = leaveStub("owner");
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/members/me", {
+      method: "DELETE",
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(409);
+    expect(sb.find("POST", "/rest/v1/rpc/offboard_member")).toHaveLength(0);
+  });
+
+  it("tells the owner somebody left", async () => {
+    // A seat just freed and work just landed in triage. The owner should not
+    // find that out by noticing threads going unanswered.
+    const sb = leaveStub("member");
+    const sent: unknown[] = [];
+    const resend: FetchRoute = async (url, request) => {
+      if (url.hostname !== "api.resend.com") return undefined;
+      sent.push(await request.clone().json());
+      return Response.json({ id: "email_1" });
+    };
+    stubFetch(jwksRoute(auth), sb.route, resend);
+
+    await apiRequest(app, env, await auth.token(), "/v1/members/me", {
+      method: "DELETE",
+      companyId: COMPANY_ID,
+    });
+
+    expect(sent).toHaveLength(1);
+    const mail = sent[0] as { subject: string; text: string };
+    expect(mail.subject).toContain("has left");
+    // Says what actually happened to the work, so the owner knows whether
+    // anything needs picking up.
+    expect(mail.text).toContain("unassigned");
+  });
+});

@@ -203,3 +203,30 @@ export function useAcceptInvite() {
     },
   });
 }
+
+/** What leaving reports back — the work that was released, and access ended. */
+export interface LeaveResult {
+  conversations_released: number;
+  tasks_released: number;
+  sessions_ended: number;
+  push_devices_removed: number;
+}
+
+/**
+ * #406: leave this workspace yourself.
+ *
+ * Every membership action used to be something done TO a member and never BY
+ * one, so a tech who quit on Friday still had the customer list on Monday. The
+ * person with the strongest reason to sever the connection was the only one who
+ * could not.
+ */
+export function useLeaveWorkspace() {
+  const companyId = useCompanyId();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<LeaveResult>("/v1/members/me", {
+        method: "DELETE",
+        companyId,
+      }),
+  });
+}

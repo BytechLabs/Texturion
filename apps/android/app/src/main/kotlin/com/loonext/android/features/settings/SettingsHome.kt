@@ -273,6 +273,9 @@ fun SettingsHome(
                         when (active) {
                             SettingsSection.Workspace -> WorkspaceSection(
                                 settingsScope, company, onCompanyUpdated,
+                                // #406: leaving ends the session, so it lands
+                                // exactly where signing out does.
+                                onLeft = onSignOut,
                             )
 
                             SettingsSection.Hours -> HoursSection(

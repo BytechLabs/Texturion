@@ -277,7 +277,14 @@ struct SettingsHome: View {
             VStack(alignment: .leading, spacing: 0) {
                 switch section {
                 case .workspace:
-                    WorkspaceSectionView(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
+                    WorkspaceSectionView(
+                        scope: scope,
+                        company: company,
+                        onCompanyUpdated: onCompanyUpdated,
+                        // #406: leaving ends the session, so it lands exactly
+                        // where signing out does.
+                        onLeft: onSignOut
+                    )
                 case .hours:
                     HoursSectionView(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
                 case .calling:
