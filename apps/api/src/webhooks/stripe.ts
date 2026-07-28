@@ -8,6 +8,7 @@ import {
   planModuleReconcile,
   type CompanyModuleRow,
 } from "../billing/company-modules";
+import { handleChargeDispute } from "../billing/disputes";
 import { recordAndSendGraceNotice } from "../billing/grace";
 import { idempotencyKey } from "../billing/idempotency";
 import {
@@ -158,6 +159,14 @@ export async function processStripeEvent(
       return handleInvoicePaymentFailed(env, event.data.object);
     case "invoice.payment_action_required":
       return handlePaymentActionRequired(env, event.data.object);
+    // #422: a disputed charge was invisible. Stripe leaves the subscription
+    // ACTIVE while one of its charges is disputed, so our mirror copied
+    // `active` and the service kept running for a customer who had told their
+    // bank the charge was wrong. The endpoint was not even subscribed to these.
+    case "charge.dispute.created":
+    case "charge.dispute.updated":
+    case "charge.dispute.closed":
+      return handleChargeDispute(env, event.data.object, event.type);
     default:
       // Only the SPEC §7 event set is configured on the endpoint; anything
       // else is acked as a no-op.

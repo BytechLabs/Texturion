@@ -887,7 +887,7 @@ There is **no** `POST /auth/*` on the Worker — all auth flows (signup, login, 
 - `message.finalized` → status `delivered`/`failed` (+`error_code`/`error_detail`), **authoritative `parts` + `encoding` stored**, `provider_cost` from payload cost when present, then the metering step (§9): insert `usage_events` + fire the Stripe meter event. Status webhooks whose `telnyx_message_id` matches no row are acked as no-ops.
 - `10dlc.brand.update` / `10dlc.campaign.update` / `10dlc.phone_number.update` → registration state machine (§4.4 webhook event mapping). Unknown `event_type`s → ack, no-op.
 
-**Stripe events handled** (configured on the webhook endpoint): `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `invoice.payment_action_required`. Handlers treat events as **triggers** and re-fetch the subscription from the Stripe API before applying state (out-of-order guard) — see §9.
+**Stripe events handled** (configured on the webhook endpoint): `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `invoice.payment_action_required`, and (#422) `charge.dispute.created`, `charge.dispute.updated`, `charge.dispute.closed`. Handlers treat events as **triggers** and re-fetch the subscription from the Stripe API before applying state (out-of-order guard) — see §9.
 
 ---
 
@@ -1030,6 +1030,9 @@ Every handler **re-fetches the subscription from the Stripe API** and mirrors it
 | `invoice.paid` | — | `→ active` | Clear dunning banners. Branch: if `invoice.metadata.purpose == 'us_registration'` (the §4.2 enable-us invoice), stamp `registration_fee_paid_at` and start the §4.4 submission (R1) |
 | `invoice.payment_failed` | — | `→ past_due` | Outbound blocked (402 `subscription_inactive`); inbound + dashboard stay live; Resend email + banner |
 | `invoice.payment_action_required` | — | — | Resend email with hosted invoice link (SCA) |
+| `charge.dispute.created` | `companies.disputed_at` | `billing_disputes` | Record, flag the tenant, email ops with the total cost. **Never suspends** — a dispute is an accusation, not a verdict (#422) |
+| `charge.dispute.updated` | — | `billing_disputes` | Advance status; never lose attribution an earlier event made |
+| `charge.dispute.closed` | — | `billing_disputes` | Stamp `closed_at`. The tenant flag stays: won or lost, they disputed |
 
 `incomplete` sessions that never pay expire per Stripe (`incomplete_expired`, 23-hour window) — the company simply remains unprovisioned and can retry checkout.
 

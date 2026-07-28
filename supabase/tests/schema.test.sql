@@ -139,10 +139,13 @@ begin
   -- + liveness_heartbeats (#387/D55, 20260728001100_liveness_heartbeats.sql) —
   --   the ledger of expected things that DID happen, so absences can be
   --   alerted on.
+  -- + billing_disputes (#422, 20260728001600_billing_disputes.sql) — a
+  --   chargeback advances through statuses, so the row is updated after it is
+  --   written.
   -- The generic attachments table (D19) is append-only and deliberately has NO
   -- moddatetime trigger.
-  if n <> 18 then
-    raise exception 'T5 FAILED: expected 18 set_updated_at triggers, found %', n;
+  if n <> 19 then
+    raise exception 'T5 FAILED: expected 19 set_updated_at triggers, found %', n;
   end if;
 
   select count(*) into n

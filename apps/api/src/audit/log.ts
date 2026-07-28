@@ -58,6 +58,11 @@ export type AuditAction =
   // Billing — the plan, the modules, the seats
   | "billing.plan_changed"
   | "billing.module_changed"
+  // #422: a charge was disputed. Recorded because the money moving backwards
+  // is a fact about the account that outlives the dispute itself, and because
+  // the decision it forces — keep serving them or not — is one somebody will
+  // want to see the history of afterwards.
+  | "billing.disputed"
   // The end of the account (#341). The most consequential thing anyone does
   // here, and the one an owner is most likely to ask us about afterwards.
   | "workspace.closed"

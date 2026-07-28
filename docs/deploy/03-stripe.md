@@ -129,8 +129,7 @@ Stripe dashboard → **Developers → Webhooks → Add endpoint**.
   (i.e. `${API_ORIGIN}/webhooks/stripe`, mounted at `apps/api/src/index.ts:128`,
   handled at `apps/api/src/webhooks/stripe.ts:48`). This route is **outside** the
   JWT/CORS chain — the HMAC signature is the authentication.
-- **Events to enable — exactly these 7** (the handler no-ops anything else,
-  `apps/api/src/webhooks/stripe.ts:139-158`):
+- **Events to enable — exactly these 10** (the handler no-ops anything else):
 
   ```
   checkout.session.completed
@@ -140,7 +139,19 @@ Stripe dashboard → **Developers → Webhooks → Add endpoint**.
   invoice.paid
   invoice.payment_failed
   invoice.payment_action_required
+  charge.dispute.created
+  charge.dispute.updated
+  charge.dispute.closed
   ```
+
+  > **The three dispute events are #422 and they must be ticked by hand.**
+  > Without them a disputed charge is completely invisible: Stripe leaves the
+  > subscription `active` while one of its charges is disputed, our mirror
+  > copies `active`, and the service keeps running — accruing the number rental
+  > and the 10DLC campaign cost — for a customer who told their bank the charge
+  > was wrong. A disputed $29 costs $44 once Stripe's dispute fee is counted,
+  > against revenue that nets $27.71. The code is deployed either way; the
+  > subscription is what makes it fire.
 
 - After saving, copy the endpoint's **Signing secret** (`whsec_...`) →
   `STRIPE_WEBHOOK_SECRET` (api secret). It's verified via `constructEventAsync`

@@ -2510,3 +2510,53 @@ they move. `TEN_DLC_CEILINGS_RECHECK_AFTER` is six months out and a test fails
 when it passes, which is #326's revisit trigger expressed as something that
 cannot be quietly ignored. When it fails, the job is to re-read the carriers'
 published rules and move both dates — not to push the date forward.
+
+## D60 — a dispute is recorded and reported, never acted on automatically (#422)
+
+**Decision.** `charge.dispute.created/updated/closed` are handled. Each writes
+to `billing_disputes`, stamps `companies.disputed_at`, writes an audit entry
+when the company resolves, and emails the founder once — on the way in, with
+the total cost. **Nothing is suspended automatically.**
+
+**What was wrong.** The webhook handled seven event types and no dispute event
+was among them; the endpoint was not even subscribed. Stripe leaves a
+subscription `active` while one of its charges is disputed, our mirror copied
+`active` faithfully, and the service kept running — accruing the $1.10 number
+rental and the $10 10DLC campaign cost — for a customer who had told their bank
+the charge was wrong. Nothing recorded that it happened.
+
+**The arithmetic is the argument.** A disputed $29 costs $29 clawed back plus
+Stripe's $15 dispute fee: **$44 out on a sale that nets $27.71**. One dispute
+erases about a month and a half of that tenant's contribution while we keep
+paying their carrier costs.
+
+**Why it does not suspend.** A dispute is an accusation, not a verdict. Some
+are a bank being clumsy or a spouse not recognising a line item. Cutting a
+paying business off from their own customer conversations on the strength of an
+accusation would be a worse mistake than the money — and it is not reversible
+in the customer's eyes even when the dispute is later withdrawn. So the product
+records, flags and reports, and a human decides. The flag is what makes that
+decision possible; before this there was no way to make it at all.
+
+**`disputed_at` is not a subscription status.** Mirroring a fiction into
+`subscription_status` would break every consumer of that column, which reads it
+as Stripe's truth. This is a separate fact about the same tenant, and it
+**survives the dispute closing**: won or lost, they disputed a charge, and that
+is what somebody wants to know months later.
+
+**An unattributable dispute is more alarming, not less.** `company_id` is
+nullable and the alert says so in capitals. A NOT NULL column would have meant
+the strangest disputes — a charge we cannot match to any customer — are the
+ones we silently drop. The audit entry is guarded on the company resolving,
+because `audit_log.company_id` is NOT NULL and `recordAudit` swallows its own
+failures: an unguarded call would have been a silent hole in exactly the log
+this decision creates.
+
+**Count, not rate.** At this customer count a rate has a denominator of a
+handful and swings wildly on one event. Every single dispute is worth an email.
+`api_dispute_health` reports count, cost and open-count over a rolling window
+for when that changes.
+
+**The deploy step that makes it real.** The three events must be ticked on the
+Stripe endpoint by hand. The code ships either way; the subscription is what
+makes it fire. `docs/deploy/03-stripe.md` says so in a callout.
