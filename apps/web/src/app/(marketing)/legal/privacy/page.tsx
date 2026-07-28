@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { AI_TRAINING_STATEMENT } from "@loonext/shared";
+
 import {
   LegalLink,
   LegalPage,
@@ -12,7 +14,7 @@ import {
 import { buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/legal/privacy";
-const LAST_UPDATED = "July 2, 2026";
+const LAST_UPDATED = "July 28, 2026";
 
 export const metadata: Metadata = buildMetadata({
   title: "Privacy policy",
@@ -28,11 +30,12 @@ const sections = [
   { id: "sms-consent", number: "4", heading: "SMS and consent data" },
   { id: "where", number: "5", heading: "Where your data lives" },
   { id: "sharing", number: "6", heading: "Who we share with" },
-  { id: "retention", number: "7", heading: "How long we keep it" },
-  { id: "your-rights", number: "8", heading: "Your rights" },
-  { id: "law-25", number: "9", heading: "Quebec Law 25" },
-  { id: "security", number: "10", heading: "Security" },
-  { id: "contact", number: "11", heading: "Privacy contact" },
+  { id: "ai", number: "7", heading: "AI features" },
+  { id: "retention", number: "8", heading: "How long we keep it" },
+  { id: "your-rights", number: "9", heading: "Your rights" },
+  { id: "law-25", number: "10", heading: "Quebec Law 25" },
+  { id: "security", number: "11", heading: "Security" },
+  { id: "contact", number: "12", heading: "Privacy contact" },
 ];
 
 export default function PrivacyPage() {
@@ -153,9 +156,40 @@ export default function PrivacyPage() {
         </p>
       </LegalSectionBlock>
 
+      {/* #389: the privacy page said nothing whatsoever about automated
+          processing while three features were already sending message content
+          and voicemail audio to a model. D46 is the internal posture; this is
+          the customer-facing version of it, which did not exist. */}
+      <LegalSectionBlock id="ai" number="7" heading="AI features">
+        <p>
+          Three features send content to an AI model: suggested replies, task
+          details, and voicemail transcripts. They all run on Cloudflare Workers
+          AI, inside the same Cloudflare account that already hosts the
+          application. Our{" "}
+          <LegalLink href="/legal/subprocessors">sub-processors page</LegalLink>{" "}
+          names each feature, exactly what it sends, the model that receives it,
+          and whether it is on by default.
+        </p>
+        <p>
+          Cloudflare&rsquo;s published Workers AI policy states:{" "}
+          <em>&ldquo;{AI_TRAINING_STATEMENT}.&rdquo;</em> We do not use message
+          content or voicemail audio to train anything either. What comes back
+          is stored in your workspace like any other message data and is deleted
+          with it.
+        </p>
+        <p>
+          Some of this content belongs to the people your business texts and
+          calls, not to you or to us. A voicemail is somebody&rsquo;s voice and a
+          thread is somebody&rsquo;s words. That is why every one of these
+          features can be switched off for your whole workspace, and why a
+          drafted reply is never sent automatically. A person reads it, edits
+          it, and decides.
+        </p>
+      </LegalSectionBlock>
+
       <LegalSectionBlock
         id="retention"
-        number="7"
+        number="8"
         heading="How long we keep it"
       >
         <p>
@@ -179,7 +213,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="your-rights" number="8" heading="Your rights">
+      <LegalSectionBlock id="your-rights" number="9" heading="Your rights">
         <p>
           Under PIPEDA and Law 25 you can access, correct, or delete your
           personal information, and withdraw consent. Deletion is self-serve and
@@ -194,7 +228,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="law-25" number="9" heading="Quebec Law 25">
+      <LegalSectionBlock id="law-25" number="10" heading="Quebec Law 25">
         <p>
           For Quebec residents, Law 25 gives you additional rights, including the
           right to be informed of the use and disclosure of your information and
@@ -205,11 +239,13 @@ export default function PrivacyPage() {
           reachable at{" "}
           <LegalLink href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</LegalLink>
           . We disclose above that personal information is transferred to and
-          processed in the United States.
+          processed in the United States, and in section 7 that three features
+          send message content or voicemail audio to an AI model on
+          Cloudflare&rsquo;s global network.
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="security" number="10" heading="Security">
+      <LegalSectionBlock id="security" number="11" heading="Security">
         <p>
           Data is encrypted in transit and at rest, each business&apos;s data is
           isolated from every other tenant, and we keep message content out of our
@@ -218,7 +254,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="contact" number="11" heading="Privacy contact">
+      <LegalSectionBlock id="contact" number="12" heading="Privacy contact">
         <p>
           Questions or requests? Email{" "}
           <LegalLink href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</LegalLink>

@@ -71,6 +71,12 @@ export {
 } from "./business-hours";
 
 export {
+  AI_DISCLOSURES,
+  AI_TRAINING_STATEMENT,
+  type AiDisclosure,
+} from "./ai-disclosure";
+
+export {
   LEAD_CHASE_NUDGE_MINUTES,
   LEAD_CHASE_WIDEN_MINUTES,
   LEAD_CHASE_RUNGS,

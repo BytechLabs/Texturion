@@ -101,11 +101,19 @@ Every one of these is a sub-processor and must also appear on
 `/legal/subprocessors`. If a name is here and not there, the privacy policy is
 wrong.
 
+That rule was broken twice and found by #389: this table's Cloudflare row
+described only hosting after Workers AI shipped, and Firebase Cloud Messaging
+was listed here and absent from the public page entirely. Both are fixed. The
+AI half is now bound in code rather than by this paragraph —
+`packages/shared/src/ai-disclosure.ts` is what the public page renders, and a
+test asserts it covers every feature in the AI cost registry, so a new AI
+feature cannot ship undisclosed.
+
 | Third party | What reaches them | Why |
 |---|---|---|
 | **Telnyx** | Phone numbers, message content, call audio | They are the carrier. There is no texting without them |
 | **Supabase / AWS us-east-1** | Everything stored | Database, auth, file storage |
-| **Cloudflare** | Everything in transit; the Worker runtime | Hosting |
+| **Cloudflare** | Everything in transit; the Worker runtime. Plus, via Workers AI: message threads (suggested replies), message text (task details) and voicemail audio (transcripts) | Hosting, and the AI features. Workers AI runs in the same account and network boundary, which is why Cloudflare is one entry rather than two |
 | **Stripe** | Billing identifiers, no card data held by us | Payments |
 | **Resend** | Email addresses and notification copy | Transactional email |
 | **Firebase Cloud Messaging** | Push tokens and notification payloads (sender name, message snippet) | Push to Android and iOS |

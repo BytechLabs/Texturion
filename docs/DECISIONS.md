@@ -2407,3 +2407,59 @@ unknown one.
 `docs/deploy/10-email-inbox.md`, both operator actions): the domain publishes
 **no DMARC record at all**, and `RESEND_FROM` sends from the root domain whose
 SPF does not authorize Resend — DKIM carries it alone.
+
+## D57 — the public disclosure is generated from the code, not remembered (#389)
+
+**The defect.** `/legal/subprocessors` described Cloudflare as "Application
+hosting, CDN, and network security" touching "Request metadata (IP, headers);
+no message content stored" — while the product was already sending whole
+message threads, message text and voicemail audio to Cloudflare Workers AI. The
+privacy policy said nothing at all about automated processing.
+
+Nobody hid anything. `docs/DATA-INVENTORY.md` was accurate and thorough; it was
+written for the Apple and Google store declarations, and it was updated when AI
+shipped. The customer-facing page was not. Two documents kept in step by memory,
+and memory lost.
+
+**Why this is worse than a stale doc.** Our customers are controllers and we are
+their processor: this page is the artifact they rely on to meet their own
+obligations. A plumber telling a homeowner "my texting provider doesn't send
+message content anywhere" was passing on a statement we knew to be inaccurate.
+And the data is not the customer's either — a voicemail is the homeowner's
+voice, a thread is the homeowner's words. Those people never agreed to anything
+with us and cannot read our privacy page. Their only protection is that the
+business they called was told the truth.
+
+**The fix is structural, not editorial.** `packages/shared/src/ai-disclosure.ts`
+holds what each AI feature sends and which model receives it. The marketing page
+RENDERS that list, and a test in the API package asserts it covers exactly the
+features in `AI_UNIT_COST_CENTS` — the typed registry every AI call is already
+required to be declared in (#380) — and that the model strings equal the
+constants the code actually calls. A new AI feature cannot ship without a public
+disclosure, and a disclosure naming last quarter's model fails a test. Same move
+as #377, #380 and #385: the guard lives where the thing is declared.
+
+**Kept as one Cloudflare row.** Workers AI runs in the same account and network
+boundary, so the inventory's argument against adding a second vendor is right.
+That was always an argument about which vendors to list, never about what the
+listed vendor's row says.
+
+**Models are named.** Two are OpenAI's and one is Meta's. A customer reading
+"Cloudflare — hosting, CDN, network security" would not conclude that their
+customers' voicemails are transcribed by an OpenAI model. The Whisper fallback
+is named too: it is a real model that real audio reaches, and a disclosure
+listing only the happy path has a hole in it exactly when something has gone
+wrong.
+
+**On training, we quote rather than paraphrase.** Cloudflare's published Workers
+AI policy is quoted verbatim, verified against their documentation on
+2026-07-28, because "do you train on my data" is the first question every
+customer asks and the answer has to be attributable to the party actually bound
+by it.
+
+**A second undisclosed vendor, found by the inventory's own rule.**
+DATA-INVENTORY says every party it lists must also appear on
+`/legal/subprocessors` — and **Firebase Cloud Messaging did not**. The push
+preview carries the sender's name and a message excerpt, so that is message
+content reaching a vendor the page never named. Google is now listed, with the
+onward relay to Apple's push service stated.
