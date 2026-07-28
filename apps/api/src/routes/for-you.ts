@@ -44,9 +44,14 @@ const SECTION_LIMIT = 20;
 forYouRoutes.get("/for-you", requireRole("member"), async (c) => {
   const db = getDb(getEnv(c.env));
   const role = c.get("role");
-  // The "Needs an owner" triage strip is owner/admin-only (D23 §4). The lead
-  // flag is derived server-side from the verified membership role — never from
-  // the request — so a member can't ask for the triage section.
+  // #416/D53: the unclaimed queue is no longer owner/admin-only — a crew of
+  // 1-10 has no dispatcher, and the notification about unclaimed work already
+  // went to everyone. `p_is_lead` is retained and ignored by the RPC for one
+  // deploy so the migration and the Worker can ship in either order; the route
+  // stops sending it when the parameter is dropped.
+  //
+  // It stays derived from the VERIFIED membership role rather than the request
+  // for as long as it is sent at all.
   const isLead = role === "owner" || role === "admin";
 
   // #106: a restricted member's queue must exclude hidden-number work (leads

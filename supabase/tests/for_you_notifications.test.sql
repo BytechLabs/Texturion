@@ -144,11 +144,15 @@ begin
     raise exception 'FY1 FAILED: unread wrong: %', r->'unread';
   end if;
 
-  if r->'triage' is distinct from 'null'::jsonb then
-    raise exception 'FY1 FAILED: a member must not receive a triage section: %', r->'triage';
+  -- #416/D53: a member DOES get triage now. This assertion used to say the
+  -- opposite, and it was encoding the split the product had with itself — the
+  -- notification paged every member about an unassigned lead while this strip
+  -- hid it from them. Self-serve is the decision; the queue follows the page.
+  if r->'triage' = 'null'::jsonb or r->'triage' is null then
+    raise exception 'FY1 FAILED: a member should now receive the triage section: %', r->'triage';
   end if;
 
-  raise notice 'FY1 PASSED: member sections derived + urgency-sorted, no triage';
+  raise notice 'FY1 PASSED: member sections derived + urgency-sorted, triage included';
 end $$;
 
 -- ===========================================================================
@@ -221,18 +225,29 @@ begin
       r->'totals'->>'my_tasks';
   end if;
 
-  -- The whole point: 2 + 2 + 1 = 5 is the wrong answer. W and U are one pair
-  -- of conversations seen twice.
-  if (r->'totals'->>'distinct_work')::int is distinct from 3 then
-    raise exception 'FY2b FAILED: distinct_work %, expected 3 (2 conversations + 1 task)',
+  -- The whole point: summing the sections is the wrong answer. W and U are one
+  -- pair of conversations seen through two lenses, and are counted once.
+  --
+  -- #416/D53 raised this from 3 to 5, and the two extra ones are real rather
+  -- than a re-baseline: a member now sees the UNCLAIMED conversation T and the
+  -- UNCLAIMED task in triage, and unclaimed work genuinely needs somebody.
+  -- Before, they were paged about it and could not see it — the split D53
+  -- closed. W and U are still one pair counted once, which is what this test
+  -- exists to hold: W, U, T, their own task, the unclaimed task = 5.
+  if (r->'totals'->>'distinct_work')::int is distinct from 5 then
+    raise exception 'FY2b FAILED: distinct_work %, expected 5 (3 conversations + 2 tasks)',
       r->'totals'->>'distinct_work';
   end if;
 
   -- A member gets no triage strip, so its totals must be zero rather than
   -- leaking a company-wide number to somebody who cannot see the rows.
-  if (r->'totals'->>'triage_conversations')::int is distinct from 0
-     or (r->'totals'->>'triage_tasks')::int is distinct from 0 then
-    raise exception 'FY2b FAILED: a member saw triage totals: %', r->'totals';
+  -- #416: a member's triage totals must now be the REAL counts. They were
+  -- pinned to zero so a company-wide number could not leak to somebody who
+  -- could not see the rows; now they can see the rows, and a zero here would
+  -- be the lie instead.
+  if (r->'totals'->>'triage_conversations')::int is distinct from 1
+     or (r->'totals'->>'triage_tasks')::int is distinct from 1 then
+    raise exception 'FY2b FAILED: member triage totals wrong: %', r->'totals';
   end if;
 
   raise notice 'FY2b PASSED: totals are honest and distinct_work counts each thread once';
@@ -259,8 +274,10 @@ begin
     raise exception 'FY2c FAILED: the total was capped too (%), which is the bug',
       r->'totals'->>'waiting_on_you';
   end if;
-  if (r->'totals'->>'distinct_work')::int is distinct from 3 then
-    raise exception 'FY2c FAILED: distinct_work followed the page size (%), expected 3',
+  -- 5 for the same reason as FY2b (#416/D53): the page size is 1 and the total
+  -- must still be everything, triage included.
+  if (r->'totals'->>'distinct_work')::int is distinct from 5 then
+    raise exception 'FY2c FAILED: distinct_work followed the page size (%), expected 5',
       r->'totals'->>'distinct_work';
   end if;
 
@@ -936,6 +953,59 @@ begin
   end if;
 
   raise notice 'FY-417 PASSED: denied member keeps the task, loses the message snippet';
+end $$;
+
+-- ===========================================================================
+-- FY-416. The queue and the notification agree about who owns an unclaimed
+--         lead. `notifications/inbound.ts` pages ALL ACTIVE MEMBERS when a
+--         conversation has no assignee; triage used to show that same work to
+--         owners and admins only, so a member was woken for a lead they could
+--         not then see. D53 settled it as self-serve, and this is the test
+--         that stops the two drifting apart again (#412's D49 pattern).
+-- ===========================================================================
+do $$
+declare
+  r_member jsonb;
+  r_lead   jsonb;
+  r_denied jsonb;
+begin
+  -- A plain MEMBER now gets the triage strip.
+  r_member := public.api_for_you('c0000000-0000-4000-8000-000000000001',
+                                 'a0000000-0000-4000-8000-000000000002', false, now(), 20);
+  if r_member->'triage' = 'null'::jsonb or r_member->'triage' is null then
+    raise exception 'FY-416 FAILED: member still has no triage strip: %', r_member->'triage';
+  end if;
+
+  -- And sees the same unclaimed conversation a lead does. If these two ever
+  -- differ, somebody has re-introduced the split this test exists to close.
+  r_lead := public.api_for_you('c0000000-0000-4000-8000-000000000001',
+                               'a0000000-0000-4000-8000-000000000001', true, now(), 20);
+  if jsonb_array_length(r_member->'triage'->'conversations')
+     <> jsonb_array_length(r_lead->'triage'->'conversations') then
+    raise exception 'FY-416 FAILED: member sees % unclaimed, lead sees % -- the audiences disagree',
+      jsonb_array_length(r_member->'triage'->'conversations'),
+      jsonb_array_length(r_lead->'triage'->'conversations');
+  end if;
+  if jsonb_array_length(r_member->'triage'->'conversations') < 1 then
+    raise exception 'FY-416 SETUP FAILED: no unclaimed conversation in the fixtures';
+  end if;
+
+  -- #106 still holds, and this is the premise that DIED when the gate went:
+  -- triage carried no number filter because "leads are always unrestricted",
+  -- which was only true while triage was owner/admin-only.
+  r_denied := public.api_for_you('c0000000-0000-4000-8000-000000000001',
+                                 'a0000000-0000-4000-8000-000000000002', false, now(), 20,
+                                 array['d0000000-0000-4000-8000-000000000001']::uuid[]);
+  if jsonb_array_length(r_denied->'triage'->'conversations') <> 0 then
+    raise exception 'FY-416 FAILED: denied member sees unclaimed work on a hidden number: %',
+      r_denied->'triage'->'conversations';
+  end if;
+  if jsonb_array_length(r_denied->'triage'->'tasks') <> 0 then
+    raise exception 'FY-416 FAILED: denied member sees unclaimed TASKS on a hidden number: %',
+      r_denied->'triage'->'tasks';
+  end if;
+
+  raise notice 'FY-416 PASSED: members see unclaimed work, and #106 still hides it per number';
 end $$;
 
 rollback;

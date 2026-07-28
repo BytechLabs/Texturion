@@ -20,8 +20,13 @@ const state: {
   spamReview: [],
 };
 
+// #416: deliberately a plain MEMBER, not an owner. Before #416 this flip
+// alone would have hidden the unassigned queue from every test below it — the
+// view read the role and gated on it. Nothing here reads the role now, which
+// is the fix, and pinning the mock to the LEAST privileged role is what keeps
+// a future role gate from being reintroduced unnoticed.
 vi.mock("@/lib/company/provider", () => ({
-  useActiveCompany: () => ({ companyId: "co-1", role: "owner" }),
+  useActiveCompany: () => ({ companyId: "co-1", role: "member" }),
 }));
 vi.mock("@/lib/api/for-you", () => ({
   useForYou: () => ({
@@ -261,6 +266,53 @@ describe("countDistinctWork", () => {
         triage: null,
       } as never),
     ).toBe(0);
+  });
+});
+
+describe("the unassigned queue reaches the crew, not just the office (#416)", () => {
+  it("renders the section for a plain member", () => {
+    // The company texts every active member when a lead lands unclaimed. If
+    // the queue is owner-only, that notification points at a screen its own
+    // audience cannot open — which is the whole of #416.
+    state.calls = [];
+    state.forYou = queue({
+      triage: {
+        conversations: [
+          {
+            conversation_id: "conv-t",
+            status: "new",
+            contact: { id: "ct-t", name: "Unclaimed Caller", phone_e164: "+16135550199" },
+            last_message_at: new Date().toISOString(),
+            unread: true,
+          },
+        ],
+        tasks: [],
+      },
+    });
+
+    const html = render();
+    expect(html).toContain("Unassigned");
+    expect(html).toContain("Unclaimed Caller");
+  });
+
+  it("says unassigned rather than triage, the word the rest of the app uses", () => {
+    // "Triage" was written for a dispatcher screen. The crew reading it now
+    // are the field staff, and every other surface calls this unassigned.
+    state.calls = [];
+    state.forYou = queue({
+      triage: { conversations: [], tasks: [] },
+      totals: {
+        waiting_on_you: 0,
+        my_tasks: 0,
+        unread: 0,
+        triage_conversations: 3,
+        triage_tasks: 0,
+        distinct_work: 3,
+      },
+    });
+
+    const html = render();
+    expect(html).not.toContain("Triage");
   });
 });
 

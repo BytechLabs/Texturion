@@ -2185,3 +2185,38 @@ silent degradation #387 describes, and nothing here measures it. And the
 behaviour itself **cannot be verified from CI** — it needs a real device left
 idle long enough to enter Doze, which is the founder-device check that #135
 already tracks.
+
+## D53 — the unassigned queue is self-serve, not owner-dispatched (#416)
+
+**Decision.** Every member sees the unassigned queue on /for-you and can claim
+from it. It is no longer owner/admin-only, and it is called **"Unassigned"**
+rather than "Triage" on all three clients.
+
+**The contradiction it resolves.** The company texted *every active member* the
+moment a lead arrived unclaimed, and then showed the queue those texts pointed
+at to owners and admins only. A tech got the page, opened the app, and the
+screen the notification was about was not there. The notification audience and
+the queue audience have to be the same set of people, and #416 makes them so by
+widening the queue rather than by narrowing the page — a crew that stops being
+told about new leads is a worse product than one where anyone can claim them.
+
+**Why self-serve rather than dispatch.** D12's ICP is 1–10 field staff. There
+is no dispatcher in that company; the owner is on a roof. #388 committed to a
+five-minute first response, and a window that short does not survive waiting
+for one specific person to wake up and hand work out. Anyone free claiming it
+is the mechanism that actually meets the promise.
+
+**What still gates.** `#106` number access. Unclaimed work on a number a member
+is denied does not appear for them at all — not redacted, hidden. Their OWN
+assigned task on such a number keeps its row with the title redacted (#417),
+because hiding somebody's own job from them helps nobody, but unclaimed work
+they cannot act on is only noise. `triage_tasks` carried NO number filter
+before this, on the recorded grounds that "leads are always unrestricted" —
+true only *because* the section was owner-only, so opening it up made that
+filter load-bearing. It was added in the same migration.
+
+**Deploy shape.** `p_is_lead` is retained on `api_for_you` and ignored, so the
+migration and the Worker can ship in either order. Dropping the parameter is
+the contract half and is filed separately; the route keeps deriving the flag
+from the verified membership role, never the request, for as long as it sends
+it at all.

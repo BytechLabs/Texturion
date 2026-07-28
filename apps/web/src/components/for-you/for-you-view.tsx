@@ -30,7 +30,6 @@ import type {
   SpamReviewItem,
 } from "@/lib/api/types";
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
-import { useActiveCompany } from "@/lib/company/provider";
 import { callOutcomeLabel } from "@/lib/format/call";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatRelativeTime } from "@/lib/format/time";
@@ -277,7 +276,7 @@ function TriageConvRow({ item }: { item: ForYouTriageConversation }) {
           </span>
         </span>
         <span className="mt-0.5 block">
-          <Why text={`Unassigned · ${formatRelativeTime(item.last_message_at)}`} />
+          <Why text={formatRelativeTime(item.last_message_at)} />
         </span>
       </span>
     </Card>
@@ -513,9 +512,7 @@ function Overflow({
 }
 
 export function ForYouView() {
-  const { role } = useActiveCompany();
   const forYou = useForYou();
-  const isLead = role === "owner" || role === "admin";
 
   // How many THINGS need you, not how many rows are on screen. The unread
   // section is a cross-cut, so a thread assigned to you that nobody has read
@@ -561,17 +558,15 @@ export function ForYouView() {
           the caught-up card already says everything. */}
       {forYou.data && total > 0 && (
         <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {isLead && (
-            <SummaryTile
-              label="Triage"
-              count={
-                totals
-                  ? totals.triage_conversations + totals.triage_tasks
-                  : (forYou.data.triage?.conversations.length ?? 0) +
-                    (forYou.data.triage?.tasks.length ?? 0)
-              }
-            />
-          )}
+          <SummaryTile
+            label="Unassigned"
+            count={
+              totals
+                ? totals.triage_conversations + totals.triage_tasks
+                : (forYou.data.triage?.conversations.length ?? 0) +
+                  (forYou.data.triage?.tasks.length ?? 0)
+            }
+          />
           <SummaryTile
             label="Waiting on you"
             count={totals?.waiting_on_you ?? forYou.data.waiting_on_you.length}
@@ -603,7 +598,7 @@ export function ForYouView() {
           <SectionSkeleton />
         </div>
       ) : (
-        <ForYouSections data={forYou.data} isLead={isLead} />
+        <ForYouSections data={forYou.data} />
       )}
     </div>
   );
@@ -712,7 +707,7 @@ function SpamReviewRow({ item }: { item: SpamReviewItem }) {
   );
 }
 
-function ForYouSections({ data, isLead }: { data: ForYou; isLead: boolean }) {
+function ForYouSections({ data }: { data: ForYou }) {
   const { waiting_on_you, my_tasks, unread, triage } = data;
   const t = data.totals;
   // #306: the header count is what the section HOLDS; the rows are a page of
@@ -774,8 +769,15 @@ function ForYouSections({ data, isLead }: { data: ForYou; isLead: boolean }) {
         <SpamReviewSection />
       </div>
 
-      {isLead && triageCount > 0 && (
-        <Section label="Triage" count={triageCount}>
+      {/* #416/D53: shown to EVERY member, not owners and admins only. The
+          company already pages the whole crew when a lead lands unclaimed, so
+          gating the queue behind a role sent people a notification about a
+          screen they could not open. Position, ordering and treatment are
+          unchanged — only who sees it.
+          *Applying: the Safety Principle — the fix must not move an owner's
+          dashboard around while it widens the audience.* */}
+      {triageCount > 0 && (
+        <Section label="Unassigned" count={triageCount}>
           {triage?.conversations.map((item) => (
             <TriageConvRow key={item.conversation_id} item={item} />
           ))}

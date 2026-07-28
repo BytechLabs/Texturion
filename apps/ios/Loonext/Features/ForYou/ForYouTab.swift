@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// /for-you — the default landing: Triage (owner/admin), Waiting on you,
+/// /for-you — the default landing: Unassigned (every member since #416),
+/// Waiting on you,
 /// My tasks, Unread, and Recent calls (D43: the mobile entry point into the
 /// Calls surface). Realtime events refetch the queue; every row routes its
 /// conversation UP to the shell (#186), which pushes `ThreadView` ABOVE the
@@ -242,7 +243,11 @@ private struct ForYouList: View {
            !triage.conversations.isEmpty || !triage.tasks.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 SectionHeader(
-                    label: "Triage",
+                    // #416/D53: renamed from "Triage" — dispatcher language
+                    // for a section only owners could see. It is the whole
+                    // crew's queue now, and "unassigned" is the word the rest
+                    // of the product already uses.
+                    label: "Unassigned",
                     count: triageConvTotal + triageTaskTotal
                 )
                 PaperCard {

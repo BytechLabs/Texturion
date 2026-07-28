@@ -1607,7 +1607,10 @@ export interface ForYouTriageTask {
   overdue: boolean;
 }
 
-/** The owner/admin-only triage strip; the whole field is null for a member. */
+/**
+ * Unassigned open conversations + unassigned open tasks. Every member gets it
+ * since #416/D53; it was owner/admin-only, and null for a member, before that.
+ */
 export interface ForYouTriage {
   conversations: ForYouTriageConversation[];
   tasks: ForYouTriageTask[];

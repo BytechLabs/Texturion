@@ -91,7 +91,8 @@ import androidx.compose.material3.TextButton
 import kotlinx.coroutines.delay
 
 /**
- * /for-you — the default landing: Triage (owner/admin), Waiting on you,
+ * /for-you — the default landing: Unassigned (every member since #416),
+ * Waiting on you,
  * My tasks, Unread, and Recent calls (D43: the mobile entry point into the
  * Calls surface). Realtime events refetch the queue; every row deep-links
  * into [ThreadScreen] in place (task rows open their conversation — task
@@ -339,7 +340,11 @@ private fun ForYouList(
             ?.let { triage ->
                 item(key = "triage") {
                     QueueSection(
-                        "Triage",
+                        // #416/D53: "Triage" was dispatcher language for a
+                        // section only owners could see. It is the whole
+                        // crew's queue now, and the word for it everywhere
+                        // else in the product is "unassigned".
+                        "Unassigned",
                         count = triageCount,
                         // Sections glide as queues above them empty or fill.
                         modifier = Modifier.animateItem(),

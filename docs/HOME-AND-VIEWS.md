@@ -19,8 +19,13 @@ Sections (each a calm card list, urgency-sorted, empty-state-kind):
 2. **Your tasks** — tasks assigned to me that are open; **overdue tasks pinned to the top** with a
    quiet amber marker. Inline complete (checkbox) with optimistic + undo.
 3. **Unread** — my conversations with unread inbound.
-4. **Needs an owner** (owner/admin only) — a triage strip: unassigned open conversations +
-   unassigned open tasks, so leads can hand out work.
+4. **Unassigned** (every member, since #416/D53) — unassigned open conversations + unassigned
+   open tasks, so whoever is free can pick work up. It was "Needs an owner", owner/admin only,
+   until #416: the company already texts every active member the moment a lead lands unclaimed,
+   so a role-gated queue sent that notification to people who could not open the screen it
+   pointed at. A 1–10 crew (D12) has no dispatcher, and #388's five-minute response window does
+   not survive waiting for an owner to wake up. `#106` number access still applies — work on a
+   number a member is denied is not in their queue.
 
 Rules: everything links straight to the thread/task; one-glance; no configuration required;
 realtime-updates as items are handled; fully calm (the conversation/task text is the only bold

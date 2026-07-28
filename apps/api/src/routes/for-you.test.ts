@@ -5,9 +5,10 @@
  * These stub the RPC (the PostGREST network edge) and assert:
  *   - the four sections pass through unchanged;
  *   - the RPC is called with the caller's company + user;
- *   - the owner/admin-only triage flag (p_is_lead) is derived from the verified
- *     role — true for owner/admin, false for a plain member (role scoping);
- *   - a member never receives a triage section.
+ *   - p_is_lead is still derived from the verified role and never from the
+ *     request (#416 stopped it gating triage, but a request-supplied role flag
+ *     would be a hole the day anything reads it again);
+ *   - the triage section passes through for EVERY role (#416/D53).
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -104,10 +105,11 @@ const LEAD_PAYLOAD = {
 };
 
 /** The same shape as a plain member sees it: triage is null (never leaked). */
-const MEMBER_PAYLOAD = {
-  ...LEAD_PAYLOAD,
-  triage: null,
-};
+// #416/D53: a member's payload carries the same shape as a lead's. The route
+// is a pass-through, so what this fixture proves is that nothing in the route
+// strips triage on the way out — which is exactly what it used to do by
+// receiving `null` and never being asked to.
+const MEMBER_PAYLOAD = { ...LEAD_PAYLOAD };
 
 function forYouStub(
   role: MemberRole,
@@ -141,7 +143,7 @@ describe("GET /v1/for-you", () => {
     expect(rpc.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
-      p_is_lead: false, // plain member — no triage strip
+      p_is_lead: false, // role-derived, never request-supplied
       p_limit: 20,
     });
     // The clock is injected (testable "overdue") — a real ISO timestamp.
@@ -170,7 +172,7 @@ describe("GET /v1/for-you", () => {
     ]);
   });
 
-  it("owner/admin get the triage strip: p_is_lead is true (role-derived)", async () => {
+  it("p_is_lead is role-derived: true for owner/admin", async () => {
     for (const role of ["owner", "admin"] as const) {
       const sb = forYouStub(role, LEAD_PAYLOAD);
       stubFetch(jwksRoute(auth), sb.route);
@@ -190,18 +192,24 @@ describe("GET /v1/for-you", () => {
     }
   });
 
-  it("a plain member never receives a triage section", async () => {
+  it("a plain member receives the triage section too (#416)", async () => {
+    // This asserted the opposite until #416. The company already paged every
+    // active member about an unclaimed lead and then showed the queue to
+    // nobody but owners, so the notification pointed at a screen its audience
+    // could not open. The route must not re-introduce that by filtering.
     const sb = forYouStub("member", MEMBER_PAYLOAD);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/for-you", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as { triage: unknown };
-    expect(body.triage).toBeNull();
+    const body = (await res.json()) as typeof MEMBER_PAYLOAD;
+    expect(body.triage).not.toBeNull();
+    expect(body.triage.conversations).toHaveLength(1);
+    expect(body.triage.tasks).toHaveLength(1);
 
-    // And the lead flag the route sent is false — the RPC never even computes
-    // triage for a member.
+    // Still role-derived and still false for a member: the flag no longer
+    // gates triage, but it must never become something a caller can assert.
     const rpc = sb.find("POST", "/rest/v1/rpc/api_for_you")[0];
     expect(rpc.body).toMatchObject({ p_is_lead: false });
   });
