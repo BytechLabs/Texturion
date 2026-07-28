@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.5.0](https://github.com/BytechLabs/Texturion/compare/android-v0.4.0...android-v0.5.0) (2026-07-28)
+
+
+### Features
+
+* **android:** tell the crew when notifications are paused, on the phones too ([af2f2b5](https://github.com/BytechLabs/Texturion/commit/af2f2b5b3f365da4d742d901c89987c60471d75f)), closes [#343](https://github.com/BytechLabs/Texturion/issues/343)
+* **api:** a crew member can now let themselves out of a workspace ([eea1a3c](https://github.com/BytechLabs/Texturion/commit/eea1a3cc78d65fa1bc01b52244137b37e8a2cedf))
+* **api:** a customer who replies URGENT now gets an honest answer back ([ebe0511](https://github.com/BytechLabs/Texturion/commit/ebe0511fd50f6ee29bcd793011662e97df23c0a8))
+* **api:** show a crew whether their texts are actually arriving ([cf419d4](https://github.com/BytechLabs/Texturion/commit/cf419d4405681699dd583101f1dcb180703e40f0))
+* **api:** warn the crew when a customer has asked to be left alone ([80fa415](https://github.com/BytechLabs/Texturion/commit/80fa415cc9eea450ed8c3681249ffbf538650415))
+* **clients:** owners can turn lead chasing on or off everywhere ([440d57c](https://github.com/BytechLabs/Texturion/commit/440d57c4b659bf24ba0e29f89962edaee0fb3a43))
+* **for-you:** anyone on the crew can pick up an unclaimed lead ([92fe855](https://github.com/BytechLabs/Texturion/commit/92fe8553d23be9cfef8a31fa68f03fb51b109ede))
+* **settings:** the away reply now warns when it asks for a word nothing hears ([28b0076](https://github.com/BytechLabs/Texturion/commit/28b00768b2add4aaeffda30941f24fea437a800d))
+* **web:** a customer signed in can finally reach a person ([b58108c](https://github.com/BytechLabs/Texturion/commit/b58108c7b578b3dc44608f472e275b7bafe84eab))
+
+
+### Bug Fixes
+
+* **api:** an away reply that is switched on always has something to say ([d9c734d](https://github.com/BytechLabs/Texturion/commit/d9c734dfe87644d4c64697fd05409e55191a4e98))
+
 ## [0.4.0](https://github.com/BytechLabs/Texturion/compare/android-v0.3.0...android-v0.4.0) (2026-07-26)
 
 
