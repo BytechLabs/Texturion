@@ -13,6 +13,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { runGraceJob } from "./billing/grace";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
 import { reconcileOptOuts } from "./messaging/opt-out-reconcile";
+import { runDeliveryByCountryJob } from "./messaging/delivery-by-country";
 import { runOverageWarningJob } from "./billing/overage-warning";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
 import { sweepDeletedAttachments } from "./attachments/sweep";
@@ -455,7 +456,10 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     expect(CRON_JOBS["30 * * * *"]).toEqual([nudgeSoleProprietorOtp]);
     expect(CRON_JOBS["20 * * * *"]).toEqual([geocodeContactsJob]);
     expect(CRON_JOBS["40 * * * *"]).toEqual([geocodeTasksJob]);
-    expect(CRON_JOBS["0 13 * * *"]).toEqual([pollRegistrations]);
+    expect(CRON_JOBS["0 13 * * *"]).toEqual([
+      pollRegistrations,
+      runDeliveryByCountryJob,
+    ]);
     expect(CRON_JOBS["10 13 * * *"]).toEqual([pollPortRequests]);
     expect(CRON_JOBS["0 14 * * *"]).toEqual([runGraceJob]);
     expect(CRON_JOBS["0 15 * * *"]).toEqual([runSubscriptionReconcileJob]);

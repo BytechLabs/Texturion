@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 
 import { sweepDeletedAttachments } from "./attachments/sweep";
+import { runDeliveryByCountryJob } from "./messaging/delivery-by-country";
 import { companyContext } from "./auth/company";
 import { CallSessionDO as CallSessionDOImpl } from "./calls/session-do";
 import { jwtAuth } from "./auth/jwt";
@@ -293,7 +294,11 @@ export const CRON_JOBS: Record<string, readonly ScheduledJob[]> = {
   // geocoder (:20) so the two never share a Nominatim second.
   "40 * * * *": [geocodeTasksJob],
   // Registration poller (webhooks are primary; this is the D2 fallback).
-  "0 13 * * *": [pollRegistrations],
+  // #379: and the delivery-rate split by destination country. A carrier
+  // filtering unregistered A2P traffic returns no error — the message is
+  // accepted, billed, marked sent and never arrives — so an absence is all it
+  // leaves behind, and this split is the only place it shows.
+  "0 13 * * *": [pollRegistrations, runDeliveryByCountryJob],
   // Port reconcile & resume (PORTING.md §5.2): poll in-flight porting orders,
   // apply missed status/messaging transitions, resume stalled sagas, and
   // recover messaging exceptions (webhooks primary, this is the fallback).

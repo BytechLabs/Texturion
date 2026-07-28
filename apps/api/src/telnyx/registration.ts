@@ -1583,6 +1583,19 @@ export interface SendGates {
    * CA-bound sends have no registration gate (§4.2: works immediately after
    * provisioning; CASL applies operationally, not via this gate). Constant
    * true — subscription gating is the separate flag above.
+   *
+   * #379: that constant rests on the CANADA half of D2, which is UNVERIFIED
+   * and now carries a review date. It is left `true` deliberately rather than
+   * changed on a guess — inventing a Canadian gate nobody has confirmed exists
+   * would block our headline market on a hunch, which is worse than the
+   * exposure it would be guarding against.
+   *
+   * But it should not read as a settled no-op, because it is not one. Every
+   * number we hold was bought after the 2025-03-26 cutoff and none carries a
+   * messaging campaign, so IF Canadian carriers filter unregistered A2P
+   * traffic, this constant is what lets it happen silently. The signal that
+   * would show it is `messaging/delivery-by-country.ts`; the answer that would
+   * settle it is one reply from Telnyx, written out verbatim in D2.
    */
   caAllowed: boolean;
 }
@@ -1608,6 +1621,7 @@ export async function getSendGates(
   return {
     subscriptionActive: company.subscription_status === "active",
     usApproved,
+    // #379: unverified-true, not decided-true. See the field's own comment.
     caAllowed: true,
   };
 }

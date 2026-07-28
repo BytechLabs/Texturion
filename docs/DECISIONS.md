@@ -38,6 +38,32 @@ spec-review team (7 reviewers, 56 verified findings) and 5 web-verified research
     10DLC since Feb 2025; approval 3–7+ business days). Canada-bound outbound from Canadian
     companies works **immediately** (no 10DLC for CA→CA; CASL rules apply instead).
     Gating is **per destination country**, not all-or-nothing.
+    - ⚠️ **The Canada half is UNVERIFIED and now dated (#379). Checked
+      2026-07-28; next review 2026-10-28.** The US half above carries a date
+      because its authors knew carrier rules move. The Canada half never did,
+      and it is the claim our whole Canada-first position (#369) rests on.
+      **Verified against the live Telnyx account, 2026-07-28:** our one Canadian
+      number (+1 825, Alberta) was purchased **2026-07-09** — after the
+      2025-03-26 cutoff beyond which numbers are reportedly no longer
+      grandfathered for domestic Canadian A2P — carries
+      **`messaging_campaign_id: None`**, and is classified by Telnyx itself as
+      `traffic_type: A2P`. We are sending traffic Telnyx calls A2P, from a
+      post-cutoff number, with no campaign attached.
+      **NOT verified:** whether Telnyx requires, or performs on our behalf, any
+      Canadian A2P registration. Their published documentation covers US 10DLC
+      and is silent on CA→CA, and no API surface exposes a Canadian
+      registration state. This is not a finding that D2 is wrong — it is that
+      nobody here can currently say it is right.
+      **The question to put to Telnyx, verbatim:** *"For a Canadian long code on
+      our account sending A2P traffic to Canadian subscribers, is any
+      registration or persona verification required, or performed by Telnyx on
+      our behalf? If not, are there volume thresholds at which Rogers, Bell or
+      Telus filter unregistered traffic?"* One reply closes this either way.
+      **Shipped ahead of the answer:** delivery rate split by destination
+      country (`messaging/delivery-by-country.ts`, daily), because carrier
+      filtering returns no error — the message is accepted, billed, marked sent,
+      and never arrives — so an absence is the only evidence there would ever
+      be. #379 ask 4; see also #235.
   - Inbound works immediately for everyone. UI shows "US texting activates in ~3–7 business
     days" banner; the expectation is also stated **at checkout, before payment**.
   - Campaign approval/rejection tracked via Telnyx webhook + daily cron poll fallback;
