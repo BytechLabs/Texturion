@@ -2323,6 +2323,31 @@ one more thing that can quietly stop. It runs on the 15-minute trigger, which
 is itself watched by the ledger the checker reads — so if the checker stops,
 its own absence is the alert.
 
+**Per-job, not just per-schedule (#333).** A schedule firing is not the same as
+its jobs working — the 15-minute trigger carries seven, and one throwing on its
+first statement every run still lets the trigger's heartbeat land. So each job
+records its own heartbeat, and **only on success**. That single choice makes
+"broken every run since Tuesday" and "has not run at all" the same alert on the
+same path, which is what #333 asked for as a separate capability. A transient
+failure that recovers on the next run never reaches its grace window, so it
+costs no noise. Both keys are kept: a dead trigger and a dead job have
+different causes and different fixes, and losing the schedule-level signal
+would hide the case where every job is fine and the trigger simply stopped.
+
+**Work done, not just execution.** A re-reporter can run hourly, succeed
+hourly, and still fail at the only thing it exists for: rows sit unreported,
+every Stripe call errors, the loop catches and continues, and revenue quietly
+goes unbilled behind two healthy heartbeats. The signal is a conjunction rather
+than a count — healthy means *nothing was outstanding* **or** *something got
+through*. Outstanding work with nothing reported is the one wrong shape, and
+the only one that does not false-alarm on a platform with no traffic.
+
+**The limit worth stating.** The checker cannot detect its own total failure.
+It records a heartbeat like any other job, so an intermittently-broken checker
+reports itself on its next good run — but one that never runs again takes the
+whole mechanism down with it, silently. That is inherent to an internal probe
+and is exactly the gap #242 (an external status page) exists to close.
+
 **What this does not cover.** #359 (two SQL functions kept in agreement by a
 test rather than by construction) and #342 (a spam suppression with no expiry)
 share the symptom and not the mechanism; they need their own logic and are not

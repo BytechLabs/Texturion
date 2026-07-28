@@ -13,6 +13,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { runGraceJob } from "./billing/grace";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runLivenessCheckJob } from "./observability/liveness-check";
+import { LIVENESS_EXPECTATIONS } from "./observability/liveness";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
 import { reconcileOptOuts } from "./messaging/opt-out-reconcile";
 import { runDeliveryByCountryJob } from "./messaging/delivery-by-country";
@@ -435,19 +436,23 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     );
   });
 
+  /** The job functions on a schedule, in order (#333 pairs each with a key). */
+  const runs = (schedule: keyof typeof CRON_JOBS) =>
+    CRON_JOBS[schedule].map((entry) => entry.run);
+
   it("each schedule dispatches to the §11 job(s), by identity", () => {
     // #388: the only per-minute schedule in the product, and it carries one
     // job. The rungs are at two and five minutes, so a five-minute scan
     // cannot express the first one — rounding the reminder up to the deadline
     // it exists to beat would leave the feature named after a promise it no
     // longer keeps.
-    expect(CRON_JOBS["* * * * *"]).toEqual([runLeadChaseJob]);
-    expect(CRON_JOBS["*/5 * * * *"]).toEqual([
+    expect(runs("* * * * *")).toEqual([runLeadChaseJob]);
+    expect(runs("*/5 * * * *")).toEqual([
       sweepWebhookEvents,
       failStuckOutboundSends,
       sweepStuckProvisioning,
     ]);
-    expect(CRON_JOBS["*/15 * * * *"]).toEqual([
+    expect(runs("*/15 * * * *")).toEqual([
       // #387: the liveness checker rides this trigger rather than taking one
       // of its own — a checker with its own schedule is one more thing that
       // can quietly stop, and this schedule is watched by the ledger the
@@ -460,31 +465,48 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       reconcileTextEnablement,
       reconcileVoiceEnablement,
     ]);
-    expect(CRON_JOBS["0 * * * *"]).toEqual([
+    expect(runs("0 * * * *")).toEqual([
       reportUnreportedUsage,
       reportUnreportedVoiceUsage,
       runUsageAlertsJob,
       runOverageWarningJob,
       sweepStaleCalls, // #133: stale-calls sweeper (in-flight >4h → missed)
     ]);
-    expect(CRON_JOBS["30 * * * *"]).toEqual([nudgeSoleProprietorOtp]);
-    expect(CRON_JOBS["20 * * * *"]).toEqual([geocodeContactsJob]);
-    expect(CRON_JOBS["40 * * * *"]).toEqual([geocodeTasksJob]);
-    expect(CRON_JOBS["0 13 * * *"]).toEqual([
+    expect(runs("30 * * * *")).toEqual([nudgeSoleProprietorOtp]);
+    expect(runs("20 * * * *")).toEqual([geocodeContactsJob]);
+    expect(runs("40 * * * *")).toEqual([geocodeTasksJob]);
+    expect(runs("0 13 * * *")).toEqual([
       pollRegistrations,
       runDeliveryByCountryJob,
     ]);
-    expect(CRON_JOBS["10 13 * * *"]).toEqual([pollPortRequests]);
-    expect(CRON_JOBS["0 14 * * *"]).toEqual([runGraceJob]);
-    expect(CRON_JOBS["0 15 * * *"]).toEqual([runSubscriptionReconcileJob]);
+    expect(runs("10 13 * * *")).toEqual([pollPortRequests]);
+    expect(runs("0 14 * * *")).toEqual([runGraceJob]);
+    expect(runs("0 15 * * *")).toEqual([runSubscriptionReconcileJob]);
     // #331: our opt-out list against the carrier's.
-    expect(CRON_JOBS["45 15 * * *"]).toEqual([reconcileOptOuts]);
+    expect(runs("45 15 * * *")).toEqual([reconcileOptOuts]);
     // Both ledger retentions ride the same daily slot (#231).
-    expect(CRON_JOBS["30 15 * * *"]).toEqual([
+    expect(runs("30 15 * * *")).toEqual([
       pruneWebhookEvents,
       pruneAuditLog,
       purgeClosedWorkspaces,
       buildDataExports,
     ]);
+  });
+
+  it("pairs every job with a DISTINCT declared liveness key (#333)", () => {
+    // The compiler already refuses a job whose key is not declared. What it
+    // cannot see is two jobs sharing one key — which would look fine and quietly
+    // mean the healthy one keeps beating for the broken one, so the broken job
+    // never goes overdue. That is the precise failure this whole mechanism
+    // exists to prevent, hiding inside the mechanism itself.
+    const all = Object.values(CRON_JOBS).flatMap((entries) =>
+      entries.map((entry) => entry.key),
+    );
+    expect(new Set(all).size, `duplicate liveness key among ${all.length} jobs`).toBe(
+      all.length,
+    );
+    for (const key of all) {
+      expect(LIVENESS_EXPECTATIONS, key).toHaveProperty(key);
+    }
   });
 });

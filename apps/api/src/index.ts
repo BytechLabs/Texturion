@@ -24,6 +24,7 @@ import { runLivenessCheckJob } from "./observability/liveness-check";
 import {
   recordHeartbeatBestEffort,
   type CronSchedule,
+  type JobKey,
 } from "./observability/liveness";
 import { notifyDueTasksJob } from "./tasks/due-notice";
 import { ApiError, errorResponse } from "./http/errors";
@@ -239,6 +240,20 @@ app.onError((error, c) => {
 type ScheduledJob = (env: Env, now: Date) => Promise<unknown>;
 
 /**
+ * A scheduled job and the liveness key that speaks for it (#333/D55).
+ *
+ * Pairing them here rather than in a side table is the point: there is no way
+ * to register a job without declaring what its silence means, because the
+ * registration IS the declaration.
+ */
+interface CronEntry {
+  key: JobKey;
+  run: ScheduledJob;
+}
+
+const job = (key: JobKey, run: ScheduledJob): CronEntry => ({ key, run });
+
+/**
  * SPEC §11 cron table — one entry per wrangler.jsonc trigger, in §11 order.
  * Every job is idempotent and clock-injected where it needs a clock, so the
  * trigger's own scheduledTime is passed through. Exported so tests can assert
@@ -250,14 +265,14 @@ type ScheduledJob = (env: Env, now: Date) => Promise<unknown>;
  * its ABSENCE means does not compile — the guard lives at the point of
  * definition rather than in a doc somebody has to remember.
  */
-export const CRON_JOBS: Record<CronSchedule, readonly ScheduledJob[]> = {
+export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // #388: the unanswered-lead ladder. Every minute, because the rungs are at
   // two and five and the finest existing cadence is five — a five-minute scan
   // cannot express a two-minute rung, and rounding the rung UP to fit the
   // schedule would move the reminder to the deadline it exists to beat.
   // The scan is a partial index over live clocks only, so a quiet minute costs
   // one indexed lookup returning nothing.
-  "* * * * *": [runLeadChaseJob],
+  "* * * * *": [job("job:lead-chase", runLeadChaseJob)],
   // Webhook sweeper: replay unprocessed webhook_events (both providers).
   // Piggybacked on the same cadence (#20): fail out outbound rows stuck
   // 'queued' with no telnyx_message_id (a send that crashed before the
@@ -265,7 +280,7 @@ export const CRON_JOBS: Record<CronSchedule, readonly ScheduledJob[]> = {
   // Also flips a genuinely-stuck 'provisioning' number (a Telnyx order pending
   // past the dwell) to provision_failed so the customer reaches remediation in
   // ~10-15 min instead of waiting on the 15-min reconcile (§4.3 honest status).
-  "*/5 * * * *": [sweepWebhookEvents, failStuckOutboundSends, sweepStuckProvisioning],
+  "*/5 * * * *": [job("job:sweep-webhooks", sweepWebhookEvents), job("job:fail-stuck-sends", failStuckOutboundSends), job("job:sweep-stuck-provisioning", sweepStuckProvisioning)],
   // Provisioning retry & reconcile: resume provisioning/provision_failed
   // numbers, adopt crash-after-buy orphans, re-run failed §4.4 R3 campaign
   // number-assignments. Also reclaims soft-deleted attachment objects/rows past
@@ -276,21 +291,21 @@ export const CRON_JOBS: Record<CronSchedule, readonly ScheduledJob[]> = {
     // one of its own. A checker with its own schedule is one more thing that
     // can quietly stop, and the schedule it rides on is watched by the very
     // ledger it reads — so if this stops, its own absence is the alert.
-    runLivenessCheckJob,
+    job("job:liveness-check", runLivenessCheckJob),
     // Task due-date reminders: one push to the assignee as a task comes due,
     // at most once per due date. A quarter hour is close enough to "now" for
     // a day of trade work and keeps the scan cheap.
-    notifyDueTasksJob,
-    reconcileNumbers,
-    retryCampaignAssignments,
-    sweepDeletedAttachments,
+    job("job:notify-due-tasks", notifyDueTasksJob),
+    job("job:reconcile-numbers", reconcileNumbers),
+    job("job:retry-campaign-assignments", retryCampaignAssignments),
+    job("job:sweep-deleted-attachments", sweepDeletedAttachments),
     // Keep-your-number hosted text-enablement: poll in-flight orders and flip
     // the number active once the carrier finishes (webhooks primary; fallback).
-    reconcileTextEnablement,
+    job("job:reconcile-text-enablement", reconcileTextEnablement),
     // Missed-call voice binding: enable voice on any active, un-bound number
     // whose company has MCTB/forwarding on (covers enable-before-active,
     // later-added numbers, and settings-time enables that failed transiently).
-    reconcileVoiceEnablement,
+    job("job:reconcile-voice-enablement", reconcileVoiceEnablement),
   ],
   // Usage re-reporters (segments, then D36 voice minutes), then the static
   // 80%/100% usage-alert check (§9 metering pipeline tail) over the
@@ -298,47 +313,47 @@ export const CRON_JOBS: Record<CronSchedule, readonly ScheduledJob[]> = {
   // period when a tenant is projected to cost more than they pay — the
   // static alerts stay as the backstop).
   "0 * * * *": [
-    reportUnreportedUsage,
-    reportUnreportedVoiceUsage,
-    runUsageAlertsJob,
-    runOverageWarningJob,
+    job("job:report-usage", reportUnreportedUsage),
+    job("job:report-voice-usage", reportUnreportedVoiceUsage),
+    job("job:usage-alerts", runUsageAlertsJob),
+    job("job:overage-warning", runOverageWarningJob),
     // #133: flip call sessions wedged in-flight >4h to 'missed' so /calls
     // stays honest and the per-conversation dial guard re-opens.
-    sweepStaleCalls,
+    job("job:sweep-stale-calls", sweepStaleCalls),
   ],
   // Sole-prop OTP nudge (≥12h outstanding, once per submission).
-  "30 * * * *": [nudgeSoleProprietorOtp],
+  "30 * * * *": [job("job:nudge-sole-prop-otp", nudgeSoleProprietorOtp)],
   // Contact geocoding backfill (D25): geocode addressed contacts via Nominatim,
   // rate-limited (1 req/s) and cached to contacts.lat/lng; skips already-
   // geocoded and not-found rows. Off-peak from the other hourly jobs.
-  "20 * * * *": [geocodeContactsJob],
+  "20 * * * *": [job("job:geocode-contacts", geocodeContactsJob)],
   // Task geocoding backfill (#214 Map fix): geocode a task's OWN address via
   // Nominatim, cached to tasks.lat/lng, so the Map pins a task at ITS location
   // (not only its contact's). Same 1 req/s pace; off-peak from the contact
   // geocoder (:20) so the two never share a Nominatim second.
-  "40 * * * *": [geocodeTasksJob],
+  "40 * * * *": [job("job:geocode-tasks", geocodeTasksJob)],
   // Registration poller (webhooks are primary; this is the D2 fallback).
   // #379: and the delivery-rate split by destination country. A carrier
   // filtering unregistered A2P traffic returns no error — the message is
   // accepted, billed, marked sent and never arrives — so an absence is all it
   // leaves behind, and this split is the only place it shows.
-  "0 13 * * *": [pollRegistrations, runDeliveryByCountryJob],
+  "0 13 * * *": [job("job:poll-registrations", pollRegistrations), job("job:delivery-by-country", runDeliveryByCountryJob)],
   // Port reconcile & resume (PORTING.md §5.2): poll in-flight porting orders,
   // apply missed status/messaging transitions, resume stalled sagas, and
   // recover messaging exceptions (webhooks primary, this is the fallback).
-  "10 13 * * *": [pollPortRequests],
+  "10 13 * * *": [job("job:poll-port-requests", pollPortRequests)],
   // Grace & release: day-1/15/27 warnings, day-30 release + campaign
   // deactivation.
-  "0 14 * * *": [runGraceJob],
+  "0 14 * * *": [job("job:grace-and-release", runGraceJob)],
   // Subscription reconcile: re-mirror non-active companies from Stripe;
   // report stale invites.
-  "0 15 * * *": [runSubscriptionReconcileJob],
+  "0 15 * * *": [job("job:subscription-reconcile", runSubscriptionReconcileJob)],
   // #331: compare our opt-out list against the carrier's. A number Telnyx is
   // blocking that we have no record for is an inbound STOP whose webhook we
   // missed — the composer stays open and every send comes back 40300 until
   // somebody notices. Recorded here, and reported to ops, because a run of
   // them is a webhook-delivery failure rather than a change in behaviour.
-  "45 15 * * *": [reconcileOptOuts],
+  "45 15 * * *": [job("job:opt-out-reconcile", reconcileOptOuts)],
   // Ledger retention: drop PROCESSED webhook_events past the 30-day dedupe
   // window. The */5 sweeper only replays the unprocessed tail, so without this
   // the ledger grows without bound for the life of the install.
@@ -348,14 +363,14 @@ export const CRON_JOBS: Record<CronSchedule, readonly ScheduledJob[]> = {
   // revenue in the last 7 days. The per-tenant copies go out hourly with the
   // warning; this is the only place the PATTERN shows up, which is the
   // question #446 asks. Monday morning, off the hour.
-  "50 13 * * 1": [runOverageDigestJob],
+  "50 13 * * 1": [job("job:overage-digest", runOverageDigestJob)],
   "30 15 * * *": [
-    pruneWebhookEvents,
-    pruneAuditLog,
-    purgeClosedWorkspaces,
+    job("job:prune-webhook-events", pruneWebhookEvents),
+    job("job:prune-audit-log", pruneAuditLog),
+    job("job:purge-closed-workspaces", purgeClosedWorkspaces),
     // #227: exports build here for the same reason the purge does — a busy
     // workspace cannot be processed inside a request.
-    buildDataExports,
+    job("job:build-data-exports", buildDataExports),
   ],
 };
 
@@ -451,28 +466,57 @@ export const handler = {
       now,
     );
 
-    const failures: unknown[] = [];
-    for (const job of jobs) {
-      try {
-        await job(validated, now);
-      } catch (cause) {
-        // Name the culprit in the run's own logs: the platform serializes
-        // only the AggregateError's top-level message (child errors vanish),
-        // which made "1 of 5 job(s) failed" undiagnosable from the dashboard.
-        const detail =
-          cause instanceof Error ? (cause.stack ?? cause.message) : String(cause);
-        console.error(`cron job ${job.name} failed: ${detail}`);
-        failures.push(cause);
-      }
-    }
-    if (failures.length > 0) {
-      throw new AggregateError(
-        failures,
-        `cron "${controller.cron}": ${failures.length} of ${jobs.length} job(s) failed`,
-      );
-    }
+    await runScheduledJobs(validated, controller.cron, jobs, now);
   },
 } satisfies ExportedHandler<Bindings>;
+
+/**
+ * Run one schedule's jobs, recording each one's liveness heartbeat.
+ *
+ * Extracted from `scheduled()` so the rule that actually matters — a job's
+ * heartbeat is recorded ONLY when it succeeds (#333) — is testable without
+ * standing up every real cron job in the product.
+ *
+ * Jobs on a shared trigger run sequentially but fail independently: one job's
+ * failure never starves its siblings, and the run still rejects so Sentry
+ * (which wraps `scheduled()`) records it.
+ */
+export async function runScheduledJobs(
+  env: Env,
+  cron: string,
+  jobs: readonly CronEntry[],
+  now: Date,
+): Promise<void> {
+  const failures: unknown[] = [];
+  for (const entry of jobs) {
+    try {
+      await entry.run(env, now);
+      // ONLY on success. A job that throws on its first statement every run
+      // would otherwise keep beating while doing nothing, and the
+      // schedule-level heartbeat cannot tell the difference — the trigger
+      // fired either way. Withholding the beat makes "broken every run since
+      // Tuesday" and "has not run at all" the same alert on the same path,
+      // which is what #333 asks for. A transient failure that recovers on the
+      // next run never reaches its grace window, so this costs no noise.
+      await recordHeartbeatBestEffort(env, entry.key, now);
+    } catch (cause) {
+      // Name the culprit in the run's own logs: the platform serializes only
+      // the AggregateError's top-level message (child errors vanish), which
+      // made "1 of 5 job(s) failed" undiagnosable from the dashboard.
+      const detail =
+        cause instanceof Error ? (cause.stack ?? cause.message) : String(cause);
+      console.error(`cron job ${entry.key} failed: ${detail}`);
+      failures.push(cause);
+    }
+  }
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures,
+      `cron "${cron}": ${failures.length} of ${jobs.length} job(s) failed`,
+    );
+  }
+}
+
 
 /**
  * Sentry wraps the whole Worker (fetch + scheduled) with the SPEC §10

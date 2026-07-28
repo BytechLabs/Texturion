@@ -16,7 +16,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { CRON_JOBS } from "../index";
+import { CRON_JOBS, runScheduledJobs } from "../index";
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { runLivenessCheckJob } from "./liveness-check";
@@ -197,5 +197,78 @@ describe("the outbound-SMS probe", () => {
     expect(probe?.url.href).toContain("sent");
     expect(probe?.url.href).toContain("delivered");
     expect(probe?.url.href).not.toContain("queued");
+  });
+});
+
+
+describe("per-job heartbeats (#333)", () => {
+  /** Captures which keys were beaten during a run. */
+  function beatWorld() {
+    const sb = supabaseStub(env);
+    const beats: string[] = [];
+    sb.on("POST", "/rest/v1/rpc/record_heartbeat", (call) => {
+      beats.push((call.body as { p_key: string }).p_key);
+      return { recovered: false };
+    });
+    return { sb, beats };
+  }
+
+  const at = new Date("2026-07-28T12:00:00Z");
+
+  it("beats for a job that succeeded", async () => {
+    const world = beatWorld();
+    stubFetch(world.sb.route);
+
+    await runScheduledJobs(
+      env,
+      "*/5 * * * *",
+      [{ key: "job:sweep-webhooks", run: async () => undefined }],
+      at,
+    );
+
+    expect(world.beats).toEqual(["job:sweep-webhooks"]);
+  });
+
+  it("withholds the beat from a job that threw", async () => {
+    // The whole point of #333's "consecutive failures, distinct from absence":
+    // a job broken every single run must go overdue exactly like one that
+    // never ran. If it beat here, it would look healthy forever while doing
+    // nothing, and the schedule heartbeat could not tell the difference —
+    // the trigger fired either way.
+    const world = beatWorld();
+    stubFetch(world.sb.route);
+
+    await expect(
+      runScheduledJobs(
+        env,
+        "*/5 * * * *",
+        [{ key: "job:sweep-webhooks", run: async () => { throw new Error("boom"); } }],
+        at,
+      ),
+    ).rejects.toThrow(/1 of 1 job/);
+
+    expect(world.beats).toEqual([]);
+  });
+
+  it("lets a healthy sibling beat when the one before it failed", async () => {
+    // Jobs on a shared trigger fail independently. A broken job must not
+    // silence the ones after it, or one bad job makes six others look dead
+    // and the alert stops pointing at the actual fault.
+    const world = beatWorld();
+    stubFetch(world.sb.route);
+
+    await expect(
+      runScheduledJobs(
+        env,
+        "*/5 * * * *",
+        [
+          { key: "job:sweep-webhooks", run: async () => { throw new Error("boom"); } },
+          { key: "job:fail-stuck-sends", run: async () => undefined },
+        ],
+        at,
+      ),
+    ).rejects.toThrow(/1 of 2 job/);
+
+    expect(world.beats).toEqual(["job:fail-stuck-sends"]);
   });
 });

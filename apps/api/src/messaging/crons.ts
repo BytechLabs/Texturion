@@ -35,6 +35,7 @@ import * as Sentry from "@sentry/cloudflare";
 
 import { reportSegmentUsage, reportVoiceSeconds } from "../billing/meter";
 import { getDb } from "../db";
+import { recordHeartbeatBestEffort } from "../observability/liveness";
 import type { Env } from "../env";
 import { telnyxRequest } from "../telnyx/client";
 import { processStripeEvent } from "../webhooks/stripe";
@@ -266,6 +267,30 @@ export function isDuplicateMeterIdentifierError(cause: unknown): boolean {
 }
 
 /** §11 usage re-reporter: meter events for locally-unstamped usage rows. */
+/**
+ * #333 ask 3 — "report work done, not just execution".
+ *
+ * A re-reporter can run every hour, succeed every hour, and still be failing
+ * at the only thing it exists for: rows sit unreported, every Stripe call
+ * errors, the loop catches and continues, and both the schedule heartbeat and
+ * the job heartbeat look perfect while revenue quietly does not get billed.
+ *
+ * Healthy is a conjunction, not a count: nothing was outstanding, OR we got
+ * something through. Outstanding work with nothing reported is the only wrong
+ * shape — and the only one that does not false-alarm on a platform with no
+ * traffic to report.
+ */
+async function recordReporterProgress(
+  env: Env,
+  key: "job:report-usage:work" | "job:report-voice-usage:work",
+  found: number,
+  reported: number,
+): Promise<void> {
+  if (found === 0 || reported > 0) {
+    await recordHeartbeatBestEffort(env, key);
+  }
+}
+
 export async function reportUnreportedUsage(env: Env): Promise<void> {
   const db = getDb(env);
   const { data, error } = await db
@@ -276,7 +301,10 @@ export async function reportUnreportedUsage(env: Env): Promise<void> {
     .limit(REPORT_BATCH);
   if (error) throw new Error(`usage re-report query failed: ${error.message}`);
 
-  for (const row of (data ?? []) as unknown as UnreportedUsageRow[]) {
+  const rows = (data ?? []) as unknown as UnreportedUsageRow[];
+  let reported = 0;
+
+  for (const row of rows) {
     const stripeCustomerId = row.companies?.stripe_customer_id;
     if (!stripeCustomerId) continue; // company not billed yet — try next hour
     try {
@@ -316,7 +344,10 @@ export async function reportUnreportedUsage(env: Env): Promise<void> {
     if (stampError) {
       throw new Error(`stripe_reported_at stamp failed: ${stampError.message}`);
     }
+    reported += 1;
   }
+
+  await recordReporterProgress(env, "job:report-usage:work", rows.length, reported);
 }
 
 interface UnreportedVoiceRow {
@@ -375,7 +406,10 @@ export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
     throw new Error(`voice re-report query failed: ${error.message}`);
   }
 
-  for (const row of (data ?? []) as unknown as UnreportedVoiceRow[]) {
+  const rows = (data ?? []) as unknown as UnreportedVoiceRow[];
+  let reported = 0;
+
+  for (const row of rows) {
     const stripeCustomerId = row.companies?.stripe_customer_id;
     if (!stripeCustomerId) continue; // company not billed yet — try next hour
     try {
@@ -404,7 +438,15 @@ export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
         `call_records stamp failed: ${stampError.message}`,
       );
     }
+    reported += 1;
   }
+
+  await recordReporterProgress(
+    env,
+    "job:report-voice-usage:work",
+    rows.length,
+    reported,
+  );
 }
 
 /**

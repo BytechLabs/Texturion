@@ -357,6 +357,69 @@ describe("failStuckOutboundSends (#20)", () => {
   });
 });
 
+describe("reportUnreportedUsage — work done, not just execution (#333)", () => {
+  /** Captures the liveness keys the reporter beat during a run. */
+  function heartbeatRoute() {
+    const beats: string[] = [];
+    const route = stubRoute(
+      (url, request) =>
+        request.method === "POST" && url.pathname === "/rest/v1/rpc/record_heartbeat",
+      // stubRoute already JSON-parses the request body — String()-ing it back
+      // yields "[object Object]" and throws inside the responder, which the
+      // stub then serves as the RPC's response.
+      (call) => {
+        beats.push((call.body as { p_key: string }).p_key);
+        return { recovered: false };
+      },
+    );
+    return { beats, route: route.route };
+  }
+
+  it("beats when there was nothing outstanding to report", async () => {
+    // A quiet platform is healthy, not broken. Without this the key would go
+    // overdue on any workspace with no traffic, and the first alert anyone
+    // ever saw would be a false one.
+    const hb = heartbeatRoute();
+    stubFetch(
+      stubRoute(restMatch(env, "GET", "usage_events"), () => []).route,
+      hb.route,
+    );
+
+    await reportUnreportedUsage(env);
+
+    expect(hb.beats).toContain("job:report-usage:work");
+  });
+
+  it("does NOT beat when rows were outstanding and none got through", async () => {
+    // The failure this exists for: the job runs hourly, succeeds hourly, and
+    // every Stripe call errors. Schedule heartbeat fine, job heartbeat fine,
+    // revenue quietly unbilled. Withholding this beat is the only signal.
+    const hb = heartbeatRoute();
+    stubFetch(
+      stubRoute(restMatch(env, "GET", "usage_events"), () => [
+        {
+          id: "u-1",
+          quantity: 2,
+          meter_identifier: TELNYX_ID,
+          created_at: new Date().toISOString(),
+          companies: { stripe_customer_id: "cus_123" },
+        },
+      ]).route,
+      stubRoute(
+        (url, request) =>
+          request.method === "POST" &&
+          url.href === "https://api.stripe.com/v1/billing/meter_events",
+        () => new Response("nope", { status: 500 }),
+      ).route,
+      hb.route,
+    );
+
+    await reportUnreportedUsage(env);
+
+    expect(hb.beats).not.toContain("job:report-usage:work");
+  });
+});
+
 describe("reportUnreportedUsage", () => {
   it("re-reports unstamped rows and stamps them; rows without a customer are skipped", async () => {
     const usageQuery = stubRoute(
