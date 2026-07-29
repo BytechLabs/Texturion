@@ -16,6 +16,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { requireRole } from "../auth/company";
 import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -37,6 +38,30 @@ interface MembershipRow {
 }
 
 export const meRoutes = new Hono<AppEnv>();
+
+/**
+ * GET /v1/me/firsts — #405. Has THIS member replied, written a note, and
+ * marked something done.
+ *
+ * Its own route rather than a field on GET /v1/me, deliberately. /v1/me is the
+ * hottest route in the product and already fans out four parallel queries on
+ * every app load; this answers a question that only matters for a few days of
+ * one person's life, and paying for it forever on the app's critical path
+ * would be a poor trade for a card that disappears.
+ *
+ * NOT company-exempt (unlike /v1/me itself), so the company middleware
+ * resolves membership before this runs and the answer is scoped to the
+ * workspace the caller is actually in.
+ */
+meRoutes.get("/me/firsts", requireRole("member"), async (c) => {
+  const db = getDb(getEnv(c.env));
+  const { data, error } = await db.rpc("api_member_firsts", {
+    p_company_id: c.get("companyId"),
+    p_user_id: c.get("userId"),
+  });
+  if (error) throw new Error(`member firsts lookup failed: ${error.message}`);
+  return c.json(data);
+});
 
 // #112: the caller sets their OWN display name (the team sees it everywhere —
 // members list, avatars, notes). Company-exempt: the invite flow collects the
