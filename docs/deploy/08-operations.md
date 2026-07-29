@@ -153,9 +153,23 @@ affected leg (e.g. a Stripe test event after rotating the webhook secret).
 
 ## 6. Backups & restore (Supabase)
 
+> **The runbook is `docs/DISASTER-RECOVERY.md`.** What follows is the Supabase
+> half only. Postgres is **not** all our state — R2, Durable Object call state,
+> Stripe and Telnyx do not roll back with it, and restoring the database alone
+> leaves us inconsistent with all four. The runbook covers the reconciliation,
+> the RPO/RTO targets (D74), the migration-after-restore question, and the
+> measured drill. Read it before restoring anything.
+
 - **Automated backups** ship with Supabase **Pro** — daily backups with
-  **Point-in-Time Recovery (PITR)** available. Confirm PITR is enabled in
-  Supabase → **Database → Backups**.
+  **Point-in-Time Recovery (PITR)** available. PITR status and retention are
+  recorded as a dated fact in `docs/DISASTER-RECOVERY.md` §2 rather than
+  asserted here; if that row is empty or stale, the honest reading is
+  "unknown", and you should assume daily-only (RPO 24h) until somebody checks
+  Supabase → **Database → Backups** and writes down what they saw.
+- **Drill it:** `node scripts/ops/backup-drill.mjs` dumps, restores into a
+  scratch database and verifies every per-table row count, timing each phase.
+  Last run 2026-07-29: 2.1s for the full schema, all counts matched. An
+  untested backup is a belief.
 - **Restore:** use the dashboard's PITR/restore to a timestamp. For a full
   environment rebuild, migrations are the source of truth — a fresh project +
   `supabase db push` reproduces the schema exactly (CI proves this on every run via

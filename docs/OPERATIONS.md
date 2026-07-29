@@ -56,6 +56,8 @@ reliable defence.
 | `reset-registration.mjs` | A rejected 10DLC brand or campaign (#352) | Re-opens the wizard; **submits nothing to Telnyx** |
 | `set-release-policy.mjs` | Recommending — or requiring — an app update (#339) | Prints the blast radius before the write. A floor is governed by **D71** |
 | `version-distribution.mjs` | "Does everyone have the fix?" (#339) | Read-only; no `--apply`. Names the cohort reporting no version at all |
+| `set-flag.mjs` | Containing an incident without a deploy (#283) | Kill switches take ~10s. See **`docs/ROLLBACK.md`** |
+| `backup-drill.mjs` | Proving the data comes back, and timing it (#249) | Dump → restore → verify against a scratch DB. See **`docs/DISASTER-RECOVERY.md`** |
 
 ### The one promise that needs saying out loud
 

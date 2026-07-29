@@ -3341,3 +3341,43 @@ be a lie about the timeline. `docs/NUMBER-REPUTATION.md` is the runbook.
 list, which the composer's "text from" picker reads. A reputation lookup has no
 business being able to stop somebody texting a customer, so any failure returns
 an empty map and no banner.
+
+## D74 — RPO 5 minutes, RTO 4 hours, and the honest asterisk on both (#249, 2026-07-29)
+
+**Decision.** **RPO 5 minutes. RTO 4 hours.** Both are commitments about
+Postgres. Neither covers the reconciliation of the four stores that do not roll
+back.
+
+**Why these numbers.** The RPO is not a preference — it is what Supabase PITR's
+WAL granularity gives us, so choosing anything tighter would be a wish. The RTO
+is deliberately much longer than the restore takes: the measured data path is
+**2.1 seconds** for the current schema (66 tables, 154 functions, every per-table
+row count verified — `scripts/ops/backup-drill.mjs`, drilled 2026-07-29). Four
+hours is what *discovering, deciding and reconciling* costs. An RTO set to the
+restore time would be a number that has never survived contact with an incident.
+
+**Why they had to be written down at all.** Without them there is no way to say
+whether any given recovery was acceptable — which means there is no way to argue
+about whether the current arrangement is good enough, and so nobody ever does.
+
+**What the drill proves and what it does not.** It proves the logical path: the
+dump restores, no constraint or extension bites only on reload, nothing is
+silently dropped. It is **not** a PITR drill — restoring Supabase's point-in-time
+backup into a fresh project is a dashboard action with a cost, and only the
+founder can perform it. That remains the one open item on #249, and
+`docs/DISASTER-RECOVERY.md` says so rather than letting the script imply coverage
+it does not have.
+
+**Postgres is not all our state**, and the four others are reconciled, never
+restored: R2 attachments (rows pointing at deleted objects, and orphan objects),
+Durable Object call state (turn off `kill:calls` *before* restoring — a DB
+restore under live DOs is undefined behaviour), Stripe (the drift is money, and
+we would not know in whose favour), and Telnyx (a row claiming a number we no
+longer hold looks healthy and fails every send). Each has an existing reconcile
+job; the runbook says which, and what each job cannot see.
+
+**The concentration risk is stated, not solved.** Everything lives in one vendor
+account, so account-level loss takes the backups with the data. Where an
+independent copy lives, who holds the key, and its retention are founder
+decisions with cost and custody implications — inventing them in a document would
+be exactly the unverified instruction this work exists to replace.
