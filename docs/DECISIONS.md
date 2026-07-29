@@ -3142,3 +3142,47 @@ their businesses.
 the better long-term answer for phone-first users; the issue's acceptance asks
 for "a TOTP factor **or** a passkey", so TOTP satisfies it today and passkeys
 are a follow-up rather than a silent omission.
+
+---
+
+## D70 — support edits get a dry run and a record, not a console (#404, 2026-07-29)
+
+**Decision.** Four reviewed scripts under `scripts/ops/`, every one dry-run by
+default and every one writing an `audit_log` row. No admin console.
+
+**The issue's own devil's advocate settles the scope**, and it is right twice:
+building a console for support volume we do not have is premature, AND the
+safety half applies today. The reason is that the risk does not scale with
+customer count — **it scales with the number of times somebody runs a manual
+statement, and the worst outcome is available on the very first one.**
+
+**The audit log was hardened against the wrong thing.** `update`, `delete` and
+`truncate` are revoked from every role including `service_role`, so no route
+and no stolen key can rewrite history. That protects against the application.
+It did nothing about the console, because the console wrote nothing at all —
+so the single most dangerous class of change we make (unreviewed, untested,
+run once, against live data, on a Saturday because a customer is upset) was
+the only one with no record that it happened. These scripts write the row the
+app would have written: null actor, `platform-ops/<script>` agent.
+
+**The audit write is never best-effort.** If the record fails, the script says
+so loudly and tells the operator to write it by hand. A support edit that
+silently failed to log would be worse than the ad-hoc SQL it replaced.
+
+**Tenant filters are FILTERS, not checks.** Every script takes `--company` and
+applies it inside the query, so a mistyped conversation id returns nothing
+rather than returning somebody else's row for a human to act on. #347 makes
+the case that tenant isolation is a convention across hundreds of query sites;
+hand-written support SQL was the site with no review, no test and no types.
+
+**And the promise now matches the mechanism.** The closure screen said "email
+us and we can undo it" with no route, no script and no surface behind it.
+There is one now — and it restores everything except the phone number, which
+closing releases at Telnyx immediately and on purpose, because holding a number
+costs us money for a workspace that asked to leave. The script reports that in
+red-flag terms rather than quietly reopening, and the copy now names it in the
+same sentence as the undo instead of two bullets apart.
+
+**What stays by hand is written down** in `docs/OPERATIONS.md` rather than left
+to be rediscovered: stuck port-ins, delivery investigations, and anything
+touching money (which goes through Stripe's dashboard, with its own trail).

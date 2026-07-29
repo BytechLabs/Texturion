@@ -87,6 +87,13 @@ export type AuditAction =
   // here, and the one an owner is most likely to ask us about afterwards.
   | "workspace.closed"
   | "workspace.reopened"
+  // #404: actions taken by a PLATFORM operator rather than by anyone in the
+  // workspace — the support fixes that used to be hand-written SQL leaving no
+  // trace at all. They carry a null actor (the schema's system-actor slot) and
+  // a `platform-ops/<script>` agent, so a reader can tell a support edit from
+  // a background job.
+  | "spam.cleared"
+  | "registration.reset"
   // Who this business may still contact (#331). The one kind of change
   // nobody on the crew can undo, and the first thing anyone reaches for when
   // a customer says they asked to be left alone.

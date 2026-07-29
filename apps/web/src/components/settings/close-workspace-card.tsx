@@ -110,7 +110,9 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
             >
               email us
             </a>{" "}
-            and we can undo it. After that nobody can.
+            and we can put the workspace back — every message, contact and job
+            exactly as you left it. Not the number, though: that one is already
+            gone. After 30 days nobody can undo any of it.
           </li>
           <li>
             Anyone who replied STOP stays on the do-not-text list. That record
