@@ -166,4 +166,113 @@ class TimelineTest {
         )
         assertEquals("Brand new event type", eventLine(unknown, names, "Sam"))
     }
+
+    // ---------------------------------------------------------------------
+    // #273 — one call event, six readings. Every shape that was not a
+    // voicemail used to collapse to "Call with X ended", so an outbound call,
+    // a missed call and a transfer were indistinguishable on the phone while
+    // web showed all three. Same table as the iOS twin and web.
+    //
+    // The durations read "4m 32s", not "4:32" as #273's examples say: all three
+    // formatCallDuration implementations agree on the m/s form, so the issue's
+    // quoted web strings were illustrative rather than literal.
+    // ---------------------------------------------------------------------
+
+    private fun callEvent(payload: Map<String, String>): ConversationEvent =
+        ConversationEvent(
+            id = "call-1",
+            conversation_id = "c1",
+            actor_user_id = null,
+            type = "call_completed",
+            payload = buildJsonObject { payload.forEach { (k, v) -> put(k, v) } },
+            created_at = "2026-07-15T00:00:00Z",
+        )
+
+    private fun callLine(payload: Map<String, String>): String =
+        eventLine(callEvent(payload), mapOf("u1" to "Sam", "u2" to "Alex"), "Dana")
+
+    @Test
+    fun `an outbound call speaks from the crew side, with its length`() {
+        assertEquals(
+            "You called · 4m 32s",
+            callLine(mapOf("direction" to "outbound", "outcome" to "answered", "forward_seconds" to "272")),
+        )
+        assertEquals(
+            "You called",
+            callLine(mapOf("direction" to "outbound", "outcome" to "answered")),
+        )
+        assertEquals(
+            "Called, no answer",
+            callLine(mapOf("direction" to "outbound", "outcome" to "missed")),
+        )
+    }
+
+    @Test
+    fun `a transfer names who handed the call to whom`() {
+        assertEquals(
+            "Sam transferred the call to Alex",
+            callLine(mapOf("kind" to "transferred", "from_user_id" to "u1", "to_user_id" to "u2")),
+        )
+        // An unresolvable sender still names the recipient rather than going
+        // generic — the useful half of the sentence survives.
+        assertEquals(
+            "Call transferred to Alex",
+            callLine(mapOf("kind" to "transferred", "to_user_id" to "u2")),
+        )
+        assertEquals("Call transferred", callLine(mapOf("kind" to "transferred")))
+    }
+
+    @Test
+    fun `an inbound call reports its outcome`() {
+        assertEquals(
+            "Call answered · 4m 32s",
+            callLine(mapOf("direction" to "inbound", "outcome" to "answered", "forward_seconds" to "272")),
+        )
+        assertEquals("Call answered", callLine(mapOf("direction" to "inbound", "outcome" to "answered")))
+        assertEquals("Missed call", callLine(mapOf("direction" to "inbound", "outcome" to "missed")))
+        assertEquals(
+            "Call went to voicemail",
+            callLine(mapOf("direction" to "inbound", "outcome" to "voicemail")),
+        )
+    }
+
+    @Test
+    fun `a voicemail carries the MESSAGE length, not the call outcome`() {
+        // Branch order is the point: a voicemail also has outcome=voicemail, so
+        // testing outcome first would swallow the message duration.
+        assertEquals(
+            "Left a voicemail · 45s",
+            callLine(mapOf("kind" to "voicemail", "outcome" to "voicemail", "voicemail_seconds" to "45")),
+        )
+        assertEquals(
+            "Left a voicemail",
+            callLine(mapOf("kind" to "voicemail", "outcome" to "voicemail")),
+        )
+    }
+
+    @Test
+    fun `an outbound transfer is read as a transfer, not as an outbound call`() {
+        // The other ordering trap: a transferred call still carries a direction.
+        assertEquals(
+            "Sam transferred the call to Alex",
+            callLine(
+                mapOf(
+                    "kind" to "transferred",
+                    "direction" to "inbound",
+                    "from_user_id" to "u1",
+                    "to_user_id" to "u2",
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `a bare payload never reads as the old catch-all`() {
+        // "Call with Dana ended" was the bug. Anything is better than a line
+        // that hides the outcome, and "Call answered" is the honest default for
+        // an inbound call the server told us completed.
+        val line = callLine(emptyMap())
+        assertEquals("Call answered", line)
+        assertFalse(line.contains("ended"))
+    }
 }

@@ -264,20 +264,17 @@ fun eventLine(
         "task_attachment_added" -> "$actor attached a file to a task"
         "task_attachment_removed" -> "$actor removed a file from a task"
         "missed_call" -> "Missed call from $contactName"
-        // A voicemail is a MESSAGE, not just a call that ended. Read as the
-        // generic line it looked identical to a call nobody left anything on,
-        // which is how a customer's message goes unheard.
-        "call_completed" ->
-            if (event.payloadString("kind") == "voicemail") {
-                val seconds = event.payloadString("voicemail_seconds")?.toIntOrNull() ?: 0
-                if (seconds > 0) {
-                    "Left a voicemail · ${formatCallDuration(seconds)}"
-                } else {
-                    "Left a voicemail"
-                }
-            } else {
-                "Call with $contactName ended"
-            }
+        // #273: the server puts direction, outcome, forward_seconds and a
+        // transfer pair on this payload, and this arm read ONE of them. Every
+        // shape that was not a voicemail collapsed to "Call with X ended", so a
+        // 4:32 outbound call, a missed call and a transfer were indistinguishable
+        // on the phone while web showed all three. A crew comparing web and
+        // mobile saw two different histories for one conversation.
+        //
+        // Branch order matters and mirrors web exactly (system-line.tsx): a
+        // voicemail is also an inbound call with an outcome, so the specific
+        // shapes have to be tested before the generic ones.
+        "call_completed" -> callCompletedLine(event, memberNames)
         "auto_reply_sent" -> "Away auto-reply sent"
         else -> event.type.replace('_', ' ').replaceFirstChar { it.uppercase() }
     }
@@ -296,3 +293,56 @@ fun memberNames(members: List<Member>): Map<String, String> =
     members.associate { member ->
         member.user_id to member.display_name.ifBlank { "Teammate" }
     }
+
+/**
+ * #273 — one call event, six honest readings.
+ *
+ * A direct port of the web arm in `apps/web/src/components/thread/system-line.tsx`
+ * so a thread reads identically wherever it is opened. Order is load-bearing:
+ * a voicemail carries an `outcome` too, and a transfer carries a `direction`,
+ * so testing the generic fields first would swallow the specific shapes.
+ */
+private fun callCompletedLine(
+    event: ConversationEvent,
+    memberNames: Map<String, String>,
+): String {
+    val outcome = event.payloadString("outcome")
+    val seconds = event.payloadString("forward_seconds")?.toIntOrNull() ?: 0
+
+    // D38: an outbound bridge call speaks from the crew's side.
+    if (event.payloadString("direction") == "outbound") {
+        if (outcome == "missed") return "Called, no answer"
+        return if (seconds > 0) {
+            "You called · ${formatCallDuration(seconds)}"
+        } else {
+            "You called"
+        }
+    }
+
+    // D43 phase 3: who handed the call to whom. A transfer that never ended
+    // was previously described as a call that did.
+    if (event.payloadString("kind") == "transferred") {
+        val to = event.payloadString("to_user_id")?.let { memberNames[it] }
+        val from = event.payloadString("from_user_id")?.let { memberNames[it] }
+        if (to != null && from != null) return "$from transferred the call to $to"
+        return if (to != null) "Call transferred to $to" else "Call transferred"
+    }
+
+    // D43: the voicemail line carries the MESSAGE duration, not the call's.
+    if (event.payloadString("kind") == "voicemail") {
+        val vmSeconds = event.payloadString("voicemail_seconds")?.toIntOrNull() ?: 0
+        return if (vmSeconds > 0) {
+            "Left a voicemail · ${formatCallDuration(vmSeconds)}"
+        } else {
+            "Left a voicemail"
+        }
+    }
+
+    if (outcome == "voicemail") return "Call went to voicemail"
+    if (outcome == "missed") return "Missed call"
+    return if (seconds > 0) {
+        "Call answered · ${formatCallDuration(seconds)}"
+    } else {
+        "Call answered"
+    }
+}

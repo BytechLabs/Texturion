@@ -184,4 +184,129 @@ final class MessagingTimelineTests: XCTestCase {
             "Brand new event type"
         )
     }
+
+    // MARK: - #273: one call event, six readings
+    //
+    // Every shape that was not a voicemail collapsed to "Call with X ended", so
+    // an outbound call, a missed call and a transfer were indistinguishable on
+    // the phone while web showed all three. Same table as the Kotlin twin.
+    //
+    // Durations read "4m 32s", not "4:32" as #273's examples say: all three
+    // formatCallDuration implementations agree on the m/s form, so the issue's
+    // quoted web strings were illustrative rather than literal.
+
+    private func callLine(_ payload: [String: JSONValue]) -> String {
+        let event = ConversationEvent(
+            id: "call-1",
+            conversation_id: "c1",
+            actor_user_id: nil,
+            type: "call_completed",
+            payload: .object(payload),
+            created_at: "2026-07-15T00:00:00Z"
+        )
+        return eventLine(
+            event,
+            memberNames: ["u1": "Sam", "u2": "Alex"],
+            contactName: "Dana"
+        )
+    }
+
+    func testAnOutboundCallSpeaksFromTheCrewSideWithItsLength() {
+        XCTAssertEqual(
+            callLine([
+                "direction": .string("outbound"),
+                "outcome": .string("answered"),
+                "forward_seconds": .number(272),
+            ]),
+            "You called · 4m 32s"
+        )
+        XCTAssertEqual(
+            callLine(["direction": .string("outbound"), "outcome": .string("answered")]),
+            "You called"
+        )
+        XCTAssertEqual(
+            callLine(["direction": .string("outbound"), "outcome": .string("missed")]),
+            "Called, no answer"
+        )
+    }
+
+    func testATransferNamesWhoHandedTheCallToWhom() {
+        XCTAssertEqual(
+            callLine([
+                "kind": .string("transferred"),
+                "from_user_id": .string("u1"),
+                "to_user_id": .string("u2"),
+            ]),
+            "Sam transferred the call to Alex"
+        )
+        // An unresolvable sender still names the recipient rather than going
+        // generic — the useful half of the sentence survives.
+        XCTAssertEqual(
+            callLine(["kind": .string("transferred"), "to_user_id": .string("u2")]),
+            "Call transferred to Alex"
+        )
+        XCTAssertEqual(callLine(["kind": .string("transferred")]), "Call transferred")
+    }
+
+    func testAnInboundCallReportsItsOutcome() {
+        XCTAssertEqual(
+            callLine([
+                "direction": .string("inbound"),
+                "outcome": .string("answered"),
+                "forward_seconds": .number(272),
+            ]),
+            "Call answered · 4m 32s"
+        )
+        XCTAssertEqual(
+            callLine(["direction": .string("inbound"), "outcome": .string("answered")]),
+            "Call answered"
+        )
+        XCTAssertEqual(
+            callLine(["direction": .string("inbound"), "outcome": .string("missed")]),
+            "Missed call"
+        )
+        XCTAssertEqual(
+            callLine(["direction": .string("inbound"), "outcome": .string("voicemail")]),
+            "Call went to voicemail"
+        )
+    }
+
+    func testAVoicemailCarriesTheMessageLengthNotTheCallOutcome() {
+        // Branch order is the point: a voicemail also has outcome=voicemail, so
+        // testing outcome first would swallow the message duration. And the
+        // seconds arrive as a JSON NUMBER (#270).
+        XCTAssertEqual(
+            callLine([
+                "kind": .string("voicemail"),
+                "outcome": .string("voicemail"),
+                "voicemail_seconds": .number(45),
+            ]),
+            "Left a voicemail · 45s"
+        )
+        XCTAssertEqual(
+            callLine(["kind": .string("voicemail"), "outcome": .string("voicemail")]),
+            "Left a voicemail"
+        )
+    }
+
+    func testATransferredCallIsReadAsATransferNotAsItsDirection() {
+        // The other ordering trap: a transferred call still carries a direction.
+        XCTAssertEqual(
+            callLine([
+                "kind": .string("transferred"),
+                "direction": .string("inbound"),
+                "from_user_id": .string("u1"),
+                "to_user_id": .string("u2"),
+            ]),
+            "Sam transferred the call to Alex"
+        )
+    }
+
+    func testABarePayloadNeverReadsAsTheOldCatchAll() {
+        // "Call with Dana ended" was the bug. "Call answered" is the honest
+        // default for an inbound call the server told us completed.
+        let line = callLine([:])
+        XCTAssertEqual(line, "Call answered")
+        XCTAssertFalse(line.contains("ended"))
+    }
 }

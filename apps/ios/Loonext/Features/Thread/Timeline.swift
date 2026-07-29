@@ -307,20 +307,13 @@ func eventLine(
     case "task_attachment_added": return "\(actor) attached a file to a task"
     case "task_attachment_removed": return "\(actor) removed a file from a task"
     case "missed_call": return "Missed call from \(contactName)"
-    // A voicemail is a MESSAGE, not just a call that ended. Read as the generic
-    // line it looked identical to a call nobody left anything on, which is how
-    // a customer's message goes unheard.
+    // #273: the server puts direction, outcome, forward_seconds and a transfer
+    // pair on this payload, and this arm read ONE of them. Every shape that was
+    // not a voicemail collapsed to "Call with X ended", so a 4:32 outbound call,
+    // a missed call and a transfer were indistinguishable on the phone while web
+    // showed all three — one conversation with two different histories.
     case "call_completed":
-        guard event.payload["kind"]?.stringValue == "voicemail" else {
-            return "Call with \(contactName) ended"
-        }
-        // #270: the server writes this as a JSON NUMBER, and stringValue is nil
-        // for numbers — so this read always produced 0 and the duration arm
-        // below was dead code on iOS while Android and web both showed it.
-        let seconds = event.payload["voicemail_seconds"]?.intValue ?? 0
-        return seconds > 0
-            ? "Left a voicemail · \(formatCallDuration(seconds))"
-            : "Left a voicemail"
+        return callCompletedLine(event, memberNames: memberNames)
     case "auto_reply_sent": return "Away auto-reply sent"
     default:
         let plain = event.type.replacingOccurrences(of: "_", with: " ")
@@ -345,4 +338,50 @@ func memberNames(_ members: [Member]) -> [String: String] {
         names[member.user_id] = member.display_name.isBlank ? "Teammate" : member.display_name
     }
     return names
+}
+
+/// #273 — one call event, six honest readings.
+///
+/// A direct port of the web arm in `apps/web/src/components/thread/system-line.tsx`
+/// so a thread reads identically wherever it is opened. Order is load-bearing: a
+/// voicemail carries an `outcome` too, and a transfer carries a `direction`, so
+/// testing the generic fields first would swallow the specific shapes.
+func callCompletedLine(
+    _ event: ConversationEvent,
+    memberNames: [String: String]
+) -> String {
+    let outcome = event.payload["outcome"]?.stringValue
+    // #270: these are JSON NUMBERS — read through intValue, never stringValue.
+    let seconds = event.payload["forward_seconds"]?.intValue ?? 0
+
+    // D38: an outbound bridge call speaks from the crew's side.
+    if event.payload["direction"]?.stringValue == "outbound" {
+        if outcome == "missed" { return "Called, no answer" }
+        return seconds > 0
+            ? "You called · \(formatCallDuration(seconds))"
+            : "You called"
+    }
+
+    // D43 phase 3: who handed the call to whom. A transfer that never ended was
+    // previously described as a call that did.
+    if event.payload["kind"]?.stringValue == "transferred" {
+        let to = event.payload["to_user_id"]?.stringValue.flatMap { memberNames[$0] }
+        let from = event.payload["from_user_id"]?.stringValue.flatMap { memberNames[$0] }
+        if let to, let from { return "\(from) transferred the call to \(to)" }
+        return to.map { "Call transferred to \($0)" } ?? "Call transferred"
+    }
+
+    // D43: the voicemail line carries the MESSAGE duration, not the call's.
+    if event.payload["kind"]?.stringValue == "voicemail" {
+        let vmSeconds = event.payload["voicemail_seconds"]?.intValue ?? 0
+        return vmSeconds > 0
+            ? "Left a voicemail · \(formatCallDuration(vmSeconds))"
+            : "Left a voicemail"
+    }
+
+    if outcome == "voicemail" { return "Call went to voicemail" }
+    if outcome == "missed" { return "Missed call" }
+    return seconds > 0
+        ? "Call answered · \(formatCallDuration(seconds))"
+        : "Call answered"
 }
