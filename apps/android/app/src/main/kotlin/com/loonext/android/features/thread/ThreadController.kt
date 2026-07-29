@@ -110,6 +110,16 @@ class ThreadController(
         private set
     var pendingSends by mutableStateOf<List<PendingSend>>(emptyList())
         private set
+
+    /**
+     * #234: the durable queue behind `pendingSends`.
+     *
+     * Lazy off the context the controller already holds rather than a new
+     * constructor parameter — every caller would otherwise have to thread it
+     * through, and the logic worth testing lives in OutboxFlusher, which is
+     * driven directly on the JVM by OutboxTest.
+     */
+    private val outbox: Outbox by lazy { Outbox(appContext) }
     var members by mutableStateOf<List<Member>>(emptyList())
         private set
     var contact by mutableStateOf<Contact?>(null)
@@ -211,6 +221,13 @@ class ThreadController(
             load = LoadState.Ready(Unit)
         }
         persistSnapshot()
+
+        // #234: whatever was queued before this process existed comes back
+        // into the thread, then we try to drain it. Restoring BEFORE flushing
+        // is deliberate — if there is still no signal, the person opening the
+        // thread sees their message sitting there rather than an empty
+        // conversation that quietly ate it.
+        scope.launch { restoreQueued(); flushOutbox() }
 
         // Secondary loads — quiet failures; they gate niceties, not the thread.
         scope.launch { runCatching { refreshEvents() } }
@@ -525,11 +542,43 @@ class ThreadController(
                 persistSnapshot()
                 markRead()
             } catch (cause: Exception) {
+                val code = (cause as? ApiException)?.code
+                // #234: did we REACH the server? That is the whole decision.
+                //
+                // NETWORK means we never got an answer, so the message waits
+                // for one — it stays in the thread as "Queued" and is written
+                // to the durable outbox, which is what makes it survive the
+                // app being killed on the walk back to the truck.
+                //
+                // Photos are deliberately NOT queued yet: a staged photo is a
+                // content URI whose read permission does not survive the
+                // process (the same reason ComposerDrafts refuses to persist
+                // them), so queueing one would restore a dead chip and send a
+                // message with the photo silently missing. Until they are
+                // copied into app storage, a photo send keeps today's honest
+                // behaviour — the draft comes back and the person is told.
+                if (code == ApiErrorCode.NETWORK && photos.isEmpty()) {
+                    pendingSends = pendingSends.map {
+                        if (it.localId == key) it.copy(queued = true) else it
+                    }
+                    runCatching {
+                        outbox.put(
+                            QueuedSend(
+                                localId = key,
+                                companyId = companyId,
+                                conversationId = conversationId,
+                                body = body,
+                                createdAt = pendingRow.createdAt,
+                            ),
+                        )
+                    }
+                    lastFailedIntent = null
+                    return@launch
+                }
                 pendingSends = pendingSends - pendingRow
                 lastFailedIntent = FailedSendIntent(body, photoIds, key)
                 onRestore()
                 notify(cause.userMessage())
-                val code = (cause as? ApiException)?.code
                 if (code == ApiErrorCode.RECIPIENT_OPTED_OUT ||
                     code == ApiErrorCode.SUBSCRIPTION_INACTIVE ||
                     code == ApiErrorCode.REGISTRATION_PENDING ||
@@ -538,6 +587,96 @@ class ThreadController(
                     refreshGates()
                 }
             }
+        }
+    }
+
+    // --- #234 outbox ---------------------------------------------------------
+
+    /** Paint the durable queue for this thread back into the timeline. */
+    private suspend fun restoreQueued() {
+        val rows = runCatching { outbox.forConversation(conversationId) }.getOrNull() ?: return
+        val restored = rows.map { row ->
+            PendingSend(
+                localId = row.localId,
+                body = row.body,
+                mediaCount = 0,
+                createdAt = row.createdAt,
+                idempotencyKey = row.localId,
+                queued = row.blocked.not(),
+                blockedReason = if (row.blocked) row.lastError else null,
+            )
+        }
+        val known = restored.map { it.localId }.toSet()
+        pendingSends = pendingSends.filterNot { it.localId in known } + restored
+    }
+
+    /**
+     * Drain the queue. Safe to call from anywhere and as often as you like —
+     * OutboxFlusher holds the mutex that makes an LTE/Wi-Fi handoff firing two
+     * callbacks land one message rather than two.
+     */
+    fun flushOutbox() {
+        scope.launch {
+            val flusher = OutboxFlusher(outbox) { item ->
+                try {
+                    val message = repo.send(
+                        companyId = item.companyId,
+                        conversationId = item.conversationId,
+                        body = item.body,
+                        media = null,
+                        // The key minted when the person pressed send, reused
+                        // on every attempt — this is what makes the flush
+                        // idempotent rather than merely retried.
+                        idempotencyKey = item.localId,
+                    )
+                    if (item.conversationId == conversationId) {
+                        pendingSends = pendingSends.filterNot { it.localId == item.localId }
+                        messages = mergeMessagesFirstPage(messages, listOf(message))
+                    }
+                    SendOutcome.Sent
+                } catch (cause: Exception) {
+                    val code = (cause as? ApiException)?.code
+                    if (code == ApiErrorCode.NETWORK) {
+                        SendOutcome.Unreachable(cause.userMessage())
+                    } else {
+                        SendOutcome.Refused(cause.userMessage())
+                    }
+                }
+            }
+            val result = runCatching { flusher.flush() }.getOrNull() ?: return@launch
+            if (result.sent.isNotEmpty()) {
+                persistSnapshot()
+                markRead()
+            }
+            // A refusal changes what the row says, so repaint from the store
+            // rather than guessing which one was blocked.
+            if (result.blocked.isNotEmpty()) {
+                restoreQueued()
+                refreshGates()
+            }
+        }
+    }
+
+    /** Drop a queued message the person has decided against (#234). */
+    fun discardQueued(localId: String) {
+        scope.launch {
+            runCatching { outbox.remove(localId) }
+            pendingSends = pendingSends.filterNot { it.localId == localId }
+        }
+    }
+
+    /**
+     * Try a blocked row again, because the person believes the reason is gone
+     * — the cap reset, the registration came back. Clears the block so the
+     * next flush actually asks, rather than reporting the old answer.
+     */
+    fun retryQueued(localId: String) {
+        scope.launch {
+            val row = runCatching { outbox.all() }.getOrNull()
+                ?.firstOrNull { it.localId == localId } ?: return@launch
+            runCatching { outbox.put(row.copy(blocked = false, lastError = null)) }
+            restoreQueued()
+            flushOutbox()
         }
     }
 

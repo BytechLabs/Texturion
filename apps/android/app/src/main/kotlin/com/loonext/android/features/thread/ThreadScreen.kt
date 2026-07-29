@@ -1,5 +1,7 @@
 package com.loonext.android.features.thread
 
+import android.net.ConnectivityManager
+import android.net.Network
 import android.Manifest
 import android.content.Intent
 import androidx.activity.compose.BackHandler
@@ -76,6 +78,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -176,7 +179,31 @@ fun ThreadScreen(
     // #215: a frame missed while this thread was backgrounded/blurred is lost
     // until a re-JOIN — self-heal on return to the foreground via the same
     // refetch the reconnect path uses.
-    ResyncOnResume(controller) { controller.refreshAfterReconnect() }
+    ResyncOnResume(controller) {
+        controller.refreshAfterReconnect()
+        // #234: coming back to the app is the most common moment the bars
+        // came back too — the walk out of the basement to the truck.
+        controller.flushOutbox()
+    }
+
+    // #234: and the case a foreground return does NOT cover — the phone
+    // regaining signal while the thread is open in the person's hand.
+    //
+    // Registered HERE rather than in the controller because the controller has
+    // no teardown: a default network callback per thread opened would leak one
+    // per screen for the life of the process. DisposableEffect is the hook that
+    // guarantees the unregister.
+    val appContext = LocalContext.current.applicationContext
+    DisposableEffect(controller) {
+        val connectivity = appContext.getSystemService(ConnectivityManager::class.java)
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                controller.flushOutbox()
+            }
+        }
+        runCatching { connectivity?.registerDefaultNetworkCallback(callback) }
+        onDispose { runCatching { connectivity?.unregisterNetworkCallback(callback) } }
+    }
     // Mark read on open and again whenever the newest message id changes.
     LaunchedEffect(controller, controller.newestMessageId) { controller.markRead() }
 

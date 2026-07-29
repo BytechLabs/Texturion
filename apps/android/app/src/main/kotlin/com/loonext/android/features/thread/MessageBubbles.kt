@@ -430,10 +430,19 @@ fun PendingBubble(pending: PendingSend, modifier: Modifier = Modifier) {
                 )
             }
         }
+        // #234: three states, three sentences. A queued message must never
+        // read as one that is on its way — that is the whole point of the
+        // outbox, and "Sending…" for a phone with no bars is a lie the person
+        // only discovers when the customer says nobody called them back.
         Text(
-            "Sending…",
+            when {
+                pending.blockedReason != null -> pending.blockedReason
+                pending.queued -> "Queued — will send when you're back online"
+                else -> "Sending…"
+            },
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (pending.blockedReason != null) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 3.dp),
         )
     }
