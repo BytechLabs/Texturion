@@ -5,6 +5,18 @@ export interface PlanCard {
   id: PlanId;
   name: string;
   price: string;
+  /**
+   * #381 — the monthly figure said again in a unit people spend in.
+   *
+   * A tradesperson reads "$29/month" against every other subscription they
+   * already resent paying for. The same number as a daily amount is the
+   * comparison that actually matches how the cost lands — one job answered
+   * pays for the year. DERIVED, so a retune can never leave it lying.
+   *
+   * *Applying: Contrast & Anchoring — present a cost alongside the smaller
+   * relatable amount, not only the number the card charges.*
+   */
+  daily: string;
   lines: string[];
 }
 
@@ -20,6 +32,10 @@ function planCard(id: PlanId, name: string, crewLine: string): PlanCard {
     id,
     name,
     price: `$${p.monthlyDollars}`,
+    // 30 days, not 30.44: a round month is what somebody checks on their
+    // fingers, and being a cent optimistic about our own price is the wrong
+    // direction to be imprecise in.
+    daily: `about $${(p.monthlyDollars / 30).toFixed(2)} a day`,
     lines: [
       "Texting included, bound by fair use",
       crewLine,

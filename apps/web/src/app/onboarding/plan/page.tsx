@@ -235,6 +235,9 @@ function PlanStep() {
                   <span className="app-emotional-number">{plan.price}</span>
                   <span className="text-sm text-muted-foreground">/month</span>
                 </p>
+                {/* #381: the same price in the unit it is actually felt in.
+                    *Applying: Contrast & Anchoring.* */}
+                <p className="mt-0.5 text-xs text-muted-foreground">{plan.daily}</p>
                 <ul className="mt-4 flex-1 space-y-2">
                   {plan.lines.map((line) => (
                     <li key={line} className="flex items-start gap-2 text-sm">
