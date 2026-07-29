@@ -830,6 +830,13 @@ Replace the current call-forwarding-workaround answer with the honest porting st
 
 ## 12. Open items flagged "verify in build" (do not guess at build time)
 
+> **These are also in `docs/VENDOR-QUESTIONS.md` (#373), which generalises this
+> section's discipline to the whole vendor surface.** This list stays the
+> detailed source for porting; the register is where somebody looks to find
+> every open vendor question at once — including the ones that are not about
+> porting, which is how the most consequential one came to be missing from
+> the only document that listed open vendor questions.
+
 - **§3.1** portability-check **response schema** only. The path is **pinned**:
   `POST /v2/portability_checks` (top-level — verified against the Telnyx API reference, the porting
   quickstart, and the "Automating Ports With Programmatic API" help article, all of which show

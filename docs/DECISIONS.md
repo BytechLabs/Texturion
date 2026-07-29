@@ -54,6 +54,9 @@ spec-review team (7 reviewers, 56 verified findings) and 5 web-verified research
       and is silent on CA→CA, and no API surface exposes a Canadian
       registration state. This is not a finding that D2 is wrong — it is that
       nobody here can currently say it is right.
+      **This question is tracked as V1 in `docs/VENDOR-QUESTIONS.md` (#373),
+      which is where every open vendor question now lives so none of them
+      depends on somebody remembering which document it was written in.**
       **The question to put to Telnyx, verbatim:** *"For a Canadian long code on
       our account sending A2P traffic to Canadian subscribers, is any
       registration or persona verification required, or performed by Telnyx on
