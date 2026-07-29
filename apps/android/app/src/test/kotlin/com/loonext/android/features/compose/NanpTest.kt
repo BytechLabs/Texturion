@@ -55,4 +55,32 @@ class NanpTest {
         // Non-geographic 521 has no zone → no hint.
         assertNull(Nanp.destinationLocalTime("+15215550134", at))
     }
+
+    // ---------------------------------------------------------------------
+    // #225 — the quiet-hours boundary, same table as the server's
+    // destination-clock.test.ts and the Swift twin. Three hand-ports of one
+    // legal-ish rule, so the boundary is asserted rather than assumed.
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `the quiet window is 8pm to 8am, boundaries included`() {
+        assertTrue("7am is quiet", Nanp.isQuietHour(7))
+        assertFalse("8am opens", Nanp.isQuietHour(8))
+        assertFalse("7pm is fine", Nanp.isQuietHour(19))
+        assertTrue("8pm closes", Nanp.isQuietHour(20))
+        assertTrue("midnight is quiet", Nanp.isQuietHour(0))
+    }
+
+    @Test
+    fun `every ordinary working hour is not quiet`() {
+        for (hour in 8..19) {
+            assertFalse("hour $hour should be sendable", Nanp.isQuietHour(hour))
+        }
+    }
+
+    @Test
+    fun `the window matches the constants it is built from`() {
+        assertEquals(20, Nanp.QUIET_HOURS_START)
+        assertEquals(8, Nanp.QUIET_HOURS_END)
+    }
 }

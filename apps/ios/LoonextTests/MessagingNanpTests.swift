@@ -53,4 +53,52 @@ final class MessagingNanpTests: XCTestCase {
     func testMetadataKeySetMatchesTheContactsAreaCodeTable() {
         XCTAssertEqual(Set(Nanp.areaCodeMetadata.keys), Nanp.areaCodes)
     }
+
+    // MARK: - #225, the quiet-hours boundary
+    //
+    // Same table as the server's destination-clock.test.ts and the Kotlin twin
+    // in features.compose.NanpTest. One rule, three hand-ports, so the boundary
+    // is asserted rather than assumed.
+
+    func testTheQuietWindowIs8pmTo8amBoundariesIncluded() {
+        XCTAssertTrue(Nanp.isQuietHour(7), "7am is quiet")
+        XCTAssertFalse(Nanp.isQuietHour(8), "8am opens")
+        XCTAssertFalse(Nanp.isQuietHour(19), "7pm is fine")
+        XCTAssertTrue(Nanp.isQuietHour(20), "8pm closes")
+        XCTAssertTrue(Nanp.isQuietHour(0), "midnight is quiet")
+    }
+
+    func testEveryOrdinaryWorkingHourIsNotQuiet() {
+        for hour in 8...19 {
+            XCTAssertFalse(Nanp.isQuietHour(hour), "hour \(hour) should be sendable")
+        }
+    }
+
+    func testTheWindowMatchesTheConstantsItIsBuiltFrom() {
+        XCTAssertEqual(Nanp.quietHoursStart, 20)
+        XCTAssertEqual(Nanp.quietHoursEnd, 8)
+    }
+
+    /// The defect this closed: the composer had only a LABEL, so every hour was
+    /// styled as the amber late-hour notice and an ordinary afternoon read as a
+    /// warning. The clock carries the verdict alongside the label now.
+    func testTheClockCarriesTheVerdictNotJustTheLabel() {
+        // 2026-07-01T16:00Z is 12:00 in America/Toronto (416).
+        let midday = Date(timeIntervalSince1970: 1_782_921_600)
+        guard let clock = Nanp.destinationClock("+14165550100", at: midday) else {
+            return XCTFail("expected a clock for a geographic area code")
+        }
+        XCTAssertEqual(clock.hour, 12)
+        XCTAssertFalse(clock.quiet, "midday must not read as a warning")
+        XCTAssertEqual(clock.label, Nanp.destinationLocalTimeLabel("+14165550100", at: midday))
+
+        // 2026-07-02T03:00Z is 23:00 in Toronto.
+        let late = Date(timeIntervalSince1970: 1_782_961_200)
+        XCTAssertEqual(Nanp.destinationClock("+14165550100", at: late)?.quiet, true)
+    }
+
+    func testTheClockIsNilWhereWeDoNotKnowTheZone() {
+        // Toll-free carries no geography, so there is no honest hint to show.
+        XCTAssertNil(Nanp.destinationClock("+18005550100"))
+    }
 }

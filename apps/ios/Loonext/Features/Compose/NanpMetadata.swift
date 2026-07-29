@@ -187,6 +187,34 @@ extension Nanp {
         return formatter.string(from: date)
     }
 
+    /// The conservative quiet window, mirroring `QUIET_HOURS_START`/`_END` in
+    /// `apps/api/src/messaging/destination-clock.ts` and the same pair on web
+    /// and Android. The SERVER is the file that decides — it knows things this
+    /// does not, such as Texas opening at noon on a Sunday — so this window is
+    /// only ever used to choose how a hint READS, never to promise a send.
+    static let quietHoursStart = 20
+    static let quietHoursEnd = 8
+
+    /// True when `hour` falls in the conservative quiet window. Boundary table
+    /// pinned in tests alongside the Kotlin and TypeScript twins.
+    static func isQuietHour(_ hour: Int) -> Bool {
+        hour >= quietHoursStart || hour < quietHoursEnd
+    }
+
+    /// The recipient's clock: what to show, and whether it is late there.
+    ///
+    /// #225: the composer needs both. iOS had only the label, so it styled every
+    /// hour as the amber late-hour notice — an ordinary 2pm read as a warning.
+    static func destinationClock(
+        _ e164: String,
+        at date: Date = Date()
+    ) -> (label: String, hour: Int, quiet: Bool)? {
+        guard let label = destinationLocalTimeLabel(e164, at: date),
+              let hour = destinationLocalTime(e164, at: date)?.hour
+        else { return nil }
+        return (label: label, hour: hour, quiet: isQuietHour(hour))
+    }
+
     /// The digits a user typed, normalized for NANP entry: strip everything
     /// non-numeric, drop one leading 1 (country code), cap at 10.
     static func nationalDigits(_ input: String) -> String {

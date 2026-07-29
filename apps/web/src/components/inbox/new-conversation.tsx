@@ -71,6 +71,7 @@ import {
 } from "@/components/thread/composer-banner";
 import { ComposerBannerCard } from "@/components/thread/composer-banners";
 import {
+  destinationLocalClock,
   destinationLocalTimeLabel,
   formatNanpAsYouType,
   looksLikePhoneInput,
@@ -246,6 +247,16 @@ export function NewConversation() {
    * one part while the send bills two, which is the whole reason the suffix is
    * server-derived rather than composed here.
    */
+  /**
+   * #225: the recipient's local clock, recomputed as the destination changes.
+   * Deliberately not on a timer — a composer that re-rendered every minute to
+   * advance a clock nobody is watching is churn, and the hour only matters at
+   * the moment of sending, which the server checks again anyway.
+   */
+  const localClock = useMemo(
+    () => (destinationE164 ? destinationLocalClock(destinationE164) : null),
+    [destinationE164],
+  );
   const pendingSignature = pendingIdentificationSuffix(
     company.data?.first_message_identification_suffix,
     recipient?.kind === "contact"
@@ -731,6 +742,29 @@ export function NewConversation() {
             businessName={company.data?.name}
             identificationSuffix={pendingSignature}
           />
+          {/* #225: what o'clock it is for THEM, before the send rather than in
+              the dialog that refuses it. Both phone apps have shown this since
+              the flow shipped; web only mentioned it after the 409, which is
+              the one moment the information is too late to act on.
+
+              Two states, and the difference is the point: a late hour warns and
+              says a confirm is coming, an ordinary hour states the time and
+              promises nothing — because the server's per-state rule knows
+              things this does not (Texas opens at noon on a Sunday), so a calm
+              line here must never read as "this will send". */}
+          {localClock ? (
+            <p
+              className={
+                localClock.quiet
+                  ? "text-xs text-amber-700 dark:text-warning"
+                  : "text-xs text-muted-foreground"
+              }
+            >
+              {localClock.quiet
+                ? `It's ${localClock.label} for this customer. We'll ask before sending this late.`
+                : `It's ${localClock.label} for them.`}
+            </p>
+          ) : null}
         </div>
 
         {banner && <ComposerBannerCard banner={banner} />}

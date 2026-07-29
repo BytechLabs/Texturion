@@ -48,6 +48,56 @@ export function looksLikePhoneInput(raw: string): boolean {
 }
 
 /**
+ * The recipient's local wall clock: the label to show, and the hour to judge it
+ * by. Null for non-geographic codes, where we genuinely do not know.
+ *
+ * #225: the composer needs BOTH. Showing the time without the hour meant web
+ * could only mention it inside the quiet-hours dialog, after the send was
+ * already refused — so the one moment a dispatcher could have chosen to wait
+ * came with no information, while both phone apps had shown it all along.
+ *
+ * `quiet` is the CONSERVATIVE 8pm–8am window, deliberately not the per-state
+ * rule. `destination-clock.ts` on the server is the file that decides, and it
+ * knows things this cannot (Texas opens at noon on a Sunday). So a false calm
+ * is possible here and is handled by never promising anything: the calm copy
+ * states the time and nothing else, and the server still asks.
+ */
+export const QUIET_HOURS_START = 20;
+export const QUIET_HOURS_END = 8;
+
+export function destinationLocalClock(
+  e164: string,
+  now: Date = new Date(),
+): { label: string; hour: number; quiet: boolean } | null {
+  const entry = lookupAreaCode(e164);
+  if (!entry || !entry.geographic) return null;
+  try {
+    const label = new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: entry.timezone,
+    }).format(now);
+    const hour = Number(
+      new Intl.DateTimeFormat("en-US", {
+        hour: "numeric",
+        hour12: false,
+        timeZone: entry.timezone,
+      }).format(now),
+    );
+    if (!Number.isFinite(hour)) return null;
+    // hour12:false renders midnight as 24 in some ICU versions.
+    const normalized = hour === 24 ? 0 : hour;
+    return {
+      label,
+      hour: normalized,
+      quiet: normalized >= QUIET_HOURS_START || normalized < QUIET_HOURS_END,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The destination's local wall-clock time for the quiet-hours dialog copy
  * ("It's 9:14 PM for this customer" — G5). Null for non-geographic codes.
  */
@@ -55,15 +105,5 @@ export function destinationLocalTimeLabel(
   e164: string,
   now: Date = new Date(),
 ): string | null {
-  const entry = lookupAreaCode(e164);
-  if (!entry || !entry.geographic) return null;
-  try {
-    return new Intl.DateTimeFormat("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      timeZone: entry.timezone,
-    }).format(now);
-  } catch {
-    return null;
-  }
+  return destinationLocalClock(e164, now)?.label ?? null;
 }

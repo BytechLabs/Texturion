@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  QUIET_HOURS_END,
+  QUIET_HOURS_START,
+  destinationLocalClock,
+  destinationLocalTimeLabel,
   formatNanpAsYouType,
   looksLikePhoneInput,
   normalizeNanpInput,
@@ -52,5 +56,75 @@ describe("looksLikePhoneInput", () => {
     expect(looksLikePhoneInput("(416) 5")).toBe(true);
     expect(looksLikePhoneInput("Maria")).toBe(false);
     expect(looksLikePhoneInput("maria 2")).toBe(false);
+  });
+});
+
+/**
+ * #225 — the composer tells the sender what o'clock it is for the recipient,
+ * and the hour decides whether that reads as a fact or a warning.
+ *
+ * Boundary table shared with the server's destination-clock.test.ts and the
+ * Kotlin/Swift twins: one rule, three hand-ports, asserted rather than assumed.
+ */
+describe("destinationLocalClock", () => {
+  // 2026-07-01T16:00Z is 12:00 in America/Toronto (416) and 09:00 in
+  // America/Los_Angeles (415) — a fixed instant, so this cannot drift.
+  const MIDDAY_UTC = new Date("2026-07-01T16:00:00.000Z");
+  const TORONTO = "+14165550100";
+  const LA = "+14155550100";
+
+  it("reads the wall clock in the destination's zone, not ours", () => {
+    expect(destinationLocalClock(TORONTO, MIDDAY_UTC)?.hour).toBe(12);
+    expect(destinationLocalClock(LA, MIDDAY_UTC)?.hour).toBe(9);
+  });
+
+  it("labels the time the way the copy reads it", () => {
+    expect(destinationLocalClock(TORONTO, MIDDAY_UTC)?.label).toBe("12:00 PM");
+    expect(destinationLocalClock(LA, MIDDAY_UTC)?.label).toBe("9:00 AM");
+  });
+
+  it("calls an ordinary hour not quiet", () => {
+    expect(destinationLocalClock(TORONTO, MIDDAY_UTC)?.quiet).toBe(false);
+    expect(destinationLocalClock(LA, MIDDAY_UTC)?.quiet).toBe(false);
+  });
+
+  it("calls a late hour quiet — 23:00 in Toronto", () => {
+    const lateUtc = new Date("2026-07-02T03:00:00.000Z");
+    const clock = destinationLocalClock(TORONTO, lateUtc);
+    expect(clock?.hour).toBe(23);
+    expect(clock?.quiet).toBe(true);
+  });
+
+  it("handles midnight, where hour12:false can render 24", () => {
+    // 04:00Z on 2026-07-02 is midnight in Toronto. A raw 24 here would fall
+    // outside the window check and call midnight sendable.
+    const clock = destinationLocalClock(TORONTO, new Date("2026-07-02T04:00:00.000Z"));
+    expect(clock?.hour).toBe(0);
+    expect(clock?.quiet).toBe(true);
+  });
+
+  it("is null where we do not know the zone", () => {
+    // Toll-free carries no geography, so there is no honest hint to show.
+    expect(destinationLocalClock("+18005550100", MIDDAY_UTC)).toBeNull();
+  });
+
+  it("keeps destinationLocalTimeLabel agreeing with it", () => {
+    // The dialog copy reads through the old helper; it must not drift.
+    expect(destinationLocalTimeLabel(TORONTO, MIDDAY_UTC)).toBe(
+      destinationLocalClock(TORONTO, MIDDAY_UTC)?.label,
+    );
+    expect(destinationLocalTimeLabel("+18005550100", MIDDAY_UTC)).toBeNull();
+  });
+
+  it("pins the window boundaries the other two clients port", () => {
+    expect(QUIET_HOURS_START).toBe(20);
+    expect(QUIET_HOURS_END).toBe(8);
+    const quiet = (hour: number) =>
+      hour >= QUIET_HOURS_START || hour < QUIET_HOURS_END;
+    expect(quiet(7)).toBe(true);
+    expect(quiet(8)).toBe(false);
+    expect(quiet(19)).toBe(false);
+    expect(quiet(20)).toBe(true);
+    expect(quiet(0)).toBe(true);
   });
 });

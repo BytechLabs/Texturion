@@ -86,10 +86,6 @@ import kotlinx.coroutines.launch
 
 private val localTimeFormat = DateTimeFormatter.ofPattern("h:mm a")
 
-/** Destination quiet hours (8pm–8am local) — the window the API confirms. */
-private const val QUIET_HOURS_START = 20
-private const val QUIET_HOURS_END = 8
-
 private data class ComposeIntentKey(
     val recipient: String,
     val body: String,
@@ -611,8 +607,9 @@ private fun NewConversationLoaded(
                 // before the send pill): cream quiet-hours notice, else a
                 // quiet muted hint.
                 if (localTime != null) {
-                    val inQuietHours =
-                        localTime.hour >= QUIET_HOURS_START || localTime.hour < QUIET_HOURS_END
+                    // #225: the boundary lives in Nanp so a test can pin it
+                    // against the Swift and TypeScript twins.
+                    val inQuietHours = Nanp.isQuietHour(localTime.hour)
                     if (inQuietHours) {
                         QuietHoursNotice(
                             text = "It's ${localTime.format(localTimeFormat)} for this " +

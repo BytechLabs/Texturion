@@ -105,6 +105,12 @@ private struct NewConversationLoaded: View {
     private var localTimeLabel: String? {
         recipientE164.flatMap { Nanp.destinationLocalTimeLabel($0) }
     }
+    /// #225: label PLUS whether it is late there. Without the second half this
+    /// view styled every hour as the amber late-hour notice, so an ordinary
+    /// afternoon read as a warning — Android has had two states all along.
+    private var localClock: (label: String, hour: Int, quiet: Bool)? {
+        recipientE164.flatMap { Nanp.destinationClock($0) }
+    }
 
     private var validDestination: Bool {
         guard let recipientE164 else { return false }
@@ -260,24 +266,41 @@ private struct NewConversationLoaded: View {
                 recipientField
                 contactMatchList
 
-                if let localTimeLabel {
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "clock")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(BrandColor.overdueAmber)
-                            .padding(.top, 1)
-                        Text("It's \(localTimeLabel) for them.")
+                if let localClock {
+                    if localClock.quiet {
+                        // Late there: the cream notice, and it says a confirm
+                        // is coming so the dialog is not a surprise.
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "clock")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(BrandColor.overdueAmber)
+                                .padding(.top, 1)
+                            Text(
+                                "It's \(localClock.label) for this customer. "
+                                    + "We'll ask before sending this late."
+                            )
                             .font(.golos(11.5))
                             .foregroundStyle(BrandColor.overdueAmber)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 10)
+                        .background(
+                            BrandColor.cream,
+                            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        )
+                        .padding(.top, 13)
+                    } else {
+                        // An ordinary hour is a FACT, not a warning: quiet text,
+                        // no box, and no promise about the send — the server's
+                        // per-state rule can still ask (Texas, Sunday).
+                        Text("It's \(localClock.label) for them.")
+                            .font(.golos(11.5))
+                            .foregroundStyle(BrandColor.muted500)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 13)
+                            .padding(.top, 13)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 13)
-                    .padding(.vertical, 10)
-                    .background(
-                        BrandColor.cream,
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    )
-                    .padding(.top, 13)
                 }
 
                 fromNumberPicker

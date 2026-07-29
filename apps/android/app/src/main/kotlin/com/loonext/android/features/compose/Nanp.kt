@@ -169,6 +169,24 @@ object Nanp {
     }
 
     /**
+     * The conservative quiet window, mirroring `QUIET_HOURS_START`/`_END` in
+     * `apps/api/src/messaging/destination-clock.ts` and the same pair on web and
+     * iOS. The SERVER is the file that decides — it knows things this does not,
+     * such as Texas opening at noon on a Sunday — so this window only ever
+     * chooses how a hint READS, never whether a send will go.
+     */
+    const val QUIET_HOURS_START = 20
+    const val QUIET_HOURS_END = 8
+
+    /**
+     * True when [hour] falls in the conservative quiet window. Extracted from
+     * the composer so the boundary is testable; the table is pinned alongside
+     * the Swift and TypeScript twins (#225).
+     */
+    fun isQuietHour(hour: Int): Boolean =
+        hour >= QUIET_HOURS_START || hour < QUIET_HOURS_END
+
+    /**
      * The digits a user typed, normalized for NANP entry: strip everything
      * non-numeric, drop one leading 1 (country code), cap at 10.
      */
