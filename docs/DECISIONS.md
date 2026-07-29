@@ -2835,3 +2835,83 @@ message anchors; a matching partial unique index gives calls the same.
 **Client work this implies** (#338): "Make a task" appears on a call in the log
 and on the call-completed timeline row, and the task detail renders a call as
 its source where it renders a message today — web, Android and iOS.
+
+---
+
+## D65 — every external system gets an inbound-state row before it is integrated (#424)
+
+**Decision.** A vendor is not integrated until we have written down, for each
+state change it can impose on us: **can our schema express it, what tells us,
+and who is told.** That table lives here, and a new vendor adds a row to it in
+the same change that adds the API key.
+
+**The gap this closes is modelling, not monitoring**, and #424 makes the
+argument better than a summary can: every route in this API has a
+`requireRole` line and a state transition somebody reasoned about, and all of
+that covers **actions we take**. External systems do not use our routes. They
+change facts about our customers — a subscription ends, money is clawed back, a
+number moves, permission to send is withdrawn — and those facts arrive, if at
+all, through a webhook we may not subscribe to, into a schema that may have no
+column for them.
+
+**Why it was systematically invisible: there was no artifact to review.** A
+destructive route has a `requireRole("owner")` line a reader can question. A
+destructive act executed by Stripe has no line anywhere in our codebase. Nobody
+skipped a review; there was nothing to review. That is also why the four
+instances spanned billing, telephony and registration rather than clustering in
+one neglected corner — it was a category the design had no slot for.
+
+**Distinct from D55/#387, and both are needed.** #387 is about **absence** — an
+expected thing did not happen; the answer is a heartbeat. This is about
+**foreign presence** — an unexpected thing happened, decided elsewhere; the
+answer is inbound state coverage. A heartbeat would not catch a dispute; a
+dispute handler would not catch a cron that stopped.
+
+### The table, as of 2026-07-28
+
+| System | It can impose | Can we express it? | What tells us | Who is told |
+|---|---|---|---|---|
+| Stripe | subscription cancelled | ✅ `cancel_at_period_end`, `canceled_at` | `customer.subscription.updated/deleted` | owner, at the moment of cancellation (#421) |
+| Stripe | payment failed / action required | ✅ `subscription_status` + grace ledger | `invoice.payment_failed`, `invoice.payment_action_required` | owner + admins, laddered (§9) |
+| Stripe | charge disputed | ✅ `billing_disputes` | `charge.dispute.created/updated/closed` | ops; never acted on automatically (D60) |
+| Telnyx | number ported away | ✅ `number_port_outs` | `portout.*` | owner (#398) |
+| Telnyx | 10DLC campaign suspended | ✅ `registration_status = 'suspended'` | `10dlc.campaign.update` + the daily poll | owner **and** ops (#423, D-note below) |
+| Telnyx | account-level restriction | ❌ **no state** | nothing — discovered by a failing call | nobody; we found the CA ordering block by hitting it |
+| Resend | address bounced / complained | ✅ `email_suppressions` + member email state | `email.bounced`, `email.complained` | the member whose address it is (#386) |
+| Supabase | project paused, quota exceeded | ❌ **no state** | nothing | nobody |
+| Cloudflare | Worker or account limit | ❌ **no state** | nothing | nobody |
+
+**Four of the five instances #424 was filed about are now closed** — #421
+(cancellation notice), #422 (disputes, D60), #398 (port-out), #423 (suspension).
+That is the argument for writing the table down rather than for closing the
+issue quietly: the instances were fixed one at a time, exactly as #424 warned,
+and without this the fifth would have been found the same way.
+
+### The three rows with ❌, said plainly
+
+They are not oversights to fix today; they are known holes, and naming them is
+the point of the exercise:
+
+- **A Telnyx account-level restriction** is the one we have already hit — error
+  10038 blocked Canadian number ordering, and we learned of it from a failing
+  order rather than from any signal. It has no state and no notification. It is
+  R2 in `docs/VENDOR-QUESTIONS.md`.
+- **Supabase and Cloudflare** can both stop us serving entirely, and neither
+  has a state or a signal here. The honest position is that we would learn from
+  the product being down — which is the #242 status-page question, not this one.
+
+### The rule for the next integration
+
+Before an API key reaches `env.ts`:
+
+1. **Enumerate** what the vendor can decide about us without asking.
+2. **For each, check the schema can hold it.** #423 is the case that proves
+   this matters most: the campaign vocabulary ran `draft → submitted → pending
+   → approved | rejected`, every one a transition we initiated or awaited, so a
+   carrier revocation was **not expressible** — and no amount of better
+   observation would have helped until the schema could hold the answer.
+3. **For each, name what tells us.** Where the answer is *nothing*, write that
+   down here rather than leaving it undiscovered, and add the question to
+   `docs/VENDOR-QUESTIONS.md` if a vendor could answer it.
+4. **For each, name who is told and when.** Most of these are recoverable only
+   while somebody is acting on them.
