@@ -74,8 +74,30 @@ end $$;
 -- ===========================================================================
 do $$
 declare
-  foid oid := 'public.api_search_v2(uuid, text, int, int, int, int, int, timestamptz, uuid, uuid[])'::regprocedure;
+  foid oid;
 begin
+  -- Resolved BY NAME rather than by a hard-coded argument list (#409). The
+  -- literal signature broke the moment a new search arm added a parameter,
+  -- which is a fragile way to assert something that has nothing to do with
+  -- the arity — and it failed as "function does not exist", which reads like
+  -- the function was deleted rather than extended.
+  --
+  -- Asserting there is exactly ONE also catches the real hazard: `create or
+  -- replace` does not replace a function whose argument list differs, it
+  -- builds an overload, and an ambiguous api_search_v2 breaks every search in
+  -- the product.
+  select p.oid into foid
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'api_search_v2';
+  if foid is null then
+    raise exception 'G2 FAILED: api_search_v2 does not exist';
+  end if;
+  if (select count(*) from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public' and p.proname = 'api_search_v2') <> 1 then
+    raise exception 'G2 FAILED: api_search_v2 is overloaded — calls become ambiguous';
+  end if;
   if has_function_privilege('anon', foid, 'execute') then
     raise exception 'G2 FAILED: anon can execute api_search_v2';
   end if;

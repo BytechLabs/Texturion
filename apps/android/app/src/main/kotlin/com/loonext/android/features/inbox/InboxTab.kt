@@ -1837,7 +1837,8 @@ private fun SearchResultsPane(
     val empty = (!showTexts || result.conversations.isEmpty()) &&
         (!showTasks || result.tasks.isEmpty()) &&
         (!showContacts || result.contacts.isEmpty()) &&
-        (!showExtras || (result.attachments.isEmpty() && result.templates.isEmpty()))
+        (!showExtras || (result.attachments.isEmpty() && result.templates.isEmpty() &&
+            result.voicemails.isEmpty()))
     if (empty) {
         Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Text(
@@ -2018,6 +2019,49 @@ private fun SearchResultsPane(
                     }
                 }
                 Spacer(Modifier.height(13.dp))
+            }
+        }
+
+        // #409: the words somebody SPOKE. Above saved replies because a
+        // customer's voice outranks our own copy when both match.
+        //
+        // NOT TAPPABLE, and that is a deliberate call rather than an omission.
+        // #336 gave a call a permalink on WEB; the phones have no call-detail
+        // screen to open, and routing a tap to the calls tab would drop the
+        // reader in a list to scroll — most of the way back to the problem
+        // this arm exists to solve. The snippet already answers the question
+        // somebody is actually asking ("what did that guy say about the boiler
+        // on Elm Street"), so the row earns its place unlinked. A row that
+        // looks tappable and lands nowhere useful is worse than one that
+        // does not.
+        if (showExtras && result.voicemails.isNotEmpty()) {
+            item(key = "sh-voicemails") {
+                SectionHeader("Voicemails", count = result.voicemails.size)
+                PaperCard {
+                    result.voicemails.forEachIndexed { index, hit ->
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 15.dp, vertical = 12.dp),
+                        ) {
+                            Text(
+                                hit.caller_e164?.let { formatPhone(it) } ?: "Voicemail",
+                                style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                highlightSnippet(hit.snippet),
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
+                        if (index != result.voicemails.lastIndex) RowDivider()
+                    }
+                }
             }
         }
 

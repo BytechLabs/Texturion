@@ -14,6 +14,7 @@ import {
   Settings,
   UserRoundPlus,
   Users,
+  Voicemail,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -241,7 +242,8 @@ export function CommandPalette() {
     results.contacts.length === 0 &&
     results.tasks.length === 0 &&
     results.attachments.length === 0 &&
-    results.templates.length === 0;
+    results.templates.length === 0 &&
+    results.voicemails.length === 0;
   const searchStatus: "searching" | "empty" | "error" | null = searching
     ? search.isError
       ? "error"
@@ -395,6 +397,31 @@ export function CommandPalette() {
                   {hit.file_name}
                 </span>
                 <Chip>{hit.owner_type === "note" ? "Note" : "Task"}</Chip>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {/* #409: the words somebody SPOKE, findable by the same box that
+            finds them when they type instead. Placed above Templates because a
+            customer's voice outranks our own saved copy when both match.
+            *Applying: Chunking — arms are grouped and ordered by how likely
+            the reader is to have meant them.* */}
+        {searching && search.data && search.data.voicemails.length > 0 && (
+          <CommandGroup heading="Voicemails">
+            {search.data.voicemails.map((hit) => (
+              <CommandItem
+                key={hit.id}
+                value={`voicemail-${hit.id}`}
+                onSelect={() => go(`/calls/${hit.call_session_id}`)}
+              >
+                <Voicemail className="size-4" strokeWidth={1.75} />
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="font-medium">
+                    {hit.caller_e164 ? formatPhone(hit.caller_e164) : "Voicemail"}
+                  </span>
+                  <span className="ml-2 text-muted-foreground">{hit.snippet}</span>
+                </span>
               </CommandItem>
             ))}
           </CommandGroup>

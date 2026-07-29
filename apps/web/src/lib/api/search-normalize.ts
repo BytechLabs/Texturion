@@ -1,11 +1,12 @@
 import type { SearchResult } from "./types";
 
 /**
- * Coalesce a /v1/search response into the full five-arm shape. Web and API
+ * Coalesce a /v1/search response into the full six-arm shape. Web and API
  * deploy independently (and a Worker can be rolled back), so the palette can
- * meet a v1-shaped payload that predates the D29 arms (tasks / attachments /
- * templates). Missing arms become `[]` so every reader (`search.data.tasks
- * .length`) stays safe instead of throwing a TypeError that unmounts the shell.
+ * meet a payload that predates the D29 arms (tasks / attachments / templates)
+ * or the #409 one (voicemails). Missing arms become `[]` so every reader
+ * (`search.data.tasks.length`) stays safe instead of throwing a TypeError that
+ * unmounts the shell.
  *
  * Kept in its own pure, dependency-free module (only the `SearchResult` TYPE)
  * so it unit-tests without the env-validated API client — the same idiom as
@@ -18,6 +19,7 @@ export function normalizeSearch(result: SearchResult): SearchResult {
     tasks: result.tasks ?? [],
     attachments: result.attachments ?? [],
     templates: result.templates ?? [],
+    voicemails: result.voicemails ?? [],
     next_cursor: result.next_cursor ?? null,
   };
 }

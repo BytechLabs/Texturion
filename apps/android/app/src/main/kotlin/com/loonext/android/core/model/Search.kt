@@ -41,6 +41,21 @@ data class SearchTemplateHit(
     val snippet: String,
 )
 
+/**
+ * #409: a voicemail transcript hit. `call_session_id` is the #336 permalink
+ * key, so a result has somewhere to land — without it the best it could do is
+ * drop the reader on the calls list to scroll.
+ */
+@Serializable
+data class SearchVoicemailHit(
+    val id: String,
+    val call_session_id: String,
+    val contact_id: String? = null,
+    val caller_e164: String? = null,
+    val started_at: String,
+    val snippet: String,
+)
+
 /** GET /v1/search — conversations paginate; other arms first-page-only. */
 @Serializable
 data class SearchResult(
@@ -49,5 +64,6 @@ data class SearchResult(
     val tasks: List<SearchTaskHit> = emptyList(),
     val attachments: List<SearchAttachmentHit> = emptyList(),
     val templates: List<SearchTemplateHit> = emptyList(),
+    val voicemails: List<SearchVoicemailHit> = emptyList(),
     val next_cursor: String? = null,
 )

@@ -147,6 +147,9 @@ describe("GET /v1/search", () => {
       p_task_limit: 5,
       p_attachment_limit: 5,
       p_template_limit: 5,
+      // #409: the voicemail arm rides the first page like the other palette
+      // arms, and its #106 filter is applied inside the RPC.
+      p_voicemail_limit: 5,
       p_cursor_ts: null,
       p_cursor_id: null,
       // #106: unrestricted caller → null deny list (the RPC filters nothing).
@@ -179,6 +182,7 @@ describe("GET /v1/search", () => {
       p_task_limit: 0,
       p_attachment_limit: 0,
       p_template_limit: 0,
+      p_voicemail_limit: 0,
       p_cursor_ts: "2026-07-01T10:00:00+00:00",
       p_cursor_id: CONV_ID,
     });

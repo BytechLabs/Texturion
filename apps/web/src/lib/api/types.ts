@@ -1336,6 +1336,19 @@ export interface SearchTemplateHit {
 }
 
 /**
+ * GET /v1/search voicemail hit (#409) — the words we paid to write down.
+ * `call_session_id` is the #336 permalink key, so a hit has somewhere to land.
+ */
+export interface SearchVoicemailHit {
+  id: string;
+  call_session_id: string;
+  contact_id: string | null;
+  caller_e164: string | null;
+  started_at: string;
+  snippet: string;
+}
+
+/**
  * GET /v1/search (D29): conversations paginate on the cursor; every other arm
  * rides along on the first page only (empty arrays on cursored pages).
  */
@@ -1345,6 +1358,7 @@ export interface SearchResult {
   tasks: SearchTaskHit[];
   attachments: SearchAttachmentHit[];
   templates: SearchTemplateHit[];
+  voicemails: SearchVoicemailHit[];
   next_cursor: string | null;
 }
 

@@ -7,7 +7,9 @@
  * contacts pg_trgm; tasks (title/description trigram, `done` derived from the
  * source message, D17); note-borne attachments (fuzzy file_name — MMS media
  * has no filename, D29 states this on purpose); templates (name/body with a
- * body snippet). All arms company-scoped. Conversations paginate on
+ * body snippet); voicemail transcripts (#409 — trigram over the words we paid
+ * Workers AI to write down, so a phrase somebody SPOKE is findable by the same
+ * box that finds it when they type it instead). All arms company-scoped. Conversations paginate on
  * (matched_at, id) DESC with the standard opaque cursor; every other arm is
  * first-page-only (its limit is 0 on cursor requests).
  */
@@ -34,6 +36,8 @@ interface SearchResult {
   tasks: unknown[];
   attachments: unknown[];
   templates: unknown[];
+  /** #409: voicemail transcripts — the words we paid to write down. */
+  voicemails: unknown[];
 }
 
 export const searchRoutes = new Hono<AppEnv>();
@@ -65,6 +69,11 @@ searchRoutes.get("/search", requireRole("member"), async (c) => {
       p_task_limit: cursor ? 0 : PALETTE_ARM_LIMIT,
       p_attachment_limit: cursor ? 0 : PALETTE_ARM_LIMIT,
       p_template_limit: cursor ? 0 : PALETTE_ARM_LIMIT,
+      // #409: rides along on the first page like the other palette arms. The
+      // #106 deny list is applied INSIDE the RPC against the call's own
+      // phone_number_id — a transcript is customer speech, and an arm that
+      // skipped it would be a way to read around the deny list.
+      p_voicemail_limit: cursor ? 0 : PALETTE_ARM_LIMIT,
       p_cursor_ts: cursor?.ts ?? null,
       p_cursor_id: cursor?.id ?? null,
       p_hidden_number_ids: access.hiddenNumberIds,
@@ -79,6 +88,7 @@ searchRoutes.get("/search", requireRole("member"), async (c) => {
     tasks: result.tasks,
     attachments: result.attachments,
     templates: result.templates,
+    voicemails: result.voicemails,
     next_cursor: page.next_cursor,
   });
 });

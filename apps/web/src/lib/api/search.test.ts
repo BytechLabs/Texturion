@@ -8,6 +8,7 @@ import type {
   SearchResult,
   SearchTaskHit,
   SearchTemplateHit,
+  SearchVoicemailHit,
 } from "./types";
 
 /**
@@ -95,11 +96,21 @@ const TEMPLATE_HIT: SearchTemplateHit = {
   snippet: "Hi — just checking you got the quote we sent over.",
 };
 
+const VOICEMAIL_HIT: SearchVoicemailHit = {
+  id: "call-1",
+  call_session_id: "sess-1",
+  contact_id: "contact-1",
+  caller_e164: "+16135550100",
+  started_at: "2026-07-29T10:00:00.000Z",
+  snippet: "The boiler on Elm Street is banging again.",
+};
+
 const FULL_PAGE: SearchResult = {
   conversations: [CONVERSATION_HIT],
   contacts: [{ id: "contact-1", name: "Jo Beaulieu", phone_e164: "+16135550100" }],
   tasks: [TASK_HIT],
   attachments: [ATTACHMENT_HIT],
+  voicemails: [VOICEMAIL_HIT],
   templates: [TEMPLATE_HIT],
   next_cursor: null,
 };
@@ -165,6 +176,7 @@ describe("search — the D29 five-arm payload parses through unchanged", () => {
       tasks: [],
       attachments: [],
       templates: [],
+      voicemails: [],
       next_cursor: null,
     };
     const { request } = makeClient(() => jsonResponse(200, empty));

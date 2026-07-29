@@ -453,6 +453,11 @@ private final class InboxController {
                             tasks: current.tasks,
                             attachments: current.attachments,
                             templates: current.templates,
+                            // Declared BEFORE next_cursor in SearchResult, and
+                            // a memberwise init takes arguments in declaration
+                            // order — placing this anywhere else does not
+                            // compile.
+                            voicemails: current.voicemails,
                             next_cursor: more.next_cursor
                         )
                     )
@@ -1281,6 +1286,7 @@ private struct SearchResultsPane: View {
     private func resultsList(_ result: SearchResult) -> some View {
         let empty = result.conversations.isEmpty && result.contacts.isEmpty &&
             result.tasks.isEmpty && result.attachments.isEmpty && result.templates.isEmpty
+            && result.voicemails.isEmpty
         if empty {
             Text("Nothing matches \"\(controller.query.trimmingCharacters(in: .whitespaces))\".")
                 .font(.golos(13))
@@ -1353,6 +1359,39 @@ private struct SearchResultsPane: View {
                         }
                     } header: {
                         SectionHeader(label: "Attachments", count: result.attachments.count)
+                    }
+                }
+                // #409: the words somebody SPOKE. Above saved replies because
+                // a customer's voice outranks our own copy when both match.
+                //
+                // NOT TAPPABLE, and that is a deliberate call rather than an
+                // omission. #336 gave a call a permalink on WEB; the phones
+                // have no call-detail screen to open, and routing a tap to the
+                // calls tab would drop the reader in a list to scroll — most
+                // of the way back to the problem this arm exists to solve. The
+                // snippet already answers the question somebody is actually
+                // asking, so the row earns its place unlinked. A row that
+                // looks tappable and lands nowhere useful is worse than one
+                // that does not.
+                if !result.voicemails.isEmpty {
+                    Section {
+                        ForEach(result.voicemails, id: \.id) { hit in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(
+                                    hit.caller_e164.map { formatPhone($0) } ?? "Voicemail"
+                                )
+                                .font(.golos(13, weight: .semibold))
+                                .foregroundStyle(BrandColor.ink)
+                                Text(stripHighlight(hit.snippet))
+                                    .font(.golos(12))
+                                    .foregroundStyle(BrandColor.muted600)
+                                    .lineLimit(2)
+                            }
+                            .listRowBackground(BrandColor.paper)
+                            .listRowSeparatorTint(BrandColor.inset)
+                        }
+                    } header: {
+                        SectionHeader(label: "Voicemails", count: result.voicemails.count)
                     }
                 }
                 if !result.templates.isEmpty {
