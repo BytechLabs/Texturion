@@ -192,6 +192,14 @@ export interface PhoneNumberSummary {
   /** Voice on Telnyx — false for hosted rows (calls stay on the old carrier). */
   voice_enabled?: boolean;
   /**
+   * #366: how many people an inbound call to this number could ring, and the
+   * ceiling on how many it actually will. Optional so a cached pre-#366 shape
+   * stays assignable; null when the server could not resolve it, which reads
+   * as "nothing to say" rather than as zero.
+   */
+  ring_targets?: number | null;
+  ring_target_limit?: number;
+  /**
    * #235: this number's delivery health, present only when it is DEGRADED —
    * a carrier or analytics vendor is filtering or labelling it. `null` or
    * absent means healthy, which is also what an unassessed number reads as.

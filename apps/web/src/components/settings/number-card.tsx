@@ -186,6 +186,8 @@ function ReleaseNumberDialog({
   );
 }
 
+import { ringCeilingLine } from "./ring-ceiling";
+
 export function NumberCard({ number }: { number: PhoneNumberSummary }) {
   const { role } = useActiveCompany();
   const [releasing, setReleasing] = useState(false);
@@ -231,6 +233,17 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
           <StatusBadge number={number} />
         </div>
       </div>
+      {/* #366: a crew bigger than one call can ring. Shown to EVERY member,
+          not only owners, because the person who most needs it is the tech
+          wondering why their phone rings less than a colleague's — and with
+          the fan-out now rotating per call, the honest thing to say is about
+          the workspace rather than about them.
+          *Applying: G1.5 — every async state visible, named and honest.* */}
+      {ringCeilingLine(number) !== null && (
+        <p className="mt-2 text-sm text-muted-foreground">
+          {ringCeilingLine(number)}
+        </p>
+      )}
       {number.status === "provisioning" && (
         <p className="mt-2 text-sm text-muted-foreground">
           {provisioningWaitCopy(number.created_at, now)}

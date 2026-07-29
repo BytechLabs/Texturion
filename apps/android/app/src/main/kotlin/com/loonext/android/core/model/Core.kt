@@ -120,6 +120,13 @@ data class PhoneNumberSummary(
     val source: String? = null,
     val voice_enabled: Boolean? = null,
     /**
+     * #366: how many people an inbound call to this number could ring, and the
+     * ceiling on how many it actually will. Null when the server could not
+     * resolve it, which reads as "nothing to say" rather than as zero.
+     */
+    val ring_targets: Int? = null,
+    val ring_target_limit: Int? = null,
+    /**
      * #235: present only when a carrier is filtering or labelling this number.
      * Null means healthy — which is also what an unassessed number reads as.
      * The internal 'watch' state never reaches a client.

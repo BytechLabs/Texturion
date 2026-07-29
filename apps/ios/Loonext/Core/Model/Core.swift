@@ -112,6 +112,16 @@ struct PhoneNumberSummary: Codable, Sendable {
     let created_at: String
     let source: String?
     let voice_enabled: Bool?
+    /// #366: how many people an inbound call to this number could ring, and
+    /// the ceiling on how many it actually will. Nil when the server could not
+    /// resolve it, which reads as "nothing to say" rather than as zero.
+    ///
+    /// `var`, unlike its `let` neighbours, and deliberately: a `var` Optional
+    /// gets an implicit nil default in the memberwise initialiser while a
+    /// `let` one does not, so this stays additive instead of breaking the four
+    /// existing construction sites that pass every field by name.
+    var ring_targets: Int?
+    var ring_target_limit: Int?
     /// #235: present only when a carrier is filtering or labelling this number.
     /// nil means healthy — which is also what an unassessed number reads as.
     /// The internal 'watch' state never reaches a client. `var … = nil` so it

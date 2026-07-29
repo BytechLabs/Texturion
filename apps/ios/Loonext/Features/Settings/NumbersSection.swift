@@ -241,6 +241,15 @@ private struct NumberCard: View {
             Text(numberHealthCopy(health))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+        } else if let ceiling = ringCeilingLine(number) {
+            // #366: a crew bigger than one call can ring. Shown to EVERY
+            // member, not only owners, because the person who most needs it is
+            // the tech wondering why their phone rings less than a
+            // colleague's — and with the fan-out now rotating per call, the
+            // honest thing to say is about the workspace rather than them.
+            Text(ceiling)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         } else if number.status == NumberStatus.suspended {
             Text(
                 "This number is suspended. Update your payment method under "

@@ -248,6 +248,17 @@ private fun NumberCard(
                 )
             }
 
+            // #366: a crew bigger than one call can ring. Shown to EVERY
+            // member, not only owners, because the person who most needs it is
+            // the tech wondering why their phone rings less than a
+            // colleague's — and with the fan-out now rotating per call, the
+            // honest thing to say is about the workspace rather than them.
+            ringCeilingLine(number) != null -> Text(
+                ringCeilingLine(number)!!,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
             number.status == NumberStatus.SUSPENDED -> Text(
                 "This number is suspended. Update your payment method under " +
                     "Settings › Billing to bring it back.",
