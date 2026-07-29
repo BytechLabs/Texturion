@@ -27,7 +27,7 @@
  *          (create-on-attach).
  *   DELETE /v1/conversations/:id/tags/:tag_id detach.
  */
-import type { BusinessHours } from "@loonext/shared";
+import type { BusinessHours, HoursException } from "@loonext/shared";
 import { runAiFeature } from "../ai/run";
 import { notifyNoteMention } from "../notifications/mention";
 import { Hono } from "hono";
@@ -914,7 +914,7 @@ conversationsRoutes.post(
     const [company, contact] = await Promise.all([
       db
         .from("companies")
-        .select("name,timezone,business_hours")
+        .select("name,timezone,business_hours,business_hours_exceptions")
         .eq("id", companyId)
         .limit(1)
         .then(
@@ -922,6 +922,7 @@ conversationsRoutes.post(
             name: string | null;
             timezone: string | null;
             business_hours: BusinessHours | null;
+            business_hours_exceptions: HoursException[] | null;
           }>("company"),
         ),
       db
@@ -947,6 +948,9 @@ conversationsRoutes.post(
       // Only a company that has actually set hours gets them in the prompt; the
       // default is an empty jsonb map, which reads as unset.
       businessHours: company?.business_hours ?? null,
+      // #402: without these a draft written on Christmas morning promises
+      // same-day attention on a day nobody is working.
+      hoursExceptions: company?.business_hours_exceptions ?? null,
       businessDescription: settings.business_description,
       draft,
     });

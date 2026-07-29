@@ -28,7 +28,8 @@ export const COMPANY_COLUMNS =
   // what asks a customer to reply URGENT in the first place — the switch and
   // the promise have to be readable in one place, or an owner turns one off
   // and leaves the other making an offer nobody answers.
-  "business_hours,away_enabled,away_message,emergency_keyword_enabled," +
+  "business_hours,business_hours_exceptions,away_enabled,away_message," +
+  "emergency_keyword_enabled," +
   // #388: the unanswered-lead ladder switches.
   "lead_chase_enabled,lead_chase_crew_enabled," +
   // #430: whether a push may carry words a person typed. Workspace-wide on

@@ -38,7 +38,9 @@ import type { AiFeatureSpec } from "../ai/run";
 import {
   type BusinessHours,
   formatZonedStamp,
+  closureReason,
   isAfterHours,
+  type HoursException,
   parseHhmm,
   WEEKDAYS,
 } from "@loonext/shared";
@@ -173,6 +175,12 @@ export interface SuggestionContext {
    * hours at all and the model is forbidden from implying any.
    */
   businessHours: BusinessHours | null;
+  /**
+   * #402: dates that override the weekly loop. Without them a draft written on
+   * Christmas morning promises same-day attention on a day nobody is working,
+   * because the weekly schedule calls it an ordinary Thursday.
+   */
+  hoursExceptions?: HoursException[] | null;
   /**
    * One sentence about what the business does, when the owner has written one.
    * Given, it is a FACT Lou may state, which is what lets a draft answer "do
@@ -393,8 +401,32 @@ export function buildSuggestionMessages(
   // lines are omitted entirely and the system prompt's blanket ban binds.
   if (hasBusinessHours(ctx.businessHours)) {
     lines.push(`Business hours: ${formatBusinessHours(ctx.businessHours)}`);
-    const closed = isAfterHours(ctx.timezone, ctx.businessHours, ctx.now);
+    // #402: exceptions included, or a draft written on Christmas morning
+    // promises same-day attention on a day nobody is working. The weekly
+    // schedule alone would call it an ordinary Thursday.
+    const closed = isAfterHours(
+      ctx.timezone,
+      ctx.businessHours,
+      ctx.now,
+      ctx.hoursExceptions,
+    );
     lines.push(`Right now the business is: ${closed ? "closed" : "open"}`);
+    const reason = closureReason(
+      ctx.timezone,
+      ctx.businessHours,
+      ctx.now,
+      ctx.hoursExceptions,
+    );
+    // Told separately, because "closed for the evening" and "closed for the
+    // holiday" lead to different drafts: one may promise the morning, the
+    // other must not.
+    if (reason?.kind === "exception") {
+      lines.push(
+        reason.note
+          ? `This is a closed date the owner set: ${reason.note}`
+          : "This is a closed date the owner set, not an ordinary evening",
+      );
+    }
   }
 
   const draft = collapse(ctx.draft ?? "").slice(

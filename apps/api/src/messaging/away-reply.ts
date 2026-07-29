@@ -23,6 +23,7 @@ import {
   effectiveAwayMessage,
   isAfterHours,
   type BusinessHours,
+  type HoursException,
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -34,6 +35,8 @@ import { applySendMergeFields } from "./merge";
 interface AwaySettings {
   timezone: string;
   business_hours: BusinessHours | null;
+  /** #402: dates that override the weekly loop — Christmas is not a Thursday. */
+  business_hours_exceptions: HoursException[] | null;
   away_enabled: boolean;
   away_message: string | null;
   name: string;
@@ -66,7 +69,9 @@ export async function maybeSendAwayReply(
   const { data: companyRows, error: companyError } = await db
     .from("companies")
     .select(
-      "timezone,business_hours,away_enabled,away_message,name",
+      // One literal, deliberately: splitting it with `+` defeats the client's
+      // literal-type inference and the row stops being assignable.
+      "timezone,business_hours,business_hours_exceptions,away_enabled,away_message,name",
     )
     .eq("id", args.companyId)
     .limit(1);
@@ -86,7 +91,19 @@ export async function maybeSendAwayReply(
   // The away CLOCK: outside business hours in the COMPANY timezone (not the
   // contact's — FEATURE-GAPS §2). An unresolvable zone returns "open" so we
   // never auto-send when we cannot place the instant.
-  if (!isAfterHours(settings.timezone, settings.business_hours ?? {}, args.atUtc)) {
+  // #402: a date exception replaces the weekday entirely, so a shop closed for
+  // Christmas is after-hours on a Thursday the weekly loop calls a working day.
+  // This is the case the away-reply matters MOST for — on an ordinary evening
+  // the customer knows why nobody replied; on a holiday, silence is ambiguous
+  // and they resolve it by calling somebody else.
+  if (
+    !isAfterHours(
+      settings.timezone,
+      settings.business_hours ?? {},
+      args.atUtc,
+      settings.business_hours_exceptions,
+    )
+  ) {
     return;
   }
 

@@ -19,6 +19,7 @@
  */
 import {
   isValidBusinessHours,
+  isValidHoursExceptions,
   NANP_AREA_CODES,
 } from "@loonext/shared";
 import { Hono } from "hono";
@@ -109,6 +110,10 @@ const patchSchema = z
     business_hours: z
       .record(z.string(), dayHoursSchema.nullable())
       .optional(),
+    // #402: dates that override the weekly loop. Shape checked by the shared
+    // validator below, so the four surfaces share one rule rather than four
+    // near-identical ones.
+    business_hours_exceptions: z.array(z.unknown()).optional(),
     away_enabled: z.boolean().optional(),
     // Owner-authored away text; null clears it. Max 1000 for a comfortable
     // multi-line emergency-aware message.
@@ -163,6 +168,7 @@ const patchSchema = z
       "chosen_number_e164" in body ||
       "overage_cap_multiplier" in body ||
       body.business_hours !== undefined ||
+      body.business_hours_exceptions !== undefined ||
       body.away_enabled !== undefined ||
       "away_message" in body ||
       body.emergency_keyword_enabled !== undefined ||
@@ -405,6 +411,19 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
       );
     }
     patch.business_hours = body.business_hours;
+  }
+  // #402: a weekly loop cannot know about Christmas. The owner names the
+  // dates, because a built-in calendar would need per-province data forever
+  // and would be wrong for the trades that WORK holidays.
+  if (body.business_hours_exceptions !== undefined) {
+    if (!isValidHoursExceptions(body.business_hours_exceptions)) {
+      throw new ApiError(
+        "validation_failed",
+        "Each closed date needs a from and to date (YYYY-MM-DD, to on or after from) " +
+          "and either no hours or an { open, close } HH:MM window.",
+      );
+    }
+    patch.business_hours_exceptions = body.business_hours_exceptions;
   }
   if (body.away_enabled !== undefined) patch.away_enabled = body.away_enabled;
   if ("away_message" in body) {

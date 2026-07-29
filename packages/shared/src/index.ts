@@ -94,6 +94,13 @@ export {
   type Weekday,
   type DayHours,
   type BusinessHours,
+  // #402: date exceptions over the weekly loop — Christmas is not a working
+  // Thursday, and only the owner can say which dates are which.
+  closureReason,
+  companyLocalDate,
+  exceptionFor,
+  isValidHoursExceptions,
+  type HoursException,
 } from "./business-hours";
 
 export {
