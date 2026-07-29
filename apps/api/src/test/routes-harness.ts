@@ -235,12 +235,18 @@ export async function apiRequest(
 export function membershipResponder(
   memberId: string,
   role: string | null,
-  options: { revoked?: boolean; newSession?: boolean } = {},
+  options: {
+    revoked?: boolean;
+    newSession?: boolean;
+    /** #314: the workspace MFA posture. Omitted = no policy. */
+    mfa?: { required: boolean; grace_until: string | null; enforcing: boolean };
+  } = {},
 ): SbResponder {
   return () => ({
     session_revoked: options.revoked ?? false,
     session_new: options.newSession ?? false,
     member: role === null ? null : { id: memberId, role },
+    ...(options.mfa ? { mfa: options.mfa } : {}),
   });
 }
 

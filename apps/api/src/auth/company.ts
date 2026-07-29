@@ -19,6 +19,21 @@ const authorizeSchema = z.object({
   session_revoked: z.boolean(),
   session_new: z.boolean(),
   member: z.unknown().nullable(),
+  /**
+   * #314: the workspace's MFA posture. Null on the company-exempt routes,
+   * where there is no workspace policy to apply. `.catch(null)` so a Worker
+   * that deploys before the migration reads "no policy" rather than 500ing
+   * every request — the expand/contract deploy window, which for an auth
+   * middleware is the whole product.
+   */
+  mfa: z
+    .object({
+      required: z.boolean(),
+      grace_until: z.string().nullable(),
+      enforcing: z.boolean(),
+    })
+    .nullable()
+    .catch(null),
 });
 
 /**
@@ -70,6 +85,13 @@ export const COMPANY_EXEMPT_ROUTES = new Set([
   // their old phone out.
   "GET /v1/sessions",
   "POST /v1/sessions/revoke",
+  // #314: a member being TOLD to enrol must be able to reach the thing that
+  // fixes it, and somebody locked out of every workspace still owns their
+  // own account. An enforcement gate with no exit is an outage with a good
+  // reason attached.
+  "GET /v1/mfa",
+  "POST /v1/mfa/recovery-codes",
+  "POST /v1/mfa/recover",
 ]);
 
 /**
@@ -148,6 +170,27 @@ export function companyContext() {
     const parsedRow = memberRowSchema.safeParse(authorized.member);
     if (!parsedRow.success) {
       return errorResponse(c, "forbidden", "Not an active member of this company.");
+    }
+
+    // #314: the workspace requires a second factor, the grace window the crew
+    // was given has passed, and this token does not have one.
+    //
+    // Placed AFTER membership so the answer cannot be mined by a non-member,
+    // and expressed as its own code because all three clients route on it —
+    // to the enrolment screen, not to an error toast.
+    //
+    // What makes this safe to switch on at all: every route that could get
+    // somebody OUT of this state is company-exempt (enrolment lives against
+    // GoTrue directly, recovery and the factor list are bearer-only), so a
+    // member being told to enrol can always reach the place that fixes it.
+    // An enforcement gate with no exit is not a security feature, it is an
+    // outage with a good reason.
+    if (authorized.mfa?.enforcing && c.get("aal") !== "aal2") {
+      return errorResponse(
+        c,
+        "mfa_required",
+        "This workspace requires two-factor authentication. Set it up to carry on.",
+      );
     }
 
     c.set("companyId", companyId);

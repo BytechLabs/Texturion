@@ -1,7 +1,7 @@
 import { createMiddleware } from "hono/factory";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
-import type { AppEnv } from "../context";
+import type { AppEnv, AssuranceLevel } from "../context";
 import { getEnv, type Env } from "../env";
 import { errorResponse } from "../http/errors";
 
@@ -45,7 +45,7 @@ export function expectedIssuer(supabaseUrl: string): string {
 export async function verifyAccessToken(
   token: string,
   env: Env,
-): Promise<{ userId: string; sessionId: string | null }> {
+): Promise<{ userId: string; sessionId: string | null; aal: AssuranceLevel }> {
   const { payload } = await jwtVerify(token, remoteJwks(env.SUPABASE_JWKS_URL), {
     algorithms: ["ES256"],
     issuer: expectedIssuer(env.SUPABASE_URL),
@@ -64,7 +64,12 @@ export async function verifyAccessToken(
     typeof payload.session_id === "string" && SESSION_ID_RE.test(payload.session_id)
       ? payload.session_id
       : null;
-  return { userId: payload.sub, sessionId };
+  // #314: GoTrue's assurance level. `aal2` means a second factor was verified
+  // for THIS session; `aal1` means password (or OAuth) alone. Absent is read
+  // as aal1 — the conservative direction, since the only thing that turns on
+  // it is whether we demand a factor.
+  const aal = payload.aal === "aal2" ? "aal2" : "aal1";
+  return { userId: payload.sub, sessionId, aal };
 }
 
 const SESSION_ID_RE =
@@ -84,8 +89,9 @@ export function jwtAuth() {
       return errorResponse(c, "unauthorized", "Missing or invalid access token.");
     }
     try {
-      const { userId, sessionId } = await verifyAccessToken(token, env);
+      const { userId, sessionId, aal } = await verifyAccessToken(token, env);
       c.set("userId", userId);
+      c.set("aal", aal);
       if (sessionId) c.set("sessionId", sessionId);
     } catch {
       // Never leak why verification failed (SPEC §7: 401 `unauthorized`).

@@ -24,8 +24,17 @@ describe("error codes (SPEC §7)", () => {
       not_found: 404,
       conflict: 409,
       quiet_hours_confirmation_required: 409,
+      mfa_required: 403,
       rate_limited: 429,
     });
+  });
+
+  it("gives MFA its own code rather than a 403 with prose (#314)", () => {
+    // All three clients ROUTE on this — to the enrolment screen, not to an
+    // error toast. A message-sniffing client would break the first time the
+    // copy was edited.
+    expect(ERROR_CODE_STATUS.mfa_required).toBe(ERROR_CODE_STATUS.forbidden);
+    expect(ERROR_CODES).toContain("mfa_required");
   });
 
   it("shares the 409 status between conflict and quiet-hours confirmation", () => {

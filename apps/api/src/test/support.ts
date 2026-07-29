@@ -213,7 +213,16 @@ export interface CapturedRequest {
 export function authorizeRoute(
   env: Env,
   member: { id: string; role: string } | null,
-  options: { revoked?: boolean; captured?: CapturedRequest } = {},
+  options: {
+    revoked?: boolean;
+    captured?: CapturedRequest;
+    /**
+     * #314: the workspace's MFA posture. Omitted entirely by default, which is
+     * also what a Worker deployed ahead of the migration sees — so the default
+     * exercises the tolerant path rather than papering over it.
+     */
+    mfa?: { required: boolean; grace_until: string | null; enforcing: boolean };
+  } = {},
 ): FetchRoute {
   const href = `${env.SUPABASE_URL}/rest/v1/rpc/api_authorize_request`;
   return (url, request) => {
@@ -226,6 +235,7 @@ export function authorizeRoute(
       session_revoked: options.revoked ?? false,
       session_new: false,
       member,
+      ...(options.mfa ? { mfa: options.mfa } : {}),
     });
   };
 }

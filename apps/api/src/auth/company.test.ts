@@ -28,6 +28,9 @@ const app = new Hono<AppEnv>();
 app.use("*", async (c, next) => {
   c.set("userId", USER_ID);
   c.set("sessionId", SESSION_ID);
+  // Password alone unless a test says otherwise — the conservative default,
+  // and the one the enforcement gate is about.
+  c.set("aal", "aal1");
   await next();
 });
 app.use("*", companyContext());
@@ -39,6 +42,17 @@ app.get("/v1/probe", (c) =>
   }),
 );
 app.get("/v1/me", (c) => c.json({ companyId: c.get("companyId") ?? null }));
+
+/** The same probe, but presenting a token that carries a verified factor. */
+const aal2App = new Hono<AppEnv>();
+aal2App.use("*", async (c, next) => {
+  c.set("userId", USER_ID);
+  c.set("sessionId", SESSION_ID);
+  c.set("aal", "aal2");
+  await next();
+});
+aal2App.use("*", companyContext());
+aal2App.get("/v1/probe", (c) => c.json({ role: c.get("role") }));
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -93,6 +107,59 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
     expect(await res.json()).toEqual({
       error: { code: "unauthorized", message: expect.any(String) },
     });
+  });
+
+  // #314. The lockout risk is the whole design constraint here, so what these
+  // pin is mostly when the gate must NOT fire.
+  it("does not demand a factor while the grace window is still open", async () => {
+    stubFetch(
+      authorizeRoute(env, { id: MEMBER_ID, role: "member" }, {
+        mfa: { required: true, grace_until: "2099-01-01T00:00:00Z", enforcing: false },
+      }),
+    );
+    const res = await request({ "X-Company-Id": COMPANY_ID });
+    // The crew keeps working. Enforcement that starts the instant it is
+    // switched on is how a security feature becomes an outage mid-shift.
+    expect(res.status).toBe(200);
+  });
+
+  it("403s mfa_required once the grace window has passed", async () => {
+    stubFetch(
+      authorizeRoute(env, { id: MEMBER_ID, role: "member" }, {
+        mfa: { required: true, grace_until: "2020-01-01T00:00:00Z", enforcing: true },
+      }),
+    );
+    const res = await request({ "X-Company-Id": COMPANY_ID });
+    expect(res.status).toBe(403);
+    // Its own code, not a 403 with prose: all three clients route on this to
+    // the enrolment screen, and a message-sniffing client would break the
+    // first time somebody edited the copy.
+    expect(await res.json()).toEqual({
+      error: { code: "mfa_required", message: expect.any(String) },
+    });
+  });
+
+  it("lets a token that HAS a second factor straight through", async () => {
+    stubFetch(
+      authorizeRoute(env, { id: MEMBER_ID, role: "member" }, {
+        mfa: { required: true, grace_until: "2020-01-01T00:00:00Z", enforcing: true },
+      }),
+    );
+    const res = await aal2App.request(
+      "/v1/probe",
+      { headers: { "X-Company-Id": COMPANY_ID } },
+      env,
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("reads a missing mfa field as no policy, so a Worker ahead of the migration still serves", async () => {
+    // Expand/contract: the Worker can deploy before the migration lands. For
+    // an auth middleware, 500ing every request in that window is the product
+    // being down.
+    stubFetch(authorizeRoute(env, { id: MEMBER_ID, role: "member" }));
+    const res = await request({ "X-Company-Id": COMPANY_ID });
+    expect(res.status).toBe(200);
   });
 
   it("401s a signed-out session on the company-EXEMPT routes too", async () => {
@@ -274,6 +341,12 @@ describe("#347 — nothing bypasses the company context", () => {
         "POST /v1/me/email/retry",
         "GET /v1/sessions",
         "POST /v1/sessions/revoke",
+        // #314: the escape hatches. Every one of these is a route somebody
+        // told "enrol in MFA" has to be able to reach, so exempting them is
+        // what makes the enforcement gate safe rather than an outage.
+        "GET /v1/mfa",
+        "POST /v1/mfa/recovery-codes",
+        "POST /v1/mfa/recover",
       ].sort(),
     );
   });

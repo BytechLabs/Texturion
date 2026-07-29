@@ -17,6 +17,12 @@ export const ERROR_CODES = [
   // shows the confirm dialog by CODE, never by sniffing the 409 message.
   // Shares the 409 status and envelope with `conflict`.
   "quiet_hours_confirmation_required",
+  // #314: this workspace requires a second factor, the grace window has
+  // passed, and this token does not have one. A structural signal rather than
+  // a 403 with prose, because all three clients have to ROUTE on it — to the
+  // enrolment screen, not to an error toast. Shares the 403 status with
+  // `forbidden`.
+  "mfa_required",
   "rate_limited",
 ] as const;
 
@@ -36,6 +42,7 @@ export const ERROR_CODE_STATUS = {
   not_found: 404,
   conflict: 409,
   quiet_hours_confirmation_required: 409,
+  mfa_required: 403,
   rate_limited: 429,
 } as const satisfies Record<ErrorCode, number>;
 

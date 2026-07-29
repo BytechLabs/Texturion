@@ -54,6 +54,7 @@ import { devicePushTokensRoutes } from "./routes/device-push-tokens";
 import { forYouRoutes } from "./routes/for-you";
 import { spamReviewRoutes } from "./routes/spam-review";
 import { meRoutes } from "./routes/me";
+import { mfaRoutes } from "./routes/mfa";
 import { messageRoutes } from "./routes/messages";
 import { notificationsRoutes } from "./routes/notifications";
 import { numbersRoutes } from "./routes/numbers";
@@ -169,6 +170,7 @@ app.route("/v1", searchRoutes);
 app.route("/v1", teamRoutes);
 app.route("/v1", sessionsRoutes); // #236 signed-in devices, self + workspace
 app.route("/v1", ownershipRoutes); // #332 handing the workspace over
+app.route("/v1", mfaRoutes); // #314 second factor + recovery codes
 app.route("/v1", notificationsRoutes);
 app.route("/v1", devicePushTokensRoutes); // #151 native FCM/APNs token registry
 app.route("/v1", forYouRoutes); // D23 GET /v1/for-you home read-model

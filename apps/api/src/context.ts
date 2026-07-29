@@ -23,7 +23,16 @@ export interface AppVariables {
    * that uses it must tolerate that.
    */
   sessionId?: string;
+  /**
+   * #314: GoTrue's authenticator assurance level for the presented token.
+   * `aal2` means a second factor was verified for this session. Absent claims
+   * read as `aal1`, which is the conservative direction.
+   */
+  aal: AssuranceLevel;
 }
+
+/** SPEC §10 / GoTrue: `aal1` = password or OAuth alone, `aal2` = with MFA. */
+export type AssuranceLevel = "aal1" | "aal2";
 
 /** Hono type environment for the api Worker. */
 export type AppEnv = {
