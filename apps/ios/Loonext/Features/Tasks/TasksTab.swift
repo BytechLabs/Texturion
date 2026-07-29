@@ -609,6 +609,7 @@ private func previewTask(
                     subscription_status: SubscriptionStatus.active
                 ),
             ],
+            email_state: nil,
             company: nil
         )
     )
