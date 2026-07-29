@@ -216,9 +216,11 @@ export default function CompliancePage() {
         <p>
           Start a new conversation late at night and we quietly ask first:
           &quot;It&apos;s 9:14 PM for this customer. Send anyway?&quot;
-          You can send or wait. It&apos;s a nudge, not a hard block, and the
-          customer&apos;s local time is worked out from their area code so you
-          don&apos;t have to think about it.
+          You can send or wait. It&apos;s a nudge, not a hard block. We work
+          out the customer&apos;s local time from their area code, and when the
+          area code is wrong, which happens every time somebody moves and keeps
+          their number, you can set the right timezone on their contact and we
+          use that instead.
         </p>
         <p>
           Replies to a customer who already texted you are never held up, at
