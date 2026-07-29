@@ -47,6 +47,7 @@ import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
+import com.loonext.android.core.model.NumberHealth
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.ui.common.CenteredError
@@ -229,6 +230,22 @@ private fun NumberCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+
+            // #235: a carrier is filtering this line. Only the confident
+            // 'degraded' state ever reaches a client — the server flattens the
+            // internal 'watch' to healthy, because a maybe-degraded warning on
+            // a thin sample is how a false alarm becomes a cancellation.
+            number.status == NumberStatus.ACTIVE && number.health != null -> {
+                Text(
+                    "Messages from this number aren't arriving reliably",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    numberHealthCopy(number.health),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             number.status == NumberStatus.SUSPENDED -> Text(
@@ -818,4 +835,27 @@ private fun RemediateNumberFlow(
             }
         },
     )
+}
+
+/**
+ * #235 — what a degraded number is told to its owner.
+ *
+ * Ported 1:1 from web's `number-health-notice.tsx` and iOS's
+ * `NumberHealthNotice`, because a crew with two devices must not read two
+ * different accounts of the same problem.
+ *
+ * It never says "spam" or "flagged": we know delivery fell, we do not know
+ * which vendor labelled it or whether one did, and naming a cause we have not
+ * established would be a guess dressed as a diagnosis. It also promises no
+ * self-serve fix — remediation is registry paperwork that takes days.
+ */
+internal fun numberHealthCopy(health: NumberHealth): String {
+    val opening = health.delivery_rate?.let {
+        "About ${Math.round(it * 100)}% of your recent texts were delivered, " +
+            "which is below normal for this number."
+    } ?: "Fewer of your texts are getting through than usual."
+    return opening +
+        " Carriers sometimes start filtering a number — often one that was " +
+        "reused from a previous business. We've been alerted and we're on it; " +
+        "you don't need to do anything yet."
 }

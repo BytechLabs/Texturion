@@ -95,6 +95,19 @@ object NumberStatus {
     const val PROVISION_FAILED = "provision_failed"
 }
 
+/** #235: a number a carrier has started filtering or labelling. */
+@Serializable
+data class NumberHealth(
+    /** Always "degraded" when present — a healthy number carries no row. */
+    val state: String,
+    /** 0-1 over the assessment window, or null when there was too little to say. */
+    val delivery_rate: Double? = null,
+    /** When it first left healthy, so the notice can say how long. */
+    val degraded_since: String? = null,
+    /** Plain language, for support rather than the customer. */
+    val detail: String? = null,
+)
+
 /** Numbers summary embedded in company views + GET /v1/numbers rows. */
 @Serializable
 data class PhoneNumberSummary(
@@ -106,6 +119,12 @@ data class PhoneNumberSummary(
     val created_at: String,
     val source: String? = null,
     val voice_enabled: Boolean? = null,
+    /**
+     * #235: present only when a carrier is filtering or labelling this number.
+     * Null means healthy — which is also what an unassessed number reads as.
+     * The internal 'watch' state never reaches a client.
+     */
+    val health: NumberHealth? = null,
     val suspended_at: String? = null,
     val released_at: String? = null,
     val failure_reason: String? = null,

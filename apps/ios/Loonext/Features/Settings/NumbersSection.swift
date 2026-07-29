@@ -231,6 +231,16 @@ private struct NumberCard: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+        } else if number.status == NumberStatus.active, let health = number.health {
+            // #235: a carrier is filtering this line. Only the confident
+            // 'degraded' state ever reaches a client — the server flattens the
+            // internal 'watch' to healthy, because a maybe-degraded warning on
+            // a thin sample is how a false alarm becomes a cancellation.
+            Text("Messages from this number aren't arriving reliably")
+                .font(.callout)
+            Text(numberHealthCopy(health))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         } else if number.status == NumberStatus.suspended {
             Text(
                 "This number is suspended. Update your payment method under "
@@ -714,4 +724,28 @@ private struct RemediateNumberSheet: View {
             pending = false
         }
     }
+}
+
+/// #235 — what a degraded number is told to its owner.
+///
+/// Ported 1:1 from web's `number-health-notice.tsx` and Android's
+/// `numberHealthCopy`, because a crew with two devices must not read two
+/// different accounts of the same problem.
+///
+/// It never says "spam" or "flagged": we know delivery fell, we do not know
+/// which vendor labelled it or whether one did, and naming a cause we have not
+/// established would be a guess dressed as a diagnosis. It also promises no
+/// self-serve fix — remediation is registry paperwork that takes days.
+func numberHealthCopy(_ health: NumberHealth) -> String {
+    let opening: String
+    if let rate = health.delivery_rate {
+        opening = "About \(Int((rate * 100).rounded()))% of your recent texts were "
+            + "delivered, which is below normal for this number."
+    } else {
+        opening = "Fewer of your texts are getting through than usual."
+    }
+    return opening
+        + " Carriers sometimes start filtering a number — often one that was "
+        + "reused from a previous business. We've been alerted and we're on it; "
+        + "you don't need to do anything yet."
 }

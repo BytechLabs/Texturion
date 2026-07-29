@@ -3300,3 +3300,44 @@ migration is already live. An additive migration means roll the code back and
 leave the schema. A removing or narrowing one means you cannot roll back at all
 and must roll forward — which is why expand and contract are two deploys, never
 one.
+
+## D73 — a number is judged against itself, and 'watch' is ours alone (#235, 2026-07-29)
+
+**Decision.** Every active number is assessed daily against **its own** trailing
+28-day baseline. Two states above healthy: `watch` (internal only) and
+`degraded` (the only state a customer ever sees).
+
+**Why against itself and not a fleet threshold.** A plumber texting the same 200
+regulars has a different natural delivery rate than a roofer cold-quoting. One
+shared threshold would flag one of them forever and never flag the other, which
+is the worst of both failures at once.
+
+**Why two states.** The hard part of this feature is not detection, it is **not
+crying wolf**. At our size a number sends a few dozen texts a week, so three
+failures is an ordinary Tuesday. A system that called that "your number has been
+flagged as spam" would cost us the account over a false alarm — and the one time
+it was real, nobody would believe it. So `watch` exists to make us look before
+we are sure, and `api_number_health` flattens it to `healthy` server-side so a
+client cannot leak it even by accident.
+
+**Three signals, any one sufficient:** a 15-point fall from the number's own
+baseline; an absolute 70% floor when there is no baseline (a **recycled** number
+arrives pre-poisoned with no history); and **replies collapsing while delivery
+still reads fine** — the tell for silent filtering, where the carrier accepts,
+bills, and drops. No delivery-rate check catches that third one, which is
+exactly why it is in.
+
+**Only transitions are announced**, including recoveries. A known-bad number
+that mailed us every morning would train somebody to ignore the mailbox, and a
+recovery is the only evidence a remediation actually worked.
+
+**The customer copy never says "spam" or "flagged."** We know delivery fell; we
+do not know which vendor labelled it or whether one did. It also promises no
+self-serve fix, because remediation is registry paperwork that takes days and
+needs the customer's real business identity — a button implying otherwise would
+be a lie about the timeline. `docs/NUMBER-REPUTATION.md` is the runbook.
+
+**The read fails open and silent.** `loadNumberHealth` decorates the numbers
+list, which the composer's "text from" picker reads. A reputation lookup has no
+business being able to stop somebody texting a customer, so any failure returns
+an empty map and no banner.

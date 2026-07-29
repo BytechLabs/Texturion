@@ -284,6 +284,14 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "job:number-health": {
+    what:
+      "Per-number reputation is no longer being assessed (#235). A carrier "
+      + "labelling one of our numbers would now be invisible until the "
+      + "customer churns over it.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
   "job:delivery-by-country": {
     what: "The delivery-rate-by-country split has stopped, which is the only signal that would show a carrier silently filtering us (#379, #235).",
     everyMinutes: 1440,

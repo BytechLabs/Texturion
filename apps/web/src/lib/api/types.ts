@@ -148,6 +148,18 @@ export interface Me {
   flags?: Record<string, boolean>;
 }
 
+/** #235: a number a carrier has started filtering or labelling. */
+export interface NumberHealth {
+  /** Always 'degraded' when present — healthy numbers carry no row. */
+  state: string;
+  /** 0-1 over the assessment window, or null when there was too little to say. */
+  delivery_rate: number | null;
+  /** When it first left healthy, so the banner can say how long. */
+  degraded_since: string | null;
+  /** Plain language: "delivery 54% against a baseline of 97%". */
+  detail: string | null;
+}
+
 /** #386: why we cannot email this member, and whether they can fix it. */
 export interface EmailState {
   email: string;
@@ -179,6 +191,14 @@ export interface PhoneNumberSummary {
   source?: NumberSource;
   /** Voice on Telnyx — false for hosted rows (calls stay on the old carrier). */
   voice_enabled?: boolean;
+  /**
+   * #235: this number's delivery health, present only when it is DEGRADED —
+   * a carrier or analytics vendor is filtering or labelling it. `null` or
+   * absent means healthy, which is also what an unassessed number reads as.
+   *
+   * The internal 'watch' state never appears here; the server flattens it.
+   */
+  health?: NumberHealth | null;
   /** Present on GET /v1/numbers rows; absent from the company-view embed. */
   suspended_at?: string | null;
   released_at?: string | null;

@@ -87,6 +87,18 @@ enum NumberStatus {
 }
 
 /// Numbers summary embedded in company views + GET /v1/numbers rows.
+/// #235: a number a carrier has started filtering or labelling.
+struct NumberHealth: Codable, Sendable {
+    /// Always "degraded" when present — a healthy number carries no row.
+    let state: String
+    /// 0-1 over the assessment window, or nil when there was too little to say.
+    let delivery_rate: Double?
+    /// When it first left healthy, so the notice can say how long.
+    let degraded_since: String?
+    /// Plain language, for support rather than the customer.
+    let detail: String?
+}
+
 struct PhoneNumberSummary: Codable, Sendable {
     let id: String
     let status: String
@@ -96,6 +108,11 @@ struct PhoneNumberSummary: Codable, Sendable {
     let created_at: String
     let source: String?
     let voice_enabled: Bool?
+    /// #235: present only when a carrier is filtering or labelling this number.
+    /// nil means healthy — which is also what an unassessed number reads as.
+    /// The internal 'watch' state never reaches a client. `var … = nil` so it
+    /// does not become a required memberwise-init parameter everywhere.
+    var health: NumberHealth? = nil
     let suspended_at: String?
     let released_at: String?
     let failure_reason: String?

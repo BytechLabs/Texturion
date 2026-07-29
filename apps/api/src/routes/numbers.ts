@@ -17,6 +17,7 @@ import {
   syncPaidExtraCapacity,
 } from "../billing/extra-numbers";
 import { idempotencyKey } from "../billing/idempotency";
+import { loadNumberHealth } from "../messaging/number-health-read";
 import {
   NUMBER_PROVISION_CHURN_CAP,
   PLAN_LIMITS,
@@ -115,9 +116,23 @@ numbersRoutes.get("/", async (c) => {
       : ((hidden) => rows.filter((row) => !hidden.has(row.id)))(
           new Set(access.hiddenNumberIds),
         );
+  // #235: the number's own delivery health, so a degraded line is visible in
+  // the app rather than discovered from a customer who stopped getting replies.
+  //
+  // Best-effort: a failure here must never take down the numbers list, which
+  // is what the composer's "text from" picker reads. No health is the same as
+  // healthy — the honest reading of "we have not assessed this".
+  const health = await loadNumberHealth(db, c.get("companyId"));
+
   // A company holds at most 2 numbers (SPEC §2) — the list envelope keeps the
   // §7 shape with no second page ever.
-  return c.json({ data: visible.map(sanitizeNumber), next_cursor: null });
+  return c.json({
+    data: visible.map((row) => ({
+      ...sanitizeNumber(row),
+      health: health.get(row.id) ?? null,
+    })),
+    next_cursor: null,
+  });
 });
 
 const provisionBodySchema = z

@@ -20,6 +20,7 @@ import { getEnv, type Bindings, type Env } from "./env";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { runLeadChaseJob } from "./notifications/lead-chase";
+import { runNumberHealthJob } from "./messaging/number-health";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
 import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
 import { runLivenessCheckJob } from "./observability/liveness-check";
@@ -383,7 +384,14 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // filtering unregistered A2P traffic returns no error — the message is
   // accepted, billed, marked sent and never arrives — so an absence is all it
   // leaves behind, and this split is the only place it shows.
-  "0 13 * * *": [job("job:poll-registrations", pollRegistrations), job("job:delivery-by-country", runDeliveryByCountryJob)],
+  "0 13 * * *": [
+    job("job:poll-registrations", pollRegistrations),
+    job("job:delivery-by-country", runDeliveryByCountryJob),
+    // #235: per-number reputation. Rides the same daily trigger as the other
+    // slow reconciles — the windows it compares are 7 and 28 days, so running
+    // it more often would cost queries to learn the same answer.
+    job("job:number-health", runNumberHealthJob),
+  ],
   // Port reconcile & resume (PORTING.md §5.2): poll in-flight porting orders,
   // apply missed status/messaging transitions, resume stalled sagas, and
   // recover messaging exceptions (webhooks primary, this is the fallback).

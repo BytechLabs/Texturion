@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api/error";
 import { NumberAccessDialog } from "@/components/settings/number-access-dialog";
 import { useReleaseNumber } from "@/lib/api/numbers";
+import { NumberHealthNotice } from "@/components/settings/number-health-notice";
 import type { PhoneNumberSummary } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";
@@ -245,6 +246,11 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
         >
           {failedCopy(number)}
         </p>
+      )}
+      {/* #235: a carrier is filtering this line. Only ever shown for the
+          confident 'degraded' state — the server never sends 'watch'. */}
+      {number.status === "active" && number.health && (
+        <NumberHealthNotice health={number.health} />
       )}
       {number.status === "suspended" && (
         <p className="mt-2 text-sm text-muted-foreground">
