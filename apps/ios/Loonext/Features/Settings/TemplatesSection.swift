@@ -275,7 +275,20 @@ private struct TemplateEditorSheet: View {
     }
 
     private var segmentLine: String {
-        let estimate = estimateSegments(trimmedBody)
+        // #415: count the string the preview below already builds, not the
+        // raw template. A saved reply is WHERE merge fields are used, so this
+        // surface had the largest version of the composer's bug — and it
+        // asserted "per send", which the raw body cannot support.
+        //
+        // Nothing is invented: the sample first name and the real company name
+        // are the same pair the preview has always shown.
+        let estimate = estimateSegments(
+            applyMergeFields(
+                trimmedBody,
+                contactName: sampleFirstName,
+                businessName: company.name
+            )
+        )
         let unit = estimate.segments == 1 ? "segment" : "segments"
         return "\(draft.count)/\(templateBodyMax) · \(estimate.segments) \(unit) per send"
     }

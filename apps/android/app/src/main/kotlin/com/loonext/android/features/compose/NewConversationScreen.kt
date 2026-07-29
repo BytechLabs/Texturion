@@ -499,7 +499,17 @@ private fun NewConversationLoaded(
                             .padding(start = 4.dp, end = 4.dp, top = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        val meter = segmentMeter(composer.text, composer.photos.isNotEmpty())
+                        // #415: the same string the "Sends as" line below
+                        // renders. The meter and the preview must measure one
+                        // message.
+                        val meter = segmentMeter(
+                            MergeFields.applyMergeFields(
+                                composer.text,
+                                selectedContact?.name,
+                                businessName,
+                            ),
+                            composer.photos.isNotEmpty(),
+                        )
                         val chars = composer.text.length
                         val meta = when {
                             meter.visible && chars > 0 ->

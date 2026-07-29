@@ -906,7 +906,19 @@ fun ComposerHints(
     businessName: String?,
     modifier: Modifier = Modifier,
 ) {
-    val meter = segmentMeter(text, hasMedia)
+    // #415: measure what SENDS, not what was typed. This function already had
+    // both names in hand for the preview below and gave the meter the raw
+    // draft, so a message built around {business_name} — 15 characters against
+    // "Wilson & Sons Plumbing and Heating" at 34 — was reported a part short
+    // every time it went out.
+    //
+    // The encoding boundary is where it stops being a rounding error: an
+    // accent or a curly apostrophe arriving through a name flips the WHOLE
+    // message from GSM-7 to UCS-2 and per-part capacity falls from 160 to 70.
+    val meter = segmentMeter(
+        MergeFields.applyMergeFields(text, contactName, businessName),
+        hasMedia,
+    )
     val showPreview = MergeFields.hasMergeFields(text)
     if (!meter.visible && !showPreview) return
     Column(modifier.padding(horizontal = 20.dp)) {

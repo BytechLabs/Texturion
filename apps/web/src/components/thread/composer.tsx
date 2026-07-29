@@ -246,11 +246,35 @@ export function MediaErrors({ errors }: { errors: string[] }) {
 export function SegmentMeterLabel({
   text,
   hasMedia = false,
+  contactName,
+  businessName,
 }: {
   text: string;
   hasMedia?: boolean;
+  /** #415: the SAME values {@link MergeFieldPreview} renders with. */
+  contactName?: string | null;
+  businessName?: string | null;
 }) {
-  const meter = segmentMeter(text, hasMedia);
+  // #415: measure what SENDS, not what was typed. The preview one line below
+  // has always substituted; the meter counted the raw draft, so a message
+  // built around {business_name} — 15 characters, against "Wilson & Sons
+  // Plumbing and Heating" at 34 — was reported a part short every single time
+  // it was sent, for the life of the template.
+  //
+  // The encoding boundary is where it stops being a rounding error. An accent
+  // or a curly apostrophe arriving through a name flips the WHOLE message from
+  // GSM-7 to UCS-2, and per-part capacity falls from 160 to 70 — so a 150-
+  // character draft the meter called one part can send as three. "Ménard
+  // Plomberie" and "O'Brien Heating" are the names this product's Canada-first
+  // positioning actively courts.
+  //
+  // Taking the merge values as props rather than metering the raw string is
+  // the point: a caller cannot render this label without deciding what it
+  // substitutes.
+  const meter = segmentMeter(
+    applyMergeFields(text, { contactName, businessName }),
+    hasMedia,
+  );
   if (!meter.visible) return null;
   return (
     <Tooltip>
@@ -959,6 +983,8 @@ export function Composer({
             <SegmentMeterLabel
               text={text}
               hasMedia={attachments.length > 0}
+              contactName={conversation.data?.contact?.name}
+              businessName={company.data?.name}
             />
           )}
           {/* The single petrol control in this region (mockup .btn-primary.send)

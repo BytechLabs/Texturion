@@ -634,7 +634,25 @@ struct ComposerHints: View {
     let businessName: String?
 
     var body: some View {
-        let meter = segmentMeter(text, hasMedia: hasMedia)
+        // #415: measure what SENDS, not what was typed. This view already had
+        // both names in hand for the preview below and gave the meter the raw
+        // draft, so a message built around {business_name} — 15 characters
+        // against "Wilson & Sons Plumbing and Heating" at 34 — was reported a
+        // part short every time it went out.
+        //
+        // The encoding boundary is where it stops being a rounding error: an
+        // accent or a curly apostrophe arriving through a name flips the WHOLE
+        // message from GSM-7 to UCS-2 and per-part capacity falls from 160 to
+        // 70. "Ménard Plomberie" and "O'Brien Heating" are the names this
+        // product's Canada-first positioning actively courts.
+        let meter = segmentMeter(
+            MergeFields.applyMergeFields(
+                text,
+                contactName: contactName,
+                businessName: businessName
+            ),
+            hasMedia: hasMedia
+        )
         let showPreview = MergeFields.hasMergeFields(text)
         if meter.visible || showPreview {
             VStack(alignment: .leading, spacing: 2) {

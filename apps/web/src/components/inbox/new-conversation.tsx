@@ -686,7 +686,16 @@ export function NewConversation() {
             ) : (
               <span aria-hidden />
             )}
-            <SegmentMeterLabel text={body} hasMedia={attachments.length > 0} />
+            {/* #415: the same values the preview below substitutes with — the
+                meter and the preview must measure one string. */}
+            <SegmentMeterLabel
+              text={body}
+              hasMedia={attachments.length > 0}
+              contactName={
+                recipient?.kind === "contact" ? recipient.contact.name : null
+              }
+              businessName={company.data?.name}
+            />
           </div>
           <MergeFieldPreview
             text={body}

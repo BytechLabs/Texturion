@@ -252,7 +252,24 @@ private fun TemplateEditorDialog(
 
     val trimmedName = name.trim()
     val trimmedBody = body.trim()
-    val estimate = estimateSegments(trimmedBody)
+    // #415: count the string the preview below already builds, not the raw
+    // template. A saved reply is WHERE merge fields are used, so this surface
+    // had the largest version of the composer's bug — and it asserted "per
+    // send", which the raw body cannot support.
+    //
+    // Nothing is invented here: the sample first name and the real company
+    // name are the same pair the preview has always shown. The count is still
+    // an estimate, because the real customer's name is not this one — but it
+    // is an estimate of the right shape, and it catches the case that actually
+    // bites, which is an accented or apostrophe-bearing company name flipping
+    // the whole message to UCS-2 and cutting per-part capacity from 160 to 70.
+    val estimate = estimateSegments(
+        applyMergeFields(
+            text = trimmedBody,
+            contactName = SAMPLE_FIRST_NAME,
+            businessName = company.name,
+        ),
+    )
 
     AlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
