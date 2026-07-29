@@ -196,8 +196,13 @@ async function sendChase(
     collapseKey: `lead-chase:${row.to_level}:${row.conversation_id}`,
     // The one situation this feature exists for is a phone in a pocket, which
     // is a phone in Doze. NORMAL priority is deferred, and a deferred nudge
-    // about a five-minute window is not a nudge. #452 tracks the budget.
-    urgency: "high",
+    // about a five-minute window is not a nudge.
+    //
+    // #452: this rides the SAME daily ceiling as the first-inbound `lead`
+    // push, not one of its own. Both are driven by inbound text volume, so an
+    // inbound flood drives both — separate ceilings would let it spend the
+    // budget twice over.
+    highPriority: { companyId: row.company_id, reason: "lead_chase" },
     failures,
   });
 }

@@ -322,6 +322,18 @@ outbound (un-defeatable hard ceiling + rate limit), auto-reply + missed-call
 daily on grace-expiry — verified, no leak). Inbound auto-reply, media, and
 notifications (15-min debounced per conversation) are all individually bounded.
 
+**A cost centre that is not billed in dollars (#452/D61).** HIGH-priority push
+(FCM HIGH / APNs 10) is rationed by Google and Apple, and overuse is penalised
+**app-wide** rather than per message — so the bill arrives as our own
+notifications being throttled. It was omitted from every prior pass of this
+audit for exactly the reason it needed adding: a cost review looks for dollars.
+It is now counted per company per local day and attributed to the feature that
+asked (`high_priority_push_days`), with a shared ceiling over the two
+inbound-volume-driven reasons (`lead` + `lead_chase`), an ops alert at 80% and
+100%, and **degrade-to-NORMAL rather than drop** past the ceiling — the one
+place cap-and-drop is the wrong posture, because dropping loses the lead while
+degrading loses only the Doze wake. `select api_high_priority_push_report(7);`
+
 **The one residual is the raw Telnyx inbound-receive charge** (~$0.004 SMS /
 $0.005 MMS per message): it is incurred UPSTREAM at Telnyx before our webhook
 runs, so the only way to stop it is to suspend/release the flooded number —

@@ -2560,3 +2560,72 @@ for when that changes.
 **The deploy step that makes it real.** The three events must be ticked on the
 Stripe endpoint by hand. The code ships either way; the subscription is what
 makes it fire. `docs/deploy/03-stripe.md` says so in a callout.
+
+---
+
+## D61 — high-priority push is a budget, and the lead bucket is the one with a ceiling (#452, 2026-07-28)
+
+**Decision.** Every HIGH-priority native push is counted, per company, per
+local day, attributed to the feature that asked for it. `lead` and
+`lead_chase` **share one daily ceiling**; `ring`, `call_end` and `emergency`
+are counted and never capped. Past the ceiling a lead push **degrades to
+NORMAL** — it is never dropped.
+
+**Why it needed deciding.** FCM HIGH and APNs priority 10 wake a sleeping
+phone, and they are rationed: Google throttles apps that overuse them, and the
+throttling is applied **to the app**, so the penalty lands on exactly the
+notifications that most needed to arrive. That is a cost centre denominated in
+platform goodwill rather than dollars — which is why `ai/run.ts` can insist
+every AI cost centre declare a cap before it spends, while this one went four
+features deep with nothing counting it. D52 shipped the fifth and explicitly
+left this open.
+
+**Five callers, not two.** #452 counted the emergency keyword and the queued
+#391. By the time it was implemented the real list was `lead`, `lead_chase`
+(#388's ladder, which can add two more rungs per unanswered lead), `emergency`,
+`ring` and `call_end`.
+
+**What is metered is the DEVICE**, not the notification, because the device is
+what the platforms count. A ten-person crew on two phones each is 20 sends per
+lead, and a new conversation is unassigned, so a lead wakes the whole crew.
+Web Push urgency is deliberately **not** metered: nobody rations RFC 8030
+urgency, so degrading it would save nothing and cost a wake.
+
+**Why the split is a shape argument, not a volume one.** `ring` and `call_end`
+require a phone call to have actually happened, and a ring at NORMAL priority
+is not a ring. `emergency` requires one of the four fixed words in
+`EMERGENCY_KEYWORDS` — a constant, not the owner-configurable column #452
+assumed, so the "an owner sets it to *help*" risk it worried about does not
+exist. The two lead reasons are the only ones driven by **inbound text
+volume**, which is the one input an outsider controls.
+
+**One ceiling for both lead reasons, not one each.** They share the input, so
+a flood drives both; two independent ceilings would let it spend the budget
+twice over.
+
+**Degrade, never drop.** This is the one cost centre where the #12
+cap-and-drop posture is wrong. Dropping the alert loses the lead outright;
+sending it NORMAL loses only the Doze wake. So the ceiling stops the *spend*
+and never the *message* — and because of that, the number can be set
+conservatively without risking a silent blackout.
+
+**2000 device sends a day**, ops-overridable per company
+(`companies.high_priority_push_limit`), deliberately **not** per plan: this
+protects our standing with Google, which does not improve because a customer
+pays more. It is ~30 unanswered new conversations a day for the largest crew
+D12 describes — well past a real trades day, and still a hard bound on someone
+blasting inbound texts to wake twenty phones at full priority each time.
+
+**Fails open.** A metering failure returns "allowed" and reports to Sentry. The
+uncapped reasons run on the live-call path, whose contract is that push weather
+cannot break a call; and for the capped one, the bound shapes spend across days
+rather than milliseconds, so being briefly unbounded during a database outage
+is plainly better than degrading every lead in the country.
+
+**Alerts go to ops, not the owner** — the #448 posture for per-dial fees. This
+is our cost and there is nothing an owner could do about it. Warn at 80%, state
+it once at 100%, one-shot under the ledger row's lock.
+
+**How to answer the question.** `select api_high_priority_push_report(7);` —
+per company, per reason, sends and degraded. That was #452's definition of
+done.

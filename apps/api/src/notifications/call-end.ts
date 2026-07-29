@@ -35,6 +35,7 @@ import type { Env } from "../env";
 
 import { newestPerUser } from "./deliver";
 import { isFcmConfigured, sendFcm } from "./fcm";
+import { claimHighPriority } from "./high-priority";
 import { sendWebPush } from "./webpush";
 
 /** The capability string a v3 client declares to opt into `call_end`. */
@@ -211,6 +212,15 @@ async function deliverCallEnd(
     (tokenData ?? []) as DeviceTokenRow[],
     MAX_TARGETS_PER_USER,
   );
+
+  // #452: counted, not capped — like the ring above, this follows a real phone
+  // call, so its ceiling is the crew's actual call volume.
+  await claimHighPriority(
+    db,
+    { companyId: input.companyId, reason: "call_end" },
+    deviceTokens.length,
+  );
+
   await Promise.all(
     deviceTokens.map(async (device) => {
       try {

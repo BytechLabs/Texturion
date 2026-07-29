@@ -21,6 +21,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
 import { isFcmConfigured, sendFcm } from "./fcm";
+import { resolveHighPriority, type HighPriorityRequest } from "./high-priority";
 import { sendWebPush } from "./webpush";
 
 /**
@@ -89,11 +90,16 @@ export interface PushDelivery {
    */
   collapseKey: string;
   /**
-   * #414: "high" wakes a phone in Doze (FCM HIGH / APNs priority 10); "normal"
-   * is power-considerate and can be deferred for hours. Ordinary alerts are
-   * worth delivering late — an emergency is not.
+   * #414: present asks for "high", which wakes a phone in Doze (FCM HIGH /
+   * APNs priority 10); absent is power-considerate and can be deferred for
+   * hours. Ordinary alerts are worth delivering late — an emergency is not.
+   *
+   * #452: it carries a company and a reason rather than a bare `"high"`,
+   * because high priority is a rationed resource and every request for it has
+   * to be attributable. Typing it this way is the point: an unmetered call on
+   * that resource is not expressible.
    */
-  urgency?: "normal" | "high";
+  highPriority?: HighPriorityRequest;
   /**
    * Every failure lands here rather than throwing, so one dead device cannot
    * stop the rest of the fan-out. The caller decides what a non-empty list
@@ -171,12 +177,15 @@ export async function deliverPush(
     MAX_TARGETS_PER_USER,
   )) {
     try {
+      // Web Push urgency is NOT metered (#452): no push service rations it,
+      // so degrading it would save nothing and cost a wake. The meter below
+      // covers the native sends, which are the ones Google and Apple count.
       const result = await sendWebPush(
         env,
         subscription,
         webPayload,
         undefined,
-        delivery.urgency ?? "normal",
+        delivery.highPriority ? "high" : "normal",
         delivery.collapseKey,
       );
       if (result.gone) {
@@ -222,7 +231,17 @@ export async function deliverPush(
   const tokenRows = (tokenData ?? []) as DeviceTokenRow[];
   warnIfTruncated("device_push_tokens", tokenRows.length, ceiling);
 
-  for (const device of newestPerUser(tokenRows, MAX_TARGETS_PER_USER)) {
+  const devices = newestPerUser(tokenRows, MAX_TARGETS_PER_USER);
+
+  // #452: claim the high-priority budget ONCE for the whole fan-out, against
+  // the device count, because the device is what the platforms ration. Past
+  // the ceiling this comes back "normal" and every device still gets the
+  // alert — degraded, never dropped.
+  const urgency = delivery.highPriority
+    ? await resolveHighPriority(env, db, delivery.highPriority, devices.length)
+    : "normal";
+
+  for (const device of devices) {
     try {
       // TTL rides the sender default: an ordinary alert is worth delivering
       // late, unlike a ring. Urgency does NOT — #414 needs HIGH to wake a
@@ -233,7 +252,7 @@ export async function deliverPush(
         device,
         nativePayload,
         undefined,
-        delivery.urgency ?? "normal",
+        urgency,
         delivery.collapseKey,
       );
       if (result.gone) {

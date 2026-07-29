@@ -281,9 +281,17 @@ export async function notifyInboundMessage(
     // where this promise died. Same urgency an incoming call already uses.
     // #414 emergency and #391 lead both need to wake a sleeping phone. An
     // ordinary append stays NORMAL, deliberately — see `lead` above for why
-    // "set everything HIGH" is the wrong answer. #452 tracks counting how
-    // often we spend the high-priority budget.
-    urgency: input.emergency || input.lead ? "high" : "normal",
+    // "set everything HIGH" is the wrong answer.
+    //
+    // #452: the two reasons are recorded separately rather than collapsed to a
+    // flag, because only one of them is capped. An emergency is four fixed
+    // words a customer typed; a lead scales with inbound volume, which is the
+    // input an outsider controls, so it is the one with a ceiling.
+    highPriority: input.emergency
+      ? { companyId: input.companyId, reason: "emergency" }
+      : input.lead
+        ? { companyId: input.companyId, reason: "lead" }
+        : undefined,
     failures,
   });
 

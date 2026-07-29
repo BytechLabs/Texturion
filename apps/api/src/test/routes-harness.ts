@@ -98,6 +98,16 @@ export function supabaseStub(env: Env): SupabaseStub {
       matcher: "/rest/v1/rpc/record_heartbeat",
       respond: () => ({ recovered: false }),
     },
+    {
+      // #452: the high-priority push meter hangs off every HIGH send the same
+      // way. The default verdict is "allowed, no alert", which IS the shipped
+      // behaviour every pre-#452 test was written against — a suite that wants
+      // to assert on the meter, or drive a degrade, registers its own handler
+      // and wins.
+      method: "POST",
+      matcher: "/rest/v1/rpc/claim_high_priority_push",
+      respond: () => ({ allowed: true, alert: null }),
+    },
   ];
 
   const matches = (matcher: string | RegExp, path: string) =>

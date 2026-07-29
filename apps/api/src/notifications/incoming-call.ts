@@ -27,6 +27,7 @@ import type { Env } from "../env";
 
 import { newestPerUser } from "./deliver";
 import { isFcmConfigured, sendFcm } from "./fcm";
+import { claimHighPriority } from "./high-priority";
 import { sendWebPush } from "./webpush";
 
 /** Per-recipient device bound (#267): never a single ceiling across the crew. */
@@ -272,6 +273,17 @@ async function deliverIncomingCallPush(
   const deviceTokens = newestPerUser(
     (tokenRows ?? []) as DeviceTokenRow[],
     MAX_TARGETS_PER_USER,
+  );
+
+  // #452: a ring is counted like every other high-priority send, so the ops
+  // question "how many did we send, and to whom" has one answer rather than
+  // one per pipeline. It is NOT capped — a ring requires a real phone call, so
+  // its volume is bounded by something an outsider cannot manufacture, and a
+  // ring delivered at NORMAL priority is not a ring at all.
+  await claimHighPriority(
+    db,
+    { companyId: input.companyId, reason: "ring" },
+    deviceTokens.length,
   );
 
   await Promise.all(
