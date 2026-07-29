@@ -1725,3 +1725,52 @@ gates shipping; the direct-
 transfer optimization is not pursued. Placer-death teardown leans on the existing
 4h janitor (T16) as the correctness backstop, so the spike's latency finding
 tunes monitoring only, never the architecture.
+
+---
+
+## 17a. What dies with DO Sentry (#375)
+
+§13 says it plainly — *"Sentry inside the DO **REQUIRES** the §2.1
+instrumentation or every one of these alerts is a silent no-op"* — and §17.5
+calls the queue-latency drift alarm **NOT optional**. Neither said which
+signals, so the blast radius had to be reconstructed by reading the code. This
+is that list, so it never has to be reconstructed again.
+
+**One line carries all of it.** `apps/api/src/index.ts` re-exports the DO
+through `Sentry.instrumentDurableObjectWithSentry`. The Worker-level
+`withSentry` wraps only `fetch`/`scheduled`, so without that re-export a DO's
+`alarm()` and RPC entry points run entirely uninstrumented — while the build
+passes, the deploy succeeds, and calls keep connecting.
+
+**Everything that goes silent if it is dropped:**
+
+| Signal | Where | What it protects |
+|---|---|---|
+| FIFO admission-wait > `QUEUE_LATENCY_WARN_MS` | `session-do.ts:170` | §17.5's drift alarm for the webhook-ack budget (worst case ~3–4s behind a 24-target dial) |
+| Telnyx command cap **exceeded** — cap-and-drop | `session-do.ts:790` | the §13 hard cap; the drop still happens, but nobody learns a session hit it |
+| Telnyx command count at **50% of cap** | `session-do.ts:797` | the alert-before-the-cap half, which is the only warning that arrives while there is still time to act |
+| Mirror write failed (per attempt) | `session-do.ts:815`, `:870` | §2.2 mirror failures — the call row drifting from the DO's truth |
+| Mirror **gave up** after `MAX_MIRROR_ATTEMPTS` | `session-do.ts:873` | a call that will be missing from the log entirely |
+| Reducer-emitted `sentry-warn` effects | `session-do.ts:748` | every state-machine warning the reducer chooses to raise |
+| `#213` guard: an `oc` leg carrying `X-RTC-*` | `runtime.ts:597` | the wrong-bridge regression, rejected honestly rather than hijacking a transfer |
+| `notification_prefs` read failure during a ring | `runtime.ts:1112` | a transient read that silently narrows who gets rung |
+
+**Why losing it is invisible in both directions.** Sentry receiving nothing
+from a DO looks exactly like a healthy system with nothing to report — and for
+warnings that fire at 50% of a cap, *nothing to report is the expected steady
+state*. The absence of alerts is the normal condition, so the broken condition
+cannot be told apart from it by looking. That is the same shape as #308 (a dead
+inbound webhook looks like a quiet day) applied one layer up, to the channel
+those alarms would report through.
+
+**What guards it now.** `apps/api/src/observability/do-instrumentation.test.ts`
+fails CI if any DO class wrangler binds is not exported through the wrapper, if
+a DO class is declared and never routed through it, or if the bound name is not
+a real runtime export. Verified by decoy — removing the wrapper fails two of
+the three assertions.
+
+**What is still not proven, and needs saying.** That test asserts the
+instrumentation is *wired*. It does **not** assert Sentry *ingested* anything —
+that needs either a Sentry API read token or a synthetic call, and until one of
+those exists, "the alarms work" rests on the wiring being right rather than on
+evidence. #375 stays open for it.
