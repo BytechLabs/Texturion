@@ -122,6 +122,26 @@ export function ComposerBannerCard({
         );
       }
       break;
+    case "registration_suspended":
+      // #423. Deliberately NOT the pending copy: promising approval to a
+      // workspace that WAS approved is a wait that never ends, and it sends
+      // them hunting for a form to fill in. Say what happened, say who is
+      // acting on it, and say what still works — the same three things the
+      // email says, so the two never contradict each other.
+      sentence =
+        "The carrier paused your US registration, so US texts won't send. We've been told and we're on it — you'll get an email when it's back. Canadian texts and calls still work.";
+      // Registration gates TEXTING only, so the call still connects — and for
+      // a suspension it is the only thing the reader can actually do now.
+      if (thread?.canCall) {
+        action = (
+          <CallButton
+            conversationId={thread.conversationId}
+            contactName={thread.contactName}
+            label="Call them instead"
+          />
+        );
+      }
+      break;
     case "registration_pending":
       sentence =
         "US texting activates once your registration is approved. Usually 3 to 7 business days.";

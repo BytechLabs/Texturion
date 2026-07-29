@@ -8,7 +8,16 @@
 
 export interface RegistrationRow {
   kind: "brand" | "campaign";
-  status: "draft" | "submitted" | "pending" | "approved" | "rejected";
+  status:
+    | "draft"
+    | "submitted"
+    | "pending"
+    | "approved"
+    // #423: a carrier suspension. Deliberately mirrored here rather than
+    // imported — this module is a dependency-free helper the checkout gate
+    // calls, and the compiler catches the drift either way (it did).
+    | "suspended"
+    | "rejected";
   sole_proprietor: boolean;
   data: Record<string, unknown>;
 }
@@ -55,15 +64,22 @@ function campaignDataComplete(row: RegistrationRow): boolean {
 
 /**
  * A row is submittable when it either already went through submission
- * (`submitted`/`pending`/`approved` — covers resubscribes, where the §4.4
- * reactivation path reuses the existing rows) or is a `draft`/`rejected` row
- * whose wizard data carries every field the §4.4 Telnyx payload requires.
+ * (`submitted`/`pending`/`approved`/`suspended` — covers resubscribes, where
+ * the §4.4 reactivation path reuses the existing rows) or is a
+ * `draft`/`rejected` row whose wizard data carries every field the §4.4 Telnyx
+ * payload requires.
+ *
+ * #423: `suspended` counts as having been submitted, because it HAS been — the
+ * carrier approved it and later took it away. Treating it as unsubmittable
+ * would block checkout for a returning customer on the grounds that their
+ * wizard data is incomplete, which is both untrue and unactionable.
  */
 function submittable(row: RegistrationRow): boolean {
   if (
     row.status === "submitted" ||
     row.status === "pending" ||
-    row.status === "approved"
+    row.status === "approved" ||
+    row.status === "suspended"
   ) {
     return true;
   }

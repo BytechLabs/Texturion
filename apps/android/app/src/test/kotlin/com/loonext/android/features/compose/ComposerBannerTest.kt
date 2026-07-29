@@ -236,4 +236,58 @@ class ComposerBannerTest {
             ),
         )
     }
+    @Test
+    fun `a suspended registration is not told to wait for approval`() {
+        // #423. The pending copy says carriers are "still reviewing" and texts
+        // "will send once it's approved". For a suspended workspace both are
+        // false: they WERE approved, nothing is under review, and waiting
+        // achieves nothing. Same defect UsTextingOff was split out to fix.
+        val banner = selectComposerBanner(
+            contactOptedOut = false,
+            contactOptOutSource = null,
+            subscriptionStatus = SubscriptionStatus.ACTIVE,
+            destinationCountry = "US",
+            usApproved = false,
+            usTextingOff = false,
+            usage = usage(10, 100),
+            usSuspended = true,
+        )
+        assertEquals(ComposerBanner.RegistrationSuspended, banner)
+
+        val (title, body) = bannerCopy(ComposerBanner.RegistrationSuspended)
+        assertEquals("US texting is paused", title)
+        // It must not send the reader hunting for a form to fill in.
+        assertFalse(body.contains("resubmit"))
+        assertFalse(body.contains("reviewing"))
+        // And it says who is acting on it, because they cannot fix it.
+        assertTrue(body.contains("we're on it"))
+    }
+
+    @Test
+    fun `a suspension still offers the call`() {
+        // #423: registration gates TEXTING only, so the call connects — and
+        // during a suspension it is the only thing the reader can do now.
+        assertTrue(offersCallInstead(ComposerBanner.RegistrationSuspended))
+    }
+
+    @Test
+    fun `a workspace with US texting off wins over a suspension`() {
+        // Most-specific-to-this-reader: somebody who never turned the add-on
+        // on has no live registration to discuss, so telling them about a
+        // carrier suspension would be describing a state they are not in.
+        assertEquals(
+            ComposerBanner.UsTextingOff,
+            selectComposerBanner(
+                contactOptedOut = false,
+                contactOptOutSource = null,
+                subscriptionStatus = SubscriptionStatus.ACTIVE,
+                destinationCountry = "US",
+                usApproved = false,
+                usTextingOff = true,
+                usage = usage(10, 100),
+                usSuspended = true,
+            ),
+        )
+    }
+
 }

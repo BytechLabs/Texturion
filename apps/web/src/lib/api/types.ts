@@ -48,6 +48,10 @@ export type RegistrationStatus =
   | "submitted"
   | "pending"
   | "approved"
+  /** #423: the carrier took an approved registration away. Distinct from
+   *  `rejected` (review said no before we were live) and from
+   *  `deactivated_at` (we stopped paying for it). */
+  | "suspended"
   | "rejected";
 export type ConsentSource = "inbound_sms" | "attested";
 export type OptOutSource = "stop_keyword" | "manual" | "import" | "carrier";

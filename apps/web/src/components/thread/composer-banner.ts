@@ -38,6 +38,17 @@ export type ComposerBanner =
    * outcome that could not arrive however long the reader waited.
    */
   | { kind: "us_texting_off" }
+  /**
+   * #423: the carrier suspended a registration that WAS approved.
+   *
+   * Its own kind for the same reason `us_texting_off` is: the
+   * `registration_pending` copy promises approval is coming, and for a
+   * suspended workspace that is false — they were approved, nothing is under
+   * review, and waiting achieves nothing. A banner that misdescribes the state
+   * is worse than no banner, because it sends the reader off to wait for an
+   * outcome that cannot arrive.
+   */
+  | { kind: "registration_suspended" }
   | { kind: "usage_cap" }
   /**
    * #396: an inbound message on this thread READ as a plain-English opt-out.
@@ -63,6 +74,8 @@ export interface ComposerGateInput {
   usApproved: boolean;
   /** This workspace does not do US texting at all (see usTextingOff). */
   usTextingOff: boolean;
+  /** #423: the campaign was approved and the carrier took it away. */
+  usSuspended: boolean;
   /** GET /v1/usage — null while loading (cap banner needs real data). */
   usage: Pick<Usage, "used_segments" | "cap_segments"> | null;
   /** #396: conversations.opt_out_hint_at — a plain-English opt-out was seen. */
@@ -82,9 +95,13 @@ export function selectComposerBanner(input: ComposerGateInput): ComposerBanner {
     return { kind: "subscription", status: input.subscriptionStatus };
   }
   if (input.destinationCountry === "US" && !input.usApproved) {
-    return input.usTextingOff
-      ? { kind: "us_texting_off" }
-      : { kind: "registration_pending" };
+    // Order is most-specific-to-this-reader. `us_texting_off` first because a
+    // workspace that never turned US texting on has no live registration to
+    // discuss; then #423 suspension, which is a state they WERE out of; then
+    // the ordinary pre-approval wait.
+    if (input.usTextingOff) return { kind: "us_texting_off" };
+    if (input.usSuspended) return { kind: "registration_suspended" };
+    return { kind: "registration_pending" };
   }
   if (
     input.usage !== null &&
@@ -118,6 +135,18 @@ export function usSendApproved(
     campaign.status === "approved" &&
     campaign.deactivated_at === null
   );
+}
+
+/**
+ * #423: the carrier suspended a registration that had been approved.
+ *
+ * Read off the same campaign row `usSendApproved` reads, so the two can never
+ * disagree about which state the workspace is in.
+ */
+export function usSuspended(
+  company: Pick<CompanyView, "registration">,
+): boolean {
+  return company.registration.campaign?.status === "suspended";
 }
 
 /**

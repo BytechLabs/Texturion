@@ -102,6 +102,7 @@ import com.loonext.android.features.compose.Nanp
 import com.loonext.android.features.compose.rememberComposerState
 import com.loonext.android.features.compose.selectComposerBanner
 import com.loonext.android.features.compose.usSendApproved
+import com.loonext.android.features.compose.usSuspended
 import com.loonext.android.features.compose.usTextingOff
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.CenteredError
@@ -666,6 +667,8 @@ private fun ThreadLoaded(
             // #396: a shared inbox means the person replying is often not the
             // person who read the request.
             optOutHint = detail.opt_out_hint_at != null,
+            // #423: the carrier took an approved registration away.
+            usSuspended = controller.company?.let { usSuspended(it) } ?: false,
         )
         ThreadComposer(
             state = composer,

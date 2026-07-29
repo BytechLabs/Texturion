@@ -408,8 +408,29 @@ export class TelnyxMock {
     handler: TelnyxHandler;
   }[] = [];
 
+  private fallbacks: {
+    method: string;
+    pattern: RegExp;
+    handler: TelnyxHandler;
+  }[] = [];
+
   on(method: string, pattern: RegExp, handler: TelnyxHandler): this {
     this.handlers.push({ method, pattern, handler });
+    return this;
+  }
+
+  /**
+   * A handler consulted only when no `on()` handler matched.
+   *
+   * #423 made this necessary: the poller now re-reads APPROVED registrations
+   * (treating approval as terminal is what made a carrier revocation
+   * undetectable), so every suite that seeds a healthy approved brand suddenly
+   * needs a GET double for it — including the ones that are about something
+   * else entirely. A fallback lets `setup()` answer "still verified" for the
+   * healthy case while any test that cares still registers its own and wins.
+   */
+  fallback(method: string, pattern: RegExp, handler: TelnyxHandler): this {
+    this.fallbacks.push({ method, pattern, handler });
     return this;
   }
 
@@ -434,7 +455,7 @@ export class TelnyxMock {
         headers: new Headers(request.headers),
       };
       this.calls.push(call);
-      for (const entry of this.handlers) {
+      for (const entry of [...this.handlers, ...this.fallbacks]) {
         if (entry.method !== request.method) continue;
         const match = url.pathname.match(entry.pattern);
         if (!match) continue;

@@ -195,4 +195,59 @@ final class MessagingComposerBannerTests: XCTestCase {
             )
         )
     }
+    func testSuspendedRegistrationIsNotToldToWaitForApproval() {
+        // #423. The pending copy says carriers are "still reviewing" and texts
+        // "will send once it's approved". For a suspended workspace both are
+        // false: they WERE approved, nothing is under review, and waiting
+        // achieves nothing. The same defect usTextingOff was split out to fix.
+        XCTAssertEqual(
+            selectComposerBanner(
+                contactOptedOut: false,
+                contactOptOutSource: nil,
+                subscriptionStatus: SubscriptionStatus.active,
+                destinationCountry: "US",
+                usApproved: false,
+                usTextingOff: false,
+                usage: usage(used: 10, cap: 100),
+                optOutHint: false,
+                usSuspended: true
+            ),
+            .registrationSuspended
+        )
+
+        let copy = bannerCopy(.registrationSuspended)
+        XCTAssertEqual(copy.title, "US texting is paused")
+        // It must not send the reader hunting for a form to fill in.
+        XCTAssertFalse(copy.body.contains("resubmit"))
+        XCTAssertFalse(copy.body.contains("reviewing"))
+        // And it says who is acting on it, because they cannot fix it.
+        XCTAssertTrue(copy.body.contains("we're on it"))
+    }
+
+    func testSuspensionStillOffersTheCall() {
+        // #423: registration gates TEXTING only, so the call connects — and
+        // during a suspension it is the only thing the reader can do now.
+        XCTAssertTrue(offersCallInstead(.registrationSuspended))
+    }
+
+    func testUsTextingOffWinsOverASuspension() {
+        // Most-specific-to-this-reader: somebody who never turned the add-on
+        // on has no live registration to discuss, so telling them about a
+        // carrier suspension would describe a state they are not in.
+        XCTAssertEqual(
+            selectComposerBanner(
+                contactOptedOut: false,
+                contactOptOutSource: nil,
+                subscriptionStatus: SubscriptionStatus.active,
+                destinationCountry: "US",
+                usApproved: false,
+                usTextingOff: true,
+                usage: usage(used: 10, cap: 100),
+                optOutHint: false,
+                usSuspended: true
+            ),
+            .usTextingOff
+        )
+    }
+
 }

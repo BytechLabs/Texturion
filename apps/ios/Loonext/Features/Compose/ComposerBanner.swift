@@ -25,6 +25,12 @@ enum ComposerBanner: Equatable, Sendable {
     /// because no registration exists to approve, so the wait copy promised an
     /// outcome that could not arrive however long the reader waited.
     case usTextingOff
+    /// #423: the carrier suspended a registration that WAS approved. Its own
+    /// case for the same reason usTextingOff is: the registrationPending copy
+    /// promises approval is coming, and for a suspended workspace that is
+    /// false — they were approved, nothing is under review, and waiting
+    /// achieves nothing.
+    case registrationSuspended
     case usageCap
     /// #396: an inbound message on this thread READ as a plain-English
     /// opt-out. The only case here that does not describe a block — every
@@ -42,7 +48,8 @@ func selectComposerBanner(
     usApproved: Bool,
     usTextingOff: Bool,
     usage: Usage?,
-    optOutHint: Bool = false
+    optOutHint: Bool = false,
+    usSuspended: Bool = false
 ) -> ComposerBanner? {
     if contactOptedOut {
         return .optedOut(carrierBlocked: isCarrierEnforcedOptOut(contactOptOutSource))
@@ -51,7 +58,13 @@ func selectComposerBanner(
         return .subscription(subscriptionStatus)
     }
     if destinationCountry == "US" && !usApproved {
-        return usTextingOff ? .usTextingOff : .registrationPending
+        // Most-specific-to-this-reader first: a workspace that never turned US
+        // texting on has no live registration to discuss; then the #423
+        // suspension, which is a state they WERE out of; then the ordinary
+        // pre-approval wait.
+        if usTextingOff { return .usTextingOff }
+        if usSuspended { return .registrationSuspended }
+        return .registrationPending
     }
     if let usage, let cap = usage.cap_segments, usage.used_segments >= cap {
         return .usageCap
@@ -71,6 +84,13 @@ func usSendApproved(_ company: CompanyView) -> Bool {
     return (company.country == "US" || company.us_texting_enabled) &&
         campaign.status == "approved" &&
         campaign.deactivated_at == nil
+}
+
+/// #423: the carrier suspended a registration that had been approved. Read off
+/// the same campaign row `usSendApproved` reads, so the two can never disagree
+/// about which state the workspace is in.
+func usSuspended(_ company: CompanyView) -> Bool {
+    company.registration.campaign?.status == "suspended"
 }
 
 /// The workspace does not do US texting at all, so `usSendApproved` is false
@@ -110,6 +130,16 @@ func bannerCopy(_ banner: ComposerBanner) -> (title: String, body: String) {
             "US texting isn't on for this workspace",
             "This is a US number, and texting US numbers is an add-on your workspace hasn't turned on. An owner can add it in settings. Calls to this customer still work, and internal notes still work."
         )
+    // #423. Deliberately NOT the pending copy: promising approval to a
+    // workspace that WAS approved is a wait that never ends, and it sends them
+    // hunting for a form to fill in. Say what happened, who is acting on it,
+    // and what still works — the same three things the email says, so the two
+    // never contradict each other.
+    case .registrationSuspended:
+        return (
+            "US texting is paused",
+            "The carrier paused your US registration, so texts to US numbers won't send. We've been told and we're on it, and you'll get an email when it's back. Canadian texts, calls and internal notes all still work."
+        )
     case .usageCap:
         return (
             "You've hit this month's cap",
@@ -134,7 +164,9 @@ func bannerCopy(_ banner: ComposerBanner) -> (title: String, body: String) {
 /// text, so the phone must never be offered as a way around it.
 func offersCallInstead(_ banner: ComposerBanner) -> Bool {
     switch banner {
-    case .registrationPending, .usTextingOff: return true
+    // #423: registration gates TEXTING only, so the call still connects — and
+    // during a suspension it is the only thing the reader can do now.
+    case .registrationPending, .usTextingOff, .registrationSuspended: return true
     // #396: never offer the phone as a way around a request to be left alone —
     // the same reasoning that excludes an opted-out contact.
     case .optedOut, .subscription, .usageCap, .optOutHint: return false

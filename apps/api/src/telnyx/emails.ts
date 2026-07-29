@@ -53,6 +53,77 @@ export function registrationRejectedCopy(
   );
 }
 
+/**
+ * #423: the carrier took an approved registration away.
+ *
+ * Deliberately NOT the rejection copy. That one says "update your details and
+ * resubmit", which is the right instruction for a review that said no and the
+ * wrong one here — nothing about their details changed, they were live, and
+ * the fix is usually a conversation rather than a form. Telling somebody to
+ * edit a wizard they already completed correctly wastes the one hour that
+ * matters and teaches them our messages are not worth reading.
+ *
+ * It leads with the consequence, because that is the part that is urgent and
+ * the part they can act on: US texts are not going out right now.
+ */
+export function registrationSuspendedCopy(
+  companyName: string,
+  reason: string,
+  env: Env,
+): EmailCopy {
+  return copy(
+    "US texting is paused — the carrier suspended your registration",
+    `Hi,
+
+US texts for ${companyName} have stopped going out. The carrier ` +
+      `suspended your 10DLC registration, which is the approval that lets ` +
+      `business texts reach US numbers.
+
+` +
+      `What the carrier told us:
+${reason}
+
+` +
+      `What still works: texts to Canadian numbers, all your calls, and ` +
+      `everything already in your inbox. Nothing has been lost.
+
+` +
+      `What to do: reply to this email and we will take it up with the ` +
+      `carrier for you. Suspensions are usually lifted once the underlying ` +
+      `issue is sorted, and we will tell you the moment yours is.
+
+` +
+      `Your registration: ${env.APP_ORIGIN}/settings/numbers
+
+Loonext`,
+  );
+}
+
+/**
+ * #423: and the carrier gave it back. Sent on suspended → approved, because a
+ * customer who was told their texting stopped is owed the sentence saying it
+ * started again — otherwise they keep not using the product they are paying
+ * for.
+ */
+export function registrationReinstatedCopy(
+  companyName: string,
+  env: Env,
+): EmailCopy {
+  return copy(
+    "US texting is back on",
+    `Hi,
+
+Good news: the carrier lifted the suspension on ${companyName}'s ` +
+      `US registration. Texts to US numbers are sending again, right now, ` +
+      `with nothing for you to do.
+
+` +
+      `Your inbox: ${env.APP_ORIGIN}/inbox
+
+Loonext`,
+  );
+}
+
 /** SPEC §4.2 / §11: +12h sole-prop OTP nudge (sent once per submission). */
 export function otpNudgeCopy(companyName: string, env: Env): EmailCopy {
   return copy(

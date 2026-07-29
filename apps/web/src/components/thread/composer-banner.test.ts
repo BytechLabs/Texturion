@@ -14,6 +14,7 @@ const clear: ComposerGateInput = {
   destinationCountry: "US",
   usApproved: true,
   usTextingOff: false,
+  usSuspended: false,
   usage: { used_segments: 100, cap_segments: 1500 },
   optOutHint: false,
 };

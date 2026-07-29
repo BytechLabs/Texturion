@@ -66,6 +66,7 @@ import {
   selectComposerBanner,
   usSendApproved,
   usTextingOff,
+  usSuspended,
 } from "@/components/thread/composer-banner";
 import { ComposerBannerCard } from "@/components/thread/composer-banners";
 import {
@@ -250,6 +251,7 @@ export function NewConversation() {
           destinationCountry: destinationCountry(destinationE164),
           usApproved: usSendApproved(company.data),
           usTextingOff: usTextingOff(company.data),
+          usSuspended: usSuspended(company.data),
           usage: usage.data ?? null,
           // A brand-new conversation has no history to have asked in.
           optOutHint: false,

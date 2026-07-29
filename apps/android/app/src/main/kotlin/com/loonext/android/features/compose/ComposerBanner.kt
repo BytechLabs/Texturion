@@ -48,6 +48,16 @@ sealed interface ComposerBanner {
      * outcome that could not arrive however long the reader waited.
      */
     data object UsTextingOff : ComposerBanner
+
+    /**
+     * #423: the carrier suspended a registration that WAS approved.
+     *
+     * Its own case for the same reason UsTextingOff is: the
+     * RegistrationPending copy promises approval is coming, and for a
+     * suspended workspace that is false — they were approved, nothing is under
+     * review, and waiting achieves nothing.
+     */
+    data object RegistrationSuspended : ComposerBanner
     data object UsageCap : ComposerBanner
 
     /**
@@ -70,6 +80,7 @@ fun selectComposerBanner(
     usTextingOff: Boolean,
     usage: Usage?,
     optOutHint: Boolean = false,
+    usSuspended: Boolean = false,
 ): ComposerBanner? {
     if (contactOptedOut) {
         return ComposerBanner.OptedOut(isCarrierEnforcedOptOut(contactOptOutSource))
@@ -78,7 +89,15 @@ fun selectComposerBanner(
         return ComposerBanner.Subscription(subscriptionStatus)
     }
     if (destinationCountry == "US" && !usApproved) {
-        return if (usTextingOff) ComposerBanner.UsTextingOff else ComposerBanner.RegistrationPending
+        // Most-specific-to-this-reader first: a workspace that never turned US
+        // texting on has no live registration to discuss; then the #423
+        // suspension, which is a state they WERE out of; then the ordinary
+        // pre-approval wait.
+        return when {
+            usTextingOff -> ComposerBanner.UsTextingOff
+            usSuspended -> ComposerBanner.RegistrationSuspended
+            else -> ComposerBanner.RegistrationPending
+        }
     }
     val cap = usage?.cap_segments
     if (usage != null && cap != null && usage.used_segments >= cap) {
@@ -103,6 +122,14 @@ fun usSendApproved(company: CompanyView): Boolean {
         campaign.status == "approved" &&
         campaign.deactivated_at == null
 }
+
+/**
+ * #423: the carrier suspended a registration that had been approved. Read off
+ * the same campaign row [usSendApproved] reads, so the two can never disagree
+ * about which state the workspace is in.
+ */
+fun usSuspended(company: CompanyView): Boolean =
+    company.registration.campaign?.status == "suspended"
 
 /**
  * The workspace does not do US texting at all, so [usSendApproved] is false for
@@ -137,6 +164,15 @@ fun bannerCopy(banner: ComposerBanner): Pair<String, String> = when (banner) {
         "US texting isn't on for this workspace" to
             "This is a US number, and texting US numbers is an add-on your workspace hasn't turned on. An owner can add it in settings. Calls to this customer still work, and internal notes still work."
 
+    // #423. Deliberately NOT the pending copy: promising approval to a
+    // workspace that WAS approved is a wait that never ends, and it sends them
+    // hunting for a form to fill in. Say what happened, who is acting on it,
+    // and what still works — the same three things the email says, so the two
+    // never contradict each other.
+    ComposerBanner.RegistrationSuspended ->
+        "US texting is paused" to
+            "The carrier paused your US registration, so texts to US numbers won't send. We've been told and we're on it, and you'll get an email when it's back. Canadian texts, calls and internal notes all still work."
+
     ComposerBanner.UsageCap ->
         "You've hit this month's cap" to
             "Outbound texts pause until the cap is raised or the month rolls over. Internal notes still work."
@@ -158,7 +194,11 @@ fun bannerCopy(banner: ComposerBanner): Pair<String, String> = when (banner) {
  * the phone must never be offered as a way around it.
  */
 fun offersCallInstead(banner: ComposerBanner): Boolean =
-    banner is ComposerBanner.RegistrationPending || banner is ComposerBanner.UsTextingOff
+    banner is ComposerBanner.RegistrationPending ||
+        banner is ComposerBanner.UsTextingOff ||
+        // #423: registration gates TEXTING only, so the call still connects —
+        // and during a suspension it is the only thing the reader can do now.
+        banner is ComposerBanner.RegistrationSuspended
 
 /** The card that stands in for the text composer (notes remain below it). */
 @Composable

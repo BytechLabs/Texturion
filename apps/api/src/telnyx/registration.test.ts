@@ -176,6 +176,21 @@ function setup(companyOverrides: Record<string, unknown> = {}) {
   });
 
   const telnyx = new TelnyxMock();
+  // #423: the poller re-reads APPROVED registrations now, so a healthy
+  // approved row seeded by a test that is about something else gets a GET it
+  // did not previously receive. These fallbacks answer it the way a healthy
+  // registration actually answers — still verified, still active — and any
+  // test that wants a different answer registers `on()` and wins.
+  telnyx.fallback("GET", /^\/v2\/10dlc\/brand\/[^/]+$/, () => ({
+    identityStatus: "VERIFIED",
+  }));
+  telnyx.fallback("GET", /^\/v2\/10dlc\/campaign\/[^/]+$/, () => ({
+    campaignStatus: "MNO_ACCEPTED",
+    status: "ACTIVE",
+  }));
+  // Step 0c content migration rides the same poll. A suite that is about
+  // campaign STATUS should not have to double the content PUT to say so.
+  telnyx.fallback("PUT", /^\/v2\/10dlc\/campaign\/[^/]+$/, () => ({}));
   const emails: SentEmailCapture[] = [];
   stubFetch(rest.route(), telnyx.route(), resendRoute(emails));
   return { env, rest, telnyx, emails };
@@ -1648,5 +1663,180 @@ describe("PostHog north-star events (§12 step 18)", () => {
     const result = await submitRegistration(env, COMPANY_ID);
     expect(result.action).toBe("brand_submitted");
     expect(posthog).toHaveLength(0);
+  });
+});
+
+describe("#423 — the carrier takes an approved campaign away", () => {
+  it("suspends an approved campaign the carrier reports as failed", async () => {
+    // `approved` used to be terminal, so this signal was discarded by
+    // ALLOWED_TRANSITIONS before anything could act on it — the revocation was
+    // undetectable BY CONSTRUCTION rather than by oversight.
+    const { env, rest, telnyx } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      { status: "approved", telnyx_id: "camp-1", data: CAMPAIGN_DATA },
+    );
+    telnyx.on("GET", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({
+      campaignStatus: "MNO_REJECTED",
+      failureReasons: "Content violates carrier policy",
+    }));
+
+    await pollRegistrations(env);
+
+    expect(campaignRowOf(rest).status).toBe("suspended");
+    // The carrier's words survive, on the field that already carries "why we
+    // may not send" — a second column would just mean one of them goes unread.
+    expect(campaignRowOf(rest).rejection_reason).toContain(
+      "Content violates carrier policy",
+    );
+  });
+
+  it("closes the send gate the moment it is suspended", async () => {
+    // The whole point. usApproved is what runPreSendGates consults, so a
+    // campaign that still read `approved` let every US send through to a
+    // carrier that was dropping them.
+    const { env, rest } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      { status: "approved", telnyx_id: "camp-1", data: CAMPAIGN_DATA },
+    );
+    await expect(getSendGates(env, COMPANY_ID)).resolves.toMatchObject({
+      usApproved: true,
+    });
+
+    campaignRowOf(rest).status = "suspended";
+
+    await expect(getSendGates(env, COMPANY_ID)).resolves.toMatchObject({
+      usApproved: false,
+    });
+  });
+
+  it("tells the owner AND ops, and does not tell them to resubmit", async () => {
+    // The rejection copy says "update your details and resubmit". That is the
+    // right instruction for a review that said no and the wrong one here:
+    // nothing about their details changed, they were live, and editing a
+    // wizard they already completed correctly wastes the hour that matters.
+    const { env, rest, telnyx, emails } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      { status: "approved", telnyx_id: "camp-1", data: CAMPAIGN_DATA },
+    );
+    telnyx.on("GET", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({
+      campaignStatus: "MNO_SUSPENDED",
+      failureReasons: "Excessive opt-out rate",
+    }));
+
+    await pollRegistrations(env);
+
+    const owner = emails.find((mail) => mail.to.includes("owner@acme.example"));
+    expect(owner?.subject).toContain("US texting is paused");
+    expect(owner?.text).not.toContain("resubmit");
+    // It leads with the consequence, which is the part they can act on.
+    expect(owner?.text).toContain("stopped going out");
+
+    const ops = emails.find((mail) => mail.subject.startsWith("[ops]"));
+    expect(ops?.text).toContain(COMPANY_ID);
+    expect(ops?.text).toContain("Excessive opt-out rate");
+  });
+
+  it("treats an EXPIRED lifecycle as suspension even when the status still says accepted", async () => {
+    // A campaign can carry `campaignStatus: MNO_ACCEPTED` (historically true)
+    // alongside `status: EXPIRED`. The old branch order returned `approved`
+    // for exactly that payload, so an expired campaign read as healthy.
+    const { env, rest, telnyx } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      { status: "approved", telnyx_id: "camp-1", data: CAMPAIGN_DATA },
+    );
+    telnyx.on("GET", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({
+      campaignStatus: "MNO_ACCEPTED",
+      status: "EXPIRED",
+    }));
+
+    await pollRegistrations(env);
+
+    expect(campaignRowOf(rest).status).toBe("suspended");
+  });
+
+  it("does NOT suspend on a payload it simply does not recognise", async () => {
+    // The trade that is tempting and wrong. An unrecognised payload is far
+    // more likely to be OUR parsing gap than a carrier decision — a partial
+    // record, a renamed field, an envelope we did not unwrap — and acting on
+    // it would stop a paying customer's texting because we failed to
+    // understand a response. Suspension is inferred only from signals the
+    // carrier actually sends; silence infers nothing.
+    const { env, rest, telnyx } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      { status: "approved", telnyx_id: "camp-1", data: CAMPAIGN_DATA },
+    );
+    telnyx.on("GET", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({
+      somethingWeHaveNeverSeen: true,
+    }));
+
+    await pollRegistrations(env);
+
+    expect(campaignRowOf(rest).status).toBe("approved");
+  });
+
+  it("reinstates without re-sending the welcome or re-counting activation", async () => {
+    // Carrier suspensions are routinely lifted. "Your US texting is live" is
+    // the wrong sentence for somebody who was live last week, and the
+    // north-star capture counts workspaces that reached carrier approval — so
+    // counting one twice would corrupt the activation metric D12 rests on.
+    const { env, rest, telnyx, emails } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      {
+        status: "suspended",
+        telnyx_id: "camp-1",
+        data: CAMPAIGN_DATA,
+        rejection_reason: "Excessive opt-out rate",
+      },
+    );
+    telnyx.on("GET", /^\/v2\/10dlc\/campaign\/camp-1$/, () => ({
+      campaignStatus: "MNO_ACCEPTED",
+      status: "ACTIVE",
+    }));
+    telnyx.on("POST", /^\/v2\/10dlc\/phoneNumberCampaign$/, () => ({}));
+
+    await pollRegistrations(env);
+
+    expect(campaignRowOf(rest).status).toBe("approved");
+    // A stale carrier complaint must not outlive the suspension it described.
+    expect(campaignRowOf(rest).rejection_reason).toBeNull();
+
+    const subjects = emails.map((mail) => mail.subject);
+    expect(subjects).toContain("US texting is back on");
+    expect(subjects.filter((s) => s.includes("is live"))).toHaveLength(0);
+  });
+
+  it("leaves a campaign we deactivated ourselves alone", async () => {
+    // `deactivated_at` is OUR billing action (D2), not a carrier decision.
+    // Polling it would spend a Telnyx call per churned workspace per day and
+    // could flip a row we deliberately parked into `suspended`, which would
+    // then read as something the carrier did.
+    const { env, rest, telnyx } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      {
+        status: "approved",
+        telnyx_id: "camp-1",
+        data: CAMPAIGN_DATA,
+        deactivated_at: "2026-06-01T00:00:00.000Z",
+      },
+    );
+
+    await pollRegistrations(env);
+
+    expect(telnyx.callsTo("GET", /campaign\/camp-1/)).toHaveLength(0);
+    expect(campaignRowOf(rest).status).toBe("approved");
   });
 });

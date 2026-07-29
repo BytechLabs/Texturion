@@ -581,7 +581,9 @@ private struct ThreadBody: View {
             usage: controller.usage,
             // #396: a shared inbox means the person replying is often not the
             // person who read the request.
-            optOutHint: detail.opt_out_hint_at != nil
+            optOutHint: detail.opt_out_hint_at != nil,
+            // #423: the carrier took an approved registration away.
+            usSuspended: controller.company.map(usSuspended) ?? false
         )
         // #106: calling is outreach like texting, so a notes-only member gets
         // no control the API would refuse.

@@ -32,6 +32,7 @@ import {
   selectComposerBanner,
   usSendApproved,
   usTextingOff,
+  usSuspended,
 } from "./composer-banner";
 import { ComposerBannerCard } from "./composer-banners";
 import { Composer } from "./composer";
@@ -258,6 +259,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           ),
           usApproved: usSendApproved(company.data),
           usTextingOff: usTextingOff(company.data),
+          usSuspended: usSuspended(company.data),
           usage: usage.data ?? null,
           // #396: the thread itself is the only place this is known, and the
           // only place it matters — a shared inbox means the person replying

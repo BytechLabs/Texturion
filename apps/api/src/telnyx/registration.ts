@@ -5,7 +5,9 @@ import { telnyxRequest, TelnyxApiError } from "./client";
 import {
   otpNudgeCopy,
   portAssignmentBlockedCopy,
+  registrationReinstatedCopy,
   registrationRejectedCopy,
+  registrationSuspendedCopy,
   usTextingLiveCopy,
 } from "./emails";
 import {
@@ -22,6 +24,7 @@ import { capture } from "../analytics/posthog";
 import { billingRecipients } from "../billing/recipients";
 import { owesUsRegistration } from "../billing/registration-draft";
 import { getDb } from "../db";
+import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 
@@ -42,6 +45,17 @@ export type RegistrationStatus =
   | "submitted"
   | "pending"
   | "approved"
+  /**
+   * #423: the carrier took an approved registration away.
+   *
+   * NOT the same as `rejected`, and not the same as `deactivated_at`. Rejected
+   * is review saying no before we were ever live; `deactivated_at` is US
+   * stopping the recurring fee on cancellation (D2). This is a carrier
+   * decision imposed on a workspace that WAS sending — the only one of the
+   * three that means "you are not allowed to send" while everything else about
+   * the account is in good order.
+   */
+  | "suspended"
   | "rejected";
 
 export interface RegistrationRow {
@@ -188,7 +202,10 @@ function formatReasons(value: unknown): string | null {
 }
 
 type MappedTransition = {
-  next: Extract<RegistrationStatus, "pending" | "approved" | "rejected">;
+  next: Extract<
+    RegistrationStatus,
+    "pending" | "approved" | "suspended" | "rejected"
+  >;
   reason?: string;
 };
 
@@ -203,7 +220,15 @@ type MappedTransition = {
  *    `identityStatus` UNVERIFIED — the brand cannot run campaigns) → rejected
  *  - anything else (in review) → pending
  */
-function mapBrandState(payload: Record<string, unknown>): MappedTransition {
+function mapBrandState(
+  payload: Record<string, unknown>,
+  /** #423: same rule as the campaign mapper — a brand that LOSES
+   *  verification after approval is suspended, not rejected. A brand can be
+   *  de-verified for the same reasons a campaign is suspended, and the
+   *  "fix and resubmit" copy is equally wrong for it. */
+  current: RegistrationStatus = "pending",
+): MappedTransition {
+  const wasLive = current === "approved" || current === "suspended";
   const identityStatus =
     typeof payload.identityStatus === "string" ? payload.identityStatus : "";
   const status = typeof payload.status === "string" ? payload.status : "";
@@ -215,13 +240,13 @@ function mapBrandState(payload: Record<string, unknown>): MappedTransition {
   }
   if (status === "FAILED" || status === "REGISTRATION_FAILED") {
     return {
-      next: "rejected",
+      next: wasLive ? "suspended" : "rejected",
       reason: reasons ?? "Brand registration failed carrier review.",
     };
   }
   if (identityStatus === "UNVERIFIED") {
     return {
-      next: "rejected",
+      next: wasLive ? "suspended" : "rejected",
       reason:
         reasons ??
         "Identity verification failed — check that the legal business name and EIN/BN match your registration documents.",
@@ -264,12 +289,35 @@ function mapCampaignEvent(
  * (documented fields: `campaignStatus` TCR_* / TELNYX_* / MNO_*, lifecycle
  * `status` ACTIVE/EXPIRED, `failureReasons`).
  */
-function mapCampaignRemote(payload: Record<string, unknown>): MappedTransition {
+function mapCampaignRemote(
+  payload: Record<string, unknown>,
+  /**
+   * #423: the SAME carrier signal means different things either side of
+   * approval. A failure before we were ever live is a REJECTION of a review we
+   * were waiting on; the identical failure on a campaign that has been sending
+   * is a SUSPENSION of permission we already had. Telling the customer to
+   * "fix and resubmit" in the second case would be wrong, and telling them to
+   * "wait for approval" would be worse — they were approved.
+   */
+  current: RegistrationStatus = "pending",
+): MappedTransition {
   const campaignStatus =
     typeof payload.campaignStatus === "string" ? payload.campaignStatus : "";
   const lifecycle = typeof payload.status === "string" ? payload.status : "";
   const reasons = formatReasons(payload.failureReasons);
+  const wasLive = current === "approved" || current === "suspended";
 
+  // EXPIRED is checked FIRST and it is not a nicety: a campaign can carry
+  // `campaignStatus: MNO_ACCEPTED` (it was accepted, historically) alongside a
+  // lifecycle of EXPIRED. The old order returned `approved` for exactly that
+  // payload, so an expired campaign read as healthy — the same class of bug as
+  // the missing state itself.
+  if (lifecycle === "EXPIRED") {
+    return {
+      next: wasLive ? "suspended" : "rejected",
+      reason: reasons ?? "The carrier campaign is no longer active.",
+    };
+  }
   if (
     campaignStatus === "MNO_ACCEPTED" ||
     campaignStatus === "MNO_PROVISIONED" ||
@@ -282,13 +330,34 @@ function mapCampaignRemote(payload: Record<string, unknown>): MappedTransition {
     campaignStatus === "TELNYX_FAILED" ||
     campaignStatus === "MNO_REJECTED" ||
     campaignStatus === "MNO_PROVISIONING_FAILED" ||
+    campaignStatus === "MNO_SUSPENDED" ||
     reasons !== null
   ) {
     return {
-      next: "rejected",
-      reason: reasons ?? "Campaign was rejected by carrier review.",
+      next: wasLive ? "suspended" : "rejected",
+      reason:
+        reasons ??
+        (wasLive
+          ? "The carrier suspended this campaign."
+          : "Campaign was rejected by carrier review."),
     };
   }
+  // An UNRECOGNISED payload is not evidence of a suspension, and must not be
+  // treated as one.
+  //
+  // The tempting version of this reads "an approved campaign that stops
+  // reporting approved is suspended", on the grounds that pausing sends is
+  // safer than sending into a revoked campaign. That trade is backwards. A
+  // payload we do not recognise is far more likely to be OUR parsing gap than
+  // a carrier decision — a partial record, a field renamed, an envelope we did
+  // not unwrap — and acting on it would stop a paying customer's texting
+  // because we failed to understand a response. Suspension is inferred only
+  // from signals the carrier actually sends (above); silence infers nothing.
+  //
+  // `pending` from `approved` is not an allowed transition, so this is a
+  // no-op there — exactly today's behaviour, which is the right behaviour when
+  // we have learned nothing. #423 ask 2 (what Telnyx really emits on a
+  // suspension) stays open, and belongs on the #373 question list.
   return { next: "pending" };
 }
 
@@ -296,12 +365,26 @@ function mapCampaignRemote(payload: Record<string, unknown>): MappedTransition {
 // Transitions + side effects
 // ---------------------------------------------------------------------------
 
-/** §4.4 table: which webhook/poll transitions each status may take. */
+/**
+ * §4.4 table: which webhook/poll transitions each status may take.
+ *
+ * #423: `approved` used to be terminal (`[]`), which is what made a carrier
+ * suspension undetectable BY CONSTRUCTION rather than by oversight — a
+ * revocation signal arriving on an approved campaign was silently discarded by
+ * this table before anything could act on it.
+ *
+ * `suspended` can go back to `approved` because carrier suspensions are
+ * routinely lifted once the underlying issue is fixed, and a one-way door here
+ * would mean a reinstated customer stayed blocked until somebody noticed. It
+ * can also go to `rejected`, for a suspension that the carrier escalates
+ * rather than lifts.
+ */
 const ALLOWED_TRANSITIONS: Record<RegistrationStatus, RegistrationStatus[]> = {
   draft: [],
   submitted: ["pending", "approved", "rejected"],
   pending: ["approved", "rejected"],
-  approved: [],
+  approved: ["suspended"],
+  suspended: ["approved", "rejected"],
   rejected: [],
 };
 
@@ -317,6 +400,54 @@ async function sendOperationalEmail(
   } catch (cause) {
     // Emails are best-effort side effects of an already-applied transition;
     // a Resend outage must not wedge the state machine.
+    Sentry.captureException(cause);
+  }
+}
+
+/**
+ * #423: ops-side alert for a carrier suspension.
+ *
+ * Separate from the customer email and sent alongside it, because the two
+ * audiences need different things. The owner needs to know their texts have
+ * stopped and that we are on it. Ops needs to know WHICH workspace, WHICH
+ * registration and the carrier's verbatim words — a suspension is not
+ * self-service, and the customer's reply is going to land in the support
+ * inbox within the hour either way.
+ *
+ * Never throws, for the same reason `sendOperationalEmail` does not: this is a
+ * side effect of an already-applied transition, and a Resend outage must not
+ * wedge the state machine.
+ */
+async function sendOpsAlert(
+  env: Env,
+  company: RegistrationCompany,
+  kind: RegistrationKind,
+  reason: string,
+): Promise<void> {
+  try {
+    const text =
+      `${company.name} (${company.id}) has had its 10DLC ${kind} SUSPENDED ` +
+      `by the carrier. US texting for this workspace is blocked as of now — ` +
+      `getSendGates.usApproved is false and the composer says so.
+
+` +
+      `Carrier reason:
+${reason}
+
+` +
+      `The customer has been emailed and told to reply to us. They cannot fix ` +
+      `this themselves.
+
+` +
+      `Registration: ${env.APP_ORIGIN}/settings/numbers
+`;
+    await sendEmail(env, {
+      to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+      subject: `[ops] ${company.name}: carrier suspended the 10DLC ${kind}`,
+      text,
+      html: renderEmailHtml(text),
+    });
+  } catch (cause) {
     Sentry.captureException(cause);
   }
 }
@@ -340,12 +471,22 @@ async function applyTransition(
   const patch: Record<string, unknown> = { status: mapped.next };
   if (mapped.next === "approved") {
     patch.approved_at = now;
+    // Cleared on a first approval AND on a reinstatement, so a stale carrier
+    // complaint can never outlive the suspension it described (#423).
     patch.rejection_reason = null;
   }
   if (mapped.next === "rejected") {
     patch.rejected_at = now;
     patch.rejection_reason =
       mapped.reason ?? "Rejected by carrier review.";
+  }
+  if (mapped.next === "suspended") {
+    // #423: the reason rides `rejection_reason` rather than a new column. It
+    // is the same field doing the same job — the carrier's words about why we
+    // may not send — and a second column would mean every reader has to know
+    // which one to look at, which is how one of them ends up unread.
+    patch.rejection_reason =
+      mapped.reason ?? "The carrier suspended this registration.";
   }
   const updated = await updateRow(db, row.id, patch);
 
@@ -358,8 +499,17 @@ async function applyTransition(
       Sentry.captureException(cause);
     }
   }
-  if (row.kind === "campaign" && mapped.next === "approved") {
+  const reinstated = mapped.next === "approved" && row.status === "suspended";
+  if (row.kind === "campaign" && mapped.next === "approved" && !reinstated) {
     // R3: assign the company's numbers, unlock US sends, email the good news.
+    //
+    // #423 excludes a REINSTATEMENT from this branch, and all three side
+    // effects are the reason. "Your US texting is live" is the wrong sentence
+    // for somebody who was live last week; the north-star capture counts
+    // customers who reached carrier approval, so counting the same workspace
+    // twice would corrupt the one activation metric D12 rests on; and the
+    // number assignment is handled by the reinstatement branch below, which
+    // needs it for a different reason. Reinstatement gets its own copy.
     try {
       await assignNumbersToCampaign(env, db, updated);
     } catch (cause) {
@@ -375,6 +525,41 @@ async function applyTransition(
     // ALLOWED_TRANSITIONS gates this transition (and so this capture) to at
     // most once per approval, across webhook/poller overlap and redelivery.
     await capture(env, "registration_approved", company.id);
+  }
+  if (mapped.next === "suspended") {
+    // #423: a suspension is not a slow degradation — it is this customer's US
+    // texting stopping, today, and it is only recoverable by somebody acting
+    // on it. So BOTH audiences are told at once: the owner, because their
+    // texts have stopped, and ops, because the customer cannot fix a carrier
+    // decision themselves and will be replying to us about it.
+    await sendOperationalEmail(
+      env,
+      db,
+      company.id,
+      registrationSuspendedCopy(
+        company.name,
+        (patch.rejection_reason as string) ?? "",
+        env,
+      ),
+    );
+    await sendOpsAlert(env, company, row.kind, patch.rejection_reason as string);
+  }
+  if (row.kind === "campaign" && reinstated) {
+    // #423: reinstated. Numbers are re-assigned because a suspension can drop
+    // the campaign's number assignments at the carrier, and a silent
+    // reinstatement with no numbers attached would look identical to the
+    // suspension it replaced.
+    try {
+      await assignNumbersToCampaign(env, db, updated);
+    } catch (cause) {
+      Sentry.captureException(cause);
+    }
+    await sendOperationalEmail(
+      env,
+      db,
+      company.id,
+      registrationReinstatedCopy(company.name, env),
+    );
   }
   if (mapped.next === "rejected") {
     // R4: rejection email with the fix-and-resubmit link.
@@ -1397,7 +1582,21 @@ export async function pollRegistrations(env: Env): Promise<PollSummary> {
   const { data, error } = await db
     .from("messaging_registrations")
     .select(ROW_COLUMNS)
-    .in("status", ["submitted", "pending"])
+    // #423: `approved` and `suspended` are polled too. Treating approval as
+    // terminal is what made a carrier revocation undetectable BY CONSTRUCTION
+    // — the row was never re-read, so no signal could arrive however the
+    // carrier reported it. `suspended` is polled for the opposite reason: a
+    // suspension that is lifted has to be noticed, or a reinstated customer
+    // stays blocked until somebody complains.
+    //
+    // The cost is one Telnyx GET per registration per day, which is the
+    // cheapest thing in this file.
+    .in("status", ["submitted", "pending", "approved", "suspended"])
+    // A registration WE deactivated (D2: stop the recurring fee for a churned
+    // customer) is not one we are waiting on. Polling it would spend a Telnyx
+    // call per churned workspace per day and could flip a row we deliberately
+    // parked into `suspended`, which would then read as a carrier decision.
+    .is("deactivated_at", null)
     .not("telnyx_id", "is", null);
   if (error) {
     throw new Error(`messaging_registrations lookup failed: ${error.message}`);
@@ -1418,7 +1617,9 @@ export async function pollRegistrations(env: Env): Promise<PollSummary> {
         }),
       );
       const mapped =
-        row.kind === "brand" ? mapBrandState(remote) : mapCampaignRemote(remote);
+        row.kind === "brand"
+          ? mapBrandState(remote, row.status)
+          : mapCampaignRemote(remote, row.status);
       const updated = await applyTransition(env, db, company, row, mapped);
       if (updated.status !== row.status) summary.transitioned += 1;
     } catch (cause) {
