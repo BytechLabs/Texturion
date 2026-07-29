@@ -280,6 +280,7 @@ private func previewAccountMe() -> Me {
                 subscription_status: SubscriptionStatus.active
             ),
         ],
+        email_state: nil,
         company: nil
     )
 }
