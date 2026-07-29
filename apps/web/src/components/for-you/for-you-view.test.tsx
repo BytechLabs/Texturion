@@ -43,6 +43,13 @@ vi.mock("@/lib/api/for-you", () => ({
 // The strip's two buttons act through the shared conversation mutation. Mocked
 // rather than let through, because the real module validates public env at
 // import time and this suite has none.
+// #310: the waiting-room card reads the company view. Mocked here for the same
+// reason the others are — importing the real hook pulls the API client's
+// module-level env validation into a test about queue rendering.
+vi.mock("@/lib/api/me-company", () => ({
+  useMeCompany: () => ({ data: undefined }),
+}));
+
 vi.mock("@/lib/api/conversations", () => ({
   useUpdateConversation: () => ({ isPending: false, mutate: vi.fn() }),
 }));

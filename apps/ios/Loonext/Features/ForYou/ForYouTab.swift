@@ -58,7 +58,9 @@ struct ForYouTab: View {
                     onRefresh: {
                         await reload()
                         await reloadRecentCalls()
-                    }
+                    },
+                    company: me.company,
+                    onOpenSettings: nil
                 )
             }
         }
@@ -143,6 +145,10 @@ private struct ForYouList: View {
     /// Both loaders, awaited together, so the pull-to-refresh spinner settles
     /// when the screen is actually current rather than when the gesture ends.
     let onRefresh: @MainActor () async -> Void
+    /// #310: the workspace, for the waiting-room card. Nil until /me lands.
+    let company: CompanyView?
+    /// #310: the waiting-room card's doors. Nil where routing is unavailable.
+    let onOpenSettings: (@MainActor (String) -> Void)?
 
     /// #306: the work, not the page. Counting the rows meant a member 60
     /// conversations behind read "20 things need you", and the queue looked
@@ -176,6 +182,10 @@ private struct ForYouList: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 heading
+                // #310: only while the carriers have it. Above the queue
+                // because during the wait the queue is empty by definition —
+                // texting is what fills it, and that has not started yet.
+                WhileYouWait(company: company, onOpenSettings: onOpenSettings)
                 // #342: above the queue, because "you're all caught up" is not
                 // true if somebody has been texting a thread nobody can see.
                 spamReviewSection
@@ -592,7 +602,9 @@ private func previewCall(
         ]),
         onOpenConversation: { _ in },
         onOpenCalls: {},
-        onRefresh: {}
+        onRefresh: {},
+        company: nil,
+        onOpenSettings: nil
     )
 }
 
@@ -604,7 +616,9 @@ private func previewCall(
         recentCalls: .failed("Something went wrong."),
         onOpenConversation: { _ in },
         onOpenCalls: {},
-        onRefresh: {}
+        onRefresh: {},
+        company: nil,
+        onOpenSettings: nil
     )
 }
 
@@ -635,7 +649,9 @@ private func previewCall(
         recentCalls: .ready([]),
         onOpenConversation: { _ in },
         onOpenCalls: {},
-        onRefresh: {}
+        onRefresh: {},
+        company: nil,
+        onOpenSettings: nil
     )
 }
 

@@ -33,6 +33,7 @@ import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 import { callOutcomeLabel } from "@/lib/format/call";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatRelativeTime } from "@/lib/format/time";
+import { WhileYouWait } from "@/components/for-you/while-you-wait";
 import { cn } from "@/lib/utils";
 
 /** Open the shared command-K palette (the search glyph in the header). */
@@ -552,6 +553,13 @@ export function ForYouView() {
           <NotificationBell />
         </div>
       </header>
+
+      {/* #310: only while the carriers have it. Above the queue because during
+          the wait the queue is empty by definition — texting is the thing that
+          fills it, and that is exactly what has not started yet. */}
+      <div className="mb-6">
+        <WhileYouWait />
+      </div>
 
       {/* The dashboard's summary strip: where the work is, before you read a
           single card. Hidden while loading and when the queue is empty, where

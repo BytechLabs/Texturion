@@ -118,6 +118,8 @@ fun ForYouTab(
     onOpenCalls: (() -> Unit)? = null,
     onOpenThread: ((conversationId: String) -> Unit)? = null,
     onOpenNotifications: (() -> Unit)? = null,
+    /** #310: the waiting-room card's doors. Null in contexts that cannot route. */
+    onOpenSettings: ((section: String) -> Unit)? = null,
 ) {
     // Threads and notifications are ROUTES above the shell now (founder
     // mandate: nothing pushed shows the pill nav) — this tab is only ever the
@@ -237,6 +239,7 @@ fun ForYouTab(
                 onOpenConversation = { onOpenThread?.invoke(it) },
                 onOpenCalls = onOpenCalls,
                 onOpenNotifications = { onOpenNotifications?.invoke() },
+                onOpenSettings = onOpenSettings,
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -254,6 +257,8 @@ private fun ForYouList(
     onOpenConversation: (String) -> Unit,
     onOpenCalls: (() -> Unit)?,
     onOpenNotifications: () -> Unit,
+    /** #310: the waiting-room card's doors. Null in contexts that cannot route. */
+    onOpenSettings: ((section: String) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     // #306: what each section HOLDS, not how many rows came back. Counting the
@@ -288,6 +293,19 @@ private fun ForYouList(
                     showDot = unreadNotifications > 0,
                 )
             }
+        }
+
+        // #310: only while the carriers have it. Above the queue because during
+        // the wait the queue is empty by definition — texting is what fills it,
+        // and that is exactly what has not started yet.
+        item(key = "while-you-wait") {
+            WhileYouWait(
+                company = me.company,
+                onOpenContacts = { onOpenSettings?.invoke("contacts") },
+                onOpenTeam = { onOpenSettings?.invoke("team") },
+                onOpenHours = { onOpenSettings?.invoke("hours") },
+                modifier = Modifier.padding(top = 14.dp),
+            )
         }
 
         item(key = "title") {

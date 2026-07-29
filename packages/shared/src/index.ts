@@ -1,4 +1,14 @@
 export {
+  registrationStage,
+  registrationProgress,
+  isWaitingOnRegistration,
+  type RegistrationStage,
+  type RegistrationProgress,
+  type RegistrationSnapshot,
+  type RegistrationSnapshotRow,
+} from "./registration-progress";
+
+export {
   classifySendFailure,
   failureReasonOf,
   isCarrierFailureReason,
