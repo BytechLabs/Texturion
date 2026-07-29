@@ -325,6 +325,13 @@ const envSchema = z.object({
    * claim bounds the cost. OPTIONAL, like the others.
    */
   ATTACHMENT_URL_RATE_LIMITER: rateLimiterSchema.optional(),
+
+  /**
+   * #335: the public-link surface (D75). Unauthenticated by design, so keyed
+   * on IP — there is no account to key on. Optional in src/env.ts → dev/tests
+   * skip it, like every other limiter here.
+   */
+  PUBLIC_LINK_RATE_LIMITER: rateLimiterSchema.optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

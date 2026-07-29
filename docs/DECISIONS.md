@@ -3381,3 +3381,64 @@ account, so account-level loss takes the backups with the data. Where an
 independent copy lives, who holds the key, and its retention are founder
 decisions with cost and custody implications — inventing them in a document would
 be exactly the unverified instruction this work exists to replace.
+
+## D75 — one token model for pages a customer's customer opens (#335, 2026-07-29)
+
+**Decision.** One shared primitive (`public_links` + `apps/api/src/public-links/`)
+for every page opened without an account. **One token, one object, one purpose.**
+
+**Why decide before building the features.** The issue's devil's advocate is
+right that speculative infrastructure fits its first real consumer badly — and
+also right that this is not an objection to *deciding*. Four queued features need
+this (#224 pay, #287 quotes, #245 calendar, #232 widget); built independently
+they arrive as four token schemes, four expiry policies and four sets of security
+assumptions. What is built here is the security substrate only: minting,
+resolving, revoking, rate limiting, and the failure page. No feature behaviour,
+so there is nothing for the first consumer to fit badly.
+
+**Why the bar is higher here than anywhere else in the product.** THE PERSON
+EXPOSED IS NOT OUR USER. A homeowner's address, phone number, job details and
+payment amount behind a guessable URL is a breach involving somebody who never
+agreed to anything with us and has no relationship with us at all. Every choice
+below follows from that sentence.
+
+**The model:**
+
+- **256 bits, base64url, not a UUID.** A v4 UUID has 122 bits and a recognisable
+  shape. These URLs live in SMS logs, browser history and third-party calendar
+  servers. base64url rather than hex because a link that wraps in a text message
+  is a link a homeowner mistrusts.
+- **Only the SHA-256 hash is stored.** The plaintext is returned once, at mint,
+  and never again — not to support, not to a query. A leaked backup or a log line
+  then discloses nothing usable. This is what makes keeping an access log safe.
+- **Purpose is stored and checked, never inferred from the route.** A token
+  minted to VIEW a quote cannot be replayed against the route that ACCEPTS it.
+  Without this, one leaked view link accepts the quote.
+- **Expiry is NOT NULL.** A link with no expiry is the failure this exists to
+  prevent, and making it representable would guarantee somebody creates one.
+- **Revocation is always individual.** `max_uses: 1` kills a payment link on
+  payment; revoke-by-subject is "this quote is withdrawn" in one call. The ICS
+  feed (#245) is the awkward case the issue names — long-lived by nature, pasted
+  into third-party servers — and individual rotation is the only control that
+  fits it.
+- **One failure page for every failure.** Expired, revoked, spent, wrong purpose,
+  never existed: identical response. A holder who can tell them apart has been
+  handed an oracle.
+- **Fails CLOSED.** Unlike almost every other read in this codebase, an
+  unreachable database here returns "not available" rather than degrading
+  politely. It must never hand out access it could not verify.
+
+**The surface is guarded in one place** (`publicLinkGuard`), so the first
+consumer cannot skip a control and the fourth cannot do it differently:
+IP-keyed rate limiting (there is no account to key on — that is the point),
+`X-Robots-Tag: noindex, nofollow, noarchive, nosnippet` unconditionally,
+`Cache-Control: no-store, private`, and `Referrer-Policy: no-referrer`.
+`noarchive`/`nosnippet` matter as much as `noindex`: a snippet is where the
+customer's name would appear.
+
+**Privacy posture.** Never anything in the URL but the opaque token. The access
+log records outcome and **country** — never the token, never the address. A run
+of unresolved tokens is the only trace an enumeration attempt would leave, since
+these routes sit outside every gate that protects `/v1`; but storing an address
+to protect somebody would be its own harm. Access rows are diagnostics, pruned
+at 30 days.

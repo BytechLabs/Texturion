@@ -147,6 +147,18 @@
         "type": "ratelimit",
         "namespace_id": "1007",
         "simple": { "limit": 120, "period": 60 }
+      },
+      {
+        // #335: the public-link surface. These endpoints sit OUTSIDE every gate
+        // that protects /v1 — no JWT, no company context — and are reachable by
+        // anyone who finds or guesses a URL. Keyed on the caller's IP, because
+        // there is no account to key on; that is the whole point of the
+        // surface. 30/min is generous for a homeowner opening a quote and
+        // reloading it, and far below a script walking the keyspace.
+        "name": "PUBLIC_LINK_RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1008",
+        "simple": { "limit": 30, "period": 60 }
       }
     ]
   },

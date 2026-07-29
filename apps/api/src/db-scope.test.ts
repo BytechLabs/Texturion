@@ -58,6 +58,7 @@ const TENANT_TABLES = new Set([
   "notification_reads", "number_access", "number_port_outs", "opt_outs",
   "outbound_call_authorizations", "outbound_dial_leases",
   "feature_flag_overrides", "number_health", "ownership_transfers", "phone_numbers",
+  "public_links",
   "port_requests", "provider_costs", "tags", "task_map_rows", "tasks",
   "templates", "text_enablement_orders", "usage_alerts", "usage_events",
 ]);
