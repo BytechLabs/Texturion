@@ -2669,3 +2669,54 @@ A **STOP can only be lifted by the customer who sent it** — that is not a
 missing return path, it is the whole point ([[opt-out-carrier-truth]]). Workspace
 purge after the D48 grace window is likewise deliberately final. Both are
 decided, which is the entire distinction this decision draws.
+
+## D63 — cancelling is owner-only; updating the card is not (#421)
+
+**Decision.** The Stripe billing portal is split by role. An **owner** gets the
+full portal, cancellation included. An **admin** gets the
+`payment_method_update` flow and nothing else. The route stays admin-reachable;
+what changed is what an admin can reach once inside.
+
+**The asymmetry it fixes.** Closing the workspace is owner-gated and explicitly
+destructive. Cancelling the subscription ends in the same place — `grace.ts`
+releases the number 30 days later, and a released number goes back to carrier
+inventory and is reassigned to another business (#413) — but it happened on
+Stripe's domain and so was never gated. An admin could start an irreversible
+clock ending with the company's phone number belonging to somebody else.
+
+**Why not simply owner-gate the whole portal.** Admin-level billing is right
+for the ordinary case: a bookkeeper or office manager updating an expiring card
+should not have to be the owner, and forcing that through the single
+untransferable owner role (#332) would be a worse failure than the one being
+fixed. The issue framed the bundle as unsplittable inside Stripe's UI. It is
+not — `flow_data.type = "payment_method_update"` lands the caller directly on
+the card screen with no cancellation surface at all, and needs no account-level
+portal configuration. A structural limit rather than a hidden button.
+
+**The owner is told, once.** A portal cancellation arrives as
+`customer.subscription.updated` with `cancel_at_period_end` newly true. That
+used to start a grace countdown and tell nobody. The notice now fires on the
+MOMENT of cancellation — compared against what we already mirrored, because
+Stripe repeats that flag on every later update and an owner who gets the same
+email every time a card is touched learns to ignore the one that mattered.
+
+**The email explains what release means**, per #413: not "your subscription
+ends" but that the number goes back to the carrier and is given to another
+business, and that customers texting the number on their van will reach
+somebody else. It says how to undo it, and it says that admins can manage
+billing so it may not have been them.
+
+**Audited with a null actor.** Stripe's hosted portal does not tell us which
+member clicked. Recording the workspace owner would name somebody who may not
+have done it, so the actor is the documented system-actor null and the record
+says what happened rather than inventing who.
+
+**Best-effort by construction.** The subscription mirror is the truth of the
+account and must never fail because a courtesy email did — the notice, the
+audit write and the owner lookup each swallow their own failures.
+
+**Ask 5, honestly.** Five routes are owner-gated: releasing a number, cancelling
+a port, the US enable-fee charge, cancelling text enablement, and closing the
+workspace. Re-reading them for an admin-reachable path to the same outcome, the
+subscription-cancellation path was the one hole, and it is the one closed here.
+That is a re-read rather than a proof of exhaustiveness.
