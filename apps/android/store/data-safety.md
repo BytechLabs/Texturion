@@ -44,7 +44,7 @@ advertising, and none is sold.
 | Audio → Voice or sound recordings | Yes | Yes | App functionality (voicemail) |
 | Files and docs | Yes | Yes | App functionality (attachments) |
 | Contacts | Yes | Yes | App functionality |
-| Location → Approximate location | Yes | Yes | App functionality (job map) |
+| Location → Approximate location | Yes | Yes | App functionality (job map); Fraud prevention, security, and compliance (#236 signed-in devices) |
 | App activity → Other actions | Yes | Yes | App functionality (call history) |
 | App info and performance → Crash logs | Yes | Yes | Diagnostics |
 | App info and performance → Diagnostics | Yes | Yes | Diagnostics |

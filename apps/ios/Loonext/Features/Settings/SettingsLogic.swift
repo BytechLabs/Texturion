@@ -605,3 +605,48 @@ func awayEmergencyNotice(
 
     return nil
 }
+
+// MARK: - Signed-in devices (#236)
+
+/// What to call a signed-in device.
+///
+/// `unknown` is a real answer, not a gap: it is what a client that predates
+/// the X-Client header looks like, and a row that says "Unrecognised device"
+/// is exactly the row somebody should look twice at.
+func deviceClientLabel(_ client: String) -> String {
+    switch client {
+    case SessionClient.web: "Web browser"
+    case SessionClient.android: "Android app"
+    case SessionClient.ios: "iPhone or iPad"
+    default: "Unrecognised device"
+    }
+}
+
+/// SF Symbol for a device row.
+func deviceClientSymbol(_ client: String) -> String {
+    switch client {
+    case SessionClient.web: "laptopcomputer"
+    case SessionClient.android: "candybarphone"
+    case SessionClient.ios: "iphone"
+    default: "questionmark.square.dashed"
+    }
+}
+
+/// "1 device" / "3 devices" — used in three sentences that each read wrong
+/// otherwise.
+func deviceCountLabel(_ count: Int) -> String {
+    count == 1 ? "1 device" : "\(count) devices"
+}
+
+/// The order a person reads their own device list in: the one they are
+/// holding first, then everything else by most recently active.
+///
+/// Sorted here rather than trusted from the server because "this device" has
+/// to be identified and dismissed before any other row means anything, and
+/// the server orders by activity alone.
+func orderMyDevices(_ sessions: [DeviceSession]) -> [DeviceSession] {
+    sessions.sorted { left, right in
+        if left.isCurrent != right.isCurrent { return left.isCurrent }
+        return left.last_active_at > right.last_active_at
+    }
+}

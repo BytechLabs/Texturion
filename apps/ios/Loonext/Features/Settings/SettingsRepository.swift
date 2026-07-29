@@ -94,6 +94,49 @@ struct SettingsRepository: Sendable {
         try await api.delete("/v1/members/me", companyId: companyId)
     }
 
+    // MARK: - Signed-in devices (#236)
+    //
+    // The two SELF routes are company-EXEMPT, and that is not an oversight to
+    // tidy up: somebody who has just been removed from their only workspace
+    // must still be able to sign their old phone out.
+
+    func mySessions() async throws -> Page<DeviceSession> {
+        try await api.get("/v1/sessions")
+    }
+
+    /// Sign one device out.
+    func revokeMySession(sessionId: String) async throws -> SessionRevokeResult {
+        try await api.post(
+            "/v1/sessions/revoke",
+            body: JSONValue.object(["session_id": .string(sessionId)])
+        )
+    }
+
+    /// Sign out everywhere EXCEPT this phone. There is deliberately no "and
+    /// this one too" — that is the sign-out button, and offering it here would
+    /// end the session that is reading the result.
+    func revokeMyOtherSessions() async throws -> SessionRevokeResult {
+        try await api.post(
+            "/v1/sessions/revoke",
+            body: JSONValue.object(["others": .bool(true)])
+        )
+    }
+
+    func workspaceSessions(_ companyId: String) async throws -> Page<WorkspaceSession> {
+        try await api.get("/v1/members/sessions", companyId: companyId)
+    }
+
+    func revokeMemberSessions(
+        _ companyId: String,
+        memberId: String
+    ) async throws -> SessionRevokeResult {
+        try await api.post(
+            "/v1/members/\(memberId)/sessions/revoke",
+            body: JSONValue.object([:]),
+            companyId: companyId
+        )
+    }
+
     // MARK: - Account (#346)
     //
     // Company-EXEMPT, both of them: deleting your account is about the person,

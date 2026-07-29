@@ -87,6 +87,15 @@ export default function PrivacyPage() {
             and subscription identifiers, not full card numbers.
           </li>
           <li>
+            <strong>Sign-in and device data:</strong> for each device signed in
+            to your account we keep which app it is, when it last used the
+            service, and the approximate city the request came from. It is
+            there so you and your workspace owner can see what has access and
+            end it, on the &ldquo;signed-in devices&rdquo; screen in Settings.
+            We keep the city, not the IP address, and only for as long as the
+            record is useful (90 days after a device stops being signed in).
+          </li>
+          <li>
             <strong>Product analytics:</strong> cookieless, event-level usage
             (page views, feature clicks, counts). We do not put message content,
             names, addresses, or phone numbers into analytics. Our{" "}

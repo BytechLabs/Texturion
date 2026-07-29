@@ -207,3 +207,56 @@ struct AccountDeletionResult: Codable, Sendable {
     /// Optional so an older server that does not send it still decodes.
     let receipt_emailed: Bool?
 }
+
+// MARK: - Signed-in devices (#236 — routes/sessions.ts)
+
+enum SessionClient {
+    static let web = "web"
+    static let android = "android"
+    static let ios = "ios"
+    static let unknown = "unknown"
+}
+
+/// GET /v1/sessions — one device signed in as YOU. Company-exempt: a session
+/// belongs to the person, not to one of their workspaces.
+///
+/// `location` is approximate and arrives absent rather than partial ("we do
+/// not know" is a fact worth rendering; half a city is not). `current` is
+/// decided by the server from the token's own session id, so the app never has
+/// to work out which row it is looking at.
+struct DeviceSession: Codable, Sendable, Identifiable {
+    let id: String
+    let client: String?
+    let user_agent: String?
+    let location: String?
+    let signed_in_at: String
+    let last_active_at: String
+    let current: Bool?
+
+    var clientKind: String { client ?? SessionClient.unknown }
+    var isCurrent: Bool { current ?? false }
+}
+
+/// GET /v1/members/sessions — the crew's devices, admin+. Deliberately
+/// narrower than `DeviceSession`: an owner needs to recognise a phone that has
+/// not been near the business in three weeks, not to read a teammate's user
+/// agent.
+struct WorkspaceSession: Codable, Sendable, Identifiable {
+    let id: String
+    let member_id: String?
+    let client: String?
+    let location: String?
+    let signed_in_at: String
+    let last_active_at: String
+
+    var clientKind: String { client ?? SessionClient.unknown }
+}
+
+/// What a revoke actually ended.
+struct SessionRevokeResult: Codable, Sendable {
+    let sessions: Int?
+    let devices: Int?
+
+    var endedSessions: Int { sessions ?? 0 }
+    var endedDevices: Int { devices ?? 0 }
+}

@@ -247,6 +247,11 @@ actor ApiClient {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        // #236: which app is calling, so the signed-in-devices list can say
+        // "iPhone or iPad" instead of guessing from a user agent. Set here, on
+        // every request — one that skipped it would show up in somebody's own
+        // security screen as an unrecognised device.
+        request.setValue("ios", forHTTPHeaderField: "X-Client")
         if let companyId {
             request.setValue(companyId, forHTTPHeaderField: "X-Company-Id")
         }

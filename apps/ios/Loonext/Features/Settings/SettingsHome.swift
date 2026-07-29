@@ -14,6 +14,10 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     case billing
     case notifications
     case profile
+    /// #236: what is signed in right now. Directly after Profile & account
+    /// because they are one question in two halves — how you get in, and what
+    /// is currently in.
+    case devices
     /// #382: the route to a human. Last because it is what you go looking
     /// for when something is wrong, not a screen you pass through.
     case help
@@ -33,6 +37,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .billing: "Billing"
         case .notifications: "Notifications"
         case .profile: "Profile & account"
+        case .devices: "Signed-in devices"
         case .help: "Help"
         }
     }
@@ -50,6 +55,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .billing: "Plan, payment, and invoices"
         case .notifications: "Email and push for new conversations"
         case .profile: "Your name, theme, email, and password"
+        case .devices: "Every browser and phone with access right now"
         case .help: "Get in touch when something isn't right"
         }
     }
@@ -68,6 +74,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .billing: "creditcard"
         case .notifications: "bell"
         case .profile: "person.crop.circle"
+        case .devices: "laptopcomputer.and.iphone"
         case .help: "lifepreserver"
         }
     }
@@ -307,6 +314,8 @@ struct SettingsHome: View {
                     )
                 case .profile:
                     ProfileSectionView(scope: scope, onSignOut: onSignOut)
+                case .devices:
+                    DevicesSectionView(scope: scope)
                 case .help:
                     HelpSectionView(scope: scope, company: company)
                 }

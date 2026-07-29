@@ -32,7 +32,7 @@ stated.
 | User content | Audio data | Voicemail recordings |
 | User content | Other user content | Files attached to notes and jobs |
 | Contacts | Contacts | Customer records the business keeps |
-| Location | Coarse location | Job addresses geocoded to a point; the map's "my location" |
+| Location | Coarse location | Job addresses geocoded to a point; the map's "my location"; the city a device signed in from, shown on the signed-in-devices list (#236) |
 | Usage data | Product interaction | Call history: who called, when, how it ended |
 | Diagnostics | Crash data, Performance data | Stack traces. Message bodies are excluded before they leave |
 

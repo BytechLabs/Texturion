@@ -45,7 +45,7 @@ shared inbox, and a shared inbox that forgets is not one.
 | Voice recordings | Voicemail audio, stored in our bucket | App functionality | User content → Audio data | Audio → Voice or sound recordings |
 | Call history | Who called, when, how it ended, duration | App functionality | Usage data | Personal info |
 | Contacts | Customer records the business keeps: name, phone, address, notes | App functionality | Contacts | Personal info, Contacts |
-| Approximate location | Job addresses geocoded to a point; the map's "my location" | App functionality | Location → Coarse location | Location → Approximate location |
+| Approximate location | Job addresses geocoded to a point; the map's "my location"; the city a device signed in from, on the signed-in-devices list (#236) | App functionality; account security | Location → Coarse location | Location → Approximate location |
 | Crash and error data | Stack traces, no message bodies | Diagnostics | Diagnostics | App info and performance |
 
 **Not collected:** precise (GPS-grade) location, health, financial account
