@@ -17,6 +17,7 @@ const clear: ComposerGateInput = {
   usSuspended: false,
   usage: { used_segments: 100, cap_segments: 1500 },
   optOutHint: false,
+  viewerLevel: "text",
 };
 
 describe("selectComposerBanner precedence", () => {
@@ -244,5 +245,40 @@ describe("#396 — a plain-English opt-out on the thread", () => {
 
   it("stays silent without the flag", () => {
     expect(selectComposerBanner({ ...clear, optOutHint: false })).toBeNull();
+  });
+});
+
+describe("#363 — a note-only member is told why, not left guessing", () => {
+  it("names the reason and the remedy", () => {
+    // The one send-blocking condition that had no banner. Without it the
+    // composer just quietly had no text mode, which reads as the product
+    // being broken rather than as a permission.
+    expect(selectComposerBanner({ ...clear, viewerLevel: "note" })).toEqual({
+      kind: "number_access",
+    });
+  });
+
+  it("wins over every other banner, because it is the only one about THEM", () => {
+    // A note-only member told "your subscription is past due" learns something
+    // true, irrelevant and unfixable by them: they could not text on this
+    // number either way, and they cannot pay the bill.
+    expect(
+      selectComposerBanner({
+        ...clear,
+        viewerLevel: "note",
+        subscriptionStatus: "past_due",
+        contactOptedOut: true,
+        contactOptOutSource: "stop_keyword",
+        usApproved: false,
+        usage: { used_segments: 2000, cap_segments: 1500 },
+        optOutHint: true,
+      }),
+    ).toEqual({ kind: "number_access" });
+  });
+
+  it("says nothing at all for a member who CAN text", () => {
+    // The regression that would matter most: a banner shown to everybody
+    // would replace the composer for the whole crew.
+    expect(selectComposerBanner({ ...clear, viewerLevel: "text" })).toBeNull();
   });
 });

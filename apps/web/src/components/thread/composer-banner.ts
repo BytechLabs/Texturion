@@ -59,6 +59,16 @@ export type ComposerBanner =
    * acting on a guess would silence a real lead forever.
    */
   | { kind: "opt_out_hint" }
+  /**
+   * #363: this member may read the thread and write internal notes, but may
+   * not text the customer on this number (`number_access.level = 'note'`).
+   *
+   * The one send-blocking condition that had no banner. Every other blocked
+   * send says why on screen; this one just quietly had no text composer, which
+   * looks like the product is broken rather than like a permission — and the
+   * worse version is a tech who believes they replied and did not.
+   */
+  | { kind: "number_access" }
   | null;
 
 export interface ComposerGateInput {
@@ -80,9 +90,27 @@ export interface ComposerGateInput {
   usage: Pick<Usage, "used_segments" | "cap_segments"> | null;
   /** #396: conversations.opt_out_hint_at — a plain-English opt-out was seen. */
   optOutHint: boolean;
+  /**
+   * #106/#363: this caller's level on THIS conversation's number. 'note' may
+   * read and annotate but not text; 'text' is unrestricted.
+   */
+  viewerLevel: "text" | "note";
 }
 
 export function selectComposerBanner(input: ComposerGateInput): ComposerBanner {
+  // #363 FIRST, and the reason is worth stating: every other banner describes
+  // a fact about the CONVERSATION or the workspace, and this one describes a
+  // fact about the READER. A note-only member who is told "your subscription
+  // is past due" learns something true, irrelevant and unfixable by them —
+  // they could not text on this number either way, and they cannot pay the
+  // bill. "Ask your owner for access" is the only line here they can act on.
+  //
+  // It is also the only one that stays true in every other conversation on
+  // this number, so learning it once is worth more than learning it after
+  // resolving a customer-specific problem and hitting a second wall.
+  if (input.viewerLevel === "note") {
+    return { kind: "number_access" };
+  }
   if (input.contactOptedOut) {
     return {
       kind: "opted_out",

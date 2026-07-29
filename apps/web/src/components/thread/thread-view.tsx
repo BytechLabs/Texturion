@@ -252,6 +252,10 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   const banner =
     company.data && contact.data
       ? selectComposerBanner({
+          // #363: the reader's own level on THIS number. Checked first,
+          // because it is the only fact here about them rather than about the
+          // conversation.
+          viewerLevel: conversation.viewer_level === "note" ? "note" : "text",
           contactOptedOut: contact.data.opted_out,
           contactOptOutSource: contact.data.opt_out_source,
           subscriptionStatus: company.data.subscription_status,

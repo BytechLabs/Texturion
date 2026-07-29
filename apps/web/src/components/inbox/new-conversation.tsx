@@ -242,6 +242,10 @@ export function NewConversation() {
     company.data && destinationE164
       ? selectComposerBanner({
           contactOptedOut,
+          // #363: a new conversation has no number chosen yet, so there is no
+          // per-number level to read. The API refuses a send this member may
+          // not make, and the thread composer is where the explanation lands.
+          viewerLevel: "text",
           // This screen never learns WHICH opt-out it is (it holds a boolean
           // the API set on a recipient_opted_out refusal), so it takes the
           // carrier-block wording: that is the case a customer-sent STOP

@@ -69,6 +69,17 @@ sealed interface ComposerBanner {
      * (#331), so acting on a guess would silence a real lead for good.
      */
     data object OptOutHint : ComposerBanner
+
+    /**
+     * #363: this member may read the thread and write internal notes, but may
+     * not text the customer on this number (number_access.level = 'note').
+     *
+     * The one send-blocking condition that had no banner. Every other blocked
+     * send says why on screen; this one just quietly had no text composer,
+     * which reads as the product being broken rather than as a permission —
+     * and the worse version is a tech who believes they replied and did not.
+     */
+    data object NumberAccess : ComposerBanner
 }
 
 fun selectComposerBanner(
@@ -81,7 +92,17 @@ fun selectComposerBanner(
     usage: Usage?,
     optOutHint: Boolean = false,
     usSuspended: Boolean = false,
+    /** #106/#363: this caller's level on THIS conversation's number. */
+    viewerLevel: String = "text",
 ): ComposerBanner? {
+    // #363 FIRST, and the reason is worth stating: every other banner
+    // describes a fact about the CONVERSATION or the workspace, and this one
+    // describes a fact about the READER. A note-only member told "your
+    // subscription is past due" learns something true, irrelevant and
+    // unfixable by them — they could not text on this number either way, and
+    // they cannot pay the bill. "Ask an owner" is the only line they can act
+    // on, and it stays true in every other conversation on this number.
+    if (viewerLevel == "note") return ComposerBanner.NumberAccess
     if (contactOptedOut) {
         return ComposerBanner.OptedOut(isCarrierEnforcedOptOut(contactOptOutSource))
     }
@@ -151,6 +172,15 @@ fun bannerCopy(banner: ComposerBanner): Pair<String, String> = when (banner) {
             "This customer opted out" to
                 "Someone marked them opted out. You can undo that on their contact. Internal notes still work."
         }
+
+    // #363: what is true, and what to do. No call offer either — whether a
+    // note-only member may call is a separate access question, and a banner
+    // that pointed at a second thing they also cannot do would be a second
+    // dead end. `offersCallInstead` is an allow-list, so this gets it right by
+    // not being on the list.
+    ComposerBanner.NumberAccess ->
+        "You can't text from this number" to
+            "You can read this conversation and add internal notes, but texting this customer needs access an owner or admin grants. Ask them if you need it."
 
     is ComposerBanner.Subscription ->
         "Texting is paused" to

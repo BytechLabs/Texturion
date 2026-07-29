@@ -250,4 +250,67 @@ final class MessagingComposerBannerTests: XCTestCase {
         )
     }
 
+    func testANoteOnlyMemberIsToldWhyNotLeftGuessing() {
+        // #363: the one send-blocking condition that had no banner. Without it
+        // the composer just quietly had no text mode, which reads as the
+        // product being broken rather than as a permission.
+        XCTAssertEqual(
+            selectComposerBanner(
+                contactOptedOut: false,
+                contactOptOutSource: nil,
+                subscriptionStatus: SubscriptionStatus.active,
+                destinationCountry: "CA",
+                usApproved: true,
+                usTextingOff: false,
+                usage: usage(used: 10, cap: 100),
+                viewerLevel: "note"
+            ),
+            .numberAccess
+        )
+    }
+
+    func testNumberAccessWinsOverEveryOtherBanner() {
+        // A note-only member told "your subscription is past due" learns
+        // something true, irrelevant and unfixable by them: they could not text
+        // on this number either way, and they cannot pay the bill.
+        XCTAssertEqual(
+            selectComposerBanner(
+                contactOptedOut: true,
+                contactOptOutSource: "stop_keyword",
+                subscriptionStatus: "past_due",
+                destinationCountry: "US",
+                usApproved: false,
+                usTextingOff: true,
+                usage: usage(used: 2000, cap: 100),
+                optOutHint: true,
+                usSuspended: true,
+                viewerLevel: "note"
+            ),
+            .numberAccess
+        )
+    }
+
+    func testSaysNothingAtAllForAMemberWhoCanText() {
+        // The regression that would matter most: a banner shown to everybody
+        // would replace the composer for the whole crew.
+        XCTAssertNil(
+            selectComposerBanner(
+                contactOptedOut: false,
+                contactOptOutSource: nil,
+                subscriptionStatus: SubscriptionStatus.active,
+                destinationCountry: "CA",
+                usApproved: true,
+                usTextingOff: false,
+                usage: usage(used: 10, cap: 100),
+                viewerLevel: "text"
+            )
+        )
+    }
+
+    func testTheNumberAccessBannerNeverOffersACall() {
+        // Whether a note-only member may CALL is a separate access question,
+        // and pointing at a second thing they may also lack would be a second
+        // dead end.
+        XCTAssertFalse(offersCallInstead(.numberAccess))
+    }
 }

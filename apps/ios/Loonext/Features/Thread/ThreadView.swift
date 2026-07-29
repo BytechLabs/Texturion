@@ -628,7 +628,10 @@ private struct ThreadBody: View {
             // person who read the request.
             optOutHint: detail.opt_out_hint_at != nil,
             // #423: the carrier took an approved registration away.
-            usSuspended: controller.company.map(usSuspended) ?? false
+            usSuspended: controller.company.map(usSuspended) ?? false,
+            // #363: the reader's own level on THIS number — the one banner
+            // about them rather than about the conversation.
+            viewerLevel: detail.viewer_level
         )
         // #106: calling is outreach like texting, so a notes-only member gets
         // no control the API would refuse.

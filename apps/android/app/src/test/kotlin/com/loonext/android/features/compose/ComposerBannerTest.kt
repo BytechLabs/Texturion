@@ -290,4 +290,71 @@ class ComposerBannerTest {
         )
     }
 
+    @Test
+    fun `a note-only member is told why, not left guessing`() {
+        // #363: the one send-blocking condition that had no banner. Without it
+        // the composer just quietly had no text mode, which reads as the
+        // product being broken rather than as a permission.
+        assertEquals(
+            ComposerBanner.NumberAccess,
+            selectComposerBanner(
+                contactOptedOut = false,
+                contactOptOutSource = null,
+                subscriptionStatus = SubscriptionStatus.ACTIVE,
+                destinationCountry = "CA",
+                usApproved = true,
+                usTextingOff = false,
+                usage = usage(10, 100),
+                viewerLevel = "note",
+            ),
+        )
+    }
+
+    @Test
+    fun `number access wins over every other banner`() {
+        // A note-only member told "your subscription is past due" learns
+        // something true, irrelevant and unfixable by them: they could not
+        // text on this number either way, and they cannot pay the bill.
+        assertEquals(
+            ComposerBanner.NumberAccess,
+            selectComposerBanner(
+                contactOptedOut = true,
+                contactOptOutSource = "stop_keyword",
+                subscriptionStatus = "past_due",
+                destinationCountry = "US",
+                usApproved = false,
+                usTextingOff = true,
+                usage = usage(2000, 100),
+                optOutHint = true,
+                usSuspended = true,
+                viewerLevel = "note",
+            ),
+        )
+    }
+
+    @Test
+    fun `says nothing at all for a member who CAN text`() {
+        // The regression that would matter most: a banner shown to everybody
+        // would replace the composer for the whole crew.
+        assertNull(
+            selectComposerBanner(
+                contactOptedOut = false,
+                contactOptOutSource = null,
+                subscriptionStatus = SubscriptionStatus.ACTIVE,
+                destinationCountry = "CA",
+                usApproved = true,
+                usTextingOff = false,
+                usage = usage(10, 100),
+                viewerLevel = "text",
+            ),
+        )
+    }
+
+    @Test
+    fun `the number-access banner never offers a call`() {
+        // Whether a note-only member may CALL is a separate access question,
+        // and pointing at a second thing they may also lack would be a second
+        // dead end.
+        assertFalse(offersCallInstead(ComposerBanner.NumberAccess))
+    }
 }

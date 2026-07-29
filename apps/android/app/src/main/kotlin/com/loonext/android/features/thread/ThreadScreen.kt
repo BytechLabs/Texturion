@@ -710,6 +710,9 @@ private fun ThreadLoaded(
             optOutHint = detail.opt_out_hint_at != null,
             // #423: the carrier took an approved registration away.
             usSuspended = controller.company?.let { usSuspended(it) } ?: false,
+            // #363: the reader's own level on THIS number — the one banner
+            // about them rather than about the conversation.
+            viewerLevel = detail.viewer_level,
         )
         ThreadComposer(
             state = composer,

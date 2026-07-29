@@ -72,6 +72,14 @@ export function ComposerBannerCard({
   let action: React.ReactNode = null;
 
   switch (banner.kind) {
+    // #363: what is true, and what to do — G10's "what happened + what to do,
+    // one sentence each". No action button, deliberately: the remedy is a
+    // conversation with a person, and a control that only navigates somewhere
+    // they also cannot change would be a second dead end.
+    case "number_access":
+      sentence =
+        "You can add internal notes here, but not text this customer from this number. Ask an owner or admin for access.";
+      break;
     case "opted_out":
       // Say what can actually be done about it. A STOP is the customer's to
       // undo; a hand-recorded opt-out is the crew's.

@@ -38,6 +38,15 @@ enum ComposerBanner: Equatable, Sendable {
     /// leaves the decision with the person: an opt-out cannot be lifted by us
     /// (#331), so acting on a guess would silence a real lead for good.
     case optOutHint
+
+    /// #363: this member may read the thread and write internal notes, but may
+    /// not text the customer on this number (`number_access.level = 'note'`).
+    ///
+    /// The one send-blocking condition that had no banner. Every other blocked
+    /// send says why on screen; this one just quietly had no text composer,
+    /// which reads as the product being broken rather than as a permission —
+    /// and the worse version is a tech who believes they replied and did not.
+    case numberAccess
 }
 
 func selectComposerBanner(
@@ -49,8 +58,18 @@ func selectComposerBanner(
     usTextingOff: Bool,
     usage: Usage?,
     optOutHint: Bool = false,
-    usSuspended: Bool = false
+    usSuspended: Bool = false,
+    /// #106/#363: this caller's level on THIS conversation's number.
+    viewerLevel: String = "text"
 ) -> ComposerBanner? {
+    // #363 FIRST, and the reason is worth stating: every other banner
+    // describes a fact about the CONVERSATION or the workspace, and this one
+    // describes a fact about the READER. A note-only member told "your
+    // subscription is past due" learns something true, irrelevant and
+    // unfixable by them — they could not text on this number either way, and
+    // they cannot pay the bill. "Ask an owner" is the only line they can act
+    // on, and it stays true in every other conversation on this number.
+    if viewerLevel == "note" { return .numberAccess }
     if contactOptedOut {
         return .optedOut(carrierBlocked: isCarrierEnforcedOptOut(contactOptOutSource))
     }
@@ -145,6 +164,12 @@ func bannerCopy(_ banner: ComposerBanner) -> (title: String, body: String) {
             "You've hit this month's cap",
             "Outbound texts pause until the cap is raised or the month rolls over. Internal notes still work."
         )
+    // #363: what is true, and what to do.
+    case .numberAccess:
+        return (
+            "You can't text from this number",
+            "You can read this conversation and add internal notes, but texting this customer needs access an owner or admin grants. Ask them if you need it."
+        )
     // #396: says what was seen and who decides. It does NOT opt anyone out —
     // only the customer can, and only they can lift it, so a wrong guess would
     // silence a real lead for good.
@@ -169,7 +194,11 @@ func offersCallInstead(_ banner: ComposerBanner) -> Bool {
     case .registrationPending, .usTextingOff, .registrationSuspended: return true
     // #396: never offer the phone as a way around a request to be left alone —
     // the same reasoning that excludes an opted-out contact.
-    case .optedOut, .subscription, .usageCap, .optOutHint: return false
+    // #363: whether a note-only member may CALL is a separate access question,
+    // and pointing at a second thing they may also lack would be a second dead
+    // end.
+    case .optedOut, .subscription, .usageCap, .optOutHint, .numberAccess:
+        return false
     }
 }
 
