@@ -346,6 +346,14 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "job:call-silence": {
+    what:
+      "Nothing is watching for a single workspace's calls stopping (#397). "
+      + "That is the quiet signal a customer pointed their number at somebody "
+      + "else; the fleet-wide call-event key would never notice one of them.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
   "job:prune-contact-messages": {
     what:
       "Marketing contact-form data is no longer being aged out (#340). We are "

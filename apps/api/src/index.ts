@@ -22,6 +22,7 @@ import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runNumberHealthJob } from "./messaging/number-health";
 import { runRegistrationStallJob } from "./telnyx/registration-stalls";
+import { runCallSilenceJob } from "./calls/call-silence";
 import { runIdentityRetentionJob } from "./telnyx/identity-retention";
 import { runContactRetentionJob } from "./marketing/contact-retention";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
@@ -398,6 +399,9 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // the ones that changed; a registration that simply sits there produces no
     // event and no error, which is the silent-absence shape #387 exists for.
     job("job:registration-stalls", runRegistrationStallJob),
+    // #397 ask 2: one workspace's calls going quiet. The fleet-wide call-event
+    // key catches a Telnyx outage; this catches a customer replacing us.
+    job("job:call-silence", runCallSilenceJob),
   ],
   // Port reconcile & resume (PORTING.md §5.2): poll in-flight porting orders,
   // apply missed status/messaging transitions, resume stalled sagas, and
