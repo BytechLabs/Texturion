@@ -196,6 +196,33 @@ final class NotificationsPushPayloadTests: XCTestCase {
         )
     }
 
+    func testACallPermalinkCarriesItsSession() {
+        // #336: /calls/<session> matched the "calls" branch and then read only
+        // the query param, so a permalink somebody was handed resolved to the
+        // empty calls list — the dead-end tap this table exists to prevent.
+        XCTAssertEqual(
+            parsePushRoute(url: "https://app.loonext.com/calls/sess-3"),
+            .calls(sessionId: "sess-3")
+        )
+    }
+
+    func testTheCallPathWinsOverTheWakeParam() {
+        // The query form is the ring-wake link a push sends; a path segment is
+        // only present when a human followed a link to one specific call.
+        XCTAssertEqual(
+            parsePushRoute(url: "/calls/from-path?call=from-query"),
+            .calls(sessionId: "from-path")
+        )
+    }
+
+    func testTheWakeLinkStillWorksWithNoPathSegment() {
+        XCTAssertEqual(
+            parsePushRoute(url: "/calls?call=sess-1"),
+            .calls(sessionId: "sess-1")
+        )
+        XCTAssertEqual(parsePushRoute(url: "/calls"), .calls(sessionId: nil))
+    }
+
     func testATaskWithNoThreadBehindItOpensItsOwnPage() {
         // This used to resolve to nothing, so the tap appeared to do nothing.
         XCTAssertEqual(

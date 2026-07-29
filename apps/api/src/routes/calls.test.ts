@@ -766,6 +766,163 @@ function claimedBuckets(body: unknown): string {
   return [...new Set(objects.map((object) => object.bucket))].join(",");
 }
 
+describe("GET /v1/calls/:sessionId (#336 — a call has an address)", () => {
+  const SESSION = "85011718-87f2-11f1-b490-02420aef29a0";
+  const HIDDEN_NUMBER = "bbbbbbbb-0000-4000-8000-000000000002";
+
+  function detailStub(opts: { hidden?: boolean; row?: Record<string, unknown> } = {}) {
+    const sb = supabaseStub(env);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    // #106: a rule hiding this number from this member.
+    sb.on("GET", "/rest/v1/number_access", () =>
+      opts.hidden
+        ? [
+            {
+              phone_number_id: HIDDEN_NUMBER,
+              principal_kind: "user",
+              principal: "somebody-else",
+              level: "text",
+            },
+          ]
+        : [],
+    );
+    sb.on("GET", "/rest/v1/phone_numbers", () => [{ id: HIDDEN_NUMBER }]);
+    sb.on("GET", "/rest/v1/calls", () => [
+      {
+        id: "cccccccc-0000-4000-8000-000000000009",
+        call_session_id: SESSION,
+        caller_e164: "+16135551234",
+        contact_id: null,
+        caller_name: "MARIA ALVAREZ",
+        phone_number_id: HIDDEN_NUMBER,
+        conversation_id: null,
+        outcome: "voicemail",
+        forward_seconds: 0,
+        screening_result: null,
+        stir_attestation: "A",
+        voicemail_seconds: 12,
+        voicemail_transcript: "Leaking tap upstairs.",
+        voicemail_transcript_attempted_at: null,
+        voicemail_path: `${COMPANY_ID}/${SESSION}.mp3`,
+        answered_by_user_id: null,
+        state: "ended_voicemail",
+        answered_at: null,
+        started_at: "2026-07-29T10:00:00.000Z",
+        ended_at: "2026-07-29T10:00:40.000Z",
+        direction: "inbound",
+        contacts: null,
+        ...(opts.row ?? {}),
+      },
+    ]);
+    sb.on("GET", "/rest/v1/profiles", () => []);
+    return sb;
+  }
+
+  it("returns the full detail for a readable call", async () => {
+    const sb = detailStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls/${SESSION}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.call_session_id).toBe(SESSION);
+    expect(body.voicemail_transcript).toBe("Leaking tap upstairs.");
+    expect(body.outcome).toBe("voicemail");
+  });
+
+  it("says whether there is audio WITHOUT leaking the storage key", async () => {
+    // The path is a storage key; the signed URL is minted on demand by the
+    // voicemail endpoint. A client only needs to know there is something to
+    // play, and shipping the key would hand out a durable reference.
+    const sb = detailStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls/${SESSION}`,
+      { companyId: COMPANY_ID },
+    );
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.has_voicemail).toBe(true);
+    expect(body.voicemail_path).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain(".mp3");
+  });
+
+  it("404s a call on a number this member cannot read", async () => {
+    // A permalink is the classic place a deny-list gets missed, because the
+    // guard is usually written on the LIST query. 404 rather than 403: the
+    // detail route must not confirm the call exists.
+    const sb = detailStub({ hidden: true });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls/${SESSION}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("404s an unknown session", async () => {
+    const sb = supabaseStub(env);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    sb.on("GET", "/rest/v1/calls", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls/${SESSION}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("reports an absent transcript honestly rather than as an empty one", async () => {
+    // The transcript pipeline is best-effort by design, so "no words" is a
+    // normal state, not an exceptional one. The client needs to tell "we
+    // tried and there was nothing" from "we never tried".
+    const sb = detailStub({
+      row: {
+        voicemail_transcript: null,
+        voicemail_transcript_attempted_at: "2026-07-29T10:01:00.000Z",
+      },
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls/${SESSION}`,
+      { companyId: COMPANY_ID },
+    );
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.voicemail_transcript).toBeNull();
+    expect(body.voicemail_transcript_attempted_at).toBe("2026-07-29T10:01:00.000Z");
+    expect(body.has_voicemail).toBe(true);
+  });
+});
+
 describe("GET /v1/calls/:sessionId/voicemail", () => {
   const SESSION = "85011718-87f2-11f1-b490-02420aef29a0";
   const PATH = `${COMPANY_ID}/${SESSION}.mp3`;

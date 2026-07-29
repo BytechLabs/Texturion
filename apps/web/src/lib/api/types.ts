@@ -1268,6 +1268,26 @@ export interface Call {
   answered_at?: string | null;
 }
 
+/**
+ * GET /v1/calls/:sessionId — #336. The list row plus the fields only a detail
+ * surface has room for.
+ */
+export interface CallDetail extends Call {
+  ended_at: string | null;
+  /**
+   * Whether there is a recording to play. The storage path itself never leaves
+   * the server; the signed URL is minted on demand by the voicemail endpoint.
+   */
+  has_voicemail: boolean;
+  /**
+   * When we last TRIED to write the words down. Non-null with a null
+   * transcript is the honest "we tried and there was nothing" — distinct from
+   * never having tried, which is what a null here means. The pipeline is
+   * best-effort by design, so this is a normal state rather than an error.
+   */
+  voicemail_transcript_attempted_at: string | null;
+}
+
 /** GET /v1/search conversation hit (api_search_v2 RPC). */
 export interface SearchConversationHit {
   id: string;

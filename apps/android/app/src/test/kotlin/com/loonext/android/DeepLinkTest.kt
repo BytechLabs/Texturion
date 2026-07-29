@@ -56,6 +56,33 @@ class DeepLinkTest {
     }
 
     @Test
+    fun `a call PERMALINK carries its session too`() {
+        // #336: /calls/<session> matched the "calls" branch and then read only
+        // the query param, so a permalink somebody was handed resolved to the
+        // empty calls list — the "tap appears to do nothing" this table exists
+        // to prevent.
+        assertEquals(DeepLink.Calls("sess-3"), deepLinkFor(listOf("calls", "sess-3")))
+    }
+
+    @Test
+    fun `the path wins over the wake param`() {
+        // The query form is the ring-wake link a push sends; a path segment is
+        // only present when a human followed a link to one specific call.
+        assertEquals(
+            DeepLink.Calls("from-path"),
+            deepLinkFor(listOf("calls", "from-path"), callParam = "from-query"),
+        )
+    }
+
+    @Test
+    fun `a blank call segment falls back to the param`() {
+        assertEquals(
+            DeepLink.Calls("sess-3"),
+            deepLinkFor(listOf("calls", "  "), callParam = "sess-3"),
+        )
+    }
+
+    @Test
     fun `an unknown path resolves to nothing rather than guessing`() {
         assertNull(deepLinkFor(listOf("settings")))
         assertNull(deepLinkFor(emptyList()))

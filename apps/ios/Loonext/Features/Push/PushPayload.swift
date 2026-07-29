@@ -193,7 +193,16 @@ func parsePushRoute(url: String) -> PushRoute? {
         return .task(taskId: segments[1])
     }
     if segments.first == "calls" {
-        return .calls(sessionId: queryParam(url: normalized, name: "call"))
+        // #336: a call now has an address, so `/calls/<session>` is a real link
+        // somebody can be handed. The PATH wins over the `?call=` param: the
+        // query form is the ring-wake link a push sends, and a path segment is
+        // only ever present when a human followed a permalink to one call.
+        //
+        // Before this, `/calls/<session>` matched here and then read only the
+        // query — so a permalink resolved to the empty calls list, which is
+        // the dead-end tap this table exists to prevent.
+        let fromPath = segments.count >= 2 && !segments[1].isBlank ? segments[1] : nil
+        return .calls(sessionId: fromPath ?? queryParam(url: normalized, name: "call"))
     }
     return nil
 }

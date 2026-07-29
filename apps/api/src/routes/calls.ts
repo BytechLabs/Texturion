@@ -150,6 +150,79 @@ callsRoutes.get("/calls", requireRole("member"), async (c) => {
 });
 
 /**
+ * #336 — a call finally has an address.
+ *
+ * Conversations, contacts and tasks each had a permalink; a call was a row in
+ * a list. That absence propagated further than it looks: a voicemail search
+ * hit (#409) had nowhere to land, "listen to this one" was a sentence with no
+ * link in it, a missed-call notification could only drop somebody on the list
+ * to hunt, and the audit log had no way to cite a specific call.
+ *
+ * Keyed on `call_session_id` rather than the row id, because that is the
+ * identifier every other call surface already speaks — the voicemail endpoint
+ * below, the live-call socket, and the Durable Object's own state all use it,
+ * so a URL built from it is the one that can be handed between them.
+ *
+ * #106 IS ENFORCED HERE, not inherited. A permalink is the classic place a
+ * deny-list gets missed, because the guard is usually written on the list
+ * query; a call carries a customer's recorded voice and is at least as
+ * sensitive as a message. A number the caller cannot read answers 404 —
+ * the same shape its conversations give, so the detail route cannot be used
+ * to prove a call exists.
+ */
+callsRoutes.get("/calls/:sessionId", requireRole("member"), async (c) => {
+  const sessionId = c.req.param("sessionId");
+  const db = getDb(getEnv(c.env));
+
+  const rows = unwrap<(Omit<CallRow, "answered_by_name"> & {
+    ended_at: string | null;
+    direction: string;
+    voicemail_path: string | null;
+    voicemail_transcript_attempted_at: string | null;
+    contacts: { id: string; name: string | null; phone_e164: string } | null;
+  })[]>(
+    await db
+      .from("calls")
+      .select(
+        "id,call_session_id,caller_e164,contact_id,caller_name,phone_number_id," +
+          "conversation_id,outcome,forward_seconds,screening_result," +
+          "stir_attestation,voicemail_seconds,voicemail_transcript," +
+          "voicemail_transcript_attempted_at,voicemail_path," +
+          "answered_by_user_id,state,answered_at,started_at,ended_at,direction," +
+          "contacts(id,name,phone_e164)",
+      )
+      .eq("company_id", c.get("companyId"))
+      .eq("call_session_id", sessionId)
+      .limit(1),
+    "call detail",
+  );
+  const call = rows[0];
+  if (!call) return errorResponse(c, "not_found", "No such call.");
+
+  await assertNumberLevel(db, {
+    companyId: c.get("companyId"),
+    userId: c.get("userId"),
+    role: c.get("role"),
+    phoneNumberId: call.phone_number_id,
+    need: "read",
+  });
+
+  const actorNames = await resolveActorNames(db, [call.answered_by_user_id]);
+  const { voicemail_path, contacts, ...rest } = call;
+  return c.json({
+    ...rest,
+    contact_name: contacts?.name ?? null,
+    answered_by_name: call.answered_by_user_id
+      ? actorNames.get(call.answered_by_user_id) ?? null
+      : null,
+    // The path itself never leaves the server — it is a storage key, and the
+    // signed URL is minted by the voicemail endpoint on demand. What a client
+    // needs to know is only whether there is anything to play.
+    has_voicemail: voicemail_path !== null,
+  });
+});
+
+/**
  * D43: voicemail playback. Returns a short-lived signed URL for the
  * session's stored recording. #106-enforced: the call's number must be
  * readable by the caller (a hidden number's voicemail must not even

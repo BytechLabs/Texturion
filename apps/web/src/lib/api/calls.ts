@@ -18,7 +18,7 @@ import { useCompanyId } from "@/lib/company/provider";
 import { apiFetch } from "./client";
 import { keys } from "./keys";
 import { nextCursorParam } from "./pagination";
-import type { Call, Page } from "./types";
+import type { Call, CallDetail, Page } from "./types";
 
 export type CallOutcomeFilter = "missed" | "answered" | "voicemail";
 
@@ -43,6 +43,24 @@ export function useCalls(outcome?: CallOutcomeFilter) {
  * client-side either. Keyed under the [companyId, "calls"] prefix so the
  * realtime call-change invalidation refreshes it exactly like the /calls log.
  */
+/**
+ * #336: one call, by its session id — the permalink's data.
+ *
+ * Keyed under the [companyId, "calls"] prefix like the log and the per-contact
+ * history, so the realtime call-change invalidation refreshes an open detail
+ * page exactly as it refreshes the list behind it.
+ */
+export function useCall(sessionId: string) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: [companyId, "calls", "detail", sessionId] as const,
+    queryFn: () =>
+      apiFetch<CallDetail>(`/v1/calls/${encodeURIComponent(sessionId)}`, {
+        companyId,
+      }),
+  });
+}
+
 export function useContactCalls(contactId: string) {
   const companyId = useCompanyId();
   return useInfiniteQuery({

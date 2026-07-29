@@ -154,8 +154,19 @@ fun deepLinkFor(
 
     segments.size >= 2 && segments[0] == "tasks" -> DeepLink.Task(segments[1])
 
+    // #336: a call now has an address, so `/calls/<session>` is a real link
+    // somebody can be handed. The PATH wins over the `?call=` param: the query
+    // form is the ring-wake link a push sends, and a path segment is only ever
+    // present when a human followed a permalink to one specific call.
+    //
+    // Before this, `/calls/<session>` matched here and then read only the
+    // query — so a permalink resolved to the empty calls list, which is the
+    // "tap appears to do nothing" this function exists to prevent.
     segments.firstOrNull() == "calls" ->
-        DeepLink.Calls(callParam?.takeIf { it.isNotBlank() })
+        DeepLink.Calls(
+            segments.getOrNull(1)?.takeIf { it.isNotBlank() }
+                ?: callParam?.takeIf { it.isNotBlank() },
+        )
 
     else -> null
 }
