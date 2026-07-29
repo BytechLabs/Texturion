@@ -57,7 +57,9 @@ final class MessagingRetryableTests: XCTestCase {
     func testTheServersReasonWinsOverACodeThatDisagrees() {
         // A second carrier spells its codes differently; the reason is what
         // the app is allowed to believe.
-        XCTAssertTrue(message(errorReason: "rate_limited", errorCode: "40300").retryable)
+        // Swift requires call-site argument order to match the declaration,
+        // so errorCode comes first here even though the reason is the point.
+        XCTAssertTrue(message(errorCode: "40300", errorReason: "rate_limited").retryable)
     }
 
     func testOnlyFailedStatusIsRetryable() {
