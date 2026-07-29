@@ -25,7 +25,10 @@ import { isAuthPage, isProtectedPath } from "@/lib/auth/redirects";
 /**
  * App-surface paths beyond the protected + auth sets: the recovery/invite
  * pages (reachable signed-out), the Supabase callback, the Stripe Checkout
- * return target, and the /join signup alias.
+ * return target, the /join signup alias, and the native clients' Turnstile
+ * page — /native-captcha MUST stay on app.loonext.com because the site key
+ * validates the widget's hostname and both mobile WebViews hard-code the app
+ * host (#258).
  */
 const EXTRA_APP_PREFIXES = [
   "/update-password",
@@ -33,6 +36,7 @@ const EXTRA_APP_PREFIXES = [
   "/auth",
   "/dashboard",
   "/join",
+  "/native-captcha",
 ] as const;
 
 function matchesPrefix(pathname: string, prefix: string): boolean {

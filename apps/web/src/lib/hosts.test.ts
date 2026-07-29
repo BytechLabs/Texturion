@@ -41,6 +41,7 @@ describe("isAppSurfacePath", () => {
     "/auth/callback",
     "/dashboard",
     "/join",
+    "/native-captcha",
   ])("%s is app surface", (path) => {
     expect(isAppSurfacePath(path)).toBe(true);
   });

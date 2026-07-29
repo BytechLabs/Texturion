@@ -19,13 +19,18 @@ import { isAppSurfacePath } from "@/lib/hosts";
 import { isProtectedPath } from "./redirects";
 
 const APP_GROUP_DIR = join(__dirname, "..", "..", "app", "(app)");
+const AUTH_GROUP_DIR = join(__dirname, "..", "..", "app", "(auth)");
 
-/** Page-route directories of the (app) group (files and route-group noise
+/** Page-route directories of a route group (files and route-group noise
  *  excluded — every current entry that is a directory is a URL segment). */
-function appRouteSegments(): string[] {
-  return readdirSync(APP_GROUP_DIR, { withFileTypes: true })
+function routeSegments(groupDir: string): string[] {
+  return readdirSync(groupDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name);
+}
+
+function appRouteSegments(): string[] {
+  return routeSegments(APP_GROUP_DIR);
 }
 
 describe("(app) route registration (#133)", () => {
@@ -47,6 +52,27 @@ describe("(app) route registration (#133)", () => {
 
   it("every (app) route lives on the app host (never 308ed to marketing)", () => {
     for (const segment of appRouteSegments()) {
+      expect(
+        isAppSurfacePath(`/${segment}`),
+        `/${segment} would be host-redirected to the marketing origin`,
+      ).toBe(true);
+    }
+  });
+});
+
+describe("(auth) route registration (#258)", () => {
+  it("finds the route group and at least the known surfaces", () => {
+    const segments = routeSegments(AUTH_GROUP_DIR);
+    expect(segments).toEqual(
+      expect.arrayContaining(["login", "signup", "native-captcha"]),
+    );
+  });
+
+  // The (app) test above only covered signed-in surfaces; /native-captcha
+  // shipped in the (auth) group unregistered and was 308ed to the marketing
+  // apex, where Turnstile's hostname check fails and native sign-in hangs.
+  it("every (auth) route lives on the app host (never 308ed to marketing)", () => {
+    for (const segment of routeSegments(AUTH_GROUP_DIR)) {
       expect(
         isAppSurfacePath(`/${segment}`),
         `/${segment} would be host-redirected to the marketing origin`,
