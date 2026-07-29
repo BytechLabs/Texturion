@@ -23,6 +23,13 @@ Website: https://loonext.com
 
 - Calling is included on every plan, nothing to turn on: incoming calls to your business number ring your crew in the Loonext app (whoever answers first takes the call), callers reach voicemail when nobody can pick up, you call customers back from the app on your business number (they always see the business number), and callers you miss automatically get a text back (your own message) so the job doesn't go elsewhere. Call screening, hold, transfer between teammates, and caller ID name both directions are built in. One pool of generous calling minutes under fair use covers both directions; concrete minute figures live at https://loonext.com/legal/fair-use.
 
+## AI features (opt-in, off by default)
+- Lou is the assistant inside Loonext. Every AI feature is off until an owner turns it on, per feature, because it costs money and the model reads message text. Nothing is sent to a model until somebody asks for it.
+- Suggested replies: Lou drafts a reply to a customer text. A person always reads, edits and sends it. Nothing is ever sent automatically.
+- Voicemail transcripts: a voicemail is written down so the crew can read it instead of listening, and search it later.
+- Task details: turning a customer text into a task fills in the address and due date from what the customer wrote.
+- The models run on Cloudflare Workers AI, in the same account that hosts the app. Message content and voicemail audio are not used to train models, by Cloudflare's published policy and by ours. What comes back is stored in the workspace like any other message and deleted with it. Details at https://loonext.com/legal/privacy and https://loonext.com/legal/subprocessors.
+
 ## Optional add-on modules
 - Canadian numbers alongside a US number ($5/mo): the one add-on that exists; coming soon, listed in the catalog but not yet purchasable.
 
