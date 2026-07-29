@@ -98,7 +98,6 @@ export {
 } from "./ai-disclosure";
 
 export {
-  LEAD_CHASE_NUDGE_MINUTES,
   LEAD_CHASE_WIDEN_MINUTES,
   LEAD_CHASE_RUNGS,
   leadChaseNotification,

@@ -25,7 +25,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   isAfterHours,
   isValidBusinessHours,
-  LEAD_CHASE_NUDGE_MINUTES,
   LEAD_CHASE_WIDEN_MINUTES,
   leadChaseNotification,
 } from "@loonext/shared";
@@ -83,7 +82,6 @@ export async function runLeadChaseJob(
   const due = unwrap<DueRow[]>(
     await db.rpc("api_due_lead_chases", {
       p_now: now.toISOString(),
-      p_nudge_minutes: LEAD_CHASE_NUDGE_MINUTES,
       p_widen_minutes: LEAD_CHASE_WIDEN_MINUTES,
       p_limit: SCAN_LIMIT,
     }),
@@ -98,10 +96,11 @@ export async function runLeadChaseJob(
   const failures: unknown[] = [];
   let sent = 0;
 
-  // Claim per rung, because the claim is a conditional update keyed on the
-  // level being advanced FROM. Two rungs in one call would need two different
-  // predicates and could not be one atomic statement.
-  for (const fromLevel of [0, 1]) {
+  // ONE rung since #463, but the loop stays: the claim is a conditional update
+  // keyed on the level being advanced FROM, so a second rung would again need
+  // its own predicate rather than folding into this statement. Keeping the
+  // shape costs nothing and is what a second rung would need back.
+  for (const fromLevel of [0]) {
     const rows = sendable.filter((row) => row.from_level === fromLevel);
     if (rows.length === 0) continue;
 
@@ -151,15 +150,11 @@ async function sendChase(
   });
   const members = viewers.map((viewer) => viewer.user_id);
 
-  // Rung 1 repeats the ORIGINAL audience — the assignee if there is one, else
-  // everybody. Rung 2 only ever runs on an assigned thread (the RPC enforces
-  // it), and widening is its entire purpose.
-  const audience =
-    row.to_level === 1 &&
-    row.assigned_user_id !== null &&
-    members.includes(row.assigned_user_id)
-      ? [row.assigned_user_id]
-      : members;
+  // Everyone who can see the thread. The surviving rung only ever runs on an
+  // ASSIGNED conversation (the RPC enforces it) and widening is its entire
+  // purpose — an unassigned lead was already announced to the whole crew when
+  // it arrived (D52), so there is nobody new to reach.
+  const audience = members;
   if (audience.length === 0) return;
 
   const prefRows = unwrap<{ user_id: string; push_enabled: boolean }[]>(
@@ -178,7 +173,7 @@ async function sendChase(
   if (pushUsers.length === 0) return;
 
   const contactName = row.contact_name?.trim() || row.contact_phone;
-  const copy = leadChaseNotification(row.to_level === 1 ? 1 : 2, contactName);
+  const copy = leadChaseNotification(2, contactName);
 
   await deliverPush(env, db, {
     userIds: pushUsers,
@@ -187,12 +182,10 @@ async function sendChase(
       body: copy.body,
       url: `${env.APP_ORIGIN}/inbox/${row.conversation_id}`,
     },
-    // Its OWN collapse key per rung, not the thread's. On the thread key the
-    // 5-minute escalation would silently replace the 2-minute one on the lock
-    // screen — the reader would see a single alert and have no idea the ladder
-    // had run twice. Per-rung keys mean a later run of the SAME rung still
-    // coalesces (which is right) and a different rung does not (which is the
-    // whole point).
+    // Its OWN key, not the thread's, so a later run of this rung coalesces
+    // with itself rather than replacing the customer's own message on the lock
+    // screen. The rung number stays in the key: it cost nothing when there
+    // were two and it is what a second rung would need back.
     collapseKey: `lead-chase:${row.to_level}:${row.conversation_id}`,
     // The one situation this feature exists for is a phone in a pocket, which
     // is a phone in Doze. NORMAL priority is deferred, and a deferred nudge

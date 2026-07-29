@@ -169,24 +169,12 @@ describe("business hours are a hard gate", () => {
 });
 
 describe("who hears about it", () => {
-  it("rung 1 repeats the ORIGINAL audience: just the assignee when assigned", async () => {
-    const world = buildWorld([dueRow({ assigned_user_id: TECH, from_level: 0, to_level: 1 })]);
-    stubFetch(...world.routes);
-
-    await runLeadChaseJob(env, OPEN);
-
-    const prefLookup = world.sb.calls.find((call) =>
-      call.path.startsWith("/rest/v1/notification_prefs"),
-    );
-    expect(prefLookup?.url.href).toContain(TECH);
-    expect(prefLookup?.url.href).not.toContain(OWNER);
-  });
-
-  it("rung 2 widens to everyone who can see the thread", async () => {
-    // This is the entire purpose of the second rung: the assignee has
+  it("widens to everyone who can see the thread", async () => {
+    // The entire purpose of the surviving rung (#463): the assignee has
     // demonstrably not got to it, so the only remaining move is to ask
-    // somebody else.
-    const world = buildWorld([dueRow({ assigned_user_id: TECH, from_level: 1, to_level: 2 })]);
+    // somebody else. It fires from level 0 now — there is no longer a
+    // two-minute nudge for it to be a child of.
+    const world = buildWorld([dueRow({ assigned_user_id: TECH, from_level: 0, to_level: 2 })]);
     stubFetch(...world.routes);
 
     await runLeadChaseJob(env, OPEN);
@@ -224,13 +212,7 @@ describe("push only", () => {
     // the #343 daily budget, so chasing a lead can never spend a workspace's
     // Resend allowance on the least useful copy it sends all day.
     const world = buildWorld([
-      dueRow({ from_level: 0, to_level: 1 }),
-      dueRow({
-        conversation_id: "bbbbbbbb-0000-4000-8000-00000000000e",
-        assigned_user_id: TECH,
-        from_level: 1,
-        to_level: 2,
-      }),
+      dueRow({ assigned_user_id: TECH, from_level: 0, to_level: 2 }),
     ]);
     stubFetch(...world.routes);
 
@@ -262,21 +244,18 @@ describe("claiming", () => {
     ).toHaveLength(0);
   });
 
-  it("claims each rung separately, keyed on the level it advances FROM", async () => {
+  it("claims on the level it advances FROM, which is now only zero", async () => {
+    // #463 left one rung, and the claim is still a conditional update keyed on
+    // the level being advanced from — that is what makes two concurrent runs
+    // send one push rather than two.
     const world = buildWorld([
-      dueRow({ from_level: 0, to_level: 1 }),
-      dueRow({
-        conversation_id: "bbbbbbbb-0000-4000-8000-00000000000e",
-        assigned_user_id: TECH,
-        from_level: 1,
-        to_level: 2,
-      }),
+      dueRow({ assigned_user_id: TECH, from_level: 0, to_level: 2 }),
     ]);
     stubFetch(...world.routes);
 
     await runLeadChaseJob(env, OPEN);
 
-    expect(world.claims.map((claim) => claim.p_from_level)).toEqual([0, 1]);
+    expect(world.claims.map((claim) => claim.p_from_level)).toEqual([0]);
   });
 
   it("does nothing at all when no clock is due", async () => {

@@ -245,38 +245,49 @@ end $$;
 
 -- ===========================================================================
 -- LC-5. api_due_lead_chases respects the deadline, then the settings.
---       A lead one minute old is not due; the same lead three minutes old is.
+--       #463 removed the 2-minute rung, so the deadline is now 5 minutes and
+--       the switch is lead_chase_crew_enabled — the one that survived.
 -- ===========================================================================
 do $$
 declare due jsonb;
 begin
-  -- Back-date the LC-1 clock to 3 minutes ago.
-  update public.conversations set awaiting_reply_since = now() - interval '3 minutes'
+  -- The surviving rung needs an ASSIGNED thread (widening an unassigned one
+  -- reaches nobody new) and the crew switch on.
+  -- Assign FIRST, then start the clock: assigning stops a running clock
+  -- (LC-4), so setting both in one statement would leave nothing due.
+  update public.conversations
+     set assigned_user_id = '38800000-0000-4000-8000-000000000002'
    where id = '38800000-0000-4000-8000-000000000041';
+  update public.conversations
+     set awaiting_reply_since = now() - interval '8 minutes', chase_level = 0
+   where id = '38800000-0000-4000-8000-000000000041';
+  update public.companies set lead_chase_crew_enabled = true
+   where id = '38800000-0000-4000-8000-000000000010';
 
-  due := public.api_due_lead_chases(now(), 2, 5, 100);
+  due := public.api_due_lead_chases(now(), 5, 100);
   if not (due @> '[{"conversation_id":"38800000-0000-4000-8000-000000000041"}]'::jsonb) then
-    raise exception 'LC-5 FAILED: a 3-minute-old unanswered lead was not due: %', due;
+    raise exception 'LC-5 FAILED: an 8-minute-old unanswered lead was not due: %', due;
   end if;
 
-  -- Not yet due at one minute.
+  -- Not yet due before the five-minute mark.
   update public.conversations set awaiting_reply_since = now() - interval '1 minute'
    where id = '38800000-0000-4000-8000-000000000041';
-  due := public.api_due_lead_chases(now(), 2, 5, 100);
+  due := public.api_due_lead_chases(now(), 5, 100);
   if due @> '[{"conversation_id":"38800000-0000-4000-8000-000000000041"}]'::jsonb then
     raise exception 'LC-5 FAILED: a 1-minute-old lead was chased before its deadline';
   end if;
 
-  -- The company switch is a real switch.
-  update public.conversations set awaiting_reply_since = now() - interval '3 minutes'
+  -- The company switch is a real switch. #463: it is the CREW one now, and it
+  -- no longer depends on a nudge setting that no longer exists.
+  update public.conversations set awaiting_reply_since = now() - interval '8 minutes'
    where id = '38800000-0000-4000-8000-000000000041';
-  update public.companies set lead_chase_enabled = false
+  update public.companies set lead_chase_crew_enabled = false
    where id = '38800000-0000-4000-8000-000000000010';
-  due := public.api_due_lead_chases(now(), 2, 5, 100);
+  due := public.api_due_lead_chases(now(), 5, 100);
   if due <> '[]'::jsonb then
     raise exception 'LC-5 FAILED: chasing is off and something was still due: %', due;
   end if;
-  update public.companies set lead_chase_enabled = true
+  update public.companies set lead_chase_crew_enabled = true
    where id = '38800000-0000-4000-8000-000000000010';
 
   raise notice 'LC-5 PASSED: the deadline and the company switch both gate the queue';
@@ -315,10 +326,10 @@ begin
   update public.companies set lead_chase_crew_enabled = true
    where id = '38800000-0000-4000-8000-000000000010';
   update public.conversations
-     set awaiting_reply_since = now() - interval '30 minutes', chase_level = 1
+     set awaiting_reply_since = now() - interval '30 minutes', chase_level = 0
    where id = '38800000-0000-4000-8000-000000000047';
 
-  due := public.api_due_lead_chases(now(), 2, 5, 100);
+  due := public.api_due_lead_chases(now(), 5, 100);
   if not (due @> '[{"to_level":2}]'::jsonb) then
     raise exception 'LC-6 FAILED: an assigned, overdue, opted-in thread did not reach rung 2: %', due;
   end if;
@@ -326,7 +337,7 @@ begin
   -- The opt-in is real.
   update public.companies set lead_chase_crew_enabled = false
    where id = '38800000-0000-4000-8000-000000000010';
-  due := public.api_due_lead_chases(now(), 2, 5, 100);
+  due := public.api_due_lead_chases(now(), 5, 100);
   if due <> '[]'::jsonb then
     raise exception 'LC-6 FAILED: rung 2 fired without the owner opting in: %', due;
   end if;
@@ -341,7 +352,7 @@ begin
      set awaiting_reply_since = now() - interval '30 minutes', chase_level = 1
    where id = '38800000-0000-4000-8000-000000000047';
 
-  due := public.api_due_lead_chases(now(), 2, 5, 100);
+  due := public.api_due_lead_chases(now(), 5, 100);
   if due <> '[]'::jsonb then
     raise exception 'LC-6 FAILED: an unassigned thread was widened to a crew that already knows: %', due;
   end if;
