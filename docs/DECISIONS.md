@@ -2553,6 +2553,31 @@ when it passes, which is #326's revisit trigger expressed as something that
 cannot be quietly ignored. When it fails, the job is to re-read the carriers'
 published rules and move both dates — not to push the date forward.
 
+**And the ceiling is now watched, not merely disclosed (#457).** Naming the
+number in the docs told customers it existed; it did not tell the one crew
+actually approaching it today. `api_daily_outbound` counts a workspace's
+outbound **segments** for the UTC day and
+`apps/api/src/billing/carrier-ceiling.ts` warns at the same 80% fraction every
+other alert arm uses.
+
+Three choices in it are load-bearing:
+
+- **Segments, not messages.** The carrier counts what it carries, so a
+  300-character text is three against the ceiling and one row in our table.
+  Counting rows would under-report by exactly the factor that matters for a
+  crew sending long messages — the crew most likely to be near the ceiling.
+- **The UTC day, not the customer's.** Carrier limits reset on UTC midnight, so
+  a California crew sending hard on a Tuesday evening is already spending
+  Wednesday's allowance. A local day would measure the wrong budget.
+- **Hourly, deduped to once a day.** The only useful advice — spread the rest
+  over tomorrow — expires the moment the ceiling is hit, so a nightly sweep
+  would always arrive too late; but an hourly arm that re-warns until midnight
+  reads as panic. The `usage_alerts` ledger keyed on the UTC day settles both.
+
+The email says plainly that this is not a limit we can lift, because it is the
+only cap in the product where that is true and the customer's instinct will be
+to ask us to raise it.
+
 ## D60 — a dispute is recorded and reported, never acted on automatically (#422)
 
 **Decision.** `charge.dispute.created/updated/closed` are handled. Each writes

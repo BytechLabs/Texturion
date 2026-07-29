@@ -37,6 +37,7 @@
       "30 * * * *", // sole-prop OTP nudge (hourly)
       "20 * * * *", // contact geocoding backfill (hourly; D25 Nominatim, rate-limited)
       "40 * * * *", // task-address geocoding backfill (hourly; #214 Map fix, rate-limited)
+      "25 * * * *", // #457 carrier daily-ceiling warning (hourly; one email/crew/day)
       "0 13 * * *", // registration poller (daily)
       "10 13 * * *", // port reconcile & resume (daily; PORTING.md §5.2)
       "0 14 * * *", // grace & release (daily)

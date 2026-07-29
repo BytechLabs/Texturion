@@ -25,6 +25,7 @@ import { runRegistrationStallJob } from "./telnyx/registration-stalls";
 import { runCallSilenceJob } from "./calls/call-silence";
 import { runIdentityRetentionJob } from "./telnyx/identity-retention";
 import { runContactRetentionJob } from "./marketing/contact-retention";
+import { runCarrierCeilingJob } from "./billing/carrier-ceiling";
 import { runRetentionNoticeJob } from "./workspace/retention-notice";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
 import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
@@ -430,6 +431,12 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // warning; this is the only place the PATTERN shows up, which is the
   // question #446 asks. Monday morning, off the hour.
   "50 13 * * 1": [job("job:overage-digest", runOverageDigestJob)],
+  // #457: the carrier's own daily ceiling, warned about hourly. Hourly rather
+  // than daily because the only useful advice ("spread the rest over
+  // tomorrow") expires the moment the ceiling is hit, and a nightly sweep
+  // would always arrive after that. The usage_alerts ledger, keyed on the UTC
+  // day, keeps it to one warning per crew per day.
+  "25 * * * *": [job("job:carrier-ceiling", runCarrierCeilingJob)],
   // #375: prove, from inside the Durable Object, that the alarms guarding the
   // calls system can still reach a human. Its own schedule rather than a
   // piggyback, because the six-hour cadence is a cost decision (one billable

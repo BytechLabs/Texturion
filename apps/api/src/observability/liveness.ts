@@ -98,6 +98,11 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 60,
     graceMinutes: 120,
   },
+  "cron:25 * * * *": {
+    what: "The carrier daily-ceiling warning has not run (#457).",
+    everyMinutes: 60,
+    graceMinutes: 120,
+  },
   "cron:0 13 * * *": {
     what: "The daily registration poller has not run — 10DLC/A2P status is not being reconciled.",
     everyMinutes: 1440,
@@ -353,6 +358,15 @@ export const LIVENESS_EXPECTATIONS = {
       + "else; the fleet-wide call-event key would never notice one of them.",
     everyMinutes: 1440,
     graceMinutes: 360,
+  },
+  "job:carrier-ceiling": {
+    what:
+      "Nothing is watching the carrier's daily message ceiling (#457). It is "
+      + "the one limit we cannot raise for a customer — the way up is a fresh "
+      + "registration taking days — so a crew that hits it unwarned loses the "
+      + "rest of the day's sends with no remedy.",
+    everyMinutes: 60,
+    graceMinutes: 30,
   },
   "job:retention-notice": {
     what:
