@@ -94,6 +94,64 @@ struct SettingsRepository: Sendable {
         try await api.delete("/v1/members/me", companyId: companyId)
     }
 
+    // MARK: - Ownership (#332)
+    //
+    // Five writes, one read, and the read is the only thing that decides what
+    // any of the buttons look like — see the `can*` flags on `Ownership`.
+
+    func ownership(_ companyId: String) async throws -> Ownership {
+        try await api.get("/v1/company/ownership", companyId: companyId)
+    }
+
+    /// Name the one person who may later claim ownership; nil clears it.
+    func setBackupOwner(_ companyId: String, memberId: String?) async throws -> Ownership {
+        // An explicit null, not an omitted key: "nobody" is the answer that
+        // CLEARS the nomination, and a dropped key would read as "leave it".
+        try await api.post(
+            "/v1/company/ownership/backup",
+            body: JSONValue.object([
+                "member_id": memberId.map(JSONValue.string) ?? .null
+            ]),
+            companyId: companyId
+        )
+    }
+
+    /// Offer ownership. Nothing moves until the recipient accepts.
+    func offerOwnership(_ companyId: String, memberId: String) async throws -> Ownership {
+        try await api.post(
+            "/v1/company/ownership/offer",
+            body: JSONValue.object(["member_id": .string(memberId)]),
+            companyId: companyId
+        )
+    }
+
+    /// The named backup asks to take over. Starts the owner's veto window.
+    func claimOwnership(_ companyId: String) async throws -> Ownership {
+        try await api.post(
+            "/v1/company/ownership/claim",
+            body: JSONValue.object([:]),
+            companyId: companyId
+        )
+    }
+
+    /// Accept an offer, or complete a claim whose waiting period is over.
+    func acceptOwnership(_ companyId: String) async throws -> Ownership {
+        try await api.post(
+            "/v1/company/ownership/accept",
+            body: JSONValue.object([:]),
+            companyId: companyId
+        )
+    }
+
+    /// The owner's veto and the recipient's decline are the same call.
+    func cancelOwnershipTransfer(_ companyId: String) async throws -> Ownership {
+        try await api.post(
+            "/v1/company/ownership/cancel",
+            body: JSONValue.object([:]),
+            companyId: companyId
+        )
+    }
+
     // MARK: - Signed-in devices (#236)
     //
     // The two SELF routes are company-EXEMPT, and that is not an oversight to

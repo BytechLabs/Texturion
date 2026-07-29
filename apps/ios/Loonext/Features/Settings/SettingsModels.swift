@@ -260,3 +260,49 @@ struct SessionRevokeResult: Codable, Sendable {
     var endedSessions: Int { sessions ?? 0 }
     var endedDevices: Int { devices ?? 0 }
 }
+
+// MARK: - Ownership (#332 — routes/ownership.ts)
+
+enum HandoverKind {
+    static let offer = "offer"
+    static let claim = "claim"
+}
+
+/// A handover in flight. Until it lands, nothing about the workspace changed.
+struct PendingHandover: Codable, Sendable {
+    /// 'offer' — the owner is handing it over. 'claim' — the backup is taking it.
+    let kind: String
+    let to_member_id: String?
+    let ripens_at: String
+    let expires_at: String
+    let created_at: String
+    /// This caller is the person it is addressed to.
+    let mine: Bool?
+    /// The waiting period is over (an offer is ready the moment it is made).
+    let ready: Bool?
+
+    var isMine: Bool { mine ?? false }
+    var isReady: Bool { ready ?? false }
+}
+
+/// GET /v1/company/ownership.
+///
+/// Every permission arrives as a boolean the SERVER decided. Three clients
+/// each re-deriving `can_claim` from a pile of ids is three chances to show
+/// somebody a button that takes a business.
+struct Ownership: Codable, Sendable {
+    let owner_member_id: String?
+    let backup_member_id: String?
+    let i_am_backup: Bool?
+    let i_am_owner: Bool?
+    let pending: PendingHandover?
+    let can_offer: Bool?
+    let can_claim: Bool?
+    let can_cancel: Bool?
+
+    var isOwner: Bool { i_am_owner ?? false }
+    var isBackup: Bool { i_am_backup ?? false }
+    var canOffer: Bool { can_offer ?? false }
+    var canClaim: Bool { can_claim ?? false }
+    var canCancel: Bool { can_cancel ?? false }
+}

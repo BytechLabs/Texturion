@@ -650,3 +650,47 @@ func orderMyDevices(_ sessions: [DeviceSession]) -> [DeviceSession] {
         return left.last_active_at > right.last_active_at
     }
 }
+
+// MARK: - Ownership (#332)
+
+/// The headline of a handover in flight: what is happening, in one sentence.
+///
+/// Hand-ported to three clients, so it lives here with a test rather than
+/// inline in a view — the failure mode is one client telling a workspace
+/// something subtly different about who is taking it over.
+func handoverHeadline(_ kind: String, who: String) -> String {
+    kind == HandoverKind.offer
+        ? "Ownership has been offered to \(who)."
+        : "\(who) has asked to take over this workspace."
+}
+
+/// The line underneath it: what happens next, and by when.
+///
+/// The claim branch is the one that matters — it is where the owner learns
+/// they have a deadline and a veto, and it must never read as though the
+/// handover has already happened.
+func handoverDetail(
+    _ kind: String,
+    ready: Bool,
+    ripensAt: String,
+    expiresAt: String
+) -> String {
+    if kind == HandoverKind.offer {
+        return "Nothing changes until they accept. The offer expires "
+            + "\(absoluteTime(expiresAt))."
+    }
+    if ready {
+        return "The waiting period is over. They can complete this at any time."
+    }
+    return "This completes \(absoluteTime(ripensAt)) unless the owner stops it. "
+        + "Stopping it takes effect immediately."
+}
+
+/// What the button that ends a handover says.
+///
+/// "Stop this" and "Decline" are the same call and the same outcome, but a
+/// person reading them is doing two different things: an owner is vetoing
+/// something aimed at them, and a recipient is turning something down.
+func handoverCancelLabel(isOwner: Bool, isMine: Bool) -> String {
+    isOwner && !isMine ? "Stop this" : "Decline"
+}

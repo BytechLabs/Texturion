@@ -28,6 +28,8 @@ const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const MEMBER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
 const TARGET_MEMBER_ID = "eeeeeeee-1111-4222-8333-444444444444";
+/** #332: the workspace owner, who is asked to name a backup. */
+const OWNER_USER_ID = "aaaaaaaa-1111-4222-8333-444444444401";
 /** #276: where a leaver's open work is handed. */
 const REASSIGN_TO = "cccccccc-1111-4222-8333-444444444444";
 const INVITE_ID = "ffffffff-1111-4222-8333-444444444444";
@@ -494,6 +496,96 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
     expect(
       typeof (stamp.body as Record<string, unknown>).accepted_at,
     ).toBe("string");
+  });
+
+  // #332: the moment the workspace stops being a one-person operation is the
+  // only one where "name a backup owner" is both warranted and unmissable.
+  describe("the backup-owner prompt", () => {
+    const OWNER_LOOKUP = /^\/auth\/v1\/admin\/users\/aaaaaaaa-1111-4222-8333-444444444401$/;
+
+    function joinStub(): SupabaseStub {
+      const sb = acceptStub(pendingInvite(), authUser(), {
+        plan: "starter",
+        active: 2,
+        pending: 1,
+      });
+      sb.on("POST", "/rest/v1/company_members", () => [
+        {
+          id: TARGET_MEMBER_ID,
+          company_id: COMPANY_ID,
+          user_id: auth.subject,
+          role: "member",
+          deactivated_at: null,
+          created_at: "2026-07-01T00:00:00+00:00",
+        },
+      ]);
+      sb.on("POST", "/rest/v1/notification_prefs", () => new Response(null, { status: 201 }));
+      sb.on("PATCH", "/rest/v1/invites", () => new Response(null, { status: 204 }));
+      return sb;
+    }
+
+    async function join(sb: SupabaseStub, emails: unknown[]) {
+      const mail = async (url: URL, request: Request) => {
+        if (url.href !== "https://api.resend.com/emails") return undefined;
+        emails.push(await request.json());
+        return Response.json({ id: "re_1" });
+      };
+      stubFetch(jwksRoute(auth), mail, sb.route);
+      return apiRequest(app, env, await auth.token(), "/v1/invites/accept", {
+        method: "POST",
+        companyId: null,
+        body: { invite_id: INVITE_ID },
+      });
+    }
+
+    it("asks the owner to name one when the SQL says the ask is warranted", async () => {
+      const sb = joinStub();
+      // The claim returns the owner exactly once per workspace.
+      sb.on("POST", "/rest/v1/rpc/api_claim_backup_owner_prompt", () => OWNER_USER_ID);
+      sb.on("GET", OWNER_LOOKUP, () => ({
+        id: OWNER_USER_ID,
+        email: "owner@crew.example",
+      }));
+      sb.on("GET", "/rest/v1/companies", (call) =>
+        call.url.searchParams.get("select") === "name"
+          ? [{ name: "Founder Plumbing" }]
+          : undefined,
+      );
+
+      const emails: unknown[] = [];
+      const res = await join(sb, emails);
+      expect(res.status).toBe(201);
+      expect(emails).toHaveLength(1);
+      const sent = emails[0] as { to: string[]; subject: string; text: string };
+      expect(sent.to).toEqual(["owner@crew.example"]);
+      expect(sent.subject).toContain("backup owner");
+      // The ask has to say what it costs to skip, or it reads as housekeeping.
+      expect(sent.text).toContain("nobody else can do any of it");
+    });
+
+    it("says nothing when the SQL has already asked, or there is nobody to name", async () => {
+      const sb = joinStub();
+      sb.on("POST", "/rest/v1/rpc/api_claim_backup_owner_prompt", () => null);
+      const emails: unknown[] = [];
+      const res = await join(sb, emails);
+      expect(res.status).toBe(201);
+      // Once, and never a nag: a reminder about a thing an owner has decided
+      // not to do teaches people to filter our mail.
+      expect(emails).toHaveLength(0);
+    });
+
+    it("still lets somebody join when the prompt cannot be sent", async () => {
+      const sb = joinStub();
+      sb.on(
+        "POST",
+        "/rest/v1/rpc/api_claim_backup_owner_prompt",
+        () => new Response("boom", { status: 500 }),
+      );
+      const res = await join(sb, []);
+      // A Resend or Postgres blip must not turn accepting an invite into a
+      // failure the person has to retry.
+      expect(res.status).toBe(201);
+    });
   });
 
   it("re-checks the seat formula at acceptance (409 when members grew meanwhile)", async () => {

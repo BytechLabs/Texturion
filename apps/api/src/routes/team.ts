@@ -761,7 +761,8 @@ teamRoutes.get("/invites/mine", async (c) => {
 teamRoutes.post("/invites/accept", async (c) => {
   const body = await parseJsonBody(c, acceptSchema);
   const userId = c.get("userId");
-  const db = getDb(getEnv(c.env));
+  const env = getEnv(c.env);
+  const db = getDb(env);
 
   interface InviteRow {
     id: string;
@@ -923,8 +924,68 @@ teamRoutes.post("/invites/accept", async (c) => {
     after: { role: invite.role, invite_id: invite.id },
   });
 
+  // #332: the workspace just stopped being a one-person operation, so there
+  // is now somebody to name. Asking once, here, is far cheaper than the
+  // human-in-the-loop recovery procedure an unreachable owner would otherwise
+  // need — and this is the only moment where the ask is both warranted and
+  // unmissable. The SQL claims it, so two invites accepted in the same second
+  // cannot produce two emails.
+  await promptForBackupOwner(env, db, invite.company_id);
+
   return c.json(
     { ...memberRows[0], company_id: invite.company_id },
     201,
   );
 });
+
+/**
+ * Best-effort and never throws: somebody has just joined a workspace, and a
+ * Resend outage must not turn that into a failed invite acceptance.
+ */
+async function promptForBackupOwner(
+  env: Env,
+  db: Db,
+  companyId: string,
+): Promise<void> {
+  try {
+    const { data, error } = await db.rpc("api_claim_backup_owner_prompt", {
+      p_company_id: companyId,
+    });
+    if (error) throw new Error(error.message);
+    const ownerUserId = typeof data === "string" ? data : null;
+    if (!ownerUserId) return; // already asked, already named, or still solo
+
+    const { data: userData } = await db.auth.admin.getUserById(ownerUserId);
+    const to = userData?.user?.email;
+    if (!to) return;
+
+    const rows = unwrap<{ name: string }[]>(
+      await db.from("companies").select("name").eq("id", companyId).limit(1),
+      "company name lookup",
+    );
+    const name = rows[0]?.name ?? "your workspace";
+    const text =
+      `${name} has more than one person on it now, which is a good moment to ` +
+      "name a backup owner.\n\n" +
+      "You are the only person who can change billing, lift the spending cap, " +
+      "or manage your numbers. If you ever cannot get in — you lose access to " +
+      "your email, or worse — nobody else can do any of it, and sorting that " +
+      "out takes us weeks of verification.\n\n" +
+      "Naming a backup takes ten seconds and changes nothing today. If you " +
+      "are ever unreachable, that one person can ask to take over; you get a " +
+      "week to say no, and everybody on the team is told.\n\n" +
+      `${env.APP_ORIGIN}/settings/team`;
+
+    await sendEmail(env, {
+      to,
+      subject: `Name a backup owner for ${name}`,
+      text,
+      html: renderEmailHtml(text),
+    });
+  } catch (cause) {
+    console.error(
+      `backup-owner prompt failed for company ${companyId}:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+  }
+}

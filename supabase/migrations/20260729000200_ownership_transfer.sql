@@ -597,3 +597,57 @@ $$;
 revoke execute on function public.api_ownership_integrity()
   from public, anon, authenticated;
 grant execute on function public.api_ownership_integrity() to service_role;
+
+-- ---------------------------------------------------------------------------
+-- The prompt, and the mark that keeps it to once.
+--
+-- A workspace with more than one person and nobody named as backup is one bad
+-- week away from the human-in-the-loop procedure in docs/OWNERSHIP.md. Asking
+-- for a name is far cheaper than any recovery flow, so we ask — once, by
+-- email, at the moment the workspace stops being a one-person operation.
+--
+-- Once, and not on a schedule: a nag about a thing an owner has decided not to
+-- do teaches people to filter our mail, which is expensive in a product whose
+-- alarms arrive the same way.
+-- ---------------------------------------------------------------------------
+alter table public.companies
+  add column if not exists backup_owner_prompted_at timestamptz;
+
+comment on column public.companies.backup_owner_prompted_at is
+  '#332: when the owner was asked to name a backup. Set once, so the ask never becomes a nag.';
+
+/*
+ * Claim the ask. Returns the owner's user id EXACTLY ONCE per workspace, and
+ * only when the ask is warranted right now:
+ *   - more than one active member (a sole trader has nobody to name),
+ *   - no backup named,
+ *   - not asked before.
+ * Null means "do not send", which is the answer on every subsequent call.
+ *
+ * Claim-then-send, like every other one-shot notification here: two invites
+ * accepted in the same second must not produce two emails.
+ */
+create or replace function public.api_claim_backup_owner_prompt(p_company_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_owner uuid;
+begin
+  update public.companies c
+     set backup_owner_prompted_at = now()
+   where c.id = p_company_id
+     and c.backup_owner_prompted_at is null
+     and c.backup_owner_user_id is null
+     and c.deleted_at is null
+     and (select count(*) from public.company_members m
+           where m.company_id = c.id and m.deactivated_at is null) > 1
+  returning c.owner_user_id into v_owner;
+  return v_owner;
+end $$;
+
+revoke execute on function public.api_claim_backup_owner_prompt(uuid)
+  from public, anon, authenticated;
+grant execute on function public.api_claim_backup_owner_prompt(uuid) to service_role;

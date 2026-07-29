@@ -5,6 +5,8 @@ private struct TeamData {
     let members: [Member]
     /// nil when the caller is a plain member (the invites list is admin+).
     let invites: [Invite]?
+    /// #332: who owns it, and any handover in flight. Everyone sees this.
+    let ownership: Ownership
 }
 
 private func expiryDate(_ iso: String) -> String {
@@ -52,6 +54,14 @@ struct TeamSectionView: View {
                     .frame(height: 200)
             case .ready(let data):
                 MembersCard(scope: scope, members: data.members) { refreshKey += 1 }
+                // #332: everybody sees this, including a plain member — a
+                // handover in flight is exactly the thing a colleague is best
+                // placed to notice is wrong.
+                OwnershipCard(
+                    scope: scope,
+                    state: data.ownership,
+                    members: data.members
+                ) { refreshKey += 1 }
                 if canManage, let invites = data.invites {
                     InvitesCard(
                         scope: scope,
@@ -76,7 +86,10 @@ struct TeamSectionView: View {
                 } else {
                     invites = nil
                 }
-                state = .ready(TeamData(members: members, invites: invites))
+                let ownership = try await scope.repo.ownership(scope.companyId)
+                state = .ready(
+                    TeamData(members: members, invites: invites, ownership: ownership)
+                )
             } catch {
                 if case .ready = state {
                     scope.showMessage(error.userMessage)
