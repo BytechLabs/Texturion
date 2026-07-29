@@ -13,6 +13,14 @@ wrongly.
 **Serves #227** (what deletion must cover), **#284** (what retention applies
 to), and **#318** (the per-data-class location map).
 
+> **Not to be confused with `docs/DATA-INVENTORY.md`**, which answers a
+> different question and is the one the store declarations are filled from.
+> That document covers **what leaves the device**, by data class, for the App
+> Store and Play forms. This one covers **which table holds what, server-side**,
+> for an access, deletion or retention question. A feature can change one
+> without changing the other, so they are kept apart on purpose — but if you are
+> adding a data class rather than a table, start there.
+
 ---
 
 ## The two people whose data we hold

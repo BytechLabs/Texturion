@@ -137,6 +137,35 @@ a real pre-handout gate, and a number we cannot vouch for stops becoming
 somebody's phone line. *"No"* closes the ask permanently, and the floor stays
 the answer.
 
+### V7 — where does Workers AI inference actually execute? · Cloudflare · blocks #318's last criterion
+
+**The question.**
+
+> *"For Workers AI inference invoked from a Worker via the AI binding, in which
+> countries can the inference itself execute? Is it pinned to the region of the
+> calling Worker, routed to available GPU capacity wherever it is, or
+> constrainable to a jurisdiction? And is the inference input retained anywhere
+> after the response is returned?"*
+
+**Why it matters.** Our cross-border disclosure names the United States, and
+that is verified for Supabase. The subprocessors page records Cloudflare's
+region as *"Global edge network"*, which is honest about hosting and **silent
+about where a model reads a customer's voicemail**. #318 is explicit that this
+has to be a checked fact rather than an inference, and it is right: Law 25
+makes the answer materially different for Quebec, which #228 opens
+deliberately.
+
+**What we already state correctly**, so nobody re-does it: Workers AI is named
+as a distinct subprocessor with its purpose, its data classes and its opt-in
+status (#389), and the privacy policy carries Cloudflare's published
+no-training statement verbatim alongside our own. The training half of the
+question is answered. **The location half is not.**
+
+**What an answer unblocks.** A region we can name closes #318. A "routed to
+available capacity" answer is also usable — it just has to be *said*, because
+a disclosure that implies US-only processing while inference happens elsewhere
+is worse than one that admits the routing.
+
 ---
 
 ## NOT A VENDOR — for counsel

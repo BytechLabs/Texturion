@@ -8,6 +8,12 @@ Every row was read out of the code, not recalled. Where a claim rests on a
 specific file, the file is named so the next person can re-check it rather than
 trust this page.
 
+> **Not to be confused with `docs/PERSONAL-DATA-INVENTORY.md`**, which answers
+> a different question: which database TABLE holds what, server-side, for an
+> access, deletion or retention request. This document is about what leaves the
+> device and is what the store forms are filled from. Adding a data class starts
+> here; adding a table starts there.
+
 > **Re-declaration is part of shipping.** A feature that touches a new data
 > class changes both store forms. The checklist in `docs/RELEASING.md` is the
 > gate; this document is what it checks against.
