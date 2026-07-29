@@ -51,7 +51,13 @@ declare
     'api_search_v2',
     -- Not in #368's list. It takes the parameter and filters on it correctly;
     -- it was simply missing from the enumeration the issue was written from.
-    'api_spam_review'
+    'api_spam_review',
+    -- The shared definition behind api_notifications + its badge (#359, the
+    -- one-notification-definition refactor). It is not called directly by any
+    -- route — both notification surfaces read THROUGH it — which is exactly
+    -- why it belongs here: a filter regression in this one function would show
+    -- up in the list and the badge at once.
+    'notification_feed'
   ];
   actual text[];
   unrostered text;
@@ -153,10 +159,17 @@ insert into public.contacts (id, company_id, phone_e164, name)
 values (:cvis, :co, '+12125559001', 'Visible Customer'),
        (:chid, :co, '+12125559002', 'Hidden Customer');
 
+-- ASSIGNED to the member on purpose: notification_feed's inbound arm only
+-- returns a conversation assigned to the reader, so an unassigned fixture made
+-- every notification surface return zero rows — which passes a "denying never
+-- ADDS" assertion while asserting nothing at all, the exact fake this file's
+-- header warns about. With both lines assigned, the feed returns one row per
+-- number and the filter is genuinely exercised.
 insert into public.conversations
-  (id, company_id, contact_id, phone_number_id, status, last_message_at)
-values (:vvis, :co, :cvis, :nvis, 'open', now()),
-       (:vhid, :co, :chid, :nhid, 'open', now());
+  (id, company_id, contact_id, phone_number_id, status, last_message_at,
+   assigned_user_id)
+values (:vvis, :co, :cvis, :nvis, 'open', now(), :usr),
+       (:vhid, :co, :chid, :nhid, 'open', now(), :usr);
 
 insert into public.messages
   (company_id, conversation_id, direction, body, status, created_at)
@@ -246,6 +259,22 @@ begin
   if public.api_notifications_unread_count(co, usr, hidden)
      > public.api_notifications_unread_count(co, usr) then
     raise exception 'NA-3 FAILED: denying a number RAISED the unread badge';
+  end if;
+
+  -- notification_feed — the shared definition both surfaces above read
+  -- through. Asserted in its own right so a filter regression is attributed to
+  -- the one function rather than blamed on two callers (#359).
+  select count(*) into open_n
+    from public.notification_feed(co, usr);
+  select count(*) into hidden_n
+    from public.notification_feed(co, usr, hidden);
+  if hidden_n > open_n then
+    raise exception 'NA-3 FAILED: denying a number ADDED notification_feed rows';
+  end if;
+  if hidden_n = open_n then
+    raise exception
+      'NA-3 FAILED: denying a number changed nothing in notification_feed, so '
+      'the fixture no longer exercises the filter';
   end if;
 
   -- api_for_you
