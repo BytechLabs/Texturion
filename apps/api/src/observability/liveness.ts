@@ -354,6 +354,14 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "job:retention-notice": {
+    what:
+      "Workspaces are no longer being warned before their oldest messages age "
+      + "out (#284). Nobody should find out about a retention policy by losing "
+      + "something, and this job is the only thing that prevents that.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
   "job:prune-contact-messages": {
     what:
       "Marketing contact-form data is no longer being aged out (#340). We are "

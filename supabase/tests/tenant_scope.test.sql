@@ -41,6 +41,7 @@ declare
     'notification_reads', 'number_access', 'number_port_outs', 'opt_outs',
     'outbound_call_authorizations', 'outbound_dial_leases',
     'call_silence_state', 'feature_flag_overrides', 'number_health',
+    'retention_notices',
     'ownership_transfers', 'phone_numbers',
     'public_links',
     'port_requests', 'provider_costs', 'tags', 'task_map_rows', 'tasks',

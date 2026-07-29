@@ -115,7 +115,7 @@ gets overlooked.
 `high_priority_push_budget`, `high_priority_push_days`,
 `inbound_notification_days`, `liveness_heartbeats`, `message_mentions`,
 `outbound_call_authorizations`, `outbound_dial_leases`, `ownership_transfers`,
-`call_silence_state`.
+`call_silence_state`, `retention_notices`.
 
 Ids and counters. Listed rather than omitted, so "not in the document" always
 means "somebody forgot", never "deliberately excluded".

@@ -51,7 +51,7 @@ declare
     'grace_notices', 'high_priority_push_budget', 'high_priority_push_days',
     'inbound_notification_days', 'liveness_heartbeats', 'message_mentions',
     'outbound_call_authorizations', 'outbound_dial_leases', 'ownership_transfers',
-    'call_silence_state'
+    'call_silence_state', 'retention_notices'
   ];
   v_missing text;
   v_stale   text;

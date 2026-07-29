@@ -16,6 +16,7 @@ import { runRegistrationStallJob } from "./telnyx/registration-stalls";
 import { runCallSilenceJob } from "./calls/call-silence";
 import { runIdentityRetentionJob } from "./telnyx/identity-retention";
 import { runContactRetentionJob } from "./marketing/contact-retention";
+import { runRetentionNoticeJob } from "./workspace/retention-notice";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
 import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
 import { pruneExpiredExports } from "./workspace/export";
@@ -518,6 +519,8 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       runIdentityRetentionJob,
       // #340: marketing contact-form data, two windows.
       runContactRetentionJob,
+      // #284: the warning that precedes enforcement.
+      runRetentionNoticeJob,
     ]);
     // #375: the DO alert-channel canary, alone on its own six-hourly trigger.
     expect(runs("15 */6 * * *")).toEqual([runDoSentryCanaryJob]);

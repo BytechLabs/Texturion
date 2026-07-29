@@ -25,6 +25,7 @@ import { runRegistrationStallJob } from "./telnyx/registration-stalls";
 import { runCallSilenceJob } from "./calls/call-silence";
 import { runIdentityRetentionJob } from "./telnyx/identity-retention";
 import { runContactRetentionJob } from "./marketing/contact-retention";
+import { runRetentionNoticeJob } from "./workspace/retention-notice";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
 import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
 import { runLivenessCheckJob } from "./observability/liveness-check";
@@ -454,6 +455,9 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // #340: names, emails and IPs of non-customers from the marketing contact
     // form. Two windows — the IP goes at 30 days, the message at a year.
     job("job:prune-contact-messages", runContactRetentionJob),
+    // #284: warn BEFORE anything ages out. Deliberately shipped ahead of the
+    // enforcement job — nobody should discover retention by losing something.
+    job("job:retention-notice", runRetentionNoticeJob),
   ],
 };
 
