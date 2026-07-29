@@ -1,5 +1,6 @@
 package com.loonext.android.core.net
 
+import com.loonext.android.BuildConfig
 import com.loonext.android.core.auth.Session
 import com.loonext.android.core.auth.SessionSource
 import com.loonext.android.core.auth.SupabaseAuth
@@ -269,6 +270,10 @@ class ApiClient(
             // here, on every request — one that skipped it would show up in
             // somebody's security screen as an unrecognised device.
             .header("X-Client", "android")
+            // #339: which build. Same reasoning as X-Client — a request that
+            // omitted it reports as "no version", which is the bucket a
+            // server-set floor blocks.
+            .header("X-App-Version", BuildConfig.VERSION_NAME)
             .apply {
                 if (companyId != null) header("X-Company-Id", companyId)
                 if (idempotencyKey != null) header("Idempotency-Key", idempotencyKey)

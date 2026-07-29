@@ -69,6 +69,7 @@ import { pruneUserSessions } from "./auth/session-retention";
 import { buildDataExports, pruneExpiredExports } from "./workspace/export";
 import { purgeClosedWorkspaces } from "./workspace/purge";
 import { accountRoutes } from "./routes/account";
+import { appReleaseRoutes } from "./routes/app-release";
 import { exportsRoutes } from "./routes/exports";
 import { auditLogRoutes } from "./routes/audit-log";
 import { workspaceClosureRoutes } from "./routes/workspace-closure";
@@ -123,6 +124,9 @@ app.use(
       // #236: which app is calling, so the signed-in-devices list can say
       // "web browser" rather than guess from a user agent string.
       "X-Client",
+      // #339: which build. Without it a shipped fix has no adoption curve and
+      // "everyone has it" is a hope rather than a number.
+      "X-App-Version",
     ],
     // Let the browser cache the preflight for a day so the SPA doesn't re-issue
     // an OPTIONS round-trip before every /v1 call (the allowed methods/headers
@@ -138,6 +142,21 @@ app.get("/health", (c) => {
   getEnv(c.env);
   return c.json({ ok: true });
 });
+
+/**
+ * #339 — the update policy, and it is PUBLIC on purpose.
+ *
+ * Deliberately outside /v1, so it never passes through the JWT chain. The
+ * reason we would ever demand an update is that something is broken in the old
+ * build — and one of the known candidates is #268, which signs the user out on
+ * a transient token-refresh failure. An update gate that only clients with a
+ * working session can read is a gate that opens for everyone who does not need
+ * it and stays shut to everyone who does.
+ *
+ * Nothing here is sensitive: three version strings and a store URL, which
+ * every copy of the app learns on first launch anyway.
+ */
+app.route("/", appReleaseRoutes);
 
 /**
  * The /v1 surface (SPEC §7). Every sub-app sits behind the CORS → JWT →

@@ -150,6 +150,9 @@ final class AppGraph {
     let api: ApiClient
     let authManager: AuthManager
     let realtime: RealtimeClient
+    /// #339: the public update policy. Its own session-free repository on
+    /// purpose — see UpdateRepository for why it must not ride ApiClient.
+    let updates: UpdateRepository
 
     let meApi: MeApi
     let forYouApi: ForYouApi
@@ -172,6 +175,7 @@ final class AppGraph {
         self.supabaseAuth = supabaseAuth
         self.api = api
         self.realtime = realtime
+        self.updates = UpdateRepository(baseURL: AppConfig.apiURL.absoluteString)
         self.authManager = AuthManager(
             auth: supabaseAuth,
             sessionStore: sessionStore,

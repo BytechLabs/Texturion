@@ -5,6 +5,7 @@ import { InviteBanner } from "@/components/invites/invite-banner";
 import { AppShell } from "@/components/shell/app-shell";
 import { MfaGate } from "@/components/shell/mfa-gate";
 import { PortalScope } from "@/components/shell/portal-scope";
+import { UpdatePrompt } from "@/components/shell/update-prompt";
 import { golosText } from "@/lib/app/fonts";
 import { CompanyProvider } from "@/lib/company/provider";
 import { RealtimeProvider } from "@/lib/realtime/provider";
@@ -49,6 +50,10 @@ export default function AppLayout({
         <RealtimeProvider>
           {/* D23: send members to /for-you on their first app screen. */}
           <LandingGate />
+          {/* #339: ambient when an update is merely available; a full stop only
+              below the server-set floor (D71). Mounted here so it covers every
+              signed-in screen rather than one route. */}
+          <UpdatePrompt />
           {/* #116: portals (sheets, dialogs, menus, the command palette) and
               the Toaster mount into document.body, outside this div — the
               scope must ALSO live on <body> or portaled surfaces lose every

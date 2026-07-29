@@ -3186,3 +3186,64 @@ same sentence as the undo instead of two bullets apart.
 **What stays by hand is written down** in `docs/OPERATIONS.md` rather than left
 to be rediscovered: stuck port-ins, delivery investigations, and anything
 touching money (which goes through Stripe's dashboard, with its own trail).
+
+## D71 — a version floor is a weapon, and it is holstered by default (#339, 2026-07-29)
+
+**Decision.** The server learns what every client is running, may **recommend**
+an update freely, and may **require** one only under the rules below. The floor
+ships NULL for all three platforms and stays there until a specific incident
+justifies moving it.
+
+**Why this needed a decision and not just a mechanism.** The issue's devil's
+advocate states the cost plainly: blocking a plumber's business line because
+they are two versions behind, while they are standing in a customer's basement,
+is a worse outcome than most of the bugs it would protect them from. A
+misconfigured floor locks out every user at once, with no way in to fix it —
+from the customer's side, indistinguishable from us going out of business. So
+the mechanism was built with the policy written first, which is the order the
+issue asked for.
+
+**What is always on, because it carries none of that risk:**
+
+- Every client sends `X-App-Version` alongside the `X-Client` it already sent.
+  Validated server-side against the same pattern as the column's CHECK; anything
+  unparseable becomes NULL rather than an error, because a header must never be
+  able to cost somebody their session.
+- It rides `api_authorize_request` — the one RPC every /v1 request already makes
+  — so knowing what everyone runs costs nothing per request.
+- `scripts/ops/version-distribution.mjs` reports the adoption curve. "Everyone
+  has the fix" is now a number instead of a hope.
+
+**The soft prompt** (below `recommended_version`) is the default answer to
+almost everything: dismissible, per-version so a click last week cannot swallow
+next week's notice, and it always carries the server's own `message` rather than
+copy invented in the client. An update demand nobody can explain reads as a
+hijack.
+
+**The floor** (below `minimum_version`) is governed by four rules, three of them
+enforced mechanically by `scripts/ops/set-release-policy.mjs`:
+
+1. **Security or genuine incompatibility only.** Never a feature, never a
+   nice-to-have, never to reduce our support burden.
+2. **A floor requires a `--message`.** Enforced. Somebody is losing access to
+   their business phone; they are owed the reason on the same screen.
+3. **Never raised to a build that has not landed.** Enforced: the setter refuses
+   a `--minimum` newer than the currently recommended version. Recommend it,
+   let it reach people, raise the floor on a later day.
+4. **The blast radius is read before the write.** Enforced: the script prints
+   how many live sessions the floor would block — counting sessions with NO
+   reported version as blocked, because they are, and on day one they are most
+   of them.
+
+**Rollback is one command and no deploy:** `--clear --apply`, live within the
+endpoint's five-minute cache. That is the entire reason the floor lives in the
+database instead of the build. A floor baked into a client can only be lowered
+by shipping a client, and the moment you need to lower it is the moment shipping
+is the thing that is broken.
+
+**Everything fails open.** `GET /app-release` is public (outside /v1, no JWT) —
+the reason to demand an update may be that auth is broken in the old build, and
+a gate only working clients can read is no gate. A missing row, an unknown
+platform, a database outage, an unreadable version on either side: all resolve
+to "ask nothing". The asymmetry is deliberate. A missed prompt costs one person
+one week on an old build; a false block costs every customer their phone at once.

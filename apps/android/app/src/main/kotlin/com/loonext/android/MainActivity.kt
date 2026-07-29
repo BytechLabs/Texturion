@@ -56,6 +56,8 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.loonext.android.core.update.UpdatePrompt
+import com.loonext.android.core.update.UpdateState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.Me
@@ -208,6 +210,13 @@ class MainActivity : ComponentActivity() {
                     // #168A: no adb on the founder's device — if the last run
                     // crashed, offer the saved report once via the share sheet.
                     CrashReportPrompt(graph.diagnostics)
+                    // #339: ambient when an update is merely available; a full
+                    // stop only below the server-set floor (D71). Last in the
+                    // stack so the block genuinely covers everything.
+                    val updateState by graph.updates.state
+                        .collectAsStateWithLifecycle(initialValue = UpdateState())
+                    LaunchedEffect(Unit) { graph.updates.refresh() }
+                    UpdatePrompt(updateState)
                 }
             }
         }

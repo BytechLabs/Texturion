@@ -1,4 +1,12 @@
 export {
+  versionKey,
+  isOlderThan,
+  updateRequirement,
+  type AppReleasePolicy,
+  type UpdateRequirement,
+} from "./app-version";
+
+export {
   ERROR_CODES,
   ERROR_CODE_STATUS,
   INTERNAL_ERROR_CODE,

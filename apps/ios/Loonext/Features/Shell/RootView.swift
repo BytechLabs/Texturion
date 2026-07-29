@@ -7,10 +7,14 @@ import SwiftUI
 struct RootView: View {
     let graph: AppGraph
     @State private var model: RootViewModel
+    /// #339: owned here rather than in the shell, because the update gate
+    /// outranks every routed state including signed-out.
+    @State private var updates: UpdateRepository
 
     init(graph: AppGraph) {
         self.graph = graph
         _model = State(initialValue: RootViewModel(graph: graph))
+        _updates = State(initialValue: graph.updates)
     }
 
     var body: some View {
@@ -58,7 +62,13 @@ struct RootView: View {
         // bare system background. AuthFlow / ExternalStepView paint their own
         // canvas; the ready shell draws edge-to-edge over this.
         .background(BrandColor.canvas.ignoresSafeArea())
+        // #339: ambient when an update is merely available; a full stop only
+        // below the server-set floor (D71). An overlay on the ROUTER, not on
+        // the shell, so the block also covers the signed-out and interstitial
+        // states — a build below the floor is below it before anyone signs in.
+        .overlay { UpdatePrompt(state: updates.state) }
         .task { model.start() }
+        .task { await updates.refresh() }
     }
 }
 

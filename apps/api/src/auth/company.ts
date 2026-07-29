@@ -5,7 +5,7 @@ import { MEMBER_ROLES, type AppEnv, type MemberRole } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
-import { requestClient, requestGeo } from "./request-origin";
+import { requestAppVersion, requestClient, requestGeo } from "./request-origin";
 import { announceNewDevice } from "./new-device-notice";
 
 const companyIdSchema = z.uuid();
@@ -139,6 +139,9 @@ export function companyContext() {
       p_country: geo.country,
       p_region: geo.region,
       p_city: geo.city,
+      // #339: rides the round trip that already runs, so knowing what
+      // everyone is running costs nothing per request.
+      p_app_version: requestAppVersion(c),
     });
     if (error) {
       // Infrastructure failure, not an authorization outcome — 500, never 403.

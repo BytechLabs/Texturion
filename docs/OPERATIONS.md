@@ -54,6 +54,8 @@ reliable defence.
 | `clear-spam-flag.mjs` | A real customer marked as spam (#342) | The company id is a filter, not a check, so it cannot reach across tenants |
 | `restore-member.mjs` | An offboarding that should not have happened (#383) | Comes back as `member`, never silently as `admin` |
 | `reset-registration.mjs` | A rejected 10DLC brand or campaign (#352) | Re-opens the wizard; **submits nothing to Telnyx** |
+| `set-release-policy.mjs` | Recommending — or requiring — an app update (#339) | Prints the blast radius before the write. A floor is governed by **D71** |
+| `version-distribution.mjs` | "Does everyone have the fix?" (#339) | Read-only; no `--apply`. Names the cohort reporting no version at all |
 
 ### The one promise that needs saying out loud
 
@@ -67,6 +69,27 @@ about first. It prints that in red-flag terms rather than quietly reopening,
 because the customer needs to hear it from us in the same breath as "you're
 back" — not when a job text bounces. The product copy on the closure screen
 says the same thing before they confirm.
+
+### The floor is the one script that can hurt everybody at once
+
+`set-release-policy.mjs --recommended` is safe and dismissible. `--minimum` is
+not: below it, the app stops, and the person holding it is running their
+business phone line off it. D71 governs when that is allowed; the script
+enforces the mechanical half —
+
+- a floor **requires `--message`**, because somebody losing access is owed the
+  reason on the same screen;
+- a floor **may not be newer than the currently recommended version**, so it can
+  never point at a build that has had no time to reach anyone;
+- the **blast radius prints first**, on the dry run as well as the apply,
+  counting sessions that report *no version* as blocked — because they are, and
+  early on they are most of them.
+
+Rollback is `--clear --apply`: live within the endpoint's five-minute cache, no
+deploy involved. That is the whole reason the floor lives in the database rather
+than in a build — a floor baked into a client can only be lowered by shipping a
+client, and the moment you need to lower it is the moment shipping is the thing
+that is broken.
 
 ---
 

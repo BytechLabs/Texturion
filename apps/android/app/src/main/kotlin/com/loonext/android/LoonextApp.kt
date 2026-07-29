@@ -16,6 +16,7 @@ import com.loonext.android.core.data.TasksRepository
 import com.loonext.android.core.diag.CrashDiagnostics
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.realtime.RealtimeClient
+import com.loonext.android.core.update.UpdateRepository
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -70,6 +71,11 @@ class AppGraph(private val app: Application) {
         sessionStore = sessionStore,
         supabaseAuth = supabaseAuth,
     )
+    /**
+     * #339: the public update policy. Its own client-free repository on
+     * purpose — see UpdateRepository for why it must not ride ApiClient.
+     */
+    val updates = UpdateRepository(http = http, baseUrl = BuildConfig.API_URL)
     val authManager = AuthManager(supabaseAuth, sessionStore, prefs)
     val realtime = RealtimeClient(
         http = http,

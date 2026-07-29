@@ -252,6 +252,12 @@ actor ApiClient {
         // every request — one that skipped it would show up in somebody's own
         // security screen as an unrecognised device.
         request.setValue("ios", forHTTPHeaderField: "X-Client")
+        // #339: which build. Same reasoning as X-Client — a request that
+        // omitted it reports as "no version", which is the bucket a
+        // server-set floor blocks.
+        if let appVersion = AppVersion.current {
+            request.setValue(appVersion, forHTTPHeaderField: "X-App-Version")
+        }
         if let companyId {
             request.setValue(companyId, forHTTPHeaderField: "X-Company-Id")
         }

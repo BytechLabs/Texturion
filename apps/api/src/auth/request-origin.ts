@@ -36,6 +36,33 @@ export function requestClient(c: Context<AppEnv>): ClientKind {
   return "unknown";
 }
 
+/**
+ * Up to four dot-separated numeric segments. Matches the CHECK on
+ * `user_sessions.app_version` and the SQL `version_key`, on purpose: three
+ * places compare these strings and a disagreement about what counts as a
+ * version would show up as a client that is silently exempt from every floor.
+ */
+const VERSION_PATTERN = /^[0-9]{1,4}(\.[0-9]{1,4}){0,3}$/;
+
+/**
+ * #339 — which build is calling.
+ *
+ * Best-effort, like everything else here, and validated rather than trusted:
+ * the header is attacker-controlled and the column it feeds carries a CHECK,
+ * so an unparseable value becomes `null` ("we do not know") instead of an
+ * error. A malformed version must never cost somebody their session — that
+ * would be a self-inflicted outage triggered by a string.
+ *
+ * `null` is also the honest answer for every build shipped before this header
+ * existed, which on day one is all of them. That population is precisely what
+ * the distribution is for, so it is a bucket, not an absence.
+ */
+export function requestAppVersion(c: Context<AppEnv>): string | null {
+  const raw = c.req.header("X-App-Version")?.trim();
+  if (!raw || !VERSION_PATTERN.test(raw)) return null;
+  return raw;
+}
+
 export interface RequestGeo {
   country: string | null;
   region: string | null;

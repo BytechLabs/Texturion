@@ -50,6 +50,10 @@ export function createApiClient(config: ApiClientConfig): ApiRequest {
       }
     }
 
+    // Injected at build time from package.json (next.config.ts), so it cannot
+    // drift from the build it describes the way a hand-maintained constant can.
+    const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
+
     const headers: Record<string, string> = {
       Authorization: `Bearer ${token}`,
       // #236: which app is calling, so the signed-in-devices list can say
@@ -58,6 +62,11 @@ export function createApiClient(config: ApiClientConfig): ApiRequest {
       // somebody's security screen as an unrecognised device.
       "X-Client": "web",
     };
+    // #339: which build. Set here for the same reason as X-Client — a request
+    // that skipped it would report as "no version", which is the bucket a
+    // floor blocks. Omitted rather than sent empty when the build has no
+    // version, so "we do not know" stays distinguishable from a claim.
+    if (APP_VERSION) headers["X-App-Version"] = APP_VERSION;
     if (options.companyId) headers["X-Company-Id"] = options.companyId;
     if (options.idempotencyKey) {
       headers["Idempotency-Key"] = options.idempotencyKey;

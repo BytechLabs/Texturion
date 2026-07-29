@@ -126,6 +126,21 @@ export function opsClient() {
         body: JSON.stringify(row),
       }),
 
+    /**
+     * Call a SECURITY DEFINER function.
+     *
+     * Some support work is not a row edit — it is a decision the database
+     * already knows how to make safely, with its own validation and its own
+     * accounting (#339's release policy returns the blast radius of the change
+     * it just made). Reaching past those functions to write the table by hand
+     * would step around exactly the checks that make the operation survivable.
+     */
+    rpc: (fn, params = {}) =>
+      send(`${fn}()`, `${base}/rest/v1/rpc/${fn}`, {
+        method: "POST",
+        body: JSON.stringify(params),
+      }),
+
     count: async (table, where) => {
       const response = await fetch(target(table, where, { select: "id" }), {
         method: "HEAD",
