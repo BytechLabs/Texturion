@@ -132,7 +132,7 @@ function present(data: Record<string, unknown>, key: string): boolean {
  * pending / approved); draft and rejected rows count as complete only when
  * the wizard data carries every field the Telnyx payload requires.
  */
-function pastSubmission(row: RegistrationRow): boolean {
+function pastSubmission(row: { status: string }): boolean {
   return (
     row.status === "submitted" ||
     row.status === "pending" ||
