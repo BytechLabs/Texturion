@@ -45,7 +45,7 @@ export function expectedIssuer(supabaseUrl: string): string {
 export async function verifyAccessToken(
   token: string,
   env: Env,
-): Promise<{ userId: string }> {
+): Promise<{ userId: string; sessionId: string | null }> {
   const { payload } = await jwtVerify(token, remoteJwks(env.SUPABASE_JWKS_URL), {
     algorithms: ["ES256"],
     issuer: expectedIssuer(env.SUPABASE_URL),
@@ -54,8 +54,21 @@ export async function verifyAccessToken(
   if (typeof payload.sub !== "string" || payload.sub.length === 0) {
     throw new Error("token has no subject");
   }
-  return { userId: payload.sub };
+  // #236: `session_id` is the GoTrue session this token was minted for, and
+  // it is what makes revocation possible without waiting out the expiry.
+  // Null is tolerated rather than rejected: the claim lives INSIDE the signed
+  // token, so a caller cannot strip it to dodge the check — its absence only
+  // ever means a token from before GoTrue emitted one, and failing those
+  // closed would sign out the whole customer base to fix nothing.
+  const sessionId =
+    typeof payload.session_id === "string" && SESSION_ID_RE.test(payload.session_id)
+      ? payload.session_id
+      : null;
+  return { userId: payload.sub, sessionId };
 }
+
+const SESSION_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * JWT middleware for /v1/* (SPEC §7, §10). On success attaches `userId`
@@ -71,8 +84,9 @@ export function jwtAuth() {
       return errorResponse(c, "unauthorized", "Missing or invalid access token.");
     }
     try {
-      const { userId } = await verifyAccessToken(token, env);
+      const { userId, sessionId } = await verifyAccessToken(token, env);
       c.set("userId", userId);
+      if (sessionId) c.set("sessionId", sessionId);
     } catch {
       // Never leak why verification failed (SPEC §7: 401 `unauthorized`).
       return errorResponse(c, "unauthorized", "Missing or invalid access token.");

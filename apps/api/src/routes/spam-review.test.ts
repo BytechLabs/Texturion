@@ -66,8 +66,8 @@ function flaggedRow() {
 function world(options: { role?: string; hidden?: string[] } = {}): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
-    "GET",
-    "/rest/v1/company_members",
+    "POST",
+    "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, options.role ?? "owner"),
   );
   sb.on("GET", "/rest/v1/number_access", () =>
@@ -130,7 +130,7 @@ describe("GET /v1/spam-review (#342)", () => {
 describe("PATCH /v1/conversations/:id — answering the review prompt (#342)", () => {
   function patchWorld(current: Record<string, unknown>): SupabaseStub {
     const sb = supabaseStub(env);
-    sb.on("GET", "/rest/v1/company_members", membershipResponder(MEMBER_ID, "owner"));
+    sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, "owner"));
     sb.on("GET", "/rest/v1/conversations", () => [
       {
         id: CONVERSATION_ID,

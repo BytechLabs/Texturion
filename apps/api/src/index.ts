@@ -60,7 +60,9 @@ import { numbersRoutes } from "./routes/numbers";
 import { portingRoutes } from "./routes/porting";
 import { registrationRoutes } from "./routes/registration";
 import { searchRoutes } from "./routes/search";
+import { sessionsRoutes } from "./routes/sessions";
 import { pruneAuditLog } from "./audit/retention";
+import { pruneUserSessions } from "./auth/session-retention";
 import { buildDataExports, pruneExpiredExports } from "./workspace/export";
 import { purgeClosedWorkspaces } from "./workspace/purge";
 import { accountRoutes } from "./routes/account";
@@ -115,6 +117,9 @@ app.use(
       "X-Company-Id",
       "Idempotency-Key",
       "Content-Type",
+      // #236: which app is calling, so the signed-in-devices list can say
+      // "web browser" rather than guess from a user agent string.
+      "X-Client",
     ],
     // Let the browser cache the preflight for a day so the SPA doesn't re-issue
     // an OPTIONS round-trip before every /v1 call (the allowed methods/headers
@@ -161,6 +166,7 @@ app.route("/v1", tagsRoutes);
 app.route("/v1", templatesRoutes);
 app.route("/v1", searchRoutes);
 app.route("/v1", teamRoutes);
+app.route("/v1", sessionsRoutes); // #236 signed-in devices, self + workspace
 app.route("/v1", notificationsRoutes);
 app.route("/v1", devicePushTokensRoutes); // #151 native FCM/APNs token registry
 app.route("/v1", forYouRoutes); // D23 GET /v1/for-you home read-model
@@ -383,6 +389,9 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   "30 15 * * *": [
     job("job:prune-webhook-events", pruneWebhookEvents),
     job("job:prune-audit-log", pruneAuditLog),
+    // #236: dead and revoked device rows past the 90-day window. Live
+    // sessions are never touched, at any age.
+    job("job:prune-user-sessions", pruneUserSessions),
     job("job:purge-closed-workspaces", purgeClosedWorkspaces),
     // #227: exports build here for the same reason the purge does — a busy
     // workspace cannot be processed inside a request.

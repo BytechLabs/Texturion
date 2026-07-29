@@ -77,6 +77,11 @@ devicePushTokensRoutes.post("/device-push-tokens", async (c) => {
           platform: body.platform,
           token: body.token,
           last_seen_at: new Date().toISOString(),
+          // #236: the session this device is signed in on. Signing that
+          // session out deletes the row, which is the difference between
+          // "removed from the workspace" and "the phone stops buzzing with
+          // the customer's message on the lock screen".
+          session_id: c.get("sessionId") ?? null,
           ...(body.caps ? { caps: body.caps } : {}),
         },
         { onConflict: "user_id,token" },

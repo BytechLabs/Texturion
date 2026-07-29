@@ -5,12 +5,20 @@ import { MEMBER_ROLES, type AppEnv, type MemberRole } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
+import { requestClient, requestGeo } from "./request-origin";
+import { announceNewDevice } from "./new-device-notice";
 
 const companyIdSchema = z.uuid();
 
 const memberRowSchema = z.object({
   id: z.uuid(),
   role: z.enum(MEMBER_ROLES),
+});
+
+const authorizeSchema = z.object({
+  session_revoked: z.boolean(),
+  session_new: z.boolean(),
+  member: z.unknown().nullable(),
 });
 
 /**
@@ -21,6 +29,10 @@ const memberRowSchema = z.object({
  * append to in order to make a 422 go away, and every entry is a route that
  * runs with NO tenant scope at all — so growing it should be a decision
  * somebody made, not a line somebody added.
+ *
+ * Note these routes are exempt from the COMPANY half only. Since #236 the
+ * session check runs on all of them too — a revoked device must not be able
+ * to read /v1/me or keep a push token registered.
  */
 export const COMPANY_EXEMPT_ROUTES = new Set([
   "GET /v1/me",
@@ -52,6 +64,12 @@ export const COMPANY_EXEMPT_ROUTES = new Set([
   // leave. Both act on the caller's own userId; there is no id to get wrong.
   "GET /v1/account/deletion-preview",
   "DELETE /v1/account",
+  // #236: your own signed-in devices belong to YOU, not to a workspace. A
+  // person in two workspaces has one set of sessions, and somebody who has
+  // just been removed from their only workspace must still be able to sign
+  // their old phone out.
+  "GET /v1/sessions",
+  "POST /v1/sessions/revoke",
 ]);
 
 /**
@@ -60,38 +78,74 @@ export const COMPANY_EXEMPT_ROUTES = new Set([
  * `company_members` for the verified `sub` — never trusted from the body.
  * Attaches `{ companyId, role, memberId }`; a missing/inactive membership is
  * 403 `forbidden`; a missing/non-UUID header is 422 `validation_failed`.
+ *
+ * Since #236 the same round trip also settles the SESSION: `api_authorize_
+ * request` reads the token's `session_id` against `user_sessions` and reports
+ * a revoked one, which is how "sign out that phone" takes effect on the
+ * phone's next call instead of whenever its access token happens to lapse.
+ * Folding it into the membership lookup rather than adding a second
+ * middleware is deliberate — it keeps authentication at exactly one database
+ * round trip per request, which is what makes a per-request check affordable.
  */
 export function companyContext() {
   return createMiddleware<AppEnv>(async (c, next) => {
-    if (COMPANY_EXEMPT_ROUTES.has(`${c.req.method} ${c.req.path}`)) {
+    const exempt = COMPANY_EXEMPT_ROUTES.has(`${c.req.method} ${c.req.path}`);
+
+    let companyId: string | null = null;
+    if (!exempt) {
+      const parsedId = companyIdSchema.safeParse(c.req.header("X-Company-Id"));
+      if (!parsedId.success) {
+        return errorResponse(
+          c,
+          "validation_failed",
+          "X-Company-Id header must be a UUID.",
+        );
+      }
+      companyId = parsedId.data;
+    }
+
+    const env = getEnv(c.env);
+    const db = getDb(env);
+    const sessionId = c.get("sessionId") ?? null;
+    const geo = requestGeo(c);
+    const { data, error } = await db.rpc("api_authorize_request", {
+      p_user_id: c.get("userId"),
+      p_session_id: sessionId,
+      p_company_id: companyId,
+      p_client: requestClient(c),
+      p_user_agent: c.req.header("User-Agent") ?? null,
+      p_country: geo.country,
+      p_region: geo.region,
+      p_city: geo.city,
+    });
+    if (error) {
+      // Infrastructure failure, not an authorization outcome — 500, never 403.
+      throw new Error(`request authorization failed: ${error.message}`);
+    }
+    const authorized = authorizeSchema.parse(data);
+
+    if (authorized.session_revoked) {
+      // Same 401 shape as a bad token: the client's own recovery is identical
+      // (sign in again), and the response says nothing a caller could mine.
+      return errorResponse(
+        c,
+        "unauthorized",
+        "This device has been signed out. Sign in again to continue.",
+      );
+    }
+
+    if (authorized.session_new && sessionId) {
+      // A sign-in from a device we have never seen. Told to the account
+      // holder, never to the workspace: it is their account, and they are the
+      // only one who knows whether it was them.
+      announceNewDevice(c, env, db, c.get("userId"), sessionId);
+    }
+
+    if (companyId === null) {
       return next();
     }
 
-    const header = c.req.header("X-Company-Id");
-    const parsedId = companyIdSchema.safeParse(header);
-    if (!parsedId.success) {
-      return errorResponse(
-        c,
-        "validation_failed",
-        "X-Company-Id header must be a UUID.",
-      );
-    }
-    const companyId = parsedId.data;
-
-    const db = getDb(getEnv(c.env));
-    const { data, error } = await db
-      .from("company_members")
-      .select("id,role")
-      .eq("company_id", companyId)
-      .eq("user_id", c.get("userId"))
-      .is("deactivated_at", null)
-      .limit(1);
-    if (error) {
-      // Infrastructure failure, not an authorization outcome — 500, never 403.
-      throw new Error(`company_members lookup failed: ${error.message}`);
-    }
-
-    const parsedRow = memberRowSchema.safeParse(data?.[0]);
+    const parsedRow = memberRowSchema.safeParse(authorized.member);
     if (!parsedRow.success) {
       return errorResponse(c, "forbidden", "Not an active member of this company.");
     }

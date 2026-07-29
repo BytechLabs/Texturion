@@ -57,8 +57,8 @@ afterEach(() => {
 function stubWithRole(role: string | null): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
-    "GET",
-    "/rest/v1/company_members",
+    "POST",
+    "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, role),
   );
   // #121: NO company_modules stub — the storage budgets (and their module
@@ -1035,8 +1035,8 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
   it("#106: 404s (no mutation) when the caller can't access the number", async () => {
     const sb = supabaseStub(env);
     sb.on(
-      "GET",
-      "/rest/v1/company_members",
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
     // One admins-only rule the member can't match → the number is hidden.
@@ -1089,8 +1089,8 @@ describe("#106 number access — attachments never leak a hidden number", () => 
   function memberHiddenStub(): SupabaseStub {
     const sb = supabaseStub(env);
     sb.on(
-      "GET",
-      "/rest/v1/company_members",
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
     sb.on("GET", "/rest/v1/number_access", () => [

@@ -118,8 +118,8 @@ function forYouStub(
 ): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
-    "GET",
-    "/rest/v1/company_members",
+    "POST",
+    "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, role),
   );
   // #106: the route resolves number_access for members ([] = unrestricted).
@@ -234,8 +234,8 @@ describe("GET /v1/for-you", () => {
   it("401 without a token; 403 without company membership", async () => {
     const sb = supabaseStub(env);
     sb.on(
-      "GET",
-      "/rest/v1/company_members",
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, null),
     );
     stubFetch(jwksRoute(auth), sb.route);

@@ -24,6 +24,7 @@ import { runOverageWarningJob } from "./billing/overage-warning";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
 import { sweepDeletedAttachments } from "./attachments/sweep";
 import { pruneAuditLog } from "./audit/retention";
+import { pruneUserSessions } from "./auth/session-retention";
 import { buildDataExports } from "./workspace/export";
 import { purgeClosedWorkspaces } from "./workspace/purge";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
@@ -50,7 +51,7 @@ import {
   retryCampaignAssignments,
 } from "./telnyx/registration";
 import {
-  companyMembersRoute,
+  authorizeRoute,
   completeEnv,
   createTestAuth,
   jwksRoute,
@@ -91,7 +92,7 @@ describe("middleware order on /v1/* (CORS → JWT → company context)", () => {
     const captured: CapturedRequest = {};
     stubFetch(
       jwksRoute(auth),
-      companyMembersRoute(env, [{ id: MEMBER_ID, role: "owner" }], captured),
+      authorizeRoute(env, { id: MEMBER_ID, role: "owner" }, { captured }),
     );
     const res = await app.request(
       "/v1/__test__/context",
@@ -110,9 +111,11 @@ describe("middleware order on /v1/* (CORS → JWT → company context)", () => {
       role: "owner",
       memberId: MEMBER_ID,
     });
-    // The membership lookup used the sub the JWT middleware verified —
+    // The authorization probe carried the sub the JWT middleware verified —
     // proof that JWT ran before company context.
-    expect(captured.url!.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
+    expect(await captured.request!.json()).toMatchObject({
+      p_user_id: auth.subject,
+    });
   });
 
   it("JWT runs before company context: no token is 401 even with a valid X-Company-Id", async () => {
@@ -142,7 +145,7 @@ describe("middleware order on /v1/* (CORS → JWT → company context)", () => {
   });
 
   it("valid token but no membership is 403", async () => {
-    stubFetch(jwksRoute(auth), companyMembersRoute(env, []));
+    stubFetch(jwksRoute(auth), authorizeRoute(env, null));
     const res = await app.request(
       "/v1/__test__/context",
       {
@@ -493,6 +496,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     expect(runs("30 15 * * *")).toEqual([
       pruneWebhookEvents,
       pruneAuditLog,
+      pruneUserSessions, // #236: dead and revoked device rows past 90 days
       purgeClosedWorkspaces,
       buildDataExports,
       pruneExpiredExports, // #378: expired exports are deleted, not just hidden

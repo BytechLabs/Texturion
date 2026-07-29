@@ -70,6 +70,12 @@ export interface TokenOptions {
   expiresIn?: number;
   key?: CryptoKey;
   kid?: string;
+  /**
+   * #236: the GoTrue session this token was minted for. Real Supabase access
+   * tokens always carry one; `null` mints the pre-#236 shape (a token from
+   * before GoTrue emitted the claim), which the middleware must still admit.
+   */
+  sessionId?: string | null;
 }
 
 export interface TestAuth {
@@ -80,6 +86,8 @@ export interface TestAuth {
   jwksUrl: string;
   /** The user id (`sub`) that `token()` mints by default. */
   subject: string;
+  /** The `session_id` claim (#236) that `token()` mints by default. */
+  sessionId: string;
   token(options?: TokenOptions): Promise<string>;
 }
 
@@ -100,6 +108,7 @@ export async function createTestAuth(
   };
   const issuer = `${env.SUPABASE_URL}/auth/v1`;
   const subject = "6f0c2f0e-6a5a-4bfa-9b6e-2d6d1a6c9e01";
+  const sessionId = "1d2e3f40-5a6b-4c7d-8e9f-0a1b2c3d4e5f";
 
   return {
     jwk,
@@ -108,10 +117,13 @@ export async function createTestAuth(
     issuer,
     jwksUrl: env.SUPABASE_JWKS_URL,
     subject,
+    sessionId,
     async token(options: TokenOptions = {}): Promise<string> {
       const now = Math.floor(Date.now() / 1000);
       const expiresIn = options.expiresIn ?? 300;
-      return new SignJWT({})
+      const session =
+        options.sessionId === undefined ? sessionId : options.sessionId;
+      return new SignJWT(session === null ? {} : { session_id: session })
         .setProtectedHeader({ alg: "ES256", kid: options.kid ?? kid })
         .setIssuer(options.issuer ?? issuer)
         .setAudience(options.audience ?? "authenticated")
@@ -188,6 +200,34 @@ export function jwksRoute(auth: TestAuth): FetchRoute {
 export interface CapturedRequest {
   url?: URL;
   request?: Request;
+}
+
+/**
+ * Serves the /v1 authorization probe (`api_authorize_request`) — the single
+ * round trip auth/company.ts makes per request since #236, settling both the
+ * caller's membership and whether their session has been signed out.
+ *
+ * `member: null` is "not an active member of this company" (403);
+ * `revoked: true` is "this device was signed out" (401).
+ */
+export function authorizeRoute(
+  env: Env,
+  member: { id: string; role: string } | null,
+  options: { revoked?: boolean; captured?: CapturedRequest } = {},
+): FetchRoute {
+  const href = `${env.SUPABASE_URL}/rest/v1/rpc/api_authorize_request`;
+  return (url, request) => {
+    if (!url.href.startsWith(href)) return undefined;
+    if (options.captured) {
+      options.captured.url = url;
+      options.captured.request = request;
+    }
+    return Response.json({
+      session_revoked: options.revoked ?? false,
+      session_new: false,
+      member,
+    });
+  };
 }
 
 /**

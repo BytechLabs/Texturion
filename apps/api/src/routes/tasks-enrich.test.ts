@@ -21,6 +21,7 @@ import {
   type Stub,
 } from "../test/messaging-support";
 import {
+  authorizeRoute,
   completeEnv,
   createTestAuth,
   type FetchRoute,
@@ -61,13 +62,12 @@ function buildApp() {
 }
 const app = buildApp();
 
+/** The company-context middleware's probe (#236: membership + session, one RPC). */
 function membersRoute(role: "member" | "admin" | "owner" = "member"): FetchRoute {
-  const prefix = `${baseEnv.SUPABASE_URL}/rest/v1/company_members`;
-  return (url) =>
-    url.href.startsWith(prefix) &&
-    url.searchParams.get("user_id") === `eq.${auth.subject}`
-      ? Response.json([{ id: "11111111-0000-4000-8000-000000000011", role }])
-      : undefined;
+  return authorizeRoute(baseEnv, {
+    id: "11111111-0000-4000-8000-000000000011",
+    role,
+  });
 }
 
 /** company_ai_settings GET → the given toggles (empty array = defaults/off). */

@@ -777,6 +777,7 @@ create trigger on_auth_user_created after insert or update on auth.users
 
 - Base prefix **`/v1`**; webhooks unversioned at **`/webhooks/*`**.
 - Auth: `Authorization: Bearer <Supabase access token>` on every `/v1` route; **`X-Company-Id`** header on every route except `GET /v1/me`, `POST /v1/companies`, `POST /v1/invites/accept`. The Worker validates the header against `company_members` for the verified `sub` (§10).
+- **Session revocation (#236):** the same round trip also checks the token's `session_id` claim against `user_sessions`, so a device that has been signed out fails its **next** request rather than when its access token expires. Applies to the company-exempt routes too. Clients send **`X-Client: web|android|ios`** so the signed-in-devices list can name the app.
 - **Single resources:** bare JSON object, `200`/`201`. **Lists:** `{ "data": [...], "next_cursor": "…" | null }` — cursor-based only, opaque base64 of the sort key; **no offset pagination anywhere**. Conversations key on `(last_message_at, id) DESC` (mutable-key caveat: clients dedupe by `id`), default 25. Messages key on `(created_at, id) DESC`, default 50, max 100.
 - **Errors:** `{ "error": { "code": "...", "message": "..." } }` with stable codes:
 
@@ -851,6 +852,10 @@ Roles: **O**=owner, **A**=admin, **M**=member. "O/A" = owner or admin. All conve
 | `GET /v1/members` | M | Members + roles + profiles |
 | `PATCH /v1/members/:id` | O/A | `{ role: 'admin'\|'member' }` — owner role never assignable; owner row immutable |
 | `DELETE /v1/members/:id` | O/A | Deactivate (sets `deactivated_at`, frees seat) |
+| `GET /v1/sessions` | any | #236 — the caller's own signed-in devices: `{ id, client, user_agent, location, signed_in_at, last_active_at, current }`. Bearer-only (a session belongs to the person, not to a workspace) |
+| `POST /v1/sessions/revoke` | any | #236 — `{ session_id }` signs one device out; `{ others: true }` signs out everywhere except the device asking. 409 `conflict` on the caller's own session (the sign-out button is the honest way to do that). Bearer-only |
+| `GET /v1/members/sessions` | O/A | #236 — every active member's live devices, workspace-wide: `{ id, member_id, client, location, signed_in_at, last_active_at }`. Deliberately narrower than the self view — no user agent |
+| `POST /v1/members/:id/sessions/revoke` | O/A | #236 — sign a member out everywhere. Admins may not sign the OWNER out (403 `forbidden`). Takes their push registrations with it; leaves a call in progress alone. Audited as `member.sessions_revoked` |
 | `GET /v1/invites` · `POST /v1/invites` | O/A | Create: `{ email, role }`; seat limit enforced **here and at acceptance** — seat count = active members (`deactivated_at IS NULL`) + pending invites (`accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()`) ≤ plan seats; sends Supabase `inviteUserByEmail` (Resend SMTP) |
 | `DELETE /v1/invites/:id` | O/A | Revoke |
 | `POST /v1/invites/accept` | any | `{ invite_id }` (the id is embedded in the invite email link). Verifies the JWT's verified email equals `invites.email` and the invite is pending/unexpired → creates the `company_members` row **and a `notification_prefs` row (defaults true/true)**; re-checks the seat limit with the same formula (409 `conflict` if full) |

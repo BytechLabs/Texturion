@@ -60,8 +60,8 @@ function callsStub(
 ): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
-    "GET",
-    "/rest/v1/company_members",
+    "POST",
+    "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, opts.role ?? "member"),
   );
   // #106 resolver: member-role reads number_access rules (empty = no rules).
@@ -368,8 +368,8 @@ describe("POST /v1/calls/browser (D43)", () => {
   ): SupabaseStub {
     const sb = supabaseStub(env);
     sb.on(
-      "GET",
-      "/rest/v1/company_members",
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, opts.role ?? "member"),
     );
     sb.on("GET", "/rest/v1/number_access", () => []);
@@ -780,8 +780,8 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
   ): SupabaseStub {
     const sb = supabaseStub(env);
     sb.on(
-      "GET",
-      "/rest/v1/company_members",
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
     sb.on("GET", "/rest/v1/number_access", () => []);

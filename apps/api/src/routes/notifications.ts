@@ -198,6 +198,10 @@ notificationsRoutes.post(
             p256dh: body.keys.p256dh,
             auth: body.keys.auth,
             user_agent: c.req.header("User-Agent") ?? null,
+            // #236: the browser that subscribed. Signing that session out
+            // takes the subscription with it, so a signed-out browser stops
+            // showing customer message text in a notification.
+            session_id: c.get("sessionId") ?? null,
             ...(body.caps ? { caps: body.caps } : {}),
           },
           { onConflict: "user_id,endpoint" },

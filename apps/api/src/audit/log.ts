@@ -51,6 +51,11 @@ export type AuditAction =
   // the answer is different in a way that matters.
   | "member.left"
   | "member.reactivated"
+  // #236: an owner or admin signed somebody's devices out. Recorded because
+  // it is a privileged action taken against another person's access, and
+  // because "when did we cut that phone off" is the question asked the moment
+  // anybody wonders how long a departed tech could still read the inbox.
+  | "member.sessions_revoked"
   // Number access — who can see which number's conversations (#106)
   | "number_access.changed"
   // Settings that change what customers receive

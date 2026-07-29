@@ -92,6 +92,22 @@ export function supabaseStub(env: Env): SupabaseStub {
    * five-second timeout.
    */
   const ambientHandlers = [
+    {
+      // #236: the /v1 authorization probe hangs off EVERY authenticated
+      // request, including the company-exempt ones that resolve no membership
+      // at all. The ambient default is "your session is live, and you are a
+      // member of nothing" — which is exactly the state a company-exempt
+      // route was always in, so every test written before #236 keeps meaning
+      // what it meant. A suite that needs a role (or a revoked session)
+      // registers `membershipResponder` for this path and wins.
+      method: "POST",
+      matcher: "/rest/v1/rpc/api_authorize_request",
+      respond: () => ({
+        session_revoked: false,
+        session_new: false,
+        member: null,
+      }),
+    },
     { method: "GET", matcher: "/rest/v1/email_suppressions", respond: () => [] },
     {
       method: "POST",
@@ -209,22 +225,27 @@ export async function apiRequest(
 }
 
 /**
- * The company-context membership probe (auth/company.ts selects exactly
- * `id,role`). Register FIRST so route-level company_members queries (which
- * select other columns) fall through to test-specific responders.
+ * The /v1 authorization probe: since #236 the middleware settles membership
+ * AND the session's revocation state in one `api_authorize_request` round
+ * trip. Register it for `POST /rest/v1/rpc/api_authorize_request`.
+ *
+ * `role: null` is "not an active member of this company" (the 403 case).
+ * `revoked: true` is "this device was signed out" (the 401 case).
  */
 export function membershipResponder(
   memberId: string,
   role: string | null,
+  options: { revoked?: boolean; newSession?: boolean } = {},
 ): SbResponder {
-  return (call) =>
-    call.url.searchParams.get("select") === "id,role" &&
-    call.url.searchParams.has("user_id")
-      ? role === null
-        ? []
-        : [{ id: memberId, role }]
-      : undefined;
+  return () => ({
+    session_revoked: options.revoked ?? false,
+    session_new: options.newSession ?? false,
+    member: role === null ? null : { id: memberId, role },
+  });
 }
+
+/** Path of the authorization RPC, so tests register it without a literal. */
+export const AUTHORIZE_RPC = "/rest/v1/rpc/api_authorize_request";
 
 /** PostgREST count response (`head: true, count: 'exact'`). */
 export function countResponse(count: number): Response {

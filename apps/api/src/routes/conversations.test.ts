@@ -43,8 +43,8 @@ afterEach(() => {
 function memberStub(): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
-    "GET",
-    "/rest/v1/company_members",
+    "POST",
+    "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, "member"),
   );
   // #106: no access rules → every member unrestricted (today's default).

@@ -2915,3 +2915,57 @@ Before an API key reaches `env.ts`:
    `docs/VENDOR-QUESTIONS.md` if a vendor could answer it.
 4. **For each, name who is told and when.** Most of these are recoverable only
    while somebody is acting on them.
+
+---
+
+## D66 — revocation is checked on the request, not waited out on the token (#236, 2026-07-29)
+
+**Decision.** Every authenticated request carries the GoTrue `session_id` claim
+into the same database round trip that resolves company membership, and a
+session marked revoked is a `401` on that request. Signing a device out also
+deletes the push registrations that device made.
+
+**What was actually broken.** #276 already ended a person's sessions on
+offboarding: it deletes the GoTrue rows, so the refresh token has nothing to
+refresh against. But the access token already in the phone's memory keeps
+working until it expires — up to an hour. For that hour a departed tech's phone
+reads and sends as the business, and the owner has been told the removal
+happened. **The gap is not that access continues; it is that we report it as
+over while it isn't.**
+
+**Why the check is affordable per-request.** The obvious objection to checking
+revocation on every call is the round trip, and the obvious dodge is a cache —
+which reintroduces exactly the window we set out to close, just shorter. So
+instead of adding a query we moved one: `companyContext()` already made a
+`company_members` lookup on every /v1 request, and that select is now an RPC
+that answers both questions. **One round trip before, one round trip after.**
+There is no budget left to trade against correctness, so there is no
+temptation to.
+
+**The claim cannot be stripped.** `session_id` lives inside the signed access
+token, so a caller cannot remove it to skip the check — its absence only ever
+means a token minted before GoTrue emitted the claim. That is why an absent
+claim is admitted rather than rejected: failing those closed would sign out
+every existing customer to defend against something nobody can do.
+
+**Push dies with the device, not with the person.** `device_push_tokens` and
+`push_subscriptions` gained a `session_id`. Before this, the only available
+granularity was "delete every registration this person has" — so "sign my old
+tablet out" would have unsubscribed the laptop in front of them, and nobody
+would have used it. This is the half of #236 that decides whether the feature
+gets used at all: a revoked phone must stop showing the customer's message text
+on its lock screen, and *only* that phone.
+
+**A call in flight is left alone.** Revoking a session does not hang up. The
+customer on the other end did nothing wrong, and stranding them mid-sentence to
+make a security point is a worse outcome than a departing employee finishing
+one call they are already on. The session cannot start another, which is the
+part that matters.
+
+**An owner sees the workspace, and sees less of it.** Self-service alone would
+leave the only person who can act — the owner, who knows the tech quit —
+depending on the person who left. So `GET /v1/members/sessions` exists, and it
+returns which app, roughly where, and when last active: enough to recognise a
+phone that has not been near the business in three weeks, and not enough to
+read the crew's browsing setup. An admin cannot sign the **owner** out; that is
+not a security control, it is a hostage situation.

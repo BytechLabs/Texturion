@@ -56,7 +56,7 @@ function row(overrides: Record<string, unknown> = {}) {
 
 function stub(rows: unknown[], role = "admin"): SupabaseStub {
   const sb = supabaseStub(env);
-  sb.on("GET", "/rest/v1/company_members", membershipResponder(MEMBER_ID, role));
+  sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, role));
   sb.on("POST", "/rest/v1/rpc/api_list_audit_log", () => rows);
   return sb;
 }

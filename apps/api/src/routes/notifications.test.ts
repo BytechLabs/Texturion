@@ -41,8 +41,8 @@ afterEach(() => {
 function memberStub(options: { pause?: unknown } = {}): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
-    "GET",
-    "/rest/v1/company_members",
+    "POST",
+    "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, "member"),
   );
   // #106: the read-model routes resolve number_access; [] = no rules →
@@ -458,8 +458,8 @@ describe("GET /v1/notifications", () => {
     // responder (responders resolve in registration order).
     const sb = supabaseStub(env);
     sb.on(
-      "GET",
-      "/rest/v1/company_members",
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
     sb.on("GET", "/rest/v1/number_access", () => [

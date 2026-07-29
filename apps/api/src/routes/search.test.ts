@@ -45,8 +45,8 @@ afterEach(() => {
 function memberStub(): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
-    "GET",
-    "/rest/v1/company_members",
+    "POST",
+    "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, "member"),
   );
   // #106: no access rules → the member caller is unrestricted.
@@ -250,8 +250,8 @@ describe("GET /v1/search", () => {
     const HIDDEN_NUM = "ffffffff-2222-4222-8333-444444444444";
     const sb = supabaseStub(env);
     sb.on(
-      "GET",
-      "/rest/v1/company_members",
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
     sb.on("GET", "/rest/v1/number_access", () => [
@@ -302,7 +302,7 @@ describe("GET /v1/search", () => {
 
   it("403s a non-member", async () => {
     const sb = supabaseStub(env);
-    sb.on("GET", "/rest/v1/company_members", membershipResponder(MEMBER_ID, null));
+    sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, null));
     stubFetch(jwksRoute(auth), sb.route);
     const res = await apiRequest(
       app,

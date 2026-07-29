@@ -16,6 +16,13 @@ export interface AppVariables {
   companyId: string;
   role: MemberRole;
   memberId: string;
+  /**
+   * #236: the `session_id` claim of the presented access token — the identity
+   * of the DEVICE, as opposed to `userId`, the identity of the person. Absent
+   * only for a token minted before GoTrue emitted the claim; every routine
+   * that uses it must tolerate that.
+   */
+  sessionId?: string;
 }
 
 /** Hono type environment for the api Worker. */

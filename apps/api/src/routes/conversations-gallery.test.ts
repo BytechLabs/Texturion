@@ -48,8 +48,8 @@ afterEach(() => {
 function memberStub(): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
-    "GET",
-    "/rest/v1/company_members",
+    "POST",
+    "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, "member"),
   );
   // #106: no access rules → the member caller is unrestricted.
@@ -217,8 +217,8 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
   it("402s usage_cap_reached over the egress allowance — nothing is signed (#16)", async () => {
     const sb = supabaseStub(env);
     sb.on(
-      "GET",
-      "/rest/v1/company_members",
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
     sb.on("GET", "/rest/v1/number_access", () => []);
@@ -259,8 +259,8 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
   it("signs nothing when the egress claim errors (fail closed, #16)", async () => {
     const sb = supabaseStub(env);
     sb.on(
-      "GET",
-      "/rest/v1/company_members",
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
     sb.on("GET", "/rest/v1/number_access", () => []);
@@ -358,8 +358,8 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
   it("404s a conversation outside the caller's company before any arm fetch", async () => {
     const sb = supabaseStub(env);
     sb.on(
-      "GET",
-      "/rest/v1/company_members",
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
     sb.on("GET", "/rest/v1/conversations", () => []); // not in this company

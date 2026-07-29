@@ -27,7 +27,7 @@ import {
   type Stub,
 } from "../test/messaging-support";
 import {
-  companyMembersRoute,
+  authorizeRoute,
   completeEnv,
   createTestAuth,
   jwksRoute,
@@ -278,9 +278,10 @@ function composeStubs(options: {
     sign,
     all: [
       jwksRoute(auth),
-      companyMembersRoute(env, [
-        { id: "11111111-0000-4000-8000-000000000011", role: "member" },
-      ]),
+      authorizeRoute(env, {
+        id: "11111111-0000-4000-8000-000000000011",
+        role: "member",
+      }),
       replayLookup.route,
       numberLookup.route,
       companyLookup.route,
@@ -554,9 +555,10 @@ describe("POST /v1/conversations — destination + gate failures", () => {
     ]);
     stubFetch(
       jwksRoute(auth),
-      companyMembersRoute(env, [
-        { id: "11111111-0000-4000-8000-000000000011", role: "member" },
-      ]),
+      authorizeRoute(env, {
+        id: "11111111-0000-4000-8000-000000000011",
+        role: "member",
+      }),
       stubs.replayLookup.route,
       stubs.numberLookup.route,
       stubs.companyLookup.route,

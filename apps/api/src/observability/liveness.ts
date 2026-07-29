@@ -312,6 +312,11 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "job:prune-user-sessions": {
+    what: "Ended and revoked device rows (#236) are no longer pruned past their 90-day window.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
   "job:prune-expired-exports": {
     what:
       "Expired data exports are not being deleted from storage. Each one is a full " +

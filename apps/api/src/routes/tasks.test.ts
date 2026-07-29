@@ -22,6 +22,7 @@ import {
   type Stub,
 } from "../test/messaging-support";
 import {
+  authorizeRoute,
   completeEnv,
   createTestAuth,
   jwksRoute,
@@ -67,18 +68,16 @@ function buildApp() {
 const memberApp = buildApp();
 
 /**
- * company_members route for the company-context MIDDLEWARE only — it matches
- * the caller's own membership lookup (filtered on the caller's sub) and stamps
- * the role. Scoped to the caller's sub so a route-level assignee-membership
- * check (a different user_id) falls through to its own stub.
+ * The company-context MIDDLEWARE's own probe (#236: membership and session in
+ * one RPC). Route-level company_members queries — the assignee-membership
+ * check, for instance — are a different endpoint entirely and still fall
+ * through to their own stubs.
  */
 function membersRoute(role: "member" | "admin" | "owner" = "member"): FetchRoute {
-  const prefix = `${env.SUPABASE_URL}/rest/v1/company_members`;
-  return (url) =>
-    url.href.startsWith(prefix) &&
-    url.searchParams.get("user_id") === `eq.${auth.subject}`
-      ? Response.json([{ id: "11111111-0000-4000-8000-000000000011", role }])
-      : undefined;
+  return authorizeRoute(env, {
+    id: "11111111-0000-4000-8000-000000000011",
+    role,
+  });
 }
 
 /**

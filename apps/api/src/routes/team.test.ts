@@ -47,8 +47,8 @@ afterEach(() => {
 function stubWithRole(role: string | null): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
-    "GET",
-    "/rest/v1/company_members",
+    "POST",
+    "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, role),
   );
   // #231: every membership change writes one audit row.
@@ -1028,6 +1028,11 @@ describe("GET /v1/invites + DELETE /v1/invites/:id (O/A)", () => {
 describe("DELETE /v1/members/me (#406 — leaving on your own)", () => {
   function leaveStub(role: string, opts: { deactivated?: boolean } = {}) {
     const sb = supabaseStub(env);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
+      membershipResponder(MEMBER_ID, role),
+    );
     sb.on("GET", "/rest/v1/company_members", (call) => {
       // The owner-notification recipient lookup asks by ROLE, not user.
       if (call.url.searchParams.get("role")?.startsWith("in.")) {
@@ -1039,7 +1044,7 @@ describe("DELETE /v1/members/me (#406 — leaving on your own)", () => {
       ) {
         return [{ id: TARGET_MEMBER_ID, role }];
       }
-      return membershipResponder(MEMBER_ID, role)(call);
+      return [];
     });
     sb.on("GET", "/rest/v1/profiles", () => []);
     sb.on("POST", "/rest/v1/rpc/offboard_member", () => ({

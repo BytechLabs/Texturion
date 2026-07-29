@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MEMBER_ROLES, type AppEnv, type MemberRole } from "../context";
 import {
-  companyMembersRoute,
+  authorizeRoute,
   completeEnv,
   stubFetch,
   type CapturedRequest,
@@ -22,9 +22,12 @@ const MEMBER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
 // Probe app: userId is planted by test wiring (the JWT middleware owns that in
 // production — its own suite covers it); companyContext is the REAL middleware
 // and its PostgREST lookup goes through the stubbed network edge.
+const SESSION_ID = "3c7a1e52-9d40-4b18-8a6f-2b5c4d3e1f00";
+
 const app = new Hono<AppEnv>();
 app.use("*", async (c, next) => {
   c.set("userId", USER_ID);
+  c.set("sessionId", SESSION_ID);
   await next();
 });
 app.use("*", companyContext());
@@ -48,9 +51,7 @@ function request(headers: Record<string, string> = {}) {
 describe("companyContext (SPEC §10: X-Company-Id validated against company_members)", () => {
   it("attaches { companyId, role, memberId } for an active member", async () => {
     const captured: CapturedRequest = {};
-    stubFetch(
-      companyMembersRoute(env, [{ id: MEMBER_ID, role: "admin" }], captured),
-    );
+    stubFetch(authorizeRoute(env, { id: MEMBER_ID, role: "admin" }, { captured }));
 
     const res = await request({ "X-Company-Id": COMPANY_ID });
     expect(res.status).toBe(200);
@@ -61,24 +62,46 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
     });
 
     // The lookup went over PostgREST with the sb_secret key, scoped to the
-    // (company, user) pair, and filtered to active memberships.
-    const params = captured.url!.searchParams;
-    expect(params.get("company_id")).toBe(`eq.${COMPANY_ID}`);
-    expect(params.get("user_id")).toBe(`eq.${USER_ID}`);
-    expect(params.get("deactivated_at")).toBe("is.null");
-    expect(params.get("select")).toBe("id,role");
+    // (company, user) pair. The membership filter itself now lives inside the
+    // RPC (api_authorize_request), so what the wire has to prove is that the
+    // caller's identity and the named company both travel server-side.
+    expect(await captured.request!.json()).toMatchObject({
+      p_user_id: USER_ID,
+      p_company_id: COMPANY_ID,
+      p_session_id: SESSION_ID,
+    });
     expect(captured.request!.headers.get("apikey")).toBe(
       env.SUPABASE_SECRET_KEY,
     );
   });
 
   it("returns 403 forbidden when the user is not an active member", async () => {
-    stubFetch(companyMembersRoute(env, []));
+    stubFetch(authorizeRoute(env, null));
     const res = await request({ "X-Company-Id": COMPANY_ID });
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({
       error: { code: "forbidden", message: expect.any(String) },
     });
+  });
+
+  // #236: the acceptance criterion the issue leads with — a signed-out device
+  // fails its NEXT call, not its next hour.
+  it("401s a session that has been signed out, on a company route", async () => {
+    stubFetch(authorizeRoute(env, { id: MEMBER_ID, role: "owner" }, { revoked: true }));
+    const res = await request({ "X-Company-Id": COMPANY_ID });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({
+      error: { code: "unauthorized", message: expect.any(String) },
+    });
+  });
+
+  it("401s a signed-out session on the company-EXEMPT routes too", async () => {
+    // The exempt routes are exactly where a revoked device would otherwise
+    // keep breathing: /v1/me still reads a profile, and the push-token routes
+    // would keep a phone subscribed to customer messages.
+    stubFetch(authorizeRoute(env, null, { revoked: true }));
+    const res = await app.request("/v1/me", {}, env);
+    expect(res.status).toBe(401);
   });
 
   it("returns 422 validation_failed for a non-UUID X-Company-Id without touching the network", async () => {
@@ -101,18 +124,25 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
     });
   });
 
-  it("skips the exempt routes (SPEC §7: GET /v1/me needs no company header)", async () => {
-    stubFetch(); // any network call would fail the test loudly
+  it("skips the COMPANY half on the exempt routes (SPEC §7: GET /v1/me needs no company header)", async () => {
+    const captured: CapturedRequest = {};
+    stubFetch(authorizeRoute(env, null, { captured }));
     const res = await app.request("/v1/me", {}, env);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ companyId: null });
+    // No company is named, so no membership is demanded — but the session
+    // half still ran (#236).
+    expect(await captured.request!.json()).toMatchObject({
+      p_company_id: null,
+      p_session_id: SESSION_ID,
+    });
   });
 
   it("surfaces a PostgREST failure as a 500, never as an authorization result", async () => {
     // 4xx (not 5xx): supabase-js transparently retries 5xx GETs with backoff,
     // which is production-correct but would just slow this test down.
     stubFetch((url) =>
-      url.pathname.startsWith("/rest/v1/company_members")
+      url.pathname.startsWith("/rest/v1/rpc/api_authorize_request")
         ? Response.json(
             { message: "permission denied", code: "42501" },
             { status: 400 },
@@ -242,6 +272,8 @@ describe("#347 — nothing bypasses the company context", () => {
         "POST /v1/device-push-tokens",
         "POST /v1/invites/accept",
         "POST /v1/me/email/retry",
+        "GET /v1/sessions",
+        "POST /v1/sessions/revoke",
       ].sort(),
     );
   });

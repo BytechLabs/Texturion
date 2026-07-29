@@ -52,8 +52,8 @@ function liveWorld(opts: {
 }): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
-    "GET",
-    "/rest/v1/company_members",
+    "POST",
+    "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, opts.role ?? "owner"),
   );
   // eligibleTarget reads select=role for a SPECIFIC user (sender or target).
@@ -508,8 +508,8 @@ describe("GET /v1/calls/live/mine (#168 part D — post-crash recovery)", () => 
   }): SupabaseStub {
     const sb = supabaseStub(env);
     sb.on(
-      "GET",
-      "/rest/v1/company_members",
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, opts.role ?? "owner"),
     );
     sb.on("GET", "/rest/v1/calls", () => opts.rows ?? []);
@@ -753,8 +753,8 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
   function world(rows: { call_session_id: string }[]): SupabaseStub {
     const sb = supabaseStub(env);
     sb.on(
-      "GET",
-      "/rest/v1/company_members",
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
     sb.on("GET", "/rest/v1/calls", () => rows);

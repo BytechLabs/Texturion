@@ -64,8 +64,8 @@ function usageStub(
 ): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
-    "GET",
-    "/rest/v1/company_members",
+    "POST",
+    "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, "member"),
   );
   sb.on("GET", "/rest/v1/companies", () => [company]);

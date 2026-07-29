@@ -28,7 +28,7 @@ import {
   type Stub,
 } from "../test/messaging-support";
 import {
-  companyMembersRoute,
+  authorizeRoute,
   completeEnv,
   createTestAuth,
   jwksRoute,
@@ -202,9 +202,10 @@ function sendStubs(options: {
     optOuts,
     all: [
       jwksRoute(auth),
-      companyMembersRoute(env, [
-        { id: "11111111-0000-4000-8000-000000000011", role: "member" },
-      ]),
+      authorizeRoute(env, {
+        id: "11111111-0000-4000-8000-000000000011",
+        role: "member",
+      }),
       conversationView.route,
       gateRpc.route,
       telnyx.route,
@@ -395,9 +396,10 @@ describe("POST /v1/messages/send — gate order (§7)", () => {
     const emptyView = stubRoute(restMatch(env, "GET", "conversations"), () => []);
     stubFetch(
       jwksRoute(auth),
-      companyMembersRoute(env, [
-        { id: "11111111-0000-4000-8000-000000000011", role: "member" },
-      ]),
+      authorizeRoute(env, {
+        id: "11111111-0000-4000-8000-000000000011",
+        role: "member",
+      }),
       emptyView.route,
       ...stubs.all,
     );
@@ -526,9 +528,10 @@ describe("POST /v1/messages/send — happy path + idempotency (§7, §8)", () =>
     );
     stubFetch(
       jwksRoute(auth),
-      companyMembersRoute(env, [
-        { id: "11111111-0000-4000-8000-000000000011", role: "member" },
-      ]),
+      authorizeRoute(env, {
+        id: "11111111-0000-4000-8000-000000000011",
+        role: "member",
+      }),
       stubs.conversationView.route,
       stubs.gateRpc.route,
       failingTelnyx.route,
@@ -1079,9 +1082,10 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
       attachmentsLookup,
       all: [
         jwksRoute(auth),
-        companyMembersRoute(env, [
-          { id: "11111111-0000-4000-8000-000000000011", role: "member" },
-        ]),
+        authorizeRoute(env, {
+        id: "11111111-0000-4000-8000-000000000011",
+        role: "member",
+      }),
         lookup.route,
         rpc.route,
         attachmentsLookup.route,
@@ -1278,9 +1282,10 @@ describe("PATCH /v1/messages/:id — pin state (#3)", () => {
       attachmentsLookup,
       all: [
         jwksRoute(auth),
-        companyMembersRoute(env, [
-          { id: "11111111-0000-4000-8000-000000000011", role: "member" },
-        ]),
+        authorizeRoute(env, {
+        id: "11111111-0000-4000-8000-000000000011",
+        role: "member",
+      }),
         lookup.route,
         rpc.route,
         attachmentsLookup.route,
@@ -1439,9 +1444,10 @@ describe("GET /v1/conversations/:id/messages (§7)", () => {
     ]);
     stubFetch(
       jwksRoute(auth),
-      companyMembersRoute(env, [
-        { id: "11111111-0000-4000-8000-000000000011", role: "member" },
-      ]),
+      authorizeRoute(env, {
+        id: "11111111-0000-4000-8000-000000000011",
+        role: "member",
+      }),
       conversationCheck.route,
       list.route,
       tasks.route,
@@ -1505,9 +1511,10 @@ describe("GET /v1/conversations/:id/messages (§7)", () => {
     );
     stubFetch(
       jwksRoute(auth),
-      companyMembersRoute(env, [
-        { id: "11111111-0000-4000-8000-000000000011", role: "member" },
-      ]),
+      authorizeRoute(env, {
+        id: "11111111-0000-4000-8000-000000000011",
+        role: "member",
+      }),
       conversationCheck.route,
     );
 

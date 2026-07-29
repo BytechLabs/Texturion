@@ -60,8 +60,8 @@ function world(
 ): { sb: SupabaseStub; routes: FetchRoute[] } {
   const sb = supabaseStub(env);
   sb.on(
-    "GET",
-    "/rest/v1/company_members",
+    "POST",
+    "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, options.role ?? "admin"),
   );
   sb.on("GET", "/rest/v1/data_exports", () => options.rows ?? [readyRow()]);

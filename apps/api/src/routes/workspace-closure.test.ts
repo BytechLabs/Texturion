@@ -70,8 +70,8 @@ function world(
 } {
   const sb = supabaseStub(env);
   sb.on(
-    "GET",
-    "/rest/v1/company_members",
+    "POST",
+    "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, options.role ?? "owner"),
   );
   sb.on("POST", "/rest/v1/rpc/close_workspace", () => options.close ?? closed());
