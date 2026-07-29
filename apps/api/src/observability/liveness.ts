@@ -359,6 +359,15 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "job:activation-stall": {
+    what:
+      "Nothing is watching for a workspace stalling on the way to its first "
+      + "conversation (#281). Every one of those is recoverable with one "
+      + "message while it is happening and a churn statistic a week later, and "
+      + "the absence of an event is the only signal there is.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
   "job:retry-interrupted-sends": {
     what:
       "Sends that crashed before reaching the carrier are no longer being "

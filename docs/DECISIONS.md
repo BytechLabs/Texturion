@@ -470,10 +470,20 @@ Cloudflare Queues (waitUntil + ledger + cron is sufficient at MVP scale).
     workspace: a workspace does each a handful of times ever, PostHog funnels
     read the first occurrence anyway, and two more stamped columns to save a few
     events would be the wrong trade.
-  - **Still uninstrumented:** stall detection — the absence-shaped alarm, same
-    family as #308. #281 stays open for it, and `job:call-silence` (#397) is the
-    pattern: each workspace judged against its own history, transitions only,
-    with a minimum sample.
+  - **Stall detection, 2026-07-29 (#281 item 4).** `job:activation-stall`,
+    daily, transitions only. The distinction that makes it readable is one
+    `job:call-silence` never had to draw: **a US workspace inside the carrier
+    wait is QUEUED, not stalled.** Alerting on it would fire for every US signup
+    in its first week, and an alarm that fires on the normal case is one nobody
+    reads (#244). So the states separate what somebody can act on:
+    `not_sent` (past every gate, sent nothing, 3+ days), `no_reply` (sent, and
+    D12's 7 days elapsed with no reply — an activation failure by the
+    definition), and `awaiting_carrier` (submitted, unapproved past the 3-to-7
+    business days our own copy promises — not their fault, but our claim is what
+    is failing). Precedence runs **backwards** through the funnel, so a
+    workspace that sent and got no reply is judged on that rather than on an
+    approval it cleared a fortnight ago.
+  - **D12 is now measurable end to end**, and #281 is closed.
 
 ## D13. Repo & delivery
 

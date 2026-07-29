@@ -13,6 +13,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { runEmailHealthJob } from "./email/health";
 import { runNumberHealthJob } from "./messaging/number-health";
 import { runRegistrationStallJob } from "./telnyx/registration-stalls";
+import { runActivationStallJob } from "./analytics/activation-stall";
 import { runCallSilenceJob } from "./calls/call-silence";
 import { runIdentityRetentionJob } from "./telnyx/identity-retention";
 import { runContactRetentionJob } from "./marketing/contact-retention";
@@ -507,6 +508,8 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       runRegistrationStallJob,
       // #397: one workspace's calls going quiet.
       runCallSilenceJob,
+      // #281: a workspace stalling on the way to its first conversation.
+      runActivationStallJob,
     ]);
     expect(runs("10 13 * * *")).toEqual([pollPortRequests]);
     expect(runs("0 14 * * *")).toEqual([runGraceJob]);

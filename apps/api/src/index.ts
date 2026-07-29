@@ -22,6 +22,7 @@ import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runNumberHealthJob } from "./messaging/number-health";
 import { runRegistrationStallJob } from "./telnyx/registration-stalls";
+import { runActivationStallJob } from "./analytics/activation-stall";
 import { runCallSilenceJob } from "./calls/call-silence";
 import { runIdentityRetentionJob } from "./telnyx/identity-retention";
 import { runContactRetentionJob } from "./marketing/contact-retention";
@@ -414,6 +415,10 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // #397 ask 2: one workspace's calls going quiet. The fleet-wide call-event
     // key catches a Telnyx outage; this catches a customer replacing us.
     job("job:call-silence", runCallSilenceJob),
+    // #281 item 4: a workspace stalling in the funnel. Daily like its siblings,
+    // and for the same reason — the windows it compares are 3, 7 and 10 days,
+    // so asking more often would spend queries to learn the same answer.
+    job("job:activation-stall", runActivationStallJob),
   ],
   // Port reconcile & resume (PORTING.md §5.2): poll in-flight porting orders,
   // apply missed status/messaging transitions, resume stalled sagas, and
