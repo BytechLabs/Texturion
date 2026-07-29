@@ -1,7 +1,9 @@
-# Open vendor questions (#373)
+# Open questions somebody has to ask (#373)
 
-Facts about a vendor's API that we could not confirm from documentation, and
-that somebody has to **ask** rather than infer.
+Facts we could not settle from documentation or from the codebase, and that
+somebody has to **ask** rather than infer. Mostly vendor questions; one is for
+counsel (#393 ask 4 asks that they travel together, and splitting them into two
+documents is how #373 happened in the first place).
 
 `PORTING.md` §12 invented this discipline for one feature — *"Open items
 flagged 'verify in build' (do not guess at build time)"* — and it is the right
@@ -51,6 +53,10 @@ using the machinery US 10DLC already has.
 **The signal in the meantime:** `messaging/delivery-by-country.ts` — if
 carriers are filtering us today, the delivery-rate split is the only evidence
 we would ever get.
+
+**Travels with L1** (#393 ask 4). Both ask what a first Canadian message must
+contain — V1 for it to *arrive*, L1 for it to be *lawful*. Different
+recipients, same afternoon.
 
 ---
 
@@ -103,6 +109,40 @@ open half.
 
 The SPEC ruling was made against figures measured at launch. Whether they still
 hold decides whether toll-free is a real second door past the 10DLC wait.
+
+---
+
+## NOT A VENDOR — for counsel
+
+Same discipline, different recipient. Kept here rather than in a second
+document because splitting them is how #373 happened in the first place.
+
+### L1 — does a first outbound SMS need sender identification under CASL s.6(2)? · counsel · blocks #393 asks 3-4
+
+**The question, kept narrow on purpose** — this is a yes/no, not a compliance
+review:
+
+> *"Does a first outbound SMS from a Canadian business to a customer who
+> verbally asked to be texted require sender identification in the message body
+> under CASL s.6(2)?"*
+
+**Why it matters.** D4's enforced footer — `— {Business name}. Reply STOP to
+opt out`, labelled in D4 itself as *"CASL identification + CTIA"* — was removed
+by owner direction in 2026-07, and the recorded trade-off weighed **carrier**
+risk only. CASL's requirements are cumulative: s.6(1) consent, s.6(2)
+identification, s.6(3) unsubscribe. Our consent attestation answers s.6(1)
+well; s.6(2) had one answer and it was the footer. Liability attaches to the
+**sending business** — our customer — not only to us.
+
+**The exposure is one message type:** the first outbound to a new contact.
+Replies inside an inbound conversation were never decorated and are not at
+issue.
+
+**What an answer unblocks.** *No* → D4 stands as amended and this closes.
+*Yes* → the middle path, a default-on setting the owner can switch off, so the
+product ships compliant and turning it off is a deliberate act.
+`contacts.first_identification_sent_at` was deliberately left in place for
+exactly this. **Nothing is built until the answer exists** — #393 is explicit.
 
 ---
 

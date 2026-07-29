@@ -109,6 +109,37 @@ spec-review team (7 reviewers, 56 verified findings) and 5 web-verified research
     accepted knowingly:** first messages are no longer guaranteed to carry
     identification/opt-out text, which can weaken 10DLC standing and invite carrier
     filtering. Inbound STOP honoring and opt-out send-blocking (D3) are unchanged.
+  - **AMENDED 2026-07-28 (#393) — the other half of the ledger, recorded so a
+    future reader sees what was traded.** The reversal above weighs a CARRIER
+    risk: deliverability, commercial, recoverable, and ours. It does not
+    mention a STATUTORY one, and the footer it removed was labelled in this
+    document's own words *"(CASL identification + CTIA)"*.
+    CASL's requirements are cumulative rather than alternative: **s.6(1)**
+    consent, **s.6(2)** identification of the sender with contact information,
+    **s.6(3)** an unsubscribe mechanism. The consent attestation above is a
+    genuinely good answer to s.6(1). **s.6(2) is a separate obligation, and the
+    removed footer was the only thing addressing it.** Liability under CASL
+    attaches to the sending business — our customer — not only to us.
+    **The exposure is narrow and worth stating precisely:** replies inside an
+    inbound conversation are not at issue (the customer texted first, and this
+    document never decorated them). The one message type in question is the
+    **first outbound to a new contact** — which is also the highest-volume
+    compliance surface in the product, since every customer relationship starts
+    with one.
+    **This amendment does NOT reverse the reversal.** An owner decision made
+    with eyes open is the owner's to make, and the product argument behind it is
+    real: trades text customers who just called them, about a job they just
+    discussed, and a footer there reads as marketing. What was missing was that
+    the statutory side was never on the table when the trade was made.
+    **The open question, for counsel and not for us** — tracked as L1 in
+    `docs/VENDOR-QUESTIONS.md`: *does a first outbound SMS from a Canadian
+    business to a customer who verbally asked to be texted require sender
+    identification in the message body under CASL s.6(2)?* A yes/no answer
+    settles everything downstream. **Nothing is built until it is answered**
+    (#393 ask 3 is explicit about this); if the answer is yes, the middle path
+    is a default-on setting the owner can switch off, so the product ships
+    compliant and turning it off is a deliberate act. The machinery survives:
+    `contacts.first_identification_sent_at` was deliberately left in place.
 - Signup requires accepting an acceptable-use policy (no SHAFT content, no purchased lists).
 
 ## D5. Pricing & packaging
