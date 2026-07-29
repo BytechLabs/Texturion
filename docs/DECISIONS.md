@@ -207,9 +207,25 @@ spec-review team (7 reviewers, 56 verified findings) and 5 web-verified research
     identification. Clients never compose the string: the API hands them the
     exact suffix as `company.first_message_identification_suffix`, so a
     composer preview and its segment count cannot drift from what is billed.
-    **Not yet on the clients** — the owner-facing toggle and composer preview
-    for web, Android and iOS are the remaining half of ask 3, and #393 stays
-    open until all three ship.
+    **On all three clients (2026-07-29).** The toggle is a "Sign your texts"
+    card in Workspace settings on web, Android and iOS — deliberately NOT titled
+    "identification", because the card beside it uses that word for carrier
+    registration data and two cards saying it read as one thing. Each shows the
+    server's suffix verbatim and states its length, because the part cost is
+    real and the customer pays per part.
+    **The composer folds the signature into the part count**, which is the half
+    that matters: the meter only appears at two parts, so a first text that is
+    one part bare and two parts signed would otherwise show nothing and bill
+    two. The "Sends as:" preview now also appears for a plain draft about to be
+    signed — previously it required a `{token}`, which left the one case where
+    the sent text differs from the typed text with no cue at all.
+    **Whether THIS send is signed** needs the recipient's history, so
+    `contacts.first_identification_sent_at` is on the contact read now: an
+    imported contact who has never been texted is common (#248), and guessing
+    would put the meter wrong. The rule is one function —
+    `pendingIdentificationSuffix` in shared, ported as `Signature.pending` in
+    Kotlin and Swift — asserted against the server's own `shouldIdentify` so the
+    four cannot disagree.
 - Signup requires accepting an acceptable-use policy (no SHAFT content, no purchased lists).
 
 ## D5. Pricing & packaging

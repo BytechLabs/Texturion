@@ -734,6 +734,11 @@ struct ComposerHints: View {
     let hasMedia: Bool
     let contactName: String?
     let businessName: String?
+    /// #393: the server-resolved signature this send will carry, or nil. Same
+    /// argument as the names above — it is part of what sends, so it is part of
+    /// what the meter counts. Passed in rather than composed so the count cannot
+    /// drift from the body the server bills.
+    var identificationSuffix: String? = nil
 
     var body: some View {
         // #415: measure what SENDS, not what was typed. This view already had
@@ -747,15 +752,24 @@ struct ComposerHints: View {
         // message from GSM-7 to UCS-2 and per-part capacity falls from 160 to
         // 70. "Ménard Plomberie" and "O'Brien Heating" are the names this
         // product's Canada-first positioning actively courts.
-        let meter = segmentMeter(
+        //
+        // #393 adds the signature to that same string: merge fields first, then
+        // sign, then estimate — the order the send path uses.
+        let sendsAs = Signature.append(
             MergeFields.applyMergeFields(
                 text,
                 contactName: contactName,
                 businessName: businessName
             ),
-            hasMedia: hasMedia
+            suffix: identificationSuffix
         )
-        let showPreview = MergeFields.hasMergeFields(text)
+        let meter = segmentMeter(sendsAs, hasMedia: hasMedia)
+        // A plain draft about to be SIGNED needs the preview too, or the one
+        // case where the sent text differs from the typed text with no {token}
+        // to hint at it is the case with no preview at all.
+        let willSign = identificationSuffix != nil
+            && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let showPreview = MergeFields.hasMergeFields(text) || willSign
         if meter.visible || showPreview {
             VStack(alignment: .leading, spacing: 2) {
                 if meter.visible {
@@ -764,13 +778,7 @@ struct ComposerHints: View {
                         .foregroundStyle(meter.warn ? BrandColor.overdueAmber : BrandColor.muted300)
                 }
                 if showPreview {
-                    Text(
-                        "Sends as: " + MergeFields.applyMergeFields(
-                            text,
-                            contactName: contactName,
-                            businessName: businessName
-                        )
-                    )
+                    Text("Sends as: " + sendsAs)
                     .font(.golos(10.5))
                     .foregroundStyle(BrandColor.muted300)
                     .lineLimit(2)

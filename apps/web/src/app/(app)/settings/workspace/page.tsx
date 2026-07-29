@@ -26,7 +26,9 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useRegistration } from "@/lib/api/registration";
@@ -323,6 +325,105 @@ function TimezoneCard({ company }: { company: CompanyView }) {
   );
 }
 
+/**
+ * #393: sign the first text to a new customer with the business name.
+ *
+ * Deliberately NOT titled "identification" — the card above uses that word for
+ * carrier registration data, and two cards saying it would read as one thing.
+ * The segment cost is disclosed because it is real: the suffix can push a long
+ * text into a second part, and the customer pays for parts.
+ */
+function SignTextsCard({ company }: { company: CompanyView }) {
+  const { role } = useActiveCompany();
+  const canEdit = role === "owner" || role === "admin";
+  const update = useUpdateCompany();
+  const [enabled, setEnabled] = useState(company.first_message_identification);
+  const [error, setError] = useState<string | null>(null);
+
+  // Another admin's flip, or a refetch, wins over our local mirror.
+  useEffect(() => {
+    setEnabled(company.first_message_identification);
+  }, [company.first_message_identification]);
+
+  function toggle(next: boolean) {
+    setError(null);
+    setEnabled(next); // optimistic; reverted below on failure
+    update.mutate(
+      { first_message_identification: next },
+      {
+        onError: (cause) => {
+          setEnabled(company.first_message_identification);
+          setError(
+            cause instanceof ApiError
+              ? cause.message
+              : "Couldn't save. Try again.",
+          );
+        },
+      },
+    );
+  }
+
+  // Server-derived, and only rendered once the server confirms — composing the
+  // suffix here could drift from what actually sends and gets billed.
+  const suffix = company.first_message_identification_suffix;
+
+  return (
+    <SettingsCard
+      title="Sign your texts"
+      description="Add your business name to the first text you send someone, so a message from an unknown number says who it is from."
+    >
+      <div className="space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-0.5">
+            <Label htmlFor="sign-texts" className="text-sm font-medium">
+              Sign the first text to a new customer
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              Once per customer. Replies and later texts are never signed.
+            </p>
+          </div>
+          <Switch
+            id="sign-texts"
+            checked={enabled}
+            disabled={!canEdit || update.isPending}
+            onCheckedChange={toggle}
+          />
+        </div>
+
+        {enabled && suffix ? (
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">
+              What gets added
+            </p>
+            <div
+              aria-live="polite"
+              className="rounded-md border border-border-subtle bg-accent/40 px-3 py-2.5 text-sm whitespace-pre-wrap"
+            >
+              {suffix.trim()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              That is {suffix.trim().length} characters, so a long first text can
+              be sent in two parts instead of one.
+            </p>
+          </div>
+        ) : null}
+
+        {error ? (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        {!canEdit ? (
+          <p className="text-sm text-muted-foreground">
+            Only owners and admins can change how texts are signed.
+          </p>
+        ) : null}
+      </div>
+    </SettingsCard>
+  );
+}
+
 export default function WorkspaceSettingsPage() {
   const company = useCompany();
   const { role } = useActiveCompany();
@@ -339,6 +440,9 @@ export default function WorkspaceSettingsPage() {
       ) : (
         <div className="space-y-6">
           <CompanyNameCard company={company.data} />
+          {/* #393: directly under the name, because it is the name this adds to
+              a first text — the strongest relationship on the page. */}
+          <SignTextsCard company={company.data} />
           <BusinessIdentityCard company={company.data} />
           <TimezoneCard company={company.data} />
           {/* #227: above the close card on purpose — taking a copy of your

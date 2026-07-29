@@ -239,6 +239,13 @@ data class CompanyView(
     /** Server-resolved template that will actually send (custom else default). */
     val mctb_effective_message: String? = null,
     val mctb_message_is_custom: Boolean = false,
+    /** #393: whether the first text to a customer is signed with the business
+     *  name. Default false — D4's 2026-07 reversal stands until an owner opts in. */
+    val first_message_identification: Boolean = false,
+    /** #393: the EXACT suffix such a text will carry (null when off, or when the
+     *  company name is blank). Render and METER this — never build it here, or
+     *  the part count can drift from the body the server bills. */
+    val first_message_identification_suffix: String? = null,
     val voicemail_greeting: String? = null,
     val call_screening: String = "off",
     val cnam_display_name: String? = null,

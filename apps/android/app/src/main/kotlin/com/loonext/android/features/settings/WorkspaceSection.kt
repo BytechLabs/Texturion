@@ -59,6 +59,9 @@ fun WorkspaceSection(
     onLeft: () -> Unit = {},
 ) {
     NameCard(scope, company, onCompanyUpdated)
+    // #393: directly under the name, because it is the name this adds to a
+    // first text — the strongest relationship on the screen.
+    SignTextsCard(scope, company, onCompanyUpdated)
     BusinessIdentificationCard(scope, company)
     TimezoneCard(scope, company, onCompanyUpdated)
     // #406: everyone except the owner can end their own access. An owner
@@ -423,4 +426,69 @@ private fun TimezonePickerDialog(
         confirmButton = {},
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
+}
+
+/**
+ * #393: sign the first text to a new customer with the business name.
+ *
+ * Deliberately NOT titled "identification" — the card below uses that word for
+ * carrier registration data, and two cards saying it would read as one thing.
+ * The part cost is disclosed because it is real: the signature can push a long
+ * first text into a second part, and the customer pays per part.
+ */
+@Composable
+private fun SignTextsCard(
+    scope: SettingsScope,
+    company: CompanyView,
+    onCompanyUpdated: (CompanyView) -> Unit,
+) {
+    val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
+    val coroutines = rememberCoroutineScope()
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    SettingsCard(
+        title = "Sign your texts",
+        description = "Add your business name to the first text you send " +
+            "someone, so a message from an unknown number says who it is from.",
+    ) {
+        LabeledSwitchRow(
+            label = "Sign the first text to a new customer",
+            supporting = "Once per customer. Replies and later texts are never signed.",
+            checked = company.first_message_identification,
+            enabled = canEdit && !saving,
+            onCheckedChange = { next ->
+                error = null
+                saving = true
+                coroutines.launch {
+                    try {
+                        val body = buildJsonObject {
+                            put("first_message_identification", next)
+                        }
+                        onCompanyUpdated(scope.repo.updateCompany(scope.companyId, body))
+                    } catch (cause: Exception) {
+                        error = cause.userMessage()
+                    } finally {
+                        saving = false
+                    }
+                }
+            },
+        )
+        // Server-resolved, and only shown once the server confirms — composing
+        // the signature here could drift from what actually sends and bills.
+        val signature = company.first_message_identification_suffix?.trim()
+        if (company.first_message_identification && !signature.isNullOrEmpty()) {
+            PreviewBubble(label = "What gets added", text = signature)
+            Spacer(Modifier.height(6.dp))
+            ReadOnlyLine(
+                "That is ${signature.length} characters, so a long first text " +
+                    "can be sent in two parts instead of one.",
+            )
+        }
+        InlineError(error)
+        if (!canEdit) {
+            Spacer(Modifier.height(4.dp))
+            ReadOnlyLine("Only owners and admins can change how texts are signed.")
+        }
+    }
 }

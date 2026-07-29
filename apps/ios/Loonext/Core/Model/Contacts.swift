@@ -28,6 +28,10 @@ struct Contact: Codable, Sendable {
     let consent_source: String?
     let consent_at: String?
     let consent_attested_by: String?
+    /// #393: nil means a first text to this customer would be SIGNED, so the
+    /// composer folds the signature into its part count. Non-nil means they have
+    /// already been told who we are and it is not added again.
+    let first_identification_sent_at: String?
     let deleted_at: String?
     let created_at: String
     let updated_at: String

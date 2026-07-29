@@ -74,7 +74,9 @@ export {
 export {
   IDENTIFICATION_SUFFIX_TEMPLATE,
   appendIdentification,
+  appendIdentificationSuffix,
   identificationSuffix,
+  pendingIdentificationSuffix,
   shouldIdentify,
 } from "./first-message-identification";
 

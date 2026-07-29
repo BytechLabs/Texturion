@@ -14,7 +14,11 @@
  * Both cases below are ones a reviewer would not notice by reading, which is
  * presumably how this survived. Same assertions exist in Kotlin and Swift.
  */
-import { applyMergeFields, estimateSegments } from "@loonext/shared";
+import {
+  appendIdentificationSuffix,
+  applyMergeFields,
+  estimateSegments,
+} from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
 import { segmentMeter } from "./segment-meter";
@@ -22,9 +26,20 @@ import { segmentMeter } from "./segment-meter";
 /** What the composer now meters. */
 function meterFor(
   draft: string,
-  values: { contactName?: string | null; businessName?: string | null },
+  values: {
+    contactName?: string | null;
+    businessName?: string | null;
+    /** #393: the server-resolved signature, when this send will carry one. */
+    identificationSuffix?: string | null;
+  },
 ) {
-  return segmentMeter(applyMergeFields(draft, values), false);
+  return segmentMeter(
+    appendIdentificationSuffix(
+      applyMergeFields(draft, values),
+      values.identificationSuffix,
+    ),
+    false,
+  );
 }
 
 describe("#415 — the meter measures the merged message", () => {
@@ -98,5 +113,65 @@ describe("#415 — the meter measures the merged message", () => {
     const draft = `Hi {first_name}, ${"x".repeat(150)}`;
     expect(estimateSegments(draft).segments).toBe(2);
     expect(meterFor(draft, { contactName: null }).segments).toBe(1);
+  });
+});
+
+/**
+ * #393 — the signature is part of what sends, so it is part of what the meter
+ * counts. Same argument as #415 above, arriving through a different door: a
+ * first text to a new customer can be signed server-side, and a meter that
+ * ignored the signature would under-report the one message type where the
+ * product ADDS text the user did not type.
+ */
+describe("#393 — the meter counts the signature", () => {
+  const SIGNATURE = " - Acme Plumbing. Reply STOP to opt out";
+
+  it("crosses a part boundary the signature pushes it over", () => {
+    const draft = "x".repeat(150);
+    expect(meterFor(draft, {}).segments).toBe(1);
+    expect(
+      meterFor(draft, { identificationSuffix: SIGNATURE }).segments,
+    ).toBe(2);
+  });
+
+  it("stays GSM-7, so the signature costs one part and not two", () => {
+    // The em-dash version of this suffix would flip the message to UCS-2 and
+    // cost 3 parts instead of 2 (D4). Pinned here as well as in shared, because
+    // this is the surface a customer would see the wrong number on.
+    const metered = meterFor("x".repeat(150), {
+      identificationSuffix: SIGNATURE,
+    });
+    expect(metered.encoding).toBe("GSM-7");
+    expect(metered.segments).toBe(2);
+  });
+
+  it("does not move the number when this send is not signed", () => {
+    // null is the common case: the setting is off, or this customer has already
+    // been signed to once.
+    const draft = "x".repeat(150);
+    expect(meterFor(draft, { identificationSuffix: null })).toEqual(
+      segmentMeter(draft, false),
+    );
+  });
+
+  it("counts merge fields AND the signature, in the send path's order", () => {
+    const business = "Wilson & Sons Plumbing and Heating";
+    const draft = `Hi, this is {business_name}. ${"x".repeat(100)}`;
+    const merged = applyMergeFields(draft, { businessName: business });
+    expect(estimateSegments(merged).segments).toBe(1);
+    // Merge first, then sign — the order apps/api/src/routes/compose.ts uses.
+    expect(
+      meterFor(draft, {
+        businessName: business,
+        identificationSuffix: SIGNATURE,
+      }).segments,
+    ).toBe(2);
+  });
+
+  it("does not double-count an owner who already typed the signature", () => {
+    const draft = `On my way${SIGNATURE}`;
+    expect(
+      meterFor(draft, { identificationSuffix: SIGNATURE }).segments,
+    ).toBe(segmentMeter(draft, false).segments);
   });
 });

@@ -10,6 +10,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  appendIdentificationSuffix,
   applyMergeFields,
   hasMergeFields,
   type MmsMediaType,
@@ -267,12 +268,21 @@ export function SegmentMeterLabel({
   hasMedia = false,
   contactName,
   businessName,
+  identificationSuffix,
 }: {
   text: string;
   hasMedia?: boolean;
   /** #415: the SAME values {@link MergeFieldPreview} renders with. */
   contactName?: string | null;
   businessName?: string | null;
+  /**
+   * #393: the server-resolved suffix a first text will be signed with, when it
+   * applies to THIS recipient — null otherwise. Same argument as the merge
+   * values above: the suffix is part of what sends, so it is part of what the
+   * meter counts. It is passed in rather than composed here so the count cannot
+   * drift from the body the server bills.
+   */
+  identificationSuffix?: string | null;
 }) {
   // #415: measure what SENDS, not what was typed. The preview one line below
   // has always substituted; the meter counted the raw draft, so a message
@@ -291,7 +301,12 @@ export function SegmentMeterLabel({
   // the point: a caller cannot render this label without deciding what it
   // substitutes.
   const meter = segmentMeter(
-    applyMergeFields(text, { contactName, businessName }),
+    // Merge fields first, then the signature — the exact order the send path
+    // uses (apps/api/src/routes/compose.ts), so this counts that same string.
+    appendIdentificationSuffix(
+      applyMergeFields(text, { contactName, businessName }),
+      identificationSuffix,
+    ),
     hasMedia,
   );
   if (!meter.visible) return null;
@@ -329,15 +344,27 @@ export function MergeFieldPreview({
   text,
   contactName,
   businessName,
+  identificationSuffix,
 }: {
   text: string;
   contactName?: string | null;
   businessName?: string | null;
+  /** #393: the signature this send will carry, when it applies. */
+  identificationSuffix?: string | null;
 }) {
-  if (!hasMergeFields(text)) return null;
+  // #393: a plain draft about to be SIGNED needs the preview too — otherwise
+  // the one case where the sent text differs from the typed text without any
+  // {token} to hint at it is the case with no preview at all.
+  const signed = identificationSuffix ? identificationSuffix.length > 0 : false;
+  if (!hasMergeFields(text) && !signed) return null;
+  if (text.trim().length === 0) return null;
   return (
     <p className="truncate text-xs text-muted-foreground">
-      Sends as: {applyMergeFields(text, { contactName, businessName })}
+      Sends as:{" "}
+      {appendIdentificationSuffix(
+        applyMergeFields(text, { contactName, businessName }),
+        identificationSuffix,
+      )}
     </p>
   );
 }

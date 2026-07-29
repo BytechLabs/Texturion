@@ -1,5 +1,6 @@
 "use client";
 
+import { pendingIdentificationSuffix } from "@loonext/shared";
 import { ArrowLeft, FileText, Paperclip, Send, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -232,6 +233,25 @@ export function NewConversation() {
       : recipient?.kind === "number"
         ? recipient.e164
         : typedE164;
+  /**
+   * #393: the signature this particular send will carry, or null.
+   *
+   * Two conditions, and the recipient half is why the API exposes
+   * `first_identification_sent_at`: the signature lands once per contact, so a
+   * contact who has already had one gets a plain message. A raw number is
+   * always a first — either the contact does not exist yet, or it exists having
+   * only ever texted US, and either way it has never been signed to.
+   *
+   * Getting this wrong in the optimistic direction would mean a meter promising
+   * one part while the send bills two, which is the whole reason the suffix is
+   * server-derived rather than composed here.
+   */
+  const pendingSignature = pendingIdentificationSuffix(
+    company.data?.first_message_identification_suffix,
+    recipient?.kind === "contact"
+      ? recipient.contact.first_identification_sent_at
+      : null,
+  );
   // Known opt-out state for a picked contact (raw numbers stay unknown until
   // the API answers recipient_opted_out).
   const [contactOptedOut, setContactOptedOut] = useState(false);
@@ -691,7 +711,8 @@ export function NewConversation() {
               <span aria-hidden />
             )}
             {/* #415: the same values the preview below substitutes with — the
-                meter and the preview must measure one string. */}
+                meter and the preview must measure one string. #393 adds the
+                signature to that string for the same reason. */}
             <SegmentMeterLabel
               text={body}
               hasMedia={attachments.length > 0}
@@ -699,6 +720,7 @@ export function NewConversation() {
                 recipient?.kind === "contact" ? recipient.contact.name : null
               }
               businessName={company.data?.name}
+              identificationSuffix={pendingSignature}
             />
           </div>
           <MergeFieldPreview
@@ -707,6 +729,7 @@ export function NewConversation() {
               recipient?.kind === "contact" ? recipient.contact.name : null
             }
             businessName={company.data?.name}
+            identificationSuffix={pendingSignature}
           />
         </div>
 

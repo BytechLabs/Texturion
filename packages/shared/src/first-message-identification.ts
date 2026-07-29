@@ -77,21 +77,59 @@ export function identificationSuffix(
 }
 
 /**
- * Append the identification suffix to a message body.
+ * Append an ALREADY-RESOLVED suffix to a body, idempotently.
  *
- * Returns the body UNCHANGED when the suffix does not apply, when there is no
- * business name, or when the body already ends with the suffix — that last case
- * makes this safe against a retry or a replay re-appending, and against an owner
- * who types their own sign-off identically.
+ * This is the arm the CLIENTS use. They receive the exact suffix from the API
+ * (`company.first_message_identification_suffix`) rather than composing it, so
+ * a composer's segment count cannot drift from the body the server bills — but
+ * they still need the same append rule, and one implementation of it.
+ *
+ * A null/blank suffix returns the body untouched, as does a body that already
+ * ends with the suffix (a retry, a replay, or an owner whose own sign-off
+ * happens to match).
+ */
+export function appendIdentificationSuffix(
+  body: string,
+  suffix: string | null | undefined,
+): string {
+  if (!suffix || suffix.trim().length === 0) return body;
+  if (body.trimEnd().endsWith(suffix.trimStart())) return body;
+  return `${body}${suffix}`;
+}
+
+/**
+ * Append the identification suffix for a business to a message body.
+ *
+ * The SERVER arm: it resolves the suffix from the company name and appends it.
+ * Returns the body unchanged when there is no usable name.
  */
 export function appendIdentification(
   body: string,
   businessName: string | null | undefined,
 ): string {
-  const suffix = identificationSuffix(businessName);
-  if (suffix === null) return body;
-  if (body.trimEnd().endsWith(suffix.trimStart())) return body;
-  return `${body}${suffix}`;
+  return appendIdentificationSuffix(body, identificationSuffix(businessName));
+}
+
+/**
+ * The signature THIS send will carry, or null — the CLIENT-side twin of
+ * {@link shouldIdentify}, returning the string rather than a boolean because
+ * that is what a composer needs to append and meter.
+ *
+ * `companySuffix` is `company.first_message_identification_suffix` (already null
+ * when signing is off). `alreadySignedAt` is the recipient's
+ * `first_identification_sent_at` — pass null for a raw number with no contact
+ * row, which has never been signed to and so counts as a first.
+ *
+ * Ported to Kotlin (`Signature.pending`) and Swift (`Signature.pending`); the
+ * three must agree, because a client that answers differently shows a part count
+ * the customer is not billed.
+ */
+export function pendingIdentificationSuffix(
+  companySuffix: string | null | undefined,
+  alreadySignedAt: string | null | undefined,
+): string | null {
+  if (!companySuffix || companySuffix.trim().length === 0) return null;
+  return alreadySignedAt ? null : companySuffix;
 }
 
 /**

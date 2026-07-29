@@ -40,6 +40,10 @@ data class Contact(
     val consent_source: String? = null,
     val consent_at: String? = null,
     val consent_attested_by: String? = null,
+    /** #393: null means a first text to this customer would be SIGNED, so the
+     *  composer folds the signature into its part count. Non-null means they
+     *  have already been told who we are and it is not added again. */
+    val first_identification_sent_at: String? = null,
     val deleted_at: String? = null,
     val created_at: String,
     val updated_at: String,

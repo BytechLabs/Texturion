@@ -33,6 +33,79 @@ final class MessagingMergedSegmentsTests: XCTestCase {
         )
     }
 
+    /// #393: what it meters when this send will be SIGNED.
+    private func signedMeter(
+        _ draft: String,
+        contactName: String? = nil,
+        businessName: String? = nil,
+        signature: String? = Self.signature
+    ) -> SegmentMeterState {
+        segmentMeter(
+            Signature.append(
+                MergeFields.applyMergeFields(
+                    draft,
+                    contactName: contactName,
+                    businessName: businessName
+                ),
+                suffix: signature
+            ),
+            hasMedia: false
+        )
+    }
+
+    /// The server-resolved signature, as the API would hand it over.
+    private static let signature = " - Acme Plumbing. Reply STOP to opt out"
+
+    // MARK: - #393, the signature is part of what sends
+    //
+    // Same argument as #415 below through a different door: the first text to a
+    // new customer can be signed server-side, and a meter ignoring it would
+    // under-report the one message type where the product ADDS text the user
+    // never typed. Same assertion table as the web and Kotlin suites.
+
+    func testTheSignatureCanPushAFirstTextIntoASecondPart() {
+        let draft = String(repeating: "x", count: 150)
+        XCTAssertEqual(meter(draft).segments, 1, "unsigned is one part")
+        XCTAssertEqual(signedMeter(draft).segments, 2, "signed is two")
+    }
+
+    func testTheSignatureStaysGsm7SoItCostsOnePartNotTwo() {
+        // An em dash here would flip the message to UCS-2 and cost THREE parts
+        // (D4). Pinned on every client, because this is the surface a customer
+        // would see the wrong number on.
+        let metered = signedMeter(String(repeating: "x", count: 150))
+        XCTAssertEqual(metered.encoding, SmsEncoding.gsm7)
+        XCTAssertEqual(metered.segments, 2)
+    }
+
+    func testAnUnsignedSendIsMeteredExactlyAsBefore() {
+        let draft = String(repeating: "x", count: 150)
+        XCTAssertEqual(
+            signedMeter(draft, signature: nil).segments,
+            meter(draft).segments
+        )
+    }
+
+    func testMergeFieldsAndTheSignatureBothCountInTheSendPathOrder() {
+        let business = "Wilson & Sons Plumbing and Heating"
+        let draft = "Hi, this is {business_name}. " + String(repeating: "x", count: 100)
+        XCTAssertEqual(
+            meter(draft, businessName: business).segments,
+            1,
+            "merged alone is one part"
+        )
+        XCTAssertEqual(
+            signedMeter(draft, businessName: business).segments,
+            2,
+            "merged then signed is two"
+        )
+    }
+
+    func testAnOwnerWhoAlreadyTypedTheSignatureIsNotCountedTwice() {
+        let draft = "On my way" + Self.signature
+        XCTAssertEqual(signedMeter(draft).segments, meter(draft).segments)
+    }
+
     func testCrossesTheBoundaryBusinessNameHides() {
         // "{business_name}" is 15 characters. The real one is 34.
         //

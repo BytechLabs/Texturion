@@ -130,12 +130,16 @@ fun NewConversationScreen(
         mutableStateOf<LoadState<List<PhoneNumberSummary>>>(LoadState.Loading)
     }
     var businessName by remember { mutableStateOf<String?>(null) }
+    // #393: the exact signature the server would add, or null when signing is
+    // off. Never composed here — see Signature.kt.
+    var companySignature by remember { mutableStateOf<String?>(null) }
     var selectedContact by remember { mutableStateOf<Contact?>(null) }
     var bootKey by remember { mutableStateOf(0) }
     LaunchedEffect(companyId, bootKey) {
         bootstrap = try {
             val meView = graph.meRepo.me(companyId)
             businessName = meView.company?.name
+            companySignature = meView.company?.first_message_identification_suffix
             val numbers = meView.company?.numbers.orEmpty()
                 .filter { it.status == NumberStatus.ACTIVE }
             if (prefillContactId != null && selectedContact == null) {
@@ -165,6 +169,7 @@ fun NewConversationScreen(
             companyId = companyId,
             numbers = boot.value,
             businessName = businessName,
+            companySignature = companySignature,
             selectedContact = selectedContact,
             onContactChange = { selectedContact = it },
             onCreated = onCreated,
@@ -185,6 +190,7 @@ private fun NewConversationLoaded(
     companyId: String,
     numbers: List<PhoneNumberSummary>,
     businessName: String?,
+    companySignature: String?,
     selectedContact: Contact?,
     onContactChange: (Contact?) -> Unit,
     onCreated: (String) -> Unit,
@@ -205,6 +211,14 @@ private fun NewConversationLoaded(
         mutableStateOf(numbers.firstOrNull()?.id)
     }
     val composer = rememberComposerState(ComposerDrafts.NEW_CONVERSATION, drafts)
+    // #393: the signature THIS send will carry. A picked contact who has already
+    // been signed to gets none; a raw number always counts as a first, because
+    // either no contact row exists yet or the one that does has never been
+    // signed to. Recomputed as the recipient changes.
+    val pendingSignature = Signature.pending(
+        companySignature,
+        selectedContact?.first_identification_sent_at,
+    )
     var sending by remember { mutableStateOf(false) }
     var quietHoursPrompt by remember { mutableStateOf<ComposeBody?>(null) }
     var templatePickerOpen by remember { mutableStateOf(false) }
@@ -501,13 +515,19 @@ private fun NewConversationLoaded(
                     ) {
                         // #415: the same string the "Sends as" line below
                         // renders. The meter and the preview must measure one
-                        // message.
-                        val meter = segmentMeter(
+                        // message. #393 puts the signature in that string too:
+                        // merge fields first, then sign, then estimate — the
+                        // order apps/api/src/routes/compose.ts uses.
+                        val sendsAs = Signature.append(
                             MergeFields.applyMergeFields(
                                 composer.text,
                                 selectedContact?.name,
                                 businessName,
                             ),
+                            pendingSignature,
+                        )
+                        val meter = segmentMeter(
+                            sendsAs,
                             composer.photos.isNotEmpty(),
                         )
                         val chars = composer.text.length
@@ -543,12 +563,20 @@ private fun NewConversationLoaded(
                                 .padding(vertical = 2.dp),
                         )
                     }
-                    if (MergeFields.hasMergeFields(composer.text)) {
+                    // #393: a plain draft about to be SIGNED needs the preview
+                    // too, or the one case where the sent text differs from the
+                    // typed text with no {token} to hint at it shows nothing.
+                    if (MergeFields.hasMergeFields(composer.text) ||
+                        (pendingSignature != null && composer.text.isNotBlank())
+                    ) {
                         Text(
-                            "Sends as: " + MergeFields.applyMergeFields(
-                                composer.text,
-                                selectedContact?.name,
-                                businessName,
+                            "Sends as: " + Signature.append(
+                                MergeFields.applyMergeFields(
+                                    composer.text,
+                                    selectedContact?.name,
+                                    businessName,
+                                ),
+                                pendingSignature,
                             ),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 10.5.sp,

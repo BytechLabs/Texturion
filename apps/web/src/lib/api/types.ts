@@ -326,6 +326,13 @@ export interface CompanyView {
   mctb_effective_message: string;
   /** #192: true when the owner's own text is in effect. */
   mctb_message_is_custom: boolean;
+  /** #393: whether a first outbound message to a contact is signed with the
+   *  business name. Default false — D4's 2026-07 reversal stands. */
+  first_message_identification: boolean;
+  /** #393: the EXACT suffix such a message will carry, or null when the setting
+   *  is off (or the company name is blank). Render and METER this string —
+   *  never compose it here, or the count can drift from what is billed. */
+  first_message_identification_suffix: string | null;
   /** D43 Calls v2 — voicemail greeting (null = the spoken default), the
    *  carrier-screening routing choice, and the CNAM pair (outbound display
    *  name <=15 alphanumeric+space; inbound name-dip toggle). */
@@ -827,6 +834,10 @@ export interface Contact {
   consent_source: ConsentSource | null;
   consent_at: string | null;
   consent_attested_by: string | null;
+  /** #393: null means a first outbound to this contact would be signed, so the
+   *  composer folds the suffix into its segment count. Non-null means they have
+   *  already been told who we are and the suffix is not appended again. */
+  first_identification_sent_at: string | null;
   deleted_at: string | null;
   created_at: string;
   updated_at: string;

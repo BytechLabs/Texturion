@@ -65,6 +65,12 @@ const CONTACT_COLUMNS =
   "consent_attested_by,created_by_user_id,updated_by_user_id," +
   // #292: the human's correction to the area-code inference. NULL means infer.
   "timezone," +
+  // #393: null means a first outbound to this contact would carry the
+  // identification suffix. The composer needs it to fold the suffix into its
+  // segment count — a meter that shows one segment while the send bills two is
+  // the dishonest metering the append order was arranged to avoid. Exposed
+  // because an imported contact who has never been texted is common (#248).
+  "first_identification_sent_at," +
   "deleted_at,created_at,updated_at";
 
 /**
@@ -76,6 +82,9 @@ const CONTACT_COLUMNS =
 const CONTACT_LIST_COLUMNS =
   "id,phone_e164,name,address,consent_source,consent_at," +
   "consent_attested_by,created_by_user_id,updated_by_user_id," +
+  // #393: one timestamp per row, and the composer's recipient picker reads the
+  // LIST rather than fetching each contact.
+  "first_identification_sent_at," +
   "deleted_at,created_at,updated_at";
 
 const createSchema = z.object({

@@ -4,6 +4,7 @@ import {
   IDENTIFICATION_SUFFIX_TEMPLATE,
   appendIdentification,
   identificationSuffix,
+  pendingIdentificationSuffix,
   shouldIdentify,
 } from "./first-message-identification";
 import { estimateSegments } from "./segments";
@@ -98,6 +99,41 @@ describe("segment cost of identifying", () => {
   it("adds nothing when the suffix does not apply", () => {
     const body = "x".repeat(150);
     expect(estimateSegments(appendIdentification(body, null)).segments).toBe(1);
+  });
+});
+
+describe("pendingIdentificationSuffix (the clients' rule)", () => {
+  const SUFFIX = " - Acme. Reply STOP to opt out";
+
+  it("is null when signing is off", () => {
+    expect(pendingIdentificationSuffix(null, null)).toBeNull();
+    expect(pendingIdentificationSuffix(undefined, null)).toBeNull();
+    expect(pendingIdentificationSuffix("   ", null)).toBeNull();
+  });
+
+  it("signs a customer who has never been signed to", () => {
+    // Including a raw number with no contact row yet, which passes null.
+    expect(pendingIdentificationSuffix(SUFFIX, null)).toBe(SUFFIX);
+    expect(pendingIdentificationSuffix(SUFFIX, undefined)).toBe(SUFFIX);
+  });
+
+  it("is null once they have already been told who we are", () => {
+    expect(
+      pendingIdentificationSuffix(SUFFIX, "2026-07-20T10:00:00Z"),
+    ).toBeNull();
+  });
+
+  it("agrees with shouldIdentify, which the server uses", () => {
+    // The two must never disagree: the server decides with shouldIdentify and
+    // the client previews with this, so a divergence is a wrong part count.
+    for (const stamp of [null, "2026-07-20T10:00:00Z"]) {
+      const serverSays = shouldIdentify({
+        settingEnabled: true,
+        alreadyIdentifiedAt: stamp,
+      });
+      const clientSays = pendingIdentificationSuffix(SUFFIX, stamp) !== null;
+      expect(clientSays).toBe(serverSays);
+    }
   });
 });
 

@@ -23,6 +23,9 @@ struct NewConversationView: View {
 
     @State private var bootstrap: LoadState<[PhoneNumberSummary]> = .loading
     @State private var businessName: String?
+    /// #393: the exact signature the server would add, or nil when signing is
+    /// off. Never composed here — see Signature.swift.
+    @State private var companySignature: String?
     @State private var selectedContact: Contact?
     @State private var bootKey = 0
 
@@ -39,6 +42,7 @@ struct NewConversationView: View {
                     companyId: companyId,
                     numbers: numbers,
                     businessName: businessName,
+                    companySignature: companySignature,
                     selectedContact: selectedContact,
                     onContactChange: { selectedContact = $0 },
                     onCreated: onCreated,
@@ -51,6 +55,7 @@ struct NewConversationView: View {
             do {
                 let meView = try await graph.meApi.me(companyId: companyId)
                 businessName = meView.company?.name
+                companySignature = meView.company?.first_message_identification_suffix
                 let numbers = (meView.company?.numbers ?? [])
                     .filter { $0.status == NumberStatus.active }
                 if let prefillContactId, selectedContact == nil {
@@ -72,6 +77,8 @@ private struct NewConversationLoaded: View {
     let companyId: String
     let numbers: [PhoneNumberSummary]
     let businessName: String?
+    /// #393: the company-wide signature, before the per-customer check.
+    let companySignature: String?
     let selectedContact: Contact?
     let onContactChange: @MainActor (Contact?) -> Void
     let onCreated: @MainActor (String) -> Void
@@ -332,7 +339,14 @@ private struct NewConversationLoaded: View {
                     text: composer.text,
                     hasMedia: !composer.photos.isEmpty,
                     contactName: selectedContact?.name,
-                    businessName: businessName
+                    businessName: businessName,
+                    // #393: a customer already signed to gets a plain text; a
+                    // raw number is always a first, because either no contact
+                    // row exists yet or the one that does was never signed to.
+                    identificationSuffix: Signature.pending(
+                        companySuffix: companySignature,
+                        alreadySignedAt: selectedContact?.first_identification_sent_at
+                    )
                 )
                 .padding(.top, 2)
             }
@@ -684,6 +698,7 @@ private struct NewConversationLoaded: View {
             ),
         ],
         businessName: "Loonext Fencing",
+        companySignature: nil,
         selectedContact: nil,
         onContactChange: { _ in },
         onCreated: { _ in },

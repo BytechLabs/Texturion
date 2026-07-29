@@ -257,6 +257,13 @@ struct CompanyView: Codable, Sendable {
     let mctb_effective_message: String?
     /// #192: true when the effective message is the owner's custom text.
     @Default<DefaultFalse> var mctb_message_is_custom: Bool
+    /// #393: whether the first text to a customer is signed with the business
+    /// name. Default false — D4's 2026-07 reversal stands until an owner opts in.
+    @Default<DefaultFalse> var first_message_identification: Bool
+    /// #393: the EXACT suffix such a text will carry (nil when signing is off,
+    /// and also when the company name is blank). Render and METER this string —
+    /// never build it here, or the part count can drift from what is billed.
+    let first_message_identification_suffix: String?
     let voicemail_greeting: String?
     @Default<DefaultScreeningOff> var call_screening: String
     let cnam_display_name: String?

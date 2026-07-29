@@ -499,6 +499,48 @@ final class SettingsLogicTests: XCTestCase {
         // #192: the effective template is absent and not custom until set.
         XCTAssertNil(company.mctb_effective_message)
         XCTAssertFalse(company.mctb_message_is_custom)
+        // #393: signing is OFF unless the server says otherwise — D4's reversal
+        // is the default. This is the assertion that catches a plain `Bool`
+        // where @Default<DefaultFalse> is required (a Worker omitting the field
+        // would fail to decode the WHOLE response), and a camelCase property
+        // name, which would silently never decode.
+        XCTAssertFalse(company.first_message_identification)
+        XCTAssertNil(company.first_message_identification_suffix)
+    }
+
+    /// #393: the per-customer half of the signing decision, which decides
+    /// whether the composer's part count includes the signature.
+    func testTheSignatureAppliesOncePerCustomer() {
+        let suffix = " - Acme. Reply STOP to opt out"
+        // Signing off: never, whatever the customer's history.
+        XCTAssertNil(Signature.pending(companySuffix: nil, alreadySignedAt: nil))
+        XCTAssertNil(Signature.pending(companySuffix: "  ", alreadySignedAt: nil))
+        // On, and this customer has never been signed to — including a raw
+        // number, which has no contact row and so passes nil.
+        XCTAssertEqual(
+            Signature.pending(companySuffix: suffix, alreadySignedAt: nil),
+            suffix
+        )
+        // On, but they have already been told who we are.
+        XCTAssertNil(
+            Signature.pending(
+                companySuffix: suffix,
+                alreadySignedAt: "2026-07-20T10:00:00Z"
+            )
+        )
+    }
+
+    /// #393: the append rule, ported. A body that already ends with the
+    /// signature must not grow a second copy.
+    func testTheSignatureIsAppendedOnceAndOnlyOnce() {
+        let suffix = " - Acme. Reply STOP to opt out"
+        XCTAssertEqual(Signature.append("On my way", suffix: suffix), "On my way" + suffix)
+        XCTAssertEqual(Signature.append("On my way", suffix: nil), "On my way")
+        XCTAssertEqual(Signature.append("On my way", suffix: "   "), "On my way")
+        let once = Signature.append("On my way", suffix: suffix)
+        XCTAssertEqual(Signature.append(once, suffix: suffix), once)
+        // Trailing whitespace must not defeat the guard.
+        XCTAssertEqual(Signature.append(once + "  ", suffix: suffix), once + "  ")
     }
 
     // MARK: - #392: THE SHARED SEAT FIXTURE

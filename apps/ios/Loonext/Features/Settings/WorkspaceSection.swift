@@ -13,6 +13,9 @@ struct WorkspaceSectionView: View {
 
     var body: some View {
         NameCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
+        // #393: directly under the name, because it is the name this adds to a
+        // first text — the strongest relationship on the screen.
+        SignTextsCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
         BusinessIdentificationCard(scope: scope, company: company)
         TimezoneCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
         // #406: everyone except the owner can end their own access. An owner
@@ -349,6 +352,83 @@ private struct TimezonePickerSheet: View {
                     Button("Cancel") { onDismiss() }
                 }
             }
+        }
+    }
+}
+
+// MARK: - Sign your texts (#393)
+
+/// Sign the first text to a new customer with the business name.
+///
+/// Deliberately NOT titled "identification" — the card below uses that word for
+/// carrier registration data, and two cards saying it would read as one thing.
+/// The part cost is disclosed because it is real: the signature can push a long
+/// first text into a second part, and the customer pays per part.
+private struct SignTextsCard: View {
+    let scope: SettingsScope
+    let company: CompanyView
+    let onCompanyUpdated: @MainActor (CompanyView) -> Void
+
+    @State private var saving = false
+    @State private var error: String?
+
+    private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
+
+    /// Server-resolved, and only shown once the server confirms — composing the
+    /// signature here could drift from what actually sends and gets billed.
+    private var signature: String? {
+        guard company.first_message_identification,
+              let suffix = company.first_message_identification_suffix
+        else { return nil }
+        let trimmed = suffix.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var body: some View {
+        SettingsCard(
+            title: "Sign your texts",
+            description: "Add your business name to the first text you send "
+                + "someone, so a message from an unknown number says who it is from."
+        ) {
+            LabeledToggleRow(
+                label: "Sign the first text to a new customer",
+                supporting: "Once per customer. Replies and later texts are never signed.",
+                isOn: company.first_message_identification,
+                enabled: canEdit && !saving
+            ) { next in
+                save(next)
+            }
+
+            if let signature {
+                PreviewBubble(label: "What gets added", text: signature)
+                Spacer().frame(height: 6)
+                ReadOnlyLine(
+                    "That is \(signature.count) characters, so a long first text "
+                        + "can be sent in two parts instead of one."
+                )
+            }
+
+            InlineError(error)
+
+            if !canEdit {
+                Spacer().frame(height: 4)
+                ReadOnlyLine("Only owners and admins can change how texts are signed.")
+            }
+        }
+    }
+
+    private func save(_ next: Bool) {
+        error = nil
+        saving = true
+        let body = JSONValue.object(["first_message_identification": .bool(next)])
+        Task {
+            do {
+                let updated = try await scope.repo.updateCompany(scope.companyId, patch: body)
+                onCompanyUpdated(updated)
+            } catch {
+                self.error = error.userMessage
+            }
+            saving = false
         }
     }
 }
