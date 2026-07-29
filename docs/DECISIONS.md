@@ -509,6 +509,14 @@ D14 stands unchanged as the floor: **any** message can be marked Done/Not-done b
 zero ceremony (strikethrough + audit tooltip), no task entity required. D17 adds an **opt-in** layer
 on top — it never replaces D14's one-tap done.
 
+> **AMENDED by D64 (#356, 2026-07-28): a task promotes a message OR an answered
+> call.** D17 was decided 2026-07-02, before the calls feature (D37–D43), so its
+> rationale never mentions calls — and the constraint it implies is that work can
+> only exist here if a *text* caused it. D64 widens the anchor and restates the
+> invariant this section is really protecting: exactly one row owns a task's
+> done-state, and the anchor determines which. Everything below still describes
+> the message-anchored case exactly.
+
 - **Promotion, not a parallel system.** A member may **promote a message to a Task** (thread overflow
   menu → "Make a task"). A Task is a lightweight record that *points at* the source message; the
   message's existing `done_at` remains the **single shared truth** for completion. There is no second
@@ -2723,3 +2731,76 @@ a port, the US enable-fee charge, cancelling text enablement, and closing the
 workspace. Re-reading them for an admin-reachable path to the same outcome, the
 subscription-cancellation path was the one hole, and it is the one closed here.
 That is a re-read rather than a proof of exhaustiveness.
+
+---
+
+## D64 — a task promotes a source, and the source is a message OR a call (#356, amends D17)
+
+**Decision.** Work can exist without a message. A task promotes a **source
+event**: a message (as today) or an **answered call**. `tasks.message_id` stops
+being `NOT NULL` and becomes one of exactly two anchors, enforced by a CHECK.
+
+**What D17 actually protects, restated so it survives a second anchor type:**
+
+> **Exactly one row owns the done-state of any given task, and the anchor
+> determines which row. Never two.**
+
+- **message-anchored** → `messages.done_at`, exactly as D17 specifies. Nothing
+  about existing tasks changes.
+- **call-anchored** → `tasks.done_at`, which exists *only* when `message_id` is
+  null.
+
+**Why the split rather than moving completion onto the task universally**, which
+looks tidier and is wrong. **D14 is the floor: any message can be marked
+Done/Not-done with no task entity at all.** So `messages.done_at` has a life
+independent of tasks — it is a message-level affordance in the thread, and
+removing a promotion leaves D14 archetype A behind. Put a done flag on the task
+as well and a promoted message would have **two** flags for one piece of work,
+which is precisely the drift D17 exists to prevent. For a call-anchored task no
+message exists, so the task's own flag is the first and only one.
+
+That makes the rule mechanical rather than a judgement call: *is there a
+message? then it owns done. Is there not? then the task does.*
+
+**Why not option 3 (keep the constraint and scope around it).** It has a real
+case — this is a shared inbox, not field-service management, and "work comes
+from a customer conversation" is a coherent boundary #287 argues hard for. But
+we sell answering the phone *and* we sell tracking the work, and today those
+two do not connect. **A job agreed on the phone is the most common way a trades
+job is booked.** Option 3 would mean scoping #287, #237, #294 and #354 around a
+hole in the product's own pitch, and telling a user to send a text they did not
+want to send so the app will let them record work they already agreed to do.
+
+**Why not option 2 (standalone tasks, completion always on the task).** It
+rejects D17's reasoning rather than extending it, and it reintroduces the
+two-flags problem above for every existing task. This decision deliberately
+takes the narrowest widening that closes the gap.
+
+**What this does NOT authorise.** A task with *no* source at all. "Order the
+part, chase the supplier, do the annual inspection" — the ordinary crew work
+#356 lists last — stays out of scope, and that is option 3's boundary being
+kept where it is still right. Every task still promotes something that
+happened with a customer. What changed is only that a phone call is now one of
+the things that can have happened.
+
+**Shape of the change**, so the implementation is not ambiguous:
+
+```sql
+alter table public.tasks alter column message_id drop not null;
+alter table public.tasks add column source_call_id uuid references public.calls(id);
+alter table public.tasks add column done_at timestamptz;   -- call-anchored only
+alter table public.tasks add constraint tasks_one_anchor check (
+  (message_id is not null and source_call_id is null  and done_at is null)
+  or
+  (message_id is null     and source_call_id is not null)
+);
+```
+
+The `done_at is null` arm is the invariant made structural: a message-anchored
+task **cannot** carry its own completion, so the two-flags state is unreachable
+rather than merely discouraged. `tasks_message_uq` keeps its 1:1 meaning for
+message anchors; a matching partial unique index gives calls the same.
+
+**Client work this implies** (#338): "Make a task" appears on a call in the log
+and on the call-completed timeline row, and the task detail renders a call as
+its source where it renders a message today — web, Android and iOS.
