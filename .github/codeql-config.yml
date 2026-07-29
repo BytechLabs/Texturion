@@ -1,0 +1,38 @@
+# [#282] CodeQL, scoped so its findings stay worth reading.
+#
+# The issue asked for static analysis "on the security-sensitive paths — auth,
+# billing, webhook signature verification, and anything constructing SQL or
+# handling tokens". The tempting reading is a `paths:` allowlist naming those
+# directories. That would be worse than useless: CodeQL's value is DATAFLOW,
+# and the finding that matters is almost always "attacker-controlled value
+# enters at a route and reaches a sink three files away". Restricting the
+# analysed set severs exactly those paths and leaves a scanner that can only
+# see within one file.
+#
+# So the whole TypeScript tree is analysed, and the tuning happens in the two
+# places that do not cost coverage: what is EXCLUDED (test fixtures, which mint
+# fake credentials by the hundred and would otherwise dominate every report),
+# and the severity floor in D68.
+
+name: "Loonext security analysis"
+
+# The default suite, not `security-extended`. Extended trades a large increase
+# in false positives for findings that are mostly reachability-uncertain, and a
+# report a solo maintainer stops opening is a report that does not exist.
+queries:
+  - uses: security
+
+paths-ignore:
+  # Test fixtures generate throwaway keys and tokens on purpose. Every one of
+  # them looks like a hardcoded credential to a scanner.
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "apps/api/src/test/**"
+  - "apps/web/e2e/**"
+  # Build output and vendored code — not ours to fix, and re-reported forever.
+  - "**/node_modules/**"
+  - "**/.next/**"
+  - "**/dist/**"
+  - "out/**"
+  # The marketing site's generated assets.
+  - "apps/web/public/**"

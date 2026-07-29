@@ -1,0 +1,54 @@
+#!/bin/sh
+# [#282] The cheapest half of secret scanning: stop the paste before it exists.
+#
+# CI catches a committed secret, but on a PUBLIC repo "caught in CI" already
+# means "was pushed", and a force-push does not un-publish anything anybody
+# already cloned. This runs first, locally, on what is actually staged.
+#
+# Enabled by `git config core.hooksPath .githooks`, which the root package.json
+# `prepare` script runs on install. It can be skipped with --no-verify, which
+# is why CI re-checks the same rules — the hook is a convenience, never the
+# control.
+#
+# Deliberately does NOT shell out to gitleaks: the hook has to run in under a
+# second on every commit or it gets disabled, and it cannot depend on a binary
+# that may not be installed. It checks the two things that are both fast and
+# specific to how a credential actually reaches this repo.
+set -e
+
+fail() {
+  echo "" >&2
+  echo "  BLOCKED: $1" >&2
+  echo "" >&2
+  echo "  This repo is public. A secret is exposed the moment it lands, and" >&2
+  echo "  removing it later does not un-publish it." >&2
+  echo "" >&2
+  exit 1
+}
+
+# 1. The ignore rules that keep credential files out are still intact.
+#    (Same script CI runs — one definition, two places it is enforced.)
+if [ -f scripts/check-ignored-secrets.sh ]; then
+  sh scripts/check-ignored-secrets.sh >/dev/null \
+    || fail "the .gitignore rules protecting .dev.vars are broken. Run scripts/check-ignored-secrets.sh."
+fi
+
+# 2. Nothing STAGED carries one of the credential shapes this product holds.
+#    Narrow on purpose: these four are the ones that would cost real money or
+#    real customer data, and a wider net here would get the hook switched off.
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -n "$staged" ] || exit 0
+
+# shellcheck disable=SC2086
+hits=$(git diff --cached -U0 -- $staged \
+  | grep -E '^\+' \
+  | grep -Ei 'sb_secret_[A-Za-z0-9_-]{20,}|KEY[0-9A-F]{24,}|re_[A-Za-z0-9_-]{20,}|rk_live_[A-Za-z0-9]{20,}|sk_live_[A-Za-z0-9]{20,}' \
+  | grep -v 'sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz' \
+  || true)
+
+if [ -n "$hits" ]; then
+  echo "$hits" | sed 's/\(.\{24\}\).*/\1…/' >&2
+  fail "that looks like a live credential (Supabase secret key, Telnyx, Resend, or a live Stripe key)."
+fi
+
+exit 0

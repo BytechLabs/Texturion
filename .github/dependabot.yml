@@ -1,0 +1,150 @@
+# [#282] Dependency updates, grouped so they can actually be read.
+#
+# This repo is PUBLIC. The manifest is readable by anyone, so a dependency
+# sitting on a published CVE is not a private risk — it is an advertisement.
+# Until now nothing told us one existed: four ecosystems (a Workers API, a
+# Next.js app, an Android app, an iOS app), four advisory feeds, nobody reading
+# any of them.
+#
+# ---------------------------------------------------------------------------
+# THE THING THIS CONFIG IS DESIGNED AGAINST IS NOISE, NOT UNDER-COVERAGE.
+#
+# A solo maintainer who gets forty PRs a week mutes the bot inside a fortnight,
+# and then the one that mattered is muted too. So every ecosystem here is
+# GROUPED into at most a couple of PRs, and the schedule is weekly rather than
+# daily. The exception is deliberate: `security-updates` is its own group with
+# no cap, because a fix for a known advisory is not the same kind of mail as a
+# minor bump and must never queue behind one.
+#
+# Severity policy and who is accountable: docs/DECISIONS.md D68.
+# ---------------------------------------------------------------------------
+version: 2
+
+updates:
+  # -------------------------------------------------------------------------
+  # The pnpm workspace: api, web, and the shared packages. One manifest tree,
+  # so one entry with `versioning-strategy: increase` (bump the range, keep the
+  # lockfile honest).
+  # -------------------------------------------------------------------------
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      # Off the hour and off 09:00: every repo on the planet asks for Monday
+      # morning, and a queued Dependabot run is a Monday spent waiting.
+      time: "06:20"
+      timezone: America/Toronto
+    open-pull-requests-limit: 5
+    groups:
+      # Security fixes travel alone and travel first.
+      security-updates:
+        applies-to: security-updates
+        patterns: ["*"]
+      # Everything a runtime failure would take down together, updated
+      # together: a Hono bump that needs a Zod bump is one review, not two
+      # that only work merged.
+      runtime:
+        applies-to: version-updates
+        patterns:
+          - "hono"
+          - "zod"
+          - "@supabase/*"
+          - "stripe"
+          - "jose"
+          - "@sentry/*"
+      web:
+        applies-to: version-updates
+        patterns:
+          - "next"
+          - "react"
+          - "react-dom"
+          - "@tanstack/*"
+          - "tailwindcss"
+          - "@radix-ui/*"
+          - "lucide-react"
+      # Tooling churns constantly and breaks nothing customers can see.
+      # One PR, minor and patch only.
+      tooling:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # Wrangler and the Workers types track Cloudflare's own release cadence
+      # and a major there is a platform migration, not a dependency bump.
+      - dependency-name: wrangler
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@cloudflare/workers-types"
+        update-types: ["version-update:semver-major"]
+    labels: ["dependencies", "P3"]
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # -------------------------------------------------------------------------
+  # Android. Gradle + the version catalog in apps/android/gradle/libs.versions.toml.
+  #
+  # Compose and the AndroidX stack move as a unit and are pinned deliberately
+  # (the Expressive Material 3 alpha in particular — see the toolchain notes),
+  # so majors are ignored and the rest arrives as one monthly PR.
+  # -------------------------------------------------------------------------
+  - package-ecosystem: gradle
+    directory: /apps/android
+    schedule:
+      interval: monthly
+      time: "06:40"
+      timezone: America/Toronto
+    open-pull-requests-limit: 3
+    groups:
+      security-updates:
+        applies-to: security-updates
+        patterns: ["*"]
+      android:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # A Compose or AGP major is a deliberate migration with its own issue.
+      - dependency-name: "androidx.compose*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "com.android.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "org.jetbrains.kotlin*"
+        update-types: ["version-update:semver-major"]
+    labels: ["dependencies", "P3"]
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # -------------------------------------------------------------------------
+  # The workflows themselves. A pinned action that goes unmaintained is supply
+  # chain risk with our deploy credentials in scope, and this is the cheapest
+  # ecosystem to keep current.
+  # -------------------------------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      time: "06:50"
+      timezone: America/Toronto
+    open-pull-requests-limit: 2
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: ["dependencies", "P3"]
+    commit-message:
+      prefix: chore
+      include: scope
+# -----------------------------------------------------------------------------
+# NOT HERE, AND SAID OUT LOUD RATHER THAN LEFT AS A GAP:
+#
+# iOS Swift packages. Dependabot's `swift` ecosystem needs a Package.swift or a
+# committed Package.resolved, and this project has neither — the two SPM
+# dependencies (TelnyxRTC, Firebase) are declared in apps/ios/project.yml and
+# resolved by Xcode at build time, so there is no manifest for Dependabot to
+# read. The gap is covered instead by `swift-pins` in
+# .github/workflows/security.yml, which reads project.yml directly and fails
+# when a pin drifts from what was reviewed. That is less than Dependabot would
+# give us; it is more than nothing, and it is the honest version of what we
+# actually have.
+# -----------------------------------------------------------------------------

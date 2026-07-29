@@ -1,0 +1,106 @@
+# [#282] Secret scanning, tuned so its findings stay worth reading.
+#
+# Starts from gitleaks' own rule set and adds the credential shapes THIS
+# product actually holds — the ones a paste from `.dev.vars` would carry.
+#
+# Two dials, and the difference between them matters:
+#
+#   * this file suppresses whole CLASSES of non-secret (a vendored third-party
+#     spec, a client config that is public by design). Each entry says why.
+#   * `.gitleaksignore` suppresses INDIVIDUAL findings by fingerprint — one
+#     commit, one file, one line. Anything new in the same file still fails.
+#
+# Reach for the fingerprint file first. A path allowlist that grows to quiet a
+# scanner is how a real leak gets through.
+
+title = "Loonext"
+
+[extend]
+useDefault = true
+
+# ---------------------------------------------------------------------------
+# Our own credential shapes. gitleaks' defaults already cover Stripe, AWS,
+# Google and friends; these are the ones specific to this stack.
+# ---------------------------------------------------------------------------
+
+[[rules]]
+id = "supabase-secret-key"
+description = "Supabase secret (service-role) key"
+# The credential that reaches every tenant's data with RLS bypassed. If one of
+# these is ever committed, nothing else in this file matters.
+regex = '''sb_secret_[A-Za-z0-9_-]{20,}'''
+keywords = ["sb_secret_"]
+
+[[rules]]
+id = "supabase-legacy-service-role-jwt"
+description = "Supabase legacy service_role JWT"
+# The pre-`sb_secret_` form. Still accepted by the platform, so still a live
+# credential wherever an old one is lying around.
+regex = '''eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]*?service_role[A-Za-z0-9_-]*\.[A-Za-z0-9_-]{10,}'''
+keywords = ["service_role"]
+
+[[rules]]
+id = "telnyx-api-key"
+description = "Telnyx API key"
+# Owns the phone numbers and can send at our expense.
+#
+# Real Telnyx keys are KEY + 32 hex. The 24-character floor is what separates
+# one from the obvious placeholder our fixtures use (KEY0123456789ABCDEF) —
+# a cheaper and safer fix than allowlisting every test file that holds one,
+# because it keeps the rule live INSIDE those files.
+regex = '''KEY[0-9A-F]{24,}'''
+keywords = ["KEY"]
+entropy = 3.0
+
+[[rules]]
+id = "resend-api-key"
+description = "Resend API key"
+regex = '''re_[A-Za-z0-9_-]{20,}'''
+keywords = ["re_"]
+
+[[rules]]
+id = "vapid-private-key"
+description = "VAPID private key"
+# #302: the committed test key was removed and is now generated at runtime.
+# This exists so the next one cannot land. The historical commit is pinned in
+# `.gitleaksignore` by fingerprint rather than suppressed by rule.
+regex = '''(?i)vapid_private_key\s*[:=]\s*["']?[A-Za-z0-9_-]{40,}'''
+keywords = ["vapid_private_key", "VAPID_PRIVATE_KEY"]
+
+[allowlist]
+description = "Provably-not-secrets"
+
+paths = [
+  # Telnyx's own published OpenAPI spec, vendored so the client can be checked
+  # against it. Twenty-three of the thirty-eight first-run findings were in
+  # here, and every one is Telnyx's example data, not ours.
+  '''telnyx-spec3\.json$''',
+  # The Firebase CLIENT config. Google ships this inside every Android binary
+  # by design and documents it as public; the key in it is restricted by
+  # package name and signing certificate, not by secrecy.
+  '''google-services\.json$''',
+  # The example files exist to be read. They carry placeholders by design, and
+  # CI asserts the real ones stay ignored (scripts/check-ignored-secrets.sh).
+  '''\.dev\.vars\.example$''',
+  '''\.env\.example$''',
+  # Lockfiles are full of high-entropy integrity hashes.
+  '''pnpm-lock\.yaml$''',
+  '''gradle/wrapper/gradle-wrapper\.properties$''',
+]
+
+regexes = [
+  # The Telnyx PUBLIC key: public by name and by purpose — it is what inbound
+  # webhook signatures are verified against, so it belongs in the repo.
+  '''TELNYX_PUBLIC_KEY''',
+  # Supabase publishable/anon keys ship to the browser. Treating one as a leak
+  # would train everybody to ignore this scanner.
+  '''sb_publishable_[A-Za-z0-9_-]+''',
+  '''NEXT_PUBLIC_[A-Z_]+''',
+  # The Supabase CLI's PUBLISHED default local key. It is identical on every
+  # developer's machine on earth and reaches nothing but a Docker container on
+  # 127.0.0.1. Named exactly rather than by shape, so a real `sb_secret_`
+  # sitting next to it in the same file still fails.
+  '''sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz''',
+  # Placeholder credentials in test fixtures, case-insensitively.
+  '''(?i)0123456789abcdef''',
+]

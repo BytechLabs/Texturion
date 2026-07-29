@@ -1,0 +1,43 @@
+# [#282] Individual findings that have been looked at and are not secrets.
+#
+# Each line is one FINGERPRINT: commit : file : rule : line. That precision is
+# the point — suppressing a fingerprint hides exactly the finding somebody
+# triaged, and nothing else. A new secret in the same file, on the next line,
+# still fails the build.
+#
+# The bar for adding a line here: somebody opened the file at that commit and
+# can say in one sentence why the string is not a credential. That sentence
+# goes above the line. If it cannot be written, the finding is not ignorable.
+#
+# Class-level suppressions (a vendored third-party spec, a client config that
+# is public by design) belong in `.gitleaks.toml` instead.
+
+# The historical test-only VAPID private key, removed at 0834ca9 and now
+# generated per test process. It was never used for anything but signing test
+# pushes, and it is pinned here rather than suppressed by rule so the rule
+# stays live for the next one. A full-history scan finds a remediated commit
+# forever; that is the scan working, not a problem to solve by weakening it.
+b13d3f39cb7c049b3f5182b25975938287edfdc1:apps/api/src/test/support.ts:vapid-private-key:31
+d93c6f6a734e87b3e15f64a6fe7a82e6065dc9c3:apps/api/e2e/harness.ts:vapid-private-key:219
+
+# PEM delimiters, not keys. `fcm-account.ts` GENERATES a keypair at runtime and
+# assembles the PEM around it; `fcm.ts` names the format in a comment on the
+# zod schema that parses a real one.
+6e1861d991d36b41d4917d367c996fc3cc32ba0c:apps/api/src/test/fcm-account.ts:private-key:45
+6e1861d991d36b41d4917d367c996fc3cc32ba0c:apps/api/src/notifications/fcm.ts:private-key:77
+
+# Webhook-signature fixtures. The Resend one base64-decodes to
+# "testsecretforresendwebhooks1234"; the e2e one is the string
+# "whsec_e2e_launch_pass_secret". Both exist so a test can sign a request to
+# itself, and neither is accepted by anything outside this repo.
+546e7b7e3fbd191fc0d320bd47201e54169b2e47:apps/api/src/webhooks/resend.test.ts:generic-api-key:20
+d93c6f6a734e87b3e15f64a6fe7a82e6065dc9c3:apps/api/e2e/harness.ts:generic-api-key:35
+
+# The IndexNow key, which the protocol REQUIRES to be public: search engines
+# verify ownership by fetching https://loonext.com/<key>.txt. A key that were
+# secret would not work.
+a127f9abb61ba8b8cd05f878d4b1908f0335f1f9:apps/web/scripts/indexnow-ping.mjs:generic-api-key:21
+
+# The deployment env reference: a table of EXAMPLE FORMATS, so an operator
+# knows what shape each secret should be before pasting the real one.
+59e0e2a217c74fa8bc1dfbf121cddc916bb841d6:docs/deploy/06-env-reference.md:stripe-access-token:25

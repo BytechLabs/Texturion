@@ -3026,3 +3026,64 @@ Nothing writes `owner_user_id` except `apply_ownership()`.
 backwards until you see it: letting any admin stop a claim would let one admin
 keep a dead owner's workspace frozen forever. Only the owner (veto) and the
 claimant (abandon) can end one.
+
+---
+
+## D68 — the severity floor is the security policy (#282, 2026-07-29)
+
+**Decision.** Scanning runs on four ecosystems, and every one of them has an
+explicit floor of **HIGH**. Two checks block a merge; everything else reports.
+The owner of every finding is the founder, because there is nobody else.
+
+| What | Where | Blocks? | Floor |
+|---|---|---|---|
+| Committed secret | `gitleaks` over full history, every push and PR | **yes** | any match |
+| `.dev.vars` ignore rules | `scripts/check-ignored-secrets.sh` | **yes** | any break |
+| New dependency with an advisory | `dependency-review-action` on PRs | **yes** | HIGH |
+| Installed tree | `pnpm audit --prod`, PR + weekly | no | HIGH |
+| Static analysis | CodeQL, default `security` suite | no | GitHub default |
+| iOS SPM packages | `scripts/check-swift-advisories.mjs`, weekly | no | HIGH |
+| Dependency updates | Dependabot, grouped, weekly/monthly | no | — |
+
+**Response window.** CRITICAL: same day, and it may ship outside the release
+train. HIGH: within seven days. MODERATE and below: batched into the next
+Dependabot group, which is to say whenever it happens to arrive.
+
+**Why the floor is the design, and not a compromise.** The issue argued
+against itself correctly: the real risk for a solo maintainer is not too little
+tooling, it is a scanner producing forty low-severity findings a week. That gets
+muted inside a fortnight, and then the one that mattered is muted too. Coverage
+that is not read is worse than no coverage, because it also produces the belief
+that somebody is looking.
+
+So the two things that BLOCK are the two with a near-zero false-positive rate —
+a secret in the history, and a dependency the diff itself adds carrying a known
+advisory. Everything else reports, and reports at a level where each finding is
+worth the interruption.
+
+**Why the whole TypeScript tree is analysed rather than the "security-sensitive
+paths".** The tempting reading of "analyse auth, billing and webhooks" is a
+`paths:` allowlist. It would be worse than useless: CodeQL's value is dataflow,
+and the finding that matters is nearly always *attacker-controlled value enters
+at a route and reaches a sink three files away*. Narrowing the analysed set
+severs exactly those paths. The tuning lives in `paths-ignore` (test fixtures
+mint fake credentials by the hundred) and in the floor.
+
+**Why gitleaks runs as a binary and not as its action.**
+`gitleaks-action` gates organization use behind a licence key. A security check
+that switches itself off when a secret is missing is not a check.
+
+**The gap that is named rather than hidden.** Dependabot's `swift` ecosystem
+needs a `Package.swift` or a committed `Package.resolved`, and this project has
+neither — the two SPM dependencies live in `apps/ios/project.yml` and are
+resolved by Xcode at build time. Rather than leave the Swift surface unscanned
+and unmentioned, `scripts/check-swift-advisories.mjs` reads those pins and asks
+GitHub's advisory database directly, weekly. It produces no pull request, so it
+is genuinely less than the other three ecosystems get. It is also the honest
+version of what we have, written down in `.github/dependabot.yml` at the point
+somebody would otherwise assume coverage.
+
+**Related:** the 2026-07-12 full-history audit found zero real leaked secrets.
+That was a good result and a **point-in-time manual sweep** — it is exactly the
+thing this decision replaces with something that runs whether or not anybody
+remembers.

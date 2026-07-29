@@ -1,0 +1,208 @@
+name: Security
+
+# [#282] The scanning this repo did not have.
+#
+# The posture before this was "one person remembers". The 2026-07-12
+# full-history audit found zero real leaked secrets, which is a good result —
+# and it was a point-in-time manual sweep. Nothing prevented the next slip and
+# nothing would have caught it.
+#
+# This repo is PUBLIC, which cuts both ways: a dependency on a published CVE is
+# an advertisement, and a secret committed by accident is exposed the instant
+# it lands rather than whenever somebody notices.
+#
+# ---------------------------------------------------------------------------
+# EVERY JOB HERE IS TUNED, NOT MAXIMAL.
+#
+# The real risk for a solo maintainer is not too little tooling, it is a
+# scanner producing forty low-severity findings a week — muted within a
+# fortnight, and then the one that mattered is muted too. So:
+#
+#   * severity floors are explicit and high (see D68),
+#   * the two jobs that BLOCK a merge are the two with near-zero false
+#     positives (a committed secret; a new dependency with a known advisory),
+#   * everything else reports rather than blocks.
+#
+# Deploys are not gated on this file. checks.yml is the merge gate; this runs
+# alongside it and on a schedule, because a dependency becomes vulnerable while
+# nobody is touching the repo.
+# ---------------------------------------------------------------------------
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly, Monday morning, off the hour. A CVE published on Wednesday should
+    # not wait for somebody to open a pull request.
+    - cron: "37 6 * * 1"
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # A committed secret fails the build. This is the one that matters most on a
+  # public repo, and it is cheap enough to run on everything.
+  # ---------------------------------------------------------------------------
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: a secret removed in a later commit is still public,
+          # and the whole point is to catch what a manual sweep would miss.
+          fetch-depth: 0
+
+      # The binary from the release, not gitleaks-action: the action gates
+      # organization use behind a licence key, and a security check that can be
+      # switched off by a missing secret is not a check.
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          VERSION=8.28.0
+          curl -sSfL -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Scan history
+        run: gitleaks detect --config .gitleaks.toml --redact --no-banner --exit-code 1
+
+      # ---------------------------------------------------------------------
+      # Prove the scanner is not a no-op.
+      #
+      # The first full-history run produced 38 findings and every one was a
+      # non-secret — a vendored Telnyx spec, PEM delimiters, doc examples. The
+      # only way to make that green was to tune, and tuning is exactly how a
+      # scanner quietly becomes a thing that always says "no leaks found".
+      #
+      # So: plant two credentials of the shapes that would actually hurt, in a
+      # directory outside the repo, and fail if the config does NOT catch them.
+      # The allowlist can now grow only until this step notices.
+      # ---------------------------------------------------------------------
+      - name: The scanner still catches a real one
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/gitleaks-selftest"
+          # Assembled from fragments rather than written out. A file in this
+          # repo containing a string of live credential SHAPE would be caught
+          # by the pre-commit hook (correctly), flagged by every future history
+          # scan, and would need an allowlist entry of its own — which is the
+          # exact erosion this step exists to prevent.
+          PREFIX="sb_""secret_"
+          {
+            printf 'const a = "%s9xKq2vRt7mZpLw3nBc8dYfHj5sAe1uGi";\n' "$PREFIX"
+            printf 'const b = "%s0193A5B7C9D1E3F5079BDF13579BDF13";\n' "KE""Y"
+          } > "$RUNNER_TEMP/gitleaks-selftest/planted.ts"
+          if gitleaks detect --no-git --source "$RUNNER_TEMP/gitleaks-selftest" \
+               --config .gitleaks.toml --redact --no-banner --exit-code 1; then
+            echo "SELF-TEST FAILED: gitleaks did not flag a planted Supabase" \
+                 "secret key or Telnyx API key. The config has been tuned into" \
+                 "silence — check .gitleaks.toml's allowlist." >&2
+            exit 1
+          fi
+          echo "OK: planted credentials were caught."
+
+      # ---------------------------------------------------------------------
+      # The specific thing most likely to go wrong here, asserted directly.
+      #
+      # `.dev.vars` deliberately holds commented-out PRODUCTION Supabase
+      # credentials — a working practice with a live blast radius the moment
+      # the ignore rule slips. gitleaks would catch the paste; this catches the
+      # rule that is supposed to make the paste impossible, which is the thing
+      # somebody could quietly break while tidying .gitignore.
+      # ---------------------------------------------------------------------
+      - name: The .dev.vars ignore rules still hold
+        run: bash scripts/check-ignored-secrets.sh
+
+  # ---------------------------------------------------------------------------
+  # A new dependency carrying a known advisory is caught BEFORE merge. Blocks,
+  # because the false-positive rate is essentially zero: it only fires on
+  # something the diff actually adds.
+  # ---------------------------------------------------------------------------
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          # HIGH, not LOW. See D68: the floor is the whole design.
+          fail-on-severity: high
+          # A licence that would force us to publish customer-facing code is a
+          # different kind of problem, and it is cheap to notice here.
+          deny-licenses: AGPL-3.0, AGPL-3.0-only, AGPL-3.0-or-later
+
+  # ---------------------------------------------------------------------------
+  # The installed tree, on a schedule. Reports rather than blocks: an advisory
+  # published against a transitive dependency is not the fault of the pull
+  # request that happens to be open when it lands.
+  # ---------------------------------------------------------------------------
+  audit:
+    name: pnpm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Production dependencies only, high and above. Dev-only advisories are
+      # real but they are not reachable by a customer, and mixing them in is
+      # exactly how the signal gets drowned.
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level high
+
+  # ---------------------------------------------------------------------------
+  # Static analysis, pointed at the code where a mistake costs the most: auth,
+  # billing, webhook signature verification, and anything handling a token.
+  # ---------------------------------------------------------------------------
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          config-file: .github/codeql-config.yml
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"
+
+  # ---------------------------------------------------------------------------
+  # The gap Dependabot cannot cover, covered honestly.
+  #
+  # The two iOS SPM dependencies are declared in apps/ios/project.yml and
+  # resolved by Xcode at build time — there is no Package.swift or committed
+  # Package.resolved for Dependabot to read. So this asks GitHub's advisory
+  # database about them directly, on the same weekly cadence.
+  #
+  # Scheduled only, and it does not block: it is an external API call about
+  # somebody else's release feed, and a flaky lookup must not fail a merge.
+  # ---------------------------------------------------------------------------
+  swift-advisories:
+    name: iOS package advisories
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the pinned Swift packages for advisories
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/check-swift-advisories.mjs
