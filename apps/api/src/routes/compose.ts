@@ -22,7 +22,11 @@
  *     attestation still apply and are recorded.
  *   • the send itself runs the §7 gate order via the shared send core.
  */
-import { estimateSegments } from "@loonext/shared";
+import {
+  appendIdentification,
+  estimateSegments,
+  shouldIdentify,
+} from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -105,6 +109,8 @@ interface ContactRow {
   phone_e164: string;
   name: string | null;
   consent_source: string | null;
+  /** #393: non-null means this contact has already been identified to. */
+  first_identification_sent_at: string | null;
 }
 
 type Db = ReturnType<typeof getDb>;
@@ -127,7 +133,8 @@ async function resolveComposeContact(
     phoneE164?: string;
   },
 ): Promise<ContactRow> {
-  const columns = "id,phone_e164,name,consent_source";
+  const columns =
+    "id,phone_e164,name,consent_source,first_identification_sent_at";
 
   if (args.contactId) {
     const rows = unwrap<ContactRow[]>(
@@ -229,6 +236,37 @@ async function attestContactConsent(
     .eq("id", args.contactId)
     .is("consent_source", null);
   if (error) throw new Error(`contact attest failed: ${error.message}`);
+}
+
+/**
+ * Stamp the #393 identification ledger, so this contact is never sent the
+ * suffix twice.
+ *
+ * `.is("first_identification_sent_at", null)` makes it atomic against two
+ * concurrent composes to the same new contact: the loser's update matches no
+ * row. Both messages may still carry the suffix — they were composed before
+ * either stamped — and that is the right way round to fail. The alternative is
+ * reserving the stamp before the send, which would suppress identification on
+ * the *only* message a stranger receives if the send then failed.
+ *
+ * Best-effort by design: a failure here must not fail a message that has
+ * already been handed to the carrier. The cost of a lost stamp is one repeated
+ * footer on a later send, which is noise; the cost of throwing is a 500 on a
+ * send that actually succeeded.
+ */
+async function stampIdentificationSent(
+  db: Db,
+  args: { companyId: string; contactId: string },
+): Promise<void> {
+  const { error } = await db
+    .from("contacts")
+    .update({ first_identification_sent_at: new Date().toISOString() })
+    .eq("company_id", args.companyId)
+    .eq("id", args.contactId)
+    .is("first_identification_sent_at", null);
+  if (error) {
+    console.error(`identification stamp failed: ${error.message}`);
+  }
 }
 
 /**
@@ -372,11 +410,13 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
     throw new ApiError("conflict", "This number is not ready to send yet.");
   }
 
-  // Company (business name — merge fields + audit).
-  const company = unwrap<{ id: string; name: string }[]>(
+  // Company (business name — merge fields + audit; #393 identification setting).
+  const company = unwrap<
+    { id: string; name: string; first_message_identification: boolean }[]
+  >(
     await db
       .from("companies")
-      .select("id,name")
+      .select("id,name,first_message_identification")
       .eq("id", companyId)
       .limit(1),
     "company lookup",
@@ -478,7 +518,16 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
     businessName: company.name,
   });
 
-  const text = merged;
+  // #393 first-message identification: appended HERE, after merge fields and
+  // BEFORE the segment estimate, so the segments we pre-check, meter and bill
+  // are the segments actually sent. Appending it any later would bill the
+  // customer for a footer the estimate never saw. Off unless the owner enabled
+  // it, and once per contact — see D4 and the shared module.
+  const identify = shouldIdentify({
+    settingEnabled: company.first_message_identification,
+    alreadyIdentifiedAt: contact.first_identification_sent_at,
+  });
+  const text = identify ? appendIdentification(merged, company.name) : merged;
 
   // §9/§10 estimate: MMS meters (and pre-checks) as 3 segments.
   const segmentsEstimate =
@@ -596,6 +645,14 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
     mediaUrls,
     clearance,
   });
+
+  // #393: stamp the identification ledger only once the carrier has the
+  // message. A dispatch that threw never reached the contact, and stamping
+  // before it would spend this contact's one identification on a message they
+  // never received.
+  if (identify) {
+    await stampIdentificationSent(db, { companyId, contactId: contact.id });
+  }
 
   return c.json(
     { conversation, message: messageJson(sent, attachments) },

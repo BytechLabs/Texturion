@@ -72,6 +72,13 @@ export {
 } from "./mctb";
 
 export {
+  IDENTIFICATION_SUFFIX_TEMPLATE,
+  appendIdentification,
+  identificationSuffix,
+  shouldIdentify,
+} from "./first-message-identification";
+
+export {
   MMS_OUTBOUND_MEDIA_TYPES,
   MMS_MAX_MEDIA_BYTES,
   MMS_MAX_MEDIA_ITEMS,

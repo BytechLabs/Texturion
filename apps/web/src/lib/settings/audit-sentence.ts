@@ -51,6 +51,7 @@ function changedSettings(after: Record<string, unknown>): string {
     away_message: "the away message",
     mctb_enabled: "the missed-call text-back",
     mctb_message: "the missed-call message",
+    first_message_identification: "first-message identification",
     voicemail_greeting: "the voicemail greeting",
     call_screening: "call screening",
     cnam_display_name: "the caller ID",

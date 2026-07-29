@@ -6,6 +6,7 @@
 import {
   effectiveAwayMessage,
   effectiveMctbMessage,
+  identificationSuffix,
   seatLimit,
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -38,6 +39,9 @@ export const COMPANY_COLUMNS =
   // FEATURE-GAPS voice wave: missed-call text-back settings. (D43 deleted
   // forward_to_cell — the browser is the phone; the column is dropped.)
   "mctb_enabled,mctb_message," +
+  // #393: whether a first outbound message carries sender identification.
+  // Default false — D4's 2026-07 reversal stands until an owner opts in.
+  "first_message_identification," +
   // D43 Calls v2: voicemail greeting, screening routing, CNAM pair. #193:
   // cnam_submitted_at = when the effective listing last went to the carrier
   // side (CNAM propagation takes days and Telnyx reports no status, so the
@@ -83,6 +87,12 @@ export interface CompanyView {
   /** #192: true when the owner's own text is in effect (mctb_message
    *  non-blank); false means the product default ships. */
   mctb_message_is_custom: boolean;
+  /** #393: the EXACT suffix a first outbound message will carry, or null when
+   *  the setting is off (or the company has no usable name). Clients append
+   *  this string for the composer preview and count its segments — they must
+   *  never compose it themselves, because a client-side copy that drifts from
+   *  the server's would show a segment count the customer is not billed. */
+  first_message_identification_suffix: string | null;
   /** #193: the outbound caller ID actually in effect — the explicit
    *  cnam_display_name when set, else the company name sanitized to the
    *  carrier CNAM alphabet. null only when neither yields a listable name. */
@@ -132,6 +142,28 @@ export function withMctbDerived<T extends Record<string, unknown>>(
     ...company,
     mctb_effective_message: effective.message,
     mctb_message_is_custom: effective.custom,
+  };
+}
+
+/**
+ * #393: the exact identification suffix a first outbound message will carry,
+ * or null when the setting is off.
+ *
+ * Derived server-side for the same reason as the text-back template above: the
+ * clients render a preview and count its segments, and a client-side copy of
+ * this string that drifted from the server's would show the customer a segment
+ * count they are not billed for. One source of truth, handed over the wire.
+ */
+export function withIdentificationDerived<T extends Record<string, unknown>>(
+  company: T,
+): T & { first_message_identification_suffix: string | null } {
+  const enabled = company.first_message_identification === true;
+  const name = typeof company.name === "string" ? company.name : null;
+  return {
+    ...company,
+    first_message_identification_suffix: enabled
+      ? identificationSuffix(name)
+      : null,
   };
 }
 
@@ -251,7 +283,11 @@ export async function loadCompanyView(
   );
 
   return {
-    ...withSeatDerived(withCallerIdDerived(withMctbDerived(withAwayDerived(company)))),
+    ...withSeatDerived(
+      withCallerIdDerived(
+        withMctbDerived(withAwayDerived(withIdentificationDerived(company))),
+      ),
+    ),
     numbers,
     enabled_modules: modules.map((row) => row.module),
     billing_writes_enabled: billingWritesEnabled(env),

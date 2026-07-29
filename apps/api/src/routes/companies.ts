@@ -43,6 +43,7 @@ import {
   loadCompanyView,
   withCallerIdDerived,
   withAwayDerived,
+  withIdentificationDerived,
   withMctbDerived,
   withSeatDerived,
 } from "./core/company-view";
@@ -157,6 +158,12 @@ const patchSchema = z
       .nullable()
       .optional(),
     caller_id_lookup: z.boolean().optional(),
+    // #393 (O/A): whether a first outbound message to a contact carries
+    // `— {Business name}. Reply STOP to opt out`. Default false — D4's 2026-07
+    // reversal removed the enforced footer and this does not undo it, so
+    // turning it ON is a deliberate owner act. See D4 for the CASL s.6(2)
+    // question (L1) that would change the default.
+    first_message_identification: z.boolean().optional(),
   })
   .refine(
     (body) =>
@@ -180,7 +187,8 @@ const patchSchema = z
       "voicemail_greeting" in body ||
       body.call_screening !== undefined ||
       "cnam_display_name" in body ||
-      body.caller_id_lookup !== undefined,
+      body.caller_id_lookup !== undefined ||
+      body.first_message_identification !== undefined,
     { message: "Provide at least one field to update." },
   );
 
@@ -446,6 +454,10 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   // #430: whether pushes may carry a person's words.
   if (body.push_include_content !== undefined) {
     patch.push_include_content = body.push_include_content;
+  }
+  // #393: first-message sender identification (off by default).
+  if (body.first_message_identification !== undefined) {
+    patch.first_message_identification = body.first_message_identification;
   }
   // FEATURE-GAPS voice wave: missed-call text-back settings.
   if (body.mctb_enabled !== undefined) patch.mctb_enabled = body.mctb_enabled;
@@ -713,7 +725,11 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   // That silently restores the in-app plan-change and module controls the
   // switch exists to hide, after nothing more than saving a business hour.
   return c.json({
-    ...withSeatDerived(withCallerIdDerived(withMctbDerived(withAwayDerived(company)))),
+    ...withSeatDerived(
+      withCallerIdDerived(
+        withMctbDerived(withAwayDerived(withIdentificationDerived(company))),
+      ),
+    ),
     billing_writes_enabled: billingWritesEnabled(env),
   });
 });

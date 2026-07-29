@@ -168,11 +168,48 @@ spec-review team (7 reviewers, 56 verified findings) and 5 web-verified research
     `docs/VENDOR-QUESTIONS.md`: *does a first outbound SMS from a Canadian
     business to a customer who verbally asked to be texted require sender
     identification in the message body under CASL s.6(2)?* A yes/no answer
-    settles everything downstream. **Nothing is built until it is answered**
-    (#393 ask 3 is explicit about this); if the answer is yes, the middle path
-    is a default-on setting the owner can switch off, so the product ships
-    compliant and turning it off is a deliberate act. The machinery survives:
-    `contacts.first_identification_sent_at` was deliberately left in place.
+    settles everything downstream.
+  - **BUILT 2026-07-29 (#393 ask 3) — the capability exists and is OFF.**
+    `companies.first_message_identification`, default `false`. **No message
+    anybody sends today changed**: D4's reversal above is still the shipped
+    behaviour, and turning identification on is a deliberate owner act, which is
+    the property ask 3 asked for.
+    **Why this did not wait for L1**, despite ask 3 saying nothing should be
+    built until it is answered. That instruction bundled two separable
+    questions. Whether identification is *required* is statutory, unanswerable
+    here, and it decides the **default**. Whether the capability should *exist*
+    is a deliverability question, and it is ours — and it changed the same day.
+    #379 established there is **no CA→CA registration to obtain** and that
+    Canadian carriers filter long-code A2P **at their own discretion**, by their
+    own published statement, permanently. With registration unavailable as a
+    remedy, the levers left are toll-free (#329) and the content signals
+    carriers actually score — and an unidentified first message from an
+    unrecognised long code is precisely what spam heuristics flag. So L1's
+    answer is now a **default flip**, not a three-client build on the critical
+    path. If it comes back "required", one migration changes the default.
+    **A cost fact discovered building it, which changes D4's own text.** The
+    footer this document specifies used an **em dash**, and an em dash is
+    outside GSM-7 — one non-GSM character switches the WHOLE message to UCS-2,
+    which carries 67 units per concatenated segment instead of 153. Measured
+    through the real estimator: a 150-character first message costs **1**
+    segment bare, **2** with a hyphen separator, and **3** with the em dash. The
+    original footer would have silently near-tripled the segment cost of the
+    product's highest-volume compliance surface. **The shipped separator is a
+    hyphen**; D4's wording is otherwise unchanged, and a test pins the
+    encoding so it cannot be edited back. `mctb.ts` had already established the
+    no-em-dashes rule for the same reason.
+    **How it works.** The suffix is appended server-side in the compose route,
+    after merge fields and **before the segment estimate**, so the segments we
+    pre-check, meter and bill are the segments actually sent. Once per contact,
+    ledgered by `contacts.first_identification_sent_at` — which D4's reversal
+    deliberately kept and this makes live again. Stamped only after the carrier
+    accepts the message, so a failed send does not spend a stranger's one
+    identification. Clients never compose the string: the API hands them the
+    exact suffix as `company.first_message_identification_suffix`, so a
+    composer preview and its segment count cannot drift from what is billed.
+    **Not yet on the clients** — the owner-facing toggle and composer preview
+    for web, Android and iOS are the remaining half of ask 3, and #393 stays
+    open until all three ship.
 - Signup requires accepting an acceptable-use policy (no SHAFT content, no purchased lists).
 
 ## D5. Pricing & packaging

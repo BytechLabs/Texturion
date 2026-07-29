@@ -84,12 +84,16 @@ afterEach(() => {
 function contactRow(overrides: Partial<{
   consent_source: string | null;
   name: string | null;
+  first_identification_sent_at: string | null;
 }> = {}) {
   return {
     id: CONTACT_ID,
     phone_e164: "+16135551000",
     name: overrides.name ?? null,
     consent_source: overrides.consent_source ?? null,
+    // #393: null = never identified to, so a first message would carry the
+    // suffix (when the company setting is on).
+    first_identification_sent_at: overrides.first_identification_sent_at ?? null,
   };
 }
 
@@ -151,6 +155,8 @@ function composeStubs(options: {
     content_type: string;
     size_bytes: number;
   }[];
+  /** #393: companies.first_message_identification. Default false — D4. */
+  identificationEnabled?: boolean;
 } = {}): ComposeStubs {
   const replayLookup = stubRoute(
     restMatch(env, "GET", "messages", (url) =>
@@ -168,6 +174,7 @@ function composeStubs(options: {
       name: "Acme Plumbing",
       plan: "starter",
       current_period_start: "2026-07-01T00:00:00.000Z",
+      first_message_identification: options.identificationEnabled === true,
     },
   ]);
   const contactLookup = stubRoute(
@@ -480,6 +487,148 @@ describe("POST /v1/conversations — merge-fields (Step 0a)", () => {
     expect(stubs.gateRpc.calls[0].body).toMatchObject({
       p_body: "Hi Dana, from Acme Plumbing.",
     });
+  });
+});
+
+describe("POST /v1/conversations — first-message identification (#393, D4)", () => {
+  it("sends bare by default — D4's reversal is still the shipped behaviour", async () => {
+    const stubs = composeStubs({
+      existingContact: contactRow({ consent_source: "attested" }),
+    });
+    stubFetch(...stubs.all);
+
+    const response = await postCompose({
+      ...VALID_BODY,
+      contact_id: undefined,
+      body: "On my way",
+    });
+    expect(response.status).toBe(201);
+    expect(stubs.gateRpc.calls[0].body).toMatchObject({ p_body: "On my way" });
+  });
+
+  it("appends the suffix when the owner turned it on", async () => {
+    const stubs = composeStubs({
+      identificationEnabled: true,
+      existingContact: contactRow({ consent_source: "attested" }),
+    });
+    stubFetch(...stubs.all);
+
+    const response = await postCompose({
+      ...VALID_BODY,
+      contact_id: undefined,
+      body: "On my way",
+    });
+    expect(response.status).toBe(201);
+    expect(stubs.gateRpc.calls[0].body).toMatchObject({
+      p_body: "On my way - Acme Plumbing. Reply STOP to opt out",
+    });
+  });
+
+  it("METERS the suffix it sends — the estimate covers the appended segments", async () => {
+    // The reason the append happens before the estimate. A 150-char body is one
+    // segment bare and two once the ~41-char suffix lands; billing the customer
+    // for a footer the estimate never saw would be exactly the dishonest
+    // metering this repo's cost rules forbid.
+    const body = "x".repeat(150);
+    const bare = composeStubs({
+      existingContact: contactRow({ consent_source: "attested" }),
+    });
+    stubFetch(...bare.all);
+    expect(
+      (await postCompose({ ...VALID_BODY, contact_id: undefined, body })).status,
+    ).toBe(201);
+    const bareSegments = (
+      bare.gateRpc.calls[0].body as { p_segments_estimate: number }
+    ).p_segments_estimate;
+
+    const identified = composeStubs({
+      identificationEnabled: true,
+      existingContact: contactRow({ consent_source: "attested" }),
+    });
+    stubFetch(...identified.all);
+    expect(
+      (await postCompose({ ...VALID_BODY, contact_id: undefined, body })).status,
+    ).toBe(201);
+    const params = identified.gateRpc.calls[0].body as {
+      p_body: string;
+      p_segments_estimate: number;
+    };
+
+    expect(params.p_body.length).toBeGreaterThan(body.length);
+    expect(bareSegments).toBe(1);
+    expect(params.p_segments_estimate).toBe(2);
+  });
+
+  it("identifies a stranger only once — an already-stamped contact stays bare", async () => {
+    const stubs = composeStubs({
+      identificationEnabled: true,
+      existingContact: contactRow({
+        consent_source: "attested",
+        first_identification_sent_at: "2026-07-20T10:00:00.000Z",
+      }),
+    });
+    stubFetch(...stubs.all);
+
+    const response = await postCompose({
+      ...VALID_BODY,
+      contact_id: undefined,
+      body: "Running late",
+    });
+    expect(response.status).toBe(201);
+    expect(stubs.gateRpc.calls[0].body).toMatchObject({
+      p_body: "Running late",
+    });
+  });
+
+  it("stamps the ledger after the send, so the next message stays bare", async () => {
+    const stubs = composeStubs({
+      identificationEnabled: true,
+      existingContact: contactRow({ consent_source: "attested" }),
+    });
+    stubFetch(...stubs.all);
+
+    expect(
+      (
+        await postCompose({
+          ...VALID_BODY,
+          contact_id: undefined,
+          body: "On my way",
+        })
+      ).status,
+    ).toBe(201);
+
+    const stamped = stubs.contactPatch.calls.some((call) =>
+      Object.hasOwn(
+        (call.body ?? {}) as Record<string, unknown>,
+        "first_identification_sent_at",
+      ),
+    );
+    expect(stamped).toBe(true);
+  });
+
+  it("does not stamp when identification did not apply", async () => {
+    const stubs = composeStubs({
+      existingContact: contactRow({ consent_source: "attested" }),
+    });
+    stubFetch(...stubs.all);
+
+    expect(
+      (
+        await postCompose({
+          ...VALID_BODY,
+          contact_id: undefined,
+          body: "On my way",
+        })
+      ).status,
+    ).toBe(201);
+
+    const stamped = stubs.contactPatch.calls.some((call) =>
+      Object.hasOwn(
+        (call.body ?? {}) as Record<string, unknown>,
+        "first_identification_sent_at",
+      ),
+    );
+    expect(stamped).toBe(false);
   });
 });
 
