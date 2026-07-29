@@ -26,6 +26,7 @@ import { owesUsRegistration } from "../billing/registration-draft";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
+import { pushRegistrationApproved } from "../notifications/registration-approved";
 import type { Env } from "../env";
 
 /**
@@ -521,6 +522,12 @@ async function applyTransition(
       company.id,
       usTextingLiveCopy(company.name, env),
     );
+    // #310: and on the phone they are actually holding. Email alone lands in
+    // an inbox they may not open for a day, about a product they have not yet
+    // formed a habit around — and this is the single highest-value moment in
+    // the customer's lifecycle, at the end of a wait that has been eroding
+    // their intent since the Sunday night they signed up.
+    await pushRegistrationApproved(env, db, company.id);
     // §12 step 18 north-star: carrier approval — US texting just unlocked.
     // ALLOWED_TRANSITIONS gates this transition (and so this capture) to at
     // most once per approval, across webhook/poller overlap and redelivery.

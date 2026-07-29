@@ -21,6 +21,7 @@ import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runNumberHealthJob } from "./messaging/number-health";
+import { runRegistrationStallJob } from "./telnyx/registration-stalls";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
 import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
 import { runLivenessCheckJob } from "./observability/liveness-check";
@@ -391,6 +392,10 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // slow reconciles — the windows it compares are 7 and 28 days, so running
     // it more often would cost queries to learn the same answer.
     job("job:number-health", runNumberHealthJob),
+    // #310: and the registrations that did NOT move. The poller above advances
+    // the ones that changed; a registration that simply sits there produces no
+    // event and no error, which is the silent-absence shape #387 exists for.
+    job("job:registration-stalls", runRegistrationStallJob),
   ],
   // Port reconcile & resume (PORTING.md §5.2): poll in-flight porting orders,
   // apply missed status/messaging transitions, resume stalled sagas, and

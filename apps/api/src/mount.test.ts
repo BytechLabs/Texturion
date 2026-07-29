@@ -12,6 +12,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { runEmailHealthJob } from "./email/health";
 import { runNumberHealthJob } from "./messaging/number-health";
+import { runRegistrationStallJob } from "./telnyx/registration-stalls";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
 import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
 import { pruneExpiredExports } from "./workspace/export";
@@ -492,6 +493,8 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       // #235: per-number reputation, on the same daily trigger as the other
       // slow reconciles.
       runNumberHealthJob,
+      // #310: the registrations that did NOT move.
+      runRegistrationStallJob,
     ]);
     expect(runs("10 13 * * *")).toEqual([pollPortRequests]);
     expect(runs("0 14 * * *")).toEqual([runGraceJob]);

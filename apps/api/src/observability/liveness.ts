@@ -292,6 +292,15 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "job:registration-stalls": {
+    what:
+      "Nothing is watching for a registration stuck past the wait we quoted "
+      + "(#310). A workspace paying for a number that cannot text, with no way "
+      + "to tell whether the wait is working, is recoverable today and gone in "
+      + "a week.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
   "job:delivery-by-country": {
     what: "The delivery-rate-by-country split has stopped, which is the only signal that would show a carrier silently filtering us (#379, #235).",
     everyMinutes: 1440,
