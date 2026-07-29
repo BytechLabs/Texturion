@@ -453,10 +453,27 @@ Cloudflare Queues (waitUntil + ledger + cron is sufficient at MVP scale).
     workspace has no registration wait at all, so its payment-to-send time is
     structurally different; averaging the two hides both numbers, and the one it
     hides is the one worth marketing with.
-  - **Still uninstrumented, deliberately named rather than left implicit:** the
-    second-member first send, the mid-funnel span between approval and first
-    send (team invited, contacts imported), and stall detection. #281 stays open
-    for those three.
+  - **The crew signal, 2026-07-29 (#281 item 2).** `second_member_sent` fires
+    once when a SECOND distinct member first sends. A one-person workspace is a
+    trial however long it has paid; a workspace where somebody else answers
+    customers from the shared number has actually changed how the business runs,
+    and that is what the 85% week-4 target should move.
+    `companies.second_member_sent_at` is a column for a hot-path reason rather
+    than a modelling one: "how many distinct members have ever sent" is the one
+    funnel question that cannot be answered cheaply per send, so the stamp stops
+    the probe running once the answer is yes. An **automated** send never counts
+    — an away reply is the product sending, not a teammate joining in.
+  - **The mid-funnel span (#281 item 3).** `team_invited` (with the role) and
+    `contacts_imported` (with the counts, from BOTH the CSV and vCard paths, so
+    the step cannot under-count by arrival route) make approved→first-send show
+    drop-off rather than only duration. Emitted per occurrence, not once per
+    workspace: a workspace does each a handful of times ever, PostHog funnels
+    read the first occurrence anyway, and two more stamped columns to save a few
+    events would be the wrong trade.
+  - **Still uninstrumented:** stall detection — the absence-shaped alarm, same
+    family as #308. #281 stays open for it, and `job:call-silence` (#397) is the
+    pattern: each workspace judged against its own history, transitions only,
+    with a minimum sample.
 
 ## D13. Repo & delivery
 

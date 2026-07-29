@@ -420,6 +420,83 @@ export async function persistSendInterruption(
  * failure never breaks the send, and the rare concurrent-first-sends
  * duplicate is harmless (funnels count first occurrence per distinct_id).
  */
+/**
+ * #281 item 2 — the first send by a SECOND member.
+ *
+ * A one-person workspace is a trial; a crew is a customer. The issue's claim is
+ * that this is the real retention predictor, and it deserves measuring before it
+ * is relied on: an owner texting alone has not changed how the business runs, a
+ * second person answering customers from the shared number has.
+ *
+ * `companies.second_member_sent_at` is what keeps this off the hot path. The
+ * distinct-sender count is the one funnel question that cannot be answered
+ * cheaply per send, so the stamp means it runs until the second member sends and
+ * never again. Best-effort throughout — the message is already away.
+ */
+async function captureSecondMemberSent(
+  env: Env,
+  db: SupabaseClient,
+  message: MessageRow,
+): Promise<void> {
+  if (!env.POSTHOG_API_KEY) return;
+  const senderId = message.sent_by_user_id;
+  if (!senderId) return; // an automated send has no member behind it
+  try {
+    const { data: companyRows, error: companyError } = await db
+      .from("companies")
+      .select("second_member_sent_at,country,us_texting_enabled")
+      .eq("id", message.company_id)
+      .limit(1);
+    if (companyError) {
+      throw new Error(`second-member company lookup failed: ${companyError.message}`);
+    }
+    const company = (companyRows ?? [])[0] as
+      | {
+          second_member_sent_at?: string | null;
+          country?: string | null;
+          us_texting_enabled?: boolean | null;
+        }
+      | undefined;
+    if (!company || company.second_member_sent_at) return; // already a crew
+
+    // Has anybody ELSE ever sent? One indexed limit-1 probe, not a count:
+    // "a different sender exists" is the whole question.
+    const { data, error } = await db
+      .from("messages")
+      .select("id")
+      .eq("company_id", message.company_id)
+      .eq("direction", "outbound")
+      .not("telnyx_message_id", "is", null)
+      // `neq` already excludes NULLs in PostgREST, so an automated send cannot
+      // masquerade as a second member here.
+      .neq("sent_by_user_id", senderId)
+      .limit(1);
+    if (error) {
+      throw new Error(`second-member probe failed: ${error.message}`);
+    }
+    if ((data ?? []).length === 0) return; // still one person doing everything
+
+    const stamped = await db
+      .from("companies")
+      .update({ second_member_sent_at: new Date().toISOString() })
+      .eq("id", message.company_id)
+      .is("second_member_sent_at", null)
+      .select("id");
+    if (stamped.error) {
+      throw new Error(`second-member stamp failed: ${stamped.error.message}`);
+    }
+    if ((stamped.data ?? []).length === 0) return; // a concurrent send won
+
+    await capture(env, "second_member_sent", message.company_id, {
+      country: company.country ?? "unknown",
+      us_texting_enabled: company.us_texting_enabled === true,
+    });
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    console.error("second_member_sent capture skipped:", detail);
+  }
+}
+
 async function captureFirstOutboundSent(
   env: Env,
   db: SupabaseClient,
@@ -562,6 +639,11 @@ export async function dispatchOutbound(
     // §12 step 18: after the accepted send is durably recorded (instant
     // no-op when analytics is off).
     await captureFirstOutboundSent(env, db, row);
+    // #281 item 2: the crew signal. Separate from the one above because they
+    // answer different questions and stop running at different times — the
+    // first-outbound probe stops after send one, this one after the second
+    // member's first send.
+    await captureSecondMemberSent(env, db, row);
   }
   return row;
 }

@@ -56,6 +56,8 @@ import {
 import { resolveActorNames } from "./core/attribution";
 import { detectContactColumns } from "@loonext/shared";
 
+import { capture } from "../analytics/posthog";
+
 import { normalizeNanpPhone } from "./core/phone";
 import { isValidIanaTimezone } from "./core/timezone";
 import { parseVCards } from "./core/vcard";
@@ -983,6 +985,16 @@ contactsRoutes.post(
     }
 
     const imported = phones.filter((p) => !existingPhones.has(p)).length;
+    // #281 item 3: the other thing a workspace does between approval and its
+    // first send. The COUNT is the property worth having — importing four
+    // contacts and importing four hundred are different states of readiness,
+    // and a drop-off after a big import is a different problem from a drop-off
+    // after a token one. A number cannot carry a name or an address.
+    await capture(getEnv(c.env), "contacts_imported", companyId, {
+      imported,
+      updated: phones.length - imported,
+      source: "csv",
+    });
     return c.json({
       imported,
       updated: phones.length - imported,
@@ -1132,6 +1144,15 @@ contactsRoutes.post(
     }
 
     const imported = phones.filter((p) => !existingPhones.has(p)).length;
+    // #281 item 3: same funnel step as the CSV importer above. Both paths emit,
+    // because a workspace that arrived by vCard is no less imported than one
+    // that arrived by spreadsheet, and a step only one path reports is a step
+    // that under-counts.
+    await capture(getEnv(c.env), "contacts_imported", companyId, {
+      imported,
+      updated: phones.length - imported,
+      source: "vcard",
+    });
     return c.json({
       imported,
       updated: phones.length - imported,

@@ -33,6 +33,7 @@ import { z } from "zod";
 import { recordAuditFromRequest } from "../audit/log";
 import { billingRecipients } from "../billing/recipients";
 import { renderEmailHtml } from "../email/html";
+import { capture } from "../analytics/posthog";
 import { requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -631,6 +632,15 @@ teamRoutes.post("/invites", requireRole("admin"), async (c) => {
     targetId: invite.id as string,
     after: { email: body.email, role: body.role, email_sent: emailSent },
   });
+
+  // #281 item 3: the approved-to-first-send span was one opaque window, and
+  // inviting the crew is one of the two things a workspace actually does inside
+  // it. Emitted per invite rather than once per workspace: a workspace sends a
+  // handful ever, PostHog funnels read the first occurrence, and two more
+  // stamped columns to save a few events would be the wrong trade. The ROLE is
+  // the interesting property — inviting an admin is a different act from
+  // inviting a tech.
+  await capture(env, "team_invited", companyId, { role: body.role });
 
   return c.json({ ...invite, email_sent: emailSent }, 201);
 });

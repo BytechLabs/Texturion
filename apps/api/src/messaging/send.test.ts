@@ -53,6 +53,8 @@ function fakeLimiter(success: boolean): RateLimiter & {
 
 interface DispatchStubs {
   companyLookup: Stub;
+  secondMemberProbe: Stub;
+  crewStamp: Stub;
   telnyx: Stub;
   persist: Stub;
   outboundLookup: Stub;
@@ -66,6 +68,19 @@ function dispatchStubs(
     company?: { country?: string | null; us_texting_enabled?: boolean | null };
     /** The row is absent — segmentation degrades, the event must not. */
     companyMissing?: boolean;
+    /** #281 item 2: a DIFFERENT member has already sent, so this is a crew. */
+    priorMemberSend?: boolean;
+    /** The crew milestone is already stamped — the probe must not run again. */
+    alreadyCrew?: boolean;
+    /**
+     * Who the PERSISTED row says sent it. The capture path reads the row the
+     * PATCH returns, not the row passed in — which is right in production, where
+     * PostgREST echoes the real column — so the stub has to model that or the
+     * fixture silently substitutes the default sender.
+     */
+    sentBy?: string | null;
+    /** A concurrent send claimed the crew stamp first — no second event. */
+    crewStampLost?: boolean;
   } = {},
 ): DispatchStubs {
   const env = completeEnv();
@@ -80,8 +95,18 @@ function dispatchStubs(
       id: MESSAGE_ID,
       company_id: COMPANY_ID,
       ...(call.body as Record<string, unknown>),
+      ...("sentBy" in options ? { sent_by_user_id: options.sentBy } : {}),
     }),
   ]);
+  // #281 item 2: the crew probe — "has a DIFFERENT member ever sent". Matched
+  // on its own filter and registered first, so its calls stay countable apart
+  // from the first-outbound probe below (both are GET /messages).
+  const secondMemberProbe = stubRoute(
+    restMatch(env, "GET", "messages", (url) =>
+      url.searchParams.has("sent_by_user_id"),
+    ),
+    () => (options.priorMemberSend ? [{ id: "a-teammates-send" }] : []),
+  );
   // The first-outbound existence probe: any OTHER dispatched outbound row.
   const outboundLookup = stubRoute(
     restMatch(env, "GET", "messages"),
@@ -92,7 +117,22 @@ function dispatchStubs(
   const companyLookup = stubRoute(restMatch(env, "GET", "companies"), () =>
     options.companyMissing
       ? []
-      : [options.company ?? { country: "CA", us_texting_enabled: false }],
+      : [
+          {
+            ...(options.company ?? {
+              country: "CA",
+              us_texting_enabled: false,
+            }),
+            ...(options.alreadyCrew
+              ? { second_member_sent_at: "2026-07-01T00:00:00.000Z" }
+              : {}),
+          },
+        ],
+  );
+  // #281 item 2: the crew stamp. Guarded on null server-side, so an empty
+  // answer models "a concurrent send already claimed it".
+  const crewStamp = stubRoute(restMatch(env, "PATCH", "companies"), () =>
+    options.crewStampLost ? [] : [{ id: COMPANY_ID }],
   );
   const posthog = stubRoute(
     (url, request) =>
@@ -102,11 +142,21 @@ function dispatchStubs(
   stubFetch(
     telnyx.route,
     persist.route,
+    secondMemberProbe.route,
     outboundLookup.route,
     companyLookup.route,
+    crewStamp.route,
     posthog.route,
   );
-  return { telnyx, persist, outboundLookup, companyLookup, posthog };
+  return {
+    telnyx,
+    persist,
+    secondMemberProbe,
+    outboundLookup,
+    companyLookup,
+    crewStamp,
+    posthog,
+  };
 }
 
 function message() {
@@ -304,11 +354,144 @@ describe("dispatchOutbound — first_outbound_sent (§12 step 18)", () => {
     const failingLookup = stubRoute(restMatch(env, "GET", "messages"), () =>
       Response.json({ message: "boom" }, { status: 500 }),
     );
-    stubFetch(telnyx.route, persist.route, failingLookup.route);
+    // #281: the crew probe reads companies first, and an unanswered request
+    // would hang rather than prove anything. It fails here too — both capture
+    // paths must swallow their own failures independently.
+    const failingCompany = stubRoute(restMatch(env, "GET", "companies"), () =>
+      Response.json({ message: "boom" }, { status: 500 }),
+    );
+    stubFetch(
+      telnyx.route,
+      persist.route,
+      failingLookup.route,
+      failingCompany.route,
+    );
 
     const row = await dispatchOutbound(env, getDb(env), message(), SEND_ARGS);
     expect(row.telnyx_message_id).toBe(TELNYX_ID);
     expect(consoleError).toHaveBeenCalled();
+  });
+});
+
+describe("dispatchOutbound — second_member_sent (#281 item 2)", () => {
+  // "A one-person workspace is a trial; a crew is a customer." The claim is that
+  // this is the real retention predictor, so it has to be measured before it is
+  // relied on — and measured ONCE, or it is a counter rather than a milestone.
+  const SENT_BY = "11111111-1111-4111-8111-111111111111";
+
+  function sentMessage() {
+    return messageRow({
+      id: MESSAGE_ID,
+      company_id: COMPANY_ID,
+      sent_by_user_id: SENT_BY,
+    });
+  }
+
+  it("fires when a DIFFERENT member has sent before", async () => {
+    const env: Env = { ...completeEnv(), POSTHOG_API_KEY: "phc_test_key" };
+    const stubs = dispatchStubs({ priorMemberSend: true, sentBy: SENT_BY });
+
+    await dispatchOutbound(env, getDb(env), sentMessage(), SEND_ARGS);
+
+    // The probe excludes THIS sender: the question is whether somebody else has
+    // sent, not whether anybody has.
+    expect(stubs.secondMemberProbe.calls).toHaveLength(1);
+    const probe = stubs.secondMemberProbe.calls[0].url.searchParams;
+    expect(probe.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(probe.get("sent_by_user_id")).toBe(`neq.${SENT_BY}`);
+    expect(probe.get("direction")).toBe("eq.outbound");
+
+    const events = stubs.posthog.calls.map(
+      (call) => (call.body as { event: string }).event,
+    );
+    expect(events).toContain("second_member_sent");
+  });
+
+  it("stays silent while one person is doing all the texting", async () => {
+    const env: Env = { ...completeEnv(), POSTHOG_API_KEY: "phc_test_key" };
+    const stubs = dispatchStubs({ priorMemberSend: false, sentBy: SENT_BY });
+
+    await dispatchOutbound(env, getDb(env), sentMessage(), SEND_ARGS);
+
+    expect(stubs.secondMemberProbe.calls).toHaveLength(1);
+    const events = stubs.posthog.calls.map(
+      (call) => (call.body as { event: string }).event,
+    );
+    expect(events).not.toContain("second_member_sent");
+  });
+
+  it("never probes again once the workspace is already a crew", async () => {
+    // The stamp is what keeps this off the hot path: without it the distinct
+    // sender question would be asked on every send for the life of the account.
+    const env: Env = { ...completeEnv(), POSTHOG_API_KEY: "phc_test_key" };
+    const stubs = dispatchStubs({
+      priorMemberSend: true,
+      company: { country: "CA", us_texting_enabled: false },
+      alreadyCrew: true,
+      sentBy: SENT_BY,
+    });
+
+    await dispatchOutbound(env, getDb(env), sentMessage(), SEND_ARGS);
+
+    expect(stubs.secondMemberProbe.calls).toHaveLength(0);
+    const events = stubs.posthog.calls.map(
+      (call) => (call.body as { event: string }).event,
+    );
+    expect(events).not.toContain("second_member_sent");
+  });
+
+  it("ignores an automated send, which has no member behind it", async () => {
+    // Away replies and missed-call text-backs are the product sending, not a
+    // teammate joining in. Counting one as a crew signal would be a lie about
+    // the behaviour this event exists to detect.
+    const env: Env = { ...completeEnv(), POSTHOG_API_KEY: "phc_test_key" };
+    const stubs = dispatchStubs({ priorMemberSend: true, sentBy: null });
+
+    // messageRow() defaults to a real sender, so the automated case has to be
+    // spelled out — which is the honest fixture anyway.
+    const automated = messageRow({
+      id: MESSAGE_ID,
+      company_id: COMPANY_ID,
+      sent_by_user_id: null,
+    });
+    await dispatchOutbound(env, getDb(env), automated, SEND_ARGS);
+
+    expect(stubs.secondMemberProbe.calls).toHaveLength(0);
+    const events = stubs.posthog.calls.map(
+      (call) => (call.body as { event: string }).event,
+    );
+    expect(events).not.toContain("second_member_sent");
+  });
+
+  it("emits once when two members send together (the null guard wins)", async () => {
+    // Both sends see "another member exists"; only the update that matches the
+    // null row emits. Otherwise a crew milestone would fire twice and the
+    // retention cohort would double-count the workspace.
+    const env: Env = { ...completeEnv(), POSTHOG_API_KEY: "phc_test_key" };
+    const stubs = dispatchStubs({
+      priorMemberSend: true,
+      sentBy: SENT_BY,
+      crewStampLost: true,
+    });
+
+    await dispatchOutbound(env, getDb(env), sentMessage(), SEND_ARGS);
+
+    expect(stubs.crewStamp.calls).toHaveLength(1);
+    const events = stubs.posthog.calls.map(
+      (call) => (call.body as { event: string }).event,
+    );
+    expect(events).not.toContain("second_member_sent");
+  });
+
+  it("probes nothing at all when analytics is off", async () => {
+    const env = completeEnv();
+    const stubs = dispatchStubs({ priorMemberSend: true, sentBy: SENT_BY });
+
+    await dispatchOutbound(env, getDb(env), sentMessage(), SEND_ARGS);
+
+    expect(stubs.secondMemberProbe.calls).toHaveLength(0);
+    expect(stubs.companyLookup.calls).toHaveLength(0);
+    expect(stubs.posthog.calls).toHaveLength(0);
   });
 });
 
