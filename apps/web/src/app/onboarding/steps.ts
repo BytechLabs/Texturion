@@ -184,15 +184,8 @@ export function applicableSteps(snapshot: OnboardingSnapshot): WizardStep[] {
   const owes = snapshot.company
     ? owesUsRegistration(snapshot.company)
     : draftOwesUsRegistration(snapshot.draft);
-  // #381: the registration pair sits AFTER plan. D2 submits registration to
-  // Telnyx only after payment, so the last-4-of-SIN, the EIN, the address and
-  // the website were collected one step early purely as an artifact of
-  // ordering — nothing downstream read them any sooner. Every signup that
-  // abandoned at the paywall left a partial government identifier in our draft
-  // for a company that never became a customer, which is the clearest possible
-  // case of collecting more than necessary under PIPEDA and Law 25.
   return owes
-    ? ["name", "number", "plan", "business", "texting"]
+    ? ["name", "number", "business", "texting", "plan"]
     : ["name", "number", "plan"];
 }
 
@@ -225,23 +218,15 @@ export function resolveOnboardingLocation(
     if (!draft.country || !draft.areaCode) {
       return { kind: "step", step: "number" };
     }
-    // #381: the company is created on the NUMBER step for every path now, not
-    // just CA-no-US. Registration used to create it as a side effect of
-    // collecting identity, which is what forced identity to come first.
+    // CA-no-US creates the company on the number step itself, so reaching
+    // here without a company means the registration branch: identity next.
+    if (draftOwesUsRegistration(draft)) {
+      return { kind: "step", step: "business" };
+    }
     return { kind: "step", step: "number" };
   }
 
   if (hasPaid(company.subscription_status)) {
-    // #381: registration is collected HERE, after the commitment that justifies
-    // it. They have paid, so the sensitive ask is no longer speculative.
-    if (owesUsRegistration(company)) {
-      if (!brandRowComplete(registration?.brand ?? null)) {
-        return { kind: "step", step: "business" };
-      }
-      if (!campaignRowComplete(registration?.campaign ?? null)) {
-        return { kind: "step", step: "texting" };
-      }
-    }
     // Covers port-in signups too: setting-up renders the honest transfer item
     // (upload LOA + bill → submit → carrier window, PORTING.md §8.1) until the
     // ported/bridge number goes active. This routing only governs /onboarding
@@ -251,7 +236,14 @@ export function resolveOnboardingLocation(
   }
 
   // incomplete / incomplete_expired / canceled → still needs (re)checkout.
-  // Registration is no longer a prerequisite for reaching the paywall.
+  if (owesUsRegistration(company)) {
+    if (!brandRowComplete(registration?.brand ?? null)) {
+      return { kind: "step", step: "business" };
+    }
+    if (!campaignRowComplete(registration?.campaign ?? null)) {
+      return { kind: "step", step: "texting" };
+    }
+  }
   return { kind: "step", step: "plan" };
 }
 
@@ -264,7 +256,7 @@ export function stepAllowed(
   step: WizardStep,
   snapshot: OnboardingSnapshot,
 ): boolean {
-  const { company } = snapshot;
+  const { company, draft } = snapshot;
 
   if (step === "name") {
     // The workspace name is fixed at creation here (it stays editable later in
@@ -287,23 +279,29 @@ export function stepAllowed(
   }
 
   if (company === null) {
-    // #381: every step past `number` needs the company, which the number step
-    // now creates for all paths. Nothing is reachable pre-company any more,
-    // which is exactly what stops an abandoned signup holding identity data.
-    return false;
+    // business needs the local draft to be able to create the company on
+    // submit; texting/plan need the company to exist.
+    return (
+      step === "business" &&
+      Boolean(draft.name?.trim() && draft.country && draft.areaCode) &&
+      draftOwesUsRegistration(draft)
+    );
   }
+
+  if (hasPaid(company.subscription_status)) return false; // → setting-up
 
   if (step === "business" || step === "texting") {
-    // #381: registration is a POST-payment step now. Before payment it is not
-    // merely unnecessary, it is data we have no reason to be holding.
-    return hasPaid(company.subscription_status) && owesUsRegistration(company);
+    return owesUsRegistration(company);
   }
-
-  // plan: reachable as soon as the company exists. It used to be gated on the
-  // registration drafts being complete, which was the coupling that put
-  // identity before the paywall; the checkout route itself no longer requires
-  // them (SPEC §4.1 step 4 submits registration after payment).
-  return !hasPaid(company.subscription_status);
+  // plan: reachable once any owed registration drafts are submittable —
+  // matches the POST /v1/billing/checkout 409 gate (SPEC §4.1 step 4).
+  if (owesUsRegistration(company)) {
+    return (
+      brandRowComplete(snapshot.registration?.brand ?? null) &&
+      campaignRowComplete(snapshot.registration?.campaign ?? null)
+    );
+  }
+  return true;
 }
 
 /** Progress-dots position: 1-based index within the applicable steps. */

@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -27,12 +28,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
+import { useCreateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
+import { keys } from "@/lib/api/keys";
 import { useSaveOnboardingRegistration } from "@/lib/api/onboarding";
+import { writeCompanyCookie } from "@/lib/company/cookie";
+import { browserTimezone } from "@/lib/format/time";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 
 import { CA_REGION_NAMES, US_REGION_NAMES } from "../area-codes";
+import { clearOnboardingDraft } from "../local-draft";
 import { normalizeNanpPhone, normalizeWebsite } from "../normalize";
 import { StepError, StepLoading, StepShell } from "../step-shell";
 import { previousStepHref, stepProgress } from "../steps";
@@ -174,6 +180,8 @@ function asString(value: unknown): string {
 export default function BusinessIdentityPage() {
   const { state, ready } = useWizardStepGuard("business");
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const createCompany = useCreateCompany();
   const saveRegistration = useSaveOnboardingRegistration();
   const [formError, setFormError] = useState<string | null>(null);
   const [seeded, setSeeded] = useState(false);
@@ -303,14 +311,32 @@ export default function BusinessIdentityPage() {
     };
 
     try {
-      // #381: the company already exists — the number step creates it for every
-      // path now. This step used to create it as a side effect of collecting
-      // identity, and that coupling is exactly why the last-4-of-SIN ask had to
-      // come before the paywall: checkout needs a company, so identity preceded
-      // payment for no reason other than ordering.
-      const companyId = state.companyId;
-      if (!companyId) throw new Error("no active company on the business step");
+      let companyId = state.companyId;
+      if (state.company === null) {
+        // D15: the creating browser's timezone rides along silently.
+        const timezone = browserTimezone();
+        const company = await createCompany.mutateAsync({
+          name: state.draft.name?.trim() ?? "",
+          country,
+          requested_area_code: state.draft.areaCode ?? "",
+          // Choose-your-number: carry the onboarding pick through to the order.
+          ...(state.draft.chosenNumber
+            ? { chosen_number_e164: state.draft.chosenNumber }
+            : {}),
+          ...(country === "CA" ? { us_texting_enabled: true } : {}),
+          ...(timezone ? { timezone } : {}),
+        });
+        companyId = company.id;
+        writeCompanyCookie(company.id);
+      }
+      if (!companyId) throw new Error("no active company after create");
       await saveRegistration.mutateAsync({ companyId, brand });
+      if (state.company === null) {
+        // The next step's guard resolves the company through GET /v1/me —
+        // wait for the new membership to be visible before navigating.
+        await queryClient.invalidateQueries({ queryKey: keys.me });
+        clearOnboardingDraft();
+      }
       trackOnboardingStepCompleted("business");
       router.push("/onboarding/texting");
     } catch (cause) {
@@ -322,7 +348,7 @@ export default function BusinessIdentityPage() {
     }
   }
 
-  const saving = saveRegistration.isPending;
+  const saving = createCompany.isPending || saveRegistration.isPending;
 
   return (
     <StepShell

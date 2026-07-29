@@ -227,16 +227,12 @@ describe("resolveOnboardingLocation", () => {
     ).toEqual({ kind: "step", step: "number" });
   });
 
-  it("#381: a US draft with no company goes to NUMBER, not business", () => {
-    // The company is created on the number step for every path now. It used to
-    // be created as a side effect of the business step, and that coupling is
-    // the whole reason the last-4-of-SIN ask came before the paywall: checkout
-    // needs a company, so identity had to precede payment.
+  it("US draft with area code but no company → business step", () => {
     expect(
       resolveOnboardingLocation(
         snapshot({ company: null, draft: COMPLETE_DRAFT }),
       ),
-    ).toEqual({ kind: "step", step: "number" });
+    ).toEqual({ kind: "step", step: "business" });
   });
 
   it("CA-no-US draft without a company → back to the number step (company is created there)", () => {
@@ -250,32 +246,22 @@ describe("resolveOnboardingLocation", () => {
     ).toEqual({ kind: "step", step: "number" });
   });
 
-  it("#381: a US company pre-checkout goes to PLAN, registration rows or not", () => {
-    // Registration is submitted to Telnyx after payment (D2), so collecting it
-    // first held a partial government identifier for every signup that
-    // abandoned at the paywall — a company that never became a customer.
+  it("US company pre-checkout without registration rows → business step", () => {
     expect(
       resolveOnboardingLocation(snapshot({ company: {} })),
-    ).toEqual({ kind: "step", step: "plan" });
+    ).toEqual({ kind: "step", step: "business" });
   });
 
-  it("#381: PAID with brand complete and campaign missing → texting step", () => {
-    // The registration pair still runs in order; it runs after payment now.
+  it("brand complete but campaign missing → texting step", () => {
     expect(
       resolveOnboardingLocation(
         snapshot({
-          company: { status: "active" },
+          company: {},
           brand: { data: COMPLETE_BRAND_DATA },
           campaign: null,
         }),
       ),
     ).toEqual({ kind: "step", step: "texting" });
-  });
-
-  it("#381: PAID with nothing registered yet → business step", () => {
-    expect(
-      resolveOnboardingLocation(snapshot({ company: { status: "active" } })),
-    ).toEqual({ kind: "step", step: "business" });
   });
 
   it("both drafts complete pre-checkout → plan step", () => {
@@ -374,12 +360,6 @@ describe("resolveOnboardingLocation", () => {
   });
 
   it("deactivated campaign (post-grace resubscribe) keeps setting-up honest", () => {
-    // #381: the fixture now carries the registration ROWS as well as the
-    // campaign state, because the paid branch checks them before falling
-    // through to setting-up. A post-grace resubscribe has by definition
-    // already registered — the campaign was deactivated, not un-filed — so
-    // supplying them is what makes this fixture describe the real situation
-    // rather than a company that never registered at all.
     expect(
       resolveOnboardingLocation(
         snapshot({
@@ -388,8 +368,6 @@ describe("resolveOnboardingLocation", () => {
             numbers: [{ status: "active" }],
             campaign: { status: "approved", deactivated_at: "2026-06-01T00:00:00Z" },
           },
-          brand: { data: COMPLETE_BRAND_DATA },
-          campaign: { kind: "campaign", data: COMPLETE_CAMPAIGN_DATA },
         }),
       ),
     ).toEqual({ kind: "setting-up" });
@@ -423,38 +401,29 @@ describe("stepAllowed", () => {
     ).toBe(false);
   });
 
-  it("#381: NOTHING is reachable before the company exists", () => {
-    // Which is what stops an abandoned signup leaving identity data behind:
-    // there is no longer a pre-company step that asks for any.
+  it("business needs a complete local draft when the company is missing", () => {
     expect(stepAllowed("business", snapshot({ company: null }))).toBe(false);
     expect(
-      stepAllowed("business", snapshot({ company: null, draft: COMPLETE_DRAFT })),
-    ).toBe(false);
-    expect(stepAllowed("texting", snapshot({ company: null }))).toBe(false);
-    expect(stepAllowed("plan", snapshot({ company: null }))).toBe(false);
+      stepAllowed(
+        "business",
+        snapshot({ company: null, draft: COMPLETE_DRAFT }),
+      ),
+    ).toBe(true);
   });
 
-  it("#381: registration OPENS after payment and closes for CA-no-US", () => {
+  it("registration steps close for CA-no-US companies and after payment", () => {
     const caOnly = snapshot({ company: { country: "CA", usTexting: false } });
     expect(stepAllowed("business", caOnly)).toBe(false);
     expect(stepAllowed("texting", caOnly)).toBe(false);
     expect(stepAllowed("plan", caOnly)).toBe(true);
 
-    // The inversion: unpaid closes the registration steps, paid opens them.
-    const unpaid = snapshot({ company: {} });
-    expect(stepAllowed("business", unpaid)).toBe(false);
-
     const paid = snapshot({ company: { status: "active" } });
-    expect(stepAllowed("business", paid)).toBe(true);
-    expect(stepAllowed("texting", paid)).toBe(true);
+    expect(stepAllowed("business", paid)).toBe(false);
     expect(stepAllowed("plan", paid)).toBe(false);
   });
 
-  it("#381: plan is reachable as soon as the company exists", () => {
-    // It used to be gated on the registration drafts being complete. That gate
-    // was the coupling that put a SIN fragment before the paywall, and the
-    // checkout route never needed it — D2 submits registration after payment.
-    expect(stepAllowed("plan", snapshot({ company: {} }))).toBe(true);
+  it("plan mirrors the checkout draft gate for owing companies", () => {
+    expect(stepAllowed("plan", snapshot({ company: {} }))).toBe(false);
     expect(
       stepAllowed(
         "plan",
@@ -474,10 +443,8 @@ describe("stepAllowed", () => {
 
 describe("applicableSteps / stepProgress", () => {
   it("US signups walk 5 steps; CA-no-US walks 3", () => {
-    // #381: registration comes after plan. Same five steps, ordered so the
-    // most sensitive ask sits behind the commitment that justifies it.
     expect(applicableSteps(snapshot({ company: null, draft: COMPLETE_DRAFT })))
-      .toEqual(["name", "number", "plan", "business", "texting"]);
+      .toEqual(["name", "number", "business", "texting", "plan"]);
     expect(
       applicableSteps(
         snapshot({ company: { country: "CA", usTexting: false } }),
@@ -489,9 +456,7 @@ describe("applicableSteps / stepProgress", () => {
     const ca = snapshot({ company: { country: "CA", usTexting: false } });
     expect(stepProgress("plan", ca)).toEqual({ index: 3, total: 3 });
     const us = snapshot({ company: {} });
-    // #381: plan is 3 of 5 now; business is 4.
-    expect(stepProgress("plan", us)).toEqual({ index: 3, total: 5 });
-    expect(stepProgress("business", us)).toEqual({ index: 4, total: 5 });
+    expect(stepProgress("business", us)).toEqual({ index: 3, total: 5 });
   });
 });
 
@@ -503,24 +468,16 @@ describe("previousStepHref (honest Back navigation)", () => {
     expect(previousStepHref("plan", caOnly)).toBe("/onboarding/number");
   });
 
-  it("#381: walks back to the nearest EDITABLE step for a US company", () => {
-    // The order inverted, so Back did too: plan now sits between number and
-    // the registration pair.
-    const unpaid = snapshot({ company: {} });
-    expect(previousStepHref("plan", unpaid)).toBe("/onboarding/number");
-
-    // Once paid, the registration pair is the reachable tail. Plan is closed
-    // behind them (they have already paid), so Back from business honestly
-    // reaches the number step rather than offering a second checkout.
-    const paid = snapshot({ company: { status: "active" } });
-    expect(previousStepHref("texting", paid)).toBe("/onboarding/business");
+  it("walks back to the nearest EDITABLE step for a US company", () => {
+    const us = snapshot({ company: {} });
+    // plan → texting (editable while owing US registration), texting → business.
+    expect(previousStepHref("plan", us)).toBe("/onboarding/texting");
+    expect(previousStepHref("texting", us)).toBe("/onboarding/business");
   });
 
   it("walks back to number on business once the company exists (editable until checkout, #79)", () => {
-    // #381: reached post-payment now, and the number step locks once paid, so
-    // there is nothing editable behind it to offer.
-    expect(previousStepHref("business", snapshot({ company: { status: "active" } }))).toBe(
-      null,
+    expect(previousStepHref("business", snapshot({ company: {} }))).toBe(
+      "/onboarding/number",
     );
   });
 
