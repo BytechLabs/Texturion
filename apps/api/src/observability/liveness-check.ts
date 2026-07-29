@@ -58,8 +58,13 @@ export async function runLivenessCheckJob(
   // nobody switched on — the same phantom-alert failure the "cron that no
   // longer exists" test guards against, arriving from the other direction.
   const canaryOff = canaryConfig(env) === null;
+  // #375: same posture for the DO alert channel. Without the CALL_SESSIONS
+  // binding there is no Durable Object runtime to answer for, so an
+  // expectation about it would be an alert about something not deployed.
+  const doCanaryOff = !env.CALL_SESSIONS;
   const expectations = Object.entries(LIVENESS_EXPECTATIONS)
     .filter(([key]) => !(canaryOff && key === "channel:inbound-canary"))
+    .filter(([key]) => !(doCanaryOff && key === "channel:do-sentry"))
     .map(([key, spec]) => ({
       key,
       what: spec.what,

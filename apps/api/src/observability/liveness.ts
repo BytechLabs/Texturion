@@ -128,6 +128,13 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "cron:15 */6 * * *": {
+    what:
+      "The six-hourly trigger has not fired — the Durable Object alert-channel " +
+      "canary (#375) rides it.",
+    everyMinutes: 360,
+    graceMinutes: 180,
+  },
   "cron:50 13 * * 1": {
     what: "The weekly founder cost digest has not run (#447).",
     everyMinutes: 10080,
@@ -234,6 +241,16 @@ export const LIVENESS_EXPECTATIONS = {
     // job that stopped executing is a different fault from one that is off.
     everyMinutes: 60,
     graceMinutes: 60,
+  },
+  "job:do-sentry-canary": {
+    what:
+      "The Durable Object alert-channel canary (#375) has stopped running, so " +
+      "nothing is checking whether the calls alarms can still reach anyone.",
+    // Unconditional, for the same reason as job:inbound-canary: "the job ran"
+    // is worth knowing whether or not a DO binding exists, and a job that
+    // stopped executing is a different fault from a channel that is down.
+    everyMinutes: 360,
+    graceMinutes: 720,
   },
   "job:email-health": {
     what:
@@ -455,6 +472,34 @@ export const LIVENESS_EXPECTATIONS = {
       "traffic ourselves.",
     everyMinutes: 60,
     graceMinutes: 150,
+  },
+  // ---------------------------------------------------------------------
+  // #375 — the channel the calls alarms report THROUGH.
+  //
+  // Every other key here watches a thing that does work. This one watches the
+  // ability to complain, which is the dependency all of them share: if
+  // DO-scoped Sentry is broken, the §13 cost-cap warnings and the §17 drift
+  // alarm do not degrade, they stop existing, and their silence is identical
+  // to the healthy state they spend most of their life in.
+  //
+  // CONDITIONALLY DECLARED, like the inbound canary: omitted when
+  // CALL_SESSIONS is unbound, because there is no Durable Object runtime to
+  // answer for and an expectation about an undeployed thing alerts forever.
+  //
+  // The grace is two cadences. One missed probe is a rate limit or a blip;
+  // two is a channel that is actually gone, and the fault being watched for
+  // does not repair itself.
+  // ---------------------------------------------------------------------
+  "channel:do-sentry": {
+    what:
+      "The Durable Object alert channel has not proved itself. Sentry either " +
+      "has no client inside the DO isolate or is not accepting its events, " +
+      "which by CALLS-V3 §13 makes every cost-cap warning and the §17 " +
+      "queue-latency drift alarm a silent no-op. Nothing about the calls " +
+      "system is being watched right now, and an outage there would produce " +
+      "no alert at all.",
+    everyMinutes: 360,
+    graceMinutes: 720,
   },
   "channel:webhook-signature": {
     what:

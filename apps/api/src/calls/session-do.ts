@@ -19,6 +19,12 @@
  * the journal-resume rule.
  */
 import { DurableObject } from "cloudflare:workers";
+import * as Sentry from "@sentry/cloudflare";
+
+import {
+  probeSentryChannel,
+  type SentryChannelProbe,
+} from "../observability/do-sentry-canary";
 
 import type { Env } from "../env";
 import {
@@ -328,6 +334,26 @@ export class CallSessionDO extends DurableObject<Env> {
       if (!(await this.load())) return;
       await this.admitAndDrain({ type: "clear-intent" }, null);
     });
+  }
+
+  /**
+   * #375 — prove, from inside this isolate, that the alarms can still speak.
+   *
+   * §13 states that Sentry inside the DO requires the §2.1 instrumentation or
+   * every cost-cap warning and drift alarm is a silent no-op. Nothing verified
+   * that condition, and it cannot be verified from the Worker: a DO is a
+   * separate isolate with its own client, so only code running HERE can answer
+   * for it.
+   *
+   * Deliberately outside `enqueue`. The serialized queue exists to order state
+   * transitions for a live call; this touches no session state, and making a
+   * diagnostic wait behind a call in progress would mean the probe times out
+   * exactly when the system is busiest — reporting an outage that is really a
+   * queue. It also runs on the reserved canary instance, which by construction
+   * never holds a call.
+   */
+  async probeAlertChannel(): Promise<SentryChannelProbe> {
+    return probeSentryChannel(this.env, () => Sentry.getClient());
   }
 
   async alarm(): Promise<void> {

@@ -1769,8 +1769,43 @@ a DO class is declared and never routed through it, or if the bound name is not
 a real runtime export. Verified by decoy — removing the wrapper fails two of
 the three assertions.
 
-**What is still not proven, and needs saying.** That test asserts the
-instrumentation is *wired*. It does **not** assert Sentry *ingested* anything —
-that needs either a Sentry API read token or a synthetic call, and until one of
-those exists, "the alarms work" rests on the wiring being right rather than on
-evidence. #375 stays open for it.
+**And what proves it carries.** The CI test above asserts the instrumentation
+is *wired*; it cannot assert Sentry *accepted* anything. The synthetic call it
+asked for now exists:
+`apps/api/src/observability/do-sentry-canary.ts`, on the `15 */6 * * *`
+trigger. Every six hours the cron asks the DO — via `probeAlertChannel()`, on
+the reserved instance `__do-sentry-canary__`, which can never collide with a
+session id — to make two assertions from inside its own isolate:
+
+1. **`Sentry.getClient()` is defined**, which is the §2.1 wrapper's runtime
+   fingerprint. Free, and it catches the dropped-wrapper regression in
+   production the same way the CI test catches it before merge.
+2. **A minimal `debug`-level envelope POSTed to the DSN's ingest endpoint came
+   back 2xx.** This is the part no wiring check can do: it proves the DSN is
+   valid, the project is still accepting, egress from the DO isolate is
+   permitted, and we are not being rate-limited into silence (a 429 fails the
+   probe deliberately — a project shedding events has degraded alarms even
+   though the channel technically works).
+
+Only both together record the `channel:do-sentry` heartbeat. **The alert for
+its absence is an email**, through the #387 liveness checker — deliberately a
+channel whose failure mode is unrelated, because a Sentry alert about Sentry
+being down is not an alert. That is where the regress stops, and one level is
+enough.
+
+Two decisions worth keeping:
+
+- **Six-hourly, not hourly.** Each probe is a billable Sentry event. Hourly
+  would spend ~720 a month saying "still fine" — a seventh of a 5k plan — and
+  quota spent on canaries is quota unavailable to real errors. A canary that
+  rate-limits the alarms it protects would *be* the failure it exists to
+  prevent. The fault being watched for is not transient, so detecting it a few
+  hours later is the same detection.
+- **A raw envelope, not `captureMessage`.** A captured message is
+  fire-and-forget, and `flush()` reports that the local queue drained, not that
+  Sentry accepted anything. This canary exists precisely because "we handed it
+  off successfully" was already the assumption that failed.
+
+Withheld when `CALL_SESSIONS` is unbound, like the #308 canary: there is no DO
+runtime to answer for, and an expectation about something undeployed alerts
+forever.

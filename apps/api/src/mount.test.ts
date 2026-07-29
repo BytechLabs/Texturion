@@ -12,6 +12,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { runEmailHealthJob } from "./email/health";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
+import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
 import { pruneExpiredExports } from "./workspace/export";
 import { runGraceJob } from "./billing/grace";
 import { runLeadChaseJob } from "./notifications/lead-chase";
@@ -437,6 +438,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
         "0 15 * * *", // subscription reconcile
         "45 15 * * *", // opt-out reconciliation against the carrier (#331)
         "30 15 * * *", // webhook_events ledger retention
+        "15 */6 * * *", // #375 Durable Object alert-channel canary
         "50 13 * * 1", // #447 founder digest: tenants projected over revenue (weekly)
       ].sort(),
     );
@@ -501,6 +503,8 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       buildDataExports,
       pruneExpiredExports, // #378: expired exports are deleted, not just hidden
     ]);
+    // #375: the DO alert-channel canary, alone on its own six-hourly trigger.
+    expect(runs("15 */6 * * *")).toEqual([runDoSentryCanaryJob]);
   });
 
   it("pairs every job with a DISTINCT declared liveness key (#333)", () => {

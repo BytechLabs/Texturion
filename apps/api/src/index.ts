@@ -21,6 +21,7 @@ import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
+import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
 import { runLivenessCheckJob } from "./observability/liveness-check";
 import {
   recordHeartbeatBestEffort,
@@ -390,6 +391,12 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // warning; this is the only place the PATTERN shows up, which is the
   // question #446 asks. Monday morning, off the hour.
   "50 13 * * 1": [job("job:overage-digest", runOverageDigestJob)],
+  // #375: prove, from inside the Durable Object, that the alarms guarding the
+  // calls system can still reach a human. Its own schedule rather than a
+  // piggyback, because the six-hour cadence is a cost decision (one billable
+  // Sentry event per probe) and hiding it inside an hourly trigger would make
+  // that decision unreadable at the point where it is made.
+  "15 */6 * * *": [job("job:do-sentry-canary", runDoSentryCanaryJob)],
   "30 15 * * *": [
     job("job:prune-webhook-events", pruneWebhookEvents),
     job("job:prune-audit-log", pruneAuditLog),
