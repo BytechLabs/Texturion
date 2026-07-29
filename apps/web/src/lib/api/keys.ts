@@ -11,6 +11,8 @@ export const keys = {
   me: ["me"] as const,
   /** Company-exempt (#109): the caller's own pending invites, all companies. */
   myInvites: ["my-invites"] as const,
+  /** Company-exempt (#236): your signed-in devices belong to you, not a workspace. */
+  mySessions: ["my-sessions"] as const,
   /** Company-exempt (public Telnyx inventory) — the number-picker feed. */
   availableNumbers: (
     country: string,
@@ -44,6 +46,9 @@ export const keys = {
   tags: (companyId: string) => [companyId, "tags"] as const,
   templates: (companyId: string) => [companyId, "templates"] as const,
   members: (companyId: string) => [companyId, "members"] as const,
+  /** #236: every active member's live devices, workspace-wide. */
+  workspaceSessions: (companyId: string) =>
+    ["workspace-sessions", companyId] as const,
   mentionableMembers: (companyId: string, conversationId: string) =>
     [companyId, "conversation", conversationId, "mentionable-members"] as const,
   invites: (companyId: string) => [companyId, "invites"] as const,

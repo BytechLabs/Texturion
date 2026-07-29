@@ -52,6 +52,11 @@ export function createApiClient(config: ApiClientConfig): ApiRequest {
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${token}`,
+      // #236: which app is calling, so the signed-in-devices list can say
+      // "Web browser" instead of guessing from a user agent string. Set here
+      // rather than per-call — a request that skipped it would show up in
+      // somebody's security screen as an unrecognised device.
+      "X-Client": "web",
     };
     if (options.companyId) headers["X-Company-Id"] = options.companyId;
     if (options.idempotencyKey) {

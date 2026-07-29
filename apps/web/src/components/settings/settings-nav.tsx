@@ -9,6 +9,7 @@ import {
   Gauge,
   LifeBuoy,
   MessageSquareText,
+  MonitorSmartphone,
   Phone,
   PhoneMissed,
   ScrollText,
@@ -115,6 +116,15 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "Account",
     description: "Email, password, and sign-in methods",
     icon: ShieldCheck,
+  },
+  {
+    // #236 — what is signed in right now, and how to kill it. Directly after
+    // Account because they are one question in two halves: how you get in,
+    // and what is currently in.
+    slug: "devices",
+    label: "Devices",
+    description: "What's signed in, and signing it out",
+    icon: MonitorSmartphone,
   },
   {
     // #231 — the workspace audit log. Last in the list on purpose: it is the
