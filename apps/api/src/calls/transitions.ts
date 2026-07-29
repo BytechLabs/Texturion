@@ -35,6 +35,31 @@ export const MAX_LEGS_PER_SESSION = 24;
  *  always be able to end honestly). */
 export const MAX_TELNYX_COMMANDS_PER_SESSION = 3 * MAX_LEGS_PER_SESSION + 16;
 
+/**
+ * #366: which of an over-sized crew gets rung on THIS call.
+ *
+ * A stable hash of the session id picks the starting offset, so the order is
+ * deterministic per call — replaying a session dials exactly the same people,
+ * which the machine's reproducibility depends on — and different across calls,
+ * so the crew takes turns rather than the same members never ringing.
+ *
+ * Exported for the test that asserts both halves, because "deterministic" and
+ * "fair" pull in opposite directions and only one of them is obvious from the
+ * call site.
+ */
+export function rotateForFairness<T>(items: readonly T[], seed: string): T[] {
+  if (items.length === 0) return [];
+  // FNV-1a. Chosen because it is four lines and stable across runtimes — this
+  // must produce the same order in a Worker today and in a replay tomorrow.
+  let hash = 2_166_136_261;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  const offset = Math.abs(hash) % items.length;
+  return [...items.slice(offset), ...items.slice(0, offset)];
+}
+
 /** §4 T1d: bounded dial parallelism (batches; per-target try/catch). */
 export const DIAL_BATCH_SIZE = 6;
 
@@ -1044,10 +1069,24 @@ function reduceInitiated(
       kind: "sentry-warn",
       message:
         `calls-v3 RING-START: ${targets.length} eligible targets exceed ` +
-        `MAX_LEGS_PER_SESSION=${MAX_LEGS_PER_SESSION} — dialing the first ` +
-        `${MAX_LEGS_PER_SESSION} by earliest membership (alert-before-the-cap)`,
+        `MAX_LEGS_PER_SESSION=${MAX_LEGS_PER_SESSION} — dialing ` +
+        `${MAX_LEGS_PER_SESSION} chosen by a per-session rotation ` +
+        `(alert-before-the-cap)`,
     });
-    targets = targets.slice(0, MAX_LEGS_PER_SESSION);
+    // #366: ROTATED, not truncated. Ordering by earliest membership is
+    // reproducible and unfair in a way that compounds: a member who sorts 25th
+    // is 25th on every call, forever. They do not ring occasionally — they
+    // never ring, and there is no way for them to find out why.
+    //
+    // The rotation is seeded from the CALL SESSION, so it is still perfectly
+    // deterministic for a given call — the same session replayed produces the
+    // same legs, which is what the state machine's reproducibility depends on
+    // — while a different call starts at a different member. Over a day's
+    // calls everybody is dialled.
+    targets = rotateForFairness(targets, context.callSessionId).slice(
+      0,
+      MAX_LEGS_PER_SESSION,
+    );
   }
   const dialLegs = targets.map((target) => {
     const pendingKey = `leg:pending:${pendingKeyFor()}`;

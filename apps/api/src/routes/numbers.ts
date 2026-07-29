@@ -6,6 +6,8 @@ import { z } from "zod";
 import { recordAuditFromRequest } from "../audit/log";
 import { requireRole } from "../auth/company";
 import { resolveNumberAccess } from "../auth/number-access";
+import { computeRingContext } from "../calls/runtime";
+import { MAX_LEGS_PER_SESSION } from "../calls/transitions";
 import {
   convergeExtraNumberQuantity,
   countNonReleasedNumbers,
@@ -124,12 +126,46 @@ numbersRoutes.get("/", async (c) => {
   // healthy — the honest reading of "we have not assessed this".
   const health = await loadNumberHealth(db, c.get("companyId"));
 
+  // #366: how many people an inbound call to this number could ring.
+  //
+  // Derived from THE SAME function the live call uses, rather than counted
+  // separately here. A second implementation of "who is eligible" would drift
+  // from the real fan-out, and a stale "you have 26 people" is worse than no
+  // number — it sends an owner looking for a problem that already resolved.
+  //
+  // Best-effort, like the health read above: this is a note on a settings
+  // screen, and it must never take down the list the composer's "text from"
+  // picker depends on.
+  const ringTargets = new Map<string, number>();
+  await Promise.all(
+    visible
+      .filter((row) => row.status === "active")
+      .map(async (row) => {
+        try {
+          const { dialTargets } = await computeRingContext(
+            db,
+            c.get("companyId"),
+            row.id,
+          );
+          ringTargets.set(row.id, dialTargets.length);
+        } catch (cause) {
+          console.error(
+            `ring target count failed for number ${row.id}: ${String(cause)}`,
+          );
+        }
+      }),
+  );
+
   // A company holds at most 2 numbers (SPEC §2) — the list envelope keeps the
   // §7 shape with no second page ever.
   return c.json({
     data: visible.map((row) => ({
       ...sanitizeNumber(row),
       health: health.get(row.id) ?? null,
+      /** #366: null when it could not be resolved — never a guess. */
+      ring_targets: ringTargets.get(row.id) ?? null,
+      /** The ceiling itself, so a client never hard-codes 24. */
+      ring_target_limit: MAX_LEGS_PER_SESSION,
     })),
     next_cursor: null,
   });
