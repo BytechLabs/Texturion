@@ -59,9 +59,20 @@ private enum class DevicePushState { On, Off, Blocked }
  * honest 'push unavailable in this build' state when Firebase isn't
  * configured. Granting permission (or landing here already granted with push
  * on) re-upserts the device token — the #143 self-healing mirror.
+ *
+ * [extraRows] lands with the Email/Push switches rather than after the
+ * device-permission block, because it is for settings that answer the same
+ * question those two do — when does this thing make a noise. #463's crew-wide
+ * lead-chase switch is the caller. Nothing renders while prefs are loading or
+ * failed: a switch floating under a spinner belongs to no card.
  */
 @Composable
-fun NotificationPrefsCard(graph: AppGraph, companyId: String, modifier: Modifier = Modifier) {
+fun NotificationPrefsCard(
+    graph: AppGraph,
+    companyId: String,
+    modifier: Modifier = Modifier,
+    extraRows: @Composable () -> Unit = {},
+) {
     val repo = remember(graph) { NotificationsFeedRepository(graph.api) }
     val scope = rememberCoroutineScope()
 
@@ -143,6 +154,8 @@ fun NotificationPrefsCard(graph: AppGraph, companyId: String, modifier: Modifier
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
+
+                extraRows()
 
                 Spacer(Modifier.padding(top = 12.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

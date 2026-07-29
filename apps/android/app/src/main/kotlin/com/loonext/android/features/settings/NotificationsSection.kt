@@ -25,12 +25,10 @@ import kotlinx.serialization.json.put
  * explaining a feature three different ways, and this one is about when a
  * customer's phone is answered — the copy has to be exact.
  *
- * Two minutes and five minutes mirror LEAD_CHASE_NUDGE_MINUTES and
- * LEAD_CHASE_WIDEN_MINUTES in packages/shared/src/lead-chase.ts, which the
- * server reads. Kotlin cannot import them; if they ever change, this string
- * and the iOS one change with them.
+ * Five minutes mirrors LEAD_CHASE_WIDEN_MINUTES in
+ * packages/shared/src/lead-chase.ts, which the server reads. Kotlin cannot
+ * import it; if it ever changes, this string and the iOS one change with it.
  */
-private const val NUDGE_MINUTES = 2
 private const val WIDEN_MINUTES = 5
 
 /**
@@ -39,10 +37,11 @@ private const val WIDEN_MINUTES = 5
  * exception plainly: billing and registration emails always reach owners
  * and admins.
  *
- * #388 adds the workspace-wide lead-chasing card BELOW the personal one, in
- * its own card and labelled with its scope. The card above is about this
- * person and this device; silently mixing the two would leave a member
- * thinking they had turned something off for themselves.
+ * #463 folded the lead-chasing card INTO that one as a single row. It used to
+ * be a titled card of its own holding two switches, and the owner's objection
+ * was that all of it was special treatment for what is just another
+ * notification setting. The second switch was also unreachable in practice —
+ * see 01209b5.
  */
 @Composable
 fun NotificationsSection(
@@ -59,9 +58,9 @@ fun NotificationsSection(
         graph = scope.graph,
         companyId = scope.companyId,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-    )
-
-    LeadChaseCard(scope, company, onCompanyUpdated)
+    ) {
+        LeadChaseRow(scope, company, onCompanyUpdated)
+    }
 
     Text(
         "Billing, usage, and registration emails always go to owners and admins. " +
@@ -72,8 +71,24 @@ fun NotificationsSection(
     )
 }
 
+/**
+ * #463 — one switch, sitting among the other notification settings.
+ *
+ * WHAT THE OLD CARD GOT RIGHT AND THIS KEEPS. Everything else in that card is
+ * per-person; this is workspace-wide, and the card's header said so. Silently
+ * mixing the two scopes would let a member think they had muted something for
+ * themselves when they had changed it for everyone. That warning is not
+ * dropped — it moved into this row's own description, which is where somebody
+ * looks before touching a switch.
+ *
+ * The business-hours limit moved with it, for the same reason: it is not a
+ * setting, it is the difference between silence at 7pm being expected and
+ * silence at 7pm being a bug worth reporting.
+ *
+ * Same sentence as web and iOS, deliberately — see the note on WIDEN_MINUTES.
+ */
 @Composable
-private fun LeadChaseCard(
+private fun LeadChaseRow(
     scope: SettingsScope,
     company: CompanyView,
     onCompanyUpdated: (CompanyView) -> Unit,
@@ -86,15 +101,12 @@ private fun LeadChaseCard(
     // Saves on toggle rather than behind a Save button, unlike the away
     // message next door: there is no text to get wrong and no preview to
     // check, so a two-step commit would be ceremony around a switch.
-    fun save(chase: Boolean, crew: Boolean) {
+    fun save(crew: Boolean) {
         error = null
         saving = true
         coroutines.launch {
             try {
-                val body = buildJsonObject {
-                    put("lead_chase_enabled", chase)
-                    put("lead_chase_crew_enabled", crew)
-                }
+                val body = buildJsonObject { put("lead_chase_crew_enabled", crew) }
                 onCompanyUpdated(scope.repo.updateCompany(scope.companyId, body))
             } catch (cause: Exception) {
                 error = cause.userMessage()
@@ -104,48 +116,19 @@ private fun LeadChaseCard(
         }
     }
 
-    SettingsCard(
-        title = "Chasing unanswered leads",
-        description = "Applies to everyone in the workspace. Only owners and admins can change it.",
-    ) {
-        LabeledSwitchRow(
-            label = "Buzz again after $NUDGE_MINUTES minutes",
-            supporting = "When a new customer texts and nobody has replied, send the same " +
-                "people one more notification. A phone in a pocket misses the first one, " +
-                "and the job usually goes to whoever answers first.",
-            checked = company.lead_chase_enabled,
-            enabled = canEdit && !saving,
-            onCheckedChange = { save(it, company.lead_chase_crew_enabled) },
-        )
-        LabeledSwitchRow(
-            label = "Tell the whole crew after $WIDEN_MINUTES minutes",
-            supporting = "If a conversation is assigned to one person and they still haven't " +
-                "replied, notify everyone who can see it. This one reaches people who " +
-                "weren't told the first time, so it's off unless you turn it on.",
-            checked = company.lead_chase_crew_enabled,
-            // Off entirely when chasing is off: the second rung is only ever
-            // reached through the first, so leaving it live would let an owner
-            // switch on something that cannot fire.
-            enabled = canEdit && company.lead_chase_enabled && !saving,
-            onCheckedChange = { save(company.lead_chase_enabled, it) },
-        )
-        InlineError(error)
-        Text(
-            "Only during your business hours, and never to anyone who has turned their own " +
-                "notifications off. Outside hours your away reply answers instead.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-        if (!canEdit) {
-            Text(
-                "Only owners and admins can change this.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        }
-    }
+    LabeledSwitchRow(
+        label = "Tell the whole crew after $WIDEN_MINUTES minutes",
+        supporting = "When a conversation is assigned to one person and they still haven't " +
+            "replied, notify everyone who can see it. Business hours only, and never " +
+            "someone who has turned their own notifications off. This one is for the " +
+            "whole workspace, not just you" +
+            if (canEdit) "." else " — only owners and admins can change it.",
+        checked = company.lead_chase_crew_enabled,
+        enabled = canEdit && !saving,
+        onCheckedChange = { save(it) },
+        modifier = Modifier.padding(top = 6.dp),
+    )
+    InlineError(error)
 }
 
 /**

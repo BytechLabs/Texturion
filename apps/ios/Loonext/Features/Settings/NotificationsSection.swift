@@ -5,11 +5,9 @@ import SwiftUI
 /// up explaining a feature three different ways, and this one is about when a
 /// customer's phone is answered — the copy has to be exact.
 ///
-/// Two and five mirror LEAD_CHASE_NUDGE_MINUTES / LEAD_CHASE_WIDEN_MINUTES in
-/// packages/shared/src/lead-chase.ts, which the server reads. Swift cannot
-/// import them; if they ever change, this string and the Kotlin one change
-/// with them.
-private let nudgeMinutes = 2
+/// Five mirrors LEAD_CHASE_WIDEN_MINUTES in packages/shared/src/lead-chase.ts,
+/// which the server reads. Swift cannot import it; if it ever changes, this
+/// string and the Kotlin one change with it.
 private let widenMinutes = 5
 
 /// Notifications (#163): hosts #162's embeddable card — per-user email/push
@@ -18,10 +16,11 @@ private let widenMinutes = 5
 /// #143 self-healing token re-upsert) — and states the one exception
 /// plainly: billing and registration emails always reach owners and admins.
 ///
-/// #388 adds the workspace-wide lead-chasing card BELOW the personal one, in
-/// its own card and labelled with its scope. The card above is about this
-/// person and this device; silently mixing the two would leave a member
-/// thinking they had turned something off for themselves.
+/// #463 folded the lead-chasing card INTO that one as a single row. It used to
+/// be a titled card of its own holding two switches, and the owner's objection
+/// was that all of it was special treatment for what is just another
+/// notification setting. The second switch was also unreachable in practice —
+/// see 01209b5.
 @MainActor
 struct NotificationsSectionView: View {
     let scope: SettingsScope
@@ -36,7 +35,13 @@ struct NotificationsSectionView: View {
         EmailReachabilityCardView(scope: scope)
 
         VStack(alignment: .leading, spacing: 0) {
-            NotificationPrefsCard(graph: scope.graph, companyId: scope.companyId)
+            NotificationPrefsCard(graph: scope.graph, companyId: scope.companyId) {
+                LeadChaseRowView(
+                    scope: scope,
+                    company: company,
+                    onCompanyUpdated: onCompanyUpdated
+                )
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -46,12 +51,6 @@ struct NotificationsSectionView: View {
         )
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
-
-        LeadChaseCardView(
-            scope: scope,
-            company: company,
-            onCompanyUpdated: onCompanyUpdated
-        )
 
         Text(
             "Billing, usage, and registration emails always go to owners and admins — "
@@ -64,8 +63,23 @@ struct NotificationsSectionView: View {
     }
 }
 
+/// #463 — one switch, sitting among the other notification settings.
+///
+/// WHAT THE OLD CARD GOT RIGHT AND THIS KEEPS. Everything else in that card is
+/// per-person; this is workspace-wide, and the card's header said so. Silently
+/// mixing the two scopes would let a member think they had muted something for
+/// themselves when they had changed it for everyone. That warning is not
+/// dropped — it moved into this row's own description, which is where somebody
+/// looks before touching a switch.
+///
+/// The business-hours limit moved with it, for the same reason: it is not a
+/// setting, it is the difference between silence at 7pm being expected and
+/// silence at 7pm being a bug worth reporting.
+///
+/// Same sentence as web and Android, deliberately — see the note on
+/// widenMinutes.
 @MainActor
-private struct LeadChaseCardView: View {
+private struct LeadChaseRowView: View {
     let scope: SettingsScope
     let company: CompanyView
     let onCompanyUpdated: @MainActor (CompanyView) -> Void
@@ -76,63 +90,27 @@ private struct LeadChaseCardView: View {
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
 
     var body: some View {
-        SettingsCard(
-            title: "Chasing unanswered leads",
-            description: "Applies to everyone in the workspace. Only owners and admins "
-                + "can change it."
-        ) {
-            LabeledToggleRow(
-                label: "Buzz again after \(nudgeMinutes) minutes",
-                supporting: "When a new customer texts and nobody has replied, send the "
-                    + "same people one more notification. A phone in a pocket misses the "
-                    + "first one, and the job usually goes to whoever answers first.",
-                isOn: company.lead_chase_enabled,
-                enabled: canEdit && !saving
-            ) { save(chase: $0, crew: company.lead_chase_crew_enabled) }
+        LabeledToggleRow(
+            label: "Tell the whole crew after \(widenMinutes) minutes",
+            supporting: "When a conversation is assigned to one person and they still "
+                + "haven't replied, notify everyone who can see it. Business hours only, "
+                + "and never someone who has turned their own notifications off. This one "
+                + "is for the whole workspace, not just you"
+                + (canEdit ? "." : " — only owners and admins can change it."),
+            isOn: company.lead_chase_crew_enabled,
+            enabled: canEdit && !saving
+        ) { save(crew: $0) }
 
-            LabeledToggleRow(
-                label: "Tell the whole crew after \(widenMinutes) minutes",
-                supporting: "If a conversation is assigned to one person and they still "
-                    + "haven't replied, notify everyone who can see it. This one reaches "
-                    + "people who weren't told the first time, so it's off unless you "
-                    + "turn it on.",
-                isOn: company.lead_chase_crew_enabled,
-                // Off entirely when chasing is off: the second rung is only
-                // ever reached through the first, so leaving it live would let
-                // an owner switch on something that cannot fire.
-                enabled: canEdit && company.lead_chase_enabled && !saving
-            ) { save(chase: company.lead_chase_enabled, crew: $0) }
-
-            InlineError(error)
-
-            Text(
-                "Only during your business hours, and never to anyone who has turned "
-                    + "their own notifications off. Outside hours your away reply answers "
-                    + "instead."
-            )
-            .font(.golos(12))
-            .foregroundStyle(BrandColor.muted600)
-            .padding(.top, 8)
-
-            if !canEdit {
-                Text("Only owners and admins can change this.")
-                    .font(.golos(12))
-                    .foregroundStyle(BrandColor.muted600)
-                    .padding(.top, 4)
-            }
-        }
+        InlineError(error)
     }
 
     // Saves on toggle rather than behind a Save button, unlike the away
     // message next door: there is no text to get wrong and no preview to
     // check, so a two-step commit would be ceremony around a switch.
-    private func save(chase: Bool, crew: Bool) {
+    private func save(crew: Bool) {
         error = nil
         saving = true
-        let body = JSONValue.object([
-            "lead_chase_enabled": .bool(chase),
-            "lead_chase_crew_enabled": .bool(crew),
-        ])
+        let body = JSONValue.object(["lead_chase_crew_enabled": .bool(crew)])
         Task {
             do {
                 let updated = try await scope.repo.updateCompany(scope.companyId, patch: body)

@@ -2,9 +2,9 @@
 
 import { toast } from "sonner";
 
+import { LeadChaseRow } from "@/components/settings/lead-chase-row";
 import { PermissionCard } from "@/components/notifications/permission-card";
 import { EmailReachabilityCard } from "@/components/settings/email-reachability-card";
-import { LeadChaseCard } from "@/components/settings/lead-chase-card";
 import {
   LoadError,
   SettingsCard,
@@ -103,18 +103,24 @@ export default function NotificationsSettingsPage() {
                   onCheckedChange={(checked) => toggle("push_enabled", checked)}
                 />
               </div>
+
+              {/* #463: no longer its own card. A whole titled section for one
+                  switch is ceremony, and the owner said so.
+
+                  The card it used to have carried a real warning though —
+                  everything else on this page is per-person and this is
+                  workspace-wide, and silently mixing the two would let a
+                  member think they had muted something for themselves when
+                  they changed it for everyone. That warning has not been
+                  dropped, it has moved onto the row, which is where a reader
+                  looks before touching a switch anyway.
+                  *Applying: the Safety Principle — blast radius legible before
+                  it is touched, not after.* */}
+              <LeadChaseRow />
             </div>
           </SettingsCard>
 
           <PermissionCard />
-
-          {/* #388. Last, because the two cards above are about THIS person and
-              this device, and this one is about the workspace. Scope widens as
-              you scroll rather than alternating, so a reader never has to
-              re-check whose settings they are looking at.
-              *Applying: Relationship Strength — grouping follows meaning, not
-              convenience.* */}
-          <LeadChaseCard />
 
           <p className="px-1 text-xs text-muted-foreground">
             Billing, usage, and registration emails always go to owners and

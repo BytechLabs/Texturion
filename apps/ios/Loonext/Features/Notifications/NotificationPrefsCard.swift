@@ -10,10 +10,17 @@ import UserNotifications
 /// Firebase isn't configured. Granting permission (or landing here already
 /// granted with push on) re-upserts the device token — the #143 self-healing
 /// mirror.
+///
+/// `extraRows` lands with the Email/Push switches rather than after the
+/// device-permission block, because it is for settings that answer the same
+/// question those two do — when does this thing make a noise. #463's crew-wide
+/// lead-chase switch is the caller. Nothing renders while prefs are loading or
+/// failed: a switch floating under a spinner belongs to no card.
 @MainActor
-struct NotificationPrefsCard: View {
+struct NotificationPrefsCard<ExtraRows: View>: View {
     let graph: AppGraph
     let companyId: String
+    @ViewBuilder var extraRows: () -> ExtraRows
 
     @State private var state: LoadState<NotificationPrefs> = .loading
     @State private var saveError: String?
@@ -80,6 +87,8 @@ struct NotificationPrefsCard: View {
                         .padding(.top, 4)
                 }
 
+                extraRows()
+
                 Divider()
                     .padding(.top, 12)
                 DevicePushSection(
@@ -113,6 +122,13 @@ struct NotificationPrefsCard: View {
                 saveError = "That didn't save. Try again."
             }
         }
+    }
+}
+
+extension NotificationPrefsCard where ExtraRows == EmptyView {
+    /// The plain embeddable form — no caller-supplied rows.
+    init(graph: AppGraph, companyId: String) {
+        self.init(graph: graph, companyId: companyId) { EmptyView() }
     }
 }
 
