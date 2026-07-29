@@ -58,6 +58,7 @@ reliable defence.
 | `version-distribution.mjs` | "Does everyone have the fix?" (#339) | Read-only; no `--apply`. Names the cohort reporting no version at all |
 | `set-flag.mjs` | Containing an incident without a deploy (#283) | Kill switches take ~10s. See **`docs/ROLLBACK.md`** |
 | `backup-drill.mjs` | Proving the data comes back, and timing it (#249) | Dump → restore → verify against a scratch DB. See **`docs/DISASTER-RECOVERY.md`** |
+| `legal-hold.mjs` | A workspace is in a dispute or under investigation (#284) | Suspends every retention deletion for it. Changes nothing else — a hold that degraded the product would punish somebody for being in a dispute |
 | `erase-contact.mjs` | A non-customer asks us to delete their contact-form data (#340) | They have no account, so no self-serve path reaches it. Prints what we hold **before** removing it, and returns a count |
 
 ### The one promise that needs saying out loud

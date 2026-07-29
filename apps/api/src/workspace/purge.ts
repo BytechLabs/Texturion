@@ -118,6 +118,12 @@ export async function purgeClosedWorkspaces(
     .not("purge_after", "is", null)
     .lte("purge_after", now.toISOString())
     .is("purged_at", null)
+    // #284: a workspace under legal hold keeps its data past its own purge
+    // date. The closure still stands; only the destruction waits. Filtered in
+    // the QUERY rather than skipped in the loop, so a held workspace never
+    // enters a partially-executed purge it would then have to be recovered
+    // from.
+    .is("legal_hold_at", null)
     .order("purge_after", { ascending: true })
     .limit(MAX_WORKSPACES_PER_RUN);
   if (error) throw new Error(`purge sweep query failed: ${error.message}`);
