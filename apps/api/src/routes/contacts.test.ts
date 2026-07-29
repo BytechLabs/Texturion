@@ -64,9 +64,13 @@ function contactRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function importForm(csv: string): FormData {
+function importForm(csv: string, attested = true): FormData {
   const form = new FormData();
   form.append("file", new File([csv], "contacts.csv", { type: "text/csv" }));
+  // #226: an import cannot complete without a stated consent basis. Defaulted
+  // here so every pre-existing test still describes the case it was written
+  // for; the gate itself is asserted directly below.
+  if (attested) form.append("consent_attested", "true");
   return form;
 }
 
@@ -641,6 +645,56 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
 });
 
 describe("POST /v1/contacts/import (O/A, CSV)", () => {
+  it("#226: refuses an import that states no consent basis", async () => {
+    // Every other door into this product records WHY we may text somebody: an
+    // inbound text stamps `inbound_sms` automatically, and adding a contact by
+    // hand requires the §5 attestation. Import was the one with no question at
+    // all — and it is the highest-volume door, so a thousand numbers could
+    // arrive with no recorded basis at all. That file is exactly what a
+    // plaintiff's lawyer or a carrier audit asks about.
+    const sb = stubWithRole("admin");
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm("phone\n+14165550100\n", false),
+      },
+    );
+
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("validation_failed");
+    expect(body.error.message).toContain("agreed to be texted");
+  });
+
+  it("#226: refuses before spending the upload", async () => {
+    // The check runs BEFORE the CSV is parsed, so a caller does not upload two
+    // megabytes and only then learn the request was never going to be
+    // accepted. Asserted by sending a file that WOULD fail parsing: the
+    // consent error must be the one that comes back.
+    const sb = stubWithRole("admin");
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm("this,is,not,a,contacts,file\n", false),
+      },
+    );
+
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("agreed to be texted");
+  });
+
   it("403s a plain member (role gate)", async () => {
     const sb = stubWithRole("member");
     stubFetch(jwksRoute(auth), sb.route);
@@ -718,6 +772,10 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
         phone_e164: "+14165550100",
         deleted_at: null,
         created_by_user_id: auth.subject, // #191 attribution
+        // #226: the attested basis, on every row the file creates.
+        consent_source: "attested",
+        consent_at: expect.any(String),
+        consent_attested_by: auth.subject,
         name: "Smith, Jo",
         address: "1 Main St",
         lat: null,
@@ -730,6 +788,9 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
         phone_e164: "+14165550101",
         deleted_at: null,
         created_by_user_id: auth.subject, // #191 attribution
+        consent_source: "attested",
+        consent_at: expect.any(String),
+        consent_attested_by: auth.subject,
         name: "New Person",
         address: null,
         lat: null,

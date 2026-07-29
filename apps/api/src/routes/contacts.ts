@@ -668,6 +668,27 @@ contactsRoutes.post(
     if (file === null) {
       throw new ApiError("validation_failed", "file: missing CSV file field.");
     }
+
+    // #226: an import cannot complete without a stated consent basis.
+    //
+    // Every other way a contact enters this product records WHY we may text
+    // them — an inbound text stamps `inbound_sms` automatically, and adding
+    // one by hand requires the §5 attestation checkbox. Import was the one
+    // door with no question at all, and it is the highest-volume door: a
+    // thousand numbers arriving with no recorded basis is exactly the file a
+    // plaintiff's lawyer or a carrier audit asks about.
+    //
+    // Checked BEFORE the CSV is parsed so a caller cannot spend the upload and
+    // then be told. `z.literal(true)` because only an explicit yes means
+    // anything — a checkbox that accepts "false" is not an attestation.
+    const attested = form.get("consent_attested");
+    if (attested !== "true") {
+      throw new ApiError(
+        "validation_failed",
+        "consent_attested: confirm that everyone in this file agreed to be " +
+          "texted by this business before importing them.",
+      );
+    }
     const text = typeof file === "string" ? file : await file.text();
     if (text.length > 2 * 1024 * 1024) {
       throw new ApiError("validation_failed", "file: too large (max 2 MB).");
@@ -776,6 +797,10 @@ contactsRoutes.post(
     // touching a legitimate leading apostrophe before ordinary text.
     const unguard = (value: string | null): string | null =>
       value !== null && /^'[=+\-@\t\r\n]/.test(value) ? value.slice(1) : value;
+    // One timestamp for the whole file: every row in an import consented at the
+    // same moment as far as the ledger is concerned, and a per-row now() would
+    // make the evidence chain look like a thousand separate events.
+    const importedAt = new Date().toISOString();
     const upsertRows = entries.map(({ phone, cells }) => {
       const row: Record<string, unknown> = {
         company_id: companyId,
@@ -785,6 +810,13 @@ contactsRoutes.post(
         // as its creator. A constant key, so the batching invariant holds.
         created_by_user_id: userId,
       };
+      // #226: the basis the importer attested to, on every row the file
+      // creates. `attested` is the same source a by-hand add writes (§5 D4),
+      // because it is the same claim — a member is vouching for consent they
+      // obtained off-platform. Constant keys, so the batching invariant holds.
+      row.consent_source = "attested";
+      row.consent_at = importedAt;
+      row.consent_attested_by = userId;
       // A blank name cell means "this file says nothing about the name", never
       // "erase the name you already have". The column is decided for the whole
       // file, so one nameless row among named ones used to null out an existing
