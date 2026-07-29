@@ -21,7 +21,6 @@ import { cn } from "@/lib/utils";
 import { clearOnboardingDraft, writeOnboardingDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
 import {
-  draftOwesUsRegistration,
   previousStepHref,
   stepProgress,
   type NumberMode,
@@ -89,7 +88,6 @@ export default function NumberStepPage() {
     ...state.snapshot,
     draft: { ...draft, country, usTexting },
   });
-  const skipsRegistration = !draftOwesUsRegistration({ country, usTexting });
   const busy = submitting || createCompany.isPending || updateCompany.isPending;
   // Honest Back: the nearest still-editable preceding step, or none (name locks
   // at creation, so an editing user has nothing reachable behind this step).
@@ -158,7 +156,8 @@ export default function NumberStepPage() {
           us_texting_enabled: country === "CA" ? usTexting : true,
         });
         trackOnboardingStepCompleted("number");
-        router.push(skipsRegistration ? "/onboarding/plan" : "/onboarding/business");
+        // #381: plan next in every case — registration comes after payment.
+        router.push("/onboarding/plan");
       } catch (cause) {
         onError(cause);
       }
@@ -174,23 +173,25 @@ export default function NumberStepPage() {
       mode: "new",
     });
 
-    if (!skipsRegistration) {
-      trackOnboardingStepCompleted("number");
-      router.push("/onboarding/business");
-      return;
-    }
-
-    // CA, Canadian customers only: no registration wizard — create the
-    // company here (SPEC §4.1 step 2).
+    // #381: the company is created HERE for every path now, not only for the
+    // CA-no-US one. It used to be created as a side effect of the business
+    // step, which is what forced the last-4-of-SIN ask to come before the
+    // paywall — payment needs a company, so identity had to precede payment.
+    // Creating it here is what lets registration move behind the commitment
+    // that justifies it.
+    //
     // D15: the creating browser's timezone rides along silently.
     const timezone = browserTimezone();
     try {
       const created = await createCompany.mutateAsync({
         name: (draft.name ?? "").trim(),
-        country: "CA",
+        country,
         requested_area_code: requestedAreaCode,
         ...(full ? { chosen_number_e164: chosenNumber } : {}),
-        us_texting_enabled: false,
+        // The US-texting intent captured on this step, carried straight
+        // through. A CA company that wants US reach owes registration; a US
+        // company always does.
+        us_texting_enabled: country === "CA" ? usTexting : true,
         ...(timezone ? { timezone } : {}),
       });
       writeCompanyCookie(created.id);
