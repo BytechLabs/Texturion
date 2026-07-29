@@ -151,10 +151,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+      # Deliberately NO `cache: pnpm`: this job never installs, so the store
+      # path does not exist and the action's post-step fails the whole job
+      # trying to save a cache of nothing. `pnpm audit` resolves the tree from
+      # the lockfile alone, which is the reason there is no install here.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
 
       # Production dependencies only, high and above. Dev-only advisories are
       # real but they are not reachable by a customer, and mixing them in is

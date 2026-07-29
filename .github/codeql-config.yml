@@ -16,11 +16,13 @@
 
 name: "Loonext security analysis"
 
-# The default suite, not `security-extended`. Extended trades a large increase
-# in false positives for findings that are mostly reachability-uncertain, and a
-# report a solo maintainer stops opening is a report that does not exist.
-queries:
-  - uses: security
+# The DEFAULT suite, which is expressed by saying nothing at all — there is no
+# `uses: security` pack, and naming one fails the run outright ("Query pack
+# security cannot be found"). The two things that can be named here are
+# `security-extended` and `security-and-quality`, and we want neither:
+# extended trades a large increase in false positives for findings that are
+# mostly reachability-uncertain, and a report a solo maintainer stops opening
+# is a report that does not exist.
 
 paths-ignore:
   # Test fixtures generate throwaway keys and tokens on purpose. Every one of
