@@ -650,14 +650,28 @@ private struct ThreadBody: View {
         // this call site has run the Swift type checker out of budget before,
         // and anything inferred inline is what does it.
         let members = controller.members
+        // `first(where:)` spelled out rather than `.first { … }`. Swift has
+        // BOTH a `first` property and a `first(where:)` method, and when the
+        // closure's type cannot be inferred on the spot it resolves to the
+        // property and then tries to call `Member?` — which is the error this
+        // exact line produced. Naming the label removes the ambiguity.
+        let lastOutbound = controller.messages.first(where: { message in
+            message.direction == "outbound"
+        })
+        // `display_name` is a non-Optional String carrying @Default — an
+        // absent one decodes to "", not nil — so the empty check is the whole
+        // guard. Binding it with `guard let` would not compile.
+        let resolveMemberName: @Sendable (String) -> String? = { id in
+            guard let match = members.first(where: { $0.user_id == id }),
+                  !match.display_name.isBlank
+            else { return nil }
+            return match.display_name
+        }
         let duplicateReply = DuplicateReplyContext(
             // A note reaches no customer, so it is not a collision: the whole
             // harm here is the CUSTOMER receiving two answers.
-            lastOutbound: controller.messages.first { $0.direction == "outbound" },
-            memberName: { id in
-                members.first { $0.user_id == id }?.display_name
-                    .flatMap { $0.isBlank ? nil : $0 }
-            },
+            lastOutbound: lastOutbound,
+            memberName: resolveMemberName,
             meUserId: me.user_id
         )
         return ThreadComposerView(

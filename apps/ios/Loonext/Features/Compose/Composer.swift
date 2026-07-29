@@ -610,10 +610,17 @@ struct ThreadComposerView: View {
     /// assembled inside the modifier chain is exactly the kind of expression
     /// that does it.
     private var collisionMessage: String {
-        let sender = duplicateReply?.lastOutbound?.sent_by_user_id
-        let name = sender.flatMap { duplicateReply?.memberName($0) }
+        // Bound once rather than optional-chained at each use. `duplicateReply?
+        // .memberName(id)` inside a flatMap yields String?? — one level deeper
+        // than flatMap accepts — and the compiler's complaint about that is
+        // considerably less obvious than this guard.
+        guard let context = duplicateReply else { return "" }
+        var name: String?
+        if let sender = context.lastOutbound?.sent_by_user_id {
+            name = context.memberName(sender)
+        }
         var seconds = 0
-        if let iso = duplicateReply?.lastOutbound?.created_at {
+        if let iso = context.lastOutbound?.created_at {
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             let parsed = formatter.date(from: iso)
