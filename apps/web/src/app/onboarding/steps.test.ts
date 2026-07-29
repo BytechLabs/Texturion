@@ -227,12 +227,14 @@ describe("resolveOnboardingLocation", () => {
     ).toEqual({ kind: "step", step: "number" });
   });
 
-  it("US draft with area code but no company → business step", () => {
+  it("US draft with area code but no company → texting step", () => {
+    // #381/#458: the identity ask (`business`) moved behind the paywall, so
+    // the pre-company registration branch lands on the opt-in description.
     expect(
       resolveOnboardingLocation(
         snapshot({ company: null, draft: COMPLETE_DRAFT }),
       ),
-    ).toEqual({ kind: "step", step: "business" });
+    ).toEqual({ kind: "step", step: "texting" });
   });
 
   it("CA-no-US draft without a company → back to the number step (company is created there)", () => {
@@ -246,9 +248,25 @@ describe("resolveOnboardingLocation", () => {
     ).toEqual({ kind: "step", step: "number" });
   });
 
-  it("US company pre-checkout without registration rows → business step", () => {
+  it("US company pre-checkout without registration rows → texting step", () => {
+    // #381/#458: only the campaign half sits before `plan` now.
     expect(
       resolveOnboardingLocation(snapshot({ company: {} })),
+    ).toEqual({ kind: "step", step: "texting" });
+  });
+
+  it("a PAID US company still owing its identity details goes to business", () => {
+    // The reorder's sharpest edge: before it, no paid company ever returned to
+    // a wizard step. Leaving that would strand them on `setting-up` waiting for
+    // a submission that could never happen, because nothing had the brand.
+    expect(
+      resolveOnboardingLocation(
+        snapshot({
+          company: { status: "active" },
+          brand: null,
+          campaign: { data: COMPLETE_CAMPAIGN_DATA },
+        }),
+      ),
     ).toEqual({ kind: "step", step: "business" });
   });
 
@@ -444,7 +462,7 @@ describe("stepAllowed", () => {
 describe("applicableSteps / stepProgress", () => {
   it("US signups walk 5 steps; CA-no-US walks 3", () => {
     expect(applicableSteps(snapshot({ company: null, draft: COMPLETE_DRAFT })))
-      .toEqual(["name", "number", "business", "texting", "plan"]);
+      .toEqual(["name", "number", "texting", "plan", "business"]);
     expect(
       applicableSteps(
         snapshot({ company: { country: "CA", usTexting: false } }),
@@ -456,7 +474,9 @@ describe("applicableSteps / stepProgress", () => {
     const ca = snapshot({ company: { country: "CA", usTexting: false } });
     expect(stepProgress("plan", ca)).toEqual({ index: 3, total: 3 });
     const us = snapshot({ company: {} });
-    expect(stepProgress("business", us)).toEqual({ index: 3, total: 5 });
+    // #381/#458: `business` is now the LAST step, behind the paywall.
+    expect(stepProgress("business", us)).toEqual({ index: 5, total: 5 });
+    expect(stepProgress("texting", us)).toEqual({ index: 3, total: 5 });
   });
 });
 
@@ -470,14 +490,18 @@ describe("previousStepHref (honest Back navigation)", () => {
 
   it("walks back to the nearest EDITABLE step for a US company", () => {
     const us = snapshot({ company: {} });
-    // plan → texting (editable while owing US registration), texting → business.
+    // #381/#458 order: name → number → texting → plan → business.
     expect(previousStepHref("plan", us)).toBe("/onboarding/texting");
-    expect(previousStepHref("texting", us)).toBe("/onboarding/business");
+    expect(previousStepHref("texting", us)).toBe("/onboarding/number");
   });
 
-  it("walks back to number on business once the company exists (editable until checkout, #79)", () => {
+  it("walks back PAST plan from business — you do not re-enter a checkout", () => {
+    // `business` now sits after payment, and the step literally before it is
+    // `plan`. Back skips it to `texting`, which is right: offering somebody who
+    // has paid a route back into checkout is not honest navigation, it is a
+    // second charge waiting to happen.
     expect(previousStepHref("business", snapshot({ company: {} }))).toBe(
-      "/onboarding/number",
+      "/onboarding/texting",
     );
   });
 

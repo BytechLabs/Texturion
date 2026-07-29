@@ -140,6 +140,27 @@ function pastSubmission(row: RegistrationRow): boolean {
   );
 }
 
+/**
+ * Has this registration ever been sent to the carrier?
+ *
+ * #381/#458: the one signal that separates a paid signup which still owes its
+ * identity details from a live workspace whose registration was deactivated.
+ * Both look "complete"; only one has ever been submitted.
+ */
+function everSubmitted(snapshot: OnboardingSnapshot): boolean {
+  // The COMPANY's embedded pair first: for a paid workspace that is hydrated
+  // server truth and is always present, whereas the standalone `registration`
+  // is only fetched on the pre-checkout path. `setupComplete` reads it the
+  // same way for the same reason.
+  const pair = snapshot.company?.registration ?? snapshot.registration ?? null;
+  const brand = pair?.brand ?? null;
+  const campaign = pair?.campaign ?? null;
+  return (
+    (brand !== null && pastSubmission(brand)) ||
+    (campaign !== null && pastSubmission(campaign))
+  );
+}
+
 export function brandRowComplete(row: RegistrationRow | null): boolean {
   if (!row) return false;
   if (pastSubmission(row)) return true;
@@ -184,8 +205,14 @@ export function applicableSteps(snapshot: OnboardingSnapshot): WizardStep[] {
   const owes = snapshot.company
     ? owesUsRegistration(snapshot.company)
     : draftOwesUsRegistration(snapshot.draft);
+  // #381/#458: `business` comes AFTER `plan`. The SSN/SIN last-4 it collects
+  // is not read until submission, which happens post-payment — so gathering it
+  // before the paywall held a partial government identifier for every signup
+  // that abandoned, for no operational reason. PIPEDA and Law 25 both run on
+  // collecting no more than necessary, and this was the clearest case of
+  // unnecessary in the funnel.
   return owes
-    ? ["name", "number", "business", "texting", "plan"]
+    ? ["name", "number", "texting", "plan", "business"]
     : ["name", "number", "plan"];
 }
 
@@ -219,11 +246,35 @@ export function resolveOnboardingLocation(
       return { kind: "step", step: "number" };
     }
     // CA-no-US creates the company on the number step itself, so reaching
-    // here without a company means the registration branch: identity next.
+    // here without a company means the registration branch. #381/#458: that is
+    // now `texting` (the opt-in description), not `business` — the identity
+    // ask waits until after payment.
     if (draftOwesUsRegistration(draft)) {
-      return { kind: "step", step: "business" };
+      return { kind: "step", step: "texting" };
     }
     return { kind: "step", step: "number" };
+  }
+
+  // #381/#458: `business` is the one step that now lives AFTER payment, so a
+  // paid company still owing its identity details has to be routed back to it.
+  // Before the reorder no paid company ever returned to a wizard step, and
+  // leaving that unchanged would have stranded them on `setting-up` waiting
+  // for a submission that could never happen.
+  //
+  // Guarded on SUBMISSION, not on completeness, and the distinction is
+  // load-bearing. Under the new order a paid signup has a complete campaign
+  // draft and no brand — exactly the case that must reach `business`. A
+  // post-grace resubscribe ALSO has a complete campaign, but its campaign has
+  // been submitted, which proves a brand exists at the carrier whatever our
+  // rows say. Testing completeness would pull that live workspace out of
+  // `setting-up` and back into an identity form it filled months ago.
+  if (
+    hasPaid(company.subscription_status) &&
+    owesUsRegistration(company) &&
+    !brandRowComplete(registration?.brand ?? null) &&
+    !everSubmitted(snapshot)
+  ) {
+    return { kind: "step", step: "business" };
   }
 
   if (hasPaid(company.subscription_status)) {
@@ -237,9 +288,8 @@ export function resolveOnboardingLocation(
 
   // incomplete / incomplete_expired / canceled → still needs (re)checkout.
   if (owesUsRegistration(company)) {
-    if (!brandRowComplete(registration?.brand ?? null)) {
-      return { kind: "step", step: "business" };
-    }
+    // #381/#458: only the campaign half sits before `plan` now. The brand
+    // (identity) half is collected after payment.
     if (!campaignRowComplete(registration?.campaign ?? null)) {
       return { kind: "step", step: "texting" };
     }

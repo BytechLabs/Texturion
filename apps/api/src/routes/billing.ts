@@ -202,7 +202,17 @@ billingRoutes.post("/checkout", async (c) => {
     if (error) {
       throw new Error(`messaging_registrations lookup failed: ${error.message}`);
     }
-    if (!registrationDraftComplete((data ?? []) as RegistrationRow[])) {
+    // #381/#458: an EMPTY registration is now the normal pre-checkout state —
+    // `business` moved behind the paywall, so the identity details do not
+    // exist yet and refusing checkout for their absence would 409 every new
+    // US signup. A PARTIAL one still blocks: that is the resubmit path, where
+    // a half-filled draft reaching checkout would submit garbage to the
+    // carrier. Submission itself is safe either way — `submitRegistration`
+    // no-ops on an incomplete draft, and the second trigger in
+    // routes/registration.ts fires when the details finally land.
+    const rows = (data ?? []) as RegistrationRow[];
+    const started = rows.some((row) => Object.keys(row.data ?? {}).length > 0);
+    if (started && !registrationDraftComplete(rows)) {
       return errorResponse(
         c,
         "conflict",

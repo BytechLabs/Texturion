@@ -10,6 +10,10 @@ import {
   type RegistrationRow as DraftGateRow,
 } from "../billing/registration-draft";
 import { idempotencyKey } from "../billing/idempotency";
+import {
+  hasLiveSubscription,
+  type LocalSubscriptionStatus,
+} from "../billing/plans";
 import { getStripe } from "../billing/stripe";
 import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
@@ -196,6 +200,31 @@ registrationRoutes.put("/", requireRole("admin"), async (c) => {
       body.campaign,
       soleProprietor,
     );
+  }
+
+  // #381/#458: the second half of the handshake.
+  //
+  // D2 auto-submits "immediately after payment", and that fired on the
+  // paid-checkout webhook. Now that `business` comes AFTER payment, the brand
+  // draft does not exist at that moment — so the webhook's call no-ops and
+  // THIS is where the registration actually goes out.
+  //
+  // Two conditions, either order: details complete AND payment received.
+  // Whichever lands second triggers it. Both paths call the same idempotent
+  // `submitRegistration`, which no-ops on an incomplete draft or an
+  // already-submitted one, so a redelivered webhook racing a form save cannot
+  // double-submit.
+  //
+  // Best-effort: a Telnyx outage must not fail the save. The wizard step would
+  // look broken and the person would retype details we already have — and the
+  // daily poller picks the submission up regardless.
+  const company = await fetchCompanyRow(db, companyId);
+  if (hasLiveSubscription(company.subscription_status as LocalSubscriptionStatus)) {
+    try {
+      await submitRegistration(env, companyId);
+    } catch (cause) {
+      console.error(`post-payment registration submit failed for ${companyId}: ${String(cause)}`);
+    }
   }
 
   return c.json(await registrationResponse(db, companyId, c.get("role")));
