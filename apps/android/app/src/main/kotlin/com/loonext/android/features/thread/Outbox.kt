@@ -4,9 +4,13 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -59,7 +63,55 @@ data class QueuedSend(
      * yes to a question the customer had already answered with STOP.
      */
     val blocked: Boolean = false,
+    /**
+     * Photos that ride with this message, as files this app owns.
+     *
+     * NOT the picker's content URI. That URI's read permission dies with the
+     * process, so a row restored after a reboot would hold a handle to nothing
+     * and the message would send with the photo silently missing — which is
+     * the exact failure #234 exists to prevent. The bytes are already in hand
+     * when the person presses send (the composer read and normalized them to
+     * stage the chip), so queueing copies them into our own storage.
+     */
+    val media: List<QueuedMedia> = emptyList(),
+    /**
+     * The person has been told this message is old and said send it anyway.
+     *
+     * Without this the age-out below would re-block the row on the very next
+     * flush, so "send it anyway" would be a button that does nothing.
+     */
+    val staleAcknowledged: Boolean = false,
 )
+
+/** One queued photo: a file in this app's storage, plus what it is. */
+@Serializable
+data class QueuedMedia(
+    val fileName: String,
+    val contentType: String,
+)
+
+/** Bytes on their way to disk — the composer's StagedPhoto, minus its Uri. */
+class OutboxMediaBytes(val contentType: String, val bytes: ByteArray)
+
+/**
+ * How long a queued message keeps sending itself before it stops and asks.
+ *
+ * A day, because the thing being protected against is not the basement — it is
+ * the phone that was in a drawer all weekend. "On my way" delivered Monday
+ * morning is worse than not delivered: the customer reads it as current. Past
+ * this the row waits for a person, who is the only one who knows whether the
+ * message still means anything.
+ */
+const val OUTBOX_AGE_OUT_HOURS = 24L
+
+/** Said to the person, not logged — so it names the decision they now own. */
+const val OUTBOX_STALE_MESSAGE =
+    "Queued for over a day. The conversation may have moved on — send it now, or delete it."
+
+/** Said when the photo is gone but the words are still worth sending. */
+const val OUTBOX_MEDIA_LOST_MESSAGE =
+    "The photo for this message is no longer on this device. Send the text on its own, " +
+        "or delete it."
 
 /**
  * Persistence for the outbox.
@@ -71,7 +123,25 @@ data class QueuedSend(
 interface Outbox {
     suspend fun all(): List<QueuedSend>
     suspend fun put(send: QueuedSend)
+
+    /** Drops the row AND the photos it owned — nothing outlives its message. */
     suspend fun remove(localId: String)
+
+    /**
+     * Copy staged bytes into storage this app owns, before the row is written.
+     *
+     * That order is deliberate. Files first then row means a crash in between
+     * leaves orphaned files, which [pruneMedia] sweeps. Row first then files
+     * would leave a row pointing at photos that do not exist — a message that
+     * can never be sent as written, which is the worse of the two.
+     */
+    suspend fun saveMedia(localId: String, items: List<OutboxMediaBytes>): List<QueuedMedia>
+
+    /** Null when the file is gone — the caller must not send as if it were there. */
+    suspend fun readMedia(localId: String, item: QueuedMedia): ByteArray?
+
+    /** Delete photo files whose message is no longer queued. */
+    suspend fun pruneMedia()
 
     /** Everything queued for one thread, oldest first (the timeline order). */
     suspend fun forConversation(conversationId: String): List<QueuedSend> =
@@ -123,6 +193,49 @@ private class DataStoreOutbox(private val context: Context) : Outbox {
                 ?: return@edit
             prefs[key] = json.encodeToString(current.filterNot { it.localId == localId })
         }
+        withContext(Dispatchers.IO) { runCatching { dirFor(localId).deleteRecursively() } }
+    }
+
+    /**
+     * filesDir, not cacheDir: the system may evict a cache under storage
+     * pressure, and a photo that disappears because the phone was full is the
+     * silent drop this whole file exists to prevent.
+     */
+    private fun mediaRoot() = java.io.File(context.filesDir, "outbox-media")
+
+    private fun dirFor(localId: String) = java.io.File(mediaRoot(), localId)
+
+    override suspend fun saveMedia(
+        localId: String,
+        items: List<OutboxMediaBytes>,
+    ): List<QueuedMedia> = withContext(Dispatchers.IO) {
+        val dir = dirFor(localId)
+        dir.mkdirs()
+        items.mapIndexedNotNull { index, item ->
+            // Index, not the original filename: the picker's name is attacker-
+            // adjacent (it can contain separators) and we never show it here.
+            val name = "$index.bin"
+            runCatching { java.io.File(dir, name).writeBytes(item.bytes) }
+                .map { QueuedMedia(fileName = name, contentType = item.contentType) }
+                .getOrNull()
+        }
+    }
+
+    override suspend fun readMedia(localId: String, item: QueuedMedia): ByteArray? =
+        withContext(Dispatchers.IO) {
+            val file = java.io.File(dirFor(localId), item.fileName)
+            runCatching { if (file.isFile) file.readBytes() else null }.getOrNull()
+        }
+
+    override suspend fun pruneMedia() {
+        val live = all().map { it.localId }.toSet()
+        withContext(Dispatchers.IO) {
+            runCatching {
+                mediaRoot().listFiles()?.forEach { dir ->
+                    if (dir.name !in live) dir.deleteRecursively()
+                }
+            }
+        }
     }
 }
 
@@ -148,6 +261,8 @@ data class FlushResult(
  */
 class OutboxFlusher(
     private val outbox: Outbox,
+    /** Injected so the age-out is assertable without waiting a day. */
+    private val now: () -> Instant = { Instant.now() },
     private val send: suspend (QueuedSend) -> SendOutcome,
 ) {
     private val mutex = Mutex()
@@ -160,6 +275,12 @@ class OutboxFlusher(
         for (item in outbox.all().sortedBy { it.createdAt }) {
             // A blocked row waits for the person, never for the network.
             if (item.blocked) {
+                blocked += item.localId
+                continue
+            }
+            // Old enough that sending it is a decision rather than a delivery.
+            if (!item.staleAcknowledged && agedOut(item, now())) {
+                outbox.put(item.copy(blocked = true, lastError = OUTBOX_STALE_MESSAGE))
                 blocked += item.localId
                 continue
             }
@@ -193,6 +314,18 @@ class OutboxFlusher(
         }
         FlushResult(sent = sent, blocked = blocked, stillQueued = queued)
     }
+}
+
+/**
+ * True once a row has waited longer than [OUTBOX_AGE_OUT_HOURS].
+ *
+ * A createdAt we cannot parse is NEVER stale. Guessing "old" from an
+ * unreadable timestamp would stop a message the person is still waiting on,
+ * and of the two ways to be wrong that is the one that loses a delivery.
+ */
+private fun agedOut(item: QueuedSend, now: Instant): Boolean {
+    val created = runCatching { Instant.parse(item.createdAt) }.getOrNull() ?: return false
+    return created.plus(OUTBOX_AGE_OUT_HOURS, ChronoUnit.HOURS).isBefore(now)
 }
 
 /** The three answers a flush can get, which is the distinction #234 turns on. */

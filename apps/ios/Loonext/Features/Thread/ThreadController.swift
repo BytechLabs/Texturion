@@ -453,28 +453,36 @@ final class ThreadController {
                 // to the durable outbox, which is what makes it survive the
                 // app being killed on the walk back to the truck.
                 //
-                // Photos are deliberately NOT queued yet: a staged photo
-                // references a transient picker grant that does not survive the
-                // process (the same reason ComposerDrafts refuses to persist
-                // them), so queueing one would restore a dead chip and send a
-                // message with the photo silently missing. Until they are
-                // copied into app storage, a photo send keeps today's honest
-                // behaviour — the draft comes back and the person is told.
-                if code == ApiErrorCode.network, photos.isEmpty {
-                    if let index = pendingSends.firstIndex(where: { $0.localId == key }) {
-                        pendingSends[index].queued = true
-                    }
-                    outbox.put(
-                        QueuedSend(
-                            localId: key,
-                            companyId: companyId,
-                            conversationId: conversationId,
-                            body: body,
-                            createdAt: pendingRow.createdAt
-                        )
+                // Photos ride along, as OUR files. The picker's grant would be
+                // dead after a relaunch, so the bytes the composer already read
+                // are copied into our container first and the row is written
+                // only if that copy succeeded — a row promising a photo we
+                // cannot produce is worse than an honest failure here.
+                if code == ApiErrorCode.network {
+                    let stored = outbox.saveMedia(
+                        key,
+                        photos.map { OutboxMediaBytes(contentType: $0.contentType, bytes: $0.bytes) }
                     )
-                    lastFailedIntent = nil
-                    return
+                    if stored.count == photos.count {
+                        outbox.put(
+                            QueuedSend(
+                                localId: key,
+                                companyId: companyId,
+                                conversationId: conversationId,
+                                body: body,
+                                createdAt: pendingRow.createdAt,
+                                media: stored
+                            )
+                        )
+                        if let index = pendingSends.firstIndex(where: { $0.localId == key }) {
+                            pendingSends[index].queued = true
+                        }
+                        lastFailedIntent = nil
+                        return
+                    }
+                    // Storage refused us. Fall through to the honest failure
+                    // below rather than showing "Queued" over nothing.
+                    outbox.remove(key)
                 }
                 pendingSends.removeAll { $0.localId == pendingRow.localId }
                 lastFailedIntent = FailedSendIntent(body: body, photoIds: photoIds, key: key)
@@ -499,7 +507,7 @@ final class ThreadController {
             PendingSend(
                 localId: row.localId,
                 body: row.body,
-                mediaCount: 0,
+                mediaCount: row.media.count,
                 createdAt: row.createdAt,
                 idempotencyKey: row.localId,
                 queued: !row.blocked,
@@ -520,12 +528,24 @@ final class ThreadController {
     private func flushOutboxNow() async {
         let flusher = OutboxFlusher(outbox: outbox) { [weak self] item in
             guard let self else { return .unreachable("gone") }
+            // The photos, read back from our own container. A file that is
+            // gone must NOT become a quiet text-only send: the person attached
+            // it for a reason, so the row stops and says so, and "Send now"
+            // then sends the words on their own.
+            let media = item.media.compactMap { queued in
+                self.outbox.readMedia(item.localId, queued).map {
+                    OutboundMedia(content_type: queued.contentType, base64: $0.base64EncodedString())
+                }
+            }
+            guard media.count == item.media.count else {
+                return .refused(outboxMediaLostMessage)
+            }
             do {
                 let message = try await self.repo.send(
                     companyId: item.companyId,
                     conversationId: item.conversationId,
                     body: item.body,
-                    media: nil,
+                    media: media.isEmpty ? nil : media,
                     // The key minted when the person pressed send, reused on
                     // every attempt — this is what makes the flush idempotent
                     // rather than merely retried.
@@ -545,6 +565,10 @@ final class ThreadController {
         }
         let result = await flusher.flush()
         if !result.sent.isEmpty { markRead() }
+        // Sweep photos left behind by a crash between writing files and writing
+        // the row. Cheap, and the alternative is a folder that only ever grows
+        // on a phone that is usually short of space.
+        outbox.pruneMedia()
         // A refusal changes what the row says, so repaint from the store rather
         // than guessing which one was blocked.
         if !result.blocked.isEmpty {
@@ -560,12 +584,21 @@ final class ThreadController {
     }
 
     /// Try a blocked row again, because the person believes the reason is gone
-    /// — the cap reset, the registration came back. Clears the block so the
-    /// next flush actually asks, rather than reporting the old answer.
+    /// — the cap reset, the registration came back, or the message is old and
+    /// they still want it sent. Clears the block so the next flush actually
+    /// asks, rather than reporting the old answer.
     func retryQueued(_ localId: String) {
         guard var row = outbox.all().first(where: { $0.localId == localId }) else { return }
         row.blocked = false
         row.lastError = nil
+        // Photos whose files are gone are dropped HERE rather than at flush,
+        // because the row said "send the text on its own" and this is the
+        // person taking it up. Leaving them on would make the next flush refuse
+        // for the same reason and the button do nothing.
+        row.media = row.media.filter { outbox.readMedia(localId, $0) != nil }
+        // They have been told it is old and chose to send it, so the age-out
+        // must not stop it again.
+        row.staleAcknowledged = true
         outbox.put(row)
         restoreQueued()
         flushOutbox()

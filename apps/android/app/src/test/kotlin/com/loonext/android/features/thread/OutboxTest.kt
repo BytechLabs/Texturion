@@ -1,5 +1,6 @@
 package com.loonext.android.features.thread
 
+import java.time.Instant
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
@@ -22,12 +23,34 @@ class OutboxTest {
     /** A fake with the one property that matters: it outlives the controller. */
     private class FakeOutbox(initial: List<QueuedSend> = emptyList()) : Outbox {
         var rows: List<QueuedSend> = initial
+
+        /** localId -> fileName -> bytes, standing in for the files on disk. */
+        var files: Map<String, Map<String, ByteArray>> = emptyMap()
+
         override suspend fun all(): List<QueuedSend> = rows
         override suspend fun put(send: QueuedSend) {
             rows = rows.filterNot { it.localId == send.localId } + send
         }
         override suspend fun remove(localId: String) {
             rows = rows.filterNot { it.localId == localId }
+            files = files - localId
+        }
+
+        override suspend fun saveMedia(
+            localId: String,
+            items: List<OutboxMediaBytes>,
+        ): List<QueuedMedia> {
+            val named = items.mapIndexed { index, item -> "$index.bin" to item }
+            files = files + (localId to named.associate { (name, item) -> name to item.bytes })
+            return named.map { (name, item) -> QueuedMedia(name, item.contentType) }
+        }
+
+        override suspend fun readMedia(localId: String, item: QueuedMedia): ByteArray? =
+            files[localId]?.get(item.fileName)
+
+        override suspend fun pruneMedia() {
+            val live = rows.map { it.localId }.toSet()
+            files = files.filterKeys { it in live }
         }
     }
 
@@ -193,6 +216,121 @@ class OutboxTest {
         assertEquals(listOf("blocked"), result.blocked)
         assertEquals(listOf("fine"), result.sent)
         assertEquals(listOf("blocked"), store.rows.map { it.localId })
+    }
+
+    // --- Photos ---------------------------------------------------------------
+
+    @Test
+    fun `a queued photo's bytes survive the process and ride the flush`() = runTest {
+        // The acceptance case "a queued message with a photo delivers the
+        // photo". The picker's content URI would be a dead handle by now — the
+        // bytes are ours, in our own storage, which is why this can pass.
+        val store = FakeOutbox()
+        val media = store.saveMedia(
+            "k1",
+            listOf(OutboxMediaBytes("image/jpeg", byteArrayOf(1, 2, 3))),
+        )
+        store.put(queued("k1", "2026-07-28T10:00:00Z").copy(media = media))
+
+        val delivered = mutableListOf<ByteArray>()
+        val flusher = OutboxFlusher(store) { item ->
+            item.media.forEach { delivered += store.readMedia(item.localId, it)!! }
+            SendOutcome.Sent
+        }
+        assertEquals(listOf("k1"), flusher.flush().sent)
+
+        assertEquals(1, delivered.size)
+        assertTrue(byteArrayOf(1, 2, 3).contentEquals(delivered.single()))
+    }
+
+    @Test
+    fun `a sent row takes its photos with it`() = runTest {
+        // Otherwise a phone that is always short of space accumulates every
+        // photo ever texted from it.
+        val store = FakeOutbox()
+        val media = store.saveMedia("k1", listOf(OutboxMediaBytes("image/jpeg", byteArrayOf(9))))
+        store.put(queued("k1", "2026-07-28T10:00:00Z").copy(media = media))
+
+        OutboxFlusher(store) { SendOutcome.Sent }.flush()
+
+        assertTrue("no orphaned photo files", store.files.isEmpty())
+    }
+
+    @Test
+    fun `pruning drops photos whose message is gone, and keeps the rest`() = runTest {
+        // The crash window: files are written before the row, so a crash in
+        // between leaves photos belonging to no message.
+        val store = FakeOutbox()
+        store.saveMedia("orphan", listOf(OutboxMediaBytes("image/jpeg", byteArrayOf(1))))
+        val live = store.saveMedia("k1", listOf(OutboxMediaBytes("image/jpeg", byteArrayOf(2))))
+        store.put(queued("k1", "2026-07-28T10:00:00Z").copy(media = live))
+
+        store.pruneMedia()
+
+        assertEquals(setOf("k1"), store.files.keys)
+    }
+
+    // --- Age-out --------------------------------------------------------------
+
+    @Test
+    fun `a message queued for more than a day stops and asks`() = runTest {
+        // The phone that was in a drawer all weekend. "On my way" delivered
+        // Monday morning is worse than not delivered — the customer reads it
+        // as current.
+        val store = FakeOutbox(listOf(queued("k1", "2026-07-28T10:00:00Z")))
+        var calls = 0
+        val result = OutboxFlusher(
+            store,
+            now = { Instant.parse("2026-07-29T11:00:00Z") },
+        ) {
+            calls += 1
+            SendOutcome.Sent
+        }.flush()
+
+        assertEquals(listOf("k1"), result.blocked)
+        assertEquals("a stale row is never sent behind the person's back", 0, calls)
+        assertEquals(OUTBOX_STALE_MESSAGE, store.rows.single().lastError)
+    }
+
+    @Test
+    fun `a message just under the age-out still sends itself`() = runTest {
+        // The boundary matters: a tech underground for a shift must not come
+        // up to a message asking permission to do what it was already doing.
+        val store = FakeOutbox(listOf(queued("k1", "2026-07-28T10:00:00Z")))
+        val result = OutboxFlusher(
+            store,
+            now = { Instant.parse("2026-07-29T09:59:00Z") },
+        ) { SendOutcome.Sent }.flush()
+
+        assertEquals(listOf("k1"), result.sent)
+    }
+
+    @Test
+    fun `send-it-anyway actually sends, rather than being re-blocked`() = runTest {
+        // Without the acknowledgement the age check would fire again on the
+        // very next flush, so the button would be one that does nothing.
+        val store = FakeOutbox(
+            listOf(queued("k1", "2026-07-28T10:00:00Z").copy(staleAcknowledged = true)),
+        )
+        val result = OutboxFlusher(
+            store,
+            now = { Instant.parse("2026-08-05T10:00:00Z") },
+        ) { SendOutcome.Sent }.flush()
+
+        assertEquals(listOf("k1"), result.sent)
+    }
+
+    @Test
+    fun `an unreadable timestamp is never treated as stale`() = runTest {
+        // Of the two ways to be wrong, guessing "old" from a timestamp we
+        // cannot parse is the one that loses a delivery.
+        val store = FakeOutbox(listOf(queued("k1", "not a date")))
+        val result = OutboxFlusher(
+            store,
+            now = { Instant.parse("2030-01-01T00:00:00Z") },
+        ) { SendOutcome.Sent }.flush()
+
+        assertEquals(listOf("k1"), result.sent)
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.loonext.android.features.thread
 
 import android.content.Context
+import android.util.Base64
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,6 +19,7 @@ import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.MessageTaskLink
+import com.loonext.android.core.model.OutboundMedia
 import com.loonext.android.core.model.Tag
 import com.loonext.android.core.model.Task
 import com.loonext.android.core.model.Usage
@@ -550,30 +552,44 @@ class ThreadController(
                 // to the durable outbox, which is what makes it survive the
                 // app being killed on the walk back to the truck.
                 //
-                // Photos are deliberately NOT queued yet: a staged photo is a
-                // content URI whose read permission does not survive the
-                // process (the same reason ComposerDrafts refuses to persist
-                // them), so queueing one would restore a dead chip and send a
-                // message with the photo silently missing. Until they are
-                // copied into app storage, a photo send keeps today's honest
-                // behaviour — the draft comes back and the person is told.
-                if (code == ApiErrorCode.NETWORK && photos.isEmpty()) {
-                    pendingSends = pendingSends.map {
-                        if (it.localId == key) it.copy(queued = true) else it
-                    }
-                    runCatching {
-                        outbox.put(
-                            QueuedSend(
-                                localId = key,
-                                companyId = companyId,
-                                conversationId = conversationId,
-                                body = body,
-                                createdAt = pendingRow.createdAt,
-                            ),
+                // Photos ride along, as OUR files. The picker's content URI
+                // would be a dead handle after the process restarts, so the
+                // bytes the composer already read are copied into app storage
+                // first and the row is written only if that copy succeeded —
+                // a row promising a photo we cannot produce is worse than an
+                // honest failure here.
+                if (code == ApiErrorCode.NETWORK) {
+                    val queuedMedia = runCatching {
+                        outbox.saveMedia(
+                            key,
+                            photos.map { OutboxMediaBytes(it.contentType, it.bytes) },
                         )
+                    }.getOrNull()
+                    val storedAll = queuedMedia != null && queuedMedia.size == photos.size
+                    if (storedAll) {
+                        val wrote = runCatching {
+                            outbox.put(
+                                QueuedSend(
+                                    localId = key,
+                                    companyId = companyId,
+                                    conversationId = conversationId,
+                                    body = body,
+                                    createdAt = pendingRow.createdAt,
+                                    media = queuedMedia,
+                                ),
+                            )
+                        }.isSuccess
+                        if (wrote) {
+                            pendingSends = pendingSends.map {
+                                if (it.localId == key) it.copy(queued = true) else it
+                            }
+                            lastFailedIntent = null
+                            return@launch
+                        }
                     }
-                    lastFailedIntent = null
-                    return@launch
+                    // Storage refused us. Fall through to the honest failure
+                    // below rather than showing "Queued" over nothing.
+                    runCatching { outbox.remove(key) }
                 }
                 pendingSends = pendingSends - pendingRow
                 lastFailedIntent = FailedSendIntent(body, photoIds, key)
@@ -599,7 +615,7 @@ class ThreadController(
             PendingSend(
                 localId = row.localId,
                 body = row.body,
-                mediaCount = 0,
+                mediaCount = row.media.size,
                 createdAt = row.createdAt,
                 idempotencyKey = row.localId,
                 queued = row.blocked.not(),
@@ -618,12 +634,27 @@ class ThreadController(
     fun flushOutbox() {
         scope.launch {
             val flusher = OutboxFlusher(outbox) { item ->
+                // The photos, read back from our own storage. A file that is
+                // gone must NOT become a quiet text-only send: the person
+                // attached it for a reason, so the row stops and says so, and
+                // "Send now" then sends the words on their own.
+                val media = item.media.mapNotNull { queued ->
+                    outbox.readMedia(item.localId, queued)?.let { bytes ->
+                        OutboundMedia(
+                            content_type = queued.contentType,
+                            base64 = Base64.encodeToString(bytes, Base64.NO_WRAP),
+                        )
+                    }
+                }
+                if (media.size != item.media.size) {
+                    return@OutboxFlusher SendOutcome.Refused(OUTBOX_MEDIA_LOST_MESSAGE)
+                }
                 try {
                     val message = repo.send(
                         companyId = item.companyId,
                         conversationId = item.conversationId,
                         body = item.body,
-                        media = null,
+                        media = media.takeIf { it.isNotEmpty() },
                         // The key minted when the person pressed send, reused
                         // on every attempt — this is what makes the flush
                         // idempotent rather than merely retried.
@@ -648,6 +679,10 @@ class ThreadController(
                 persistSnapshot()
                 markRead()
             }
+            // Sweep photos left behind by a crash between writing files and
+            // writing the row. Cheap, and the alternative is a folder that
+            // only ever grows on a phone that is usually short of space.
+            runCatching { outbox.pruneMedia() }
             // A refusal changes what the row says, so repaint from the store
             // rather than guessing which one was blocked.
             if (result.blocked.isNotEmpty()) {
@@ -667,14 +702,31 @@ class ThreadController(
 
     /**
      * Try a blocked row again, because the person believes the reason is gone
-     * — the cap reset, the registration came back. Clears the block so the
-     * next flush actually asks, rather than reporting the old answer.
+     * — the cap reset, the registration came back, or the message is old and
+     * they still want it sent. Clears the block so the next flush actually
+     * asks, rather than reporting the old answer.
      */
     fun retryQueued(localId: String) {
         scope.launch {
             val row = runCatching { outbox.all() }.getOrNull()
                 ?.firstOrNull { it.localId == localId } ?: return@launch
-            runCatching { outbox.put(row.copy(blocked = false, lastError = null)) }
+            // Photos whose files are gone are dropped HERE rather than at
+            // flush, because the row said "send the text on its own" and this
+            // is the person taking it up. Leaving them on would make the next
+            // flush refuse for the same reason and the button do nothing.
+            val surviving = row.media.filter { outbox.readMedia(localId, it) != null }
+            runCatching {
+                outbox.put(
+                    row.copy(
+                        blocked = false,
+                        lastError = null,
+                        media = surviving,
+                        // They have been told it is old and chose to send it,
+                        // so the age-out must not stop it again.
+                        staleAcknowledged = true,
+                    ),
+                )
+            }
             restoreQueued()
             flushOutbox()
         }

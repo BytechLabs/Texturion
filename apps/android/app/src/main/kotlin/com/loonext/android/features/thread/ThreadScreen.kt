@@ -333,6 +333,12 @@ private fun ThreadLoaded(
     val names = remember(controller.members) { memberNames(controller.members) }
     val contactName = detail.contact.name ?: formatPhone(detail.contact.phone_e164)
 
+    // #234: deleting a queued message throws away words the person wrote and
+    // that nothing else holds — the draft is long gone by then. Confirming is
+    // the one place in this screen where a step is worth the friction.
+    // *Applying: Ethical Friction — a deliberate pause before the irreversible.*
+    var confirmDiscardQueued by remember(controller) { mutableStateOf<PendingSend?>(null) }
+
     // Call button (#165): authorize + place through the softphone. The mic is
     // preflighted BEFORE authorizing (a denial never reserves the line or
     // bills); gate refusals arrive coded (usage_cap_reached,
@@ -604,7 +610,14 @@ private fun ThreadLoaded(
                                 )
                             }
 
-                            is TimelineItem.PendingItem -> PendingBubble(item.pending)
+                            is TimelineItem.PendingItem -> PendingBubble(
+                                pending = item.pending,
+                                onSendNow = {
+                                    haptics.confirm()
+                                    controller.retryQueued(item.pending.localId)
+                                },
+                                onDelete = { confirmDiscardQueued = item.pending },
+                            )
 
                             is TimelineItem.EventItem -> EventLine(
                                 text = eventLine(item.event, names, contactName),
@@ -793,6 +806,32 @@ private fun ThreadLoaded(
             onAttach = { controller.attachTag(it) },
             onDetach = { controller.detachTag(it) },
             onDismiss = { tagSheetOpen = false },
+        )
+    }
+
+    confirmDiscardQueued?.let { pending ->
+        AlertDialog(
+            onDismissRequest = { confirmDiscardQueued = null },
+            title = { Text("Delete this message?") },
+            text = {
+                // Quoting it back is the point: a queued row shows a couple of
+                // lines, and the person is about to lose whichever ones they
+                // cannot see.
+                Text(
+                    "It hasn't been sent, and deleting it here is the only copy gone. " +
+                        "\n\n“${pending.body}”",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    haptics.reject()
+                    controller.discardQueued(pending.localId)
+                    confirmDiscardQueued = null
+                }) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDiscardQueued = null }) { Text("Keep it") }
+            },
         )
     }
 }

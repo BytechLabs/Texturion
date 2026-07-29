@@ -43,9 +43,54 @@ struct QueuedSend: Codable, Equatable, Identifiable, Sendable {
     /// silently re-asking would either spam a gate or, worse, eventually get a
     /// yes to a question the customer had already answered with STOP.
     var blocked: Bool = false
+    /// Photos that ride with this message, as files this app owns.
+    ///
+    /// The bytes are already in hand when the person presses send (the
+    /// composer read and normalized them to stage the chip), so queueing
+    /// copies them into our own container. Nothing here refers to the picker's
+    /// item, whose access ends with the picking session — a row restored after
+    /// a relaunch would otherwise hold a handle to nothing and the message
+    /// would send with the photo silently missing, which is the exact failure
+    /// #234 exists to prevent.
+    var media: [QueuedMedia] = []
+    /// The person has been told this message is old and said send it anyway.
+    ///
+    /// Without this the age-out below would re-block the row on the very next
+    /// flush, so "send it now" would be a button that does nothing.
+    var staleAcknowledged: Bool = false
 
     var id: String { localId }
 }
+
+/// One queued photo: a file in this app's container, plus what it is.
+struct QueuedMedia: Codable, Equatable, Sendable {
+    let fileName: String
+    let contentType: String
+}
+
+/// Bytes on their way to disk — the composer's StagedPhoto, minus its identity.
+struct OutboxMediaBytes: Sendable {
+    let contentType: String
+    let bytes: Data
+}
+
+/// How long a queued message keeps sending itself before it stops and asks.
+///
+/// A day, because the thing being protected against is not the basement — it
+/// is the phone that was in a drawer all weekend. "On my way" delivered Monday
+/// morning is worse than not delivered: the customer reads it as current. Past
+/// this the row waits for a person, who is the only one who knows whether the
+/// message still means anything.
+let outboxAgeOutHours: Double = 24
+
+/// Said to the person, not logged — so it names the decision they now own.
+let outboxStaleMessage =
+    "Queued for over a day. The conversation may have moved on — send it now, or delete it."
+
+/// Said when the photo is gone but the words are still worth sending.
+let outboxMediaLostMessage =
+    "The photo for this message is no longer on this device. Send the text on its own, "
+        + "or delete it."
 
 /// Persistence for the outbox.
 ///
@@ -62,9 +107,17 @@ final class Outbox {
     private static let storageKey = "outbox:queued"
 
     private let defaults: UserDefaults
+    private let mediaRoot: URL
 
-    init(defaults: UserDefaults = .standard) {
+    /// Application Support, not Caches: the system may evict a cache under
+    /// storage pressure, and a photo that disappears because the phone was
+    /// full is the silent drop this whole file exists to prevent.
+    init(defaults: UserDefaults = .standard, mediaRoot: URL? = nil) {
         self.defaults = defaults
+        self.mediaRoot = mediaRoot
+            ?? FileManager.default
+                .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("Outbox", isDirectory: true)
     }
 
     func all() -> [QueuedSend] {
@@ -81,8 +134,10 @@ final class Outbox {
         write(next)
     }
 
+    /// Drops the row AND the photos it owned — nothing outlives its message.
     func remove(_ localId: String) {
         write(all().filter { $0.localId != localId })
+        try? FileManager.default.removeItem(at: directory(for: localId))
     }
 
     /// Everything queued for one thread, oldest first (the timeline order).
@@ -92,10 +147,79 @@ final class Outbox {
             .sorted { $0.createdAt < $1.createdAt }
     }
 
+    // MARK: - Photos
+
+    /// Copy staged bytes into our container, before the row is written.
+    ///
+    /// That order is deliberate. Files first then row means a crash in between
+    /// leaves orphaned files, which `pruneMedia` sweeps. Row first then files
+    /// would leave a row pointing at photos that do not exist — a message that
+    /// can never be sent as written, which is the worse of the two.
+    ///
+    /// Synchronous on the main actor, like everything else on this class: the
+    /// composer caps a text's photos at 1 MB each and three of them, and this
+    /// runs once, at the moment a send fails.
+    func saveMedia(_ localId: String, _ items: [OutboxMediaBytes]) -> [QueuedMedia] {
+        let dir = directory(for: localId)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return items.enumerated().compactMap { index, item in
+            // Index, not the original filename: a picked name is untrusted
+            // input (it can carry path separators) and is never shown here.
+            let name = "\(index).bin"
+            do {
+                try item.bytes.write(to: dir.appendingPathComponent(name))
+                return QueuedMedia(fileName: name, contentType: item.contentType)
+            } catch {
+                return nil
+            }
+        }
+    }
+
+    /// Nil when the file is gone — the caller must not send as if it were there.
+    func readMedia(_ localId: String, _ item: QueuedMedia) -> Data? {
+        try? Data(contentsOf: directory(for: localId).appendingPathComponent(item.fileName))
+    }
+
+    /// Delete photo files whose message is no longer queued.
+    func pruneMedia() {
+        let live = Set(all().map(\.localId))
+        let dirs = try? FileManager.default.contentsOfDirectory(
+            at: mediaRoot,
+            includingPropertiesForKeys: nil
+        )
+        for dir in dirs ?? [] where !live.contains(dir.lastPathComponent) {
+            try? FileManager.default.removeItem(at: dir)
+        }
+    }
+
+    private func directory(for localId: String) -> URL {
+        mediaRoot.appendingPathComponent(localId, isDirectory: true)
+    }
+
     private func write(_ rows: [QueuedSend]) {
         guard let data = try? JSONEncoder().encode(rows) else { return }
         defaults.set(data, forKey: Self.storageKey)
     }
+}
+
+/// True once a row has waited longer than `outboxAgeOutHours`.
+///
+/// A createdAt we cannot parse is NEVER stale. Guessing "old" from an
+/// unreadable timestamp would stop a message the person is still waiting on,
+/// and of the two ways to be wrong that is the one that loses a delivery.
+///
+/// `.withInternetDateTime` alone rejects the fractional seconds our own rows
+/// can carry, so both spellings are tried — a parse that silently fails here
+/// would disable the age-out entirely and nothing would ever say so.
+private func agedOut(_ item: QueuedSend, _ now: Date) -> Bool {
+    let plain = ISO8601DateFormatter()
+    plain.formatOptions = [.withInternetDateTime]
+    let fractional = ISO8601DateFormatter()
+    fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    guard let created = fractional.date(from: item.createdAt)
+        ?? plain.date(from: item.createdAt)
+    else { return false }
+    return now.timeIntervalSince(created) > outboxAgeOutHours * 3600
 }
 
 /// The three answers a flush can get, which is the distinction #234 turns on.
@@ -131,10 +255,17 @@ struct FlushResult: Equatable, Sendable {
 final class OutboxFlusher {
     private let outbox: Outbox
     private let send: (QueuedSend) async -> SendOutcome
+    /// Injected so the age-out is assertable without waiting a day.
+    private let now: () -> Date
     private var isFlushing = false
 
-    init(outbox: Outbox, send: @escaping (QueuedSend) async -> SendOutcome) {
+    init(
+        outbox: Outbox,
+        now: @escaping () -> Date = { Date() },
+        send: @escaping (QueuedSend) async -> SendOutcome
+    ) {
         self.outbox = outbox
+        self.now = now
         self.send = send
     }
 
@@ -147,6 +278,15 @@ final class OutboxFlusher {
         for item in outbox.all().sorted(by: { $0.createdAt < $1.createdAt }) {
             // A blocked row waits for the person, never for the network.
             if item.blocked {
+                result.blocked.append(item.localId)
+                continue
+            }
+            // Old enough that sending it is a decision rather than a delivery.
+            if !item.staleAcknowledged, agedOut(item, now()) {
+                var stale = item
+                stale.blocked = true
+                stale.lastError = outboxStaleMessage
+                outbox.put(stale)
                 result.blocked.append(item.localId)
                 continue
             }

@@ -18,10 +18,12 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -41,6 +43,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -395,9 +398,22 @@ private fun MessageMetaLine(
     }
 }
 
-/** A locally-queued send awaiting the server's queued row. */
+/**
+ * A locally-queued send awaiting the server's queued row.
+ *
+ * #234: the actions appear only once the message is DURABLY queued — waiting
+ * for signal, or stopped and asking. A send that is simply in flight is a
+ * second long and offering to cancel it invites a race with its own success.
+ * *Applying: the Zen of Clarity — a control appears when there is a decision
+ * to make, not on every row that might one day have one.*
+ */
 @Composable
-fun PendingBubble(pending: PendingSend, modifier: Modifier = Modifier) {
+fun PendingBubble(
+    pending: PendingSend,
+    modifier: Modifier = Modifier,
+    onSendNow: () -> Unit = {},
+    onDelete: () -> Unit = {},
+) {
     Column(
         modifier
             .fillMaxWidth()
@@ -445,6 +461,31 @@ fun PendingBubble(pending: PendingSend, modifier: Modifier = Modifier) {
                     else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 3.dp),
         )
+        if (pending.queued || pending.blockedReason != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                // "Send now" leads because it is what the person wants in every
+                // case that put a control here: the bars came back, the cap
+                // reset, the old message still matters.
+                TextButton(
+                    onClick = onSendNow,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    modifier = Modifier.heightIn(min = 32.dp),
+                ) {
+                    Text("Send now", style = MaterialTheme.typography.labelSmall)
+                }
+                TextButton(
+                    onClick = onDelete,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    modifier = Modifier.heightIn(min = 32.dp),
+                ) {
+                    Text(
+                        "Delete",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
     }
 }
 

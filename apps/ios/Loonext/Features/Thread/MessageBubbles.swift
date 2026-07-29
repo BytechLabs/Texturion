@@ -307,13 +307,23 @@ private struct MessageMetaLine: View {
 }
 
 /// A locally-queued send awaiting the server's queued row.
+///
+/// #234: the actions appear only once the message is DURABLY queued — waiting
+/// for signal, or stopped and asking. A send that is simply in flight is a
+/// second long and offering to cancel it invites a race with its own success.
+/// *Applying: the Zen of Clarity — a control appears when there is a decision
+/// to make, not on every row that might one day have one.*
 struct PendingBubble: View {
     let pending: PendingSend
+    var onSendNow: @MainActor () -> Void = {}
+    var onDelete: @MainActor () -> Void = {}
 
     private var statusLine: String {
         if let reason = pending.blockedReason { return reason }
         return pending.queued ? "Queued — will send when you're back online" : "Sending…"
     }
+
+    private var isWaiting: Bool { pending.queued || pending.blockedReason != nil }
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 2) {
@@ -354,6 +364,22 @@ struct PendingBubble: View {
                 .foregroundStyle(
                     pending.blockedReason != nil ? BrandColor.destructive : BrandColor.muted300
                 )
+
+            if isWaiting {
+                HStack(spacing: 14) {
+                    // "Send now" leads because it is what the person wants in
+                    // every case that put a control here: the bars came back,
+                    // the cap reset, the old message still matters.
+                    Button("Send now", action: onSendNow)
+                        .font(.golos(11, weight: .semibold))
+                        .foregroundStyle(BrandColor.olive)
+                    Button("Delete", action: onDelete)
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.muted500)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 1)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
         .padding(.horizontal, 16)

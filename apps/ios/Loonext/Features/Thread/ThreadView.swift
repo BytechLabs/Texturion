@@ -118,6 +118,7 @@ private struct ThreadBody: View {
     @State private var detailSheet: ThreadDetailSheet?
     @State private var confirmOptOut = false
     @State private var confirmRevoke = false
+    @State private var confirmDiscardQueued: PendingSend?
     @State private var showNewPill = false
     @State private var isAtBottom = true
     @State private var jumpToMessageId: String?
@@ -299,6 +300,34 @@ private struct ThreadBody: View {
                 Text(
                     "You'll be able to text this customer again. Only do this if they "
                         + "asked to hear from you."
+                )
+            }
+            // #234: deleting a queued message throws away words the person
+            // wrote and that nothing else holds — the draft is long gone by
+            // then. Confirming is the one place in this screen where a step is
+            // worth the friction.
+            // *Applying: Ethical Friction — a deliberate pause before the
+            // irreversible.*
+            .alert(
+                "Delete this message?",
+                isPresented: Binding(
+                    get: { confirmDiscardQueued != nil },
+                    set: { if !$0 { confirmDiscardQueued = nil } }
+                ),
+                presenting: confirmDiscardQueued
+            ) { pending in
+                Button("Keep it", role: .cancel) { confirmDiscardQueued = nil }
+                Button("Delete", role: .destructive) {
+                    controller.discardQueued(pending.localId)
+                    confirmDiscardQueued = nil
+                }
+            } message: { pending in
+                // Quoting it back is the point: a queued row shows a couple of
+                // lines, and the person is about to lose whichever ones they
+                // cannot see.
+                Text(
+                    "It hasn't been sent, and deleting it here is the only copy gone.\n\n"
+                        + "“\(pending.body)”"
                 )
             }
             .sheet(
@@ -514,7 +543,11 @@ private struct ThreadBody: View {
                 )
             )
         case .pending(let pending):
-            PendingBubble(pending: pending)
+            PendingBubble(
+                pending: pending,
+                onSendNow: { controller.retryQueued(pending.localId) },
+                onDelete: { confirmDiscardQueued = pending }
+            )
         case .event(let event):
             EventLine(
                 text: eventLine(event, memberNames: names, contactName: contactName),
