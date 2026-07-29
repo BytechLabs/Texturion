@@ -2629,3 +2629,43 @@ it once at 100%, one-shot under the ledger row's lock.
 **How to answer the question.** `select api_high_priority_push_report(7);` —
 per company, per reason, sends and degraded. That was #452's definition of
 done.
+
+---
+
+## D62 — every one-way door is decided, not discovered (#390, 2026-07-28)
+
+**Decision.** Any state transition a human can end up on the wrong side of must
+have its inverse **decided when the transition is built**, and the decision
+written down. Reversible-by-intent and irreversible-by-accident currently look
+identical from outside, and that difference is only ever discovered by a
+customer who is already stuck.
+
+**The concrete question, in the definition of done.** Not "did you test the
+undo" — a platitude nobody actions. The question is: **who is stuck if this
+cannot be undone, and how do they get out?** If the answer is "nobody, by
+design", say so and it is done. If the answer is a person, the return path is
+part of the feature.
+
+**Why it is a class and not a ticket.** Every one of these was built and tested
+in the forward direction, because the forward direction *is* the feature.
+Nobody writes "and then undo it" unless undo is the feature. But when the
+states are *people* and *phone numbers*, a one-way door is a customer
+permanently stuck. #383 was the founder hitting it with a workspace of one; in
+a real crew it is a seasonal-labour bug, because trades hire back — a tech who
+leaves in October and returns in April is the normal case.
+
+**The audit (#390 ask 3), resolved. All five rows:**
+
+| Forward | Return path | Verdict |
+|---|---|---|
+| Offboard a member (#276) | Re-invite | **Reversible.** Invite acceptance distinguishes an *active* membership from an offboarded one and reactivates, taking the role from THIS invite rather than the one they held before (`routes/team.ts:863-884`). Fixed in 4e91bf3 (#383). |
+| Mark a number spam | Un-mark | **Reversible.** `routes/conversations.ts:462-468`; un-marking also clears the review watermark, so the next mark starts a fresh count rather than inheriting a confirmation about different messages (#342). |
+| Close a workspace (#341) | Reopen inside grace | **Reversible in the database, not in the product.** `public.reopen_workspace(uuid)` exists with `too_late`/`not_closed` guards (`20260726000400_workspace_closure.sql:123-154`) and is asserted in `workspace_closure.test.sql` — but it has **no API route and no caller**, so the copy's promise ("contact us and we can undo it") is kept by a human running SQL against production. It also writes **no audit row**: `audit/log.ts:69` declares `workspace.reopened` with zero emitters. That is #404's thesis proven on a specific case, and it is tracked there rather than re-filed. |
+| Cancel a subscription | Resubscribe | **Reversible.** Resubscribe-within-grace un-suspends the existing number instead of provisioning a new one, and the saga then skips because a non-released number exists (`webhooks/stripe.ts:511-519`). |
+| Release a number | Re-add the same number | **Irreversible, correctly.** The number returns to the carrier's inventory and is not ours to reclaim. #413 owns telling a churning customer this plainly. |
+
+**What stays one-way on purpose.** The ask is not "make everything reversible."
+A **STOP can only be lifted by the customer who sent it** — that is not a
+missing return path, it is the whole point ([[opt-out-carrier-truth]]). Workspace
+purge after the D48 grace window is likewise deliberately final. Both are
+decided, which is the entire distinction this decision draws.
