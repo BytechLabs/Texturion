@@ -36,6 +36,7 @@ import { buildDataExports } from "./workspace/export";
 import { purgeClosedWorkspaces } from "./workspace/purge";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
+import { retryInterruptedSends } from "./messaging/retry-interrupted";
 import { notifyDueTasksJob } from "./tasks/due-notice";
 import { app, CRON_JOBS } from "./index";
 import {
@@ -462,8 +463,12 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     // it exists to beat would leave the feature named after a promise it no
     // longer keeps.
     expect(runs("* * * * *")).toEqual([runLeadChaseJob]);
+    // #411: the auto-retry runs BEFORE the fail-out, and the order is the
+    // assertion — a row this declines must be failed out in the SAME tick
+    // rather than waiting five minutes for the next one.
     expect(runs("*/5 * * * *")).toEqual([
       sweepWebhookEvents,
+      retryInterruptedSends,
       failStuckOutboundSends,
       sweepStuckProvisioning,
     ]);

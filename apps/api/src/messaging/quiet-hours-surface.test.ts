@@ -69,6 +69,18 @@ const SEND_SITES: Record<string, { shape: string; why: string }> = {
       "missed-call text-back: the customer CALLED us seconds ago. Contact was " +
       "consumer-initiated and this is the answer to it",
   },
+  "messaging/retry-interrupted.ts": {
+    shape: "inherits-the-original",
+    why:
+      "#411: this sends NOTHING new. It completes a send a person already " +
+      "composed and already authorised, which crashed between the gate insert " +
+      "and the Telnyx call — so whatever quiet-hours shape the original had, " +
+      "this carries. A reply stays a reply; a human-initiating send stays one, " +
+      "and its 409 confirmation was already answered before the row existed. " +
+      "The bound is what keeps that honest: ONE attempt, inside about twenty " +
+      "minutes of the original, so a retry cannot drift into a different day " +
+      "or a different window than the one the sender was looking at",
+  },
   "messaging/auto-send.ts": {
     shape: "reply-exempt",
     why:

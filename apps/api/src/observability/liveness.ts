@@ -359,6 +359,15 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "job:retry-interrupted-sends": {
+    what:
+      "Sends that crashed before reaching the carrier are no longer being "
+      + "re-dispatched (#411). They are not lost — the fail-out sweeper still "
+      + "surfaces them — but every one now waits for a human to notice, which "
+      + "is exactly the five-minute window #388 says decides the job.",
+    everyMinutes: 5,
+    graceMinutes: 20,
+  },
   "job:carrier-ceiling": {
     what:
       "Nothing is watching the carrier's daily message ceiling (#457). It is "

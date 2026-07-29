@@ -100,6 +100,11 @@ describe("the outbound gate cannot be bypassed (#331)", () => {
       "messaging/auto-send.ts",
       // The missed-call text-back's own dispatch.
       "messaging/missed-call.ts",
+      // #411: the stuck-send auto-retry. Reaches the carrier, so it is named
+      // here — and it mints its clearance through runPreSendGates like every
+      // other path, because the world may have changed since the row was
+      // queued.
+      "messaging/retry-interrupted.ts",
       // The dispatch tail itself.
       "messaging/send.ts",
       // Compose: the first text to a new number.

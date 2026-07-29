@@ -26,6 +26,7 @@ import { runCallSilenceJob } from "./calls/call-silence";
 import { runIdentityRetentionJob } from "./telnyx/identity-retention";
 import { runContactRetentionJob } from "./marketing/contact-retention";
 import { runCarrierCeilingJob } from "./billing/carrier-ceiling";
+import { retryInterruptedSends } from "./messaging/retry-interrupted";
 import { runRetentionNoticeJob } from "./workspace/retention-notice";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
 import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
@@ -322,7 +323,16 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // Also flips a genuinely-stuck 'provisioning' number (a Telnyx order pending
   // past the dwell) to provision_failed so the customer reaches remediation in
   // ~10-15 min instead of waiting on the 15-min reconcile (§4.3 honest status).
-  "*/5 * * * *": [job("job:sweep-webhooks", sweepWebhookEvents), job("job:fail-stuck-sends", failStuckOutboundSends), job("job:sweep-stuck-provisioning", sweepStuckProvisioning)],
+  "*/5 * * * *": [
+    job("job:sweep-webhooks", sweepWebhookEvents),
+    // #411: BEFORE the fail-out, deliberately. A send that crashed between the
+    // gate insert and the Telnyx call provably never reached the carrier, so
+    // re-dispatching it cannot duplicate anything — and whatever this declines
+    // gets failed out by the next job in the SAME tick rather than waiting.
+    job("job:retry-interrupted-sends", retryInterruptedSends),
+    job("job:fail-stuck-sends", failStuckOutboundSends),
+    job("job:sweep-stuck-provisioning", sweepStuckProvisioning),
+  ],
   // Provisioning retry & reconcile: resume provisioning/provision_failed
   // numbers, adopt crash-after-buy orphans, re-run failed §4.4 R3 campaign
   // number-assignments. Also reclaims soft-deleted attachment objects/rows past
