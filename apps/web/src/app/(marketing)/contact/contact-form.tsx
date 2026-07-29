@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { publicEnv } from "@/env";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
+import { trackContactSubmitted } from "@/lib/analytics/events";
 
 import {
   buildMailto,
@@ -83,6 +84,9 @@ export function ContactForm() {
       apiBaseUrl: publicEnv.NEXT_PUBLIC_API_URL,
     });
     if (result.ok) {
+      // #312: the hand-raise, counted. Fire-and-forget and PII-free — see the
+      // event's own note on why nothing about the submitter travels with it.
+      trackContactSubmitted();
       setStatus("success");
       return;
     }

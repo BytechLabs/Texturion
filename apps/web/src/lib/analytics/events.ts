@@ -124,6 +124,27 @@ export function trackCheckoutStarted(
 }
 
 /**
+ * #312 — a visitor raised their hand without buying.
+ *
+ * The one step in the arrive-and-do-not-buy path that was invisible. Page views
+ * and `checkout_completed` already bracket non-conversion, so "arrived, did not
+ * buy" was measurable in aggregate — but "arrived, did not buy, and *asked us
+ * something*" was not, and that is the population worth a follow-up rather than
+ * a statistic.
+ *
+ * Carries NOTHING about who they are. The submitter's name, email and message
+ * are already stored server-side in `contact_messages` under #340's retention;
+ * putting any of it here would move a non-customer's identity into a third party
+ * for a count, which SPEC §10 forbids and this module is typed to prevent.
+ *
+ * Not guarded: a second genuine enquiry a fortnight later is a real event, and
+ * PostHog funnels read the first occurrence anyway.
+ */
+export function trackContactSubmitted(): void {
+  capture("contact_submitted");
+}
+
+/**
  * The checkout return confirmed as paid on the setting-up screen (client
  * view; the API Worker's server-side checkout_completed stays authoritative).
  */

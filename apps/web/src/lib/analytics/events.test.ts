@@ -139,3 +139,31 @@ describe("funnel event helpers (D8: enums only, silent no-op when analytics is o
     expect(captureSpy).toHaveBeenCalledWith("checkout_completed");
   });
 });
+
+describe("#312 — trackContactSubmitted", () => {
+  it("counts the hand-raise", async () => {
+    const { trackContactSubmitted } = await importEvents();
+    trackContactSubmitted();
+    await flush();
+    expect(captureSpy).toHaveBeenCalledWith("contact_submitted");
+  });
+
+  it("carries nothing about the submitter", async () => {
+    // The name, email and message live server-side in contact_messages under
+    // #340's retention. Moving any of it here would put a non-customer's
+    // identity into a third party for the sake of a count.
+    const { trackContactSubmitted } = await importEvents();
+    trackContactSubmitted();
+    await flush();
+    const [, properties] = captureSpy.mock.calls[0];
+    expect(properties).toBeUndefined();
+  });
+
+  it("is not once-guarded — a second real enquiry is a real event", async () => {
+    const { trackContactSubmitted } = await importEvents();
+    trackContactSubmitted();
+    trackContactSubmitted();
+    await flush();
+    expect(captureSpy).toHaveBeenCalledTimes(2);
+  });
+});
