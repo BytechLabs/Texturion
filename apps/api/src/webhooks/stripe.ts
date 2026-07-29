@@ -8,6 +8,10 @@ import {
   planModuleReconcile,
   type CompanyModuleRow,
 } from "../billing/company-modules";
+import {
+  isNewCancellation,
+  noticeCancellation,
+} from "../billing/cancellation-notice";
 import { handleChargeDispute } from "../billing/disputes";
 import { recordAndSendGraceNotice } from "../billing/grace";
 import { idempotencyKey } from "../billing/idempotency";
@@ -672,6 +676,11 @@ export async function syncSubscription(
 
   const period = subscriptionPeriod(subscription);
   const plan = subscriptionPlan(env, subscription);
+  // #421: read BEFORE the mirror overwrites it. A portal cancellation arrives
+  // as `cancel_at_period_end` newly true, and every later update repeats it —
+  // comparing against what we already hold is what makes the owner's notice
+  // fire once instead of on every card touch.
+  const newCancellation = await isNewCancellation(db, subscriptionId, subscription, status);
   const { data, error } = await db
     .from("companies")
     .update({
@@ -690,14 +699,24 @@ export async function syncSubscription(
     .eq("stripe_subscription_id", subscriptionId)
     // company_modules embedded so the #17 reconcile needs no second read;
     // canceled_at feeds the #21 missed-cancellation backstop.
-    .select("id,name,canceled_at,company_modules(module,disabled_at,grandfathered)");
+    .select("id,name,owner_user_id,canceled_at,company_modules(module,disabled_at,grandfathered)");
   if (error) throw new Error(`subscription mirror failed: ${error.message}`);
   const companies = (data ?? []) as {
     id: string;
     name: string;
+    owner_user_id: string;
     canceled_at: string | null;
     company_modules?: CompanyModuleRow[];
   }[];
+
+  // #421: an irreversible clock just started on this company's phone number
+  // and nothing told the person who owns it. Best-effort — the mirror is the
+  // truth of the account and must never fail because a courtesy email did.
+  if (newCancellation) {
+    for (const company of companies) {
+      await noticeCancellation(env, db, company, subscription);
+    }
+  }
 
   if (status === "canceled") {
     for (const company of companies) {

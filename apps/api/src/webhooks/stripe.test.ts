@@ -34,6 +34,8 @@ import { submitRegistration } from "../test/telnyx-doubles/registration";
 
 const env = completeEnv();
 const COMPANY_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+/** #421: the owner who must be told a cancellation started. */
+const OWNER_ID = "1f2e3d4c-5b6a-4798-8a9b-0c1d2e3f4a5b";
 const PERIOD_START = 1_750_000_000;
 const PERIOD_END = 1_752_592_000;
 const EVENT_CREATED = 1_750_001_000;
@@ -705,9 +707,23 @@ describe("§9 event → state table", () => {
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         subscriptionFixture({ status: "active", cancelAtPeriodEnd: true }),
       ),
-      endpoint("PATCH", /\/rest\/v1\/companies/, () => [
-        { id: COMPANY_ID, name: "Acme Plumbing" },
+      // #421: the pre-read that decides whether this is the MOMENT of
+      // cancellation or a restatement of one. Returning a row that is not yet
+      // cancelling makes this the moment, which is what this test is about.
+      endpoint("GET", /\/rest\/v1\/companies/, () => [
+        { cancel_at_period_end: false },
       ]),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => [
+        { id: COMPANY_ID, name: "Acme Plumbing", owner_user_id: OWNER_ID },
+      ]),
+      // The owner notice: an audit row and one email. Both best-effort, and
+      // both stubbed here so the mirror assertions below are about the mirror.
+      endpoint("POST", /\/rest\/v1\/audit_log/, () => []),
+      endpoint("GET", /\/auth\/v1\/admin\/users\//, () => ({
+        id: OWNER_ID,
+        email: "owner@acme.test",
+      })),
+      endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "email_1" })),
     ]);
     await deliver(
       // The event body still claims no pending cancellation; the re-fetch wins.

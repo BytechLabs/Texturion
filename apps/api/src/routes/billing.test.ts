@@ -587,10 +587,40 @@ describe("POST /v1/billing/portal", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       url: "https://billing.stripe.com/p/session/bps_1",
+      // #421: the OWNER gets the whole portal, cancellation included.
+      scope: "full",
     });
     const form = harness.callsTo("POST", /billing_portal/)[0].form();
     expect(form.get("customer")).toBe("cus_1");
     expect(form.get("return_url")).toBe(`${env.APP_ORIGIN}/settings/billing`);
+    // No flow restriction for the owner.
+    expect(form.get("flow_data[type]")).toBeNull();
+  });
+
+  it("#421: an ADMIN gets the card-update flow, with no route to cancellation", async () => {
+    // Closing the workspace is owner-only, and cancelling ends in the same
+    // place: `grace.ts` releases the number 30 days later and a released number
+    // is reassigned to another business (#413). That path was admin-reachable
+    // purely because it happened on Stripe's domain.
+    //
+    // Admin billing is still right for the ordinary case — a bookkeeper
+    // updating an expiring card should not have to be the owner (#332). So the
+    // route stays admin-reachable and the BUNDLE is split instead: the
+    // payment_method_update flow has no cancellation surface at all, which is a
+    // structural limit rather than a hidden button.
+    const harness = makeHarness([
+      companyEndpoint(companyRow({ stripe_customer_id: "cus_1" })),
+      endpoint("POST", /api\.stripe\.com\/v1\/billing_portal\/sessions/, () => ({
+        id: "bps_2",
+        url: "https://billing.stripe.com/p/session/bps_2",
+      })),
+    ]);
+    const response = await post("/v1/billing/portal", undefined, harness, "admin");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ scope: "payment_method" });
+
+    const form = harness.callsTo("POST", /billing_portal/)[0].form();
+    expect(form.get("flow_data[type]")).toBe("payment_method_update");
   });
 });
 

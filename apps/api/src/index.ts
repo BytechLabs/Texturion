@@ -20,6 +20,7 @@ import { getEnv, type Bindings, type Env } from "./env";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { runLeadChaseJob } from "./notifications/lead-chase";
+import { runInboundCanaryJob } from "./observability/inbound-canary";
 import { runLivenessCheckJob } from "./observability/liveness-check";
 import {
   recordHeartbeatBestEffort,
@@ -328,6 +329,13 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // 24h window — reputation is not a per-message property and cannot be
     // judged from one send.
     job("job:email-health", runEmailHealthJob),
+    // #308: the synthetic inbound canary — one text from our number to our
+    // number, confirmed by its own webhook coming back. HOURLY because the
+    // cadence is the cost: each round trip is ~1.7c, and an hour is the
+    // shortest interval whose annual bill is defensible for a signal the
+    // traffic probes can only give in half a day. Off entirely until the
+    // number pair is configured.
+    job("job:inbound-canary", runInboundCanaryJob),
   ],
   // Sole-prop OTP nudge (≥12h outstanding, once per submission).
   "30 * * * *": [job("job:nudge-sole-prop-otp", nudgeSoleProprietorOtp)],

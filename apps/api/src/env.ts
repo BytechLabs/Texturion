@@ -124,6 +124,19 @@ const envSchema = z.object({
    * falls back to support@loonext.com, which routes to the founder. */
   OPS_ALERT_EMAIL: z.string().min(3).optional(),
   /**
+   * #308: the synthetic inbound canary's number pair, in E.164.
+   *
+   * BOTH OPTIONAL, and the canary is off unless both are set — a from with no
+   * to is not half a canary, it is a text to nowhere. The destination must be
+   * a number this platform owns; the job checks and refuses otherwise, which
+   * is what makes this the one send path that may skip the §5 gates.
+   *
+   * Cost when enabled: one segment out plus one segment in per hourly run,
+   * ~1.7c, capped by MAX_UNANSWERED_PER_DAY once the path is known broken.
+   */
+  CANARY_FROM_E164: z.string().min(8).optional(),
+  CANARY_TO_E164: z.string().min(8).optional(),
+  /**
    * Reply-To stamped on EVERY Resend send (email-hardening: alert copy says
    * "just reply to this email", so replies must land in a monitored inbox
    * rather than the unmonitored sender). Production sets it to

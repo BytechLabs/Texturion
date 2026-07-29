@@ -224,6 +224,17 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 60,
     graceMinutes: 60,
   },
+  "job:inbound-canary": {
+    what:
+      "The synthetic inbound canary job has stopped running, so nothing is " +
+      "generating the traffic that proves the inbound path works.",
+    // Unconditional, unlike `channel:inbound-canary` above: this key means
+    // "the job ran", which is true and worth knowing whether or not the number
+    // pair is configured — an unconfigured canary still returns cleanly, and a
+    // job that stopped executing is a different fault from one that is off.
+    everyMinutes: 60,
+    graceMinutes: 60,
+  },
   "job:email-health": {
     what:
       "The email bounce/complaint rate check has stopped. The domain reputation " +
@@ -419,6 +430,27 @@ export const LIVENESS_EXPECTATIONS = {
   // Expressed as a heartbeat recorded while HEALTHY — the same conjunction the
   // `:work` keys above use, for the same reason: it is the only formulation
   // that does not false-alarm on a platform with no traffic to reject.
+  // ---------------------------------------------------------------------
+  // The canary (#308) — the fast, unambiguous half.
+  //
+  // The traffic keys above are wide because customer traffic cannot tell
+  // "broken" from "quiet" at this volume. This one generates the traffic, so
+  // its silence means something specific and it can afford a tight grace.
+  //
+  // CONDITIONALLY DECLARED. `runLivenessCheckJob` omits this expectation when
+  // the canary is unconfigured — an expectation for something nobody asked
+  // for would alert forever about a feature that was never switched on, and
+  // that is precisely how this mailbox stops being read.
+  "channel:inbound-canary": {
+    what:
+      "The synthetic inbound canary has not completed a round trip. A text we " +
+      "sent from our own number to our own number did not come back as a " +
+      "webhook, so the inbound path is broken somewhere between Telnyx and " +
+      "our handler — this one is not a quiet hour, because we generated the " +
+      "traffic ourselves.",
+    everyMinutes: 60,
+    graceMinutes: 150,
+  },
   "channel:webhook-signature": {
     what:
       "Signed provider webhooks are being REJECTED and none are being accepted — " +

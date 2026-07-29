@@ -12,6 +12,7 @@ import { getDb } from "../db";
 import { emailLayout } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
+import { canaryConfig } from "./inbound-canary";
 import { LIVENESS_EXPECTATIONS, recordHeartbeatBestEffort } from "./liveness";
 
 /** How long an alerting key waits before it shouts again. */
@@ -52,12 +53,19 @@ export async function runLivenessCheckJob(
   await probeOutboundSms(env, now, db);
   await probeInboundWebhooks(env, now, db);
 
-  const expectations = Object.entries(LIVENESS_EXPECTATIONS).map(([key, spec]) => ({
-    key,
-    what: spec.what,
-    every_minutes: spec.everyMinutes,
-    grace_minutes: spec.graceMinutes,
-  }));
+  // #308: the canary's expectation exists only when the canary does. Declaring
+  // it unconditionally would alert every six hours, forever, about a feature
+  // nobody switched on — the same phantom-alert failure the "cron that no
+  // longer exists" test guards against, arriving from the other direction.
+  const canaryOff = canaryConfig(env) === null;
+  const expectations = Object.entries(LIVENESS_EXPECTATIONS)
+    .filter(([key]) => !(canaryOff && key === "channel:inbound-canary"))
+    .map(([key, spec]) => ({
+      key,
+      what: spec.what,
+      every_minutes: spec.everyMinutes,
+      grace_minutes: spec.graceMinutes,
+    }));
 
   const { data, error } = await db.rpc("api_liveness_check", {
     p_expectations: expectations,

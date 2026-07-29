@@ -345,6 +345,31 @@ billingRoutes.post("/confirm-checkout", async (c) => {
 /**
  * POST /v1/billing/portal — hosted portal session (payment methods, invoices,
  * cancellation only; plan switching happens in-app — SPEC §9).
+ *
+ * #421 — THE BUNDLE IS SPLIT BY ROLE.
+ *
+ * Closing the workspace is owner-only. Cancelling the subscription ends in the
+ * same place — `grace.ts` releases the number 30 days later, and a released
+ * number goes back to carrier inventory and is reassigned to another business
+ * (#413) — but it happened on Stripe's domain and so was never gated. An admin
+ * could start an irreversible clock ending with the company's phone number
+ * belonging to somebody else.
+ *
+ * Admin-level billing is still right for the ordinary case: a bookkeeper
+ * updating an expiring card should not have to be the owner, and forcing that
+ * through the single untransferable owner role (#332) would be worse. The
+ * problem was only that Stripe's portal bundles "update the card" with "cancel
+ * the subscription" behind one link.
+ *
+ * It turns out we CAN split it. `flow_data.type = "payment_method_update"`
+ * lands the caller directly on the card screen with no route to cancellation,
+ * and it needs no account-level portal configuration. So:
+ *
+ *   owner  → the full portal, cancellation included
+ *   admin  → the card-update flow, and nothing else
+ *
+ * The route stays admin-reachable, which keeps the routine case working; what
+ * changes is what an admin can reach once inside.
  */
 billingRoutes.post("/portal", async (c) => {
   const env = getEnv(c.env);
@@ -358,11 +383,21 @@ billingRoutes.post("/portal", async (c) => {
     );
   }
 
-  const session = await getStripe(env).billingPortal.sessions.create({
-    customer: company.stripe_customer_id,
-    return_url: `${env.APP_ORIGIN}/settings/billing`,
-  });
-  return c.json({ url: session.url });
+  const isOwner = c.get("role") === "owner";
+  const returnUrl = `${env.APP_ORIGIN}/settings/billing`;
+  const session = await getStripe(env).billingPortal.sessions.create(
+    isOwner
+      ? { customer: company.stripe_customer_id, return_url: returnUrl }
+      : {
+          customer: company.stripe_customer_id,
+          return_url: returnUrl,
+          // Not a lesser portal — a DIFFERENT one. The card-update flow has no
+          // cancellation surface at all, so this is a structural limit rather
+          // than a hidden button.
+          flow_data: { type: "payment_method_update" },
+        },
+  );
+  return c.json({ url: session.url, scope: isOwner ? "full" : "payment_method" });
 });
 
 /**

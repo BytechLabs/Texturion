@@ -108,6 +108,16 @@ export function supabaseStub(env: Env): SupabaseStub {
       matcher: "/rest/v1/rpc/claim_high_priority_push",
       respond: () => ({ allowed: true, alert: null }),
     },
+    {
+      // #308: the signature-rejection counter hangs off the FAILURE path of
+      // every webhook route. Without this, any suite that posts an unsigned
+      // webhook makes a real network call and waits out the timeout — the
+      // request is fired before `waitUntil`, precisely so a context that cannot
+      // defer it still records.
+      method: "POST",
+      matcher: "/rest/v1/rpc/record_webhook_rejection",
+      respond: () => null,
+    },
   ];
 
   const matches = (matcher: string | RegExp, path: string) =>

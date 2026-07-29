@@ -63,6 +63,11 @@ export type AuditAction =
   // the decision it forces — keep serving them or not — is one somebody will
   // want to see the history of afterwards.
   | "billing.disputed"
+  // #421: somebody scheduled the subscription to end. It reads as a billing
+  // change and behaves as a destructive one — 30 days later the number is
+  // released and given to another business — so it belongs in the record that
+  // cannot be rewritten.
+  | "billing.cancellation_scheduled"
   // The end of the account (#341). The most consequential thing anyone does
   // here, and the one an owner is most likely to ask us about afterwards.
   | "workspace.closed"

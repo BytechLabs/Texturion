@@ -179,6 +179,152 @@ begin
   end if;
 end $$;
 
-\echo 'webhook_liveness.test.sql: WL-1..WL-6 PASSED'
+
+-- ===========================================================================
+-- WL-7. The canary confirms on its TOKEN, not merely on an arrival.
+--
+--       Matching on the destination number alone would let ANY inbound to that
+--       number confirm the canary — including the PREVIOUS hour's, which is
+--       exactly the stale-evidence failure this whole issue is about one level
+--       up. A canary that can be confirmed by old traffic proves nothing.
+-- ===========================================================================
+do $$
+declare
+  r jsonb;
+begin
+  insert into public.inbound_canary_runs (token, sent_at)
+  values ('CANARY-OLD', '2026-07-28T10:00:00Z'),
+         ('CANARY-NEW', '2026-07-28T11:00:00Z');
+
+  -- An inbound webhook carrying the OLD token, arriving after the NEW send.
+  insert into public.webhook_events (provider, event_id, event_type, payload, received_at)
+  values ('telnyx', 'wl-c1', 'message.received',
+          '{"data":{"payload":{"text":"CANARY-OLD"}}}'::jsonb,
+          '2026-07-28T11:30:00Z');
+
+  -- The newest pending run is CANARY-NEW, and nothing carrying that token has
+  -- arrived, so it must NOT be confirmed by the CANARY-OLD delivery.
+  r := public.confirm_inbound_canary('2026-07-28T11:45:00Z', 60);
+  if r->>'confirmed' is not null then
+    raise exception 'WL-7 FAILED: a stale token confirmed the current canary: %', r;
+  end if;
+  if (r->>'pending')::boolean is not true then
+    raise exception 'WL-7 FAILED: expected the run to still be pending: %', r;
+  end if;
+end $$;
+
+-- ===========================================================================
+-- WL-8. A matching token DOES confirm, once the run is old enough, and the
+--       round trip is measured.
+-- ===========================================================================
+do $$
+declare
+  r jsonb;
+  c timestamptz;
+begin
+  insert into public.webhook_events (provider, event_id, event_type, payload, received_at)
+  values ('telnyx', 'wl-c2', 'message.received',
+          '{"data":{"payload":{"text":"CANARY-NEW"}}}'::jsonb,
+          '2026-07-28T11:00:30Z');
+
+  r := public.confirm_inbound_canary('2026-07-28T11:45:00Z', 60);
+  if r->>'confirmed' <> 'CANARY-NEW' then
+    raise exception 'WL-8 FAILED: expected CANARY-NEW to confirm: %', r;
+  end if;
+  if (r->>'round_trip_seconds')::int <> 2700 then
+    raise exception 'WL-8 FAILED: round trip = %s (want 2700): %', r->>'round_trip_seconds', r;
+  end if;
+
+  select confirmed_at into c from public.inbound_canary_runs where token = 'CANARY-NEW';
+  if c is null then
+    raise exception 'WL-8 FAILED: confirmed_at was not stamped';
+  end if;
+end $$;
+
+-- ===========================================================================
+-- WL-9. A run younger than the minimum age is not judged.
+--
+--       The webhook arrives seconds later. Treating a 5-second-old silence as
+--       evidence would alert on every single run.
+-- ===========================================================================
+do $$
+declare
+  r jsonb;
+begin
+  -- Clear the earlier fixtures: `confirm_inbound_canary` deliberately picks the
+  -- MOST RECENT run that is old enough, so an older pending run left lying
+  -- around would be the one judged here and the assertion would be about the
+  -- wrong row. (That selection is correct — the freshest evidence is the
+  -- evidence that matters, and older unanswered runs keep driving the cap.)
+  delete from public.inbound_canary_runs;
+  insert into public.inbound_canary_runs (token, sent_at)
+  values ('CANARY-FRESH', '2026-07-28T11:59:30Z');
+
+  r := public.confirm_inbound_canary('2026-07-28T12:00:00Z', 60);
+  if (r->>'pending')::boolean is not false or r->>'confirmed' is not null then
+    raise exception 'WL-9 FAILED: a 30-second-old run was judged: %', r;
+  end if;
+end $$;
+
+-- ===========================================================================
+-- WL-10. A run whose SEND failed is never inbound evidence, in either
+--        direction: it is not confirmable, and it is not counted as
+--        unanswered. A canary that never left says nothing about inbound —
+--        that outage belongs to channel:sms-outbound.
+-- ===========================================================================
+do $$
+declare
+  r jsonb;
+  n int;
+begin
+  delete from public.inbound_canary_runs;
+  insert into public.inbound_canary_runs (token, sent_at, send_error)
+  values ('CANARY-DEAD', '2026-07-28T10:00:00Z', 'Telnyx HTTP 500');
+
+  r := public.confirm_inbound_canary('2026-07-28T12:00:00Z', 60);
+  if (r->>'pending')::boolean is not false then
+    raise exception 'WL-10 FAILED: a failed send was treated as pending: %', r;
+  end if;
+
+  n := public.inbound_canary_unanswered('2026-07-28T00:00:00Z');
+  if n <> 0 then
+    raise exception 'WL-10 FAILED: unanswered = % (a failed send must not count)', n;
+  end if;
+
+  -- A genuine unanswered run does count — that is what drives the cap.
+  insert into public.inbound_canary_runs (token, sent_at)
+  values ('CANARY-SILENT', '2026-07-28T10:30:00Z');
+  n := public.inbound_canary_unanswered('2026-07-28T00:00:00Z');
+  if n <> 1 then
+    raise exception 'WL-10 FAILED: unanswered = % (want 1)', n;
+  end if;
+end $$;
+
+-- ===========================================================================
+-- WL-11. The canary ledger is service-role only, like the rest.
+-- ===========================================================================
+do $$
+declare
+  leaked text;
+begin
+  if not exists (
+    select 1 from pg_tables
+     where schemaname = 'public' and tablename = 'inbound_canary_runs'
+       and rowsecurity)
+  then
+    raise exception 'WL-11 FAILED: RLS not enabled on inbound_canary_runs';
+  end if;
+
+  select string_agg(distinct grantee, ', ') into leaked
+  from information_schema.role_routine_grants
+  where routine_schema = 'public'
+    and routine_name in ('confirm_inbound_canary', 'inbound_canary_unanswered')
+    and grantee in ('anon', 'authenticated', 'public');
+  if leaked is not null then
+    raise exception 'WL-11 FAILED: end-user execute grants present: %', leaked;
+  end if;
+end $$;
+
+\echo 'webhook_liveness.test.sql: WL-1..WL-11 PASSED'
 
 rollback;
