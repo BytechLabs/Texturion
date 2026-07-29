@@ -45,6 +45,13 @@ final class ThreadController {
     private(set) var events: [ConversationEvent] = []
     private(set) var pinnedMessages: [Message] = []
     private(set) var pendingSends: [PendingSend] = []
+
+    /// #234: the durable queue behind `pendingSends`. Constructed here rather
+    /// than injected — every caller would otherwise have to thread it through,
+    /// and the logic worth testing lives in `OutboxFlusher`, which
+    /// `MessagingOutboxTests` drives directly against a throwaway suite.
+    private let outbox = Outbox()
+
     private(set) var members: [Member] = []
     private(set) var contact: Contact?
     private(set) var company: CompanyView?
@@ -147,6 +154,14 @@ final class ThreadController {
         messagesCursor = detail.messages.next_cursor
         allMessagesLoaded = detail.messages.next_cursor == nil
         load = .ready(())
+
+        // #234: whatever was queued before this process existed comes back
+        // into the thread, then we try to drain it. Restoring BEFORE flushing
+        // is deliberate — if there is still no signal, the person opening the
+        // thread sees their message sitting there rather than an empty
+        // conversation that quietly ate it.
+        restoreQueued()
+        flushOutbox()
 
         // Secondary loads — quiet failures; they gate niceties, not the thread.
         Task { try? await self.refreshEvents() }
@@ -430,11 +445,41 @@ final class ThreadController {
                 messages = mergeMessagesFirstPage(messages, [message])
                 markRead()
             } catch {
+                let code = (error as? ApiError)?.code
+                // #234: did we REACH the server? That is the whole decision.
+                //
+                // `network` means we never got an answer, so the message waits
+                // for one — it stays in the thread as "Queued" and is written
+                // to the durable outbox, which is what makes it survive the
+                // app being killed on the walk back to the truck.
+                //
+                // Photos are deliberately NOT queued yet: a staged photo
+                // references a transient picker grant that does not survive the
+                // process (the same reason ComposerDrafts refuses to persist
+                // them), so queueing one would restore a dead chip and send a
+                // message with the photo silently missing. Until they are
+                // copied into app storage, a photo send keeps today's honest
+                // behaviour — the draft comes back and the person is told.
+                if code == ApiErrorCode.network, photos.isEmpty {
+                    if let index = pendingSends.firstIndex(where: { $0.localId == key }) {
+                        pendingSends[index].queued = true
+                    }
+                    outbox.put(
+                        QueuedSend(
+                            localId: key,
+                            companyId: companyId,
+                            conversationId: conversationId,
+                            body: body,
+                            createdAt: pendingRow.createdAt
+                        )
+                    )
+                    lastFailedIntent = nil
+                    return
+                }
                 pendingSends.removeAll { $0.localId == pendingRow.localId }
                 lastFailedIntent = FailedSendIntent(body: body, photoIds: photoIds, key: key)
                 onRestore()
                 notify(error.userMessage)
-                let code = (error as? ApiError)?.code
                 if code == ApiErrorCode.recipientOptedOut ||
                     code == ApiErrorCode.subscriptionInactive ||
                     code == ApiErrorCode.registrationPending ||
@@ -443,6 +488,87 @@ final class ThreadController {
                 }
             }
         }
+    }
+
+    // MARK: - #234 outbox
+
+    /// Paint the durable queue for this thread back into the timeline.
+    private func restoreQueued() {
+        let rows = outbox.forConversation(conversationId)
+        let restored = rows.map { row in
+            PendingSend(
+                localId: row.localId,
+                body: row.body,
+                mediaCount: 0,
+                createdAt: row.createdAt,
+                idempotencyKey: row.localId,
+                queued: !row.blocked,
+                blockedReason: row.blocked ? row.lastError : nil
+            )
+        }
+        let known = Set(restored.map(\.localId))
+        pendingSends = pendingSends.filter { !known.contains($0.localId) } + restored
+    }
+
+    /// Drain the queue. Safe to call from anywhere and as often as you like —
+    /// `OutboxFlusher` refuses to start a second pass while one is running, so
+    /// an LTE/Wi-Fi handoff firing two callbacks lands one message, not two.
+    func flushOutbox() {
+        Task { await flushOutboxNow() }
+    }
+
+    private func flushOutboxNow() async {
+        let flusher = OutboxFlusher(outbox: outbox) { [weak self] item in
+            guard let self else { return .unreachable("gone") }
+            do {
+                let message = try await self.repo.send(
+                    companyId: item.companyId,
+                    conversationId: item.conversationId,
+                    body: item.body,
+                    media: nil,
+                    // The key minted when the person pressed send, reused on
+                    // every attempt — this is what makes the flush idempotent
+                    // rather than merely retried.
+                    idempotencyKey: item.localId
+                )
+                if item.conversationId == self.conversationId {
+                    self.pendingSends.removeAll { $0.localId == item.localId }
+                    self.messages = mergeMessagesFirstPage(self.messages, [message])
+                }
+                return .sent
+            } catch {
+                if (error as? ApiError)?.code == ApiErrorCode.network {
+                    return .unreachable(error.userMessage)
+                }
+                return .refused(error.userMessage)
+            }
+        }
+        let result = await flusher.flush()
+        if !result.sent.isEmpty { markRead() }
+        // A refusal changes what the row says, so repaint from the store rather
+        // than guessing which one was blocked.
+        if !result.blocked.isEmpty {
+            restoreQueued()
+            refreshGates()
+        }
+    }
+
+    /// Drop a queued message the person has decided against (#234).
+    func discardQueued(_ localId: String) {
+        outbox.remove(localId)
+        pendingSends.removeAll { $0.localId == localId }
+    }
+
+    /// Try a blocked row again, because the person believes the reason is gone
+    /// — the cap reset, the registration came back. Clears the block so the
+    /// next flush actually asks, rather than reporting the old answer.
+    func retryQueued(_ localId: String) {
+        guard var row = outbox.all().first(where: { $0.localId == localId }) else { return }
+        row.blocked = false
+        row.lastError = nil
+        outbox.put(row)
+        restoreQueued()
+        flushOutbox()
     }
 
     /// Retry a failed row (server-side rules; retryable gate is in the UI).

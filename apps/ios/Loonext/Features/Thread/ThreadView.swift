@@ -65,12 +65,24 @@ struct ThreadView: View {
         .task(id: conversationId) {
             for await _ in await graph.realtime.reconnected() {
                 controller?.refreshAfterReconnect()
+                // #234: the socket re-JOINing IS this app's "signal came back"
+                // signal, already plumbed and already torn down with the view.
+                // It covers the case a foreground return does not — the phone
+                // regaining bars while the thread is open in someone's hand —
+                // without a second NWPathMonitor per opened thread, which is
+                // what a controller-owned one would have cost.
+                controller?.flushOutbox()
             }
         }
         // #215 Part A: a frame missed while this thread was backgrounded/blurred
         // (the #215 repro) self-heals on return — the same page-1 refetch the
         // socket re-JOIN runs.
-        .resyncOnForeground { controller?.refreshAfterReconnect() }
+        .resyncOnForeground {
+            controller?.refreshAfterReconnect()
+            // #234: coming back to the app is the most common moment the bars
+            // came back too — the walk out of the basement to the truck.
+            controller?.flushOutbox()
+        }
     }
 }
 

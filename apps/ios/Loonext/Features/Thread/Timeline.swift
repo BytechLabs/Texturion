@@ -39,12 +39,31 @@ struct ThreadFilter: Equatable, Sendable {
 }
 
 /// A locally-queued outbound send awaiting the server's queued row.
+///
+/// #234 gave this row two more lives. It used to mean only "in flight,
+/// waiting for the server" — and a send that could not REACH the server
+/// dropped the row entirely, restored the draft and showed a toast, which is
+/// how a message typed in a basement went nowhere while the person believed
+/// it had gone.
+///
+/// The three states are deliberately one type rather than three, because they
+/// are one message at different moments and the timeline has to keep its place
+/// in the thread throughout.
 struct PendingSend: Identifiable, Equatable, Sendable {
     let localId: String
     let body: String
     let mediaCount: Int
     let createdAt: String
     let idempotencyKey: String
+    /// #234: written to the durable outbox and waiting for signal, rather than
+    /// in flight right now. It MUST read differently from "Sending…" — a
+    /// queued message presented as on-its-way is the failure this prevents.
+    var queued: Bool = false
+    /// #234: the server answered NO at flush (a STOP arrived while this sat
+    /// queued, the cap was reached, registration lapsed). Not retried
+    /// automatically — an answer is not an outage — so the row waits for the
+    /// person and says why.
+    var blockedReason: String? = nil
 
     var id: String { localId }
 }

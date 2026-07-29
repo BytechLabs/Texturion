@@ -310,6 +310,11 @@ private struct MessageMetaLine: View {
 struct PendingBubble: View {
     let pending: PendingSend
 
+    private var statusLine: String {
+        if let reason = pending.blockedReason { return reason }
+        return pending.queued ? "Queued — will send when you're back online" : "Sending…"
+    }
+
     var body: some View {
         VStack(alignment: .trailing, spacing: 2) {
             VStack(alignment: .leading, spacing: 2) {
@@ -339,9 +344,16 @@ struct PendingBubble: View {
             .frame(maxWidth: 300, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
 
-            Text("Sending…")
+            // #234: three states, three sentences. A queued message must never
+            // read as one that is on its way — that is the whole point of the
+            // outbox, and "Sending…" for a phone with no bars is a lie the
+            // person only discovers when the customer says nobody got back to
+            // them.
+            Text(statusLine)
                 .font(.golos(10.5))
-                .foregroundStyle(BrandColor.muted300)
+                .foregroundStyle(
+                    pending.blockedReason != nil ? BrandColor.destructive : BrandColor.muted300
+                )
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
         .padding(.horizontal, 16)
