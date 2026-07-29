@@ -3682,3 +3682,66 @@ retention policy by losing something.
 decision is the part that had to come first — "forever" was a decision we made
 by not making one, and the enforcement job is unwritable until somebody has said
 what the numbers are.
+
+## D78 — the AI-receptionist economics, measured; the bet itself is still open (#397/#367, 2026-07-29)
+
+**This is not the decision #397 asks for.** It is the arithmetic that decision
+needs, moved out of the "somebody should research this" column. #397's asks 1, 3
+and 4 are a strategy call, a price and a sequence, and all three were resting on
+one asserted figure: *"$16–$30/mo in raw model cost"* for a 200-minute
+contractor. Its own closing comment said that figure *"should be measured before
+it is planned against."* It now is — `apps/api/src/billing/voice-ai-costs.ts`,
+sourced and dated, with a recheck a test fails on.
+
+**The measured cost of a receptionist minute is 6.8¢**, from the vendor we are
+already on (telnyx.com/pricing/conversational-ai, read 2026-07-29):
+
+| Component | ¢/min | What it covers |
+|---|---|---|
+| Voice engine | 5.0 | Orchestration — turn-taking, barge-in, tools, knowledge retrieval — **plus STT and TTS**, one rate |
+| LLM | 0.6 | On Telnyx GPUs, published $0.003–$0.006/min; the **top** is carried |
+| Telephony | 1.2 | Our own measured voice minute, not their $0.0032 floor |
+
+**What that changes, and what it does not.** #397's reference contractor (100
+calls averaging two minutes) costs **$13.60/mo**, below the asserted $16 floor.
+So the issue's stronger claim — that the cost *"equals or exceeds our entire $29
+plan revenue"* — is **false**. It is **47%** of it.
+
+The conclusion that claim was supporting is **unaffected, and now measured
+rather than assumed**: 47% of ARPU cannot be given away inside a $29 plan, so a
+receptionist is necessarily a metered paid module (#12), exactly as #397 says.
+The premise was wrong and the answer was right, which is worth recording as
+precisely as the correction itself.
+
+**Why Telnyx and not a pipeline we assemble.** Workers AI can do the pieces for
+almost nothing (Whisper $0.0005/audio-min, melotts $0.0002/audio-min), and that
+arithmetic is what makes a build look tempting. It is not the honest comparison:
+a receptionist is a **realtime conversation**, and turn-taking, barge-in and
+interruption handling are the product — not the transcription. Telnyx sells that
+layer against our existing account, and D76 already established the calls runtime
+is Telnyx-shaped. The priced path is the one we could actually ship.
+
+**The caps this hands the cost-protection mandate**, which a metered voice module
+cannot ship without:
+
+| Monthly revenue | Break-even minutes |
+|---|---|
+| $10 (the instinct ask 3 warns about) | **148** — under water inside the reference contractor's own 200 |
+| $29 (if ever bundled) | 426 |
+| $49 | 720 |
+| $79 | 1,161 |
+
+**Recommended posture, for the founder to confirm or decline.** Price the module
+at **$49–$79/mo**. At the reference usage that is a **72–82% gross margin**, it
+undercuts the category's $199 floor by more than 2×, and it is 2–3× our current
+ARPU. Ask 3's stated trap is real and the numbers now show it: at $10 the module
+loses money on the very contractor it was sized for.
+
+**What is still genuinely open, and it is a bet rather than a task.** Whether to
+build it at all (#367). #397's own devil's advocate is the argument to beat —
+*"a solo founder building a voice AI product to defend a texting product is how
+focus dies"* — and it deserves a deliberate yes or a deliberate no. **Ask 2, the
+insurance, is bought either way**: port-out notices alert on `pending` (#398) and
+`job:call-silence` catches one workspace going quiet against its own history
+(41ebba6). Nothing further is buildable without placing the bet, which is why
+this entry stops at the recommendation.
