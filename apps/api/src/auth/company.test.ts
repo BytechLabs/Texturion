@@ -1,3 +1,7 @@
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -8,7 +12,7 @@ import {
   stubFetch,
   type CapturedRequest,
 } from "../test/support";
-import { companyContext, requireRole } from "./company";
+import { COMPANY_EXEMPT_ROUTES, companyContext, requireRole } from "./company";
 
 const env = completeEnv();
 const USER_ID = "6f0c2f0e-6a5a-4bfa-9b6e-2d6d1a6c9e01";
@@ -155,5 +159,107 @@ describe("requireRole (SPEC §10 role matrix: owner ⊃ admin ⊃ member)", () =
   it("refuses when no role is attached at all (gate used without company context)", async () => {
     const res = await gateApp(undefined, "member").request("/action", {}, env);
     expect(res.status).toBe(403);
+  });
+});
+
+/**
+ * #347 acceptance: "cross-tenant access is asserted to fail by test, not by
+ * inspection."
+ *
+ * The behavioural assertion is above, once — an active-member lookup that
+ * comes back empty is a 403, at the single place tenancy is decided. Repeating
+ * it per route would assert the same middleware thirty-three times and prove
+ * nothing extra, because no route decides this for itself.
+ *
+ * What is NOT proven by that, and is proven here, is that nothing can BYPASS
+ * it. Three ways it could, all of them silent:
+ *
+ *   1. a handler reads a company id out of the request instead of the context,
+ *   2. a route joins the exempt list without anyone deciding to exempt it,
+ *   3. a route is mounted where the middleware does not run.
+ *
+ * Each would leave every existing test green.
+ */
+describe("#347 — nothing bypasses the company context", () => {
+  const API_SRC = join(fileURLToPath(new URL(".", import.meta.url)), "..");
+
+  function routeSources(): { path: string; source: string }[] {
+    const found: { path: string; source: string }[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) {
+          walk(full);
+          continue;
+        }
+        if (!entry.endsWith(".ts") || entry.endsWith(".test.ts")) continue;
+        found.push({
+          path: relative(API_SRC, full).replaceAll("\\", "/"),
+          source: readFileSync(full, "utf8"),
+        });
+      }
+    };
+    walk(join(API_SRC, "routes"));
+    return found;
+  }
+
+  it("never takes a company id from the request", () => {
+    // The middleware's whole guarantee is that the scope is derived
+    // server-side from a membership lookup. A handler that read `company_id`
+    // out of a body or a query string would be scoping to a company the
+    // caller merely NAMED — which is a cross-tenant read with a company_id in
+    // it, so the #347 scope scan would pass it happily.
+    const offenders: string[] = [];
+    for (const { path, source } of routeSources()) {
+      const patterns: [RegExp, string][] = [
+        [/company_id\s*:\s*z\./, "a company_id field in a request schema"],
+        [/req\.param\(\s*["'`]company_?[Ii]d["'`]/, "a company id path param"],
+        [/req\.query\(\s*["'`]company_?[Ii]d["'`]/, "a company id query param"],
+        [/body\.company_?[Ii]d/, "a company id read off the request body"],
+      ];
+      for (const [pattern, what] of patterns) {
+        if (pattern.test(source)) offenders.push(`${path}: ${what}`);
+      }
+    }
+    expect(offenders, offenders.join("\n")).toEqual([]);
+  });
+
+  it("pins the exempt routes, so a new one is a decision and not a slip", () => {
+    // Every entry here is a route that runs with a JWT and NO company scope.
+    // That is correct for all of them — they act on the caller's own person
+    // rather than on a workspace — but it is exactly the list somebody would
+    // append to in order to make a 422 go away.
+    expect([...COMPANY_EXEMPT_ROUTES].sort()).toEqual(
+      [
+        "DELETE /v1/account",
+        "DELETE /v1/device-push-tokens",
+        "GET /v1/account/deletion-preview",
+        "GET /v1/available-numbers",
+        "GET /v1/invites/mine",
+        "GET /v1/me",
+        "PATCH /v1/me",
+        "POST /v1/companies",
+        "POST /v1/device-push-tokens",
+        "POST /v1/invites/accept",
+        "POST /v1/me/email/retry",
+      ].sort(),
+    );
+  });
+
+  it("registers the middleware before any /v1 route it must cover", () => {
+    // Hono applies `app.use` to handlers registered AFTER it. A sub-app
+    // mounted above the middleware line would answer with no company context
+    // at all — and its handlers would read `c.get("companyId")` as undefined,
+    // which scopes a query to nothing rather than refusing it.
+    const index = readFileSync(join(API_SRC, "index.ts"), "utf8");
+    const middlewareAt = index.indexOf('app.use("/v1/*", companyContext())');
+    expect(middlewareAt, "companyContext() is not applied to /v1/*").toBeGreaterThan(-1);
+
+    const firstMount = index.search(/app\.route\(\s*["'`]\/v1/);
+    expect(firstMount, "no /v1 sub-app is mounted at all").toBeGreaterThan(-1);
+    expect(
+      middlewareAt,
+      "a /v1 sub-app is mounted BEFORE companyContext() and so runs without it",
+    ).toBeLessThan(firstMount);
   });
 });

@@ -16,8 +16,13 @@ const memberRowSchema = z.object({
 /**
  * The only /v1 routes that carry a JWT but no company scope (SPEC §7):
  * every other /v1 route requires `X-Company-Id`.
+ *
+ * Exported so #347's bypass suite can pin it. This is the list somebody would
+ * append to in order to make a 422 go away, and every entry is a route that
+ * runs with NO tenant scope at all — so growing it should be a decision
+ * somebody made, not a line somebody added.
  */
-const COMPANY_EXEMPT_ROUTES = new Set([
+export const COMPANY_EXEMPT_ROUTES = new Set([
   "GET /v1/me",
   // #112: setting your own display name — the invite flow needs it BEFORE the
   // caller is a member of any company.
