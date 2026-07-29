@@ -28,7 +28,7 @@ Sidebar (~230px, white, a single hairline right border, NO shadow):
   `brand/loonext-tile.svg` (#206) — + company name + plan, a double-chevron); on hover a
   whisper-grey fill.
 - A prominent petrol "New message" compose button.
-- Primary nav as icon + label rows: For you, Inbox, Tasks, Contacts. Each has a calm line icon, a
+- Primary nav as icon + label rows: For you, Inbox, **Calls**, Tasks, Contacts. Each has a calm line icon, a
   label, and a right-aligned count or unread dot where it earns it. Active = a soft petrol-tint fill
   with petrol-deep text and icon (not a heavy block); hover = whisper grey. Generous padding.
 - A quiet "Shortcuts" group below (Saved replies, Numbers), smaller and muted.
@@ -36,6 +36,13 @@ Sidebar (~230px, white, a single hairline right border, NO shadow):
   theme, sign out).
 Everything calm: hairlines, whitespace, one rationed petrol accent (the active item + compose), no
 shadows, flat single-tone avatars.
+
+> **Calls was added to this list retroactively (#365).** The row shipped in #129
+> and this document — which is binding on the shell — kept describing a
+> four-row nav for nineteen days afterwards, locking a layout that omitted a
+> shipped quarter of the product. It is a **quiet** row deliberately: no count,
+> so the one-petrol-element budget stays on compose and the unread numeral.
+> The live list is `apps/web/src/components/shell/sidebar.tsx:63-69`.
 
 To the right of the sidebar: Inbox is (list | thread | optional context); the list gets a slim
 header (search + the All/Unread/Mine segment); Tasks, Contacts, For-you are full surfaces with their

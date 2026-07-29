@@ -92,12 +92,24 @@ Every keyboard action is **also reachable by click** (rail, row-hover actions, t
 | **Templates / saved replies** | `Templates` destination + composer picker | Managed as a library; inserted inline from the composer or ⌘K → Send template. |
 | **Multiple Numbers** | `Numbers` destination + Settings → Numbers | Thread footer names which line is on the wire (`Sending as Main line · (512) 555-0193`). Each number carries its own inbound routing + missed-call/after-hours rules. |
 | **Settings** | Footer → Settings sections | Profile, Team members (invites/roles/seats), Numbers management, Billing + usage with caps (80/100% alerts, one-click raise), 10DLC registration/compliance (brand/campaign, sole-prop OTP), number porting. |
+| **Calls** (browser softphone, inbound ring, voicemail + transcript, screening, CNAM, hold/transfer) | `Calls` destination → call detail | The #129 call log, and a primary nav row on **all three** clients (`apps/web/src/components/shell/sidebar.tsx:66`, `Shell.kt:84` `ShellTab.Calls`, `AppRouter.swift:35` `openCalls`). Deliberately a **quiet** row with no count: the §2.1 one-petrol-element budget keeps the accent on compose and the unread numeral. A ring is a push-to-wake alert, not a nav badge. |
 | **Notifications** | Bell in member tile + ⌘K + Settings → Notifications | Web Push; unread drives the `For you` pill and `Inbox` count. |
 | **Global search + ⌘K** | The ⌘K palette + per-column search glyph | Search-first; context actions when an object is focused. |
 | **Missed-call text-back** | Inbox/For-You **typed card** + toggle under Numbers | A real tagged conversation (`Missed call` tag, `Auto:` outbound prefix). |
 | **After-hours auto-reply** | Rule under Numbers/Settings | Posts a system reply into the thread. |
 
 **Nothing is orphaned:** every feature is a sidebar destination, a Settings section, a thread/composer action, or a typed card in the For-You batch.
+
+> This is a claim about the table above, and it is only true while the table is
+> complete — so it has to be re-checked, not re-asserted. It was **false for
+> nineteen days**: calling shipped as a primary nav row on all three clients
+> (#129, D36–D43) and this map gained no row for it, while still closing with
+> the sentence above. A map that asserts completeness is worse than one that
+> does not, because the assertion is what stops the next reader looking.
+>
+> **When a feature earns a nav destination or a Settings section, it earns a
+> row here in the same change.** #338 makes "all three clients" part of done;
+> this is the same rule applied to the IA.
 
 ---
 
