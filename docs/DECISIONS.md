@@ -3513,13 +3513,42 @@ Hiding that behind an interface would look portable right up until somebody
 tried it, which is the most expensive kind of wrong.
 `docs/CARRIER-PORTABILITY.md` §1 says so in detail.
 
-**What remains open, and it is commercial rather than technical.** The costed
-comparison in `docs/CARRIER-PORTABILITY.md` §3 has the structure — call-control
-model, 10DLC handling, Canadian availability — but **not prices**, because
-quoting rates nobody has confirmed would be the unverified assertion this repo
-keeps getting bitten by. Someone has to ask for quotes. The urgent driver is not
-redundancy: it is that our headline market is gated by a Telnyx account
-restriction today, and every alternative sells Canadian numbers.
+**Amendment, 2026-07-29 — the comparison is costed, and the second carrier is
+named: Bandwidth.** This decision originally ended by saying someone had to ask
+for quotes. That conflated two different things. A *negotiated* rate does need a
+sales conversation; **list prices are published**, and reading them off the
+vendors' own pages is verification, not assertion. Done: every figure in
+`docs/CARRIER-PORTABILITY.md` §3.2 is sourced and dated, and lives in
+`apps/api/src/billing/carrier-list-prices.ts` with a recheck date a test fails on.
+
+The comparison changed the answer in a way the structural table alone could not:
+
+- **Carrier surcharges are pass-through and therefore cancel out** of a vendor
+  comparison. Only the base rate is the vendor's own. Comparing all-in rates —
+  the intuitive thing — would have overstated how similar the vendors are.
+- **Bandwidth is messaging-cost-neutral** ($0.0040 base, identical to Telnyx) and
+  command-based, so §1's seam fits and its voice rewrite is the smaller one.
+- **Twilio costs +0.43¢ per outbound segment** (2.08× the base): +$2.15/mo per
+  fully-used Starter tenant against $29 of revenue, +$10.75 per Pro against $79.
+  On voice it is worse — 2.25¢ per forwarded minute versus Bandwidth's 1.55¢.
+
+So: **Bandwidth is the designated second carrier, Twilio is break-glass.** That
+is a decision we could not make before and can make now, and it means an
+account-level block is answered by executing a named plan instead of starting an
+evaluation.
+
+**A finding worth keeping.** Both published alternatives price a forwarded minute
+*above* the 1.2¢/min our cost model assumes (1.55¢ and 2.25¢). That figure is
+incumbent-shaped, so a voice migration is a repricing as well as a rewrite, and
+`VOICE_OVERAGE_CENTS_PER_MINUTE` moves with it. A test asserts the inequality
+still holds, so a vendor repricing under us surfaces as a failing suite.
+
+**What genuinely remains external**, and neither blocks the choice above: a
+negotiated rate (list is enough to pick a direction, not to sign), and whether
+Canadian long-code A2P requires registration on their network — vendor question
+**V1**, shared with #379. The urgent driver is still not redundancy: our headline
+market is gated by a Telnyx account restriction today, and every alternative
+sells Canadian numbers.
 
 ## D77 — default retention per data class, and why the default is years (#284, 2026-07-29)
 

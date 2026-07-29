@@ -11,7 +11,8 @@ an account upgrade, so a *vendor decision*, not a technical one, gated a market.
 
 **This document is an honest map, not a plan to switch.** Its job is to make the
 second carrier *possible* before we need it, so adding one is a refactor rather
-than an emergency.
+than an emergency. §3 now names which carrier that would be — **Bandwidth**, on
+costed grounds (D76 amendment) — which is still not the same as a plan to move.
 
 ---
 
@@ -91,13 +92,9 @@ These are listed so the next person does not have to rediscover them.
 
 ---
 
-## 3. Alternatives — structure, and what still needs a quote
+## 3. Alternatives — structural fit and what a switch costs
 
-**Read this section for its shape, not its numbers.** The structural comparison
-below is drawn from each provider's published model. **Per-message and
-per-minute pricing is deliberately absent**: quoting a rate I have not confirmed
-would be exactly the kind of unverified assertion this repo keeps getting bitten
-by, and negotiated rates differ from list prices anyway.
+### 3.1 Structural fit
 
 | | Call-control model | 10DLC | Canadian numbers | Portability cost for us |
 |---|---|---|---|---|
@@ -107,16 +104,88 @@ by, and negotiated rates differ from list prices anyway.
 | **Sinch** | Command-based | Via partner | Yes | Messaging seam fits; calls rewrite |
 | **Vonage** | Command-based (NCCO) | Direct | Yes | Messaging seam fits; calls rewrite |
 
-**The one urgent question is not redundancy — it is Canada.** Our headline
-market is gated by a Telnyx account-level restriction, and every alternative
-above sells Canadian numbers. That makes "a second carrier for numbers" a
-*commercial* question we could answer this quarter, independent of any failover
-ambition.
+### 3.2 List prices, read from the vendors' own pages on 2026-07-29
 
-**To close this section, someone has to ask for quotes.** The questions are:
-per-message US and CA, per-minute inbound and outbound, monthly per-number,
-10DLC campaign fees, and whether Canadian long-code A2P requires registration on
-their network (the same question as #379).
+The figures live in `apps/api/src/billing/carrier-list-prices.ts` rather than
+only here, because a table in a document rots quietly: that module carries the
+source URL per vendor, a `RECHECK_AFTER` date a test fails on, and the
+cross-check that our own modeled costs never fall below the incumbent's
+published floor.
+
+**Two corrections to make before comparing anything**, or the comparison is
+wrong:
+
+1. **Carrier fees are pass-through and cancel out.** The US carriers set a
+   per-message surcharge by *destination* carrier (Twilio publishes AT&T
+   $0.0035, T-Mobile $0.0045, Verizon $0.0045 outbound; Telnyx quotes the same
+   band as "$0 to $0.005"). Every vendor passes it on at cost, so it is common
+   to all of them. The only part a vendor controls — and the only honest basis
+   for comparison — is the **base rate**.
+2. **List is not negotiated.** These bound the *direction and rough size* of a
+   switch. They are not quotes.
+
+| | Base outbound SMS | Base inbound SMS | Voice in / out per min (US local) | Local number / mo |
+|---|---|---|---|---|
+| **Telnyx** (current) | $0.0040 | $0.0040 | $0.0032 / *not published* | $1.00 + $0.10 SMS = **$1.10** |
+| **Bandwidth** | $0.0040 | *not published* | $0.0055 / $0.0100 | *not published (quote)* |
+| **Twilio** | $0.0083 | $0.0083 | $0.0085 / $0.0140 | $1.15 |
+
+*Sinch and Vonage are absent on purpose: as of the verification date neither
+publishes retrievable rates (403 / 404 — both gate pricing behind a contact
+form). Their structural fit is in §3.1; inventing numbers for them would be the
+exact failure this section was reopened to fix.*
+
+**Twilio 10DLC registration** (the only vendor publishing it): Standard brand
+$44 one-time + $15 per campaign vetting + $1.50–$10 per campaign per month; Sole
+Proprietor $4 + $15 + $2/mo. Our cost model assumes **$10/campaign/mo**
+(`us10dlcCampaign`), which sits at the *top* of that published range — the
+assumption is conservative, not understated.
+
+**Canada is structurally dearer at every vendor.** Twilio's Canadian base rate
+matches its US one ($0.0083), but Canadian carrier surcharges are 1.5–2× the US
+ones ($0.0064–$0.0087 outbound, up to $0.017 inbound). Whoever we use, Canadian
+messaging costs more per segment than American — which matters for fair-use
+sizing and for #328 (billing Canadians in CAD).
+
+### 3.3 What a switch would actually cost
+
+Base-rate delta per outbound segment, against Telnyx:
+
+- **Bandwidth: ±0.** Identical $0.0040 base. Messaging is cost-neutral.
+- **Twilio: +0.43¢** per segment (2.08× the base). Against a fully-used month
+  that is **+$2.15 per Starter tenant** (500 segments, on $29 of revenue) and
+  **+$10.75 per Pro tenant** (2,500 segments, on $79).
+
+Voice is where the gap is widest. A forwarded call bills *both* legs — the
+inbound leg and the leg we dial:
+
+- **Bandwidth: 1.55¢/min** ($0.0055 + $0.0100)
+- **Twilio: 2.25¢/min** ($0.0085 + $0.0140)
+
+Both exceed the **1.2¢/min** our cost model assumes, which is an incumbent-shaped
+figure. A voice migration is therefore a repricing as well as a rewrite, and
+`VOICE_OVERAGE_CENTS_PER_MINUTE` would have to be revisited with it. The test
+beside the price module asserts this inequality still holds, so if a vendor
+repriced below our model we would find out from a failing suite.
+
+### 3.4 The conclusion this supports
+
+**Bandwidth is the designated second carrier** — recorded as D76's amendment.
+It is the only alternative that is simultaneously cost-neutral on messaging
+(identical base rate), command-based rather than markup-based (so §1's seam fits
+and the voice rewrite is the smaller of the two), and able to sell Canadian
+numbers today. **Twilio is the break-glass option**: the same seam fit, but
+~2× the messaging base and ~1.9× the forwarded-minute cost, so switching to it
+is a cost event as much as an engineering one.
+
+**The urgent driver is still not redundancy — it is Canada.** Our headline
+market is gated by a Telnyx account-level restriction *today* (10038), and every
+alternative sells Canadian numbers. Two things remain genuinely external, and
+neither blocks the choice above: a **negotiated** rate (list is enough to pick a
+direction, not to sign) and whether Canadian long-code A2P requires registration
+on their network — vendor question **V1**, tracked in `docs/VENDOR-QUESTIONS.md`
+and shared with #379. Twilio's Canadian pricing page mentions no registration
+requirement, which is a data point and not an authority.
 
 ---
 
