@@ -717,6 +717,7 @@ private fun ThreadLoaded(
             contactName = detail.contact.name,
             businessName = controller.company?.name,
             // Reuse drafts already paid for until a message moves the thread.
+            destinationClock = detail.destination_clock,
             draftCacheKey = DraftSuggestionsCache.keyOf(
                 controller.conversationId,
                 detail.last_message_at,

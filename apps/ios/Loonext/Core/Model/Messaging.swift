@@ -197,6 +197,29 @@ struct ConversationDetail: Codable, Sendable {
     let messages: Page<Message>
     /// #106: 'note' = read + internal notes only (composer hides SMS mode).
     @Default<DefaultViewerText> var viewer_level: String
+    /// #225 / D49: what time it is where the customer is. Resolved server-side
+    /// by the same module the send gate uses, so the composer's hint and the
+    /// gate's decision cannot disagree. `var … = nil` so it does not become a
+    /// required memberwise-init parameter in every fixture.
+    var destination_clock: DestinationClock? = nil
+}
+
+/// #225 / D49 — the destination's clock, and which rung of the ladder answered.
+///
+/// `source` matters as much as the hour: an area code is a GUESS that can be
+/// wrong (a mobile keeps its code when its owner moves), so a screen shows the
+/// provenance rather than presenting an inference as a fact.
+struct DestinationClock: Codable, Sendable {
+    let timezone: String
+    /// 'contact' | 'area_code' | 'company'.
+    let source: String?
+    let local_hour: Int?
+    /// Inside their quiet window, including state rules (Texas Sundays).
+    let quiet: Bool?
+
+    var rung: String { source ?? "company" }
+    var hour: Int { local_hour ?? 0 }
+    var isQuiet: Bool { quiet ?? false }
 }
 
 struct ConversationEvent: Codable, Sendable {

@@ -681,7 +681,8 @@ private struct ThreadBody: View {
             draftCacheKey: DraftSuggestionsCache.key(
                 conversationId: detail.id,
                 lastActivityAt: detail.last_message_at
-            )
+            ),
+            destinationClock: detail.destination_clock
         )
     }
 }

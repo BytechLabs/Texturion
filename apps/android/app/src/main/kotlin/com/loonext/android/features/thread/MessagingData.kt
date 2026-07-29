@@ -4,6 +4,7 @@ import com.loonext.android.core.model.Attachment
 import com.loonext.android.core.model.AttachmentUrl
 import com.loonext.android.core.model.ComposeResult
 import com.loonext.android.core.model.Contact
+import com.loonext.android.core.model.DestinationClock
 import com.loonext.android.core.model.Conversation
 import com.loonext.android.core.model.ConversationDetail
 import com.loonext.android.core.model.ConversationEvent
@@ -442,4 +443,44 @@ class MessagingRepository(private val api: ApiClient) {
     /** The conversation checklist (T5.2): all live tasks, created_at ASC. */
     suspend fun conversationTasks(companyId: String, conversationId: String): Page<Task> =
         api.get("/v1/conversations/$conversationId/tasks", companyId = companyId)
+}
+
+// ---------------------------------------------------------------------------
+// The destination clock (#225 / D49)
+// ---------------------------------------------------------------------------
+
+/**
+ * "It's about 9pm where they are (from their area code)." — the line above the
+ * composer, and only when it would change what somebody does.
+ *
+ * A reply inside a thread the customer started is reply-exempt and never
+ * blocked: a trade owner texting their own customer back at 9:15pm is their
+ * call. But most people have no idea what time it is in a 613 area code, and
+ * finding out from an annoyed customer is the expensive way.
+ *
+ * Returns null when it is daytime there, because a clock that sits on screen
+ * all day is furniture and furniture is not read.
+ *
+ * Hand-ported to three clients, so it lives here with a test: the failure mode
+ * is one app telling somebody a different hour than another, which is worse
+ * than no hint at all.
+ */
+fun theirTimeLine(clock: DestinationClock?): String? {
+    if (clock == null || !clock.quiet) return null
+    val suffix = if (clock.local_hour < 12) "am" else "pm"
+    val twelve = if (clock.local_hour % 12 == 0) 12 else clock.local_hour % 12
+    return "It's about $twelve$suffix where they are (${clockProvenance(clock.source)})."
+}
+
+/**
+ * Which rung answered, said plainly.
+ *
+ * The weakest one admits itself outright: showing our own timezone as though
+ * it were the customer's would be the quiet lie, and the whole value of the
+ * ladder is that a screen can say how much to trust it.
+ */
+fun clockProvenance(source: String): String = when (source) {
+    "contact" -> "set on their contact"
+    "area_code" -> "from their area code"
+    else -> "your workspace's timezone — we don't know theirs"
 }

@@ -122,6 +122,10 @@ struct ThreadComposerView: View {
     /// are reused until a message in either direction retires them. Nil skips
     /// the cache entirely (a compose screen with no thread behind it yet).
     var draftCacheKey: String?
+    /// #225: what time it is where the customer is. Nil, or a daytime clock,
+    /// shows nothing — the line exists only for the hour that would change
+    /// what somebody does, and a clock on screen all day is furniture.
+    var destinationClock: DestinationClock?
 
     @State private var templatePickerOpen = false
     @State private var mentionPickerOpen = false
@@ -151,6 +155,17 @@ struct ThreadComposerView: View {
         VStack(spacing: 0) {
             if let banner {
                 ComposerBannerCard(banner: banner, onCallInstead: onCallInstead)
+            }
+
+            // #225: above the box, below any banner. Never for a notes-only
+            // member — an internal note has no recipient to wake up.
+            if !noteOnly, let line = theirTimeLine(destinationClock) {
+                Text(line)
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted600)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 6)
             }
 
             if !textBlocked {

@@ -198,6 +198,29 @@ data class ConversationDetail(
     val messages: Page<Message>,
     /** #106: 'note' = read + internal notes only (composer hides SMS mode). */
     val viewer_level: String = "text",
+    /**
+     * #225 / D49: what time it is where the customer is. Resolved server-side
+     * by the same module the send gate uses, so the composer's hint and the
+     * gate's decision cannot disagree.
+     */
+    val destination_clock: DestinationClock? = null,
+)
+
+/**
+ * #225 / D49 — the destination's clock, and which rung of the ladder answered.
+ *
+ * `source` matters as much as the hour: an area code is a GUESS that can be
+ * wrong (a mobile keeps its code when its owner moves), so a screen shows the
+ * provenance rather than presenting an inference as a fact.
+ */
+@Serializable
+data class DestinationClock(
+    val timezone: String,
+    /** 'contact' | 'area_code' | 'company'. */
+    val source: String = "company",
+    val local_hour: Int = 0,
+    /** Inside their quiet window, accounting for state rules (Texas Sundays). */
+    val quiet: Boolean = false,
 )
 
 @Serializable

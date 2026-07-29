@@ -514,3 +514,38 @@ struct MessagingRepository: Sendable {
         )
     }
 }
+
+// MARK: - The destination clock (#225 / D49)
+
+/// "It's about 9pm where they are (from their area code)." — the line above
+/// the composer, and only when it would change what somebody does.
+///
+/// A reply inside a thread the customer started is reply-exempt and never
+/// blocked: a trade owner texting their own customer back at 9:15pm is their
+/// call. But most people have no idea what time it is in a 613 area code, and
+/// finding out from an annoyed customer is the expensive way.
+///
+/// Returns nil when it is daytime there, because a clock that sits on screen
+/// all day is furniture and furniture is not read.
+///
+/// Hand-ported to three clients, so it has a test: the failure mode is one app
+/// telling somebody a different hour than another, which is worse than no hint.
+func theirTimeLine(_ clock: DestinationClock?) -> String? {
+    guard let clock, clock.isQuiet else { return nil }
+    let suffix = clock.hour < 12 ? "am" : "pm"
+    let twelve = clock.hour % 12 == 0 ? 12 : clock.hour % 12
+    return "It's about \(twelve)\(suffix) where they are (\(clockProvenance(clock.rung)))."
+}
+
+/// Which rung answered, said plainly.
+///
+/// The weakest one admits itself outright: showing our own timezone as though
+/// it were the customer's would be the quiet lie, and the whole value of the
+/// ladder is that a screen can say how much to trust it.
+func clockProvenance(_ source: String) -> String {
+    switch source {
+    case "contact": "set on their contact"
+    case "area_code": "from their area code"
+    default: "your workspace's timezone — we don't know theirs"
+    }
+}

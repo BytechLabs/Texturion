@@ -78,6 +78,8 @@ import coil3.compose.AsyncImage
 import com.loonext.android.features.thread.MentionLogic
 import com.loonext.android.features.thread.MentionableMember
 import com.loonext.android.features.thread.PickedMention
+import com.loonext.android.core.model.DestinationClock
+import com.loonext.android.features.thread.theirTimeLine
 import com.loonext.android.core.model.ReplySuggestions
 import com.loonext.android.core.model.replyDraftMessage
 import com.loonext.android.core.model.Template
@@ -296,6 +298,12 @@ fun ThreadComposer(
      * the cache entirely (a compose screen with no thread behind it yet).
      */
     draftCacheKey: String? = null,
+    /**
+     * #225: what time it is where the customer is. Null, or a daytime clock,
+     * shows nothing — the line exists only for the hour that would change what
+     * somebody does, and a clock on screen all day is furniture.
+     */
+    destinationClock: DestinationClock? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -407,6 +415,19 @@ fun ThreadComposer(
 
     Column(modifier.fillMaxWidth()) {
         if (banner != null) ComposerBannerCard(banner, onCallInstead = onCallInstead)
+
+        // #225: above the box, below any banner. Never shown for a notes-only
+        // member — an internal note has no recipient to wake up.
+        if (!noteOnly) {
+            theirTimeLine(destinationClock)?.let { line ->
+                Text(
+                    line,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp),
+                )
+            }
+        }
 
         if (!textBlocked) {
             Row(
