@@ -7,6 +7,18 @@ import XCTest
 /// callbacks racing on an LTE/Wi-Fi handoff — is exactly what a device test
 /// would never reproduce reliably. So the store takes an injectable
 /// `UserDefaults` and the flush is pure logic over it.
+/// A clock pinned one hour after the fixtures below (2026-07-28T11:00Z).
+///
+/// EVERY fixture here is dated 2026-07-28T10:00Z and the flusher ages a row out
+/// after `outboxAgeOutHours` (24h). Tests that took the default `now` were
+/// therefore reading the REAL clock against a fixed date: they passed until
+/// 2026-07-29T10:00Z and then began failing forever, which is exactly what
+/// happened. The staleness tests below already inject `now` because the age is
+/// the thing they assert; the rest have to pin it for the same reason — a test
+/// whose result depends on today's date is a test that will be red one morning
+/// for no reason anyone can see in the diff.
+private let outboxTestNow = Date(timeIntervalSince1970: 1_785_236_400)
+
 @MainActor
 final class MessagingOutboxTests: XCTestCase {
     private var suiteName = ""
@@ -60,7 +72,7 @@ final class MessagingOutboxTests: XCTestCase {
         XCTAssertEqual(reopened.all().count, 1, "the queue outlives the object")
 
         var attempts: [String] = []
-        let flusher = OutboxFlusher(outbox: reopened) { item in
+        let flusher = OutboxFlusher(outbox: reopened, now: { outboxTestNow }) { item in
             attempts.append(item.localId)
             return .sent
         }
@@ -80,7 +92,7 @@ final class MessagingOutboxTests: XCTestCase {
 
         var keys: [String] = []
         var failFirst = true
-        let flusher = OutboxFlusher(outbox: outbox) { item in
+        let flusher = OutboxFlusher(outbox: outbox, now: { outboxTestNow }) { item in
             keys.append(item.localId)
             if failFirst {
                 failFirst = false
@@ -103,7 +115,7 @@ final class MessagingOutboxTests: XCTestCase {
         outbox.put(queued("k1", "2026-07-28T10:00:00Z"))
 
         var calls = 0
-        let flusher = OutboxFlusher(outbox: outbox) { _ in
+        let flusher = OutboxFlusher(outbox: outbox, now: { outboxTestNow }) { _ in
             calls += 1
             return .refused("This customer opted out.")
         }
@@ -127,7 +139,7 @@ final class MessagingOutboxTests: XCTestCase {
         outbox.put(queued("k2", "2026-07-28T10:01:00Z"))
 
         var calls = 0
-        let result = await OutboxFlusher(outbox: outbox) { _ in
+        let result = await OutboxFlusher(outbox: outbox, now: { outboxTestNow }) { _ in
             calls += 1
             return .unreachable("no signal")
         }.flush()
@@ -147,7 +159,7 @@ final class MessagingOutboxTests: XCTestCase {
         outbox.put(queued("earlier", "2026-07-28T10:00:00Z", body: "running 20 late"))
 
         var order: [String] = []
-        _ = await OutboxFlusher(outbox: outbox) { item in
+        _ = await OutboxFlusher(outbox: outbox, now: { outboxTestNow }) { item in
             order.append(item.body)
             return .sent
         }.flush()
@@ -164,7 +176,7 @@ final class MessagingOutboxTests: XCTestCase {
         outbox.put(blockedRow)
         outbox.put(queued("fine", "2026-07-28T10:01:00Z"))
 
-        let result = await OutboxFlusher(outbox: outbox) { _ in .sent }.flush()
+        let result = await OutboxFlusher(outbox: outbox, now: { outboxTestNow }) { _ in .sent }.flush()
 
         XCTAssertEqual(result.blocked, ["blocked"])
         XCTAssertEqual(result.sent, ["fine"])
@@ -216,7 +228,7 @@ final class MessagingOutboxTests: XCTestCase {
         // A FRESH Outbox, as after a relaunch.
         let reopened = makeOutbox()
         var delivered: [Data] = []
-        let flusher = OutboxFlusher(outbox: reopened) { item in
+        let flusher = OutboxFlusher(outbox: reopened, now: { outboxTestNow }) { item in
             for queued in item.media {
                 if let bytes = reopened.readMedia(item.localId, queued) { delivered.append(bytes) }
             }
@@ -239,7 +251,7 @@ final class MessagingOutboxTests: XCTestCase {
         )
         outbox.put(row)
 
-        _ = await OutboxFlusher(outbox: outbox) { _ in .sent }.flush()
+        _ = await OutboxFlusher(outbox: outbox, now: { outboxTestNow }) { _ in .sent }.flush()
 
         XCTAssertNil(outbox.readMedia("k1", row.media[0]), "no orphaned photo files")
     }

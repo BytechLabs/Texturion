@@ -54,6 +54,19 @@ class OutboxTest {
         }
     }
 
+    /**
+     * A clock pinned one hour after the fixtures below (2026-07-28T11:00Z).
+     *
+     * EVERY fixture here is dated 2026-07-28T10:00Z and the flusher ages a row
+     * out after OUTBOX_AGE_OUT_HOURS (24h). Tests that took the default `now`
+     * were therefore reading the REAL clock against a fixed date — they pass
+     * until 2026-07-29T10:00Z and then fail forever. The iOS twin did exactly
+     * that and turned main red; this is the same bug, caught before it fired.
+     * The staleness tests below already inject `now` because the age is what
+     * they assert; the rest pin it for the same reason.
+     */
+    private val outboxTestNow: Instant = Instant.parse("2026-07-28T11:00:00Z")
+
     private fun queued(id: String, at: String, body: String = "hi") = QueuedSend(
         localId = id,
         companyId = "co",
@@ -70,7 +83,7 @@ class OutboxTest {
         val store = FakeOutbox(listOf(queued("k1", "2026-07-28T10:00:00Z")))
         val attempts = mutableListOf<String>()
 
-        val flusher = OutboxFlusher(store) { item ->
+        val flusher = OutboxFlusher(store, now = { outboxTestNow }) { item ->
             attempts += item.localId
             SendOutcome.Sent
         }
@@ -81,7 +94,7 @@ class OutboxTest {
         assertTrue("a sent row must leave the queue", store.rows.isEmpty())
 
         // A second flush after the first has nothing left to send.
-        assertEquals(FlushResult(), OutboxFlusher(store) { SendOutcome.Sent }.flush())
+        assertEquals(FlushResult(), OutboxFlusher(store, now = { outboxTestNow }) { SendOutcome.Sent }.flush())
     }
 
     @Test
@@ -93,7 +106,7 @@ class OutboxTest {
         // send twice.
         val store = FakeOutbox(listOf(queued("k1", "2026-07-28T10:00:00Z")))
         val attempts = mutableListOf<String>()
-        val flusher = OutboxFlusher(store) { item ->
+        val flusher = OutboxFlusher(store, now = { outboxTestNow }) { item ->
             attempts += item.localId
             delay(10) // the window a real request leaves open
             SendOutcome.Sent
@@ -117,7 +130,7 @@ class OutboxTest {
         val keys = mutableListOf<String>()
         var failFirst = true
 
-        val flusher = OutboxFlusher(store) { item ->
+        val flusher = OutboxFlusher(store, now = { outboxTestNow }) { item ->
             keys += item.localId
             if (failFirst) {
                 failFirst = false
@@ -141,7 +154,7 @@ class OutboxTest {
         // answered. The row waits for the person instead.
         val store = FakeOutbox(listOf(queued("k1", "2026-07-28T10:00:00Z")))
         var calls = 0
-        val flusher = OutboxFlusher(store) {
+        val flusher = OutboxFlusher(store, now = { outboxTestNow }) {
             calls += 1
             SendOutcome.Refused("This customer opted out.")
         }
@@ -167,7 +180,7 @@ class OutboxTest {
             ),
         )
         var calls = 0
-        val flusher = OutboxFlusher(store) {
+        val flusher = OutboxFlusher(store, now = { outboxTestNow }) {
             calls += 1
             SendOutcome.Unreachable("no signal")
         }
@@ -192,7 +205,7 @@ class OutboxTest {
             ),
         )
         val order = mutableListOf<String>()
-        OutboxFlusher(store) { item ->
+        OutboxFlusher(store, now = { outboxTestNow }) { item ->
             order += item.body
             SendOutcome.Sent
         }.flush()
@@ -211,7 +224,7 @@ class OutboxTest {
                 queued("fine", "2026-07-28T10:01:00Z"),
             ),
         )
-        val result = OutboxFlusher(store) { SendOutcome.Sent }.flush()
+        val result = OutboxFlusher(store, now = { outboxTestNow }) { SendOutcome.Sent }.flush()
 
         assertEquals(listOf("blocked"), result.blocked)
         assertEquals(listOf("fine"), result.sent)
@@ -233,7 +246,7 @@ class OutboxTest {
         store.put(queued("k1", "2026-07-28T10:00:00Z").copy(media = media))
 
         val delivered = mutableListOf<ByteArray>()
-        val flusher = OutboxFlusher(store) { item ->
+        val flusher = OutboxFlusher(store, now = { outboxTestNow }) { item ->
             item.media.forEach { delivered += store.readMedia(item.localId, it)!! }
             SendOutcome.Sent
         }
@@ -251,7 +264,7 @@ class OutboxTest {
         val media = store.saveMedia("k1", listOf(OutboxMediaBytes("image/jpeg", byteArrayOf(9))))
         store.put(queued("k1", "2026-07-28T10:00:00Z").copy(media = media))
 
-        OutboxFlusher(store) { SendOutcome.Sent }.flush()
+        OutboxFlusher(store, now = { outboxTestNow }) { SendOutcome.Sent }.flush()
 
         assertTrue("no orphaned photo files", store.files.isEmpty())
     }
