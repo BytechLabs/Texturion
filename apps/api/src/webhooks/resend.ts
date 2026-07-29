@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
+import { countWebhookRejection } from "../observability/webhook-rejections";
 
 /**
  * #386 — the Resend webhook: the half of email that was never wired up.
@@ -126,6 +127,9 @@ resendWebhookRoute.post("/", async (c) => {
     new Date(),
   );
   if (!ok) {
+    // #308: counted, because a rotated secret otherwise means we refuse every
+    // bounce and complaint Resend sends and nothing anywhere says so.
+    countWebhookRejection(c, "resend");
     return c.json({ error: "signature verification failed" }, 400);
   }
 

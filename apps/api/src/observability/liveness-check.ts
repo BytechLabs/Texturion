@@ -50,6 +50,7 @@ export async function runLivenessCheckJob(
   db: SupabaseClient = getDb(env),
 ): Promise<{ overdue: number; seeded: number }> {
   await probeOutboundSms(env, now, db);
+  await probeInboundWebhooks(env, now, db);
 
   const expectations = Object.entries(LIVENESS_EXPECTATIONS).map(([key, spec]) => ({
     key,
@@ -150,5 +151,82 @@ async function probeOutboundSms(
   }
   if ((data ?? []).length > 0) {
     await recordHeartbeatBestEffort(env, "channel:sms-outbound", now, db);
+  }
+}
+
+/**
+ * How far back the inbound probe looks.
+ *
+ * Wider than the outbound window because it feeds keys with much wider graces
+ * (see the #308 block in `liveness.ts`) — the window only has to be long
+ * enough that an ordinary lull does not read as an absence; the grace is what
+ * decides when we actually shout.
+ */
+const INBOUND_PROBE_WINDOW_MINUTES = 180;
+
+interface InboundProbe {
+  inbound_message?: number;
+  message_status?: number;
+  call_event?: number;
+  telnyx_accepted?: number;
+  rejections?: Record<string, number>;
+}
+
+/**
+ * #308 — the inbound half. One RPC, four heartbeats.
+ *
+ * Probed from `webhook_events` rather than heartbeat-written per delivery, for
+ * the reason the outbound probe gives: a liveness write on the hottest path in
+ * the product to learn something one query per cadence answers just as well.
+ *
+ * Per event class, because messages, statuses and call events are separate
+ * paths that fail independently — "message webhooks fine, call webhooks dead"
+ * is a real shape, and nobody would notice until somebody missed a call.
+ *
+ * The fourth heartbeat is the signature conjunction, and it is the sharp one:
+ * rejections alone are noise, rejections with zero acceptances is a rotated
+ * secret. Recorded while HEALTHY so its ABSENCE is the alarm, which is the
+ * only formulation that stays quiet on a platform with no traffic at all.
+ */
+async function probeInboundWebhooks(
+  env: Env,
+  now: Date,
+  db: SupabaseClient,
+): Promise<void> {
+  const since = new Date(now.getTime() - INBOUND_PROBE_WINDOW_MINUTES * 60_000);
+  const { data, error } = await db.rpc("api_webhook_inbound_probe", {
+    p_since: since.toISOString(),
+    p_now: now.toISOString(),
+  });
+  if (error) {
+    // The probe failing is not proof the channel is down, so it records
+    // nothing and claims nothing — the absence speaks for itself one cadence
+    // later. Same posture as the outbound probe above.
+    console.error(`liveness: inbound webhook probe failed: ${error.message}`);
+    return;
+  }
+  const probe = (data ?? {}) as InboundProbe;
+
+  if ((probe.inbound_message ?? 0) > 0) {
+    await recordHeartbeatBestEffort(env, "channel:telnyx-inbound-message", now, db);
+  }
+  if ((probe.message_status ?? 0) > 0) {
+    await recordHeartbeatBestEffort(env, "channel:telnyx-message-status", now, db);
+  }
+  if ((probe.call_event ?? 0) > 0) {
+    await recordHeartbeatBestEffort(env, "channel:telnyx-call-events", now, db);
+  }
+
+  // The conjunction. Healthy is everything EXCEPT "we rejected signed
+  // deliveries and accepted none of them", so a quiet window with no
+  // rejections at all is healthy — it has to be, or this alerts on every
+  // platform that is simply idle.
+  const rejected = Object.values(probe.rejections ?? {}).reduce(
+    (total, n) => total + (Number(n) || 0),
+    0,
+  );
+  const discardingEverything = rejected > 0 && (probe.telnyx_accepted ?? 0) === 0;
+  if (!discardingEverything) {
+    await recordHeartbeatBestEffort(env, "channel:webhook-signature", now, db);
   }
 }

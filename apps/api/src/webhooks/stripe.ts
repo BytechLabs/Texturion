@@ -41,6 +41,7 @@ import {
 } from "../telnyx/provisioning";
 import { submitRegistration } from "../telnyx/registration";
 import { enableVoiceForCompany } from "../telnyx/voice";
+import { countWebhookRejection } from "../observability/webhook-rejections";
 
 /**
  * Stripe webhook endpoint (SPEC §7 webhook pattern, §9 event table):
@@ -72,6 +73,9 @@ stripeWebhookRoute.post("/", async (c) => {
       stripeCryptoProvider,
     );
   } catch {
+    // #308: counted. A rotated Stripe secret silently stops every billing
+    // state change reaching us, which looks exactly like nobody subscribing.
+    countWebhookRejection(c, "stripe");
     return c.json({ error: "signature verification failed" }, 400);
   }
 

@@ -355,6 +355,79 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 60,
     graceMinutes: 360,
   },
+  // ---------------------------------------------------------------------
+  // INBOUND webhook classes (#308).
+  //
+  // Everything inbound arrives by webhook. If they stop, nothing throws —
+  // there is only an absence, and an absence reads as a quiet Tuesday. It is
+  // the most dangerous failure shape this product has: silent AND total, with
+  // the first signal being an angry phone call hours later.
+  //
+  // THREE KEYS, NOT ONE, because the paths fail independently. Message
+  // webhooks fine and call webhooks dead is a real shape and nobody would spot
+  // it until somebody missed a call.
+  //
+  // WHY THE GRACES ARE WIDE, AND WHY THAT IS HONEST. #308 asks for a
+  // per-time-of-day baseline so a fixed threshold does not page at 3am every
+  // night and get muted within a week. The premise is right and the remedy is
+  // not: a baseline needs volume to be a baseline, and at this platform's size
+  // a genuinely quiet overnight hour is indistinguishable from a total outage
+  // no matter how the threshold is computed. Inferring from customer traffic
+  // cannot be made fast AND quiet at once, so these are deliberately the slow,
+  // quiet backstop — and the synthetic canary is what makes detection fast,
+  // because it generates the traffic instead of waiting for it.
+  //
+  // A false alarm costs more than the delay it saves: it is exactly how a
+  // founder learns to ignore this mailbox, and then every other key here goes
+  // with it.
+  "channel:telnyx-inbound-message": {
+    what:
+      "No inbound text has arrived from Telnyx across the entire platform. " +
+      "Either nobody has texted any customer, or every business number in the " +
+      "product is silently swallowing messages.",
+    everyMinutes: 60,
+    graceMinutes: 720,
+  },
+  "channel:telnyx-message-status": {
+    what:
+      "No message-status webhook has arrived from Telnyx. Sends may be leaving " +
+      "and never being confirmed, so every message sits on 'sent' forever and " +
+      "a genuine delivery failure is indistinguishable from success.",
+    everyMinutes: 60,
+    graceMinutes: 720,
+  },
+  "channel:telnyx-call-events": {
+    what:
+      "No call event has arrived from Telnyx. Inbound calls would ring nowhere " +
+      "and no voicemail would ever be recorded.",
+    // The widest grace here, because call volume is the lowest: a whole day
+    // with no calls is an ordinary day for a small crew, so this key can only
+    // ever be a slow backstop. A synthetic call is what would make it sharp.
+    everyMinutes: 1440,
+    graceMinutes: 2880,
+  },
+  // ---------------------------------------------------------------------
+  // The signature-rejection conjunction (#308) — the sharp instrument, and
+  // the only one here that is independent of traffic volume.
+  //
+  // A rejection is a `return`, not a throw, so Sentry never sees it. Nonzero
+  // rejections ALONE are ordinary noise (a retry, a stale delivery, a probe).
+  // Rejections with ZERO accepted webhooks in the same window is the rotated-
+  // secret shape and nothing else looks like it: the provider believes it is
+  // delivering, we believe nothing is arriving, and both are wrong.
+  //
+  // Expressed as a heartbeat recorded while HEALTHY — the same conjunction the
+  // `:work` keys above use, for the same reason: it is the only formulation
+  // that does not false-alarm on a platform with no traffic to reject.
+  "channel:webhook-signature": {
+    what:
+      "Signed provider webhooks are being REJECTED and none are being accepted — " +
+      "the signing secret has almost certainly rotated. Every delivery is " +
+      "arriving and being discarded, which is invisible on both sides: the " +
+      "provider believes it is delivering and nothing here throws.",
+    everyMinutes: 60,
+    graceMinutes: 120,
+  },
 } as const satisfies Record<string, LivenessExpectation>;
 
 export type LivenessKey = keyof typeof LIVENESS_EXPECTATIONS;

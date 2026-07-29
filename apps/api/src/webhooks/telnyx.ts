@@ -29,6 +29,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
 import { dispatchTelnyxEvent } from "../messaging/dispatch";
+import { countWebhookRejection } from "../observability/webhook-rejections";
 import type { TelnyxEvent } from "../messaging/types";
 import { verifyTelnyxWebhook } from "../telnyx/verify";
 
@@ -43,6 +44,10 @@ telnyxWebhookRoute.post("/", async (c) => {
     | TelnyxEvent
     | null;
   if (!event) {
+    // #308: a rejection is a `return`, not a throw, so Sentry never sees it and
+    // "we are receiving and discarding every delivery" produced no signal at
+    // all. Counted, never awaited into the response path.
+    countWebhookRejection(c, "telnyx");
     return c.json({ error: "signature verification failed" }, 400);
   }
 

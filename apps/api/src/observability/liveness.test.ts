@@ -104,10 +104,29 @@ describe("recording a heartbeat", () => {
 function checkWorld(options: {
   overdue?: Record<string, unknown>[];
   smsRows?: Record<string, unknown>[];
+  /** #308 — what `api_webhook_inbound_probe` reports. Default: all quiet. */
+  inbound?: Record<string, unknown>;
+  /** #308 — fail the probe RPC itself with this HTTP status. */
+  inboundStatus?: number;
 }) {
   const sb = supabaseStub(env);
   const beats: string[] = [];
   sb.on("GET", "/rest/v1/messages", () => options.smsRows ?? []);
+  // Registered here rather than overridden by the caller: stub handlers run in
+  // REGISTRATION order and the first non-undefined wins, so a later `on()` for
+  // the same path would never be reached.
+  sb.on("POST", "/rest/v1/rpc/api_webhook_inbound_probe", () =>
+    options.inboundStatus !== undefined
+      ? new Response("boom", { status: options.inboundStatus })
+      : {
+          inbound_message: 0,
+          message_status: 0,
+          call_event: 0,
+          telnyx_accepted: 0,
+          rejections: {},
+          ...(options.inbound ?? {}),
+        },
+  );
   sb.on("POST", "/rest/v1/rpc/record_heartbeat", (call) => {
     beats.push((call.body as { p_key: string }).p_key);
     return { recovered: false };
@@ -270,5 +289,87 @@ describe("per-job heartbeats (#333)", () => {
     ).rejects.toThrow(/1 of 2 job/);
 
     expect(world.beats).toEqual(["job:fail-stuck-sends"]);
+  });
+});
+
+describe("the inbound-webhook probe (#308)", () => {
+  const AT = new Date("2026-07-28T12:00:00Z");
+
+  it("beats each event class independently", async () => {
+    // The whole reason there are three keys: "message webhooks fine, call
+    // webhooks dead" is a real shape, and one combined key would report the
+    // path as healthy while every inbound call rang nowhere.
+    const world = checkWorld({
+      inbound: { inbound_message: 4, message_status: 9, call_event: 0 },
+    });
+    stubFetch(...world.routes);
+
+    await runLivenessCheckJob(env, AT);
+
+    expect(world.beats).toContain("channel:telnyx-inbound-message");
+    expect(world.beats).toContain("channel:telnyx-message-status");
+    expect(world.beats).not.toContain("channel:telnyx-call-events");
+  });
+
+  it("beats nothing when the whole inbound path is silent", async () => {
+    // No heartbeat means each key ages toward its own alert. The probe never
+    // asserts an outage itself — absence is the signal.
+    const world = checkWorld({});
+    stubFetch(...world.routes);
+
+    await runLivenessCheckJob(env, AT);
+
+    expect(world.beats).not.toContain("channel:telnyx-inbound-message");
+    expect(world.beats).not.toContain("channel:telnyx-message-status");
+    expect(world.beats).not.toContain("channel:telnyx-call-events");
+  });
+
+  it("treats rejections ALONGSIDE acceptances as noise, not an outage", async () => {
+    // A retry, a stale delivery, a probe. If this alerted, it would alert
+    // constantly and be muted — and then the real signal below goes with it.
+    const world = checkWorld({
+      inbound: { telnyx_accepted: 12, rejections: { telnyx: 3 } },
+    });
+    stubFetch(...world.routes);
+
+    await runLivenessCheckJob(env, AT);
+
+    expect(world.beats).toContain("channel:webhook-signature");
+  });
+
+  it("withholds the beat when we reject signed deliveries and accept none", async () => {
+    // The rotated-secret shape, and the only thing that looks like it: the
+    // provider believes it is delivering, nothing here throws, and every
+    // delivery is discarded.
+    const world = checkWorld({
+      inbound: { telnyx_accepted: 0, rejections: { telnyx: 7 } },
+    });
+    stubFetch(...world.routes);
+
+    await runLivenessCheckJob(env, AT);
+
+    expect(world.beats).not.toContain("channel:webhook-signature");
+  });
+
+  it("stays healthy on a platform with no traffic at all", async () => {
+    // Zero rejections and zero acceptances is idle, not broken. Getting this
+    // backwards would page every night on a young product, which is exactly
+    // how this mailbox stops being read.
+    const world = checkWorld({ inbound: { telnyx_accepted: 0, rejections: {} } });
+    stubFetch(...world.routes);
+
+    await runLivenessCheckJob(env, AT);
+
+    expect(world.beats).toContain("channel:webhook-signature");
+  });
+
+  it("records nothing and claims nothing when the probe itself fails", async () => {
+    // A broken probe is not proof of a broken channel. Leaving the ledger
+    // untouched lets the absence speak one cadence later.
+    const world = checkWorld({ inboundStatus: 500 });
+    stubFetch(...world.routes);
+
+    await expect(runLivenessCheckJob(env, AT)).resolves.toBeDefined();
+    expect(world.beats).not.toContain("channel:webhook-signature");
   });
 });
