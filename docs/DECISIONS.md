@@ -3505,12 +3505,38 @@ an empty map and no banner.
 
 ## D74 — RPO 5 minutes, RTO 4 hours, and the honest asterisk on both (#249, 2026-07-29)
 
-**Decision.** **RPO 5 minutes. RTO 4 hours.** Both are commitments about
-Postgres. Neither covers the reconciliation of the four stores that do not roll
-back.
+> **CORRECTED the same day, and the correction is the point of the issue.**
+> This decision set **RPO 5 minutes** on the reasoning below — that it "is what
+> Supabase PITR's WAL granularity gives us". **PITR is not enabled on
+> production.** Verified 2026-07-29 against the Supabase Management API
+> (`scripts/ops/verify-backup-posture.mjs`): `pitr_enabled: false`, with 8 daily
+> physical backups and the newest 18.1 hours old at the time of checking.
+>
+> **The real RPO is up to 24 hours**, and that is the number for a customer or a
+> security questionnaire. `docs/DISASTER-RECOVERY.md` §1 and §2 now carry it.
+>
+> This is #249's own complaint arriving one level up. The issue was filed because
+> we had a backup plan and no evidence it worked; this decision then asserted a
+> platform capability nobody had checked, and the document even told the reader to
+> "assume the worst case: daily backups only, RPO of 24 hours" until somebody
+> did — advice that turned out to describe reality exactly.
+>
+> It did not need the dashboard visit it was waiting on. The Management API
+> answers it read-only with a token CI already holds, so the check is a script
+> that **exits non-zero while PITR is off** rather than a chore nobody schedules.
+>
+> **RTO 4 hours stands**, and so does everything below about the four stores that
+> do not roll back. **Enabling PITR is a paid add-on and a founder decision** — it
+> is the one change that would make 5 minutes true.
+
+**Decision (as originally recorded).** **RPO 5 minutes. RTO 4 hours.** Both are
+commitments about Postgres. Neither covers the reconciliation of the four stores
+that do not roll back.
 
 **Why these numbers.** The RPO is not a preference — it is what Supabase PITR's
-WAL granularity gives us, so choosing anything tighter would be a wish. The RTO
+WAL granularity gives us, so choosing anything tighter would be a wish. *(This is
+the reasoning the correction above overturns: the premise was true about PITR and
+false about us.)* The RTO
 is deliberately much longer than the restore takes: the measured data path is
 **2.1 seconds** for the current schema (66 tables, 154 functions, every per-table
 row count verified — `scripts/ops/backup-drill.mjs`, drilled 2026-07-29). Four

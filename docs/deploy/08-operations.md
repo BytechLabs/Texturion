@@ -160,12 +160,16 @@ affected leg (e.g. a Stripe test event after rotating the webhook secret).
 > the RPO/RTO targets (D74), the migration-after-restore question, and the
 > measured drill. Read it before restoring anything.
 
-- **Automated backups** ship with Supabase **Pro** — daily backups with
-  **Point-in-Time Recovery (PITR)** available. PITR status and retention are
-  recorded as a dated fact in `docs/DISASTER-RECOVERY.md` §2 rather than
-  asserted here; if that row is empty or stale, the honest reading is
-  "unknown", and you should assume daily-only (RPO 24h) until somebody checks
-  Supabase → **Database → Backups** and writes down what they saw.
+- **Automated backups** ship with Supabase **Pro** — daily backups, with
+  **Point-in-Time Recovery (PITR)** available as a paid add-on. **Checked
+  2026-07-29: PITR is OFF**, so the real RPO is **up to 24 hours**, not D74's
+  original 5 minutes. Recorded as a dated fact in `docs/DISASTER-RECOVERY.md` §2.
+- **Check it rather than assume it:** `node scripts/ops/verify-backup-posture.mjs`
+  asks the Management API directly (read-only, needs `SUPABASE_ACCESS_TOKEN` and
+  `SUPABASE_PROJECT_REF`) and prints PITR status, the backup count and the age of
+  the newest snapshot. It **exits non-zero while PITR is off**, so the tighter
+  claim cannot drift back into a document. Run it before answering any question
+  about RPO — including a security questionnaire.
 - **Drill it:** `node scripts/ops/backup-drill.mjs` dumps, restores into a
   scratch database and verifies every per-table row count, timing each phase.
   Last run 2026-07-29: 2.1s for the full schema, all counts matched. An

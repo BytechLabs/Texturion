@@ -14,7 +14,7 @@ left out.
 
 | | Target | What it means |
 |---|---|---|
-| **RPO** — how much data we can lose | **5 minutes** | Supabase PITR's WAL granularity. Anything written in the final minutes before a disaster may be gone |
+| **RPO** — how much data we can lose | **Up to 24 hours** (verified 2026-07-29) | PITR is **OFF** on production, so the only restore points are the daily physical backups. The 5-minute figure this row used to carry assumed PITR was on; nobody had checked. See §2 |
 | **RTO** — how long until we are serving again | **4 hours** | Not because recovery takes four hours, but because *discovering, deciding, and reconciling* does |
 
 **These numbers are a commitment about the database only.** The reconciliation in
@@ -65,11 +65,25 @@ this line; if the date below is stale, the correct reading is "unknown", not
 
 | Checked | By | Plan | PITR | Retention |
 |---|---|---|---|---|
-| *pending founder verification* | — | Supabase Pro | *unverified* | *unverified* |
+| **2026-07-29** | `scripts/ops/verify-backup-posture.mjs` (Management API) | Supabase Pro, us-east-1 | **OFF** | 8 daily physical backups, oldest 2026-07-22 |
 
-The founder can confirm in the Supabase dashboard under Database → Backups. Until
-that row is filled in, **assume the worst case: daily backups only, RPO of 24
-hours**, and say so to anyone who asks.
+**PITR is not enabled.** The worst case this section told the reader to assume
+turned out to be the actual case, which is why assuming it was the right
+instruction — and why leaving the row blank was not.
+
+It did not need a dashboard visit after all. `scripts/ops/verify-backup-posture.mjs`
+asks the Management API directly, read-only, with the token CI already holds, and
+**exits non-zero while PITR is off** so the claim cannot quietly drift back into a
+document. Run it before answering any question about RPO.
+
+**What this means in practice.** The only restore points are the daily snapshots,
+taken around 05:27 UTC. At the moment of checking, the newest was **18.1 hours
+old** — that was the live exposure, not a theoretical maximum. Anything written
+since the last snapshot is gone in a total-loss scenario.
+
+**Enabling PITR is a paid Supabase add-on and a founder decision**, and it is the
+one change that would make the 5-minute figure real. Until then 24 hours is the
+number, and it is what goes in a security questionnaire.
 
 ---
 
