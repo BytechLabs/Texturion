@@ -110,6 +110,33 @@ open half.
 The SPEC ruling was made against figures measured at launch. Whether they still
 hold decides whether toll-free is a real second door past the 10DLC wait.
 
+### V6 — is there a number-reputation lookup we can call BEFORE handing a number over? · Telnyx · blocks #235 ask 2
+
+**The question.**
+
+> *"Before we assign a number from your inventory to a customer, is there any
+> API that reports that number's reputation or labelling status — a prior
+> spam/scam flag with First Orion, Hiya or TNS, or any Telnyx-side signal that
+> it was recycled from a high-complaint sender? If not, is reputation data
+> available on request for numbers already on our account?"*
+
+**Why it matters.** A recycled number arrives pre-poisoned and we cannot see it.
+#235 asks us to screen a number before it becomes somebody's business line, and
+we could not build that half honestly: nothing in the Telnyx API we use exposes
+reputation, and inventing a screening step against an endpoint nobody has
+confirmed exists would be worse than not having one.
+
+**What we built instead**, so the risk is covered rather than deferred: the
+assessment carries an absolute 70% delivery floor for a number with **no**
+baseline. A pre-poisoned number is caught within days of handout rather than
+never — detection instead of prevention, which is the honest trade when
+prevention is unavailable.
+
+**What an answer unblocks.** *"Yes, here is the endpoint"* turns #235 ask 2 into
+a real pre-handout gate, and a number we cannot vouch for stops becoming
+somebody's phone line. *"No"* closes the ask permanently, and the floor stays
+the answer.
+
 ---
 
 ## NOT A VENDOR — for counsel
