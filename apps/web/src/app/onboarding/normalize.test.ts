@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { normalizeNanpPhone, normalizeWebsite } from "./normalize";
-import { parseDraft } from "./local-draft";
+import { draftIsExpired, parseDraft } from "./local-draft";
 
 describe("normalizeWebsite", () => {
   it("prepends https:// when the scheme is missing", () => {
@@ -54,5 +54,38 @@ describe("parseDraft", () => {
       {},
     );
     expect(parseDraft(null)).toEqual({});
+  });
+});
+
+
+describe("draftIsExpired (#381: identity data does not live in localStorage forever)", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = Date.UTC(2026, 6, 28);
+
+  it("keeps a draft somebody is still working through", () => {
+    // The clock runs from last activity, so an active signup is never expired
+    // out from under itself.
+    expect(draftIsExpired(JSON.stringify({ savedAt: now - DAY }), now)).toBe(false);
+    expect(draftIsExpired(JSON.stringify({ savedAt: now - 6 * DAY }), now)).toBe(false);
+  });
+
+  it("expires one abandoned for over a week", () => {
+    // The port sub-wizard collects the last 4 of an SSN/SIN, an account number
+    // and a PIN. A signup abandoned in March should not leave those on a shared
+    // office machine in December.
+    expect(draftIsExpired(JSON.stringify({ savedAt: now - 8 * DAY }), now)).toBe(true);
+  });
+
+  it("treats a draft with NO timestamp as expired", () => {
+    // Those are the ones written before this shipped — the data that has been
+    // sitting around longest. Reading them as fresh would exempt exactly the
+    // rows the rule was written for.
+    expect(draftIsExpired(JSON.stringify({ name: "Mike's Plumbing" }), now)).toBe(true);
+  });
+
+  it("does not choke on unparseable storage", () => {
+    // parseDraft already returns {} for this, so there is nothing to expire and
+    // throwing here would break the wizard for anyone with a corrupt key.
+    expect(draftIsExpired("not json at all", now)).toBe(false);
   });
 });

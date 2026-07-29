@@ -8,6 +8,23 @@ import type { OnboardingDraft, PortDraft } from "./steps";
  */
 const DRAFT_KEY = "loonext:onboarding-draft";
 
+/**
+ * #381 — how long an abandoned draft may keep identity data.
+ *
+ * The port sub-wizard collects `ssnSinLast4` (the last 4 of the account
+ * holder's SSN/SIN, which the losing carrier requires for a wireless port),
+ * plus an account number and a PIN. Those sat in localStorage forever: a
+ * signup abandoned in March left a partial government identifier on a shared
+ * office machine in December.
+ *
+ * Seven days is long enough for a real resume — somebody who starts on a phone
+ * in a van and finishes at a desk that evening, or over a weekend — and short
+ * enough that it is not a filing cabinet. PIPEDA and Law 25 both turn on
+ * collecting and RETAINING no more than necessary, and "necessary" for a draft
+ * is "long enough to come back to".
+ */
+const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 /** Pure parser so malformed storage never breaks the wizard. */
 export function parseDraft(raw: string | null): OnboardingDraft {
   if (!raw) return {};
@@ -72,19 +89,52 @@ function parsePortDraft(obj: Record<string, unknown>): PortDraft {
   return port;
 }
 
-export function readOnboardingDraft(): OnboardingDraft {
+export function readOnboardingDraft(now: number = Date.now()): OnboardingDraft {
   if (typeof window === "undefined") return {};
   try {
-    return parseDraft(window.localStorage.getItem(DRAFT_KEY));
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    // #381: expire before parsing, and DELETE rather than just ignoring. An
+    // expired draft that is merely not read is still a SIN fragment sitting in
+    // storage; the point is that it stops existing.
+    if (raw !== null && draftIsExpired(raw, now)) {
+      window.localStorage.removeItem(DRAFT_KEY);
+      return {};
+    }
+    return parseDraft(raw);
   } catch {
     return {}; // storage blocked (private mode) — wizard still works per-visit
+  }
+}
+
+/**
+ * Is this stored draft past its TTL?
+ *
+ * A draft with NO timestamp is treated as expired. Those are drafts written
+ * before this shipped, and they are exactly the ones that have been sitting
+ * around longest — reading them as fresh would exempt the oldest data from the
+ * rule written for it. The cost is that somebody mid-signup at deploy time
+ * re-enters a name and an area code.
+ */
+export function draftIsExpired(raw: string, now: number = Date.now()): boolean {
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (typeof value !== "object" || value === null) return false;
+    const savedAt = (value as Record<string, unknown>).savedAt;
+    if (typeof savedAt !== "number") return true;
+    return now - savedAt > DRAFT_TTL_MS;
+  } catch {
+    // Unparseable: parseDraft returns {} anyway, so there is nothing to expire.
+    return false;
   }
 }
 
 export function writeOnboardingDraft(patch: Partial<OnboardingDraft>): void {
   if (typeof window === "undefined") return;
   try {
-    const next = { ...readOnboardingDraft(), ...patch };
+    // Stamped on every write, so the clock runs from last ACTIVITY rather
+    // than from first touch — somebody actively working through the wizard is
+    // never expired out from under themselves.
+    const next = { ...readOnboardingDraft(), ...patch, savedAt: Date.now() };
     window.localStorage.setItem(DRAFT_KEY, JSON.stringify(next));
   } catch {
     // Best-effort persistence only.
@@ -100,10 +150,11 @@ export function writeOnboardingPortDraft(patch: Partial<PortDraft>): void {
   if (typeof window === "undefined") return;
   try {
     const current = readOnboardingDraft();
-    const next: OnboardingDraft = {
+    const next = {
       ...current,
-      mode: "port",
+      mode: "port" as const,
       port: { ...current.port, ...patch },
+      savedAt: Date.now(),
     };
     window.localStorage.setItem(DRAFT_KEY, JSON.stringify(next));
   } catch {
