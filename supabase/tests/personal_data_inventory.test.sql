@@ -1,0 +1,98 @@
+-- [#340] Every table is classified in the personal-data inventory.
+--
+-- `contact_messages` was found by listing all the tables and noticing one
+-- nobody had thought about. `docs/PERSONAL-DATA-INVENTORY.md` is the result,
+-- and this is what stops it quietly becoming untrue.
+--
+-- THE FAILURE MODE OF AN INVENTORY IS NOT BEING WRONG ON DAY ONE. It is being
+-- right on day one and never updated — at which point it answers an access or
+-- erasure request confidently and incorrectly, which is worse than having no
+-- document at all. A table added without a line in that file fails here.
+--
+-- Same shape as tenant_scope.test.sql: the roster lives in the test, and a new
+-- table is a deliberate decision somebody records rather than an omission
+-- nobody notices.
+--
+-- Run with:
+--   docker exec -i supabase_db_Loonext psql -U postgres -d postgres \
+--     -v ON_ERROR_STOP=1 -f - < supabase/tests/personal_data_inventory.test.sql
+
+\set ON_ERROR_STOP on
+
+do $$
+declare
+  -- Every table classified in docs/PERSONAL-DATA-INVENTORY.md, §1 through §6.
+  -- Adding a table here without adding it to the document defeats the point:
+  -- the list and the prose are meant to be edited in the same commit.
+  classified text[] := array[
+    -- §1 contact data (the customer's customer)
+    'contacts', 'messages', 'conversations', 'conversation_events',
+    'attachments', 'message_attachments', 'calls', 'call_member_legs',
+    'opt_outs', 'contact_consent_events', 'tasks', 'number_port_outs',
+    'text_enablement_orders',
+    -- §2 user data (our own customers)
+    'profiles', 'company_members', 'invites', 'user_sessions',
+    'push_subscriptions', 'device_push_tokens', 'member_telephony_credentials',
+    'notification_prefs', 'notification_reads', 'notification_read_items',
+    'mfa_recovery_codes', 'mfa_recovery_attempts', 'audit_log',
+    -- §3 business data
+    'companies', 'messaging_registrations', 'port_requests', 'phone_numbers',
+    'number_access', 'number_health', 'company_ai_settings', 'templates', 'tags',
+    -- §4 prospect data
+    'contact_messages',
+    -- §5 operational data with an identifier attached
+    'email_events', 'email_suppressions', 'email_ledger', 'public_link_access',
+    'public_links', 'webhook_events', 'webhook_rejections', 'inbound_canary_runs',
+    'data_exports', 'usage_events', 'usage_alerts', 'egress_events',
+    'company_ai_usage', 'call_records', 'provider_costs', 'billing_disputes',
+    -- §6 no personal data
+    'app_release_policy', 'company_modules', 'conversation_reads',
+    'conversation_tags', 'feature_flags', 'feature_flag_overrides',
+    'grace_notices', 'high_priority_push_budget', 'high_priority_push_days',
+    'inbound_notification_days', 'liveness_heartbeats', 'message_mentions',
+    'outbound_call_authorizations', 'outbound_dial_leases', 'ownership_transfers'
+  ];
+  v_missing text;
+  v_stale   text;
+begin
+  -- A table in the database that nobody has classified. THE case this exists
+  -- for, and the one that produced #340.
+  select string_agg(t.table_name, ', ' order by t.table_name) into v_missing
+    from information_schema.tables t
+   where t.table_schema = 'public'
+     and t.table_type = 'BASE TABLE'
+     and not (t.table_name = any(classified));
+
+  if v_missing is not null then
+    raise exception
+      'PDI-1 FAILED: table(s) with no line in docs/PERSONAL-DATA-INVENTORY.md: %. '
+      'Decide which section they belong to — including "no personal data", which '
+      'is a real answer and must be written down rather than left implied. An '
+      'unclassified table is how contact_messages sat unnoticed holding names, '
+      'emails and IP addresses of non-customers forever.',
+      v_missing;
+  end if;
+
+  -- And the reverse: a classified table that no longer exists. Harmless to the
+  -- database, corrosive to the document — a reader cannot tell a stale line
+  -- from a current one, so every line becomes suspect.
+  select string_agg(name, ', ' order by name) into v_stale
+    from unnest(classified) as name
+   where not exists (
+     select 1 from information_schema.tables t
+      where t.table_schema = 'public'
+        and t.table_type = 'BASE TABLE'
+        and t.table_name = name
+   );
+
+  if v_stale is not null then
+    raise exception
+      'PDI-2 FAILED: the inventory classifies table(s) that no longer exist: %. '
+      'Remove them from the document and from this list — a stale line makes '
+      'every other line unverifiable.',
+      v_stale;
+  end if;
+
+  raise notice 'PDI PASSED: all % public tables are classified',
+    array_length(classified, 1);
+end $$;

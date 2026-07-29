@@ -109,6 +109,17 @@ Named here rather than left to be rediscovered:
 
 ---
 
+## Where personal data lives
+
+`docs/PERSONAL-DATA-INVENTORY.md` classifies **every** table, including the ones
+holding nothing personal — because "not in the document" must always mean
+somebody forgot, never that it was deliberately left out. A new table with no
+line there fails CI.
+
+The two answers worth knowing without looking them up: **SSN/SIN last-4** lives
+in exactly two tables, and **raw IP addresses** in exactly two. Everything else
+that looks like an address is derived geography, on purpose.
+
 ## Related
 
 - `docs/ACCOUNT-RECOVERY.md` — the MFA lockout procedure, which is the same
