@@ -52,13 +52,25 @@ fun inboundToastLine(
         // "Sent a photo" was wrong for every non-image attachment, a voice
         // message included.
         hasAttachments -> {
-            val noun = attachmentLabel(attachmentKind, attachmentCount)
-                .replaceFirstChar { it.lowercase() }
+            // #271: NOT a bare replaceFirstChar. attachmentLabel returns "PDF"
+            // for a single document, and lowercasing its first character gave
+            // "Sent a pDF". A second uppercase character means the word is an
+            // acronym and keeps its capitals. iOS carries the same rule.
+            val label = attachmentLabel(attachmentKind, attachmentCount)
+            val noun = if (label.length > 1 &&
+                label[0].isUpperCase() && label[1].isUpperCase()
+            ) {
+                label
+            } else {
+                label.replaceFirstChar { it.lowercase() }
+            }
             // A counted label ("3 photos") already reads as a phrase; a single
             // one needs an article, and "audio"/"attachment" need "an".
             val phrase = if (attachmentCount > 1) {
                 noun
             } else {
+                // The SOUND decides: "an audio message", "an attachment",
+                // "a photo", "a PDF" (P reads as a consonant).
                 val article = if (noun.firstOrNull()?.lowercaseChar() in
                     listOf('a', 'e', 'i', 'o', 'u')
                 ) "an" else "a"

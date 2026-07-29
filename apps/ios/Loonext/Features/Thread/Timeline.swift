@@ -314,7 +314,10 @@ func eventLine(
         guard event.payload["kind"]?.stringValue == "voicemail" else {
             return "Call with \(contactName) ended"
         }
-        let seconds = Int(event.payload["voicemail_seconds"]?.stringValue ?? "") ?? 0
+        // #270: the server writes this as a JSON NUMBER, and stringValue is nil
+        // for numbers — so this read always produced 0 and the duration arm
+        // below was dead code on iOS while Android and web both showed it.
+        let seconds = event.payload["voicemail_seconds"]?.intValue ?? 0
         return seconds > 0
             ? "Left a voicemail · \(formatCallDuration(seconds))"
             : "Left a voicemail"

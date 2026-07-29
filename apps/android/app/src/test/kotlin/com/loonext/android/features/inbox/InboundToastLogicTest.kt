@@ -141,4 +141,59 @@ class InboundToastLogicTest {
             inboundToastLine("  ", "hi", hasAttachments = false),
         )
     }
+
+    @Test
+    fun `an acronym label keeps its capitals`() {
+        // #271: attachmentLabel returns "PDF" for a single document, and a bare
+        // replaceFirstChar turned that into "Sent a pDF" — visible in the banner
+        // to every customer who was sent one. iOS carries the same rule.
+        assertEquals(
+            "Dana: Sent a PDF",
+            inboundToastLine(
+                contactName = "Dana",
+                body = null,
+                hasAttachments = true,
+                attachmentKind = MmsKind.Document,
+                attachmentCount = 1,
+            ),
+        )
+    }
+
+    @Test
+    fun `an ordinary label is lowercased mid-sentence`() {
+        assertEquals(
+            "Dana: Sent a photo",
+            inboundToastLine(
+                contactName = "Dana",
+                body = null,
+                hasAttachments = true,
+                attachmentKind = MmsKind.Image,
+                attachmentCount = 1,
+            ),
+        )
+    }
+
+    @Test
+    fun `the article follows the sound, not a rule about vowels only`() {
+        // "an audio message" and "an attachment" take "an"; "a PDF" takes "a"
+        // because P reads as a consonant even though the label is uppercase.
+        assertTrue(
+            inboundToastLine(
+                contactName = "Dana", body = null, hasAttachments = true,
+                attachmentKind = MmsKind.Audio, attachmentCount = 1,
+            ).endsWith("an audio message"),
+        )
+        assertTrue(
+            inboundToastLine(
+                contactName = "Dana", body = null, hasAttachments = true,
+                attachmentKind = null, attachmentCount = 1,
+            ).endsWith("an attachment"),
+        )
+        assertTrue(
+            inboundToastLine(
+                contactName = "Dana", body = null, hasAttachments = true,
+                attachmentKind = MmsKind.Document, attachmentCount = 1,
+            ).endsWith("a PDF"),
+        )
+    }
 }

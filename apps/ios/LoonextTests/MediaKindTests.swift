@@ -92,4 +92,83 @@ final class MediaKindTests: XCTestCase {
             "Audio message"
         )
     }
+
+    // MARK: - #270/#271: the two places these words and numbers were wrong
+
+    /// #271: the inbound banner called every attachment "a photo".
+    func testTheInboundBannerNamesWhatActuallyArrived() {
+        XCTAssertEqual(
+            inboundToastLine(
+                contactName: "Dana", body: nil, hasAttachments: true,
+                attachmentKind: .audio, attachmentCount: 1
+            ),
+            "Dana: Sent an audio message"
+        )
+        XCTAssertEqual(
+            inboundToastLine(
+                contactName: "Dana", body: nil, hasAttachments: true,
+                attachmentKind: .image, attachmentCount: 1
+            ),
+            "Dana: Sent a photo"
+        )
+        XCTAssertEqual(
+            inboundToastLine(
+                contactName: "Dana", body: nil, hasAttachments: true,
+                attachmentKind: .image, attachmentCount: 3
+            ),
+            "Dana: Sent 3 photos"
+        )
+        // A mixed or unknown set takes the honest neutral noun.
+        XCTAssertEqual(
+            inboundToastLine(
+                contactName: "Dana", body: nil, hasAttachments: true,
+                attachmentKind: nil, attachmentCount: 1
+            ),
+            "Dana: Sent an attachment"
+        )
+    }
+
+    /// #271: an acronym keeps its capitals. A bare first-character lowercase
+    /// turned "PDF" into "pDF" — which the Android twin was doing, and which is
+    /// fixed there too rather than ported across.
+    func testAnAcronymLabelKeepsItsCapitals() {
+        XCTAssertEqual(
+            inboundToastLine(
+                contactName: "Dana", body: nil, hasAttachments: true,
+                attachmentKind: .document, attachmentCount: 1
+            ),
+            "Dana: Sent a PDF"
+        )
+    }
+
+    /// A body still wins over any attachment noun.
+    func testTextBeatsTheAttachmentNoun() {
+        XCTAssertEqual(
+            inboundToastLine(
+                contactName: "Dana", body: "Here it is", hasAttachments: true,
+                attachmentKind: .document, attachmentCount: 1
+            ),
+            "Dana: Here it is"
+        )
+    }
+
+    /// #270: a voicemail's length is a JSON NUMBER, and `stringValue` is nil for
+    /// numbers — so every voicemail on iOS showed no duration while Android and
+    /// web showed it. `intValue` reads both shapes.
+    func testAVoicemailLengthReadsFromAJsonNumber() {
+        XCTAssertEqual(JSONValue.number(45).intValue, 45)
+        // Tolerant of a string too, so a server that ever changes the shape
+        // does not silently blank the duration again.
+        XCTAssertEqual(JSONValue.string("45").intValue, 45)
+        XCTAssertEqual(JSONValue.string(" 45 ").intValue, 45)
+        // Not a number at all.
+        XCTAssertNil(JSONValue.string("").intValue)
+        XCTAssertNil(JSONValue.string("about a minute").intValue)
+        XCTAssertNil(JSONValue.bool(true).intValue)
+        XCTAssertNil(JSONValue.null.intValue)
+        // Non-finite and out-of-range doubles must not trap.
+        XCTAssertNil(JSONValue.number(Double.nan).intValue)
+        XCTAssertNil(JSONValue.number(Double.infinity).intValue)
+        XCTAssertNil(JSONValue.number(1e300).intValue)
+    }
 }

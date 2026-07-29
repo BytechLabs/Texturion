@@ -58,6 +58,35 @@ indirect enum JSONValue: Codable, Sendable, Equatable, Hashable {
         return nil
     }
 
+    /// An integer from a JSON number OR a numeric string.
+    ///
+    /// #270: `stringValue` returns nil for `.number`, so reading a numeric
+    /// payload field through it silently yields nothing — and the caller's
+    /// `?? 0` then makes the bug look like a legitimate zero. A voicemail's
+    /// length was read that way and every voicemail on iOS displayed no
+    /// duration, for months, with no error anywhere.
+    ///
+    /// It is TOLERANT of both shapes on purpose. Android's `payloadString`
+    /// returns `JsonPrimitive.content`, which stringifies a number, so
+    /// identical-looking code on the two platforms behaved differently — this
+    /// closes that asymmetry rather than just the one call site. A field the
+    /// server later emits as a string keeps working here.
+    var intValue: Int? {
+        switch self {
+        case let .number(value):
+            // A JSON number is a Double. `Int(exactly:)` rather than `Int(_:)`
+            // and a bounds check: Double(Int.max) rounds UP to 2^63, so a
+            // comparison against it lets 2^63 through and `Int(_:)` then traps.
+            // Truncate toward zero first so a fractional value still reads.
+            guard value.isFinite else { return nil }
+            return Int(exactly: value.rounded(.towardZero))
+        case let .string(value):
+            return Int(value.trimmingCharacters(in: .whitespaces))
+        default:
+            return nil
+        }
+    }
+
     var boolValue: Bool? {
         if case let .bool(value) = self { return value }
         return nil

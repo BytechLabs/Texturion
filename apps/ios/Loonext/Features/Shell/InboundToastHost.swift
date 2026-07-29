@@ -28,11 +28,29 @@ func shouldToastInbound(
 /// The toast's one line: "Dana: Sure, 3pm works" — name (or formatted
 /// number), a colon, and the message body trimmed to one line. A media-only
 /// text says what arrived instead of showing an empty snippet.
+/// Lowercase a label's first letter for mid-sentence use — unless it is an
+/// ACRONYM, which must keep its capitals.
+///
+/// `attachmentLabel` returns "PDF" for a single document, and lowercasing the
+/// first character of that gives "pDF". The Android twin does exactly that, so
+/// its banner reads "Sent a pDF"; #271 fixes it there too rather than porting
+/// the defect across. The rule: a second uppercase character means the word is
+/// an acronym and is left alone.
+private func labelForSentence(_ value: String) -> String {
+    guard let first = value.first, first.isUppercase else { return value }
+    let second = value.dropFirst().first
+    if let second, second.isUppercase { return value } // PDF, and any future acronym
+    return first.lowercased() + value.dropFirst()
+}
+
 func inboundToastLine(
     contactName: String?,
     body: String?,
     hasAttachments: Bool,
-    maxLength: Int = 90
+    maxLength: Int = 90,
+    /// #271: the kind that arrived, when known; nil takes the neutral wording.
+    attachmentKind: MediaKind? = nil,
+    attachmentCount: Int = 1
 ) -> String {
     let trimmedName = contactName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     let who = trimmedName.isEmpty ? "New message" : trimmedName
@@ -43,7 +61,24 @@ func inboundToastLine(
     if !text.isEmpty {
         snippet = text
     } else if hasAttachments {
-        snippet = "Sent a photo"
+        // #271: "Sent a photo" was wrong for every non-image attachment, a
+        // voice message included. iOS already shipped attachmentLabel and
+        // sharedMediaKind and used them in the inbox, the thread, the bubbles
+        // and the media view — the toast was the one caller that was missed,
+        // so a 20-second voice message announced itself as a snapshot.
+        // Ported from the Android twin so both banners read identically.
+        let noun = labelForSentence(
+            attachmentLabel(kind: attachmentKind, count: attachmentCount)
+        )
+        if attachmentCount > 1 {
+            // A counted label ("3 photos") already reads as a phrase.
+            snippet = "Sent \(noun)"
+        } else {
+            // "an audio message", "an attachment"; "a photo", "a PDF" (the
+            // sound is what decides, and P reads as a consonant).
+            let article = "aeiouAEIOU".contains(noun.first ?? "x") ? "an" : "a"
+            snippet = "Sent \(article) \(noun)"
+        }
     } else {
         snippet = "Sent a message"
     }
@@ -145,12 +180,17 @@ struct InboundToastHost: View {
             // while the detail was in flight.
             if AppRouter.shared.viewedConversationId == conversationId { continue }
 
+            // #271: the kinds, so the banner names what arrived. Mirrors the
+            // Android call site exactly.
+            let kinds = newestInbound.attachments.map { MediaKind.of($0.content_type) }
             toast = InboundToast(
                 conversationId: conversationId,
                 line: inboundToastLine(
                     contactName: detail.contact.name ?? formatPhone(detail.contact.phone_e164),
                     body: newestInbound.body,
-                    hasAttachments: !newestInbound.attachments.isEmpty
+                    hasAttachments: !kinds.isEmpty,
+                    attachmentKind: sharedMediaKind(kinds),
+                    attachmentCount: kinds.count
                 )
             )
         }
