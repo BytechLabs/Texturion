@@ -730,7 +730,8 @@ Close/reopen semantics: `status='closed'` sets `closed_at`; transitioning to any
 ### RLS posture (D8)
 
 - **RLS enabled, deny-by-default, on every table above.** No policies grant `anon`/`authenticated` any access to data tables, and **no GRANTs** are issued to those roles (the project's post-May-2026 no-auto-grant default is kept). The browser never touches PostgREST.
-- The Worker uses the **`sb_secret_` key** (BYPASSRLS) and performs all authorization itself (§10). RLS is defense-in-depth.
+- The Worker uses the **`sb_secret_` key** (BYPASSRLS) and performs all authorization itself (§10).
+- **What RLS here does and does not buy (#347).** It was previously described as "defense-in-depth", which overstates it in the direction that matters. Deny-by-default with no grants is genuinely strong against **a leaked publishable key or a stray PostgREST call** — those reach nothing. It is worth **nothing** against **a handler bug**, because the Worker's key bypasses it: an unscoped query in our own code is executed exactly as written. So tenant isolation is **one layer, not two**, and the §10 rule below is load-bearing rather than belt-and-braces. Calling it defence-in-depth is the kind of wording that leads a future reader to skip a check on the grounds that something else would catch it. Nothing else would.
 - The **only** RLS policy for end users is on `realtime.messages`, authorizing private Broadcast topics (§8).
 - Storage: `mms-media` bucket is private; no storage RLS policies for end users; the API mints signed URLs after membership checks.
 
@@ -1069,7 +1070,7 @@ In-app only via `POST /v1/billing/change-plan` — the hosted portal **cannot** 
 ## 10. Security (D8)
 
 - **Auth boundary:** browser ↔ Supabase Auth directly (`@supabase/ssr`) for signup/login/reset/invite-accept; there is no Worker auth route. Every API request carries the Supabase access token; the Worker verifies it **locally** via JWKS (**ES256 asymmetric keys — enabled at project setup**; verify `iss`, `aud`, `exp`; JWKS cached, edge-cached 10 min upstream). The caller's company comes from `X-Company-Id` validated against `company_members` (active, for the verified `sub`) — **company id is never trusted from the body**; users may belong to multiple companies.
-- **Tenant isolation:** every query in the Worker's data-access layer takes an explicit `company_id` parameter (no default-scoped queries); RLS deny-by-default + no-grants posture (§6) backstops any handler bug; Realtime topics are membership-gated (§8).
+- **Tenant isolation:** every query in the Worker's data-access layer takes an explicit `company_id` parameter (no default-scoped queries); Realtime topics are membership-gated (§8). **This is the only layer** — RLS does not backstop a handler bug (§6, #347). It is enforced mechanically rather than by review: `apps/api/src/db-scope.test.ts` fails CI on any query against a tenant table that carries neither a company scope, nor one of three named rules, nor an entry in an enumerated allow-list; `supabase/tests/tenant_scope.test.sql` keeps that scanner honest against the live schema, so a new tenant table cannot be silently exempt.
 - **Webhook signatures:** Telnyx Ed25519 over `{timestamp}|{payload}` (`telnyx-signature-ed25519` + `telnyx-timestamp`, WebCrypto verify, 5-min tolerance); Stripe `constructEventAsync` + `createSubtleCryptoProvider()` (sync `constructEvent` fails on Workers). Webhook routes are exempt from JWT auth; signature verification is their authentication. Verify → ledger → ack → waitUntil → cron sweep (§7).
 - **SMS-pumping defense (layered, D8):**
   1. Telnyx messaging-profile geo-permissions: **US + Canada only**.
