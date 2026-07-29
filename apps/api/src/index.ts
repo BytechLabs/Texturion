@@ -23,6 +23,7 @@ import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runNumberHealthJob } from "./messaging/number-health";
 import { runRegistrationStallJob } from "./telnyx/registration-stalls";
 import { runIdentityRetentionJob } from "./telnyx/identity-retention";
+import { runContactRetentionJob } from "./marketing/contact-retention";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
 import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
 import { runLivenessCheckJob } from "./observability/liveness-check";
@@ -446,6 +447,9 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // #381: SSN/SIN fragments from signups that never paid. Same trigger as
     // the other retention sweeps — it is the same kind of promise.
     job("job:prune-abandoned-identity", runIdentityRetentionJob),
+    // #340: names, emails and IPs of non-customers from the marketing contact
+    // form. Two windows — the IP goes at 30 days, the message at a year.
+    job("job:prune-contact-messages", runContactRetentionJob),
   ],
 };
 

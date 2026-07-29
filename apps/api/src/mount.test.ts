@@ -14,6 +14,7 @@ import { runEmailHealthJob } from "./email/health";
 import { runNumberHealthJob } from "./messaging/number-health";
 import { runRegistrationStallJob } from "./telnyx/registration-stalls";
 import { runIdentityRetentionJob } from "./telnyx/identity-retention";
+import { runContactRetentionJob } from "./marketing/contact-retention";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
 import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
 import { pruneExpiredExports } from "./workspace/export";
@@ -512,6 +513,8 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       pruneExpiredExports, // #378: expired exports are deleted, not just hidden
       // #381: SSN/SIN fragments from signups that never paid.
       runIdentityRetentionJob,
+      // #340: marketing contact-form data, two windows.
+      runContactRetentionJob,
     ]);
     // #375: the DO alert-channel canary, alone on its own six-hourly trigger.
     expect(runs("15 */6 * * *")).toEqual([runDoSentryCanaryJob]);

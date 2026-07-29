@@ -346,6 +346,14 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "job:prune-contact-messages": {
+    what:
+      "Marketing contact-form data is no longer being aged out (#340). We are "
+      + "holding names, emails and IP addresses of people who are not "
+      + "customers, past the windows the privacy policy states.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
   "job:prune-abandoned-identity": {
     what:
       "SSN/SIN fragments from signups that never paid are no longer being "

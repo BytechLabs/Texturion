@@ -220,6 +220,19 @@ export default function PrivacyPage() {
           law requires us to hold for three years with names and message
           contents removed.
         </p>
+        <p>
+          {/* #340: the contact form collects data from people who never become
+              customers, so none of the account-based windows above cover it. */}
+          If you write to us through the contact form on this site without ever
+          creating an account, we keep your name, email, company and message for
+          up to a year so we can reply and follow up, then delete them. We also
+          record the IP address the form was submitted from, purely to tell a
+          spam flood from a real enquiry, and that is deleted after 30 days,
+          sooner than the rest, because it stops being useful sooner. You can
+          ask us to delete a contact-form submission at any time by emailing{" "}
+          <LegalLink href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</LegalLink>
+          , and you do not need an account to do it.
+        </p>
       </LegalSectionBlock>
 
       <LegalSectionBlock id="your-rights" number="9" heading="Your rights">
