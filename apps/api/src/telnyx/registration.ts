@@ -1792,18 +1792,20 @@ export interface SendGates {
    * provisioning; CASL applies operationally, not via this gate). Constant
    * true — subscription gating is the separate flag above.
    *
-   * #379: that constant rests on the CANADA half of D2, which is UNVERIFIED
-   * and now carries a review date. It is left `true` deliberately rather than
-   * changed on a guess — inventing a Canadian gate nobody has confirmed exists
-   * would block our headline market on a hunch, which is worse than the
-   * exposure it would be guarding against.
+   * #379, RESOLVED 2026-07-29: this is now *verified*-true, not unverified-true.
+   * Telnyx's published International SMS Compliance guide documents Canada
+   * directly and lists **no long-code registration requirement** (short-code
+   * approval is the only pre-registration item); their 10DLC program is
+   * US-scoped in its own words. There is no CA→CA registration to gate on, so
+   * there is nothing for this constant to become.
    *
-   * But it should not read as a settled no-op, because it is not one. Every
-   * number we hold was bought after the 2025-03-26 cutoff and none carries a
-   * messaging campaign, so IF Canadian carriers filter unregistered A2P
-   * traffic, this constant is what lets it happen silently. The signal that
-   * would show it is `messaging/delivery-by-country.ts`; the answer that would
-   * settle it is one reply from Telnyx, written out verbatim in D2.
+   * What it is NOT is a promise of delivery. Canadian carriers filter
+   * long-code A2P traffic — Twilio publishes this as carrier behaviour and
+   * recommends verified toll-free instead — and filtering returns no error, so
+   * a filtered message is accepted, billed, marked sent and never arrives.
+   * That exposure is real and registration was never the fix for it. The signal
+   * is `messaging/delivery-by-country.ts` (daily); the mitigation is toll-free
+   * for Canadian A2P (#329). See D2's resolution block for the sources.
    */
   caAllowed: boolean;
 }
@@ -1829,7 +1831,8 @@ export async function getSendGates(
   return {
     subscriptionActive: company.subscription_status === "active",
     usApproved,
-    // #379: unverified-true, not decided-true. See the field's own comment.
+    // #379: verified-true as of 2026-07-29 — no CA→CA registration exists to
+    // gate on. The residual risk is carrier filtering, not registration.
     caAllowed: true,
   };
 }

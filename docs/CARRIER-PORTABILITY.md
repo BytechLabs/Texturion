@@ -180,12 +180,15 @@ is a cost event as much as an engineering one.
 
 **The urgent driver is still not redundancy — it is Canada.** Our headline
 market is gated by a Telnyx account-level restriction *today* (10038), and every
-alternative sells Canadian numbers. Two things remain genuinely external, and
-neither blocks the choice above: a **negotiated** rate (list is enough to pick a
-direction, not to sign) and whether Canadian long-code A2P requires registration
-on their network — vendor question **V1**, tracked in `docs/VENDOR-QUESTIONS.md`
-and shared with #379. Twilio's Canadian pricing page mentions no registration
-requirement, which is a data point and not an authority.
+alternative sells Canadian numbers. **One** thing remains genuinely external, and
+it does not block the choice above: a **negotiated** rate. List price is enough to
+pick a direction, not to sign.
+
+Canadian A2P registration is no longer among the unknowns (#379, resolved
+2026-07-29 — see `docs/VENDOR-QUESTIONS.md` R3): no CA→CA long-code registration
+requirement exists on any network. What *is* real is that Canadian carriers filter
+long-code A2P at their own discretion, and the published mitigation is **verified
+toll-free** (#329). So a vendor's toll-free story matters here alongside price.
 
 ---
 

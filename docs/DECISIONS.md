@@ -49,19 +49,52 @@ spec-review team (7 reviewers, 56 verified findings) and 5 web-verified research
       **`messaging_campaign_id: None`**, and is classified by Telnyx itself as
       `traffic_type: A2P`. We are sending traffic Telnyx calls A2P, from a
       post-cutoff number, with no campaign attached.
-      **NOT verified:** whether Telnyx requires, or performs on our behalf, any
-      Canadian A2P registration. Their published documentation covers US 10DLC
-      and is silent on CA→CA, and no API surface exposes a Canadian
-      registration state. This is not a finding that D2 is wrong — it is that
-      nobody here can currently say it is right.
-      **This question is tracked as V1 in `docs/VENDOR-QUESTIONS.md` (#373),
-      which is where every open vendor question now lives so none of them
-      depends on somebody remembering which document it was written in.**
-      **The question to put to Telnyx, verbatim:** *"For a Canadian long code on
-      our account sending A2P traffic to Canadian subscribers, is any
-      registration or persona verification required, or performed by Telnyx on
-      our behalf? If not, are there volume thresholds at which Rogers, Bell or
-      Telus filter unregistered traffic?"* One reply closes this either way.
+    - ✅ **RESOLVED 2026-07-29 (#379) — verified against published sources;
+      next review 2027-01-29.** The claim above is **correct as written**, and
+      the thing that actually threatens Canadian delivery turned out not to be
+      registration at all. Supersedes the ⚠️ block above.
+      **(1) There is no CA→CA registration to complete, on our network or any
+      other.** Telnyx's *International SMS Compliance Guide* documents Canada
+      explicitly — permitted sender types (long code, short code, toll-free),
+      consent (**express or implied** under CASL), a required unsubscribe
+      mechanism — and the only pre-registration item it lists for Canada is
+      **short-code approval**. No long-code registration requirement appears.
+      Their 10DLC program is scoped to the US in its own words ("businesses
+      using Telnyx to send A2P messages using 10DLC numbers **in the US**").
+      So this is no longer an absence of evidence: it is Telnyx's own published
+      Canada documentation, and it agrees with D2.
+      **(2) The real exposure is carrier FILTERING, which registration would not
+      have fixed.** Twilio's published Canada guidelines state it plainly:
+      *"Canadian mobile carriers enforce strict filtering on A2P messages"*, and
+      they recommend A2P traffic go over **short codes or verified toll-free
+      numbers** for delivery — not long codes. They add that *"carriers will not
+      cease filtering."* That is a statement about **carrier** behaviour, not a
+      Twilio policy, so it applies to us on Telnyx exactly the same way. #379's
+      premise was right; its proposed remedy (a registration wizard) was aimed
+      at the wrong mechanism.
+      **(3) A peer aggregator has built a gate for precisely our situation**,
+      which is why the 2025-03-26 cutoff is real and not a blog artifact: Twilio
+      requires numbers bought on/after that date to complete **either A2P
+      registration or Persona verification** for Canada-only sending. That is a
+      *Twilio-network* policy, not Canadian law — which is how Telnyx can
+      require nothing without either vendor being wrong.
+      **What this changes.** Ask 3 (Canadian registration as a wizard step) is
+      **not applicable**: you cannot build a status machine for a registration
+      that does not exist. The mitigation that does exist is the one Twilio
+      names — **verified toll-free for A2P into Canada** (#329, already open, and
+      this is now its strongest driver) — plus the delivery instrumentation
+      already shipped. `caAllowed` stays `true` and is now *verified*-true.
+      **Deliberately NOT changed: the /canada landing-page claims.** "No
+      registration, no fee, no wait" is literally true and now verified; adding a
+      filtering caveat to a conversion page on the strength of a competitor's
+      documentation, with zero filtering observed in our own telemetry, would be
+      over-correcting. The nuance belongs in editorial content, so the blog post
+      whose premise *is* registration honesty carries it.
+      **Still unconfirmed, and it no longer gates anything:** whether Telnyx
+      applies a Twilio-style gate of its own. Recorded as **R3** (answered) in
+      `docs/VENDOR-QUESTIONS.md` (#373), with the residual folded into **V5**
+      alongside the toll-free question it belongs with — worth asking while
+      scoping #329, not worth holding a market for.
       **Shipped ahead of the answer:** delivery rate split by destination
       country (`messaging/delivery-by-country.ts`, daily), because carrier
       filtering returns no error — the message is accepted, billed, marked sent,
@@ -3543,12 +3576,14 @@ incumbent-shaped, so a voice migration is a repricing as well as a rewrite, and
 `VOICE_OVERAGE_CENTS_PER_MINUTE` moves with it. A test asserts the inequality
 still holds, so a vendor repricing under us surfaces as a failing suite.
 
-**What genuinely remains external**, and neither blocks the choice above: a
-negotiated rate (list is enough to pick a direction, not to sign), and whether
-Canadian long-code A2P requires registration on their network — vendor question
-**V1**, shared with #379. The urgent driver is still not redundancy: our headline
-market is gated by a Telnyx account restriction today, and every alternative
-sells Canadian numbers.
+**What genuinely remains external** is one thing, and it does not block the
+choice above: a **negotiated** rate. List price is enough to pick a direction,
+not to sign. (The Canadian-registration unknown that sat here was answered the
+same day — #379, R3: there is no CA→CA registration on any network, and the real
+Canadian risk is carrier filtering of long codes, mitigated by toll-free (#329).
+That makes a vendor's toll-free story part of this comparison too.) The urgent
+driver is still not redundancy: our headline market is gated by a Telnyx account
+restriction today, and every alternative sells Canadian numbers.
 
 ## D77 — default retention per data class, and why the default is years (#284, 2026-07-29)
 

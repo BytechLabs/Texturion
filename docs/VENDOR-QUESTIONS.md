@@ -25,41 +25,6 @@ never on a schedule. Several could go in one support message.
 
 ## OPEN
 
-### V1 — Canadian A2P registration · Telnyx · blocks #379, holds #369
-
-**The question, verbatim** (drafted in `DECISIONS.md` D2, ready to send):
-
-> *"For a Canadian long code on our account sending A2P traffic to Canadian
-> subscribers, is any registration or persona verification required, or
-> performed by Telnyx on our behalf? If not, are there volume thresholds at
-> which Rogers, Bell or TELUS begin filtering unregistered traffic?"*
-
-**Why it matters.** `getSendGates.caAllowed` is a hardcoded `true`. D2's Canada
-half is the claim our entire Canada-first positioning rests on, and it is
-**unverified** — deliberately left `true` rather than changed on a guess,
-because inventing a Canadian gate nobody has confirmed exists would block our
-headline market on a hunch.
-
-**What we do know**, verified against the live Telnyx account 2026-07-28: our
-one Canadian number was bought *after* the 2025-03-26 cutoff, carries
-`messaging_campaign_id: None`, and is classified by Telnyx itself as
-`traffic_type: A2P`. So we are sending traffic Telnyx calls A2P, from a
-post-cutoff number, with no campaign attached.
-
-**What an answer unblocks.** *"Not required"* closes #379 and releases #369's
-acquisition spend. *"Required"* makes it a wizard step on all three clients,
-using the machinery US 10DLC already has.
-
-**The signal in the meantime:** `messaging/delivery-by-country.ts` — if
-carriers are filtering us today, the delivery-rate split is the only evidence
-we would ever get.
-
-**Travels with L1** (#393 ask 4). Both ask what a first Canadian message must
-contain — V1 for it to *arrive*, L1 for it to be *lawful*. Different
-recipients, same afternoon.
-
----
-
 ### V2 — what Telnyx emits on a campaign SUSPENSION · Telnyx · blocks nothing today
 
 **The question.** When a 10DLC campaign that was `MNO_ACCEPTED` is later
@@ -105,10 +70,17 @@ Carrier-set, undocumented by us, and they move. D59 chose LOW_VOLUME
 deliberately; what the tier's actual per-second and daily ceilings are is the
 open half.
 
-### V5 — toll-free verification timelines · Telnyx · blocks #329
+### V5 — toll-free verification timelines, and toll-free for CANADA · Telnyx · blocks #329
 
 The SPEC ruling was made against figures measured at launch. Whether they still
 hold decides whether toll-free is a real second door past the 10DLC wait.
+
+**Second half, added 2026-07-29 from R3:** *"Do you support toll-free
+verification for A2P traffic into Canada?"* R3 established that Canadian
+carriers filter long-code A2P at their discretion and that the published
+mitigation is verified toll-free — which makes #329 the answer to a *delivery*
+problem in our headline market, not just a way around the US 10DLC wait. Ask
+both halves together.
 
 ### V6 — is there a number-reputation lookup we can call BEFORE handing a number over? · Telnyx · blocks #235 ask 2
 
@@ -228,8 +200,39 @@ at-least-once effect execution is now safe on the one command that bills.
 ### R2 — Telnyx error 10038 on Canadian number reservations · ANSWERED
 
 An account-level restriction, not a code defect. Resolved by an account
-upgrade. Recorded because it is the precedent for the shape V1 is in: a vendor
-answer gating a market, discoverable only by asking.
+upgrade. Recorded because it is a vendor answer gating a market that was
+discoverable only by asking — genuinely unobtainable from documentation, which
+R3 below turned out *not* to be.
+
+### R3 — is Canadian A2P registration required? · ANSWERED from published sources, 2026-07-29
+
+**Was V1**, recorded as blocking #379 (P1) and holding #369's acquisition spend.
+Answered without asking anybody, which is the point of keeping it here.
+
+**The answer: no, and there is nothing to register.** Telnyx's *International
+SMS Compliance Guide* documents Canada directly — permitted sender types, CASL
+express-or-implied consent, a required unsubscribe mechanism — and lists
+**short-code approval** as the only pre-registration item. No long-code
+registration requirement appears, and their 10DLC program is US-scoped in its
+own words. D2's "no 10DLC for CA→CA" is correct as written.
+
+**But the question was aimed at the wrong mechanism.** The exposure is that
+**Canadian carriers filter long-code A2P traffic at their own discretion** —
+Twilio publishes this as *carrier* behaviour ("Canadian mobile carriers enforce
+strict filtering on A2P messages") and recommends verified toll-free instead.
+Registration would not have fixed that. The mitigation is #329 (see V5); the
+signal is `messaging/delivery-by-country.ts`, already live.
+
+**Why this entry exists.** It sat recorded for a week as a fact only Telnyx
+could supply. It was not: any requirement would come from the **carriers**, so
+any aggregator's published country guidance answers it. **A vendor's silence is
+not the same as a fact being unavailable** — check the primary sources, and check
+more than one vendor's, before writing "somebody has to ask" next to something
+that blocks a P1.
+
+**Residual, blocking nothing:** whether Telnyx applies a Twilio-style
+account-level gate on post-2025-03-26 Canadian long codes. Folded into V5 as a
+courtesy check.
 
 ---
 
