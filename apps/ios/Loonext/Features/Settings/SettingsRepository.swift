@@ -94,6 +94,46 @@ struct SettingsRepository: Sendable {
         try await api.delete("/v1/members/me", companyId: companyId)
     }
 
+    // MARK: - Two-factor (#314)
+    //
+    // Enrolment itself is SettingsAuthClient's (GoTrue directly, the D8
+    // boundary). These are the parts Supabase does not give us.
+
+    func mfa() async throws -> MfaState {
+        try await api.get("/v1/mfa")
+    }
+
+    /// Issue a fresh set. The plaintext comes back once and never again.
+    func issueRecoveryCodes() async throws -> RecoveryCodes {
+        try await api.post("/v1/mfa/recovery-codes", body: JSONValue.object([:]))
+    }
+
+    /// Burn a code. This REMOVES the factor rather than elevating the session —
+    /// the loud path, deliberately: a code that granted aal2 would turn a
+    /// stolen password plus a stolen printout into a silent full bypass.
+    func recoverWithCode(_ code: String) async throws -> JSONValue {
+        try await api.post(
+            "/v1/mfa/recover",
+            body: JSONValue.object(["code": .string(code)])
+        )
+    }
+
+    /// Owner only. `graceDays` is ignored once a deadline already exists.
+    func setWorkspaceMfa(
+        _ companyId: String,
+        required: Bool,
+        graceDays: Int = 14
+    ) async throws -> WorkspaceMfa {
+        try await api.put(
+            "/v1/company/mfa",
+            body: JSONValue.object([
+                "required": .bool(required),
+                "grace_days": .number(Double(graceDays)),
+            ]),
+            companyId: companyId
+        )
+    }
+
     // MARK: - Ownership (#332)
     //
     // Five writes, one read, and the read is the only thing that decides what

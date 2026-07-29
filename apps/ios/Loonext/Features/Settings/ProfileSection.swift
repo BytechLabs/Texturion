@@ -13,6 +13,9 @@ struct ProfileSectionView: View {
         DisplayNameCard(scope: scope)
         ThemeCard(prefs: scope.graph.prefs)
         AccountCard(scope: scope)
+        // #314: directly under the password, because it is the same question —
+        // how somebody proves they are you.
+        TwoFactorCard(scope: scope)
         SettingsCard(title: "Sign out") {
             // Destructive (red) — the founder-feedback sign-out styling (#186).
             Button("Sign out on this device", role: .destructive) { onSignOut() }

@@ -3087,3 +3087,58 @@ somebody would otherwise assume coverage.
 That was a good result and a **point-in-time manual sweep** — it is exactly the
 thing this decision replaces with something that runs whether or not anybody
 remembers.
+
+---
+
+## D69 — a second factor, and a way back that is not a bypass (#314, 2026-07-29)
+
+**Decision.** TOTP only, self-serve, with ten single-use recovery codes issued
+at enrolment. An owner may require it workspace-wide with a grace window they
+choose. The genuinely locked-out case stays human, written down in
+`docs/ACCOUNT-RECOVERY.md`. **SMS is never offered as a factor.**
+
+**What a compromised account actually costs.** Not a data breach in the
+ordinary sense: control of the business's identity with its own customers. An
+attacker texting a homeowner *from the plumber's real number*, asking them to
+re-send payment elsewhere, is a fraud that works — and the customer cannot
+detect it, because the number is genuine.
+
+**The recovery code removes the factor; it never elevates the session.** This
+is the load-bearing decision. A code that granted `aal2` would turn *a stolen
+password plus a stolen printout* into a silent full bypass. Removal is loud:
+the account holder is emailed, and the next sign-in is password-only until they
+enrol again. Ten wrong guesses locks the endpoint for an hour — correct codes
+included, or the lock would be trivially skippable — and the lock is taken in
+the same statement that consumes, so a race cannot spend attempts without
+counting them.
+
+**The grace deadline is fixed when it is set, and a later save cannot move
+it.** Otherwise every settings save silently extends it and "you have until
+Friday" stops meaning anything to the crew who were told it.
+
+**`mfa_required` is its own error code.** Three clients route on it — to the
+enrolment screen, not an error toast — and a message-sniffing client would
+break the first time somebody edited the copy. Every route that gets a person
+*out* of the gated state is company-exempt, because an enforcement gate with no
+exit is an outage with a good reason attached.
+
+**The recovery-codes screen cannot be dismissed by accident, on any client.**
+Web hides the close button and disables the confirm until the codes are copied;
+Android's and iOS's shared confirm surfaces both learned to hide their dismiss
+button and their swipe/back gesture together. Somebody who enrols and closes
+that screen has armed a lock and thrown away the spare key, and this product's
+lock is their business phone line. **The friction is the feature.**
+
+**No QR code on mobile.** A QR shown *on* the phone that would have to scan it
+is useless. Both apps hand the `otpauth://` URI to whatever authenticator is
+installed and fall back to a copyable secret.
+
+**Not SMS, and this is the one place the choice is specifically ours.** We are a
+texting company, so it is the obvious-looking option. SMS factors fall to SIM
+swap, and our users' phone numbers are the most publicly-known thing about
+their businesses.
+
+**Passkeys are not here yet.** The SDK supports WebAuthn factors and they are
+the better long-term answer for phone-first users; the issue's acceptance asks
+for "a TOTP factor **or** a passkey", so TOTP satisfies it today and passkeys
+are a follow-up rather than a silent omission.

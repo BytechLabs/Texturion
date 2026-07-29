@@ -306,3 +306,39 @@ struct Ownership: Codable, Sendable {
     var canClaim: Bool { can_claim ?? false }
     var canCancel: Bool { can_cancel ?? false }
 }
+
+// MARK: - Two-factor authentication (#314 — routes/mfa.ts)
+
+struct MfaFactor: Codable, Sendable, Identifiable {
+    let id: String
+    let type: String?
+    let name: String?
+    let created_at: String?
+}
+
+/// GET /v1/mfa. `aal` is this token's assurance level — `aal2` once a factor
+/// has been verified for the session.
+struct MfaState: Codable, Sendable {
+    let factors: [MfaFactor]?
+    let enrolled: Bool?
+    let recovery_codes_remaining: Int?
+    let aal: String?
+
+    var isEnrolled: Bool { enrolled ?? false }
+    var allFactors: [MfaFactor] { factors ?? [] }
+    var codesRemaining: Int { recovery_codes_remaining ?? 0 }
+}
+
+/// The ONLY time recovery codes exist outside the person's hands. They are
+/// never retrievable again — a code we could re-display is one an attacker
+/// with our database could re-display too.
+struct RecoveryCodes: Codable, Sendable {
+    let codes: [String]?
+    var all: [String] { codes ?? [] }
+}
+
+/// PUT /v1/company/mfa. The grace deadline never moves once set.
+struct WorkspaceMfa: Codable, Sendable {
+    let required: Bool?
+    let grace_until: String?
+}

@@ -792,6 +792,7 @@ create trigger on_auth_user_created after insert or update on auth.users
 | `validation_failed` | 422 | Body/param validation (zod) |
 | `not_found` | 404 | — |
 | `conflict` | 409 | Uniqueness/state conflict |
+| `mfa_required` | 403 | #314 — the workspace requires a second factor, the grace window has passed, and this token has none. Its own code, not a `forbidden` with prose, because all three clients ROUTE on it to the enrolment screen |
 | `rate_limited` | 429 | Per-company or per-IP limit |
 
 - **`POST /v1/messages/send` and `POST /v1/conversations` require an `Idempotency-Key` header** (client UUID). The message row is inserted **before** the Telnyx call; a concurrent/duplicate request returns the existing row (and, on `POST /v1/conversations`, the existing conversation) with `200`.
@@ -862,6 +863,10 @@ Roles: **O**=owner, **A**=admin, **M**=member. "O/A" = owner or admin. All conve
 | `POST /v1/sessions/revoke` | any | #236 — `{ session_id }` signs one device out; `{ others: true }` signs out everywhere except the device asking. 409 `conflict` on the caller's own session (the sign-out button is the honest way to do that). Bearer-only |
 | `GET /v1/members/sessions` | O/A | #236 — every active member's live devices, workspace-wide: `{ id, member_id, client, location, signed_in_at, last_active_at }`. Deliberately narrower than the self view — no user agent |
 | `POST /v1/members/:id/sessions/revoke` | O/A | #236 — sign a member out everywhere. Admins may not sign the OWNER out (403 `forbidden`). Takes their push registrations with it; leaves a call in progress alone. Audited as `member.sessions_revoked` |
+| `GET /v1/mfa` | any | #314 — enrolled factors, recovery codes remaining, and this token's `aal`. Bearer-only: a factor belongs to the person, and somebody being told to enrol must be able to reach this |
+| `POST /v1/mfa/recovery-codes` | any | #314 — issue ten single-use codes. Plaintext is returned **once** and is never retrievable again. 409 `conflict` before a factor is verified. Bearer-only |
+| `POST /v1/mfa/recover` | any | #314 — `{ code }` burns a code and **removes the factor**; it never elevates the session. 10 wrong tries → 429 `rate_limited` for an hour. Bearer-only |
+| `PUT /v1/company/mfa` | **O** | #314 — `{ required, grace_days? }`. The grace deadline is fixed when it is set and a later save cannot move it. Enforcement answers `mfa_required` (403) on every company-scoped route once it passes |
 | `GET /v1/invites` · `POST /v1/invites` | O/A | Create: `{ email, role }`; seat limit enforced **here and at acceptance** — seat count = active members (`deactivated_at IS NULL`) + pending invites (`accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()`) ≤ plan seats; sends Supabase `inviteUserByEmail` (Resend SMTP) |
 | `DELETE /v1/invites/:id` | O/A | Revoke |
 | `POST /v1/invites/accept` | any | `{ invite_id }` (the id is embedded in the invite email link). Verifies the JWT's verified email equals `invites.email` and the invite is pending/unexpired → creates the `company_members` row **and a `notification_prefs` row (defaults true/true)**; re-checks the seat limit with the same formula (409 `conflict` if full) |

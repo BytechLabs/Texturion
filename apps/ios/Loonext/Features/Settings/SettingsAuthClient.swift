@@ -42,12 +42,97 @@ struct SettingsAuthClient: Sendable {
         _ = try await request(method: "POST", path: "reauthenticate", body: [:], bearer: accessToken)
     }
 
+    // MARK: - Two-factor (#314)
+    //
+    // Enrolment talks to GoTrue directly, exactly as sign-in does — the D8
+    // boundary. The Worker owns only what Supabase does not provide (recovery
+    // codes, the workspace policy).
+
+    /// What an enrolment hands back before it is verified.
+    struct TotpEnrolment: Sendable {
+        let factorId: String
+        let secret: String
+        /// The `otpauth://` URI. On a phone this is the whole point: a QR code
+        /// shown ON the device that would scan it is useless, so the app opens
+        /// this in whatever authenticator is installed instead.
+        let uri: String
+    }
+
+    func enrollTotp(accessToken: String, friendlyName: String) async throws -> TotpEnrolment {
+        let data = try await request(
+            method: "POST",
+            path: "factors",
+            body: ["factor_type": .string("totp"), "friendly_name": .string(friendlyName)],
+            bearer: accessToken
+        )
+        let object = (try? JSONDecoder().decode(JSONValue.self, from: data))?.objectValue
+        let totp = object?["totp"]?.objectValue
+        guard let id = object?["id"]?.stringValue else {
+            throw ApiError(
+                code: ApiErrorCode.network,
+                message: "Setup didn't start. Try again.",
+                httpStatus: 0
+            )
+        }
+        return TotpEnrolment(
+            factorId: id,
+            secret: totp?["secret"]?.stringValue ?? "",
+            uri: totp?["uri"]?.stringValue ?? ""
+        )
+    }
+
+    func challengeFactor(accessToken: String, factorId: String) async throws -> String {
+        let data = try await request(
+            method: "POST",
+            path: "factors/\(factorId)/challenge",
+            body: [:],
+            bearer: accessToken
+        )
+        let object = (try? JSONDecoder().decode(JSONValue.self, from: data))?.objectValue
+        guard let id = object?["id"]?.stringValue else {
+            throw ApiError(
+                code: ApiErrorCode.network,
+                message: "Couldn't check that code. Try again.",
+                httpStatus: 0
+            )
+        }
+        return id
+    }
+
+    /// On success GoTrue returns a FRESH SESSION at aal2. The caller must store
+    /// it — otherwise the app keeps presenting the old aal1 token and the
+    /// workspace gate keeps refusing a device that just enrolled.
+    func verifyFactor(
+        accessToken: String,
+        factorId: String,
+        challengeId: String,
+        code: String
+    ) async throws -> AuthSession {
+        let data = try await request(
+            method: "POST",
+            path: "factors/\(factorId)/verify",
+            body: ["challenge_id": .string(challengeId), "code": .string(code)],
+            bearer: accessToken
+        )
+        return try JSONDecoder().decode(AuthSession.self, from: data)
+    }
+
+    /// Remove a factor. The account falls back to a password alone.
+    func unenrollFactor(accessToken: String, factorId: String) async throws {
+        _ = try await request(
+            method: "DELETE",
+            path: "factors/\(factorId)",
+            body: nil,
+            bearer: accessToken
+        )
+    }
+
     // MARK: - Internals
 
     private func request(
         method: String,
         path: String,
-        body: [String: JSONValue],
+        body: [String: JSONValue]?,
         bearer: String
     ) async throws -> Data {
         var request = URLRequest(url: supabaseURL.appending(path: "auth/v1/\(path)"))
@@ -55,7 +140,9 @@ struct SettingsAuthClient: Sendable {
         request.setValue(publishableKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try? JSONEncoder().encode(JSONValue.object(body))
+        // Nil, not an empty object: GoTrue rejects a body on DELETE
+        // /factors/{id}, and URLSession is happy to send one if asked.
+        request.httpBody = body.map { try? JSONEncoder().encode(JSONValue.object($0)) } ?? nil
 
         let data: Data
         let response: URLResponse

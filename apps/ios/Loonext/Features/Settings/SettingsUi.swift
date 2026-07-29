@@ -158,6 +158,10 @@ struct ConfirmSheet<Extra: View>: View {
     var pending: Bool = false
     var error: String?
     var confirmEnabled: Bool = true
+    /// Empty hides the dismiss button entirely, for the one sheet that must
+    /// not be closeable by accident: #314 shows recovery codes exactly once,
+    /// and somebody who backs out of that screen has armed a lock and thrown
+    /// away the spare key. Everywhere else, leave it.
     var dismissLabel: String = "Cancel"
     let onConfirm: @MainActor () -> Void
     let onDismiss: @MainActor () -> Void
@@ -205,9 +209,11 @@ struct ConfirmSheet<Extra: View>: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack {
-                Button(dismissLabel) { onDismiss() }
-                    .buttonStyle(.bordered)
-                    .disabled(pending)
+                if !dismissLabel.isEmpty {
+                    Button(dismissLabel) { onDismiss() }
+                        .buttonStyle(.bordered)
+                        .disabled(pending)
+                }
                 Spacer()
                 Button(pending ? "Working…" : confirmLabel) { onConfirm() }
                     .buttonStyle(.borderedProminent)
@@ -219,7 +225,9 @@ struct ConfirmSheet<Extra: View>: View {
         .padding(20)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .interactiveDismissDisabled(pending)
+        // A sheet with no dismiss button must not be swipeable away either, or
+        // the hidden button is decoration and the gesture is a silent trap.
+        .interactiveDismissDisabled(pending || dismissLabel.isEmpty)
     }
 }
 
