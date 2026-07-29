@@ -221,6 +221,21 @@ export default function PrivacyPage() {
           contents removed.
         </p>
         <p>
+          {/* #284/D77: the numbers, published. "What is your retention policy"
+              is the first compliance question any buyer asks. */}
+          The defaults, by kind of data. Texts, conversations, job photos and
+          call records are kept for <strong>seven years</strong> after the last
+          activity on them, because a contractor in a warranty dispute over a
+          two-year-old job needs those texts, and deleting them sooner would
+          cause the harm the deletion was meant to prevent. Voicemail{" "}
+          <em>recordings</em> are the exception and are kept for{" "}
+          <strong>one year</strong>: the transcript keeps what was said, while
+          the recording is somebody&rsquo;s actual voice in their home and is
+          worth far less after the first few weeks. Audit logs are kept for 12
+          months. Do-not-text records are kept indefinitely, because they belong
+          to the person who sent the STOP.
+        </p>
+        <p>
           {/* #340: the contact form collects data from people who never become
               customers, so none of the account-based windows above cover it. */}
           If you write to us through the contact form on this site without ever

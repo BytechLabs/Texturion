@@ -3495,3 +3495,48 @@ quoting rates nobody has confirmed would be the unverified assertion this repo
 keeps getting bitten by. Someone has to ask for quotes. The urgent driver is not
 redundancy: it is that our headline market is gated by a Telnyx account
 restriction today, and every alternative sells Canadian numbers.
+
+## D77 — default retention per data class, and why the default is years (#284, 2026-07-29)
+
+**Decision.** Written defaults, published, per data class. Nothing is deleted by
+this decision alone — it establishes the numbers so the enforcement job, the
+workspace control and the legal hold in #284 have something to enforce.
+
+| Class | Default | Why this number |
+|---|---|---|
+| **Messages and conversations** | **7 years** after last activity | The trade's dispute cycle, not a privacy instinct. See below |
+| **Attachments** (job photos) | Same as their message | A photo is evidence of the same job the texts describe; splitting them would leave a thread referencing pictures that no longer exist |
+| **Call records** (who called, when, outcome) | **7 years** | Same dispute logic. It is metadata, and it is small |
+| **Voicemail audio** | **1 year** | The sharpest asymmetry here. It is somebody's actual voice recorded in their home, carries full breach cost, and its business value is almost entirely in the first weeks |
+| **Voicemail transcripts** | **7 years** | The words are what a dispute needs. Keeping the text while dropping the audio preserves the value and sheds the liability |
+| **Audit log** | **12 months** (#231, unchanged) | Stated separately on purpose — it is the record of who did what to the data above, and answers a different question |
+| **Opt-outs** | **Never** | Belongs to the person who sent the STOP, not the business that received it |
+| **Consent records** | **3 years**, stripped | CASL requires the record; names and message contents are already removed |
+
+**Why seven years, when the privacy instinct says months.** The issue's devil's
+advocate is right and it decided this: *"a contractor in a warranty dispute over
+a two-year-old job needs those texts, and the moment they discover we deleted
+them, we have caused the harm we were trying to prevent."*
+
+Seven years is not arbitrary — it is the outer edge of the contractor liability
+and warranty window in most of the provinces and states we serve, and it matches
+the business-record retention their accountant already assumes. A shorter
+default would be us imposing our compliance preference on their legal exposure.
+
+**Voicemail audio is the one exception, and the reasoning is worth keeping.**
+Every other class gets long retention because deleting it destroys evidence.
+Audio is different: the transcript preserves what was *said*, so the dispute
+value survives, while the recording — a person's voice, in their house — is the
+single item on this list with the highest breach cost and the steepest drop in
+usefulness. Keeping the words and dropping the sound is the trade that costs the
+customer nothing.
+
+**A conservative default with a shorter option available**, never the reverse.
+Shortening is the workspace's choice, warned before anything is destroyed, and
+the change itself is an audit-log entry (#284). Users must never discover a
+retention policy by losing something.
+
+**Not yet built:** enforcement, the workspace control, and legal hold. This
+decision is the part that had to come first — "forever" was a decision we made
+by not making one, and the enforcement job is unwritable until somebody has said
+what the numbers are.
