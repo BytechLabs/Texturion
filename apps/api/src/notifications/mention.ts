@@ -115,6 +115,15 @@ export async function notifyNoteMention(
   const failures: unknown[] = [];
   await deliverPush(env, db, {
     userIds: pushUsers,
+    // #430: a note is written by a colleague, not a customer — but it is
+    // written ABOUT a customer and routinely quotes the address or the
+    // situation, so it is a person's words either way. The title survives:
+    // knowing who wants you is the whole point of a mention.
+    content: {
+      written: "people",
+      companyId: input.companyId,
+      withheld: { body: "Mentioned you in a note" },
+    },
     web: {
       title: `${authorName} mentioned you`,
       body: notificationSnippet(input.body, 0),

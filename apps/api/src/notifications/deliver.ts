@@ -64,9 +64,53 @@ export interface PushPayload {
   kind?: string;
 }
 
+/**
+ * #430 — whose words are in this payload.
+ *
+ * REQUIRED, and that is the whole design. Six push sites exist and three of
+ * them carry something a person typed: the customer's message, a teammate's
+ * note, and a task title (which per the personal-data inventory routinely
+ * holds a job address). Nothing in the type system distinguished those from
+ * "Carrier approval came through", so a seventh site would have inherited
+ * whatever the author happened to copy.
+ *
+ * Declaring it at the call site means a new push cannot be written without
+ * someone deciding whether a homeowner's words are about to appear on a lock
+ * screen in another homeowner's kitchen. The same move `highPriority` makes
+ * for a rationed resource, for a resource that cannot be un-spent.
+ */
+export type PushContent =
+  /**
+   * Every word is ours. Nothing to withhold, and the workspace setting does
+   * not apply — suppressing "Carrier approval came through" would protect
+   * nobody and cost the customer the alert.
+   */
+  | { written: "us" }
+  /**
+   * The payload carries words a PERSON typed. Checked against the workspace's
+   * `push_include_content` before it leaves; when that is off, `withheld`
+   * replaces the fields named in it.
+   */
+  | {
+      written: "people";
+      companyId: string;
+      /**
+       * What to say instead. Whatever is present replaces the same field on
+       * the payload; the rest rides unchanged, which is why the contact name
+       * survives — knowing WHO is most of the triage value and carries far
+       * less of the exposure than knowing what they said.
+       */
+      withheld: Partial<Pick<PushPayload, "title" | "body">>;
+    };
+
 export interface PushDelivery {
   /** Push-enabled recipients. Nothing is sent for an empty list. */
   userIds: string[];
+  /**
+   * #430: whose words these are. See {@link PushContent} — required so that a
+   * new push site cannot be added without answering the question.
+   */
+  content: PushContent;
   /** Notification content, as the apps/web service worker expects it. */
   web: PushPayload;
   /**
@@ -144,6 +188,42 @@ function warnIfTruncated(table: string, rowCount: number, ceiling: number): void
   Sentry.captureMessage(message, "warning");
 }
 
+/**
+ * The workspace's answer, read fresh every time (#430).
+ *
+ * DELIBERATELY UNCACHED. An owner who turns this off has just decided that
+ * customer content must stop leaving, and a TTL would mean it kept leaving for
+ * the length of the TTL — which is the one window where somebody is watching.
+ * The cost is a single primary-key read, and only on the sites that carry a
+ * person's words.
+ *
+ * A lookup FAILURE withholds. Every other fallback in this codebase fails to
+ * the permissive default because the alternative is a dead product; here the
+ * permissive default publishes a third party's words to a lock screen, and the
+ * alert still arrives carrying the contact's name. Losing the snippet is a
+ * degraded notification. Sending it against the workspace's instruction is the
+ * thing this feature exists to prevent.
+ */
+async function withheldFields(
+  db: SupabaseClient,
+  content: PushContent,
+): Promise<Partial<PushPayload>> {
+  if (content.written === "us") return {};
+
+  const { data, error } = await db
+    .from("companies")
+    .select("push_include_content")
+    .eq("id", content.companyId)
+    .maybeSingle();
+  if (error) {
+    console.error(`push content setting lookup failed: ${error.message}`);
+    return content.withheld;
+  }
+  const include = (data as { push_include_content?: boolean } | null)
+    ?.push_include_content;
+  return include === false ? content.withheld : {};
+}
+
 export async function deliverPush(
   env: Env,
   db: SupabaseClient,
@@ -151,11 +231,17 @@ export async function deliverPush(
 ): Promise<void> {
   if (delivery.userIds.length === 0) return;
 
+  // #430: withhold BEFORE serializing, so the content never exists in a
+  // payload at all rather than being hidden by a client that might not.
+  const withheld = await withheldFields(db, delivery.content);
+  const web = { ...delivery.web, ...withheld };
+  const native = { ...(delivery.native ?? delivery.web), ...withheld };
+
   // The collapse key IS the tag: one identity, serialized once, so no client
   // has to invent its own (#266).
-  const webPayload = JSON.stringify({ ...delivery.web, tag: delivery.collapseKey });
+  const webPayload = JSON.stringify({ ...web, tag: delivery.collapseKey });
   const nativePayload = JSON.stringify({
-    ...(delivery.native ?? delivery.web),
+    ...native,
     tag: delivery.collapseKey,
   });
   const ceiling = delivery.userIds.length * MAX_TARGETS_PER_USER;

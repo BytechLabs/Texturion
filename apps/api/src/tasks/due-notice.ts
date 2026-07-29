@@ -232,6 +232,18 @@ export async function notifyDueTasksJob(
 
     await deliverPush(env, db, {
       userIds: [task.assigned_user_id],
+      // #430: NOT named in the issue, and it belongs here. The TITLE is the
+      // one a member typed, and per docs/PERSONAL-DATA-INVENTORY.md a task
+      // carries a free-text description and a JOB ADDRESS — "Alvarez, 42 Elm,
+      // gate code 4417" is an ordinary task title. So here it is the title
+      // that is withheld and the body, which is our own "Due in 2 hours",
+      // that survives: the reminder still tells them WHEN without telling the
+      // room WHERE.
+      content: {
+        written: "people",
+        companyId: task.company_id,
+        withheld: { title: "A task is due" },
+      },
       web: alert,
       // Structural discriminator for the native clients. No client routes on
       // it yet, so it renders on the default channel; it is sent ahead of that

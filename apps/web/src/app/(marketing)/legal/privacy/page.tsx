@@ -163,6 +163,23 @@ export default function PrivacyPage() {
           . We may disclose data if the law requires it. We do not sell personal
           information.
         </p>
+        {/* #430: push services were not named here at all, and they receive
+            message content by design — the notification payload IS the
+            content. Naming them is the disclosure; the workspace switch is
+            what makes the disclosure actionable rather than merely honest. */}
+        <p>
+          Push notifications reach phones through Apple, Google, and the
+          browser&rsquo;s own push service, so those services carry whatever the
+          notification says. By default that is the contact&rsquo;s name and the
+          first line of their message, which is what lets a crew tell a lead
+          from a &ldquo;thanks&rdquo; without unlocking a phone. An owner or
+          admin can turn message text off for the whole workspace in
+          Settings &rarr; Notifications; after that the notification carries the
+          name only, and the words are never sent to a push service at all. This
+          is a workspace decision rather than a per-person one, because the
+          content usually belongs to the customer rather than to the person
+          holding the phone.
+        </p>
       </LegalSectionBlock>
 
       {/* #389: the privacy page said nothing whatsoever about automated

@@ -176,6 +176,16 @@ const ambientEmailRoutes: FetchRoute[] = [
     url.pathname === "/rest/v1/rpc/api_evaluate_flags"
       ? Response.json({})
       : undefined,
+  // #430: every push carrying a person's words reads the workspace's answer
+  // first, so it hangs off the notification paths the way the flags do. The
+  // ambient answer is the default — content INCLUDED — which is the state
+  // every test written before #430 was asserting against. A suite that wants
+  // it off stubs this path itself and shadows this.
+  (url) =>
+    url.pathname === "/rest/v1/companies"
+    && url.searchParams.get("select") === "push_include_content"
+      ? Response.json([{ push_include_content: true }])
+      : undefined,
 ];
 
 export function stubFetch(...routes: FetchRoute[]): void {

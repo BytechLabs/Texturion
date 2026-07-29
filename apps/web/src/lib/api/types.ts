@@ -303,6 +303,8 @@ export interface CompanyView {
    *  minutes. Off by default — this is the rung that tells people who were
    *  not told before, and the one that can become a klaxon. */
   lead_chase_crew_enabled: boolean;
+  /** #430: whether a push may carry words a person typed. Workspace-wide. */
+  push_include_content: boolean;
   /** FEATURE-GAPS voice wave — missed-call text-back settings. */
   mctb_enabled: boolean;
   mctb_message: string | null;

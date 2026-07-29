@@ -60,6 +60,10 @@ fun NotificationsSection(
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         LeadChaseRow(scope, company, onCompanyUpdated)
+        // #430: directly below the push settings it qualifies, because an
+        // owner looking for it is thinking "what do my notifications show",
+        // not "what is my data-protection posture".
+        PushContentRow(scope, company, onCompanyUpdated)
     }
 
     Text(
@@ -124,6 +128,60 @@ private fun LeadChaseRow(
             "whole workspace, not just you" +
             if (canEdit) "." else " — only owners and admins can change it.",
         checked = company.lead_chase_crew_enabled,
+        enabled = canEdit && !saving,
+        onCheckedChange = { save(it) },
+        modifier = Modifier.padding(top = 6.dp),
+    )
+    InlineError(error)
+}
+
+/**
+ * #430 — whether a customer's words may ride a push notification.
+ *
+ * PHRASED POSITIVELY, and on by default, so the switch's "on" position is the
+ * behaviour every workspace already has. A negative switch ("hide message
+ * content") makes the safe-looking position the one that changes things, and
+ * an owner reading quickly cannot tell which way is the status quo.
+ *
+ * The description leads with the ROOM rather than the feature: an owner does
+ * not think about push payloads, they think about the phone on a workbench in
+ * a customer's kitchen. Same sentence as web and iOS, deliberately.
+ */
+@Composable
+private fun PushContentRow(
+    scope: SettingsScope,
+    company: CompanyView,
+    onCompanyUpdated: (CompanyView) -> Unit,
+) {
+    val canEdit = scope.role == "owner" || scope.role == "admin"
+    val coroutines = rememberCoroutineScope()
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    fun save(include: Boolean) {
+        error = null
+        saving = true
+        coroutines.launch {
+            try {
+                val body = buildJsonObject { put("push_include_content", include) }
+                onCompanyUpdated(scope.repo.updateCompany(scope.companyId, body))
+            } catch (cause: Exception) {
+                error = cause.userMessage()
+            } finally {
+                saving = false
+            }
+        }
+    }
+
+    LabeledSwitchRow(
+        label = "Show message text on lock screens",
+        supporting = "Notifications show who texted and the first line of what they said, " +
+            "so the crew can tell a lead from a \"thanks\" without unlocking. Turn this " +
+            "off and they'll still see who it was, but never what a customer wrote — " +
+            "useful if phones are out on the job, in other people's homes. This one is " +
+            "for the whole workspace, not just you" +
+            if (canEdit) "." else " — only owners and admins can change it.",
+        checked = company.push_include_content,
         enabled = canEdit && !saving,
         onCheckedChange = { save(it) },
         modifier = Modifier.padding(top = 6.dp),

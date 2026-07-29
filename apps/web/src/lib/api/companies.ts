@@ -68,6 +68,7 @@ export interface CompanyPatch {
    *  waking the whole crew (O/A). */
   lead_chase_enabled?: boolean;
   lead_chase_crew_enabled?: boolean;
+  push_include_content?: boolean;
   /** FEATURE-GAPS voice wave — missed-call text-back (O/A). */
   mctb_enabled?: boolean;
   mctb_message?: string | null;

@@ -3,6 +3,7 @@
 import { toast } from "sonner";
 
 import { LeadChaseRow } from "@/components/settings/lead-chase-row";
+import { PushContentRow } from "@/components/settings/push-content-row";
 import { PermissionCard } from "@/components/notifications/permission-card";
 import { EmailReachabilityCard } from "@/components/settings/email-reachability-card";
 import {
@@ -117,6 +118,15 @@ export default function NotificationsSettingsPage() {
                   *Applying: the Safety Principle — blast radius legible before
                   it is touched, not after.* */}
               <LeadChaseRow />
+
+              {/* #430: sits with the other push settings rather than in a
+                  privacy section of its own, because an owner looking for it
+                  is thinking "what do my notifications show", not "what is my
+                  data-protection posture". It is directly below the push
+                  switch it qualifies.
+                  *Applying: Relationship Strength — a control belongs beside
+                  the thing it modifies.* */}
+              <PushContentRow />
             </div>
           </SettingsCard>
 

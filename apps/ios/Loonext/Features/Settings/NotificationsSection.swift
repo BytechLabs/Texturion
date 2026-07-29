@@ -41,6 +41,15 @@ struct NotificationsSectionView: View {
                     company: company,
                     onCompanyUpdated: onCompanyUpdated
                 )
+                // #430: directly below the push settings it qualifies, because
+                // an owner looking for it is thinking "what do my
+                // notifications show", not "what is my data-protection
+                // posture".
+                PushContentRowView(
+                    scope: scope,
+                    company: company,
+                    onCompanyUpdated: onCompanyUpdated
+                )
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -138,6 +147,59 @@ private struct LeadChaseRowView: View {
 /// Same words as web and Android, deliberately: this one explains why a person
 /// is not hearing from us, and three wordings would be three different stories.
 @MainActor
+/// #430 — whether a customer's words may ride a push notification.
+///
+/// PHRASED POSITIVELY, and on by default, so the toggle's "on" position is the
+/// behaviour every workspace already has. A negative toggle ("hide message
+/// content") makes the safe-looking position the one that changes things, and
+/// an owner reading quickly cannot tell which way is the status quo.
+///
+/// The description leads with the ROOM rather than the feature: an owner does
+/// not think about push payloads, they think about the phone on a workbench in
+/// a customer's kitchen. Same sentence as web and Android, deliberately.
+@MainActor
+private struct PushContentRowView: View {
+    let scope: SettingsScope
+    let company: CompanyView
+    let onCompanyUpdated: @MainActor (CompanyView) -> Void
+
+    @State private var saving = false
+    @State private var error: String?
+
+    private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
+
+    var body: some View {
+        LabeledToggleRow(
+            label: "Show message text on lock screens",
+            supporting: "Notifications show who texted and the first line of what they "
+                + "said, so the crew can tell a lead from a \"thanks\" without unlocking. "
+                + "Turn this off and they'll still see who it was, but never what a "
+                + "customer wrote — useful if phones are out on the job, in other "
+                + "people's homes. This one is for the whole workspace, not just you"
+                + (canEdit ? "." : " — only owners and admins can change it."),
+            isOn: company.push_include_content,
+            enabled: canEdit && !saving
+        ) { save(include: $0) }
+
+        InlineError(error)
+    }
+
+    private func save(include: Bool) {
+        error = nil
+        saving = true
+        let body = JSONValue.object(["push_include_content": .bool(include)])
+        Task {
+            do {
+                let updated = try await scope.repo.updateCompany(scope.companyId, patch: body)
+                onCompanyUpdated(updated)
+            } catch {
+                self.error = error.userMessage
+            }
+            saving = false
+        }
+    }
+}
+
 private struct EmailReachabilityCardView: View {
     let scope: SettingsScope
 

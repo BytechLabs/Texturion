@@ -219,6 +219,11 @@ struct CompanyView: Codable, Sendable {
     let seat_limit: Int?
     @Default<DefaultTrue> var lead_chase_enabled: Bool
     @Default<DefaultFalse> var lead_chase_crew_enabled: Bool
+    /// #430: whether a push may carry words a person typed. Workspace-wide.
+    /// `@Default` rather than a bare `= true` — a default VALUE on a
+    /// non-Optional does not make the Codable key optional, and a Worker that
+    /// omits the field would fail to decode the whole response.
+    @Default<DefaultTrue> var push_include_content: Bool
     @Default<DefaultFalse> var mctb_enabled: Bool
     let mctb_message: String?
     /// #192: server-resolved template that will actually send (custom else the

@@ -119,6 +119,25 @@ export function supabaseStub(env: Env): SupabaseStub {
     },
     { method: "GET", matcher: "/rest/v1/email_suppressions", respond: () => [] },
     {
+      // #430: every push carrying a person's words reads the workspace's
+      // answer first, so it hangs off the notification paths the way the flags
+      // do. The ambient answer is the default — content INCLUDED — which is
+      // the state every test written before #430 was asserting against. A
+      // suite that wants it off registers this path itself and wins.
+      method: "GET",
+      matcher: "/rest/v1/companies",
+      // Narrowed to THIS select, and returns undefined otherwise so the
+      // handler falls through. A blanket `/rest/v1/companies` ambient would
+      // answer every unstubbed company read in the suite with a one-column
+      // row, turning a loud "you forgot to stub this" into a quiet wrong
+      // answer — which is the failure mode ambient handlers are one bad
+      // decision away from.
+      respond: (call: SbCall) =>
+        call.url.searchParams.get("select") === "push_include_content"
+          ? [{ push_include_content: true }]
+          : undefined,
+    },
+    {
       method: "POST",
       matcher: "/rest/v1/rpc/record_heartbeat",
       respond: () => ({ recovered: false }),

@@ -141,6 +141,11 @@ export async function notifyMissedCall(
   const alert = { title: `Missed call from ${contactName}`, body, url: link };
   await deliverPush(env, db, {
     userIds: pushUsers,
+    // #430: every word here is ours. The contact's NAME is in the title, and
+    // that stays under the setting too — a name on a lock screen is what any
+    // phone shows for any caller, and it is what the setting deliberately
+    // preserves. There is no message content in a missed call to withhold.
+    content: { written: "us" },
     web: alert,
     native: { kind: "missed_call", ...alert },
     collapseKey: `conversation:${input.conversationId}`,

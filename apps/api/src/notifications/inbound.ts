@@ -269,6 +269,16 @@ export async function notifyInboundMessage(
   // than stacking, on the `conversation:<id>` tag the clients coalesce on.
   await deliverPush(env, db, {
     userIds: pushUsers,
+    // #430: the customer's words. When the workspace has content off, the
+    // name still rides — the title is untouched — and only the snippet goes.
+    // "Sent you a message" rather than a bare "New message": the tech still
+    // learns there is something from THIS person waiting, which is the triage
+    // #388 depends on.
+    content: {
+      written: "people",
+      companyId: input.companyId,
+      withheld: { body: "Sent you a message" },
+    },
     web: { title: pushTitle, body: snippet, url: link },
     collapseKey: input.emergency
       ? // #414: an emergency must NOT be coalesced away by the ordinary texts

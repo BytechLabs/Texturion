@@ -208,6 +208,8 @@ data class CompanyView(
     val seat_limit: Int? = null,
     val lead_chase_enabled: Boolean = true,
     val lead_chase_crew_enabled: Boolean = false,
+    /** #430: whether a push may carry words a person typed. Workspace-wide. */
+    val push_include_content: Boolean = true,
     val mctb_enabled: Boolean = false,
     val mctb_message: String? = null,
     /** Server-resolved template that will actually send (custom else default). */

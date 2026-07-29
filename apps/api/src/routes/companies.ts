@@ -123,6 +123,11 @@ const patchSchema = z
     // already told once, the second reaches people who were not.
     lead_chase_enabled: z.boolean().optional(),
     lead_chase_crew_enabled: z.boolean().optional(),
+    // #430: whether a push may carry words a person typed. Unlike every other
+    // notification setting this one is per WORKSPACE, because the content
+    // being protected belongs to the customer rather than to the member whose
+    // phone it lands on.
+    push_include_content: z.boolean().optional(),
     // FEATURE-GAPS voice wave — missed-call text-back (O/A). mctb_message is
     // owner-authored (null clears it). D43: forward_to_cell is DELETED —
     // calls ring the browser, never a cell.
@@ -163,6 +168,7 @@ const patchSchema = z
       body.emergency_keyword_enabled !== undefined ||
       body.lead_chase_enabled !== undefined ||
       body.lead_chase_crew_enabled !== undefined ||
+      body.push_include_content !== undefined ||
       body.mctb_enabled !== undefined ||
       "mctb_message" in body ||
       "voicemail_greeting" in body ||
@@ -417,6 +423,10 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   }
   if (body.lead_chase_crew_enabled !== undefined) {
     patch.lead_chase_crew_enabled = body.lead_chase_crew_enabled;
+  }
+  // #430: whether pushes may carry a person's words.
+  if (body.push_include_content !== undefined) {
+    patch.push_include_content = body.push_include_content;
   }
   // FEATURE-GAPS voice wave: missed-call text-back settings.
   if (body.mctb_enabled !== undefined) patch.mctb_enabled = body.mctb_enabled;

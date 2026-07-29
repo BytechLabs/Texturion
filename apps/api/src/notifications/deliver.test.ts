@@ -86,6 +86,7 @@ describe("deliverPush", () => {
     stubFetch(...routes);
 
     await deliverPush(env, getDb(env), {
+      content: { written: "us" },
       userIds: [],
       web: ALERT,
       collapseKey: "conversation:x",
@@ -105,6 +106,7 @@ describe("deliverPush", () => {
     const failures: unknown[] = [];
 
     await deliverPush(env, getDb(env), {
+      content: { written: "us" },
       userIds: [USER],
       web: ALERT,
       collapseKey: "conversation:x",
@@ -132,6 +134,7 @@ describe("deliverPush", () => {
     const failures: unknown[] = [];
 
     await deliverPush(env, getDb(env), {
+      content: { written: "us" },
       userIds: [USER],
       web: ALERT,
       collapseKey: "conversation:x",
@@ -151,12 +154,14 @@ describe("deliverPush", () => {
     stubFetch(sb.route, ...service.routes);
 
     await deliverPush(fcm, getDb(fcm), {
+      content: { written: "us" },
       userIds: [USER],
       web: { ...ALERT, title: "Web" },
       collapseKey: "conversation:x",
       failures: [],
     });
     await deliverPush(fcm, getDb(fcm), {
+      content: { written: "us" },
       userIds: [USER],
       web: { ...ALERT, title: "Web" },
       // Only the native clients see the discriminator that picks a channel.
@@ -188,6 +193,7 @@ describe("deliverPush", () => {
     stubFetch(sb.route, ...service.routes);
 
     await deliverPush(fcm, getDb(fcm), {
+      content: { written: "us" },
       userIds: [USER],
       web: ALERT,
       collapseKey: "mention:note-7",
@@ -213,6 +219,7 @@ describe("deliverPush", () => {
     stubFetch(...routes);
 
     await deliverPush(env, getDb(env), {
+      content: { written: "us" },
       userIds: [USER],
       web: ALERT,
       collapseKey: "conversation:abc",
@@ -249,6 +256,7 @@ describe("deliverPush", () => {
     stubFetch(...routes);
 
     await deliverPush(env, getDb(env), {
+      content: { written: "us" },
       userIds: [crowded, oldest],
       web: ALERT,
       collapseKey: "conversation:x",
