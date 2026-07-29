@@ -1127,18 +1127,18 @@ private struct ContactCallRow: View {
     }
 }
 
-/// Inline voicemail playback. Grammar and data path REPLICATED from
-/// CallsView.VoicemailPlayerRow (a `private` struct there, so not importable):
-/// mint the 1h signed URL on demand via CallsService.voicemail (never cached),
-/// stream via AVPlayer with seek + live progress. Any change here must mirror
-/// the call log's player until a shared component is extracted.
-@MainActor
 /// The words on a voicemail row, or nil when there is nothing worth showing.
 private func voicemailWords(_ call: Call) -> String? {
     guard let text = call.voicemail_transcript, !text.isBlank else { return nil }
     return text
 }
 
+/// Inline voicemail playback. Grammar and data path REPLICATED from
+/// CallsView.VoicemailPlayerRow (a `private` struct there, so not importable):
+/// mint the 1h signed URL on demand via CallsService.voicemail (never cached),
+/// stream via AVPlayer with seek + live progress. Any change here must mirror
+/// the call log's player until a shared component is extracted.
+@MainActor
 private struct ContactVoicemailPlayerRow: View {
     let service: CallsService
     let companyId: String

@@ -132,21 +132,6 @@ private struct LeadChaseRowView: View {
     }
 }
 
-
-/// #386 — "we can't reach this address."
-///
-/// A hard-bounced address is otherwise completely invisible to the person it
-/// belongs to: their notifications simply stop, which is indistinguishable
-/// from a quiet week. The point of this surface is that the failure becomes
-/// FIXABLE rather than merely broken.
-///
-/// Renders nothing when email is working. A false "we can't reach you" is
-/// worse than none — it sends somebody to fix an address that was never
-/// broken.
-///
-/// Same words as web and Android, deliberately: this one explains why a person
-/// is not hearing from us, and three wordings would be three different stories.
-@MainActor
 /// #430 — whether a customer's words may ride a push notification.
 ///
 /// PHRASED POSITIVELY, and on by default, so the toggle's "on" position is the
@@ -200,6 +185,20 @@ private struct PushContentRowView: View {
     }
 }
 
+/// #386 — "we can't reach this address."
+///
+/// A hard-bounced address is otherwise completely invisible to the person it
+/// belongs to: their notifications simply stop, which is indistinguishable
+/// from a quiet week. The point of this surface is that the failure becomes
+/// FIXABLE rather than merely broken.
+///
+/// Renders nothing when email is working. A false "we can't reach you" is
+/// worse than none — it sends somebody to fix an address that was never
+/// broken.
+///
+/// Same words as web and Android, deliberately: this one explains why a person
+/// is not hearing from us, and three wordings would be three different stories.
+@MainActor
 private struct EmailReachabilityCardView: View {
     let scope: SettingsScope
 
