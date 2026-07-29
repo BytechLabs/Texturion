@@ -346,6 +346,14 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "job:prune-abandoned-identity": {
+    what:
+      "SSN/SIN fragments from signups that never paid are no longer being "
+      + "cleared (#381). We are holding a government identifier belonging to "
+      + "somebody who never became a customer, past the window we set.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
   "job:prune-user-sessions": {
     what: "Ended and revoked device rows (#236) are no longer pruned past their 90-day window.",
     everyMinutes: 1440,
