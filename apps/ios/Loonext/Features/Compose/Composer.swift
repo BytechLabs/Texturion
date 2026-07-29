@@ -53,8 +53,24 @@ final class ComposerState {
         queueDraftSave()
     }
 
+    /// #408: when this draft began — the moment the composer first held text.
+    ///
+    /// Held in memory rather than persisted with the draft, deliberately. A
+    /// draft restored after the app was killed has no start moment we can
+    /// honestly claim, and the predicate treats nil as "do not warn": a
+    /// confirmation we cannot justify is worse than none, because the first
+    /// false one teaches people to dismiss the true ones.
+    private(set) var draftStartedAt: String?
+
     func onTextChange(_ value: String) {
         text = value
+        if value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            draftStartedAt = nil
+        } else if draftStartedAt == nil {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            draftStartedAt = formatter.string(from: Date())
+        }
         queueDraftSave()
     }
 
@@ -71,6 +87,9 @@ final class ComposerState {
     /// Clear immediately on send — fast by feel; the queued row is the UI.
     func clearForSend() {
         text = ""
+        // #408: the next draft is a new one, and its warning must be judged
+        // against when IT began, not against a moment two sends ago.
+        draftStartedAt = nil
         photos = []
         files = []
         picked = []
@@ -98,6 +117,23 @@ final class ComposerState {
 /// (≤3, transcoded ≤1 MB), note files (≤10 × 25 MB), passive segment meter,
 /// merge-field live preview. `banner` replaces text mode with an explanatory
 /// card — notes stay available; `noteOnly` is the viewer_level='note' gate.
+/// #408: everything the send boundary needs to spot a colliding reply.
+///
+/// ONE parameter rather than three, deliberately. `ThreadComposerView` already
+/// takes seven closures, and the Swift type checker has given up on this
+/// view's call site before — "failed to produce diagnostic for expression",
+/// which is the checker running out of budget rather than a real error. Adding
+/// three more arguments is exactly the shape that tipped it. Grouping them
+/// costs one struct and keeps the call site the size it was.
+struct DuplicateReplyContext {
+    /// The newest outbound in this thread. Nil never warns.
+    let lastOutbound: Message?
+    /// Resolves the sender to a display name — "Sam replied" is a fact
+    /// somebody can act on, "someone replied" is not.
+    let memberName: @Sendable (String) -> String?
+    let meUserId: String
+}
+
 @MainActor
 struct ThreadComposerView: View {
     @Bindable var state: ComposerState
@@ -112,6 +148,9 @@ struct ThreadComposerView: View {
     /// than opening a picker with nothing behind it.
     var loadMentionableMembers: (@MainActor () async -> [MentionableMember])?
     let onNotice: @MainActor (String) -> Void
+    /// #408: nil withholds the collision check entirely (a compose screen with
+    /// no thread behind it has nothing to collide with).
+    var duplicateReply: DuplicateReplyContext?
     /// Ask for AI-drafted replies. Nil hides the affordance entirely.
     var suggestReplies: (@MainActor (String) async -> ReplySuggestions)?
     /// Place a call to this customer, offered by a banner that blocks texting
@@ -136,6 +175,8 @@ struct ThreadComposerView: View {
     // Held for the life of the composer rather than re-fetched, since it only
     // changes when someone writes the line.
     @State private var businessUnknown = false
+    /// #408: the pause before landing on top of a colleague's answer.
+    @State private var confirmCollision = false
     @State private var suggesting = false
     @State private var photosPickerOpen = false
     @State private var fileImporterOpen = false
@@ -216,6 +257,17 @@ struct ThreadComposerView: View {
                     businessName: businessName
                 )
             }
+        }
+        // #408: two techs answering the same customer thirty seconds apart is
+        // the exact confusion a shared inbox exists to eliminate, and the
+        // product creates the race on purpose — an unassigned inbound notifies
+        // everyone, which is right for "never miss a lead". So this is a pause
+        // at the moment the mistake becomes irreversible, not a lock.
+        .alert("Somebody already answered", isPresented: $confirmCollision) {
+            Button("Let me look", role: .cancel) {}
+            Button("Send anyway") { submit() }
+        } message: {
+            Text(collisionMessage)
         }
         .photosPicker(
             isPresented: $photosPickerOpen,
@@ -454,7 +506,7 @@ struct ThreadComposerView: View {
             .padding(.vertical, 8)
 
             Button {
-                submit()
+                requestSend()
             } label: {
                 Image(systemName: "arrow.up")
                     .font(.body.weight(.semibold))
@@ -544,6 +596,49 @@ struct ThreadComposerView: View {
                 ? body
                 : current + (current.hasSuffix(" ") ? "" : " ") + body
         )
+    }
+
+    /// #408: the send boundary. A teammate answering this customer while the
+    /// draft was being written is the one thing worth a pause here.
+    ///
+    /// A WARNING, NOT A BLOCK. A duplicate reply is genuinely better than no
+    /// reply, and anything discouraging a tech from answering works against
+    /// the five-minute window that decides the job. Notes skip it entirely —
+    /// they reach no customer, so there is no collision to have.
+    /// Bound to a plain property rather than built inline: this view's call
+    /// site has run the Swift type checker out of budget before, and a string
+    /// assembled inside the modifier chain is exactly the kind of expression
+    /// that does it.
+    private var collisionMessage: String {
+        let sender = duplicateReply?.lastOutbound?.sent_by_user_id
+        let name = sender.flatMap { duplicateReply?.memberName($0) }
+        var seconds = 0
+        if let iso = duplicateReply?.lastOutbound?.created_at {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            let parsed = formatter.date(from: iso)
+                ?? ISO8601DateFormatter().date(from: iso)
+            if let parsed {
+                seconds = max(0, Int(Date().timeIntervalSince(parsed)))
+            }
+        }
+        return duplicateReplyPrompt(who: name, secondsAgo: seconds)
+            + " Send yours as well?"
+    }
+
+    private func requestSend() {
+        guard canSend else { return }
+        let collision = duplicateReplyWarning(
+            draftStartedAt: state.draftStartedAt,
+            lastOutboundAt: duplicateReply?.lastOutbound?.created_at,
+            lastOutboundByUserId: duplicateReply?.lastOutbound?.sent_by_user_id,
+            meUserId: duplicateReply?.meUserId ?? ""
+        )
+        if !isNote, collision.warn {
+            confirmCollision = true
+            return
+        }
+        submit()
     }
 
     private func submit() {

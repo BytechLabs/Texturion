@@ -7,7 +7,7 @@ import {
   Send as SendIcon,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   applyMergeFields,
@@ -53,13 +53,32 @@ import {
   useReplySuggestions,
 } from "@/lib/api/reply-suggestions";
 import { AiOrb, AiStatus } from "@/components/ui/ai-orb";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  duplicateReplyPrompt,
+  duplicateReplyWarning,
+} from "@loonext/shared";
+
 import { ApiError } from "@/lib/api/error";
 import {
   attachmentSignature,
   idempotencyKeyFor,
   type FailedAttempt,
 } from "@/lib/api/idempotency";
-import { useSendMessage, type OutboundMedia } from "@/lib/api/messages";
+import {
+  useMessages,
+  useSendMessage,
+  type OutboundMedia,
+} from "@/lib/api/messages";
+import { useMe } from "@/lib/api/me";
+import { useMembers } from "@/lib/api/team";
 import { isFilePaste } from "@/lib/attachments/clipboard";
 import {
   MMS_ACCEPT,
@@ -409,6 +428,33 @@ export function Composer({
   // thread header and the shell, so this costs no extra request.
   const conversation = useConversation(conversationId);
   const company = useCompany();
+  // #408: read from the SAME cached thread query the timeline uses, so this
+  // costs no extra request. What is needed is only the newest outbound and who
+  // sent it.
+  const messages = useMessages(conversationId);
+  const members = useMembers();
+  const me = useMe();
+  /**
+   * #408: when this draft began — the moment the composer first held text.
+   *
+   * Held in state rather than persisted, deliberately. A draft restored after
+   * a reload has no start moment we can honestly claim, and the predicate
+   * treats null as "do not warn": a confirmation we cannot justify is worse
+   * than none, because the first false one teaches people to dismiss the true
+   * ones.
+   */
+  const [draftStartedAt, setDraftStartedAt] = useState<string | null>(null);
+  useEffect(() => {
+    setDraftStartedAt((current) => {
+      if (text.trim() === "") return null;
+      return current ?? new Date().toISOString();
+    });
+  }, [text]);
+  // Reset when the thread changes: a draft in another conversation says
+  // nothing about this one.
+  useEffect(() => {
+    setDraftStartedAt(null);
+  }, [conversationId]);
   const textareaRef = useAutoGrow(text);
   const fileRef = useRef<HTMLInputElement>(null);
   const noteFileRef = useRef<HTMLInputElement>(null);
@@ -505,6 +551,35 @@ export function Composer({
     );
     textareaRef.current?.focus();
   };
+
+  /**
+   * #408: has a teammate answered this customer since the draft was begun?
+   *
+   * Derived from the cached thread rather than a new subscription. The
+   * realtime channel already delivers a teammate's reply while you are looking
+   * at the thread — what was missing is that it arrived AFTER the send rather
+   * than before it, so this is a check at the send boundary, not a subsystem.
+   */
+  const newestOutbound = useMemo(() => {
+    for (const page of messages.data?.pages ?? []) {
+      for (const message of page.data) {
+        // Newest-first (SPEC §7). A note is internal and reaches no customer,
+        // so it is not a collision — the whole harm here is the CUSTOMER
+        // receiving two answers.
+        if (message.direction === "outbound") return message;
+      }
+    }
+    return null;
+  }, [messages.data]);
+
+  const collision = duplicateReplyWarning({
+    draftStartedAt,
+    lastOutboundAt: newestOutbound?.created_at ?? null,
+    lastOutboundByUserId: newestOutbound?.sent_by_user_id ?? null,
+    meUserId: me.data?.user_id ?? "",
+  });
+
+  const [confirmCollision, setConfirmCollision] = useState(false);
 
   const doSend = useCallback(async () => {
     if (!canSend) return;
@@ -631,7 +706,7 @@ export function Composer({
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
-      void doSend();
+      void requestSend();
       return;
     }
     // "/" in an empty draft opens the saved-replies picker inline (§3.1) —
@@ -713,6 +788,25 @@ export function Composer({
 
   const attachDisabled = attachments.length >= MMS_MAX_MEDIA_ITEMS;
   const noteAttachDisabled = noteStage.files.length >= MAX_ATTACHMENTS_PER_OWNER;
+
+  /**
+   * #408: the send boundary. A teammate answering this customer while the
+   * draft was being written is the one thing worth a pause here.
+   *
+   * A WARNING, NOT A BLOCK. A duplicate reply is genuinely better than no
+   * reply, and anything that discourages a tech from answering works against
+   * the five-minute window that decides the job. Notes skip it entirely —
+   * they reach no customer, so there is no collision to have.
+   * *Applying: Ethical Friction — a confirmation at the moment the mistake
+   * becomes irreversible, and nowhere else.*
+   */
+  const requestSend = useCallback(() => {
+    if (!isNote && collision.warn) {
+      setConfirmCollision(true);
+      return;
+    }
+    void doSend();
+  }, [isNote, collision.warn, doSend]);
 
   return (
     <div
@@ -992,7 +1086,7 @@ export function Composer({
               only when the field is non-empty. Notes reuse the amber accent. */}
           <button
             type="button"
-            onClick={() => void doSend()}
+            onClick={() => void requestSend()}
             disabled={!canSend}
             aria-label={isNote ? "Save note" : "Send message"}
             aria-keyshortcuts="Control+Enter Meta+Enter"
@@ -1041,6 +1135,51 @@ export function Composer({
           />
         </MentionPicker>
       )}
+      {/* #408: two techs answering the same customer thirty seconds apart is
+          the exact confusion a shared inbox exists to eliminate, and the
+          product creates the race on purpose — an unassigned inbound notifies
+          everyone, which is right for "never miss a lead". So the fix is a
+          pause at the moment the mistake becomes irreversible, not a lock.
+          *Applying: Ethical Friction.* */}
+      <Dialog open={confirmCollision} onOpenChange={setConfirmCollision}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Somebody already answered</DialogTitle>
+            <DialogDescription>
+              {duplicateReplyPrompt(
+                collision.byUserId
+                  ? members.data?.data.find(
+                      (m) => m.user_id === collision.byUserId,
+                    )?.display_name ?? "A teammate"
+                  : null,
+                newestOutbound
+                  ? Math.max(
+                      0,
+                      Math.round(
+                        (Date.now() - Date.parse(newestOutbound.created_at)) / 1000,
+                      ),
+                    )
+                  : 0,
+              )}{" "}
+              Send yours as well?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmCollision(false)}>
+              Let me look
+            </Button>
+            <Button
+              onClick={() => {
+                setConfirmCollision(false);
+                void doSend();
+              }}
+            >
+              Send anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

@@ -44,12 +44,14 @@ import androidx.compose.material.icons.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -79,6 +81,7 @@ import com.loonext.android.features.thread.MentionLogic
 import com.loonext.android.features.thread.MentionableMember
 import com.loonext.android.features.thread.PickedMention
 import com.loonext.android.core.model.DestinationClock
+import com.loonext.android.core.model.Message
 import com.loonext.android.features.thread.theirTimeLine
 import com.loonext.android.core.model.ReplySuggestions
 import com.loonext.android.core.model.replyDraftMessage
@@ -184,8 +187,25 @@ class ComposerState(
     private var draftLoaded = false
     private var saveJob: Job? = null
 
+    /**
+     * #408: when this draft began — the moment the composer first held text.
+     *
+     * Held in memory rather than persisted with the draft, deliberately. A
+     * draft restored after the process died has no start moment we can
+     * honestly claim, and the predicate treats null as "do not warn": a
+     * confirmation we cannot justify is worse than none, because the first
+     * false one teaches people to dismiss the true ones.
+     */
+    var draftStartedAt by mutableStateOf<String?>(null)
+        private set
+
     fun onTextChange(value: String) {
         text = value
+        draftStartedAt = if (value.isBlank()) {
+            null
+        } else {
+            draftStartedAt ?: java.time.Instant.now().toString()
+        }
         queueDraftSave()
     }
 
@@ -220,6 +240,9 @@ class ComposerState(
     /** Clear immediately on send — fast by feel; the queued row is the UI. */
     fun clearForSend() {
         text = ""
+        // #408: the next draft is a new one, and its warning must be judged
+        // against when IT began, not against a moment two sends ago.
+        draftStartedAt = null
         photos = emptyList()
         files = emptyList()
         picked = emptyList()
@@ -270,6 +293,16 @@ fun ThreadComposer(
     businessName: String?,
     loadTemplates: suspend () -> List<Template>,
     onSendText: (body: String, photos: List<StagedPhoto>) -> Unit,
+    /**
+     * #408: the newest outbound in this thread, so the send boundary can ask
+     * before landing on top of a colleague's answer. Null means "nothing to
+     * compare", which never warns.
+     */
+    lastOutbound: Message? = null,
+    /** Resolves the sender to a display name — "Sam replied" is a fact
+     *  somebody can act on, "someone replied" is not. */
+    memberName: (String) -> String? = { null },
+    meUserId: String = "",
     onSaveNote: (body: String, files: List<StagedFile>, mentionUserIds: List<String>) -> Unit,
     onNotice: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -397,8 +430,9 @@ fun ThreadComposer(
         state.text.isNotBlank() || state.photos.isNotEmpty()
     }
 
-    fun submit() {
-        if (!canSend) return
+    var confirmCollision by remember { mutableStateOf(false) }
+
+    fun send() {
         haptics.confirm()
         val body = state.text.trim()
         if (isNote) {
@@ -411,6 +445,63 @@ fun ThreadComposer(
             state.clearForSend()
             onSendText(body, photos)
         }
+    }
+
+    /**
+     * #408: the send boundary. A teammate answering this customer while the
+     * draft was being written is the one thing worth a pause here.
+     *
+     * A WARNING, NOT A BLOCK. A duplicate reply is genuinely better than no
+     * reply, and anything discouraging a tech from answering works against the
+     * five-minute window that decides the job. Notes skip it entirely — they
+     * reach no customer, so there is no collision to have.
+     */
+    fun submit() {
+        if (!canSend) return
+        val collision = duplicateReplyWarning(
+            draftStartedAt = state.draftStartedAt,
+            lastOutboundAt = lastOutbound?.created_at,
+            lastOutboundByUserId = lastOutbound?.sent_by_user_id,
+            meUserId = meUserId,
+        )
+        if (!isNote && collision.warn) {
+            confirmCollision = true
+            return
+        }
+        send()
+    }
+
+    if (confirmCollision) {
+        val secondsAgo = lastOutbound?.created_at
+            ?.let {
+                runCatching {
+                    java.time.Duration.between(java.time.Instant.parse(it), java.time.Instant.now())
+                        .seconds
+                }.getOrDefault(0L)
+            }
+            ?.coerceAtLeast(0L) ?: 0L
+        AlertDialog(
+            onDismissRequest = { confirmCollision = false },
+            title = { Text("Somebody already answered") },
+            text = {
+                Text(
+                    duplicateReplyPrompt(
+                    lastOutbound?.sent_by_user_id?.let(memberName),
+                    secondsAgo,
+                ) +
+                        " Send yours as well?",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmCollision = false
+                    send()
+                }) { Text("Send anyway") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmCollision = false }) { Text("Let me look") }
+            },
+        )
     }
 
     Column(modifier.fillMaxWidth()) {

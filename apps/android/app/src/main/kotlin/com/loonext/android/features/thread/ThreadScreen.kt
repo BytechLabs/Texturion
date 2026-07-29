@@ -742,6 +742,17 @@ private fun ThreadLoaded(
                 }
             },
             loadMentionableMembers = { controller.mentionableMembers() },
+            // #408: the newest outbound in this thread, so the send boundary
+            // can ask before landing on top of a colleague's answer. A note is
+            // not a collision — it reaches no customer — so only outbound
+            // counts here.
+            lastOutbound = controller.messages
+                .firstOrNull { it.direction == MessageDirection.OUTBOUND },
+            memberName = { id ->
+                controller.members.firstOrNull { it.user_id == id }
+                    ?.display_name?.ifBlank { null }
+            },
+            meUserId = me.user_id,
             onNotice = onNotice,
             suggestReplies = { draft ->
                 graph.aiRepo.suggestReplies(companyId, detail.id, draft)

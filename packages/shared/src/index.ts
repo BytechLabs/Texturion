@@ -108,6 +108,16 @@ export {
   type CarrierCeiling,
 } from "./carrier-throughput";
 
+// #408: the check that stops two techs answering the same customer thirty
+// seconds apart. Pure, so web and the API agree, and hand-ported to Kotlin and
+// Swift — a warning that exists only on web protects nobody in a truck.
+export {
+  duplicateReplyPrompt,
+  duplicateReplyWarning,
+  type DuplicateReplyInput,
+  type DuplicateReplyWarning,
+} from "./duplicate-reply";
+
 export {
   PLAN_SEATS,
   seatLimit,
