@@ -4,7 +4,7 @@ import { PLAN_SEATS } from "@loonext/shared";
  * API resource shapes, derived by reading apps/api/src/routes/*.ts (never
  * guessed — SPEC §7 is the contract, the route files are the truth).
  */
-import type { MmsMediaKind } from "@loonext/shared";
+import type { HoursException, MmsMediaKind } from "@loonext/shared";
 
 export type SubscriptionStatus =
   | "incomplete"
@@ -277,6 +277,11 @@ export interface CompanyView {
   cancel_at_period_end: boolean;
   /** FEATURE-GAPS Step 1 — after-hours away reply (company-local clock). */
   business_hours: BusinessHours;
+  /**
+   * #402: dates that override the weekly loop — Christmas is not a working
+   * Thursday. Optional so a cached pre-#402 company shape stays assignable.
+   */
+  business_hours_exceptions?: HoursException[];
   away_enabled: boolean;
   away_message: string | null;
   /** #414 ask 5: the template that will ACTUALLY send — the owner's text if

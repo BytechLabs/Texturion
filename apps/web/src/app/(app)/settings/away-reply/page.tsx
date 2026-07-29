@@ -12,6 +12,7 @@ import {
   usSendApproved,
   usTextingOff,
 } from "@/components/thread/composer-banner";
+import { ClosedDatesCard } from "@/components/settings/closed-dates-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -389,6 +390,13 @@ export default function AwayReplySettingsPage() {
       ) : (
         <div className="space-y-6">
           <BusinessHoursCard company={company.data} canEdit={canEdit} />
+
+          {/* #402: directly under the weekly schedule it overrides. These
+              dates only mean anything as an exception to it, and an owner
+              looking for "we're shut on Boxing Day" looks where they set
+              their hours.
+              *Applying: Relationship Strength.* */}
+          <ClosedDatesCard company={company.data} canEdit={canEdit} />
           <AwayMessageCard company={company.data} canEdit={canEdit} />
         </div>
       )}

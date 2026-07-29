@@ -6,6 +6,8 @@ import {
 
 import { useCompanyId } from "@/lib/company/provider";
 
+import type { HoursException } from "@loonext/shared";
+
 import { apiFetch } from "./client";
 import { keys } from "./keys";
 import type {
@@ -69,6 +71,8 @@ export interface CompanyPatch {
   lead_chase_enabled?: boolean;
   lead_chase_crew_enabled?: boolean;
   push_include_content?: boolean;
+  /** #402: dates that override the weekly business-hours loop. */
+  business_hours_exceptions?: HoursException[];
   /** FEATURE-GAPS voice wave — missed-call text-back (O/A). */
   mctb_enabled?: boolean;
   mctb_message?: string | null;
