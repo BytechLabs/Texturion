@@ -60,10 +60,14 @@ struct Me: Codable, Sendable {
     /// Only `kill:realtime` today, and only because it is the one switch the
     /// server cannot enforce — clients hold their own Supabase token and open
     /// their own socket, so there is nothing for the Worker to refuse.
-    /// `var … = [:]` rather than `let` so it does not become a required
-    /// memberwise-init parameter at every existing construction site, and so
-    /// absent reads as "no statement" rather than "off".
-    var flags: [String: Bool] = [:]
+    ///
+    /// OPTIONAL, not a defaulted dictionary. In Swift a default value on a
+    /// NON-optional property does not make the key optional to the synthesized
+    /// `init(from:)` — decoding still demands it, and a server that omits the
+    /// field (or any older response) fails to decode entirely. Kotlin's
+    /// kotlinx.serialization treats a default the opposite way, which is
+    /// exactly how this got hand-ported wrong once already.
+    var flags: [String: Bool]? = nil
 }
 
 /// #386: why we cannot email this member, and whether they can fix it.

@@ -131,7 +131,7 @@ final class RootViewModel {
             //
             // `!= false` rather than a truthiness check: an absent flag means
             // "no statement", which must read as ON.
-            let realtimeAllowed = me.flags["kill:realtime"] != false
+            let realtimeAllowed = me.flags?["kill:realtime"] != false
             if realtimeAllowed, let session = graph.sessionStore.current() {
                 await graph.realtime.connect(
                     companyId: membership.company_id,
