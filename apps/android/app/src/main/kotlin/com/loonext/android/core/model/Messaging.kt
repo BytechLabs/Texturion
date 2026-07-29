@@ -24,9 +24,6 @@ object MessageStatus {
     const val FAILED = "failed"
 }
 
-/** Carrier code for "recipient opted out at the carrier" — retry never offered. */
-const val CARRIER_OPT_OUT_ERROR_CODE = "40300"
-
 @Serializable
 data class ContactSummary(
     val id: String,
@@ -134,6 +131,12 @@ data class Message(
     val encoding: String? = null,
     val sent_by_user_id: String? = null,
     val error_code: String? = null,
+    /**
+     * #241: why the send failed, in OUR taxonomy rather than the carrier's.
+     * Null on rows written before the column existed — readers use
+     * [failureReasonOf], which falls back to classifying the code.
+     */
+    val error_reason: String? = null,
     val error_detail: String? = null,
     val telnyx_message_id: String? = null,
     val done_at: String? = null,
@@ -155,7 +158,9 @@ data class Message(
         get() = direction == MessageDirection.OUTBOUND &&
             status == MessageStatus.FAILED &&
             telnyx_message_id == null &&
-            error_code != CARRIER_OPT_OUT_ERROR_CODE
+            // #241: OUR reason, not the vendor's code. This used to compare
+            // against a Telnyx constant shipped inside the app.
+            isRetryableFailure(failureReasonOf(error_reason, error_code))
 }
 
 /** Contact embed on GET /v1/conversations/:id. */

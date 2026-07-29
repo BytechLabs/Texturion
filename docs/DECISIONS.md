@@ -3442,3 +3442,56 @@ of unresolved tokens is the only trace an enumeration attempt would leave, since
 these routes sit outside every gate that protects `/v1`; but storing an address
 to protect somebody would be its own harm. Access rows are diagnostics, pruned
 at 30 days.
+
+## D76 — single-carrier risk is accepted deliberately, with the seam cut and the recovery time named (#241, 2026-07-29)
+
+**Decision.** We continue on Telnyx alone. We do **not** fund real failover now.
+What we do instead is make the second carrier *possible*: the messaging seam is
+cut, vendor error codes no longer reach business logic, and the parts that would
+be a rewrite are written down rather than discovered later.
+
+**Why not failover.** A second live carrier means a second registration
+pipeline, a second inventory, a second set of webhooks and signature schemes,
+and — for voice — a second SDK embedded in three clients. At current revenue
+that is a large slice of the build budget spent on an outage that has not
+happened, while real customer-facing gaps stay open. Silence would not be
+defensible; this is the deliberate version.
+
+**The accepted recovery times**, so "accepted risk" means something:
+
+| Failure | Recovery | Time |
+|---|---|---|
+| Telnyx messaging outage | Wait it out. `kill:outbound-send` (#283) stops the retry storm and the bill in ~10s | **Their RTO, not ours** |
+| Telnyx voice outage | Calling is down. Texting is unaffected — the two paths share no runtime | **Their RTO** |
+| Account-level messaging block | Port numbers to a second carrier | **Weeks.** Porting is carrier-paced and there is no way to make it faster |
+| Account-level number-ordering block | Already live (10038, Canada). Buy from a second provider | **Days**, once an account exists |
+
+The third row is the one that should make somebody uncomfortable, and it is
+stated plainly for that reason: an account-standing decision by one vendor would
+take our product off the air for weeks. We are accepting that, today, knowingly.
+
+**What was actually built** (the part that is not a document):
+
+- `packages/shared/src/carrier-failure.ts` — our failure taxonomy. The Telnyx
+  code map is the **only** place a vendor code appears in a decision; a second
+  provider adds a map beside it.
+- `messages.error_reason` — classified once at the edge, persisted, and read by
+  all three clients. They previously each hardcoded `"40300"`, so a carrier
+  change would have required shipping three apps (weeks, per #339).
+- An unmapped code is `unknown` and **never** `opt_out` — the one reason with a
+  legal meaning, where a wrong guess takes somebody's number out of service.
+
+**What was deliberately NOT abstracted.** Call control. The DO's identity model,
+command set, event vocabulary and ordering guarantees are shaped by Telnyx Call
+Control; a markup-based provider (Twilio's TwiML) inverts control flow entirely.
+Hiding that behind an interface would look portable right up until somebody
+tried it, which is the most expensive kind of wrong.
+`docs/CARRIER-PORTABILITY.md` §1 says so in detail.
+
+**What remains open, and it is commercial rather than technical.** The costed
+comparison in `docs/CARRIER-PORTABILITY.md` §3 has the structure — call-control
+model, 10DLC handling, Canadian availability — but **not prices**, because
+quoting rates nobody has confirmed would be the unverified assertion this repo
+keeps getting bitten by. Someone has to ask for quotes. The urgent driver is not
+redundancy: it is that our headline market is gated by a Telnyx account
+restriction today, and every alternative sells Canadian numbers.

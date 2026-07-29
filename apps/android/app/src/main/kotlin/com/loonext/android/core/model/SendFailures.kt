@@ -21,7 +21,7 @@ const val GENERIC_SEND_FAILURE = "Not delivered"
 
 private val SEND_FAILURE_MESSAGES = mapOf(
     // The recipient's own choice. Only they can undo it, by texting START.
-    CARRIER_OPT_OUT_ERROR_CODE to "This customer opted out",
+    "40300" to "This customer opted out",
 
     // Nothing on the other end can receive it.
     "40001" to "That number can't receive texts",
@@ -73,3 +73,106 @@ private val SEND_FAILURE_MESSAGES = mapOf(
  */
 fun sendFailureMessage(errorCode: String?): String =
     SEND_FAILURE_MESSAGES[errorCode?.trim().orEmpty()] ?: GENERIC_SEND_FAILURE
+
+/**
+ * #241 — why a send failed, in OUR vocabulary rather than the carrier's.
+ *
+ * Hand-ported from `packages/shared/src/carrier-failure.ts`;
+ * `CarrierFailureTest.kt` asserts the same table of cases.
+ *
+ * This file used to hold `CARRIER_OPT_OUT_ERROR_CODE = "40300"` and the app
+ * branched on it to decide whether to offer a retry button — a Telnyx constant
+ * shipped inside an Android build. A second carrier would have meant editing
+ * three apps and shipping them, which #339 established takes weeks to reach
+ * everybody and never reaches some phones at all.
+ */
+enum class CarrierFailureReason {
+    OPT_OUT,
+    UNREACHABLE,
+    CONTENT_BLOCKED,
+    SPAM_BLOCKED,
+    RATE_LIMITED,
+    EXPIRED,
+    NOT_PROVISIONED,
+    UNKNOWN,
+}
+
+/** The wire values the server sends. Unknown decodes to UNKNOWN, never a crash (D44). */
+private val REASON_BY_WIRE = mapOf(
+    "opt_out" to CarrierFailureReason.OPT_OUT,
+    "unreachable" to CarrierFailureReason.UNREACHABLE,
+    "content_blocked" to CarrierFailureReason.CONTENT_BLOCKED,
+    "spam_blocked" to CarrierFailureReason.SPAM_BLOCKED,
+    "rate_limited" to CarrierFailureReason.RATE_LIMITED,
+    "expired" to CarrierFailureReason.EXPIRED,
+    "not_provisioned" to CarrierFailureReason.NOT_PROVISIONED,
+    "unknown" to CarrierFailureReason.UNKNOWN,
+)
+
+/**
+ * Telnyx codes → our reasons. The ONLY place a vendor code appears in a
+ * decision on this client, and it exists only to classify rows written before
+ * the server sent a reason.
+ */
+private val TELNYX_REASONS = mapOf(
+    "40300" to CarrierFailureReason.OPT_OUT,
+    "40001" to CarrierFailureReason.UNREACHABLE,
+    "40012" to CarrierFailureReason.UNREACHABLE,
+    "40310" to CarrierFailureReason.UNREACHABLE,
+    "40004" to CarrierFailureReason.UNREACHABLE,
+    "40006" to CarrierFailureReason.UNREACHABLE,
+    "40008" to CarrierFailureReason.UNREACHABLE,
+    "40002" to CarrierFailureReason.CONTENT_BLOCKED,
+    "40017" to CarrierFailureReason.CONTENT_BLOCKED,
+    "40009" to CarrierFailureReason.CONTENT_BLOCKED,
+    "40316" to CarrierFailureReason.CONTENT_BLOCKED,
+    "40317" to CarrierFailureReason.CONTENT_BLOCKED,
+    "40328" to CarrierFailureReason.CONTENT_BLOCKED,
+    "40003" to CarrierFailureReason.SPAM_BLOCKED,
+    "40015" to CarrierFailureReason.SPAM_BLOCKED,
+    "40322" to CarrierFailureReason.SPAM_BLOCKED,
+    "40011" to CarrierFailureReason.RATE_LIMITED,
+    "40016" to CarrierFailureReason.RATE_LIMITED,
+    "40018" to CarrierFailureReason.RATE_LIMITED,
+    "40318" to CarrierFailureReason.RATE_LIMITED,
+    "40005" to CarrierFailureReason.EXPIRED,
+    "40014" to CarrierFailureReason.EXPIRED,
+    "40010" to CarrierFailureReason.NOT_PROVISIONED,
+    "40329" to CarrierFailureReason.NOT_PROVISIONED,
+    "40330" to CarrierFailureReason.NOT_PROVISIONED,
+    "40100" to CarrierFailureReason.NOT_PROVISIONED,
+    "40314" to CarrierFailureReason.NOT_PROVISIONED,
+    "40305" to CarrierFailureReason.NOT_PROVISIONED,
+    "40308" to CarrierFailureReason.NOT_PROVISIONED,
+)
+
+/**
+ * UNKNOWN for anything unmapped, and that is honest rather than a soft
+ * default: an unrecognised failure must never become OPT_OUT, because that is
+ * the one reason with a legal meaning — only the customer can lift a STOP.
+ */
+fun classifySendFailure(errorCode: String?): CarrierFailureReason {
+    val code = errorCode?.trim().orEmpty()
+    if (code.isEmpty()) return CarrierFailureReason.UNKNOWN
+    return TELNYX_REASONS[code] ?: CarrierFailureReason.UNKNOWN
+}
+
+/**
+ * The reason to act on: what the server classified, falling back to the code.
+ *
+ * The fallback is not defensive padding — rows written before the server sent
+ * a reason will sit on somebody's phone for months (#339), and a client that
+ * only understood the new field would show the wrong affordance on every one.
+ */
+fun failureReasonOf(reason: String?, errorCode: String?): CarrierFailureReason {
+    val wire = reason?.trim().orEmpty()
+    if (wire.isNotEmpty()) REASON_BY_WIRE[wire]?.let { return it }
+    return classifySendFailure(errorCode)
+}
+
+/**
+ * Is offering "try again" honest? An opt-out never is: the block is the
+ * customer's own choice and only they can lift it.
+ */
+fun isRetryableFailure(reason: CarrierFailureReason): Boolean =
+    reason != CarrierFailureReason.OPT_OUT

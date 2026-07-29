@@ -446,6 +446,13 @@ export interface Message {
   encoding: string | null;
   sent_by_user_id: string | null;
   error_code: string | null;
+  /**
+   * #241: why the send failed, in OUR taxonomy rather than the carrier's.
+   * Optional — absent on rows written before the column existed, so readers
+   * use `failureReasonOf(error_reason, error_code)`, which falls back to
+   * classifying the code.
+   */
+  error_reason?: string | null;
   error_detail: string | null;
   telnyx_message_id: string | null;
   /** D14 done state — set/cleared together by PATCH /v1/messages/:id. */

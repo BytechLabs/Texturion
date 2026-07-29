@@ -21,9 +21,6 @@ enum MessageStatus {
     static let failed = "failed"
 }
 
-/// Carrier code for "recipient opted out at the carrier" — retry never offered.
-let carrierOptOutErrorCode = "40300"
-
 struct ContactSummary: Codable, Sendable {
     let id: String
     let name: String?
@@ -126,6 +123,13 @@ struct Message: Codable, Sendable {
     let encoding: String?
     let sent_by_user_id: String?
     var error_code: String?
+    /// #241: why the send failed, in OUR taxonomy rather than the carrier's.
+    /// nil on rows written before the column existed — readers use
+    /// `failureReasonOf`, which falls back to classifying the code.
+    ///
+    /// `= nil` rather than a bare optional: without a default it becomes a
+    /// REQUIRED memberwise-init parameter and breaks every construction site.
+    var error_reason: String? = nil
     var error_detail: String?
     let telnyx_message_id: String?
     let done_at: String?
@@ -145,7 +149,9 @@ struct Message: Codable, Sendable {
         direction == MessageDirection.outbound &&
             status == MessageStatus.failed &&
             telnyx_message_id == nil &&
-            error_code != carrierOptOutErrorCode
+            // #241: OUR reason, not the vendor's code. This used to compare
+            // against a Telnyx constant shipped inside the app.
+            isRetryableFailure(failureReasonOf(error_reason, error_code))
     }
 
     /// The task this message links to — the tap target for the thread's task

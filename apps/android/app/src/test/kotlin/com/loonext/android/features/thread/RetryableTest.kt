@@ -1,6 +1,5 @@
 package com.loonext.android.features.thread
 
-import com.loonext.android.core.model.CARRIER_OPT_OUT_ERROR_CODE
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.MessageStatus
@@ -19,6 +18,7 @@ class RetryableTest {
         status: String? = MessageStatus.FAILED,
         telnyxId: String? = null,
         errorCode: String? = "internal",
+        errorReason: String? = null,
     ) = Message(
         id = "m1",
         conversation_id = "c1",
@@ -27,6 +27,7 @@ class RetryableTest {
         status = status,
         telnyx_message_id = telnyxId,
         error_code = errorCode,
+        error_reason = errorReason,
         created_at = "2026-07-15T00:00:00Z",
     )
 
@@ -41,8 +42,19 @@ class RetryableTest {
     }
 
     @Test
-    fun `carrier opt-out 40300 blocks retry`() {
-        assertFalse(message(errorCode = CARRIER_OPT_OUT_ERROR_CODE).retryable)
+    fun `a carrier opt-out blocks retry, however it reached us`() {
+        // #241: both routes to the same conclusion. The server now sends the
+        // reason; rows written before it still carry only the vendor code, and
+        // both must withhold the button — a STOP is the customer's own choice.
+        assertFalse(message(errorReason = "opt_out").retryable)
+        assertFalse(message(errorCode = "40300").retryable)
+    }
+
+    @Test
+    fun `the server's reason wins over a code that disagrees`() {
+        // A second carrier spells its codes differently; the reason is what
+        // the app is allowed to believe.
+        assertTrue(message(errorReason = "rate_limited", errorCode = "40300").retryable)
     }
 
     @Test

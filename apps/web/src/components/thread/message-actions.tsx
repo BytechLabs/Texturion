@@ -13,7 +13,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { CARRIER_OPT_OUT_ERROR_CODE } from "@loonext/shared";
+import { failureReasonOf, isRetryableFailure } from "@loonext/shared";
 
 import {
   DropdownMenu,
@@ -51,7 +51,10 @@ function isRetryable(message: Message): boolean {
     message.direction === "outbound" &&
     message.status === "failed" &&
     message.telnyx_message_id === null &&
-    message.error_code !== CARRIER_OPT_OUT_ERROR_CODE
+    // #241: OUR reason, not the vendor's code. This file used to compare
+    // against a Telnyx constant, which meant a second carrier would have
+    // needed an edit here and in two mobile apps.
+    isRetryableFailure(failureReasonOf(message.error_reason, message.error_code))
   );
 }
 

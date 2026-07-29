@@ -242,7 +242,7 @@ export async function loadAttachments(
  */
 export const MESSAGE_COLUMNS =
   "id,company_id,conversation_id,direction,body,telnyx_message_id,status," +
-  "segments,encoding,sent_by_user_id,error_code,error_detail,idempotency_key," +
+  "segments,encoding,sent_by_user_id,error_code,error_reason,error_detail,idempotency_key," +
   "provider_cost,done_at,done_by_user_id,pinned_at,pinned_by_user_id," +
   "created_at,updated_at";
 
@@ -596,7 +596,7 @@ messageRoutes.get(
       .from("messages")
       .select(
         "id,conversation_id,direction,body,status,segments,encoding," +
-          "sent_by_user_id,error_code,error_detail,telnyx_message_id," +
+          "sent_by_user_id,error_code,error_reason,error_detail,telnyx_message_id," +
           "done_at,done_by_user_id,pinned_at,pinned_by_user_id,task_id," +
           "created_at,message_attachments(id,content_type,size_bytes)",
       )

@@ -9,7 +9,8 @@ final class MessagingRetryableTests: XCTestCase {
         direction: String = MessageDirection.outbound,
         status: String? = MessageStatus.failed,
         telnyxId: String? = nil,
-        errorCode: String? = "internal"
+        errorCode: String? = "internal",
+        errorReason: String? = nil
     ) -> Message {
         Message(
             id: "m1",
@@ -21,6 +22,7 @@ final class MessagingRetryableTests: XCTestCase {
             encoding: nil,
             sent_by_user_id: nil,
             error_code: errorCode,
+            error_reason: errorReason,
             error_detail: nil,
             telnyx_message_id: telnyxId,
             done_at: nil,
@@ -44,8 +46,18 @@ final class MessagingRetryableTests: XCTestCase {
         XCTAssertFalse(message(telnyxId: "tx_123").retryable)
     }
 
-    func testCarrierOptOut40300BlocksRetry() {
-        XCTAssertFalse(message(errorCode: carrierOptOutErrorCode).retryable)
+    func testACarrierOptOutBlocksRetryHoweverItReachedUs() {
+        // #241: both routes to the same conclusion. The server now sends the
+        // reason; rows written before it carry only the vendor code, and both
+        // must withhold the button — a STOP is the customer's own choice.
+        XCTAssertFalse(message(errorReason: "opt_out").retryable)
+        XCTAssertFalse(message(errorCode: "40300").retryable)
+    }
+
+    func testTheServersReasonWinsOverACodeThatDisagrees() {
+        // A second carrier spells its codes differently; the reason is what
+        // the app is allowed to believe.
+        XCTAssertTrue(message(errorReason: "rate_limited", errorCode: "40300").retryable)
     }
 
     func testOnlyFailedStatusIsRetryable() {

@@ -1,4 +1,12 @@
 export {
+  classifySendFailure,
+  failureReasonOf,
+  isCarrierFailureReason,
+  isRetryableFailure,
+  type CarrierFailureReason,
+} from "./carrier-failure";
+
+export {
   versionKey,
   isOlderThan,
   updateRequirement,

@@ -13,7 +13,7 @@ import {
 import { format } from "date-fns";
 
 import {
-  CARRIER_OPT_OUT_ERROR_CODE,
+  failureReasonOf,
   mmsMediaKind,
   sendFailureMessage,
 } from "@loonext/shared";
@@ -57,7 +57,9 @@ export function DeliveryState({
   const retry = useRetryMessage(conversationId);
 
   if (message.status === "failed") {
-    const optedOut = message.error_code === CARRIER_OPT_OUT_ERROR_CODE;
+    // #241: the reason, not the vendor code it was derived from.
+    const optedOut =
+      failureReasonOf(message.error_reason, message.error_code) === "opt_out";
     const retryable = message.telnyx_message_id === null && !optedOut;
     // red-600 clears 4.5:1 on every light bubble; red-400 is needed on the
     // dark teal-950 outbound bubble (red-500 there is only 3.79:1). 12px.

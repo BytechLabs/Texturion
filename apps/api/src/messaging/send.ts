@@ -14,11 +14,12 @@ import { lookupAreaCode } from "@loonext/shared";
 import { capture } from "../analytics/posthog";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { classifySendFailure } from "@loonext/shared";
 import { isKilled } from "../flags/evaluate";
 import { TELNYX_TIMEOUT_MS } from "../telnyx/client";
 import { ApiError } from "../http/errors";
 import { getSendGates } from "../telnyx/registration";
-import { recordCarrierOptOut, TELNYX_OPT_OUT_ERROR_CODE } from "./opt-out";
+import { recordCarrierOptOut } from "./opt-out";
 import type { GateResult, MessageRow } from "./types";
 
 /**
@@ -514,16 +515,23 @@ export async function dispatchOutbound(
     : {
         status: "failed" as const,
         error_code: result.errorCode,
+        // #241: classified ONCE, here at the edge. Everything downstream —
+        // this file, three client apps, the reputation work — branches on the
+        // reason instead of the vendor's code.
+        error_reason: classifySendFailure(result.errorCode),
         error_detail: result.errorDetail.slice(0, 2000),
       };
   const row = await persistMessagePatch(db, message, patch);
 
-  // #331: a 40300 is not just a failed message, it is the carrier telling us
-  // this person opted out and we did not know. Treating it only as a failure
-  // meant the composer stayed open, the crew retried, and every attempt was
-  // refused the same way — with nothing anywhere saying why. Recording it
-  // closes the gate for the next send.
-  if (!result.ok && result.errorCode === TELNYX_OPT_OUT_ERROR_CODE) {
+  // #331: a carrier opt-out is not just a failed message, it is the carrier
+  // telling us this person opted out and we did not know. Treating it only as
+  // a failure meant the composer stayed open, the crew retried, and every
+  // attempt was refused the same way — with nothing anywhere saying why.
+  // Recording it closes the gate for the next send.
+  //
+  // #241: branches on OUR reason, not the vendor's code. A second carrier
+  // spells this differently and must reach the same gate.
+  if (!result.ok && classifySendFailure(result.errorCode) === "opt_out") {
     await recordCarrierOptOut(db, {
       companyId: message.company_id,
       phoneE164: args.to,

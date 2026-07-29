@@ -251,7 +251,9 @@ private struct MessageMetaLine: View {
 
     var body: some View {
         let failed = message.status == MessageStatus.failed
-        let optedOut = failed && message.error_code == carrierOptOutErrorCode
+        // #241: the reason, not the vendor code it was derived from.
+        let optedOut = failed
+            && failureReasonOf(message.error_reason, message.error_code) == .optOut
 
         HStack(spacing: 6) {
             if message.pinned_at != nil {

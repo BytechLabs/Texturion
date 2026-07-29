@@ -66,7 +66,8 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.loonext.android.core.model.Attachment
 import com.loonext.android.core.model.AttachmentSummary
-import com.loonext.android.core.model.CARRIER_OPT_OUT_ERROR_CODE
+import com.loonext.android.core.model.CarrierFailureReason
+import com.loonext.android.core.model.failureReasonOf
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.MessageStatus
@@ -278,7 +279,10 @@ private fun MessageMetaLine(
 ) {
     val outbound = message.direction == MessageDirection.OUTBOUND
     val failed = message.status == MessageStatus.FAILED
-    val optedOut = failed && message.error_code == CARRIER_OPT_OUT_ERROR_CODE
+    // #241: the reason, not the vendor code it was derived from.
+    val optedOut = failed &&
+        failureReasonOf(message.error_reason, message.error_code) ==
+        CarrierFailureReason.OPT_OUT
     val delivered = outbound && !failed &&
         (message.status == MessageStatus.SENT || message.status == MessageStatus.DELIVERED)
 
