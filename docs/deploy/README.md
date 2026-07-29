@@ -33,7 +33,7 @@ by earlier ones.
 | 2 | Supabase Pro project (US), **ES256 signing key**, migrations, keys | [02-supabase.md](./02-supabase.md) | `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_JWKS_URL`, publishable key, `SUPABASE_*` CI secrets |
 | 3 | Stripe catalog (`stripe:setup`), webhook, Tax, portal | [03-stripe.md](./03-stripe.md) | 10 `STRIPE_*` price/meter IDs (6 plan/meter + 4 module add-ons), `STRIPE_WEBHOOK_SECRET`, `STRIPE_SECRET_KEY` |
 | 4 | Telnyx API key + Ed25519 public key, Call-Control (voice) application, geo/10DLC prerequisites | [04-telnyx.md](./04-telnyx.md) | `TELNYX_API_KEY`, `TELNYX_PUBLIC_KEY`, `TELNYX_VOICE_CONNECTION_ID` |
-| — | Resend domain + key; Sentry DSN; VAPID pair | [02](./02-supabase.md) §7, [06-env-reference.md](./06-env-reference.md) | `RESEND_API_KEY`, `RESEND_FROM`, `SENTRY_DSN`, `VAPID_*` |
+| — | Resend domain + key; Sentry DSN; VAPID pair | [02](./02-supabase.md) §8, [06-env-reference.md](./06-env-reference.md) | `RESEND_API_KEY`, `RESEND_FROM`, `SENTRY_DSN`, `VAPID_*` |
 | 5 | Set all 25 API Worker secrets + GitHub Actions secrets, deploy both Workers, custom domains, register live webhook URLs | [05-workers-deploy.md](./05-workers-deploy.md) | Live `api.` + `app.` Workers |
 | 6 | Complete env reference (single source of truth) | [06-env-reference.md](./06-env-reference.md) | — |
 | 7 | Pre-launch checklist + full smoke test | [07-go-live-checklist.md](./07-go-live-checklist.md) | Go/no-go |
@@ -67,7 +67,7 @@ zod schemas ever disagree again.
 | **Supabase** | **Pro** (US region) | Postgres 17, Auth (ES256), Storage; Pro required per SPEC §3 | [02](./02-supabase.md) |
 | **Telnyx** | Standard (Level 2 for 10DLC) | SMS/MMS, phone numbers, 10DLC brand/campaign | [04](./04-telnyx.md) |
 | **Stripe** | Standard + **Stripe Tax** enabled | Subscriptions, usage-based billing, tax | [03](./03-stripe.md) |
-| **Resend** | Any (with a verified sending domain) | Transactional email + Supabase Auth custom SMTP | [02](./02-supabase.md) §7 |
+| **Resend** | Any (with a verified sending domain) | Transactional email + Supabase Auth custom SMTP | [02](./02-supabase.md) §8 |
 | **Sentry** | Any (Team+) | API Worker error tracking (DSN only) | [06](./06-env-reference.md) |
 | **PostHog** | Optional (Cloud US) | Product analytics in the API Worker via the optional `POSTHOG_API_KEY` secret — silent no-op when unset, `distinct_id` = company_id only (`apps/api/src/analytics/posthog.ts`). | [06](./06-env-reference.md) §E |
 | **Domain registrar** | — | Register `loonext.com` (or your domain); DNS delegated to Cloudflare | [01](./01-accounts-and-domain.md) |

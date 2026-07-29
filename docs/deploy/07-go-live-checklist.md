@@ -15,8 +15,11 @@ prerequisites flagged by the marketing/legal docs.
       ([02](./02-supabase.md) §2).
 - [ ] Migrations applied (`supabase db push` succeeded); `mms-media` bucket present
       (private, 5 MB); extensions installed ([02](./02-supabase.md) §4–§5).
+- [ ] Supabase Auth **minimum password length = 8** (Authentication → Providers →
+      Email). Every client already promises 8; the dashboard is the only place it
+      is enforced ([02](./02-supabase.md) §6).
 - [ ] Turnstile CAPTCHA + Resend custom SMTP configured on Supabase Auth
-      ([02](./02-supabase.md) §6–§7). **Captcha ordering:** the
+      ([02](./02-supabase.md) §7–§8). **Captcha ordering:** the
       `NEXT_PUBLIC_TURNSTILE_SITE_KEY` GitHub secret must be set and web
       redeployed **before** enabling the Supabase captcha setting (site key in
       the build; secret key in the Supabase dashboard) — otherwise every
@@ -25,7 +28,7 @@ prerequisites flagged by the marketing/legal docs.
       all **five** branded auth email templates pasted into the dashboard
       (confirm signup, invite user, magic link, change email, reset password) —
       subjects and HTML from `supabase/templates/*.html`
-      ([02](./02-supabase.md) §7b). Verify: send yourself a password-reset
+      ([02](./02-supabase.md) §8b). Verify: send yourself a password-reset
       email; it must be the Loonext template (cobalt button, From name
       "Loonext"), not Supabase stock copy.
 - [ ] Stripe **live** catalog created; all **10** IDs captured (6 plan/meter +
@@ -120,7 +123,7 @@ live. Use two real phones (or one phone + the Telnyx test tooling).
    CAPTCHA (Turnstile) appears (it renders only when the build had
    `NEXT_PUBLIC_TURNSTILE_SITE_KEY` set) and the Supabase invite/confirmation email arrives via
    Resend **as the branded Loonext template** (From name "Loonext", cobalt
-   button — stock Supabase copy means §7b of [02](./02-supabase.md) was skipped). Confirm the app can call the API (a `/v1/me`-class request returns 200, not
+   button — stock Supabase copy means §8b of [02](./02-supabase.md) was skipped). Confirm the app can call the API (a `/v1/me`-class request returns 200, not
    401 — this validates the ES256 JWKS path, `apps/api/src/auth/jwt.ts:41-44`).
 2. **Pay in Stripe (test)** — start checkout, pay with `4242 4242 4242 4242`. Confirm
    Stripe fires `checkout.session.completed` and the endpoint returns 2xx (Stripe →

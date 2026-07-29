@@ -16,7 +16,7 @@ later step needs credentials and hostnames from here.
 | Supabase | supabase.com | **Pro** | US region, Postgres 17 (`SPEC.md:98`, `supabase/config.toml:42`). Pro is required. See [02](./02-supabase.md). |
 | Telnyx | telnyx.com | Standard; request **10DLC / Level 2** messaging | US + Canada messaging, 10DLC brand/campaign. See [04](./04-telnyx.md). |
 | Stripe | stripe.com | Standard, then **enable Stripe Tax** | Automatic tax is set in code (`apps/api/src/routes/billing.ts:170`). See [03](./03-stripe.md). |
-| Resend | resend.com | Any (needs a **verified sending domain**) | Transactional email + Supabase Auth SMTP. See [02](./02-supabase.md) §7. |
+| Resend | resend.com | Any (needs a **verified sending domain**) | Transactional email + Supabase Auth SMTP. See [02](./02-supabase.md) §8. |
 | Sentry | sentry.io | Team+ | API Worker error tracking (DSN only). |
 | Domain registrar | your registrar | — | Register the domain, delegate DNS to Cloudflare. |
 | Status page | Instatus / BetterStack (free tier) | — | Launch blocker (`docs/marketing/BLUEPRINT.md:984`). Stand up `status.<domain>`. |

@@ -117,7 +117,29 @@ private). If it's missing, the migration didn't run.
 
 ---
 
-## 6. Signup CAPTCHA = Cloudflare Turnstile
+## 6. Password floor — dashboard, and it is the only one that counts
+
+Supabase → **Authentication → Providers → Email** → set **Minimum password
+length** to **8**.
+
+Every client already tells the user 8 — `apps/web/src/app/(auth)/signup/page.tsx`,
+`update-password/page.tsx` and `components/settings/change-password-card.tsx` all
+validate `z.string().min(8, "Use at least 8 characters.")`. That validation is a
+**courtesy to the person typing**, not a control: passwords are set against
+GoTrue directly, so anything that skips the form — a script, a stale build, a
+native client — is bounded only by the project setting. A dashboard floor of 6
+therefore means the product enforces 6 while promising 8.
+
+`supabase/config.toml` sets this for the **local** stack only; the hosted
+project does not read that file. Both are now 8, so local and prod agree.
+
+This is a change nobody can be locked out by: it applies to passwords being
+**set**, and existing sessions and existing passwords are untouched. A member
+with a shorter legacy password keeps signing in until they change it.
+
+---
+
+## 7. Signup CAPTCHA = Cloudflare Turnstile
 
 Turnstile has **two halves** (`SPEC.md:1052`):
 
@@ -139,7 +161,7 @@ Turnstile has **two halves** (`SPEC.md:1052`):
 
 ---
 
-## 7. Resend as Supabase Auth custom SMTP + branded email templates
+## 8. Resend as Supabase Auth custom SMTP + branded email templates
 
 Supabase Auth sends invite/signup/reset emails (e.g. `inviteUserByEmail`) via a
 **custom SMTP = Resend** (`SPEC.md:100,832,1065`). This is separate from the API
@@ -159,7 +181,7 @@ Worker's own Resend usage.
 > **REST API** with `RESEND_API_KEY` + `RESEND_FROM` — configured in
 > [06](./06-env-reference.md), not here. Both must sit on the same verified domain.
 
-### 7b. Paste in the branded auth email templates — MANDATORY
+### 8b. Paste in the branded auth email templates — MANDATORY
 
 Without this step every signup confirmation, invite, magic link, password reset,
 and email-change email goes out as **Supabase's stock boilerplate**. The five
@@ -203,7 +225,7 @@ Template facts:
 
 ---
 
-## 8. What you now have
+## 9. What you now have
 
 - `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_JWKS_URL` → api Worker secrets.
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` → web build vars.
@@ -211,6 +233,6 @@ Template facts:
   Actions secrets.
 - ES256 signing key live; migrations applied; `mms-media` bucket present; Turnstile
   + Resend-SMTP configured; sender name `Loonext`; all five branded auth email
-  templates pasted into the dashboard (§7b).
+  templates pasted into the dashboard (§8b).
 
 Next: [03 — Stripe](./03-stripe.md).
