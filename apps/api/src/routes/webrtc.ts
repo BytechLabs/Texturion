@@ -22,6 +22,7 @@ import { requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
+import { isKilled } from "../flags/evaluate";
 import { errorResponse } from "../http/errors";
 import { telnyxRequest } from "../telnyx/client";
 import { unwrap } from "./core/http";
@@ -45,6 +46,19 @@ webrtcRoutes.post("/webrtc/token", requireRole("member"), async (c) => {
   const db = getDb(env);
   const companyId = c.get("companyId");
   const userId = c.get("userId");
+
+  // #283: the calls kill switch. Refusing the TOKEN is the right choke point —
+  // it stops new calls from being placed or accepted, and touches nothing about
+  // a call already in progress. The customer on the other end of a live call
+  // did nothing wrong, and hanging up on them to contain OUR incident would be
+  // its own outage.
+  if (await isKilled(env, "kill:calls", companyId, db)) {
+    return errorResponse(
+      c,
+      "service_unavailable",
+      "Calling is paused while we deal with an issue. Texting still works.",
+    );
+  }
 
   if (env.VERIFY_RATE_LIMITER) {
     const { success } = await env.VERIFY_RATE_LIMITER.limit({

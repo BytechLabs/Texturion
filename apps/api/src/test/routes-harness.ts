@@ -108,6 +108,15 @@ export function supabaseStub(env: Env): SupabaseStub {
         member: null,
       }),
     },
+    {
+      // #283: flags hang off the send, calls and AI paths. `{}` means nothing
+      // has been said, which resolves every key to its code default — kill
+      // switches ON, i.e. the state every test was written against. A suite
+      // that needs a switch OFF registers this path itself and wins.
+      method: "POST",
+      matcher: "/rest/v1/rpc/api_evaluate_flags",
+      respond: () => ({}),
+    },
     { method: "GET", matcher: "/rest/v1/email_suppressions", respond: () => [] },
     {
       method: "POST",

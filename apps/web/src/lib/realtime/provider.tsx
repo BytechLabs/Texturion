@@ -27,6 +27,7 @@ import type {
 } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { contactDisplayName } from "@/lib/format/phone";
+import { useMeCompany } from "@/lib/api/me-company";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 import { applyLiveThreadAppend } from "./apply";
@@ -101,6 +102,9 @@ function toastSnippet(message: Message | undefined): string {
  */
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const { companyId } = useActiveCompany();
+  // undefined while /me is in flight or on a server that predates the field —
+  // both mean "no statement", and the socket opens as it always did.
+  const realtimeEnabled = useMeCompany().data?.flags?.["kill:realtime"];
   const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
@@ -112,6 +116,16 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   routerRef.current = router;
 
   useEffect(() => {
+    // #283: the realtime kill switch, and it can only be honoured here. The
+    // Worker is not in this path — the browser holds its own Supabase token and
+    // opens its own socket — so the switch travels on GET /v1/me and is obeyed
+    // by not subscribing at all. React Query keeps polling, so the inbox is
+    // slower and never wrong.
+    //
+    // `!== false` rather than a truthiness check: an absent flag means "no
+    // statement", which must read as ON. Only an explicit false stops us.
+    if (realtimeEnabled === false) return;
+
     const supabase = getSupabaseBrowser();
     let disposed = false;
     // Trailing per-conversation coalescing for conversation.updated bursts.
@@ -608,7 +622,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       authSubscription.unsubscribe();
       void supabase.removeChannel(channel);
     };
-  }, [companyId, queryClient]);
+  }, [companyId, queryClient, realtimeEnabled]);
 
   return <>{children}</>;
 }

@@ -168,6 +168,14 @@ const ambientEmailRoutes: FetchRoute[] = [
     url.pathname === "/rest/v1/rpc/record_heartbeat"
       ? Response.json({ recovered: false })
       : undefined,
+  // #283: flags hang off the send, calls and AI paths, so they are ambient for
+  // the same reason the heartbeat is. `{}` means "nothing has been said",
+  // which resolves every key to its code default — kill switches ON. A test
+  // that wants a switch OFF stubs the RPC itself and shadows this.
+  (url) =>
+    url.pathname === "/rest/v1/rpc/api_evaluate_flags"
+      ? Response.json({})
+      : undefined,
 ];
 
 export function stubFetch(...routes: FetchRoute[]): void {

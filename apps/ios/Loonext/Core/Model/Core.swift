@@ -55,6 +55,15 @@ struct Me: Codable, Sendable {
     /// exactly like a quiet week.
     let email_state: EmailState?
     let company: CompanyView?
+    /// #283: the client-side flags for the active workspace.
+    ///
+    /// Only `kill:realtime` today, and only because it is the one switch the
+    /// server cannot enforce — clients hold their own Supabase token and open
+    /// their own socket, so there is nothing for the Worker to refuse.
+    /// `var … = [:]` rather than `let` so it does not become a required
+    /// memberwise-init parameter at every existing construction site, and so
+    /// absent reads as "no statement" rather than "off".
+    var flags: [String: Bool] = [:]
 }
 
 /// #386: why we cannot email this member, and whether they can fix it.

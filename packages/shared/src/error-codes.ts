@@ -24,6 +24,11 @@ export const ERROR_CODES = [
   // `forbidden`.
   "mfa_required",
   "rate_limited",
+  // #283: a subsystem is switched off at the runtime kill switch — an
+  // operator's deliberate act during an incident, not the customer's fault and
+  // not a permanent state. Distinct from every code above because the client
+  // must say "paused, try shortly" rather than "you cannot do this".
+  "service_unavailable",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -44,6 +49,7 @@ export const ERROR_CODE_STATUS = {
   quiet_hours_confirmation_required: 409,
   mfa_required: 403,
   rate_limited: 429,
+  service_unavailable: 503,
 } as const satisfies Record<ErrorCode, number>;
 
 /**

@@ -20,6 +20,7 @@ import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
+import { clientFlags } from "../flags/client";
 import { loadCompanyView } from "./core/company-view";
 import { parseJsonBody, unwrap } from "./core/http";
 
@@ -177,6 +178,17 @@ meRoutes.get("/me", async (c) => {
       return errorResponse(c, "not_found", "No such company.");
     }
     body.company = company;
+    // #283: the flags this workspace should honour CLIENT-side.
+    //
+    // Only the client-relevant ones travel — `kill:realtime` is the whole
+    // reason this exists, because clients connect to Supabase Realtime
+    // directly and there is no server choke point to refuse. A killed realtime
+    // means the client stops subscribing and falls back to polling: slower,
+    // never wrong.
+    //
+    // Best-effort, like everything else about flags. A failure here resolves
+    // to the code default (realtime on), never to a /me that 500s.
+    body.flags = await clientFlags(env, parsed.data, db);
   }
 
   return c.json(body);

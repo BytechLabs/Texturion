@@ -136,6 +136,16 @@ export interface Me {
    */
   email_state?: EmailState | null;
   company?: CompanyView;
+  /**
+   * #283: the client-side flags for the active workspace.
+   *
+   * Only `kill:realtime` today, and only because it is the one switch the
+   * server cannot enforce — clients hold their own Supabase token and open
+   * their own socket, so there is nothing for the Worker to refuse. Optional
+   * so a response from a server that predates it still decodes, and absent
+   * always reads as "no statement", never as "off".
+   */
+  flags?: Record<string, boolean>;
 }
 
 /** #386: why we cannot email this member, and whether they can fix it. */

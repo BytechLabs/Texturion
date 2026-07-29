@@ -122,7 +122,17 @@ final class RootViewModel {
             }
 
             // Connect realtime for the active workspace.
-            if let session = graph.sessionStore.current() {
+            //
+            // #283: unless the realtime kill switch is off. This is the one
+            // switch the server cannot enforce — the app holds its own Supabase
+            // token and opens its own socket, so there is nothing for the
+            // Worker to refuse. Not connecting leaves the app on its normal
+            // refresh path: slower, never wrong.
+            //
+            // `!= false` rather than a truthiness check: an absent flag means
+            // "no statement", which must read as ON.
+            let realtimeAllowed = me.flags["kill:realtime"] != false
+            if realtimeAllowed, let session = graph.sessionStore.current() {
                 await graph.realtime.connect(
                     companyId: membership.company_id,
                     accessToken: session.accessToken

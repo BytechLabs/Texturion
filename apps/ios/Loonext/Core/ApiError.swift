@@ -23,6 +23,10 @@ enum ApiErrorCode {
     static let conflict = "conflict"
     static let quietHoursConfirmationRequired = "quiet_hours_confirmation_required"
     static let rateLimited = "rate_limited"
+    /// #283: a subsystem is switched off at the runtime kill switch. Temporary
+    /// and nobody's fault, so the copy is "paused, try shortly" — never "you
+    /// cannot do this".
+    static let serviceUnavailable = "service_unavailable"
     static let internalError = "internal_error"
     /// Client-side code for transport failures (no HTTP response at all).
     static let network = "network"

@@ -100,8 +100,18 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
             }
 
             // Connect realtime for the active workspace.
+            //
+            // #283: unless the realtime kill switch is off. This is the one
+            // switch the server cannot enforce — the app holds its own Supabase
+            // token and opens its own socket, so there is nothing for the
+            // Worker to refuse. Not connecting leaves the app on its normal
+            // refresh path: slower, never wrong.
+            //
+            // `!= false` rather than a truthiness check: an absent flag means
+            // "no statement", which must read as ON.
+            val realtimeAllowed = me.flags["kill:realtime"] != false
             val session = graph.sessionStore.session.first()
-            if (session != null) {
+            if (session != null && realtimeAllowed) {
                 graph.realtime.connect(membership.company_id, session.accessToken)
             }
             _state.value = RootState.Ready(me, membership.company_id)

@@ -3247,3 +3247,56 @@ a gate only working clients can read is no gate. A missing row, an unknown
 platform, a database outage, an unreadable version on either side: all resolve
 to "ask nothing". The asymmetry is deliberate. A missed prompt costs one person
 one week on an old build; a false block costs every customer their phone at once.
+
+## D72 — flags are declared in code and valued in the database (#283, 2026-07-29)
+
+**Decision.** Every feature flag is declared in `apps/api/src/flags/registry.ts`
+with a default, an owner and a removal date. The database can only **override**
+that declaration. Evaluation is at runtime, cached ten seconds in the isolate.
+
+**Why the split, and not just a table.** A flag system is a new shared
+dependency on the read path of every risky subsystem. If an empty table, a bad
+row or an unreachable database could switch a feature off, it would have
+recreated the total blast radius it exists to shrink — with more moving parts.
+So the code carries the default and the table carries only deltas: a kill switch
+defaults ON, and a database outage leaves the product working.
+
+**Why not env vars.** `BILLING_WRITES_DISABLED` was the entire operational
+surface before this, and it is set at deploy time. A flag that needs a deploy to
+flip is a constant with extra steps — and the deploy path is unavailable exactly
+when it is most needed. We have lived this: the launch-blocking calls outage was
+our own `Permissions-Policy: microphone=()`, one header shipped to everyone, and
+the fix required another trip through CI.
+
+**Precedence**, most specific first: per-workspace override → internal cohort →
+percentage bucket → global switch → code default. The override wins in both
+directions, which is what makes "ship to the founder's workspace first" — the
+cheapest QA available to us — expressible at all.
+
+**Buckets are stable.** A company's position for a given flag is
+`md5(key + company)`, so it never moves. A workspace that flapped in and out of
+a 10% rollout would watch a feature appear and disappear mid-task, which is
+worse than never having it; and hashing the key too means two different 10%
+rollouts do not land on the same unlucky tenth of the customer base.
+
+**Four kill switches**, exactly the subsystems the issue names — AI, calls,
+realtime, outbound send — each at its single choke point. `kill:calls` refuses
+the WebRTC **token** rather than tearing down live calls: the customer on the
+other end did nothing wrong, and hanging up on them to contain our incident
+would be its own outage. `kill:realtime` is the one that cannot be enforced
+server-side, because clients hold their own Supabase token and open their own
+socket; it travels on `GET /v1/me` and an old build ignores it. That is an
+accepted limit, and #339's version reporting is how we find out how many such
+builds are left.
+
+**Hygiene is enforced, not encouraged.** `removeBy` is required and CI fails
+once the date passes. Permanent flags are how a codebase becomes untestable, and
+the combinatorial explosion is a real cost. Kill switches carry far dates and
+are reviewed rather than expired, because their job is to exist unused.
+
+**`docs/ROLLBACK.md` answers the migration question**, which is the sharpest
+edge: `supabase db push` runs before `wrangler deploy`, so a bad Worker's
+migration is already live. An additive migration means roll the code back and
+leave the schema. A removing or narrowing one means you cannot roll back at all
+and must roll forward — which is why expand and contract are two deploys, never
+one.

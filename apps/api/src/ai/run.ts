@@ -31,6 +31,7 @@
 import { loadAiSettings, reserveAiUsage, sendAiCapAlert, type CompanyAiSettings } from "./settings";
 import type { getDb } from "../db";
 import type { Env } from "../env";
+import { isKilled } from "../flags/evaluate";
 import type { AiCostFeature } from "../billing/costs";
 
 type Db = ReturnType<typeof getDb>;
@@ -124,6 +125,14 @@ export async function runAiFeature(
   const { companyId, spec } = args;
   try {
     if (!env.AI) return { ok: false, reason: "unavailable" };
+
+    // #283: the AI kill switch, at the one gate every AI feature passes
+    // through. Reads as "unavailable" rather than "disabled" on purpose —
+    // "disabled" is the customer's own setting, and conflating an incident
+    // with a preference would make the switch invisible in support.
+    if (await isKilled(env, "kill:ai", companyId, db)) {
+      return { ok: false, reason: "unavailable" };
+    }
 
     const settings = args.settings ?? (await loadAiSettings(db, companyId));
     if (!spec.enabled(settings)) return { ok: false, reason: "disabled" };

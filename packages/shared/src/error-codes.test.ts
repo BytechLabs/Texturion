@@ -26,6 +26,10 @@ describe("error codes (SPEC §7)", () => {
       quiet_hours_confirmation_required: 409,
       mfa_required: 403,
       rate_limited: 429,
+      // #283: a subsystem switched off at the runtime kill switch. 503 rather
+      // than 403 because it is temporary and nobody's fault — the client says
+      // "paused, try shortly", not "you cannot do this".
+      service_unavailable: 503,
     });
   });
 

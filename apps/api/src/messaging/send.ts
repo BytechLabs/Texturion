@@ -14,6 +14,7 @@ import { lookupAreaCode } from "@loonext/shared";
 import { capture } from "../analytics/posthog";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { isKilled } from "../flags/evaluate";
 import { TELNYX_TIMEOUT_MS } from "../telnyx/client";
 import { ApiError } from "../http/errors";
 import { getSendGates } from "../telnyx/registration";
@@ -63,6 +64,18 @@ export async function runPreSendGates(
   companyId: string,
   destinationE164: string,
 ): Promise<SendClearance> {
+  // #283: the outbound kill switch, checked FIRST and at the single dispatch
+  // choke point every send passes through. The most serious switch we have —
+  // it silences the product's core promise — and it exists for a carrier
+  // incident or a runaway loop billing us per message, where the alternative
+  // is watching the bill climb until a deploy lands.
+  if (await isKilled(env, "kill:outbound-send", companyId)) {
+    throw new ApiError(
+      "service_unavailable",
+      "Texting is paused while we deal with an issue. Nothing you sent was lost.",
+    );
+  }
+
   const gates = await getSendGates(env, companyId);
   if (!gates.subscriptionActive) {
     throw new ApiError(

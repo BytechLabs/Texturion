@@ -25,6 +25,13 @@ object ApiErrorCode {
     const val CONFLICT = "conflict"
     const val QUIET_HOURS_CONFIRMATION_REQUIRED = "quiet_hours_confirmation_required"
     const val RATE_LIMITED = "rate_limited"
+
+    /**
+     * #283: a subsystem is switched off at the runtime kill switch. Temporary
+     * and nobody's fault, so the copy is "paused, try shortly" — never "you
+     * cannot do this".
+     */
+    const val SERVICE_UNAVAILABLE = "service_unavailable"
     const val INTERNAL_ERROR = "internal_error"
 
     /** Client-side code for transport failures (no HTTP response at all). */

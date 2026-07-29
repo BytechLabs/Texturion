@@ -40,7 +40,7 @@ declare
     'messaging_registrations', 'notification_prefs', 'notification_read_items',
     'notification_reads', 'number_access', 'number_port_outs', 'opt_outs',
     'outbound_call_authorizations', 'outbound_dial_leases',
-    'ownership_transfers', 'phone_numbers',
+    'feature_flag_overrides', 'ownership_transfers', 'phone_numbers',
     'port_requests', 'provider_costs', 'tags', 'task_map_rows', 'tasks',
     'templates', 'text_enablement_orders', 'usage_alerts', 'usage_events'
   ];
