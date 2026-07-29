@@ -619,3 +619,37 @@ fun awayEmergencyNotice(
 
     return null
 }
+
+// ---------------------------------------------------------------------------
+// Signed-in devices (#236)
+// ---------------------------------------------------------------------------
+
+/**
+ * What to call a signed-in device.
+ *
+ * `unknown` is a real answer, not a gap: it is what a client that predates the
+ * X-Client header looks like, and a row that says "Unrecognised device" is
+ * exactly the row somebody should look twice at.
+ */
+fun deviceClientLabel(client: String): String = when (client) {
+    SessionClient.WEB -> "Web browser"
+    SessionClient.ANDROID -> "Android app"
+    SessionClient.IOS -> "iPhone or iPad"
+    else -> "Unrecognised device"
+}
+
+/** "1 device" / "3 devices" — used in three sentences that each read wrong otherwise. */
+fun deviceCountLabel(count: Int): String = if (count == 1) "1 device" else "$count devices"
+
+/**
+ * The order a person reads their own device list in: the one they are holding
+ * first, then everything else by most recently active.
+ *
+ * Sorting is done here rather than trusted from the server because "this
+ * device" has to be identified and dismissed before any other row means
+ * anything, and the server orders by activity alone.
+ */
+fun orderMyDevices(sessions: List<DeviceSession>): List<DeviceSession> =
+    sessions.sortedWith(
+        compareByDescending<DeviceSession> { it.current }.thenByDescending { it.last_active_at },
+    )

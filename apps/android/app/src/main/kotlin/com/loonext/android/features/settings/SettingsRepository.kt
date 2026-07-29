@@ -83,6 +83,33 @@ class SettingsRepository(
         api.delete("/v1/members/me", companyId = companyId)
     }
 
+    // -- signed-in devices (#236) -------------------------------------------
+
+    /**
+     * The two SELF routes are company-EXEMPT, and that is not an oversight to
+     * tidy up: somebody who has just been removed from their only workspace
+     * must still be able to sign their old phone out.
+     */
+    suspend fun mySessions(): Page<DeviceSession> = api.get("/v1/sessions")
+
+    /** Sign one device out. */
+    suspend fun revokeMySession(sessionId: String): SessionRevokeResult =
+        api.post("/v1/sessions/revoke", buildJsonObject { put("session_id", sessionId) })
+
+    /**
+     * Sign out everywhere EXCEPT this phone. There is deliberately no "and
+     * this one too" — that is the sign-out button, and offering it here would
+     * end the session that is reading the result.
+     */
+    suspend fun revokeMyOtherSessions(): SessionRevokeResult =
+        api.post("/v1/sessions/revoke", buildJsonObject { put("others", true) })
+
+    suspend fun workspaceSessions(companyId: String): Page<WorkspaceSession> =
+        api.get("/v1/members/sessions", companyId = companyId)
+
+    suspend fun revokeMemberSessions(companyId: String, memberId: String): SessionRevokeResult =
+        api.post("/v1/members/$memberId/sessions/revoke", companyId = companyId)
+
     // -- account (#346) -----------------------------------------------------
     //
     // Company-EXEMPT, both of them: deleting your account is about the person,

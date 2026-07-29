@@ -91,6 +91,11 @@ class ApiClientTest {
         assertEquals("Bearer token-1", recorded.headers["Authorization"])
         assertEquals("company-1", recorded.headers["X-Company-Id"])
         assertEquals("key-1", recorded.headers["Idempotency-Key"])
+        // #236: on EVERY request, not per call site. A request that skipped it
+        // would surface in somebody's signed-in-devices screen as an
+        // unrecognised device — the exact row the feature teaches them to
+        // worry about.
+        assertEquals("android", recorded.headers["X-Client"])
     }
 
     @Test

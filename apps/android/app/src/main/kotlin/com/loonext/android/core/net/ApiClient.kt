@@ -264,6 +264,11 @@ class ApiClient(
         val request = Request.Builder()
             .url(url)
             .header("Authorization", "Bearer $accessToken")
+            // #236: which app is calling, so the signed-in-devices list can
+            // say "Android app" instead of guessing from a user agent. Set
+            // here, on every request — one that skipped it would show up in
+            // somebody's security screen as an unrecognised device.
+            .header("X-Client", "android")
             .apply {
                 if (companyId != null) header("X-Company-Id", companyId)
                 if (idempotencyKey != null) header("Idempotency-Key", idempotencyKey)

@@ -58,4 +58,11 @@ object CacheKeys {
     fun workspace(companyId: String) = "workspace/$companyId"
     fun calling(companyId: String) = "calling/$companyId"
     fun aiSettings(companyId: String) = "aiSettings/$companyId"
+
+    /**
+     * #236 signed-in devices. Keyed on the company only so the crew half can
+     * share the entry; the self half is company-exempt server-side but the
+     * two are fetched and painted together.
+     */
+    fun devices(companyId: String) = "devices/$companyId"
 }

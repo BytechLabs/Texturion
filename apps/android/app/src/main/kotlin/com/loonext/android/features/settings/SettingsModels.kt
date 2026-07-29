@@ -216,3 +216,56 @@ data class AccountDeletionResult(
     /** #371: sent before the address itself was removed, or not sent at all. */
     val receipt_emailed: Boolean = false,
 )
+
+// ---------------------------------------------------------------------------
+// Signed-in devices (#236 — routes/sessions.ts)
+// ---------------------------------------------------------------------------
+
+object SessionClient {
+    const val WEB = "web"
+    const val ANDROID = "android"
+    const val IOS = "ios"
+    const val UNKNOWN = "unknown"
+}
+
+/**
+ * GET /v1/sessions — one device signed in as YOU. Company-exempt: a session
+ * belongs to the person, not to one of their workspaces.
+ *
+ * `location` is approximate and arrives absent rather than partial ("we do
+ * not know" is a fact worth rendering; half a city is not). `current` is
+ * decided by the server from the token's own session id — the app never has
+ * to work out which row it is looking at itself.
+ */
+@Serializable
+data class DeviceSession(
+    val id: String,
+    val client: String = SessionClient.UNKNOWN,
+    val user_agent: String? = null,
+    val location: String? = null,
+    val signed_in_at: String,
+    val last_active_at: String,
+    val current: Boolean = false,
+)
+
+/**
+ * GET /v1/members/sessions — the crew's devices, admin+. Deliberately narrower
+ * than [DeviceSession]: an owner needs to recognise a phone that has not been
+ * near the business in three weeks, not to read a teammate's user agent.
+ */
+@Serializable
+data class WorkspaceSession(
+    val id: String,
+    val member_id: String? = null,
+    val client: String = SessionClient.UNKNOWN,
+    val location: String? = null,
+    val signed_in_at: String,
+    val last_active_at: String,
+)
+
+/** What a revoke actually ended. */
+@Serializable
+data class SessionRevokeResult(
+    val sessions: Int = 0,
+    val devices: Int = 0,
+)

@@ -36,6 +36,7 @@ import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.DataUsage
+import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
@@ -117,6 +118,13 @@ enum class SettingsSection(val title: String, val blurb: String) {
     Notifications("Notifications", "Email and push for new conversations"),
     Ai("Lou", "Loonext's assistant: drafts replies and fills in task details"),
     Profile("Profile & account", "Your name, theme, email, and password"),
+
+    /**
+     * #236: what is signed in right now. Directly after Profile & account
+     * because they are one question in two halves — how you get in, and what
+     * is currently in.
+     */
+    Devices("Signed-in devices", "Every browser and phone with access right now"),
 
     /**
      * #382: the route to a human. Last because it is what you go looking for
@@ -312,6 +320,7 @@ fun SettingsHome(
                                 settingsScope, onSignOut = onSignOut,
                             )
 
+                            SettingsSection.Devices -> DevicesSection(settingsScope)
                             SettingsSection.Help -> HelpSection(
                                 settingsScope,
                                 companyName = company.name,
@@ -754,6 +763,7 @@ private fun iconFor(section: SettingsSection): ImageVector = when (section) {
     SettingsSection.Notifications -> Icons.Outlined.Notifications
     SettingsSection.Ai -> Icons.Outlined.AutoAwesome
     SettingsSection.Profile -> Icons.Outlined.Person
+    SettingsSection.Devices -> Icons.Outlined.Devices
     SettingsSection.Help -> Icons.Outlined.SupportAgent
 }
 
