@@ -90,6 +90,12 @@ comment on table public.high_priority_push_days is
 create index if not exists high_priority_push_days_day_idx
   on public.high_priority_push_days (day desc, company_id);
 
+-- Service-role only, like inbound_notification_days/webhook_events. The
+-- rls.sql default-privilege revoke already strips anon/authenticated from
+-- future tables; enabling RLS with no end-user policy makes the denial
+-- explicit (service_role bypasses RLS).
+alter table public.high_priority_push_days enable row level security;
+
 -- ---------------------------------------------------------------------------
 -- THE BUDGET. One row per (company, local day) holding the SHARED ceiling for
 -- the capped bucket, its running total, and the one-shot ladder stamps.
@@ -116,6 +122,9 @@ create table if not exists public.high_priority_push_budget (
 
 comment on table public.high_priority_push_budget is
   '#452: the shared daily ceiling for lead-driven HIGH-priority pushes (lead + lead_chase). `requested` is total demand including what was degraded to NORMAL.';
+
+-- Service-role only, same posture as the attribution table above.
+alter table public.high_priority_push_budget enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- The claim. Called BEFORE the native fan-out, with the number of devices the
