@@ -179,12 +179,18 @@ fun ConfirmDialog(
     destructive: Boolean = false,
     pending: Boolean = false,
     error: String? = null,
-    dismissLabel: String = "Cancel",
+    /**
+     * Null hides the dismiss button AND the back/outside gesture, for the one
+     * dialog that must not be closeable by accident: #314 shows recovery
+     * codes exactly once, and a person who backs out of that screen has armed
+     * a lock and thrown away the spare key. Everywhere else, leave it.
+     */
+    dismissLabel: String? = "Cancel",
     confirmEnabled: Boolean = true,
     extraContent: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     AlertDialog(
-        onDismissRequest = { if (!pending) onDismiss() },
+        onDismissRequest = { if (!pending && dismissLabel != null) onDismiss() },
         title = { Text(title) },
         text = {
             // #199 host type 4: the PLATFORM window keeps a floating dialog
@@ -211,8 +217,8 @@ fun ConfirmDialog(
                 },
             ) { Text(if (pending) "Working…" else confirmLabel) }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !pending) { Text(dismissLabel) }
+        dismissButton = dismissLabel?.let { label ->
+            { TextButton(onClick = onDismiss, enabled = !pending) { Text(label) } }
         },
     )
 }

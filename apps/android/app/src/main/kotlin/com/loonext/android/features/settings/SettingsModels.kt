@@ -312,3 +312,42 @@ object HandoverKind {
     const val OFFER = "offer"
     const val CLAIM = "claim"
 }
+
+// ---------------------------------------------------------------------------
+// Two-factor authentication (#314 — routes/mfa.ts)
+// ---------------------------------------------------------------------------
+
+@Serializable
+data class MfaFactor(
+    val id: String,
+    val type: String = "totp",
+    val name: String? = null,
+    val created_at: String? = null,
+)
+
+/**
+ * GET /v1/mfa. `aal` is this token's assurance level — `aal2` once a factor
+ * has been verified for the session.
+ */
+@Serializable
+data class MfaState(
+    val factors: List<MfaFactor> = emptyList(),
+    val enrolled: Boolean = false,
+    val recovery_codes_remaining: Int = 0,
+    val aal: String = "aal1",
+)
+
+/**
+ * The ONLY time recovery codes exist outside the person's hands. They are
+ * never retrievable again — a code we could re-display is one an attacker
+ * with our database could re-display too.
+ */
+@Serializable
+data class RecoveryCodes(val codes: List<String> = emptyList())
+
+/** PUT /v1/company/mfa. The grace deadline never moves once set. */
+@Serializable
+data class WorkspaceMfa(
+    val required: Boolean = false,
+    val grace_until: String? = null,
+)

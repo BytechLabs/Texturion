@@ -9,6 +9,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
@@ -193,16 +194,81 @@ class SupabaseAuth(
         }
     }
 
+    // -- MFA (#314) ---------------------------------------------------------
+    //
+    // Enrolment talks to GoTrue directly, exactly as sign-in does — the D8
+    // boundary. The Worker owns only the parts Supabase does not provide
+    // (recovery codes, the workspace policy).
+
+    /**
+     * Start enrolling an authenticator app. Returns the shared secret and the
+     * `otpauth://` URI.
+     *
+     * The URI is what matters on a phone: a QR code shown ON the device that
+     * would have to scan it is useless, so the app hands the URI to whatever
+     * authenticator is installed instead.
+     */
+    suspend fun enrollTotp(accessToken: String, friendlyName: String): JsonObject =
+        json.parseToJsonElement(
+            request(
+                "factors",
+                buildJsonObject {
+                    put("factor_type", "totp")
+                    put("friendly_name", friendlyName)
+                },
+                bearer = accessToken,
+            ),
+        ).jsonObject
+
+    /** Ask for a challenge to answer with the six-digit code. */
+    suspend fun challengeFactor(accessToken: String, factorId: String): String =
+        json.parseToJsonElement(
+            request("factors/$factorId/challenge", buildJsonObject {}, bearer = accessToken),
+        ).jsonObject["id"]!!.jsonPrimitive.content
+
+    /**
+     * Answer the challenge. On success GoTrue returns a FRESH SESSION at
+     * aal2 — the caller must store it, or the app keeps presenting an aal1
+     * token and the workspace gate keeps refusing it.
+     */
+    suspend fun verifyFactor(
+        accessToken: String,
+        factorId: String,
+        challengeId: String,
+        code: String,
+    ): AuthSession =
+        json.decodeFromString<AuthSession>(
+            request(
+                "factors/$factorId/verify",
+                buildJsonObject {
+                    put("challenge_id", challengeId)
+                    put("code", code)
+                },
+                bearer = accessToken,
+            ),
+        )
+
+    /** Remove a factor. The account falls back to a password alone. */
+    suspend fun unenrollFactor(accessToken: String, factorId: String) {
+        request("factors/$factorId", buildJsonObject {}, bearer = accessToken, method = "DELETE")
+    }
+
     private suspend fun request(
         path: String,
         body: JsonObject,
         bearer: String? = null,
+        method: String = "POST",
     ): String = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url("$supabaseUrl/auth/v1/$path")
             .header("apikey", publishableKey)
             .apply { if (bearer != null) header("Authorization", "Bearer $bearer") }
-            .post(body.toString().toRequestBody(JSON_MEDIA))
+            .apply {
+                // DELETE carries no body: GoTrue rejects one on /factors/{id},
+                // and OkHttp is happy to send it if asked.
+                if (method == "DELETE") delete()
+                else method(method, body.toString().toRequestBody(JSON_MEDIA))
+            }
             .build()
         val response = try {
             client.newCall(request).await()

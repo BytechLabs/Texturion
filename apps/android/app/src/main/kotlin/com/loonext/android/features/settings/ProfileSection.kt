@@ -50,6 +50,9 @@ fun ProfileSection(scope: SettingsScope, onSignOut: () -> Unit) {
     DisplayNameCard(scope)
     ThemeCard(scope)
     AccountCard(scope, authClient)
+    // #314: directly under the password, because it is the same question —
+    // how somebody proves they are you.
+    TwoFactorCard(scope)
     SignOutCard(onSignOut)
     // #346: last — leaving is not one of the everyday account settings.
     DeleteAccountCard(scope, onDeleted = onSignOut)

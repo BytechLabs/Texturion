@@ -65,4 +65,10 @@ object CacheKeys {
      * two are fetched and painted together.
      */
     fun devices(companyId: String) = "devices/$companyId"
+
+    /**
+     * #314 two-factor state. Keyed on the USER, not the company: a factor
+     * belongs to the person and follows them into every workspace.
+     */
+    fun mfa(userId: String) = "mfa/$userId"
 }

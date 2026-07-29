@@ -85,6 +85,39 @@ class SettingsRepository(
         api.delete("/v1/members/me", companyId = companyId)
     }
 
+    // -- two-factor (#314) --------------------------------------------------
+    //
+    // Enrolment itself is SupabaseAuth's (GoTrue directly, the D8 boundary).
+    // These are the parts Supabase does not give us.
+
+    suspend fun mfa(): MfaState = api.get("/v1/mfa")
+
+    /** Issue a fresh set. The plaintext comes back once and never again. */
+    suspend fun issueRecoveryCodes(): RecoveryCodes = api.post("/v1/mfa/recovery-codes")
+
+    /**
+     * Burn a code. This REMOVES the factor rather than elevating the session —
+     * the loud path, deliberately: a code that granted aal2 would turn a
+     * stolen password plus a stolen printout into a silent full bypass.
+     */
+    suspend fun recoverWithCode(code: String): JsonObject =
+        api.post("/v1/mfa/recover", buildJsonObject { put("code", code) })
+
+    /** Owner only. `graceDays` is ignored once a deadline already exists. */
+    suspend fun setWorkspaceMfa(
+        companyId: String,
+        required: Boolean,
+        graceDays: Int = 14,
+    ): WorkspaceMfa =
+        api.put(
+            "/v1/company/mfa",
+            buildJsonObject {
+                put("required", required)
+                put("grace_days", graceDays)
+            },
+            companyId = companyId,
+        )
+
     // -- ownership (#332) ---------------------------------------------------
     //
     // Five writes, one read, and the read is the only thing that decides what
