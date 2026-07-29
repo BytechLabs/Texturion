@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { LandingGate } from "@/components/for-you/landing-gate";
 import { InviteBanner } from "@/components/invites/invite-banner";
 import { AppShell } from "@/components/shell/app-shell";
+import { MfaGate } from "@/components/shell/mfa-gate";
 import { PortalScope } from "@/components/shell/portal-scope";
 import { golosText } from "@/lib/app/fonts";
 import { CompanyProvider } from "@/lib/company/provider";
@@ -58,7 +59,13 @@ export default function AppLayout({
           <div
             className={`${golosText.variable} app-scope font-sans h-svh`}
           >
-            <AppShell>{children}</AppShell>
+            {/* #314: once the workspace requires a second factor and the
+                grace window has passed, every company-scoped query 403s at
+                once. This covers the shell with one sentence and the route
+                that fixes it, rather than thirty broken panels. */}
+            <MfaGate>
+              <AppShell>{children}</AppShell>
+            </MfaGate>
             {/* #109: ambient "you've been invited — Join" card (fixed, no
                 layout shift; renders nothing when there's no pending invite). */}
             <InviteBanner />

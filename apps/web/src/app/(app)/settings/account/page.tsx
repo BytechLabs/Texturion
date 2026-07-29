@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { AccountMethods } from "@/components/settings/account-methods";
 import { ChangeEmailCard } from "@/components/settings/change-email-card";
 import { ChangePasswordCard } from "@/components/settings/change-password-card";
+import { TwoFactorCard } from "@/components/settings/two-factor-card";
 import { DeleteAccountCard } from "@/components/settings/delete-account-card";
 import {
   LoadError,
@@ -89,6 +90,10 @@ export default function AccountSettingsPage() {
           <ChangePasswordCard
             oauthOnly={isOAuthOnly(state.user.identities, hasPassword)}
           />
+
+          {/* #314: directly under the password, because it is the same
+              question — how somebody proves they are you. */}
+          <TwoFactorCard />
 
           {/* #346: last on the page — leaving is not one of the everyday
               account settings and should not sit among them. */}

@@ -11,6 +11,11 @@ vi.mock("@/components/invites/invite-banner", () => ({
 vi.mock("@/components/shell/app-shell", () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => children,
 }));
+// #314: the MFA gate reaches the API client, which validates public env on
+// import — heavier than anything this metadata assertion needs.
+vi.mock("@/components/shell/mfa-gate", () => ({
+  MfaGate: ({ children }: { children: React.ReactNode }) => children,
+}));
 vi.mock("@/lib/app/fonts", () => ({ golosText: { variable: "font-golos" } }));
 vi.mock("@/lib/company/provider", () => ({
   CompanyProvider: ({ children }: { children: React.ReactNode }) => children,

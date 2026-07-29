@@ -43,6 +43,11 @@ export const COMPANY_COLUMNS =
   // Choose-your-number: the staged onboarding pick, so the plan-step review can
   // show "your number" pre-checkout. Cleared once provisioning drains it.
   "chosen_number_e164," +
+  // #314: the workspace's two-factor policy. The GRACE DEADLINE has to be
+  // readable by every client, not just the owner's settings screen — a member
+  // deserves to see the date before it arrives rather than discovering it as
+  // a wall.
+  "mfa_required_at,mfa_grace_until," +
   "created_at,updated_at";
 
 // source + voice_enabled (FEATURE-GAPS voice wave): hosted-vs-purchased and

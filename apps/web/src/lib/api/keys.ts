@@ -13,6 +13,8 @@ export const keys = {
   myInvites: ["my-invites"] as const,
   /** Company-exempt (#236): your signed-in devices belong to you, not a workspace. */
   mySessions: ["my-sessions"] as const,
+  /** Company-exempt (#314): your second factor is yours, in every workspace. */
+  mfa: ["mfa"] as const,
   /** Company-exempt (public Telnyx inventory) — the number-picker feed. */
   availableNumbers: (
     country: string,

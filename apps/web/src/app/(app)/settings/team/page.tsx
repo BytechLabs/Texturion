@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { OwnershipCard } from "@/components/settings/ownership-card";
+import { RequireTwoFactorCard } from "@/components/settings/require-two-factor-card";
 import {
   LoadError,
   SettingsCard,
@@ -578,6 +579,10 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
 export default function TeamSettingsPage() {
   const { role, userId } = useActiveCompany();
   const members = useMembers();
+  // #314: the workspace's two-factor policy lives on the company view, so the
+  // owner's control reads its current state from the same place every client
+  // reads the deadline from.
+  const company = useCompany();
   const canManage = role === "owner" || role === "admin";
 
   const active = members.data?.data.filter((m) => m.deactivated_at === null);
@@ -641,6 +646,14 @@ export default function TeamSettingsPage() {
                 handover in flight is exactly the thing a colleague is best
                 placed to notice is wrong. */}
             <OwnershipCard members={members.data?.data ?? []} />
+            {/* #314: a crew-wide security policy sits with the crew, and
+                only the owner can set one. */}
+            {role === "owner" && (
+              <RequireTwoFactorCard
+                required={company.data?.mfa_required_at != null}
+                graceUntil={company.data?.mfa_grace_until ?? null}
+              />
+            )}
             {canManage ? (
               <InvitesSection activeMemberCount={countActiveMembers(active ?? [])} />
             ) : (

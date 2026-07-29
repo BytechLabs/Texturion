@@ -227,6 +227,13 @@ export interface CompanyView {
   requested_area_code: string;
   /** Choose-your-number: the staged onboarding pick shown in the plan-step review; null = auto-assign. */
   chosen_number_e164?: string | null;
+  /**
+   * #314: when the owner required two-factor, and when it starts to bite.
+   * Readable by every member, not just the owner — a deadline you discover
+   * as a wall is not a deadline you were given.
+   */
+  mfa_required_at?: string | null;
+  mfa_grace_until?: string | null;
   /** D15: workspace IANA timezone (business-facing daily framing). */
   timezone: string;
   plan: PlanId | null;
