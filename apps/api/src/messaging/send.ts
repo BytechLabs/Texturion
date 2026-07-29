@@ -439,7 +439,24 @@ async function captureFirstOutboundSent(
       throw new Error(`first-outbound lookup failed: ${error.message}`);
     }
     if ((data ?? []).length > 0) return; // not the first — nothing to record
-    await capture(env, "first_outbound_sent", message.company_id);
+
+    // #369/#281: segment the funnel at BOTH ends. A Canada-only workspace has
+    // no registration wait at all, so its payment-to-send time is structurally
+    // different from a US-enabled one; averaging them hides both numbers.
+    // Read here rather than threaded through, because this runs once per
+    // workspace ever and only when analytics is on.
+    const { data: companyRow } = await db
+      .from("companies")
+      .select("country,us_texting_enabled")
+      .eq("id", message.company_id)
+      .limit(1);
+    const company = (companyRow ?? [])[0] as
+      | { country?: string | null; us_texting_enabled?: boolean | null }
+      | undefined;
+    await capture(env, "first_outbound_sent", message.company_id, {
+      country: company?.country ?? "unknown",
+      us_texting_enabled: company?.us_texting_enabled === true,
+    });
   } catch (cause) {
     // Analytics never breaks a send that already succeeded.
     const detail = cause instanceof Error ? cause.message : String(cause);

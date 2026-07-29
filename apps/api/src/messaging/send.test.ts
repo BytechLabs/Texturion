@@ -52,13 +52,22 @@ function fakeLimiter(success: boolean): RateLimiter & {
 }
 
 interface DispatchStubs {
+  companyLookup: Stub;
   telnyx: Stub;
   persist: Stub;
   outboundLookup: Stub;
   posthog: Stub;
 }
 
-function dispatchStubs(options: { priorOutbound?: boolean } = {}): DispatchStubs {
+function dispatchStubs(
+  options: {
+    priorOutbound?: boolean;
+    /** #369/#281: what the funnel segmentation lookup answers with. */
+    company?: { country?: string | null; us_texting_enabled?: boolean | null };
+    /** The row is absent — segmentation degrades, the event must not. */
+    companyMissing?: boolean;
+  } = {},
+): DispatchStubs {
   const env = completeEnv();
   const telnyx = stubRoute(
     (url, request) =>
@@ -78,13 +87,26 @@ function dispatchStubs(options: { priorOutbound?: boolean } = {}): DispatchStubs
     restMatch(env, "GET", "messages"),
     () => (options.priorOutbound ? [{ id: "some-earlier-outbound" }] : []),
   );
+  // #369/#281: the funnel-segmentation read, made only on the first outbound
+  // and only with analytics on.
+  const companyLookup = stubRoute(restMatch(env, "GET", "companies"), () =>
+    options.companyMissing
+      ? []
+      : [options.company ?? { country: "CA", us_texting_enabled: false }],
+  );
   const posthog = stubRoute(
     (url, request) =>
       request.method === "POST" && url.href === POSTHOG_CAPTURE_URL,
     () => ({ status: 1 }),
   );
-  stubFetch(telnyx.route, persist.route, outboundLookup.route, posthog.route);
-  return { telnyx, persist, outboundLookup, posthog };
+  stubFetch(
+    telnyx.route,
+    persist.route,
+    outboundLookup.route,
+    companyLookup.route,
+    posthog.route,
+  );
+  return { telnyx, persist, outboundLookup, companyLookup, posthog };
 }
 
 function message() {
@@ -177,6 +199,44 @@ describe("dispatchOutbound — first_outbound_sent (§12 step 18)", () => {
       event: "first_outbound_sent",
       distinct_id: COMPANY_ID,
     });
+    // #369: Canada-only and US-enabled workspaces have structurally different
+    // time-to-value, so the funnel has to be splittable. Booleans and a country
+    // code only — nothing that could carry a name or a message body.
+    expect(
+      (stubs.posthog.calls[0].body as { properties: Record<string, unknown> })
+        .properties,
+    ).toMatchObject({ country: "CA", us_texting_enabled: false });
+  });
+
+  it("carries the other side of the split when the row says US-enabled", async () => {
+    // The workspace that DOES wait on 10DLC. Averaging it with a Canada-only
+    // one hides both numbers, which is what #369 asks to stop doing.
+    const env: Env = { ...completeEnv(), POSTHOG_API_KEY: "phc_test_key" };
+    const stubs = dispatchStubs({
+      company: { country: "US", us_texting_enabled: true },
+    });
+
+    await dispatchOutbound(env, getDb(env), message(), SEND_ARGS);
+
+    expect(
+      (stubs.posthog.calls[0].body as { properties: Record<string, unknown> })
+        .properties,
+    ).toMatchObject({ country: "US", us_texting_enabled: true });
+  });
+
+  it("never lets a missing company row block the event", async () => {
+    // Segmentation is a nice-to-have on a metric; the funnel step is not. An
+    // absent row degrades to "unknown" rather than losing the activation event.
+    const env: Env = { ...completeEnv(), POSTHOG_API_KEY: "phc_test_key" };
+    const stubs = dispatchStubs({ companyMissing: true });
+
+    await dispatchOutbound(env, getDb(env), message(), SEND_ARGS);
+
+    expect(stubs.posthog.calls).toHaveLength(1);
+    expect(
+      (stubs.posthog.calls[0].body as { properties: Record<string, unknown> })
+        .properties,
+    ).toMatchObject({ country: "unknown", us_texting_enabled: false });
   });
 
   it("stays silent when an earlier dispatched outbound exists", async () => {

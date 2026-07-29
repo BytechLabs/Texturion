@@ -434,6 +434,29 @@ Cloudflare Queues (waitUntil + ledger + cron is sufficient at MVP scale).
   week-4 logo retention ≥ 85%.
 - **North-star onboarding metric**: time from payment to first outbound send (10DLC wait
   is the main threat — instrument it in PostHog).
+  - **MEASURABLE as defined, 2026-07-29 (#281).** The activation above needs an
+    inbound REPLY, and only the outbound half was instrumented — so the number
+    we could compute counted every workspace that texted once into silence as
+    activated, and systematically overstated the metric. A 60% target is
+    unfalsifiable while the numerator is a different quantity from the
+    definition. `first_inbound_reply` now fires once per workspace, the first
+    time an inbound lands on a conversation we had **already texted**. That
+    qualifier is load-bearing: an inbound on a thread the CUSTOMER started is
+    the product working, but it is not a reply to us, and counting it would
+    overstate activation the same way the outbound-only metric did.
+    `companies.first_inbound_reply_at` is the ledger rather than a heuristic
+    count, so "first" is exact under concurrent replies and the 7-day window
+    stays computable in SQL beside the subscription dates it is measured
+    against.
+  - **Reported apart for Canada-only and US-enabled workspaces (#369).** Both
+    funnel ends now carry `country` and `us_texting_enabled`. A Canada-only
+    workspace has no registration wait at all, so its payment-to-send time is
+    structurally different; averaging the two hides both numbers, and the one it
+    hides is the one worth marketing with.
+  - **Still uninstrumented, deliberately named rather than left implicit:** the
+    second-member first send, the mid-funnel span between approval and first
+    send (team invited, contacts imported), and stall detection. #281 stays open
+    for those three.
 
 ## D13. Repo & delivery
 

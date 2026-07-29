@@ -20,6 +20,7 @@ import { PLAN_NOTIFY_LIMITS, type PlanId } from "../billing/plans";
 import { billingRecipients } from "../billing/recipients";
 import { looksLikeOptOut } from "@loonext/shared";
 
+import { capture } from "../analytics/posthog";
 import { recordAudit } from "../audit/log";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
@@ -70,6 +71,80 @@ type InboundThreadResult = ThreadResult & {
   notify_reason?: "new" | "reopened" | "append";
 };
 
+/**
+ * #281 — the REPLY half of D12 activation: "sends its first outbound SMS AND
+ * receives an inbound reply within 7 days of payment."
+ *
+ * Fires once per workspace, the first time an inbound lands on a conversation
+ * we had ALREADY texted. That qualifier is the whole point: an inbound on a
+ * thread the customer started is the product working, but it is not a reply to
+ * us, and counting it would overstate activation the same way measuring only
+ * the outbound half did.
+ *
+ * `companies.first_inbound_reply_at` is the ledger rather than a heuristic
+ * count, so "first" is exact and the 7-day window stays computable in SQL next
+ * to the subscription dates it has to be compared against. The stamp is guarded
+ * on null, so two replies arriving together produce one event.
+ *
+ * Best-effort throughout, and deliberately so: the inbound message is already
+ * durable and threaded by the time this runs. Analytics must never wedge a
+ * customer's incoming text in a retry loop.
+ */
+async function captureFirstInboundReply(
+  env: Env,
+  db: SupabaseClient,
+  args: {
+    companyId: string;
+    conversationId: string;
+    messageId: string;
+    alreadyStampedAt: string | null | undefined;
+    country: string | null | undefined;
+    usTextingEnabled: boolean | null | undefined;
+  },
+): Promise<void> {
+  if (!env.POSTHOG_API_KEY) return; // analytics off — keep the hot path clean
+  if (args.alreadyStampedAt) return; // the loop closed long ago
+  try {
+    // A reply needs something to reply TO: one of OUR dispatched outbounds on
+    // this thread. Cheap and indexed, and it runs only until the workspace's
+    // first reply is stamped.
+    const { data, error } = await db
+      .from("messages")
+      .select("id")
+      .eq("company_id", args.companyId)
+      .eq("conversation_id", args.conversationId)
+      .eq("direction", "outbound")
+      .not("telnyx_message_id", "is", null)
+      .limit(1);
+    if (error) throw new Error(`reply-precedent lookup failed: ${error.message}`);
+    if ((data ?? []).length === 0) return; // customer-initiated thread, not a reply
+
+    // Claim it. The null guard is what makes this once-per-workspace under
+    // concurrent replies; the loser updates no row and emits nothing.
+    const stamped = await db
+      .from("companies")
+      .update({ first_inbound_reply_at: new Date().toISOString() })
+      .eq("id", args.companyId)
+      .is("first_inbound_reply_at", null)
+      .select("id");
+    if (stamped.error) {
+      throw new Error(`activation stamp failed: ${stamped.error.message}`);
+    }
+    if ((stamped.data ?? []).length === 0) return; // somebody else stamped it
+
+    // #369: Canada-only and US-enabled workspaces have structurally different
+    // time-to-value — a Canada-only workspace has no registration wait at all —
+    // so averaging them hides both. Two booleans, no free text.
+    await capture(env, "first_inbound_reply", args.companyId, {
+      country: args.country ?? "unknown",
+      us_texting_enabled: args.usTextingEnabled === true,
+    });
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    console.error("first_inbound_reply capture skipped:", detail);
+  }
+}
+
 /** message.received entry point (dispatched from /webhooks/telnyx, §7). */
 export async function handleInboundMessage(
   env: Env,
@@ -100,7 +175,13 @@ export async function handleInboundMessage(
     .select(
       "id,company_id," +
         "companies(timezone,plan,notify_email_limit,notify_push_limit," +
-        "emergency_keyword_enabled)",
+        // #281: first_inbound_reply_at is the activation ledger, and
+        // country/us_texting_enabled segment the funnel (#369 asks for
+        // Canada-only and US-enabled reported apart, because they have
+        // structurally different time-to-value). All three ride the lookup this
+        // path already makes, so activation costs no extra round trip either.
+        "emergency_keyword_enabled,first_inbound_reply_at,country," +
+        "us_texting_enabled)",
     )
     .eq("number_e164", toE164)
     .neq("status", "released")
@@ -118,6 +199,9 @@ export async function handleInboundMessage(
           notify_email_limit?: number | null;
           notify_push_limit?: number | null;
           emergency_keyword_enabled?: boolean | null;
+          first_inbound_reply_at?: string | null;
+          country?: string | null;
+          us_texting_enabled?: boolean | null;
         } | null;
       }
     | undefined;
@@ -151,6 +235,20 @@ export async function handleInboundMessage(
   const threaded = data as InboundThreadResult | null;
   if (!threaded?.message_id || !threaded.conversation_id) {
     throw new Error("thread_inbound_message returned no message");
+  }
+
+  // #281 activation: the reply half of D12, once per workspace. Gated on the
+  // first delivery so a §11 sweeper replay cannot re-emit it, and awaited
+  // because it never rejects.
+  if (threaded.created) {
+    await captureFirstInboundReply(env, db, {
+      companyId: number.company_id,
+      conversationId: threaded.conversation_id,
+      messageId: threaded.message_id,
+      alreadyStampedAt: company?.first_inbound_reply_at,
+      country: company?.country,
+      usTextingEnabled: company?.us_texting_enabled,
+    });
   }
 
   // Opt-out keyword handling runs on EVERY delivery. The opt_outs mirror is the
