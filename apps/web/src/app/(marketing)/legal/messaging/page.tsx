@@ -24,9 +24,10 @@ const sections = [
   { id: "opt-out", number: "3", heading: "How to stop messages (STOP)" },
   { id: "help", number: "4", heading: "Getting help (HELP)" },
   { id: "frequency", number: "5", heading: "Message frequency and rates" },
-  { id: "carriers", number: "6", heading: "Carrier disclaimer" },
-  { id: "privacy", number: "7", heading: "Your number stays private" },
-  { id: "contact", number: "8", heading: "Contact" },
+  { id: "hours", number: "6", heading: "When messages are sent" },
+  { id: "carriers", number: "7", heading: "Carrier disclaimer" },
+  { id: "privacy", number: "8", heading: "Your number stays private" },
+  { id: "contact", number: "9", heading: "Contact" },
 ];
 
 export default function MessagingPolicyPage() {
@@ -119,7 +120,46 @@ export default function MessagingPolicyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="carriers" number="6" heading="Carrier disclaimer">
+      <LegalSectionBlock
+        id="hours"
+        number="6"
+        heading="When messages are sent"
+      >
+        <p>
+          <strong>
+            Automated messages are never sent outside 8:00am to 8:00pm in your
+            local time.
+          </strong>{" "}
+          That is your time, worked out from your own phone number or from what
+          the business has recorded about you, not the business&apos;s time and
+          not ours. Where a state sets a narrower window we use the narrower
+          one: in Texas, for example, automated messages are not sent before
+          noon on a Sunday.
+        </p>
+        <p>
+          Two kinds of message are different, and it is fair to say so plainly:
+        </p>
+        <ul className="list-disc space-y-2 pl-6">
+          <li>
+            <strong>A reply to something you just did.</strong> If you text the
+            business or call and miss them, the automatic answer comes back
+            straight away whatever the hour, because you contacted them, and a
+            reply that waited until morning would be useless to you.
+          </li>
+          <li>
+            <strong>A person typing to you.</strong> Business owners are people
+            with their own hours, and one texting you back at 9pm is them
+            choosing to. We show them your local time when they do, and we do
+            not stop them.
+          </li>
+        </ul>
+        <p>
+          The window we apply is deliberately tighter than the federal minimum
+          of 8:00am to 9:00pm.
+        </p>
+      </LegalSectionBlock>
+
+      <LegalSectionBlock id="carriers" number="7" heading="Carrier disclaimer">
         <p>
           Carriers are not liable for delayed or undelivered messages. Text
           delivery depends on the mobile carrier networks, which neither
@@ -130,7 +170,7 @@ export default function MessagingPolicyPage() {
 
       <LegalSectionBlock
         id="privacy"
-        number="7"
+        number="8"
         heading="Your number stays private"
       >
         <p>
@@ -144,7 +184,7 @@ export default function MessagingPolicyPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="contact" number="8" heading="Contact">
+      <LegalSectionBlock id="contact" number="9" heading="Contact">
         <p>
           Questions about this program, or a message you received through
           Loonext? Email{" "}

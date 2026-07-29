@@ -17,8 +17,10 @@ import { getDb } from "../db";
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
 import {
+  isQuietAt,
   isQuietHour,
   nextSendableInstant,
+  quietOpenHourFor,
   resolveDestinationClock,
 } from "./destination-clock";
 
@@ -214,6 +216,7 @@ describe("daylight saving, on the two days it matters", () => {
     // or 11:00 UTC and text at 7am.
     const opens = nextSendableInstant(
       "America/Toronto",
+      null,
       new Date("2026-03-08T06:30:00Z"), // 01:30 EST, deep in quiet hours
     );
     expect(opens?.toISOString()).toBe("2026-03-08T12:00:00.000Z");
@@ -223,6 +226,7 @@ describe("daylight saving, on the two days it matters", () => {
     // Same day, the other direction: 8am EST on 1 November is 13:00 UTC.
     const opens = nextSendableInstant(
       "America/Toronto",
+      null,
       new Date("2026-11-01T05:30:00Z"), // 01:30 EDT
     );
     expect(opens?.toISOString()).toBe("2026-11-01T13:00:00.000Z");
@@ -232,7 +236,7 @@ describe("daylight saving, on the two days it matters", () => {
     // "Not yet" is the only case with an answer. A caller that treats null as
     // "never" would hold every daytime message forever.
     expect(
-      nextSendableInstant("America/Toronto", new Date("2026-07-27T16:00:00Z")),
+      nextSendableInstant("America/Toronto", null, new Date("2026-07-27T16:00:00Z")),
     ).toBeNull();
   });
 
@@ -240,6 +244,7 @@ describe("daylight saving, on the two days it matters", () => {
     // 21:00 Toronto on a Monday → 08:00 Toronto on the Tuesday.
     const opens = nextSendableInstant(
       "America/Toronto",
+      null,
       new Date("2026-07-28T01:00:00Z"), // 21:00 Mon 27 July EDT
     );
     expect(opens?.toISOString()).toBe("2026-07-28T12:00:00.000Z");
@@ -250,6 +255,7 @@ describe("daylight saving, on the two days it matters", () => {
     // arithmetic gets this wrong every single time, not twice a year.
     const opens = nextSendableInstant(
       "America/St_Johns",
+      null,
       new Date("2026-07-28T03:00:00Z"), // 00:30 NDT
     );
     expect(opens?.toISOString()).toBe("2026-07-28T10:30:00.000Z");
@@ -324,5 +330,104 @@ describe("only the resolver decides quiet hours (#292)", () => {
     const source = readFileSync(join(SRC, THE_RESOLVER), "utf8");
     expect(source).toContain("QUIET_HOURS_START = 20");
     expect(source).toContain("QUIET_HOURS_END = 8");
+  });
+});
+
+/**
+ * #225 — the per-state window.
+ *
+ * Our single 8am–8pm window is stricter than every state the issue names on
+ * both ends, with one exception: Texas opens at NOON on a Sunday, so an 8am
+ * start is four hours looser than the law there. These pin that gap closed,
+ * and pin that closing it did not loosen anything else.
+ */
+describe("#225 — state windows narrow the baseline, never widen it", () => {
+  // 15:00 UTC on Sunday 2026-08-02 is 10:00 in America/Chicago: inside Texas's
+  // Sunday prohibition, and a perfectly ordinary hour everywhere else.
+  const sundayMorning = new Date("2026-08-02T15:00:00Z");
+  // The same wall-clock hour, one day later.
+  const mondayMorning = new Date("2026-08-03T15:00:00Z");
+
+  it("refuses a Sunday-morning text to Texas", () => {
+    expect(isQuietAt("America/Chicago", "TX", sundayMorning)).toBe(true);
+  });
+
+  it("allows the same hour in Texas on a Monday", () => {
+    expect(isQuietAt("America/Chicago", "TX", mondayMorning)).toBe(false);
+  });
+
+  it("allows the same Sunday hour in a state with no extra rule", () => {
+    // Illinois shares the zone. If the rule leaked into the timezone rather
+    // than the state, this would be quiet too — and we would be refusing
+    // lawful sends across half the country.
+    expect(isQuietAt("America/Chicago", "IL", sundayMorning)).toBe(false);
+  });
+
+  it("keeps the 8pm evening cut for every state, Texas included", () => {
+    // 01:00 UTC Monday is 20:00 Sunday in Chicago. Texas law would allow until
+    // 9pm; we do not, because the baseline is ours and it is stricter.
+    const eightPm = new Date("2026-08-03T01:00:00Z");
+    expect(isQuietAt("America/Chicago", "TX", eightPm)).toBe(true);
+    expect(isQuietAt("America/Chicago", "IL", eightPm)).toBe(true);
+  });
+
+  it("treats an unknown region as the ordinary window, not as Texas", () => {
+    // A non-geographic number has no state. Applying Texas's Sunday rule to
+    // every unknown number would block lawful sends every weekend.
+    expect(isQuietAt("America/Chicago", null, sundayMorning)).toBe(false);
+  });
+
+  it("opens Texas at noon rather than at eight, on Sundays only", () => {
+    expect(quietOpenHourFor("TX", 0)).toBe(12);
+    expect(quietOpenHourFor("TX", 1)).toBe(8);
+    expect(quietOpenHourFor("FL", 0)).toBe(8);
+    expect(quietOpenHourFor(null, 0)).toBe(8);
+  });
+});
+
+describe("#225 — a held message is released INTO the window, not at 8am", () => {
+  it("releases a Texas message at noon on a Sunday, not at eight", () => {
+    // 09:00 UTC Sunday is 03:00 in Chicago — quiet everywhere. Releasing at
+    // the fixed 8 o'clock would land four hours inside Texas's prohibition,
+    // which is worse than not holding it, because now it was deliberate.
+    const opens = nextSendableInstant(
+      "America/Chicago",
+      "TX",
+      new Date("2026-08-02T09:00:00Z"),
+    );
+    expect(opens).not.toBeNull();
+    expect(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Chicago",
+        hour: "numeric",
+        hour12: false,
+      }).format(opens as Date),
+    ).toBe("12");
+  });
+
+  it("still releases at eight in the same zone for a state with no extra rule", () => {
+    const opens = nextSendableInstant(
+      "America/Chicago",
+      "IL",
+      new Date("2026-08-02T09:00:00Z"),
+    );
+    expect(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Chicago",
+        hour: "numeric",
+        hour12: false,
+      }).format(opens as Date),
+    ).toBe("08");
+  });
+
+  it("says a Texas Sunday morning is not sendable yet", () => {
+    // 10am Sunday in Texas: an hour the old fixed window called open.
+    expect(
+      nextSendableInstant("America/Chicago", "TX", new Date("2026-08-02T15:00:00Z")),
+    ).not.toBeNull();
+    // ...and the same hour on Monday needs no hold at all.
+    expect(
+      nextSendableInstant("America/Chicago", "TX", new Date("2026-08-03T15:00:00Z")),
+    ).toBeNull();
   });
 });

@@ -47,9 +47,16 @@ export type ClockSource =
 export interface DestinationClock {
   timezone: string;
   source: ClockSource;
+  /**
+   * #225: the destination's state/province, from the area code, or null when
+   * the number is non-geographic. Carried separately from the timezone
+   * because the quiet-hours WINDOW is a matter of state law while the clock is
+   * a matter of geography, and Texas proves they are not the same question.
+   */
+  region: string | null;
   /** 0–23 at the destination, at the instant asked about. */
   localHour: number;
-  /** True between 8pm and 8am there. */
+  /** True inside the destination's quiet window — see `isQuietAt`. */
   quiet: boolean;
 }
 
@@ -68,6 +75,72 @@ function localHourIn(timezone: string, atUtc: Date): number {
 /** 8pm–8am there. Exported so the compose gate asks rather than re-derives. */
 export function isQuietHour(hour: number): boolean {
   return hour >= QUIET_HOURS_START || hour < QUIET_HOURS_END;
+}
+
+/**
+ * #225 — the per-state exceptions, and why there is exactly one.
+ *
+ * The federal TCPA baseline is 8am–9pm local. Florida, Connecticut, Maryland,
+ * Oklahoma and Washington cut the evening at 8pm, and Texas runs 9am–9pm
+ * Monday to Saturday and NOON–9pm on Sunday.
+ *
+ * Our single window is already 8am–8pm, which is stricter than every one of
+ * those on both ends — with one exception. TEXAS ON A SUNDAY opens at noon,
+ * so an 8am start is four hours LOOSER than the law there. That is the only
+ * gap in the list the issue names, and it is the only entry in this table.
+ *
+ * The table is deliberately narrowing-only: an entry may make the window
+ * tighter, never wider. A state list that could loosen the baseline would turn
+ * a data-entry slip into a violation, and the whole value of a conservative
+ * default is that nothing can quietly erode it.
+ *
+ * NOT LEGAL ADVICE, and the code should not pretend otherwise: this encodes
+ * the state list from #225 and wants a lawyer's review before anybody treats
+ * it as complete. What it does buy is that the strictest rule we know about is
+ * the one that applies.
+ */
+export function quietOpenHourFor(
+  region: string | null | undefined,
+  weekday: number,
+): number {
+  // 0 = Sunday, matching Date#getDay and Intl's ordering.
+  if (region === "TX" && weekday === 0) return 12;
+  return QUIET_HOURS_END;
+}
+
+/**
+ * Is it quiet at the destination right now, accounting for the state?
+ *
+ * Takes the instant rather than an hour, because the day of the week is part
+ * of the answer and an hour alone cannot carry it — which is exactly the shape
+ * of the bug this closes.
+ */
+export function isQuietAt(
+  timezone: string,
+  region: string | null | undefined,
+  atUtc: Date,
+): boolean {
+  const hour = localHourIn(timezone, atUtc);
+  const weekday = localWeekdayIn(timezone, atUtc);
+  return hour >= QUIET_HOURS_START || hour < quietOpenHourFor(region, weekday);
+}
+
+/**
+ * Day of the week AT THE DESTINATION, 0 = Sunday.
+ *
+ * Asked of the runtime rather than derived from an offset: a Sunday in Texas
+ * begins and ends at different UTC instants than a Sunday here, and the only
+ * send this rule exists to stop sits right on that boundary.
+ */
+function localWeekdayIn(timezone: string, atUtc: Date): number {
+  const name = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    weekday: "short",
+  }).format(atUtc);
+  const index = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(name);
+  // An unknown zone reads as Sunday, the STRICTEST day in the table. Failing
+  // toward the narrower window is the only safe direction here.
+  return index === -1 ? 0 : index;
 }
 
 export interface ResolveInput {
@@ -104,25 +177,42 @@ export async function resolveDestinationClock(
 ): Promise<DestinationClock> {
   const atUtc = input.atUtc ?? new Date();
 
+  const entry = lookupAreaCode(input.phoneE164);
+  // #225: the STATE comes from the number, always — never from whichever rung
+  // supplied the timezone. The law keys on where the recipient is, and a
+  // dispatcher correcting a timezone is telling us what o'clock it is there,
+  // not which state's legislature they answer to.
+  const region = entry?.geographic ? (entry.region ?? null) : null;
+
   const override =
     input.contactTimezone !== undefined
       ? input.contactTimezone
       : await lookupContactTimezone(db, input.companyId, input.phoneE164);
-  if (override) return at(override, "contact", atUtc);
+  if (override) return at(override, "contact", region, atUtc);
 
-  const entry = lookupAreaCode(input.phoneE164);
   if (entry?.geographic && entry.timezone) {
-    return at(entry.timezone, "area_code", atUtc);
+    return at(entry.timezone, "area_code", region, atUtc);
   }
 
   const company =
     input.companyTimezone ?? (await lookupCompanyTimezone(db, input.companyId));
-  return at(company, "company", atUtc);
+  return at(company, "company", region, atUtc);
 }
 
-function at(timezone: string, source: ClockSource, atUtc: Date): DestinationClock {
+function at(
+  timezone: string,
+  source: ClockSource,
+  region: string | null,
+  atUtc: Date,
+): DestinationClock {
   const localHour = localHourIn(timezone, atUtc);
-  return { timezone, source, localHour, quiet: isQuietHour(localHour) };
+  return {
+    timezone,
+    source,
+    region,
+    localHour,
+    quiet: isQuietAt(timezone, region, atUtc),
+  };
 }
 
 /**
@@ -178,9 +268,10 @@ async function lookupCompanyTimezone(
  */
 export function nextSendableInstant(
   timezone: string,
+  region: string | null,
   fromUtc: Date,
 ): Date | null {
-  if (!isQuietHour(localHourIn(timezone, fromUtc))) return null;
+  if (!isQuietAt(timezone, region, fromUtc)) return null;
 
   // A whole day of hours is more than enough to walk out of a 12-hour quiet
   // window from anywhere inside it, and it is a hard stop rather than a
@@ -189,15 +280,20 @@ export function nextSendableInstant(
   cursor.setUTCMinutes(0, 0, 0);
   for (let step = 0; step < 26; step += 1) {
     cursor.setUTCHours(cursor.getUTCHours() + 1);
-    if (localHourIn(timezone, cursor) !== QUIET_HOURS_END) continue;
-    // Landed in the 8 o'clock hour, not necessarily on it. Newfoundland is
+    // #225: ask the WINDOW, not a fixed hour. Targeting 8 o'clock directly
+    // would release a held Texas message at 8am on a Sunday — four hours
+    // inside the prohibition it was held for, which is worse than not holding
+    // it at all, because now we did it deliberately.
+    if (isQuietAt(timezone, region, cursor)) continue;
+    // Landed in the opening hour, not necessarily on it. Newfoundland is
     // UTC-3:30, so its 08:00 falls at :30 past a UTC hour — stepping whole UTC
     // hours alone would report 08:30 and text half an hour late every day, not
     // twice a year.
     cursor.setUTCMinutes(cursor.getUTCMinutes() - localMinuteIn(timezone, cursor));
     return new Date(cursor);
   }
-  // Unreachable for any real IANA zone: every one of them has an 8am each day.
+  // Unreachable for any real IANA zone: every one of them leaves its quiet
+  // window at some point in any 26-hour span.
   return null;
 }
 
