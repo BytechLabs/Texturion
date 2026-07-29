@@ -734,6 +734,7 @@ private fun ReadyShell(
                         NotificationsScreen(
                             graph = graph,
                             companyId = companyId,
+                            meUserId = me.user_id,
                             modifier = it,
                             onOpenConversation = { conversationId ->
                                 push(Overlay.Thread(conversationId))

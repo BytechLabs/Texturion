@@ -83,6 +83,20 @@ export interface RegistrationUpdatedEvent {
   status: RegistrationStatus;
 }
 
+/**
+ * #358: somebody's own read state moved, possibly on another device.
+ *
+ * ID-only like every other event, and it carries the `user_id` because it
+ * rides the COMPANY topic: a client must ignore a colleague's reading. Doing
+ * otherwise would have every member refetch their counts whenever anybody
+ * opened a thread, which is both wasteful and slightly creepy.
+ */
+export interface ReadStateEvent {
+  user_id: string;
+  /** Present only on `read.conversation`. */
+  conversation_id?: string;
+}
+
 export const REALTIME_EVENTS = [
   "message.created",
   "message.status",
@@ -90,6 +104,9 @@ export const REALTIME_EVENTS = [
   "task.changed",
   "number.updated",
   "registration.updated",
+  // #358: read state, so clearing the bell on a phone clears it on the laptop.
+  "read.conversation",
+  "read.notifications",
 ] as const;
 
 export type RealtimeEventName = (typeof REALTIME_EVENTS)[number];

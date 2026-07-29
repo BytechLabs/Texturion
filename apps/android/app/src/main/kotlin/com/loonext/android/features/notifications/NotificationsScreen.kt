@@ -76,6 +76,8 @@ import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * The derived notifications feed (D24), in the paper-&-olive bell grammar
@@ -97,6 +99,9 @@ import kotlinx.coroutines.launch
 fun NotificationsScreen(
     graph: AppGraph,
     companyId: String,
+    /** #358: whose read state this screen cares about. The read.* events ride
+     *  the company topic, so a colleague's reading must be ignored. */
+    meUserId: String,
     modifier: Modifier = Modifier,
     onOpenConversation: (String) -> Unit,
 ) {
@@ -130,8 +135,10 @@ fun NotificationsScreen(
         graph.storeCache.flowOf<Page<NotificationItem>>(CacheKeys.notifications(companyId))
     }
     // The badge shares its key with the For You bell, the shell avatar dot,
-    // and the account sheet (#201): mark-read emits no realtime event, so
-    // writing the count here is what keeps every dot honest.
+    // and the account sheet (#201), so writing the count here is what keeps
+    // every dot honest. #358 added a read.* broadcast, so a mark on ANOTHER
+    // device now reaches this screen too — the local watermark still wins
+    // while this device's own mark is in flight.
     val unreadFlow = remember(companyId) {
         graph.storeCache.flowOf<Int>(CacheKeys.unreadNotifications(companyId))
     }
@@ -171,7 +178,14 @@ fun NotificationsScreen(
     // those moving can add an item or change the badge.
     LaunchedEffect(companyId) {
         graph.realtime.events.collect { event ->
-            if (event.event.startsWith("message.") ||
+            // #358: `read.` is this person's own read state moving, probably
+            // on another device. Filtered to them: the event rides the company
+            // topic, so without the check every member would refetch whenever
+            // anybody opened a thread.
+            val mine = event.event.startsWith("read.") &&
+                event.payload["user_id"]?.jsonPrimitive?.contentOrNull == meUserId
+            if (mine ||
+                event.event.startsWith("message.") ||
                 event.event.startsWith("conversation.") ||
                 event.event.startsWith("task.") ||
                 event.event.startsWith("call.")

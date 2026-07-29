@@ -12,6 +12,9 @@ import SwiftUI
 struct NotificationsView: View {
     let graph: AppGraph
     let companyId: String
+    /// #358: whose read state this screen cares about. The read.* events ride
+    /// the company topic, so a colleague's reading must be ignored.
+    let meUserId: String
     let onOpenConversation: @MainActor (String) -> Void
 
     @State private var model: NotificationsFeedModel
@@ -20,10 +23,12 @@ struct NotificationsView: View {
     init(
         graph: AppGraph,
         companyId: String,
+        meUserId: String,
         onOpenConversation: @escaping @MainActor (String) -> Void
     ) {
         self.graph = graph
         self.companyId = companyId
+        self.meUserId = meUserId
         self.onOpenConversation = onOpenConversation
         _model = State(initialValue: NotificationsFeedModel(
             api: NotificationsFeedApi(api: graph.api),
@@ -54,12 +59,21 @@ struct NotificationsView: View {
         // The feed is derived from messages/conversations/tasks/calls — any of
         // those moving can add an item or change the badge.
         .task(id: companyId) {
-            for await event in await graph.realtime.events()
-                where event.event.hasPrefix("message.") ||
-                event.event.hasPrefix("conversation.") ||
-                event.event.hasPrefix("task.") ||
-                event.event.hasPrefix("call.") {
-                refreshKey += 1
+            for await event in await graph.realtime.events() {
+                // #358: `read.` is this person's own read state moving,
+                // probably on another device. Filtered to them: the event
+                // rides the company topic, so without the check every member
+                // would refetch whenever anybody opened a thread.
+                let mine = event.event.hasPrefix("read.")
+                    && readEventUserId(event.payload) == meUserId
+                if mine
+                    || event.event.hasPrefix("message.")
+                    || event.event.hasPrefix("conversation.")
+                    || event.event.hasPrefix("task.")
+                    || event.event.hasPrefix("call.")
+                {
+                    refreshKey += 1
+                }
             }
         }
         .task(id: companyId) {
@@ -348,4 +362,11 @@ private struct NotificationPauseNotice: View {
             .padding(.bottom, 10)
         }
     }
+}
+
+/// #358: the `user_id` on a `read.*` broadcast, or nil when the payload is not
+/// the shape we expect. Nil never matches, so an unreadable event is ignored
+/// rather than treated as everybody's.
+private func readEventUserId(_ payload: JSONValue) -> String? {
+    payload["user_id"]?.stringValue
 }

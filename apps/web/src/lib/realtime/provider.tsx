@@ -19,6 +19,7 @@ import {
 import { keys } from "@/lib/api/keys";
 import { fetchMessagesPage } from "@/lib/api/messages";
 import { trimToFirstPage } from "@/lib/api/pagination";
+import type { ReadStateEvent } from "./events";
 import type {
   ConversationDetail,
   ConversationListItem,
@@ -104,7 +105,20 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const { companyId } = useActiveCompany();
   // undefined while /me is in flight or on a server that predates the field —
   // both mean "no statement", and the socket opens as it always did.
-  const realtimeEnabled = useMeCompany().data?.flags?.["kill:realtime"];
+  const meCompany = useMeCompany();
+  const realtimeEnabled = meCompany.data?.flags?.["kill:realtime"];
+  /**
+   * #358: whose read state this client cares about. The events ride the
+   * company topic, so a colleague's reading must be ignored.
+   *
+   * A REF, not a dependency. /v1/me resolves after this effect first runs, so
+   * a handler closing over the value would capture null and ignore its own
+   * events for the life of the subscription — while adding it to the deps
+   * would tear down and rebuild the socket the moment the profile arrived.
+   * The ref gives the handler today's value without either.
+   */
+  const meUserIdRef = useRef<string | null>(null);
+  meUserIdRef.current = meCompany.data?.user_id ?? null;
   const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
@@ -386,6 +400,34 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    /**
+     * #358: this person's own read state moved, probably on another device.
+     *
+     * IGNORES EVERYBODY ELSE'S. The event rides the company topic, so without
+     * this filter every member would refetch their counts whenever anybody
+     * opened a thread.
+     *
+     * Safe against the #201 race by construction: `unread` is derived
+     * server-side from a watermark, and the broadcast is an AFTER trigger, so
+     * this refetch is guaranteed to observe the committed value. It is
+     * strictly safer than the five-minute poll already running, which can fire
+     * mid-write.
+     */
+    function handleReadState(event: ReadStateEvent) {
+      if (event.user_id !== meUserIdRef.current) return;
+      void queryClient.invalidateQueries({
+        queryKey: keys.notifications.unreadCount(companyId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: keys.notifications.feed(companyId),
+      });
+      // The focus queue counts unread threads too, so it moves with them.
+      void queryClient.invalidateQueries({ queryKey: keys.forYou(companyId) });
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.lists(companyId),
+      });
+    }
+
     function handleTaskChanged(event: TaskChangedEvent) {
       // TASKS.md T1.3: a task metadata change (create / assign / due / delete)
       // by ANY crew member — the ID-only payload carries just the source
@@ -582,6 +624,13 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         "broadcast",
         { event: "registration.updated" },
         handleProvisioningUpdate,
+      )
+      // #358: read state, filtered to this person inside the handler.
+      .on("broadcast", { event: "read.conversation" }, ({ payload }) =>
+        handleReadState(payload as ReadStateEvent),
+      )
+      .on("broadcast", { event: "read.notifications" }, ({ payload }) =>
+        handleReadState(payload as ReadStateEvent),
       );
 
     void (async () => {

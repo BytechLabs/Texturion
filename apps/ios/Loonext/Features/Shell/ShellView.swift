@@ -487,6 +487,7 @@ struct ShellView: View {
             NotificationsView(
                 graph: graph,
                 companyId: companyId,
+                meUserId: hydratedMe.user_id,
                 onOpenConversation: { AppRouter.shared.openConversationId = $0 }
             )
         case .settings:
