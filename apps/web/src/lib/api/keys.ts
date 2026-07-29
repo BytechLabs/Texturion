@@ -49,6 +49,8 @@ export const keys = {
   /** #236: every active member's live devices, workspace-wide. */
   workspaceSessions: (companyId: string) =>
     ["workspace-sessions", companyId] as const,
+  /** #332: who owns the workspace, and any handover in flight. */
+  ownership: (companyId: string) => [companyId, "ownership"] as const,
   mentionableMembers: (companyId: string, conversationId: string) =>
     [companyId, "conversation", conversationId, "mentionable-members"] as const,
   invites: (companyId: string) => [companyId, "invites"] as const,

@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { OwnershipCard } from "@/components/settings/ownership-card";
 import {
   LoadError,
   SettingsCard,
@@ -636,6 +637,10 @@ export default function TeamSettingsPage() {
                 </div>
               )}
             </SettingsCard>
+            {/* #332: everybody sees this, including a plain member — a
+                handover in flight is exactly the thing a colleague is best
+                placed to notice is wrong. */}
+            <OwnershipCard members={members.data?.data ?? []} />
             {canManage ? (
               <InvitesSection activeMemberCount={countActiveMembers(active ?? [])} />
             ) : (
