@@ -36,6 +36,7 @@ import {
 } from "./composer-banner";
 import { ComposerBannerCard } from "./composer-banners";
 import { Composer } from "./composer";
+import { TheirTime } from "./their-time";
 import { MessageList } from "./message-list";
 import {
   parseThreadFilter,
@@ -313,11 +314,19 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
         ) : (
           // #106: a notes-only member (viewer_level 'note') gets the note
           // composer — texting the customer needs level 'text' on this number.
-          <Composer
-            key={`composer-${conversationId}`}
-            conversationId={conversationId}
-            noteOnly={conversation.viewer_level === "note"}
-          />
+          <>
+            {/* #225: only when it is actually quiet where they are, and only
+                for somebody who can text. A reply is never blocked — this
+                exists so nobody finds out from an annoyed customer. */}
+            {conversation.viewer_level === "text" && (
+              <TheirTime clock={conversation.destination_clock} />
+            )}
+            <Composer
+              key={`composer-${conversationId}`}
+              conversationId={conversationId}
+              noteOnly={conversation.viewer_level === "note"}
+            />
+          </>
         )}
       </div>
 

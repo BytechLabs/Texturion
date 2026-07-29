@@ -268,6 +268,48 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
 });
 
 describe("GET /v1/conversations/:id (embedded first message page)", () => {
+  // #225: the composer needs to know what time it is where they are, and it
+  // must get that answer from the SAME module the send gate uses. A hint that
+  // says one thing while the gate does another is worse than no hint, because
+  // the person stops believing the next one.
+  it("carries the destination clock, resolved by the send gate's own resolver", async () => {
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/conversations", () => [
+      {
+        ...conversationRow(),
+        // 613 is Ottawa: America/Toronto, and no contact override.
+        contacts: {
+          id: "dddddddd-1111-4222-8333-444444444444",
+          name: "Jo",
+          phone_e164: "+16135551000",
+          timezone: null,
+        },
+        conversation_tags: [],
+      },
+    ]);
+    sb.on("GET", "/rest/v1/messages", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    const clock = body.destination_clock as Record<string, unknown>;
+    expect(clock).toMatchObject({
+      timezone: "America/Toronto",
+      // The provenance, so a screen can say "from their area code" rather than
+      // presenting a guess as a fact.
+      source: "area_code",
+    });
+    expect(typeof clock.local_hour).toBe("number");
+    expect(typeof clock.quiet).toBe("boolean");
+  });
+
   it("returns conversation + contact + tags + messages page with attachments", async () => {
     const sb = memberStub();
     sb.on("GET", "/rest/v1/conversations", () => [

@@ -471,11 +471,26 @@ export interface ConversationDetailContact {
   deleted_at: string | null;
 }
 
+/**
+ * #225 / D49 — what time it is where the customer is, and which rung of the
+ * ladder answered. Resolved server-side by the same module the send gate uses,
+ * so a hint and a gate can never disagree.
+ */
+export interface DestinationClock {
+  timezone: string;
+  source: "contact" | "area_code" | "company";
+  local_hour: number;
+  /** Inside their quiet window, accounting for state rules (Texas Sundays). */
+  quiet: boolean;
+}
+
 /** GET /v1/conversations/:id — embeds the first page of messages. */
 export interface ConversationDetail extends Conversation {
   contact: ConversationDetailContact;
   tags: Tag[];
   messages: Page<Message>;
+  /** Null only when a conversation somehow has no contact. */
+  destination_clock: DestinationClock | null;
   /** #106: the caller's access level on this conversation's number — 'note'
    *  means read + internal notes only (the composer hides its SMS mode). */
   viewer_level: "text" | "note";

@@ -42,6 +42,7 @@ import {
 } from "../attachments/egress";
 import { requireRole } from "../auth/company";
 import { listConversationViewers } from "../auth/conversation-audience";
+import { resolveDestinationClock } from "../messaging/destination-clock";
 import {
   assertNumberLevel,
   requireConversationAccess,
@@ -319,7 +320,10 @@ conversationsRoutes.get(
         .from("conversations")
         .select(
           `${CONVERSATION_COLUMNS},` +
-            "contacts(id,name,phone_e164,address,notes,consent_source,consent_at,deleted_at)," +
+            // #225: `timezone` rides along so the clock below resolves without
+            // a second query — the contact override is the top rung of the
+            // D49 ladder and we are already reading this row.
+            "contacts(id,name,phone_e164,address,notes,consent_source,consent_at,deleted_at,timezone)," +
             "conversation_tags(tags(id,name,color))",
         )
         .eq("company_id", companyId)
@@ -381,10 +385,37 @@ conversationsRoutes.get(
     ]);
 
     const { contacts, conversation_tags, ...conversation } = row;
+
+    // #225 / D49: what time it is where they are, resolved by the SAME module
+    // the send gate uses. The composer saying "9:42pm their time" and the gate
+    // deciding whether a send needs confirming must not be able to disagree —
+    // a hint that says one thing while the gate does another is worse than no
+    // hint, because the person stops believing the next one.
+    const phone = (contacts as { phone_e164?: string } | null)?.phone_e164;
+    const clock = phone
+      ? await resolveDestinationClock(db, {
+          companyId,
+          phoneE164: phone,
+          contactTimezone:
+            ((contacts as { timezone?: string | null }).timezone ?? null),
+        })
+      : null;
+
     return c.json({
       ...conversation,
       viewer_level: viewerLevel,
       contact: contacts,
+      // Null only for a conversation with no contact row, which the schema
+      // does not allow — but a thread that fails to open because the clock
+      // could not be resolved would be a poor trade for a hint.
+      destination_clock: clock
+        ? {
+            timezone: clock.timezone,
+            source: clock.source,
+            local_hour: clock.localHour,
+            quiet: clock.quiet,
+          }
+        : null,
       tags: conversation_tags
         .map((entry) => entry.tags)
         .filter((tag) => tag !== null),
