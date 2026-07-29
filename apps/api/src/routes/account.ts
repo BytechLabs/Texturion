@@ -83,13 +83,14 @@ accountRoutes.delete("/account", async (c) => {
   const preview = previewData as Preview;
   if (preview.blocked_by === "owner") {
     // Specific, not generic: an owner deleting their account would strand a
-    // workspace with no owner and no transfer path (#332). Name the
-    // workspaces, and say what to do about them.
+    // workspace with no owner. Name the workspaces, and say what to do about
+    // them — since #332 the handover is a real route the person can take
+    // themselves, not a support ticket.
     const names = (preview.owned ?? []).map((row) => row.name).join(", ");
     return errorResponse(
       c,
       "conflict",
-      `You own ${names}. Hand each one to someone else, or close it, and then you can delete your account.`,
+      `You own ${names}. Hand each one to someone else in Settings → Team → Ownership, or close it, and then you can delete your account.`,
     );
   }
 

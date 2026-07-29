@@ -56,6 +56,16 @@ export type AuditAction =
   // because "when did we cut that phone off" is the question asked the moment
   // anybody wonders how long a departed tech could still read the inbox.
   | "member.sessions_revoked"
+  // Ownership (#332). The single most consequential event in a workspace's
+  // life: the role that controls spending, numbers, and US texting changing
+  // hands. Every step is recorded, not just the completion — "when was the
+  // backup named, and by whom" is the first question anyone asks about a
+  // handover that turns out to be wrong.
+  | "ownership.backup_named"
+  | "ownership.offered"
+  | "ownership.claim_started"
+  | "ownership.transferred"
+  | "ownership.canceled"
   // Number access — who can see which number's conversations (#106)
   | "number_access.changed"
   // Settings that change what customers receive

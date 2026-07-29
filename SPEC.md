@@ -850,7 +850,13 @@ Roles: **O**=owner, **A**=admin, **M**=member. "O/A" = owner or admin. All conve
 | `PATCH /v1/templates/:id` · `DELETE /v1/templates/:id` | M | — |
 | `GET /v1/search?q=` | M | `{ conversations: [...], contacts: [...] }` (FTS + trgm, §6) |
 | `GET /v1/members` | M | Members + roles + profiles |
-| `PATCH /v1/members/:id` | O/A | `{ role: 'admin'\|'member' }` — owner role never assignable; owner row immutable |
+| `PATCH /v1/members/:id` | O/A | `{ role: 'admin'\|'member' }` — owner role never assignable; owner row immutable. Ownership moves only through the #332 handover below |
+| `GET /v1/company/ownership` | M | #332 — who owns it, who is named backup, what is in flight, and what THIS caller may do (`can_offer`, `can_claim`, `can_cancel`) |
+| `POST /v1/company/ownership/backup` | **O** | #332 — `{ member_id \| null }`. Names the one person who may later claim ownership; null clears it. Never the owner themselves |
+| `POST /v1/company/ownership/offer` | **O** | #332 — `{ member_id }`. Two-sided: nothing moves until the recipient accepts, and the offer expires in 7 days |
+| `POST /v1/company/ownership/claim` | any member | #332 — the **named backup only** (gated in SQL, not by role: the backup may be a plain member). Starts a 7-day window during which the owner can veto with one click |
+| `POST /v1/company/ownership/accept` | any member | #332 — the recipient takes it. Atomic swap: outgoing owner → admin, recipient → owner, backup nomination cleared. 409 `conflict` if a claim has not ripened |
+| `POST /v1/company/ownership/cancel` | any member | #332 — the owner's veto and the recipient's decline are the same route. An uninvolved admin gets 403, so nobody can freeze a dead owner's workspace |
 | `DELETE /v1/members/:id` | O/A | Deactivate (sets `deactivated_at`, frees seat) |
 | `GET /v1/sessions` | any | #236 — the caller's own signed-in devices: `{ id, client, user_agent, location, signed_in_at, last_active_at, current }`. Bearer-only (a session belongs to the person, not to a workspace) |
 | `POST /v1/sessions/revoke` | any | #236 — `{ session_id }` signs one device out; `{ others: true }` signs out everywhere except the device asking. 409 `conflict` on the caller's own session (the sign-out button is the honest way to do that). Bearer-only |
@@ -1094,7 +1100,7 @@ In-app only via `POST /v1/billing/change-plan` — the hosted portal **cannot** 
 | Members & invites, company settings | ✔ | ✔ | — |
 | Conversations, messages, notes, tags, contacts, templates, search (tag delete, CSV import: owner/admin) | ✔ | ✔ | ✔ |
 
-  The owner role is not assignable via invite; the owner membership row cannot be deactivated or demoted.
+  The owner role is not assignable via invite; the owner membership row cannot be deactivated or demoted **by anybody else**. Since #332 it can *move*, and only by the two-sided handover in §7: the owner offers and a member accepts, or a backup the owner nominated in advance claims it after a 7-day window the owner can veto at any point. The swap is atomic (`apply_ownership`), the outgoing owner lands as an admin, and `company_members_one_owner_uq` makes two owner rows impossible. No path lets an admin seize the role, and no workspace can end up without one. Policy and the unreachable-owner procedure: `docs/OWNERSHIP.md` (D67).
 - **Invites:** Supabase `inviteUserByEmail` (Resend custom SMTP) + `invites` table binding company/email/role; seat limits enforced at creation **and** acceptance; 7-day expiry; revocation supported.
 - **Secrets:** all server credentials are Worker encrypted secrets (`wrangler secret put`), injected from GitHub Actions environment secrets; never in `wrangler.toml` or the repo. Frontend receives only `NEXT_PUBLIC_SUPABASE_URL` + the `sb_publishable_` key (the allowed `NEXT_PUBLIC_*` set is enumerated in CI and reviewed). Stripe uses a **restricted key**. Supabase uses `sb_secret_` (independently revocable). Startup zod env validation fails loudly.
 - **PII / telemetry policy:** message bodies, names, addresses, and phone numbers never reach Sentry or PostHog. Sentry `beforeSend` strips request/response bodies and redacts E.164 patterns; `sendDefaultPii` off. PostHog: UUIDs, counts, and feature events only; autocapture masked; no session replay on inbox/conversation pages. Logs reference IDs, never bodies or destination numbers. `messaging_registrations.data` stores the **full EIN/BN** (business identifier — required for brand submission, which happens later at webhook time) but **SSN/SIN as last-4 only**: full SSN/SIN are never collected or persisted (Telnyx's Sole Proprietor path requires only the last-4, §4.4).

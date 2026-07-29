@@ -57,6 +57,7 @@ import { meRoutes } from "./routes/me";
 import { messageRoutes } from "./routes/messages";
 import { notificationsRoutes } from "./routes/notifications";
 import { numbersRoutes } from "./routes/numbers";
+import { ownershipRoutes } from "./routes/ownership";
 import { portingRoutes } from "./routes/porting";
 import { registrationRoutes } from "./routes/registration";
 import { searchRoutes } from "./routes/search";
@@ -167,6 +168,7 @@ app.route("/v1", templatesRoutes);
 app.route("/v1", searchRoutes);
 app.route("/v1", teamRoutes);
 app.route("/v1", sessionsRoutes); // #236 signed-in devices, self + workspace
+app.route("/v1", ownershipRoutes); // #332 handing the workspace over
 app.route("/v1", notificationsRoutes);
 app.route("/v1", devicePushTokensRoutes); // #151 native FCM/APNs token registry
 app.route("/v1", forYouRoutes); // D23 GET /v1/for-you home read-model

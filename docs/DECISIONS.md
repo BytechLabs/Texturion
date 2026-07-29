@@ -2969,3 +2969,60 @@ returns which app, roughly where, and when last active: enough to recognise a
 phone that has not been near the business in three weeks, and not enough to
 read the crew's browsing setup. An admin cannot sign the **owner** out; that is
 not a security control, it is a hostage situation.
+
+---
+
+## D67 — ownership moves by a decision the owner already made (#332, 2026-07-29)
+
+**Decision.** Two paths, and both begin with the authenticated owner: they
+**offer** ownership to a member who accepts, or they **nominate a backup** in
+advance who can later claim it after a seven-day veto window. The
+no-backup-and-unreachable case stays human-in-the-loop, written down in
+`docs/OWNERSHIP.md` rather than coded.
+
+**The property being protected is real, and stays.** "The owner row cannot be
+demoted" is what stops an admin locking out the person who pays. The bug was
+never that rule; it was that the rule had no counterpart, so a safety property
+became a single point of failure at the human level. A two-person plumbing
+company whose founder has a heart attack still has customers texting the
+business line, and the surviving partner could answer messages but could not
+lift the spending cap that had stopped their texting.
+
+**Why the recovery half is a nomination and not a verification.** The issue
+argued against itself better than any summary: every account-recovery mechanism
+is an attack surface, and this one guards the role that controls spending and
+phone numbers. A weak procedure is **worse than none**, because it converts
+"call the founder" — slow, manual, and actually quite secure — into something
+attackable at scale.
+
+So we did not build a way to prove you deserve a stranger's business. We built
+a way for the owner to say, in advance and while authenticated, *this person*.
+That converts the hard problem into the easy one, and the workspace that
+answers the prompt never needs Path 3 at all. The claim is not a bypass: the
+claimant was chosen by the owner, the owner holds an instant veto for a week,
+and **every member is told at the start rather than at the end** — the people
+who know whether the owner is merely on holiday are the ones holding the alarm.
+
+**Seven days, and why not another number.** Too short and an owner on a
+two-week holiday loses their business to a disgruntled backup. Too long and a
+grieving family waits a month to answer their own customers. Seven days is
+about one full cycle of nobody answering the business phone.
+
+**Two signals, never one, on Path 3.** Each accepted signal — control of the
+payment method, of the ported number, of the business domain, or documentary
+succession — is individually obtainable by a determined attacker. The pairing
+is the security. And urgency is never a signal: every social-engineering
+attempt on a procedure like this is urgent.
+
+**The invariant that was missing.** Ownership lived in two places —
+`companies.owner_user_id` and the `company_members` row — with nothing tying
+them together, so two owner rows was expressible and so was an owner_user_id
+pointing at a non-member. Both halves now have teeth: a partial unique index
+makes a second owner row impossible, and `api_ownership_integrity()` is the
+assertion that the two agree, checked after every operation in the SQL suite.
+Nothing writes `owner_user_id` except `apply_ownership()`.
+
+**An admin cannot cancel a claim they are not party to.** This one reads
+backwards until you see it: letting any admin stop a claim would let one admin
+keep a dead owner's workspace frozen forever. Only the owner (veto) and the
+claimant (abandon) can end one.
