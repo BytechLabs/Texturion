@@ -14,7 +14,9 @@ import com.loonext.android.core.model.Usage
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
@@ -82,6 +84,47 @@ class SettingsRepository(
     suspend fun leaveWorkspace(companyId: String) {
         api.delete("/v1/members/me", companyId = companyId)
     }
+
+    // -- ownership (#332) ---------------------------------------------------
+    //
+    // Five writes, one read, and the read is the only thing that decides what
+    // any of the buttons look like — see the `can_*` booleans on [Ownership].
+
+    suspend fun ownership(companyId: String): Ownership =
+        api.get("/v1/company/ownership", companyId = companyId)
+
+    /** Name the one person who may later claim ownership; null clears it. */
+    suspend fun setBackupOwner(companyId: String, memberId: String?): Ownership =
+        api.post(
+            "/v1/company/ownership/backup",
+            // An explicit null, not an omitted key: "nobody" is the answer
+            // that CLEARS the nomination, and a dropped key would read as
+            // "leave it as it was".
+            buildJsonObject {
+                put("member_id", memberId?.let { JsonPrimitive(it) } ?: JsonNull)
+            },
+            companyId = companyId,
+        )
+
+    /** Offer ownership. Nothing moves until the recipient accepts. */
+    suspend fun offerOwnership(companyId: String, memberId: String): Ownership =
+        api.post(
+            "/v1/company/ownership/offer",
+            buildJsonObject { put("member_id", memberId) },
+            companyId = companyId,
+        )
+
+    /** The named backup asks to take over. Starts the owner's veto window. */
+    suspend fun claimOwnership(companyId: String): Ownership =
+        api.post("/v1/company/ownership/claim", companyId = companyId)
+
+    /** Accept an offer, or complete a claim whose waiting period is over. */
+    suspend fun acceptOwnership(companyId: String): Ownership =
+        api.post("/v1/company/ownership/accept", companyId = companyId)
+
+    /** The owner's veto and the recipient's decline are the same call. */
+    suspend fun cancelOwnershipTransfer(companyId: String): Ownership =
+        api.post("/v1/company/ownership/cancel", companyId = companyId)
 
     // -- signed-in devices (#236) -------------------------------------------
 

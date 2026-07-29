@@ -6,6 +6,7 @@ import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.core.model.Usage
+import com.loonext.android.ui.common.absoluteTime
 import java.time.Instant
 import java.util.Locale
 
@@ -653,3 +654,54 @@ fun orderMyDevices(sessions: List<DeviceSession>): List<DeviceSession> =
     sessions.sortedWith(
         compareByDescending<DeviceSession> { it.current }.thenByDescending { it.last_active_at },
     )
+
+// ---------------------------------------------------------------------------
+// Ownership (#332)
+// ---------------------------------------------------------------------------
+
+/**
+ * The headline of a handover in flight: what is happening, in one sentence.
+ *
+ * Hand-ported to three clients, so it lives here with a test rather than
+ * inline in a composable — the failure mode is one client telling a workspace
+ * something subtly different about who is taking it over.
+ */
+fun handoverHeadline(kind: String, who: String): String =
+    if (kind == HandoverKind.OFFER) {
+        "Ownership has been offered to $who."
+    } else {
+        "$who has asked to take over this workspace."
+    }
+
+/**
+ * The line underneath it: what happens next, and by when.
+ *
+ * The claim branch is the one that matters — it is where the owner learns they
+ * have a deadline and a veto, and it must never read as though the handover
+ * has already happened.
+ */
+fun handoverDetail(
+    kind: String,
+    ready: Boolean,
+    ripensAt: String,
+    expiresAt: String,
+): String = when {
+    kind == HandoverKind.OFFER ->
+        "Nothing changes until they accept. The offer expires ${absoluteTime(expiresAt)}."
+
+    ready -> "The waiting period is over. They can complete this at any time."
+
+    else ->
+        "This completes ${absoluteTime(ripensAt)} unless the owner stops it. " +
+            "Stopping it takes effect immediately."
+}
+
+/**
+ * What the button that ends a handover says.
+ *
+ * "Stop this" and "Decline" are the same call and the same outcome, but a
+ * person reading them is doing two different things: an owner is vetoing
+ * something aimed at them, and a recipient is turning something down.
+ */
+fun handoverCancelLabel(isOwner: Boolean, isMine: Boolean): String =
+    if (isOwner && !isMine) "Stop this" else "Decline"

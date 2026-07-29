@@ -52,6 +52,8 @@ private data class TeamData(
     val members: List<Member>,
     /** null when the caller is a plain member (the invites list is admin+). */
     val invites: List<Invite>?,
+    /** #332: who owns it, and any handover in flight. Everyone sees this. */
+    val ownership: Ownership,
 )
 
 private val EXPIRY_FORMAT = DateTimeFormatter.ofPattern("MMM d, yyyy")
@@ -89,6 +91,7 @@ fun TeamSection(scope: SettingsScope, company: CompanyView) {
         TeamData(
             members = scope.repo.members(scope.companyId).data,
             invites = if (canManage) scope.repo.invites(scope.companyId).data else null,
+            ownership = scope.repo.ownership(scope.companyId),
         )
     }
 
@@ -103,6 +106,10 @@ fun TeamSection(scope: SettingsScope, company: CompanyView) {
         is LoadState.Ready -> {
             val data = current.value
             MembersCard(scope, data.members, onChanged = { refreshKey++ })
+            // #332: everybody sees this, including a plain member — a handover
+            // in flight is exactly the thing a colleague is best placed to
+            // notice is wrong.
+            OwnershipCard(scope, data.ownership, data.members, onChanged = { refreshKey++ })
             if (canManage && data.invites != null) {
                 InvitesCard(
                     scope = scope,

@@ -269,3 +269,46 @@ data class SessionRevokeResult(
     val sessions: Int = 0,
     val devices: Int = 0,
 )
+
+// ---------------------------------------------------------------------------
+// Ownership (#332 — routes/ownership.ts)
+// ---------------------------------------------------------------------------
+
+/** A handover in flight. Until it lands, nothing about the workspace changed. */
+@Serializable
+data class PendingHandover(
+    /** 'offer' — the owner is handing it over. 'claim' — the backup is taking it. */
+    val kind: String,
+    val to_member_id: String? = null,
+    val ripens_at: String,
+    val expires_at: String,
+    val created_at: String,
+    /** This caller is the person it is addressed to. */
+    val mine: Boolean = false,
+    /** The waiting period is over (an offer is ready the moment it is made). */
+    val ready: Boolean = false,
+)
+
+/**
+ * GET /v1/company/ownership.
+ *
+ * Every permission arrives as a boolean the SERVER decided. Three clients each
+ * re-deriving `can_claim` from a pile of ids is three chances to show somebody
+ * a button that takes a business.
+ */
+@Serializable
+data class Ownership(
+    val owner_member_id: String? = null,
+    val backup_member_id: String? = null,
+    val i_am_backup: Boolean = false,
+    val i_am_owner: Boolean = false,
+    val pending: PendingHandover? = null,
+    val can_offer: Boolean = false,
+    val can_claim: Boolean = false,
+    val can_cancel: Boolean = false,
+)
+
+object HandoverKind {
+    const val OFFER = "offer"
+    const val CLAIM = "claim"
+}
