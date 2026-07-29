@@ -154,6 +154,21 @@ data class RegistrationPair(
 @Serializable
 data class DayHours(val open: String, val close: String)
 
+/**
+ * #402: a date, or a run of dates, that overrides the weekly schedule.
+ *
+ * A RANGE rather than a list of single dates, so a week off is one entry the
+ * owner can read back and delete rather than seven kept in step. [hours] null
+ * means closed all day.
+ */
+@Serializable
+data class HoursException(
+    val from: String,
+    val to: String,
+    val hours: DayHours? = null,
+    val note: String? = null,
+)
+
 /** GET /v1/company and the GET /v1/me `company` hydration. */
 @Serializable
 data class CompanyView(
@@ -175,6 +190,8 @@ data class CompanyView(
     val cancel_at_period_end: Boolean = false,
     /** weekday (mon..sun) -> window; missing/null weekday = closed all day. */
     val business_hours: Map<String, DayHours?> = emptyMap(),
+    /** #402: dates that override the weekly loop — Christmas is not a Thursday. */
+    val business_hours_exceptions: List<HoursException> = emptyList(),
     val away_enabled: Boolean = false,
     val away_message: String? = null,
     /**

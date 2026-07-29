@@ -32,6 +32,10 @@ struct HoursSectionView: View {
 
     var body: some View {
         BusinessHoursCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
+        // #402: directly under the weekly schedule it overrides. These dates
+        // only mean anything as an exception to it, and an owner looking for
+        // "we're shut on Boxing Day" looks where they set their hours.
+        ClosedDatesCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
         AwayReplyCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
     }
 }

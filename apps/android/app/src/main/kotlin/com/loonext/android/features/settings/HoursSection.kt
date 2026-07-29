@@ -60,6 +60,10 @@ fun HoursSection(
     onCompanyUpdated: (CompanyView) -> Unit,
 ) {
     BusinessHoursCard(scope, company, onCompanyUpdated)
+    // #402: directly under the weekly schedule it overrides. These dates only
+    // mean anything as an exception to it, and an owner looking for "we're
+    // shut on Boxing Day" looks where they set their hours.
+    ClosedDatesCard(scope, company, onCompanyUpdated)
     AwayReplyCard(scope, company, onCompanyUpdated)
 }
 

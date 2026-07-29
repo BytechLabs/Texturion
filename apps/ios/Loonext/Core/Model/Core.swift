@@ -152,6 +152,18 @@ struct DayHours: Codable, Sendable, Equatable {
     let close: String
 }
 
+/// #402: a date, or a run of dates, that overrides the weekly schedule.
+///
+/// A RANGE rather than a list of single dates, so a week off is one entry the
+/// owner can read back and delete rather than seven kept in step. `hours` nil
+/// means closed all day.
+struct HoursException: Codable, Sendable, Equatable {
+    let from: String
+    let to: String
+    var hours: DayHours?
+    var note: String?
+}
+
 enum DefaultScreeningOff: DefaultCodableProvider {
     static var defaultValue: String { "off" }
 }
@@ -194,6 +206,10 @@ struct CompanyView: Codable, Sendable {
     @Default<DefaultTrue> var billing_writes_enabled: Bool
     /// weekday (mon..sun) -> window; missing/null weekday = closed all day.
     @Default<DefaultEmptyBusinessHours> var business_hours: [String: DayHours?]
+    /// #402: dates that override the weekly loop. `@Default` rather than a
+    /// bare `= []` — a default VALUE on a non-Optional does not make the
+    /// Codable key optional, and a Worker predating #402 omits it entirely.
+    @Default<DefaultEmptyList<HoursException>> var business_hours_exceptions: [HoursException]
     @Default<DefaultFalse> var away_enabled: Bool
     let away_message: String?
     /// #414 ask 5: the template that will ACTUALLY send — the owner's text if
