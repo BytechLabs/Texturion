@@ -946,6 +946,11 @@ export interface Template {
   name: string;
   body: string;
   created_by: string | null;
+  /** #419: who last edited this shared copy. Null = nobody has since it existed. */
+  updated_by: string | null;
+  /** #419: that editor's display name, resolved server-side (#191 attribution)
+   *  so three clients cannot disagree. Null when the id resolves to nobody. */
+  updated_by_name: string | null;
   created_at: string;
   updated_at: string;
 }

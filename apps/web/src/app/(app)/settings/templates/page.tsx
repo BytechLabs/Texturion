@@ -24,10 +24,13 @@ import { TemplateDialog } from "./template-dialog";
 
 function TemplateRow({
   template,
+  editorName,
   onEdit,
   onDelete,
 }: {
   template: Template;
+  /** #419: who last changed it, when we can name them. */
+  editorName: string | null;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -42,7 +45,15 @@ function TemplateRow({
           className="mt-1 text-xs text-muted-foreground"
           title={formatAbsoluteDateTime(template.updated_at)}
         >
+          {/* #419: not a permission — visibility. A template is the only
+              object here where one person's edit changes what everyone else
+              says to customers, and in a crew of ten "Sam changed this on
+              Tuesday" settles the question before it becomes a dispute.
+              The name is omitted rather than guessed when the editor has
+              left the crew or predates the column.
+              *Applying: G10 — system states must be precise.* */}
           Updated {formatRelativeTime(template.updated_at)}
+          {editorName !== null && ` by ${editorName}`}
         </p>
       </div>
       <div className="flex shrink-0 gap-1">
@@ -128,6 +139,7 @@ export default function TemplatesSettingsPage() {
               <TemplateRow
                 key={template.id}
                 template={template}
+                editorName={template.updated_by_name}
                 onEdit={() => openEdit(template)}
                 onDelete={() => setDeleting(template)}
               />

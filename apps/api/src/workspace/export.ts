@@ -87,8 +87,12 @@ const EXPORT_TABLES = [
     liveOnly: false,
   },
   {
+    // #419: `liveOnly` stays false — a soft-deleted saved reply is still data
+    // we hold, and an export that omitted it would be answering the wrong
+    // question. But `deleted_at` now rides with it, or the export would
+    // present a deleted template as a live one.
     table: "templates",
-    columns: "id,name,body,created_at,updated_at",
+    columns: "id,name,body,created_at,updated_at,deleted_at",
     liveOnly: false,
   },
   { table: "tags", columns: "id,name,color,created_at", liveOnly: false },

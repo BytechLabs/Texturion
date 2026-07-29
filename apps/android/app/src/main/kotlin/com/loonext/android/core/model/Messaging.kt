@@ -259,6 +259,13 @@ data class Template(
     val name: String,
     val body: String,
     val created_by: String? = null,
+    /** #419: who last edited this shared copy. */
+    val updated_by: String? = null,
+    /** #419: that editor's display name, resolved SERVER-side (#191
+     *  attribution) so the three clients cannot disagree. Null when the id
+     *  resolves to nobody — a member who has left, or an edit predating the
+     *  column — and the row then omits the attribution rather than guessing. */
+    val updated_by_name: String? = null,
     val created_at: String,
     val updated_at: String,
 )

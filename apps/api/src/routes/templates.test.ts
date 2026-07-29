@@ -24,6 +24,7 @@ const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const MEMBER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
 const TEMPLATE_ID = "cccccccc-1111-4222-8333-444444444444";
+const OTHER_ID = "dddddddd-1111-4222-8333-444444444444";
 
 let auth: TestAuth;
 const app = buildTestApp(templatesRoutes);
@@ -47,10 +48,21 @@ function memberStub(): SupabaseStub {
 }
 
 describe("templates CRUD (member-level per §10)", () => {
-  it("lists", async () => {
+  it("lists, and names who last edited each one", async () => {
     const sb = memberStub();
     sb.on("GET", "/rest/v1/templates", () => [
-      { id: TEMPLATE_ID, name: "On my way", body: "Heading over now!" },
+      {
+        id: TEMPLATE_ID,
+        name: "On my way",
+        body: "Heading over now!",
+        updated_by: MEMBER_ID,
+      },
+      // #419: an edit that predates the column, or one by somebody who has
+      // since left. The name is omitted rather than shown as a uuid.
+      { id: OTHER_ID, name: "Running late", body: "Sorry!", updated_by: null },
+    ]);
+    sb.on("GET", "/rest/v1/profiles", () => [
+      { user_id: MEMBER_ID, display_name: "Sam" },
     ]);
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -58,10 +70,15 @@ describe("templates CRUD (member-level per §10)", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      data: [{ id: TEMPLATE_ID, name: "On my way", body: "Heading over now!" }],
-      next_cursor: null,
-    });
+    const body = (await res.json()) as {
+      data: { id: string; updated_by_name: string | null }[];
+    };
+    expect(body.data[0].updated_by_name).toBe("Sam");
+    expect(body.data[1].updated_by_name).toBeNull();
+
+    // The list is the one read path, so it must hide soft-deleted rows.
+    const listed = sb.find("GET", "/rest/v1/templates")[0];
+    expect(listed.url.searchParams.get("deleted_at")).toBe("is.null");
   });
 
   it("creates as a plain member with created_by = caller; 409s duplicate names", async () => {
@@ -112,12 +129,18 @@ describe("templates CRUD (member-level per §10)", () => {
     }
   });
 
-  it("patches and deletes; 404s unknown ids", async () => {
+  it("patches, records the editor, and audits the change", async () => {
     const sb = memberStub();
-    sb.on("PATCH", "/rest/v1/templates", (call) => [
-      { id: TEMPLATE_ID, ...(call.body as object) },
+    // #419: the route reads the row BEFORE updating, because "what did it say
+    // before" is the question asked after a price or a promise turns up in a
+    // message nobody remembers writing.
+    sb.on("GET", "/rest/v1/templates", () => [
+      { id: TEMPLATE_ID, name: "On my way", body: "Old body" },
     ]);
-    sb.on("DELETE", "/rest/v1/templates", () => [{ id: TEMPLATE_ID }]);
+    sb.on("PATCH", "/rest/v1/templates", (call) => [
+      { id: TEMPLATE_ID, name: "On my way", ...(call.body as object) },
+    ]);
+    sb.on("POST", "/rest/v1/audit_log", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
     const patch = await apiRequest(
@@ -130,7 +153,38 @@ describe("templates CRUD (member-level per §10)", () => {
     expect(patch.status).toBe(200);
     expect(sb.find("PATCH", "/rest/v1/templates")[0].body).toEqual({
       body: "Updated",
+      updated_by: auth.subject,
     });
+
+    const audit = sb.find("POST", "/rest/v1/audit_log")[0].body as {
+      action: string;
+      before: Record<string, unknown>;
+      after: Record<string, unknown>;
+    };
+    expect(audit.action).toBe("template.updated");
+    // NAME AND SHAPE, NEVER THE BODY — the rule routes/companies.ts already
+    // applies to away_message. The words live in the row, which is now
+    // recoverable; the log says who changed them and by how much.
+    expect(audit.before).toEqual({ name: "On my way", body_length: 8 });
+    expect(audit.after.body_length).toBe(7);
+    expect(JSON.stringify(audit)).not.toContain("Updated");
+  });
+
+  it("deletes SOFTLY, so an accidental delete is recoverable", async () => {
+    const sb = memberStub();
+    // The delete is an UPDATE now. Templates were the one shared object in
+    // this codebase that simply ceased to exist, while tasks (D17) and
+    // attachments (D19) both mark deleted_at.
+    sb.on("PATCH", "/rest/v1/templates", (call) => [
+      {
+        id: TEMPLATE_ID,
+        name: "On my way",
+        body: "Heading over now.",
+        ...(call.body as object),
+      },
+    ]);
+    sb.on("POST", "/rest/v1/audit_log", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
 
     const del = await apiRequest(
       app,
@@ -141,10 +195,27 @@ describe("templates CRUD (member-level per §10)", () => {
     );
     expect(del.status).toBe(204);
 
-    vi.unstubAllGlobals();
+    // No DELETE was ever issued: the stub has no handler for one, so a hard
+    // delete would have failed the request rather than passing quietly.
+    const wrote = sb.find("PATCH", "/rest/v1/templates")[0].body as {
+      deleted_at: string;
+      updated_by: string;
+    };
+    expect(typeof wrote.deleted_at).toBe("string");
+    expect(wrote.updated_by).toBe(auth.subject);
+
+    const audit = sb.find("POST", "/rest/v1/audit_log")[0].body as {
+      action: string;
+      target_type: string;
+    };
+    expect(audit.action).toBe("template.deleted");
+    expect(audit.target_type).toBe("template");
+  });
+
+  it("404s an unknown id on both writes", async () => {
     const sb2 = memberStub();
+    sb2.on("GET", "/rest/v1/templates", () => []);
     sb2.on("PATCH", "/rest/v1/templates", () => []);
-    sb2.on("DELETE", "/rest/v1/templates", () => []);
     stubFetch(jwksRoute(auth), sb2.route);
     for (const method of ["PATCH", "DELETE"]) {
       const res = await apiRequest(

@@ -255,6 +255,13 @@ struct Template: Codable, Sendable {
     let name: String
     let body: String
     let created_by: String?
+    /// #419: who last edited this shared copy.
+    let updated_by: String?
+    /// #419: that editor's display name, resolved SERVER-side (#191
+    /// attribution) so the three clients cannot disagree. Null when the id
+    /// resolves to nobody — a member who has left, or an edit predating the
+    /// column — and the row then omits the attribution rather than guessing.
+    let updated_by_name: String?
     let created_at: String
     let updated_at: String
 }

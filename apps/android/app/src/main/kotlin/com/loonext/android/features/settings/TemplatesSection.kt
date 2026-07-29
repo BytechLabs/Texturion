@@ -205,7 +205,7 @@ private fun TemplateListRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                updatedLine(template.updated_at),
+                updatedLine(template.updated_at, template.updated_by_name),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline,
                 modifier = Modifier.padding(top = 2.dp),
@@ -223,14 +223,21 @@ private fun TemplateListRow(
  * [relativeTime] speaks two dialects — durations ("now", "5m", "3h", "2d") and
  * calendar dates ("Jul 8") — and only a duration reads right before "ago".
  */
-private fun updatedLine(iso: String): String {
+private fun updatedLine(iso: String, editor: String? = null): String {
     val relative = relativeTime(iso)
-    return when {
+    val base = when {
         relative.isEmpty() -> "Saved reply"
         relative == "now" -> "Updated just now"
         relative.last() in "mhd" -> "Updated $relative ago"
         else -> "Updated $relative"
     }
+    // #419: not a permission — visibility. A template is the only object here
+    // where one person's edit changes what everyone else says to customers,
+    // and in a crew of ten "Sam changed this on Tuesday" settles the question
+    // before it becomes a dispute. "Saved reply" takes no byline: there is no
+    // edit to attribute.
+    if (editor.isNullOrBlank() || base == "Saved reply") return base
+    return "$base by $editor"
 }
 
 /** Create ([template] null) or edit a saved reply — the web dialog's twin. */

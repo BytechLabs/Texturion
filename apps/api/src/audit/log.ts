@@ -70,6 +70,14 @@ export type AuditAction =
   | "number_access.changed"
   // Settings that change what customers receive
   | "settings.changed"
+  // #419: saved replies. Recorded because a template is the only object where
+  // one person's edit changes what EVERYONE says to customers — a bad message
+  // is one message, a bad template is every future send by every crew member
+  // until somebody notices. The permission stays member-level; this is what
+  // makes that defensible.
+  | "template.created"
+  | "template.updated"
+  | "template.deleted"
   // Billing — the plan, the modules, the seats
   | "billing.plan_changed"
   | "billing.module_changed"

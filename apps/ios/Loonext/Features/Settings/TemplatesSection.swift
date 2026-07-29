@@ -27,12 +27,27 @@ private func appendToken(_ body: String, _ token: String) -> String {
 
 /// `relativeTime` speaks two dialects — durations ("now", "5m", "3h", "2d") and
 /// calendar dates ("Jul 8") — and only a duration reads right before "ago".
-private func updatedLine(_ iso: String) -> String {
+private func updatedLine(_ iso: String, editor: String? = nil) -> String {
     let relative = relativeTime(iso)
-    if relative.isEmpty { return "Saved reply" }
-    if relative == "now" { return "Updated just now" }
-    if let last = relative.last, "mhd".contains(last) { return "Updated \(relative) ago" }
-    return "Updated \(relative)"
+    let base: String
+    if relative.isEmpty {
+        base = "Saved reply"
+    } else if relative == "now" {
+        base = "Updated just now"
+    } else if let last = relative.last, "mhd".contains(last) {
+        base = "Updated \(relative) ago"
+    } else {
+        base = "Updated \(relative)"
+    }
+    // #419: not a permission — visibility. A template is the only object here
+    // where one person's edit changes what everyone else says to customers,
+    // and in a crew of ten "Sam changed this on Tuesday" settles the question
+    // before it becomes a dispute. "Saved reply" takes no byline: there is no
+    // edit to attribute.
+    guard let editor, !editor.trimmingCharacters(in: .whitespaces).isEmpty,
+          base != "Saved reply"
+    else { return base }
+    return "\(base) by \(editor)"
 }
 
 /// Templates (parity with apps/web settings/templates): saved replies the crew
@@ -169,7 +184,7 @@ private struct TemplateRowView: View {
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted600)
                     .lineLimit(2)
-                Text(updatedLine(template.updated_at))
+                Text(updatedLine(template.updated_at, editor: template.updated_by_name))
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted400)
             }
