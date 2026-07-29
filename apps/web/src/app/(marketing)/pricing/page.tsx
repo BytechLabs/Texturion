@@ -68,6 +68,7 @@ import {
   PRICING_DATELINE_CA,
 } from "./pricing-data";
 import { SegmentCounterStatic } from "./segment-counter-static";
+import { COMPARE_AS_OF } from "../compare/verification";
 
 const PATH = LIVE_ROUTES.pricing;
 
@@ -326,7 +327,7 @@ export default function PricingPage() {
           </h2>
           <p className="fr-body mt-4 max-w-2xl text-[color:var(--fr-ink-70)]">
             The workload we price: a 3-person crew sending 500 plain texts a
-            month, at published prices as of July 2026 (every number below
+            month, at published prices {COMPARE_AS_OF} (every number below
             cites its source on our{" "}
             <Link
               href={LIVE_ROUTES.compareIndex}
@@ -339,7 +340,7 @@ export default function PricingPage() {
 
           <Reveal className="mt-8">
             <LedgerTable
-              caption="Monthly cost for a 3-person crew sending 500 texts: Loonext next to Heymarket and Quo, at published prices as of July 2026."
+              caption={`Monthly cost for a 3-person crew sending 500 texts: Loonext next to Heymarket and Quo, at published prices ${COMPARE_AS_OF}.`}
               columns={ELSEWHERE_COLUMNS}
               rows={ELSEWHERE_ROWS}
             />

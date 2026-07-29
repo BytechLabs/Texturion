@@ -2,7 +2,7 @@
  * /compare/heymarket ledger data, dated and per-cell sourced (COVERAGE MAP:
  * ledger math $172 vs $29). Every Heymarket figure traces to
  * docs/marketing/competitor-site-teardowns.md and heymarket.com/pricing,
- * re-verified 2026-07-02: Standard $49/user/mo (annual), 2-user minimum,
+ * re-verified 2026-07-29: Standard $49/user/mo (annual), 2-user minimum,
  * SMS/MMS $0.03/segment, $10/mo-per-campaign 10DLC, "Book a free demo" CTAs,
  * annual headline up to 18% off. Kept in a plain module so
  * compare-facts.test.ts can guard the figures and the no-em-dash law.
@@ -13,9 +13,11 @@ import type {
   LedgerTableRow,
 } from "@/components/marketing/compare/ledger-table";
 
+import { COMPARE_AS_OF, COMPARE_VERIFIED_ON } from "../verification";
+
 export const HEYMARKET_COLUMNS: LedgerColumn[] = [
   { label: "Loonext Starter", highlight: true },
-  { label: "Heymarket Standard", sub: "as of July 2026" },
+  { label: "Heymarket Standard", sub: COMPARE_AS_OF },
 ];
 
 export const HEYMARKET_ROWS: LedgerTableRow[] = [
@@ -85,6 +87,23 @@ export const HEYMARKET_ROWS: LedgerTableRow[] = [
     ],
   },
   {
+    // #369: the row nobody else in the category can fill. Our side is verified
+    // (#379: no CA->CA registration exists on any network). Their side states
+    // only what their own pricing page publishes, because what a competitor
+    // does internally for a Canada-only account is not ours to assert.
+    label: "Starting up in Canada",
+    cells: [
+      {
+        value: "Day one, no registration",
+        note: "A Canadian business texting Canadian customers files no US registration and pays no registration fee, so the number is live and sending the same day. Turning on US texting later is where the $29 and the carrier wait apply.",
+      },
+      {
+        value: "$10/mo campaign, either way",
+        note: "Their pricing publishes one compliance path, a monthly per-campaign 10DLC charge, and does not mention Canada at all.",
+      },
+    ],
+  },
+  {
     label: "Monthly total",
     total: true,
     cells: ["$29", "~$172/mo"],
@@ -92,4 +111,4 @@ export const HEYMARKET_ROWS: LedgerTableRow[] = [
 ];
 
 export const HEYMARKET_FOOTNOTE =
-  "Loonext's numbers come straight from our published plans. Heymarket figures are from heymarket.com/pricing, re-verified 2026-07-02: Standard $49/user/mo (annual) with a 2-user minimum, SMS/MMS $0.03/segment, and a $10/mo-per-campaign 10DLC fee. The ~$172 total assumes 3 seats, 500 single-segment texts, and one campaign; texts over 160 characters count as multiple segments and cost more. One-time registration fees are excluded from both totals (ours is $29). If any figure changes, tell us and we'll correct it.";
+  `Loonext's numbers come straight from our published plans. Heymarket figures are from heymarket.com/pricing, re-verified ${COMPARE_VERIFIED_ON}: Standard $49/user/mo (annual) with a 2-user minimum, SMS/MMS $0.03/segment, and a $10/mo-per-campaign 10DLC fee. The ~$172 total assumes 3 seats, 500 single-segment texts, and one campaign; texts over 160 characters count as multiple segments and cost more. One-time registration fees are excluded from both totals (ours is $29). If any figure changes, tell us and we'll correct it.`;

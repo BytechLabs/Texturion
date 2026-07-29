@@ -33,6 +33,7 @@ import {
 } from "@/app/(marketing)/pricing/pricing-data";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
+import { COMPARE_AS_OF } from "./verification";
 
 const PATH = LIVE_ROUTES.compareIndex;
 
@@ -83,7 +84,7 @@ export default function CompareIndexPage() {
         footnote={ELSEWHERE_FOOTNOTE}
       >
         <LedgerTable
-          caption="Monthly cost for a 3-person crew sending 500 texts: Loonext next to Heymarket and Quo, at published prices as of July 2026."
+          caption={`Monthly cost for a 3-person crew sending 500 texts: Loonext next to Heymarket and Quo, at published prices ${COMPARE_AS_OF}.`}
           columns={ELSEWHERE_COLUMNS}
           rows={ELSEWHERE_ROWS}
         />

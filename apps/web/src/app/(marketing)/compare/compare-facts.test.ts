@@ -11,6 +11,12 @@ import {
   HEYMARKET_ROWS,
 } from "./heymarket/page-data";
 import { QUO_COLUMNS, QUO_FOOTNOTE, QUO_ROWS } from "./quo/page-data";
+import {
+  COMPARE_AS_OF,
+  COMPARE_RECHECK_AFTER,
+  COMPARE_VERIFIED_ON,
+  asOfLabel,
+} from "./verification";
 
 interface PageData {
   name: string;
@@ -54,10 +60,30 @@ describe("compare ledgers (shared laws)", () => {
     });
 
     it(`${page.name}: the competitor column is dated and the footnote states the verification date`, () => {
+      // #403: derived from COMPARE_VERIFIED_ON, never a literal. The old
+      // assertions pinned "as of July 2026" and "2026-07-02" as strings, so the
+      // suite would have passed forever asserting a verification nobody had
+      // repeated — it guaranteed the page CLAIMS a date, not that the date is
+      // true. Deriving both means the dateline cannot drift from the data.
       const competitor = page.columns.find((c) => !c.highlight);
-      expect(competitor?.sub).toBe("as of July 2026");
-      expect(page.footnote).toContain("2026-07-02");
+      expect(competitor?.sub).toBe(COMPARE_AS_OF);
+      expect(page.footnote).toContain(COMPARE_VERIFIED_ON);
       expect(page.footnote).toContain("tell us and we'll");
+    });
+
+    it(`${page.name}: states the Canada day-one row nobody else can fill (#369)`, () => {
+      const row = page.rows.find((r) => r.label === "Starting up in Canada");
+      expect(row, "the Canada row is the one differentiator competitors cannot match").toBeDefined();
+      const ours = row?.cells[0];
+      const value = typeof ours === "string" ? ours : ours?.value;
+      const note = typeof ours === "string" ? "" : (ours?.note ?? "");
+      expect(value).toBe("Day one, no registration");
+      // The claim is a trap without its boundary: instant applies to CANADIAN
+      // destinations, and the US$29 plus the carrier wait return the moment
+      // they text a US number. #369 says to be exact about this or not say it.
+      expect(note).toContain("Canadian customers");
+      expect(note).toContain("US texting later");
+      expect(note).toContain("$29");
     });
 
     it(`${page.name}: the Loonext column is the highlighted one and totals $29`, () => {
@@ -139,5 +165,40 @@ describe("quo ledger facts (their published prices, July 2026)", () => {
   it("credits their $19.50 registration disclosure in the footnote (deck order)", () => {
     expect(QUO_FOOTNOTE).toContain("$19.50");
     expect(QUO_FOOTNOTE).toContain("disclosure done right");
+  });
+});
+
+/**
+ * #403 — the staleness guard the literal made impossible.
+ *
+ * A comparative claim about somebody else's price is legally exposed and rots
+ * without anyone touching the file. These fail when the ledgers are overdue,
+ * which is the only kind of reminder that survives a busy quarter.
+ */
+describe("competitor claims stay fresh (#403)", () => {
+  it("is still inside its recheck window", () => {
+    expect(
+      new Date(COMPARE_RECHECK_AFTER).getTime(),
+      `The competitor ledgers were verified on ${COMPARE_VERIFIED_ON} and are overdue. ` +
+        "Open heymarket.com/pricing and quo.com/pricing, check EVERY figure the " +
+        "ledgers and footnotes state, then move COMPARE_VERIFIED_ON and " +
+        "COMPARE_RECHECK_AFTER in compare/verification.ts. Do not move them " +
+        "without looking: publishing a date is only worth anything if it is true.",
+    ).toBeGreaterThan(Date.now());
+  });
+
+  it("recheck is after verification, and within a year of it", () => {
+    const verified = new Date(COMPARE_VERIFIED_ON).getTime();
+    const recheck = new Date(COMPARE_RECHECK_AFTER).getTime();
+    expect(recheck).toBeGreaterThan(verified);
+    // A window long enough to be useless is the literal's failure with extra
+    // steps.
+    expect(recheck - verified).toBeLessThanOrEqual(366 * 24 * 60 * 60 * 1000);
+  });
+
+  it("derives the dateline from the date", () => {
+    expect(asOfLabel("2026-07-29")).toBe("as of July 2026");
+    expect(asOfLabel("2027-01-02")).toBe("as of January 2027");
+    expect(COMPARE_AS_OF).toBe(asOfLabel(COMPARE_VERIFIED_ON));
   });
 });

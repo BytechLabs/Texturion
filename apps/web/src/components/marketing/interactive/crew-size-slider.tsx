@@ -24,6 +24,7 @@ import { useId, useState } from "react";
 
 import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
 import { PLAN_PRICING } from "@/lib/api/types";
+import { COMPARE_AS_OF } from "@/app/(marketing)/compare/verification";
 
 /** The published monthly Starter seat price of a leading per-user tool (July 2026). */
 const PER_USER_MONTHLY = 19;
@@ -158,7 +159,7 @@ export function CrewSizeSlider() {
 
       <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
         The $19/user figure is the published monthly Starter seat price of a
-        leading per-user business-texting tool as of July 2026 (that tool bills
+        leading per-user business-texting tool {COMPARE_AS_OF} (that tool bills
         texting separately, so real totals run higher). See the named, sourced
         math on{" "}
         <a

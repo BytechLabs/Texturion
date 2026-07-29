@@ -28,6 +28,8 @@ import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 
+import { COMPARE_AS_OF } from "../verification";
+
 import {
   HEYMARKET_COLUMNS,
   HEYMARKET_FOOTNOTE,
@@ -82,7 +84,7 @@ export default function CompareHeymarketPage() {
         footnote={HEYMARKET_FOOTNOTE}
       >
         <LedgerTable
-          caption="Monthly cost for a 3-person crew sending 500 texts: Loonext Starter next to Heymarket Standard, at published prices as of July 2026."
+          caption={`Monthly cost for a 3-person crew sending 500 texts: Loonext Starter next to Heymarket Standard, at published prices ${COMPARE_AS_OF}.`}
           columns={HEYMARKET_COLUMNS}
           rows={HEYMARKET_ROWS}
         />

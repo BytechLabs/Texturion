@@ -32,6 +32,7 @@ import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 
 import { QUO_COLUMNS, QUO_FOOTNOTE, QUO_ROWS } from "./page-data";
+import { COMPARE_AS_OF } from "../verification";
 
 const PATH = LIVE_ROUTES.compareQuo;
 
@@ -81,7 +82,7 @@ export default function CompareQuoPage() {
         footnote={QUO_FOOTNOTE}
       >
         <LedgerTable
-          caption="Monthly cost for a 3-person crew sending 500 texts: Loonext Starter next to Quo Starter, at published prices as of July 2026."
+          caption={`Monthly cost for a 3-person crew sending 500 texts: Loonext Starter next to Quo Starter, at published prices ${COMPARE_AS_OF}.`}
           columns={QUO_COLUMNS}
           rows={QUO_ROWS}
         />

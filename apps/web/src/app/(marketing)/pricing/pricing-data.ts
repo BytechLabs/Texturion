@@ -20,6 +20,8 @@ import {
   type PlanId,
 } from "@/lib/api/types";
 
+import { COMPARE_AS_OF } from "../compare/verification";
+
 import type { LedgerEntry } from "@/components/marketing/pricing/honesty-ledger";
 import type {
   LedgerColumn,
@@ -190,8 +192,8 @@ export const LEDGER_CA: LedgerEntry[] = LEDGER.map((entry) => {
    two surfaces can never disagree. */
 export const ELSEWHERE_COLUMNS: LedgerColumn[] = [
   { label: "Loonext Starter", highlight: true },
-  { label: "Heymarket Standard", sub: "as of July 2026" },
-  { label: "Quo", sub: "as of July 2026" },
+  { label: "Heymarket Standard", sub: COMPARE_AS_OF },
+  { label: "Quo", sub: COMPARE_AS_OF },
 ];
 
 export const ELSEWHERE_ROWS: LedgerTableRow[] = [
