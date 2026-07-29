@@ -91,6 +91,7 @@ import com.loonext.android.BuildConfig
 import com.loonext.android.core.model.Attachment
 import com.loonext.android.core.model.AttachmentSummary
 import com.loonext.android.core.model.ConversationStatus
+import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
@@ -1512,7 +1513,21 @@ private fun ConversationSheet(
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     if (controller.contact?.opted_out == true) {
-                        SheetActionRow(label = "Remove opt-out", onClick = onRevokeOptOut)
+                        // #407: a STOP the customer sent is a CARRIER block,
+                        // and only they can lift it. Offering to undo it here
+                        // promised something the next send would immediately
+                        // contradict — and taught the owner that consent is
+                        // theirs to reinstate. So the row becomes the answer
+                        // they actually need: the route back, which is one the
+                        // customer takes.
+                        if (isCarrierEnforcedOptOut(controller.contact?.opt_out_source)) {
+                            SheetNote(
+                                "This customer texted STOP. Only they can undo it, by " +
+                                    "texting START to your number.",
+                            )
+                        } else {
+                            SheetActionRow(label = "Remove opt-out", onClick = onRevokeOptOut)
+                        }
                     } else {
                         SheetActionRow(label = "Opt out of texts", onClick = onOptOut)
                     }
@@ -1555,6 +1570,26 @@ private fun ConversationSheet(
             }
         }
     }
+}
+
+/**
+ * A row that says something rather than doing something (#407).
+ *
+ * Deliberately NOT a disabled SheetActionRow: a greyed-out row still reads as
+ * an action somebody could earn, and the whole point here is that this one is
+ * not ours to take at all. Same metrics as its tappable sibling so the sheet
+ * keeps its rhythm; muted, smaller and wrapping so it never reads as pressable.
+ */
+@Composable
+private fun SheetNote(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 15.dp, vertical = 13.dp),
+    )
 }
 
 @Composable

@@ -43,6 +43,7 @@ import {
 import { ApiError } from "@/lib/api/error";
 import { useTags } from "@/lib/api/tags";
 import { flattenPages } from "@/lib/api/pagination";
+import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 import type { ConversationDetail, ContactDetail } from "@/lib/api/types";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
@@ -318,25 +319,41 @@ export function ContactPanel({
             {consentLine(contact, memberName)}
           </p>
           {contact.opted_out && (
-            <div className="flex items-center gap-2 px-2 pt-1.5">
+            <div className="flex flex-wrap items-center gap-2 px-2 pt-1.5">
               <Badge variant="destructive">Opted out</Badge>
-              {/* #73: the shared Button (matching the contact detail page's
-                  opt-in), never a raw <button> — consistent styling, focus ring
-                  and disabled state across the app. */}
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={revoke.isPending}
-                onClick={() =>
-                  revoke.mutate(contact.id, {
-                    onSuccess: () => toast.success("Marked opted in again."),
-                    onError: (e) => onApiError(e, "Couldn't update opt-out."),
-                  })
-                }
-              >
-                <Undo2 strokeWidth={1.75} aria-hidden />
-                {revoke.isPending ? "Working…" : "Mark opted in again"}
-              </Button>
+              {/* #407: which kind of opt-out decides whether there is anything
+                  to press. A STOP the customer sent is a CARRIER block —
+                  clearing our row would not clear Telnyx's, so the server
+                  refuses it and always will. Offering the button anyway taught
+                  owners that consent is theirs to reinstate and the feature is
+                  merely broken, which is the one mental model this product
+                  cannot afford. The other two surfaces (contact detail, thread
+                  header) already ask this; the panel was the one left behind.
+                  *Applying: G10 — system states must be precise.* */}
+              {isCarrierEnforcedOptOut(contact.opt_out_source) ? (
+                <p className="basis-full text-xs text-muted-foreground">
+                  They texted STOP, so their carrier is blocking your texts.
+                  Only they can undo it, by texting START to your number.
+                </p>
+              ) : (
+                /* #73: the shared Button (matching the contact detail page's
+                   opt-in), never a raw <button> — consistent styling, focus
+                   ring and disabled state across the app. */
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={revoke.isPending}
+                  onClick={() =>
+                    revoke.mutate(contact.id, {
+                      onSuccess: () => toast.success("Marked opted in again."),
+                      onError: (e) => onApiError(e, "Couldn't update opt-out."),
+                    })
+                  }
+                >
+                  <Undo2 strokeWidth={1.75} aria-hidden />
+                  {revoke.isPending ? "Working…" : "Mark opted in again"}
+                </Button>
+              )}
             </div>
           )}
         </QuietGroup>

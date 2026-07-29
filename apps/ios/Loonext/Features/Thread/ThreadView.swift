@@ -913,7 +913,20 @@ private struct ConversationSheet: View {
             }
             RowDivider()
             if controller.contact?.opted_out == true {
-                sheetRow("Remove opt-out", action: onRevokeOptOut)
+                // #407: a STOP the customer sent is a CARRIER block, and only
+                // they can lift it. Offering to undo it here promised something
+                // the next send would immediately contradict — and taught the
+                // owner that consent is theirs to reinstate. So the row becomes
+                // the answer they actually need: the route back, which is one
+                // the customer takes.
+                if isCarrierEnforcedOptOut(controller.contact?.opt_out_source) {
+                    sheetNote(
+                        "This customer texted STOP. Only they can undo it, by "
+                            + "texting START to your number."
+                    )
+                } else {
+                    sheetRow("Remove opt-out", action: onRevokeOptOut)
+                }
             } else {
                 sheetRow("Opt out of texts", action: onOptOut)
             }
@@ -936,6 +949,23 @@ private struct ConversationSheet: View {
             }
         }
         .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    /// A row that says something rather than doing something (#407).
+    ///
+    /// Deliberately NOT a disabled `sheetRow`: a greyed-out row still reads as
+    /// an action somebody could earn, and the whole point here is that this one
+    /// is not ours to take at all. Same metrics as its tappable sibling so the
+    /// sheet keeps its rhythm; muted, smaller and wrapping so it never reads as
+    /// pressable.
+    private func sheetNote(_ text: String) -> some View {
+        Text(text)
+            .font(.golos(11.5))
+            .foregroundStyle(BrandColor.muted500)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 15)
+            .padding(.vertical, 13)
     }
 
     private func sheetRow(_ label: String, action: @escaping @MainActor () -> Void) -> some View {
