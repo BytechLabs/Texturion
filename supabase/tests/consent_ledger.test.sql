@@ -221,6 +221,111 @@ begin
   end if;
 end $$;
 
-\echo 'consent_ledger.test.sql: CL-1..CL-6 PASSED'
+
+-- ===========================================================================
+-- CL-7. A STOP is a ledger event, and so is coming back from one.
+--
+--       This is the half a demand letter is usually about: "they told you to
+--       stop on the 3rd and you texted them on the 9th". Answering that has to
+--       be a row, not a join somebody remembers to write.
+-- ===========================================================================
+do $$
+declare
+  co uuid := '22600000-0000-4000-8000-000000000002';
+  ct uuid;
+  n  int;
+  r  public.contact_consent_events%rowtype;
+begin
+  select id into ct from public.contacts
+   where company_id = co and phone_e164 = '+12125559001';
+
+  insert into public.opt_outs (company_id, phone_e164, source)
+  values (co, '+12125559001', 'stop_keyword');
+
+  select count(*) into n from public.contact_consent_events
+   where contact_id = ct and state = 'revoked';
+  if n <> 1 then
+    raise exception 'CL-7 FAILED: a STOP recorded % revocation rows', n;
+  end if;
+
+  select * into r from public.contact_consent_events
+   where contact_id = ct and state = 'revoked';
+  if r.source <> 'stop_keyword' then
+    raise exception 'CL-7 FAILED: revocation source = %', r.source;
+  end if;
+
+  -- START: the customer comes back. A second row, never an edit of the first.
+  update public.opt_outs set revoked_at = now()
+   where company_id = co and phone_e164 = '+12125559001';
+
+  select count(*) into n from public.contact_consent_events where contact_id = ct;
+  if n <> 3 then
+    raise exception 'CL-7 FAILED: expected implied + revoked + re-consent, got % rows', n;
+  end if;
+  if not exists (
+    select 1 from public.contact_consent_events
+     where contact_id = ct and source = 'start_keyword' and state = 'express')
+  then
+    raise exception 'CL-7 FAILED: coming back from a STOP was not recorded';
+  end if;
+end $$;
+
+-- ===========================================================================
+-- CL-8. A STOP from a number with no contact is still honoured by the gate and
+--       simply has no ledger row — there is no person to record it against.
+--       Asserted so a future change does not "fix" it by inventing a contact.
+-- ===========================================================================
+do $$
+declare
+  co uuid := '22600000-0000-4000-8000-000000000002';
+  before_n int;
+  after_n  int;
+begin
+  select count(*) into before_n from public.contact_consent_events;
+  insert into public.opt_outs (company_id, phone_e164, source)
+  values (co, '+12125559999', 'stop_keyword');
+  select count(*) into after_n from public.contact_consent_events;
+
+  if after_n <> before_n then
+    raise exception 'CL-8 FAILED: a STOP with no contact wrote % ledger row(s)',
+      after_n - before_n;
+  end if;
+  -- The opt-out itself must still exist: the gate does not depend on a contact.
+  if not exists (
+    select 1 from public.opt_outs
+     where company_id = co and phone_e164 = '+12125559999' and revoked_at is null)
+  then
+    raise exception 'CL-8 FAILED: the opt-out itself was not recorded';
+  end if;
+end $$;
+
+-- ===========================================================================
+-- CL-9. The evidence file names a PERSON and reads in order. Its reader is a
+--       lawyer or a carrier reviewer, not us, so a row of foreign keys is not
+--       an answer.
+-- ===========================================================================
+do $$
+declare
+  co  uuid := '22600000-0000-4000-8000-000000000002';
+  rep jsonb;
+  row jsonb;
+begin
+  rep := public.api_consent_evidence(co);
+  if jsonb_typeof(rep) <> 'array' or jsonb_array_length(rep) = 0 then
+    raise exception 'CL-9 FAILED: empty evidence file: %', rep;
+  end if;
+
+  select value into row from jsonb_array_elements(rep)
+   where value->>'phone_e164' = '+12125559001'
+     and value->>'state' = 'revoked';
+  if row is null then
+    raise exception 'CL-9 FAILED: the revocation is missing from the evidence file';
+  end if;
+  if not (row ? 'captured_at') or not (row ? 'source') then
+    raise exception 'CL-9 FAILED: a row without when-and-how is not evidence: %', row;
+  end if;
+end $$;
+
+\echo 'consent_ledger.test.sql: CL-1..CL-9 PASSED'
 
 rollback;
