@@ -100,7 +100,7 @@ struct ResponseTimeCard: View {
                         .foregroundStyle(BrandColor.muted600)
                         .padding(14)
                     } else {
-                        body(for: report)
+                        content(for: report)
                     }
                 } else {
                     Text("Working out your response time…")
@@ -114,7 +114,7 @@ struct ResponseTimeCard: View {
     }
 
     @ViewBuilder
-    private func body(for report: ResponseTimeReport) -> some View {
+    private func content(for report: ResponseTimeReport) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .lastTextBaseline, spacing: 6) {
                 Image(systemName: "clock")

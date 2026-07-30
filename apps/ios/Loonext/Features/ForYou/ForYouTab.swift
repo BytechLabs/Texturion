@@ -639,6 +639,10 @@ private func previewCall(
                 forwardSeconds: 58
             ),
         ]),
+        // #239: nil report — the preview shows the "working it out" state.
+        responseTime: nil,
+        responseDays: 30,
+        onResponseWindow: { _ in },
         onOpenConversation: { _ in },
         onOpenCalls: {},
         onRefresh: {},
@@ -653,6 +657,10 @@ private func previewCall(
         spamReview: [],
         onAnswerSpamReview: { _, _ in },
         recentCalls: .failed("Something went wrong."),
+        // #239: nil report — the preview shows the "working it out" state.
+        responseTime: nil,
+        responseDays: 30,
+        onResponseWindow: { _ in },
         onOpenConversation: { _ in },
         onOpenCalls: {},
         onRefresh: {},
@@ -686,6 +694,10 @@ private func previewCall(
         ],
         onAnswerSpamReview: { _, _ in },
         recentCalls: .ready([]),
+        // #239: nil report — the preview shows the "working it out" state.
+        responseTime: nil,
+        responseDays: 30,
+        onResponseWindow: { _ in },
         onOpenConversation: { _ in },
         onOpenCalls: {},
         onRefresh: {},
