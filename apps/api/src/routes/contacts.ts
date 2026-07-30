@@ -37,7 +37,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
-import { buildPage } from "../http/pagination";
+import { buildPage, encodeCursor } from "../http/pagination";
 import { csvSafeText, parseCsvRows, serializeCsv } from "./core/csv";
 import {
   insertConversationEvents,
@@ -535,8 +535,14 @@ contactsRoutes.post("/contacts", requireRole("member"), async (c) => {
  * blocks with tasks nowhere — so "what have we done for this customer?", the
  * question asked before every visit, still meant opening threads one at a time.
  *
- * `before` is both the pagination cursor and jump-to-date, because they are the
- * same request: show me from here backwards.
+ * Paginated with the shared opaque cursor (SPEC §7/D10), like every other list.
+ *
+ * The first cut took a raw `before` timestamp, which was wrong twice over. The
+ * ordering is `(occurred_at, id)` but a timestamp-only predicate SKIPS the
+ * second of any two entries sharing a timestamp — which a call threading a
+ * message produces. And a Postgres timestamptz carries a literal `+`, which
+ * `URLComponents` does not escape and Hono decodes as a space, so every iOS
+ * "Show earlier" came back 422. base64url exists to avoid exactly that.
  */
 contactsRoutes.get("/contacts/:id/timeline", requireRole("member"), async (c) => {
   const id = pathUuid(c, "id");
@@ -550,33 +556,26 @@ contactsRoutes.get("/contacts/:id/timeline", requireRole("member"), async (c) =>
     return errorResponse(c, "not_found", "No such contact.");
   }
 
-  const limitParam = Number(c.req.query("limit") ?? 50);
-  const limit = Number.isFinite(limitParam)
-    ? Math.min(Math.max(Math.trunc(limitParam), 1), 200)
-    : 50;
-  const before = c.req.query("before");
-  // An unparseable date is a client bug, and silently treating it as "no
-  // cursor" would page from the top forever rather than saying so.
-  if (before !== undefined && Number.isNaN(Date.parse(before))) {
-    return errorResponse(c, "validation_failed", "`before` must be a timestamp.");
-  }
+  const limit = parseLimit(c, 50, 200);
+  const cursor = parseCursor(c);
 
   const { data, error } = await db.rpc("api_contact_timeline", {
     p_company_id: companyId,
     p_contact_id: id,
     p_limit: limit,
-    p_before: before ?? null,
+    p_before_ts: cursor?.ts ?? null,
+    p_before_id: cursor?.id ?? null,
   });
   if (error) throw new Error(`contact timeline failed: ${error.message}`);
 
-  const entries = (data ?? []) as { occurred_at: string }[];
+  const entries = (data ?? []) as { occurred_at: string; id: string }[];
+  const last = entries[entries.length - 1];
   return c.json({
     entries,
-    // The cursor for the next page, or null at the end. Derived here rather
-    // than by the client so "what is the next page" has one definition.
-    next_before:
-      entries.length === limit
-        ? entries[entries.length - 1]?.occurred_at ?? null
+    // Null at the end of the history, which is how a client knows to stop.
+    next_cursor:
+      entries.length === limit && last
+        ? encodeCursor({ ts: last.occurred_at, id: last.id })
         : null,
   });
 });

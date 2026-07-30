@@ -45,7 +45,7 @@ class ContactTimelineLogicTest {
         )
         val merged = mergeTimelineFirstPage(
             cached,
-            ContactTimelinePage(listOf(entry(kind = "conversation", id = "same")), null),
+            ContactTimelinePage(entries = listOf(entry(kind = "conversation", id = "same")), null),
         )
         assertEquals(3, merged.entries.size)
         assertTrue(merged.entries.any { it.kind == "task" && it.id == "same" })
@@ -60,22 +60,22 @@ class ContactTimelineLogicTest {
         )
         val merged = mergeTimelineFirstPage(
             cached,
-            ContactTimelinePage(listOf(entry(id = "e1")), "fresh"),
+            ContactTimelinePage(entries = listOf(entry(id = "e1")), "fresh"),
         )
         assertEquals(10, merged.entries.size)
         // The deeper cursor survives: the fresh first page does not know about
         // the tail the user already loaded.
-        assertEquals("cursor", merged.nextBefore)
+        assertEquals("cursor", merged.nextCursor)
     }
 
     @Test
     fun `a fresh page wins outright when nothing deeper was loaded`() {
         val merged = mergeTimelineFirstPage(
             null,
-            ContactTimelinePage(listOf(entry(id = "a")), "next"),
+            ContactTimelinePage(entries = listOf(entry(id = "a")), "next"),
         )
         assertEquals(1, merged.entries.size)
-        assertEquals("next", merged.nextBefore)
+        assertEquals("next", merged.nextCursor)
     }
 
     @Test
@@ -83,10 +83,10 @@ class ContactTimelineLogicTest {
         val current = ContactTimelineLog(listOf(entry(id = "a")), "c1")
         val appended = appendTimelinePage(
             current,
-            ContactTimelinePage(listOf(entry(id = "a"), entry(id = "b")), null),
+            ContactTimelinePage(entries = listOf(entry(id = "a"), entry(id = "b")), null),
         )
         assertEquals(listOf("a", "b"), appended.entries.map { it.id })
-        assertEquals(null, appended.nextBefore)
+        assertEquals(null, appended.nextCursor)
     }
 
     @Test
@@ -100,6 +100,27 @@ class ContactTimelineLogicTest {
             vancouver,
         )
         assertEquals(LocalDate.of(2026, 7, 20), groups.single().first)
+    }
+
+    @Test
+    fun `the offset shape the server actually sends parses`() {
+        // Postgres renders timestamptz as `+00:00`, never `Z`. Every other
+        // fixture here uses `Z`, so without this the parser is only ever proven
+        // on a shape this endpoint does not produce — the same blind spot that
+        // hid a 422 on iOS.
+        val groups = groupTimelineByDay(
+            listOf(entry(at = "2026-07-21T04:00:00+00:00")),
+            ZoneId.of("America/Vancouver"),
+        )
+        assertEquals(LocalDate.of(2026, 7, 20), groups.single().first)
+    }
+
+    @Test
+    fun `a due date in the offset shape renders rather than throwing`() {
+        assertEquals(
+            "Due 25 Jul",
+            timelineDetail(entry(kind = "task", due = "2026-07-25T12:00:00+00:00", done = false)),
+        )
     }
 
     @Test

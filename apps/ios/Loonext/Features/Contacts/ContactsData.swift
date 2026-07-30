@@ -104,17 +104,19 @@ struct ContactMutations: Sendable {
 
     /// #324 — one chronology of everything done for this customer.
     ///
-    /// `before` is both the page cursor and jump-to-date, because they are the
-    /// same request: show me from here backwards.
+    /// Paginated with the shared opaque cursor (SPEC §7/D10), which carries the
+    /// full `(occurred_at, id)` sort key — a timestamp alone skips the second of
+    /// any two entries sharing an instant, and its literal `+` does not survive
+    /// `URLComponents`.
     func timeline(
         companyId: String,
         contactId: String,
-        before: String? = nil,
+        cursor: String? = nil,
         limit: Int = 50
     ) async throws -> ContactTimelinePage {
         try await api.get(
             "/v1/contacts/\(contactId)/timeline",
-            query: ["before": before, "limit": String(limit)],
+            query: ["cursor": cursor, "limit": String(limit)],
             companyId: companyId
         )
     }

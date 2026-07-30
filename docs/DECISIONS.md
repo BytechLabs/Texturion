@@ -5595,10 +5595,28 @@ from. And tasks reach a contact through their conversation, because D17 anchors
 a task to a message; when D64's call-anchored tasks land, this needs a fourth
 arm.
 
-**The cursor is a timestamp, not an opaque token,** which makes pagination and
-jump-to-date the same request: *show me from here backwards*. That is why the
-date control needs no second endpoint. On the web it scrolls what is already
-loaded rather than refetching, so going back is free.
+**The cursor is the shared opaque one (SPEC §7/D10), and getting that wrong
+first cost two real defects.** The first cut took a raw `before` timestamp,
+which was attractive because it makes a date jump seed the query directly. It
+was wrong twice:
+
+- **It skipped rows.** The ordering is `(occurred_at, id)` but the predicate
+  compared only the timestamp, so at a page boundary between two entries sharing
+  an instant, the second was unreachable by any later page. The function's own
+  comment claimed the opposite — *"id breaks ties so a page boundary cannot
+  repeat or skip a row"* — because the ORDER BY did break ties and the WHERE did
+  not. A call threading a message stamps both from the same moment, so this was
+  reachable rather than theoretical.
+- **It 422'd on iOS, silently.** A Postgres `timestamptz` renders as
+  `...+00:00`; `URLComponents.queryItems` does not escape `+` (it is in
+  `CharacterSet.urlQueryAllowed`), and Hono's decoder turns a raw `+` into a
+  space. Every "Show earlier" failed, and the empty catch hid it. Web and
+  Android were unaffected — `URLSearchParams` and OkHttp both escape it — which
+  is exactly the shape of bug that ships. base64url exists to avoid this.
+
+Both dissolve by using the cursor helper the codebase already had. The web's
+date jump scrolls what is already loaded rather than seeding a query, so nothing
+was lost by making the cursor opaque.
 
 **Day grouping is local, not UTC.** An evening call in Vancouver falls on the
 next UTC day, so a UTC grouping files it under a date the crew does not remember

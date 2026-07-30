@@ -1,5 +1,18 @@
 import SwiftUI
 
+/// The broadcasts that change a customer's history.
+///
+/// `task.changed` is the real wire name — the DB trigger in
+/// `20260702060000_appv2_tasks_attachments_geocode.sql` emits it, and every
+/// other client listens for it. An earlier draft here said `task.updated`,
+/// which nothing broadcasts, so job rows never revalidated.
+private let timelineRefreshEvents: Set<String> = [
+    "call.updated",
+    "message.created",
+    "conversation.updated",
+    "task.changed",
+]
+
 /// #324 — "what have we done for this customer?", answered by scrolling once.
 ///
 /// D7 threads by recency, so a long relationship is MANY conversations. The
@@ -23,8 +36,7 @@ struct ContactTimelineSection: View {
     let contactId: String
     let onOpenConversation: ((_ conversationId: String) -> Void)?
 
-    @State private var state: LoadState<[TimelineEntry]> = .loading
-    @State private var nextBefore: String?
+    @State private var state: LoadState<TimelineLog> = .loading
     @State private var loadingMore = false
     @State private var refreshKey = 0
 
@@ -38,10 +50,7 @@ struct ContactTimelineSection: View {
         // rather than inventing a fourth event.
         .task(id: contactId) {
             for await event in await graph.realtime.events()
-            where event.event == "call.updated"
-                || event.event == "message.created"
-                || event.event == "conversation.updated"
-                || event.event == "task.updated" {
+            where timelineRefreshEvents.contains(event.event) {
                 refreshKey += 1
             }
         }
@@ -74,7 +83,8 @@ struct ContactTimelineSection: View {
                     .buttonStyle(.plain)
             }
             .padding(.horizontal, 6)
-        case .ready(let entries):
+        case .ready(let log):
+            let entries = log.entries
             if entries.isEmpty {
                 Text("Texts, calls and jobs for this customer will collect here.")
                     .font(.golos(12.5))
@@ -82,12 +92,15 @@ struct ContactTimelineSection: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 6)
             } else {
-                readyList(groupTimelineByDay(entries))
+                readyList(groupTimelineByDay(entries), nextCursor: log.nextCursor)
             }
         }
     }
 
-    private func readyList(_ groups: [TimelineDayGroup]) -> some View {
+    private func readyList(
+        _ groups: [TimelineDayGroup],
+        nextCursor: String?
+    ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(groups) { group in
                 SectionHeader(label: group.label, count: group.entries.count)
@@ -104,13 +117,13 @@ struct ContactTimelineSection: View {
                     }
                 }
             }
-            if nextBefore != nil {
+            if let cursor = nextCursor {
                 HStack {
                     Spacer()
                     if loadingMore {
                         ProgressView().controlSize(.small)
                     } else {
-                        Button("Show earlier") { loadMore() }
+                        Button("Show earlier") { loadMore(from: cursor) }
                             .font(.golos(12, weight: .semibold))
                             .foregroundStyle(BrandColor.olive)
                             .buttonStyle(.plain)
@@ -136,17 +149,23 @@ struct ContactTimelineSection: View {
                 companyId: companyId,
                 contactId: contactId
             )
-            let cached: [TimelineEntry]
-            if case .ready(let existing) = state { cached = existing } else { cached = [] }
-            state = .ready(mergeTimelineFirstPage(cached: cached, page: page.entries))
-            nextBefore = page.next_before
+            let cached: TimelineLog? = if case .ready(let existing) = state { existing } else { nil }
+            // The merge carries the cursor: when it keeps a deeper tail it also
+            // keeps the DEEPER cursor, because the fresh page's next_cursor
+            // points at the end of page one and adopting it would make "Show
+            // earlier" re-request rows already on screen.
+            state = .ready(mergeTimelineFirstPage(cached: cached, page: page))
         } catch {
+            // A failed background revalidate must NOT throw away a history the
+            // reader is looking at — the sibling Calls section guards this the
+            // same way. Only a first load with nothing on screen shows an error.
+            if case .ready = state { return }
             state = .failed(error.userMessage)
         }
     }
 
-    private func loadMore() {
-        guard let cursor = nextBefore, !loadingMore else { return }
+    private func loadMore(from cursor: String) {
+        guard !loadingMore else { return }
         loadingMore = true
         Task { @MainActor in
             defer { loadingMore = false }
@@ -154,11 +173,10 @@ struct ContactTimelineSection: View {
                 let page = try await mutations.timeline(
                     companyId: companyId,
                     contactId: contactId,
-                    before: cursor
+                    cursor: cursor
                 )
                 guard case .ready(let current) = state else { return }
-                state = .ready(appendTimelinePage(current: current, page: page.entries))
-                nextBefore = page.next_before
+                state = .ready(appendTimelinePage(current: current, page: page))
             } catch {
                 // Keep what is loaded; the button stays, so the retry is one tap.
             }

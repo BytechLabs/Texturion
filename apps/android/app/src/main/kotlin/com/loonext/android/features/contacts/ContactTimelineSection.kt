@@ -97,7 +97,10 @@ internal fun ContactTimelineSection(
     LaunchedEffect(contactId) {
         graph.realtime.events.collect { event ->
             when (event.event) {
-                "call.updated", "message.created", "conversation.updated", "task.updated" ->
+                // `task.changed` is the wire name the tasks trigger emits
+                // (20260702060000). An earlier draft said `task.updated`,
+                // which nothing broadcasts, so job rows never revalidated.
+                "call.updated", "message.created", "conversation.updated", "task.changed" ->
                     refreshKey++
             }
         }
@@ -160,7 +163,7 @@ internal fun ContactTimelineSection(
                             }
                         }
                     }
-                    if (current.value.nextBefore != null) {
+                    if (current.value.nextCursor != null) {
                         Box(
                             Modifier
                                 .fillMaxWidth()
@@ -171,14 +174,14 @@ internal fun ContactTimelineSection(
                                 LoadingIndicator(Modifier.size(28.dp))
                             } else {
                                 TextButton(onClick = {
-                                    val cursor = current.value.nextBefore
+                                    val cursor = current.value.nextCursor
                                         ?: return@TextButton
                                     haptics.tap()
                                     loadingMore = true
                                     scope.launch {
                                         try {
                                             val page = mutations.timeline(
-                                                companyId, contactId, before = cursor,
+                                                companyId, contactId, cursor = cursor,
                                             )
                                             // Append onto whatever the cache holds
                                             // NOW: a silent revalidate may have

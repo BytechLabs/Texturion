@@ -33,8 +33,14 @@ struct TimelineEntry: Decodable, Identifiable, Equatable, Sendable {
 
 struct ContactTimelinePage: Decodable, Sendable {
     let entries: [TimelineEntry]
-    /// Nil at the end of the history, which is how the client knows to stop.
-    let next_before: String?
+    /// The shared opaque cursor (SPEC §7/D10), encoding the full
+    /// `(occurred_at, id)` sort key. Nil at the end of the history.
+    ///
+    /// Opaque and base64url, which is not incidental here: the first cut sent a
+    /// raw Postgres timestamptz, and its literal `+` is NOT escaped by
+    /// `URLComponents.queryItems` while Hono decodes a raw `+` as a space — so
+    /// every "Show earlier" on iOS came back 422 and the empty catch hid it.
+    let next_cursor: String?
 }
 
 /// The headline for a row: what happened.
@@ -77,29 +83,8 @@ func timelineTalkTime(_ seconds: Int) -> String {
 }
 
 private func timelineDueLabel(_ iso: String) -> String {
-    guard let date = ISO8601DateFormatter.timelineParser.date(from: iso) else { return "soon" }
+    guard let date = parseWireTimestamp(iso) else { return "soon" }
     return date.formatted(.dateTime.day().month(.abbreviated))
-}
-
-extension ISO8601DateFormatter {
-    /// Fractional seconds are optional on the wire (Postgres emits them, the
-    /// fixtures often do not), and a parser that handles only one shape returns
-    /// nil for the other — which would show every row as "soon".
-    static let timelineParser: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-}
-
-/// Parse an entry's timestamp, tolerating both wire shapes.
-func timelineDate(_ iso: String) -> Date? {
-    if let withFraction = ISO8601DateFormatter.timelineParser.date(from: iso) {
-        return withFraction
-    }
-    let plain = ISO8601DateFormatter()
-    plain.formatOptions = [.withInternetDateTime]
-    return plain.date(from: iso)
 }
 
 /// One day's worth of the history.
@@ -122,7 +107,7 @@ func groupTimelineByDay(
     var order: [Date] = []
     var buckets: [Date: [TimelineEntry]] = [:]
     for entry in entries {
-        guard let date = timelineDate(entry.occurred_at) else { continue }
+        guard let date = parseWireTimestamp(entry.occurred_at) else { continue }
         let day = calendar.startOfDay(for: date)
         if buckets[day] == nil {
             buckets[day] = []
@@ -132,39 +117,79 @@ func groupTimelineByDay(
     }
     return order.map { day in
         TimelineDayGroup(
-            id: ISO8601DateFormatter().string(from: day),
+            // A stable, unique key per day. `formatted(.iso8601)` rather than
+            // an ISO8601DateFormatter instance, for the Sendable reason above.
+            id: day.formatted(.iso8601),
             label: timelineDayLabel(day, calendar: calendar, now: now),
             entries: buckets[day] ?? []
         )
     }
 }
 
+/// Today / Yesterday / a date.
+///
+/// Compared against the INJECTED `now` rather than `calendar.isDateInToday`,
+/// which reads the system clock — with that, the clock threaded through
+/// `groupTimelineByDay` was dead and the test pinned nothing. Formatted through
+/// the injected calendar's timezone too, so a startOfDay instant cannot be
+/// rendered as the neighbouring day on a device in another zone.
 func timelineDayLabel(
     _ day: Date,
     calendar: Calendar = .current,
     now: Date = Date()
 ) -> String {
-    if calendar.isDateInToday(day) { return "Today" }
-    if calendar.isDateInYesterday(day) { return "Yesterday" }
-    return day.formatted(.dateTime.day().month(.abbreviated).year())
+    if calendar.isDate(day, inSameDayAs: now) { return "Today" }
+    if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+       calendar.isDate(day, inSameDayAs: yesterday) {
+        return "Yesterday"
+    }
+    // A locally-created DateFormatter: the class is not Sendable, so it must
+    // never be cached in a `static let`.
+    let formatter = DateFormatter()
+    formatter.calendar = calendar
+    formatter.timeZone = calendar.timeZone
+    formatter.locale = .current
+    formatter.setLocalizedDateFormatFromTemplate("d MMM yyyy")
+    return formatter.string(from: day)
+}
+
+/// The accumulated history plus the cursor that continues it.
+struct TimelineLog: Equatable {
+    let entries: [TimelineEntry]
+    /// Nil at the end of the history.
+    let nextCursor: String?
 }
 
 /// Merge a fresh first page over the already-loaded tail, so a silent
 /// revalidate never collapses what the user paged to.
+///
+/// The CURSOR travels with the entries, which is the part that is easy to get
+/// wrong: when the tail is kept, the fresh first page's `next_cursor` points at
+/// the end of page ONE, and adopting it would make the next "Show earlier"
+/// re-request rows already on screen — the button appearing to do nothing.
+/// Mirrors the Kotlin `mergeTimelineFirstPage`.
 func mergeTimelineFirstPage(
-    cached: [TimelineEntry],
-    page: [TimelineEntry]
-) -> [TimelineEntry] {
-    guard cached.count > page.count else { return page }
-    let fresh = Set(page.map(\.dedupeKey))
-    return page + cached.filter { !fresh.contains($0.dedupeKey) }
+    cached: TimelineLog?,
+    page: ContactTimelinePage
+) -> TimelineLog {
+    guard let cached, cached.entries.count > page.entries.count else {
+        return TimelineLog(entries: page.entries, nextCursor: page.next_cursor)
+    }
+    let fresh = Set(page.entries.map(\.dedupeKey))
+    return TimelineLog(
+        entries: page.entries + cached.entries.filter { !fresh.contains($0.dedupeKey) },
+        nextCursor: cached.nextCursor
+    )
 }
 
 /// Append a later page, keeping order and dropping repeats.
 func appendTimelinePage(
-    current: [TimelineEntry],
-    page: [TimelineEntry]
-) -> [TimelineEntry] {
-    let seen = Set(current.map(\.dedupeKey))
-    return current + page.filter { !seen.contains($0.dedupeKey) }
+    current: TimelineLog,
+    page: ContactTimelinePage
+) -> TimelineLog {
+    let seen = Set(current.entries.map(\.dedupeKey))
+    return TimelineLog(
+        entries: current.entries + page.entries.filter { !seen.contains($0.dedupeKey) },
+        nextCursor: page.next_cursor
+    )
 }

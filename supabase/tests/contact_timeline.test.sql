@@ -238,7 +238,10 @@ begin
   from public.api_contact_timeline(
     'da000000-0000-4000-8000-0000000000c1'::uuid,
     'da000000-0000-4000-8000-0000000000a1'::uuid,
-    50, now() - interval '5 days') t;
+    50, now() - interval '5 days',
+    -- The id half of the keyset. All-f sorts above any real uuid, so this reads
+    -- as "everything strictly older than that instant".
+    'ffffffff-ffff-4fff-bfff-ffffffffffff'::uuid) t;
   -- Only the 6-day task and the 400-day conversation are older than that.
   if v_count <> 2 then
     raise exception 'jump-to-date: expected 2 entries, got %', v_count;
@@ -288,6 +291,80 @@ begin
     'da000000-0000-4000-8000-0000000000de'::uuid) t;
   if v_count <> 0 then
     raise exception 'unknown contact returned % rows', v_count;
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- THE TIE-BREAK, which the first cut got wrong while claiming otherwise.
+--
+-- The ordering is (occurred_at, id) but the predicate compared only the
+-- timestamp, so at a page boundary between two entries sharing an instant the
+-- second was skipped by every subsequent page. A call threading a message
+-- produces exactly that collision, so it was reachable rather than theoretical.
+-- ---------------------------------------------------------------------------
+-- A CALL and a CONVERSATION at the same instant, which is the collision the
+-- comment describes: a call that threads a message stamps both from the same
+-- moment. (Two open conversations cannot share a contact and number —
+-- conversations_open_uq enforces D7 — so the cross-kind pair is both the
+-- realistic case and the only constructible one.)
+insert into public.conversations
+  (id, company_id, phone_number_id, contact_id, status, is_spam,
+   last_message_at, created_at, closed_at)
+values
+  ('da000000-0000-4000-8000-0000000000ea'::uuid,
+   'da000000-0000-4000-8000-0000000000c1'::uuid,
+   'da000000-0000-4000-8000-0000000000b1'::uuid,
+   'da000000-0000-4000-8000-0000000000a1'::uuid, 'closed', false,
+   now() - interval '200 days', now() - interval '200 days',
+   now() - interval '200 days');
+
+insert into public.calls
+  (id, company_id, phone_number_id, call_session_id, caller_e164, contact_id,
+   conversation_id, outcome, forward_seconds, started_at, caller_name)
+values
+  ('da000000-0000-4000-8000-0000000000eb'::uuid,
+   'da000000-0000-4000-8000-0000000000c1'::uuid,
+   'da000000-0000-4000-8000-0000000000b1'::uuid,
+   'sess-da-tie', '+14155551001',
+   'da000000-0000-4000-8000-0000000000a1'::uuid,
+   'da000000-0000-4000-8000-0000000000ea'::uuid, 'answered', 60,
+   -- The SAME instant as the conversation above.
+   now() - interval '200 days', 'Dana Homeowner');
+
+do $$
+declare v_first uuid; v_second uuid; v_ts timestamptz;
+begin
+  select (t->>'id')::uuid, (t->>'occurred_at')::timestamptz
+    into v_first, v_ts
+  from public.api_contact_timeline(
+    'da000000-0000-4000-8000-0000000000c1'::uuid,
+    'da000000-0000-4000-8000-0000000000a1'::uuid, 1,
+    (now() - interval '199 days'),
+    'ffffffff-ffff-4fff-bfff-ffffffffffff'::uuid) t;
+
+  -- The NEXT page, continuing from that exact key. The twin must appear; with a
+  -- timestamp-only predicate it was skipped and unreachable.
+  select (t->>'id')::uuid into v_second
+  from public.api_contact_timeline(
+    'da000000-0000-4000-8000-0000000000c1'::uuid,
+    'da000000-0000-4000-8000-0000000000a1'::uuid, 1, v_ts, v_first) t;
+
+  -- PRECISELY the twin, not merely "something". Under the timestamp-only
+  -- predicate both twins were excluded and the next page returned an unrelated
+  -- OLDER row, so a null/not-equal check alone would have passed against the
+  -- very bug this exists to catch.
+  if v_second is null then
+    raise exception 'the twin sharing a timestamp was skipped at the page boundary';
+  end if;
+  if v_second = v_first then
+    raise exception 'the page boundary repeated a row instead of advancing';
+  end if;
+  if v_second not in (
+    'da000000-0000-4000-8000-0000000000ea'::uuid,
+    'da000000-0000-4000-8000-0000000000eb'::uuid
+  ) then
+    raise exception
+      'the page skipped past the tied pair to % — the twin is unreachable', v_second;
   end if;
 end $$;
 

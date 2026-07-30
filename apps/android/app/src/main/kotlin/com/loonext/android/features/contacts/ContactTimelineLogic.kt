@@ -42,8 +42,11 @@ internal data class TimelineEntry(
 @Serializable
 internal data class ContactTimelinePage(
     val entries: List<TimelineEntry> = emptyList(),
-    /** Null at the end of the history, which is how the client knows to stop. */
-    val next_before: String? = null,
+    /**
+     * The shared opaque cursor (SPEC §7/D10), encoding the full
+     * `(occurred_at, id)` sort key. Null at the end of the history.
+     */
+    val next_cursor: String? = null,
 )
 
 /**
@@ -53,7 +56,7 @@ internal data class ContactTimelinePage(
  */
 internal data class ContactTimelineLog(
     val entries: List<TimelineEntry>,
-    val nextBefore: String?,
+    val nextCursor: String?,
 )
 
 /**
@@ -70,11 +73,11 @@ internal fun mergeTimelineFirstPage(
     page: ContactTimelinePage,
 ): ContactTimelineLog {
     if (cached == null || cached.entries.size <= page.entries.size) {
-        return ContactTimelineLog(page.entries, page.next_before)
+        return ContactTimelineLog(page.entries, page.next_cursor)
     }
     val fresh = page.entries.map { it.kind to it.id }.toSet()
     val tail = cached.entries.filterNot { (it.kind to it.id) in fresh }
-    return ContactTimelineLog(page.entries + tail, cached.nextBefore)
+    return ContactTimelineLog(page.entries + tail, cached.nextCursor)
 }
 
 /** Append a later page, keeping the accumulated order and dropping repeats. */
@@ -84,7 +87,7 @@ internal fun appendTimelinePage(
 ): ContactTimelineLog {
     val seen = current.entries.map { it.kind to it.id }.toSet()
     val added = page.entries.filterNot { (it.kind to it.id) in seen }
-    return ContactTimelineLog(current.entries + added, page.next_before)
+    return ContactTimelineLog(current.entries + added, page.next_cursor)
 }
 
 /**

@@ -36,13 +36,16 @@ export interface TimelineEntry {
 interface TimelinePage {
   entries: TimelineEntry[];
   /** Null at the end of the history, which is how the client knows to stop. */
-  next_before: string | null;
+  next_cursor: string | null;
 }
 
 /**
- * The cursor is a timestamp rather than an opaque token, which is deliberate:
- * pagination and jump-to-date are the same request ("from here backwards"), so
- * a date picker can seed this query with no second endpoint.
+ * Paginated with the shared opaque cursor (SPEC §7/D10), like every other list.
+ *
+ * It encodes the FULL sort key `(occurred_at, id)`. A timestamp alone skips the
+ * second of any two entries sharing an instant — which a call threading a
+ * message produces — and, being a raw Postgres timestamptz, it carries a `+`
+ * that not every client escapes.
  */
 export function useContactTimeline(contactId: string) {
   const companyId = useCompanyId();
@@ -51,9 +54,9 @@ export function useContactTimeline(contactId: string) {
     queryFn: ({ pageParam }) =>
       apiFetch<TimelinePage>(`/v1/contacts/${contactId}/timeline`, {
         companyId,
-        searchParams: { before: pageParam },
+        searchParams: { cursor: pageParam },
       }),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (last) => last.next_before ?? undefined,
+    getNextPageParam: (last) => last.next_cursor ?? undefined,
   });
 }

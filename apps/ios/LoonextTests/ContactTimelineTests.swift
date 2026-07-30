@@ -33,36 +33,89 @@ final class ContactTimelineTests: XCTestCase {
         )
     }
 
+    private func page(_ entries: [TimelineEntry], next: String? = nil) -> ContactTimelinePage {
+        ContactTimelinePage(entries: entries, next_cursor: next)
+    }
+
     func testDedupeIsByKindAndId() {
         // The source tables have independent id spaces, so a conversation and a
         // job could share an id; keying on id alone would silently drop one.
-        let cached = [entry(kind: "task", id: "same"), entry(id: "older")]
+        let cached = TimelineLog(
+            entries: [entry(kind: "task", id: "same"), entry(id: "older")],
+            nextCursor: "deep"
+        )
         let merged = mergeTimelineFirstPage(
             cached: cached,
-            page: [entry(kind: "conversation", id: "same")]
+            page: page([entry(kind: "conversation", id: "same")])
         )
-        XCTAssertEqual(merged.count, 3)
-        XCTAssertTrue(merged.contains { $0.kind == "task" && $0.id == "same" })
-        XCTAssertTrue(merged.contains { $0.kind == "conversation" && $0.id == "same" })
+        XCTAssertEqual(merged.entries.count, 3)
+        XCTAssertTrue(merged.entries.contains { $0.kind == "task" && $0.id == "same" })
+        XCTAssertTrue(merged.entries.contains { $0.kind == "conversation" && $0.id == "same" })
     }
 
-    func testRevalidateDoesNotCollapseWhatTheUserPagedTo() {
-        let cached = (1...10).map { entry(id: "e\($0)") }
-        let merged = mergeTimelineFirstPage(cached: cached, page: [entry(id: "e1")])
-        XCTAssertEqual(merged.count, 10)
+    func testRevalidateKeepsBothTheTailAndItsDeeperCursor() {
+        // THE ONE THAT LOOKED FINE. When the merge keeps a deeper tail it must
+        // also keep the DEEPER cursor: the fresh first page's next_cursor
+        // points at the end of page one, and adopting it makes the next "Show
+        // earlier" re-request rows already on screen — the button appears to do
+        // nothing at all.
+        let cached = TimelineLog(
+            entries: (1...10).map { entry(id: "e\($0)") },
+            nextCursor: "deep-cursor"
+        )
+        let merged = mergeTimelineFirstPage(
+            cached: cached,
+            page: page([entry(id: "e1")], next: "page-one-cursor")
+        )
+        XCTAssertEqual(merged.entries.count, 10)
+        XCTAssertEqual(merged.nextCursor, "deep-cursor")
     }
 
     func testFreshPageWinsWhenNothingDeeperWasLoaded() {
-        let merged = mergeTimelineFirstPage(cached: [], page: [entry(id: "a")])
-        XCTAssertEqual(merged.map(\.id), ["a"])
+        let merged = mergeTimelineFirstPage(
+            cached: nil,
+            page: page([entry(id: "a")], next: "next")
+        )
+        XCTAssertEqual(merged.entries.map(\.id), ["a"])
+        XCTAssertEqual(merged.nextCursor, "next")
     }
 
-    func testAppendingDropsRepeats() {
+    func testAppendingDropsRepeatsAndAdvancesTheCursor() {
         let appended = appendTimelinePage(
-            current: [entry(id: "a")],
-            page: [entry(id: "a"), entry(id: "b")]
+            current: TimelineLog(entries: [entry(id: "a")], nextCursor: "c1"),
+            page: page([entry(id: "a"), entry(id: "b")], next: nil)
         )
-        XCTAssertEqual(appended.map(\.id), ["a", "b"])
+        XCTAssertEqual(appended.entries.map(\.id), ["a", "b"])
+        XCTAssertNil(appended.nextCursor)
+    }
+
+    func testTheOffsetFormTheServerActuallySendsParses() {
+        // The endpoint emits `+00:00`, never `Z`. Every other fixture here uses
+        // `Z`, so without this the parser was only ever proven on a shape this
+        // endpoint does not produce.
+        XCTAssertNotNil(parseWireTimestamp("2026-07-30T12:34:56.789012+00:00"))
+        XCTAssertNotNil(parseWireTimestamp("2026-07-30T12:34:56+00:00"))
+    }
+
+    func testTodayAndYesterdayAreMeasuredAgainstTheInjectedClock() {
+        // `calendar.isDateInToday` reads the SYSTEM clock, so the injected
+        // `now` was dead and this test pinned nothing at all.
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let now = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_800_000_000))
+        XCTAssertEqual(timelineDayLabel(now, calendar: calendar, now: now), "Today")
+        XCTAssertEqual(
+            timelineDayLabel(
+                calendar.date(byAdding: .day, value: -1, to: now)!,
+                calendar: calendar,
+                now: now
+            ),
+            "Yesterday"
+        )
+        let older = calendar.date(byAdding: .day, value: -9, to: now)!
+        let label = timelineDayLabel(older, calendar: calendar, now: now)
+        XCTAssertNotEqual(label, "Today")
+        XCTAssertNotEqual(label, "Yesterday")
     }
 
     func testDaysAreGroupedInTheLocalZoneNotUtc() {
@@ -82,11 +135,11 @@ final class ContactTimelineTests: XCTestCase {
     }
 
     func testTimestampsParseWithAndWithoutFractionalSeconds() {
-        // Postgres emits fractional seconds; the fixtures often do not. A
-        // parser that handles only one shape would render every row's time as
-        // empty and every due date as "soon".
-        XCTAssertNotNil(timelineDate("2026-07-20T10:00:00Z"))
-        XCTAssertNotNil(timelineDate("2026-07-20T10:00:00.123456Z"))
+        // Postgres emits fractional seconds; hand-written fixtures often do
+        // not. Handled by the module's shipped parseWireTimestamp rather than a
+        // bespoke parser here.
+        XCTAssertNotNil(parseWireTimestamp("2026-07-20T10:00:00Z"))
+        XCTAssertNotNil(parseWireTimestamp("2026-07-20T10:00:00.123456Z"))
     }
 
     func testCallSaysTalkTimeAndAMissedOneSaysNoAnswer() {

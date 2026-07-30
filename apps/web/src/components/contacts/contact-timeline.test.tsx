@@ -20,7 +20,7 @@ const state: { entries: unknown[] } = { entries: [] };
 
 vi.mock("@/lib/api/contact-timeline", () => ({
   useContactTimeline: () => ({
-    data: { pages: [{ entries: state.entries, next_before: null }] },
+    data: { pages: [{ entries: state.entries, next_cursor: null }] },
     isPending: false,
     isError: false,
     hasNextPage: false,

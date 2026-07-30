@@ -19,6 +19,8 @@ import {
   stubFetch,
   type TestAuth,
 } from "../test/support";
+import { decodeCursor, encodeCursor } from "../http/pagination";
+
 import { contactsRoutes } from "./contacts";
 
 const env = completeEnv();
@@ -431,12 +433,16 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
     ...over,
   });
 
-  it("returns one stream and a cursor when the page is full", async () => {
+  it("returns one stream and an OPAQUE cursor when the page is full", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
     sb.on("POST", "/rest/v1/rpc/api_contact_timeline", () => [
       entry(),
-      entry({ kind: "call", occurred_at: "2026-07-19T09:00:00.000Z" }),
+      entry({
+        kind: "call",
+        id: "0bbb0bbb-1111-4222-8333-444444444444",
+        occurred_at: "2026-07-19T09:00:00.000Z",
+      }),
     ]);
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -450,11 +456,49 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       entries: { kind: string }[];
-      next_before: string | null;
+      next_cursor: string | null;
     };
     expect(body.entries.map((e) => e.kind)).toEqual(["conversation", "call"]);
-    // A full page means there may be more: the cursor is the oldest row's time.
-    expect(body.next_before).toBe("2026-07-19T09:00:00.000Z");
+    // SPEC §7/D10: base64url of the full (ts, id) sort key, not a raw
+    // timestamp. A raw timestamptz carries a `+`, which URLComponents does not
+    // escape and Hono decodes as a space — a 422 on every iOS "Show earlier".
+    expect(body.next_cursor).toBeTruthy();
+    expect(body.next_cursor).not.toContain("+");
+    expect(body.next_cursor).not.toContain(":");
+    expect(decodeCursor(body.next_cursor as string)).toEqual({
+      ts: "2026-07-19T09:00:00.000Z",
+      id: "0bbb0bbb-1111-4222-8333-444444444444",
+    });
+  });
+
+  it("passes BOTH halves of the sort key down, so a tie cannot skip a row", async () => {
+    // The ordering is (occurred_at, id); a timestamp-only predicate skips the
+    // second of any two entries sharing an instant, which a call threading a
+    // message produces.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    let params: Record<string, unknown> | null = null;
+    sb.on("POST", "/rest/v1/rpc/api_contact_timeline", (req) => {
+      params = req.body as Record<string, unknown>;
+      return [];
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const cursor = encodeCursor({
+      ts: "2026-07-19T09:00:00.000Z",
+      id: "0bbb0bbb-1111-4222-8333-444444444444",
+    });
+    await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/timeline?cursor=${cursor}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(params).toMatchObject({
+      p_before_ts: "2026-07-19T09:00:00.000Z",
+      p_before_id: "0bbb0bbb-1111-4222-8333-444444444444",
+    });
   });
 
   it("returns a null cursor on a short page, so the client stops", async () => {
@@ -470,7 +514,7 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
       `/v1/contacts/${CONTACT_ID}/timeline?limit=50`,
       { companyId: COMPANY_ID },
     );
-    expect(((await res.json()) as { next_before: string | null }).next_before).toBeNull();
+    expect(((await res.json()) as { next_cursor: string | null }).next_cursor).toBeNull();
   });
 
   it("404s an unknown contact BEFORE reading the timeline", async () => {
@@ -496,7 +540,7 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
     expect(timelineCalls).toBe(0);
   });
 
-  it("rejects an unparseable `before` rather than paging from the top forever", async () => {
+  it("rejects a garbage cursor rather than paging from the top forever", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
     stubFetch(jwksRoute(auth), sb.route);
@@ -505,14 +549,38 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
       app,
       env,
       await auth.token(),
-      `/v1/contacts/${CONTACT_ID}/timeline?before=soon`,
+      `/v1/contacts/${CONTACT_ID}/timeline?cursor=soon`,
       { companyId: COMPANY_ID },
     );
     // 422, the SPEC §7 code for validation_failed.
     expect(res.status).toBe(422);
   });
 
-  it("clamps limit so one request cannot ask for the whole history", async () => {
+  it("refuses an over-large limit instead of silently clamping it", async () => {
+    // parseLimit is the shared helper every other list uses: it 422s rather
+    // than clamping, so a client asking for 99999 is told, not quietly given
+    // 200 and left believing it has the whole history.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    let called = 0;
+    sb.on("POST", "/rest/v1/rpc/api_contact_timeline", () => {
+      called += 1;
+      return [];
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/timeline?limit=99999`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(422);
+    expect(called).toBe(0);
+  });
+
+  it("defaults the page size when no limit is given", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
     let asked: number | null = null;
@@ -526,10 +594,10 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
       app,
       env,
       await auth.token(),
-      `/v1/contacts/${CONTACT_ID}/timeline?limit=99999`,
+      `/v1/contacts/${CONTACT_ID}/timeline`,
       { companyId: COMPANY_ID },
     );
-    expect(asked).toBe(200);
+    expect(asked).toBe(50);
   });
 });
 
