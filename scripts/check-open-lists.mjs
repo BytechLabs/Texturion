@@ -149,6 +149,21 @@ for (const { file, issue } of found) {
 
 for (const line of unknown) console.error(`  ? could not check ${line}`);
 
+// If NOTHING could be checked, say so instead of reporting a clean run. The
+// no-token path already refuses to claim a pass it did not earn; a token that
+// cannot read issues (restricted workflow permissions, most likely) is the same
+// state reached a different way, and the first version of this file let it
+// through as success. A guard that knows nothing must not look like a guard
+// that found nothing.
+if (unknown.length === found.length) {
+  console.error(
+    `\nVerified NOTHING: all ${found.length} lookup(s) failed. The token cannot ` +
+      "read issues — check the workflow's `permissions:` block for " +
+      "`issues: read`.\n",
+  );
+  process.exit(1);
+}
+
 if (stale.length > 0) {
   console.error("\nA document lists these as open, and they are not:\n");
   for (const line of stale) console.error(`  x ${line}`);

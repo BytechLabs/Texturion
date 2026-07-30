@@ -185,6 +185,12 @@ jobs:
       # and both would have been published to customers as things we do not do.
       # Fails when a listed-as-open issue has closed; the fix is one struck line.
       - name: Guard open-issue lists
+        # `issues: read` explicitly: the repo's default token permissions are a
+        # settings toggle, and this step is useless without it. The script now
+        # fails rather than passing when it can verify nothing, so a missing
+        # grant is loud instead of a green run over an unchecked list.
+        permissions:
+          issues: read
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/check-open-lists.mjs
