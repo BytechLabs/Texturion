@@ -103,7 +103,7 @@ GitHub Actions (Linux CI): typecheck, lint, vitest, build, wrangler deploy on ma
   - **Postgres** — all tenant data, deny-by-default RLS (§6), FTS + pg_trgm search.
   - **Auth** — browser-direct via `@supabase/ssr`; **asymmetric ES256 signing keys enabled at project setup**; Worker verifies JWTs locally against `https://<project-id>.supabase.co/auth/v1/.well-known/jwks.json` (edge-cached 10 min). Invite emails via `inviteUserByEmail` with **Resend as custom SMTP**.
   - **Storage** — private per-company-keyed bucket `mms-media` for MMS attachments; 5 MB per-bucket file limit; served via short-lived signed URLs minted by the API.
-  - **Realtime** — **Broadcast-from-Database** (never `postgres_changes`), private topics `company:{id}` authorized by RLS on `realtime.messages` (§8).
+  - **Realtime** — **Broadcast-from-Database** (never `postgres_changes`), private topics `company:{id}` authorized by RLS on `realtime.messages` at **company** granularity, which is coarser than the product's per-number access model — see §8 and D85 before treating the topic as a boundary.
   - The Worker talks to Supabase with **supabase-js over HTTP using the `sb_secret_` key** (not the legacy service_role JWT); zero Postgres connections consumed. If raw SQL is ever required, Supavisor transaction mode on port 6543 — but the MVP uses PostgREST RPC (`security definer` SQL functions) for the multi-statement transactional paths (threading, send-gating).
 - **Telnyx** — number search/orders, per-company messaging profiles, SMS/MMS, 10DLC registration, webhooks.
 - **Stripe** — subscription-mode Checkout, Billing Meters, hosted portal (payment methods/invoices/cancellation only), Stripe Tax, Smart Retries.
@@ -912,7 +912,25 @@ There is **no** `POST /auth/*` on the Worker — all auth flows (signup, login, 
 
 ### Broadcast-from-Database
 
-**Supabase Realtime Broadcast**, never `postgres_changes` (single-threaded, per-client RLS reads — rejected). Postgres triggers publish into the **private topic `company:{company_id}`** with **ID-only payloads** (clients refetch via the API so authorization stays in one place). Because `realtime.broadcast_changes()`'s default payload includes row data, the triggers call the underlying **`realtime.send()`** primitive with a minimal JSON body — same mechanism, ID-only payload as D9 requires:
+**Supabase Realtime Broadcast**, never `postgres_changes` (single-threaded, per-client RLS reads — rejected). Postgres triggers publish into the **private topic `company:{company_id}`** with **ID-only payloads**, and clients refetch via the API. Because `realtime.broadcast_changes()`'s default payload includes row data, the triggers call the underlying **`realtime.send()`** primitive with a minimal JSON body — same mechanism, ID-only payload as D9 requires:
+
+> **Authorization happens in TWO places, at two different granularities, and this
+> used to read as one (#349).** The sentence here said clients refetch "so
+> authorization stays in one place", which is true of *content* and invites the
+> assumption that the topic itself is safe. It is not the same boundary:
+>
+> - **Joining a topic** is authorized in SQL, by the `realtime.messages` policy, at
+>   **company** granularity — `is_company_topic_member` matches
+>   `company:{company_id}` exactly. Any active member of the company may join.
+> - **Reading anything** is authorized on refetch by the API, at **per-number**
+>   granularity (#106).
+>
+> So a member denied a phone number still receives every id-only event for
+> conversations on it: existence, direction and timing, in real time. No content
+> leaks — the refetch is correctly gated — but volume and rhythm do. **D85 records
+> that as an accepted, bounded exposure and states what would change it.** Do not
+> read `company:{id}` as an access boundary; it is a delivery channel whose
+> membership check is coarser than the product's access model.
 
 ```sql
 create or replace function public.broadcast_message_change() returns trigger

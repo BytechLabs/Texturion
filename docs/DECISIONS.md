@@ -4385,3 +4385,73 @@ derivation means it cannot be. But a test can only assert what it knows to look 
 which is why #434 happened at all — nothing knew `llms.txt` should mention a feature
 that had just shipped. Deriving the enumerable sets is what closes that hole; the
 remaining tests cover the numbers.
+
+---
+
+## D85 — realtime topics stay company-wide, and that is an accepted exposure (#349, 2026-07-30)
+
+Every broadcast goes to one topic per company. #106 makes access **per number**. So a
+member denied a number still receives every id-only event for conversations on it.
+
+**What leaks, stated precisely, because "no content leaks" is true and insufficient:**
+that a conversation with a given id exists, every time it sends or receives, the
+direction, and therefore the volume and rhythm of that line. A subcontractor
+excluded from the main line can watch its traffic. **What does not leak:** any
+message content, name or number — the refetch is correctly gated and a denied member
+gets nothing back from the API.
+
+### The finding that decided it: naive per-number topics would be WORSE
+
+The obvious fix is `company:{id}:number:{id}`, and reaching for it without changing
+anything else would have *reduced* security while appearing to increase it.
+
+Joining a topic is authorized **in SQL** today, by `is_company_topic_member` on the
+`realtime.messages` policy, and it works by matching `company:{company_id}`
+**exactly**. Add a per-number topic and either:
+
+- the policy is not extended, so the join is **denied** and realtime silently stops
+  working; or
+- the policy is extended to keep checking only company membership, in which case
+  **any member may join any number's topic** — a boundary that looks like one and
+  enforces nothing. That is strictly worse than today, where the coarse topic at
+  least honestly matches what it checks.
+
+Making it a real boundary needs the effective-access rule in SQL, callable from the
+policy. **That rule lives in TypeScript** (`resolveNumberAccess`: the owner/admin
+override, then user > role > all specificity). Reimplementing it in SQL for the
+policy would create **a second implementation of a security rule** — the drift class
+D79 exists to prevent, on the worst possible surface.
+
+### Decision
+
+**Topics stay company-wide for now, and the exposure is accepted and recorded.**
+Not because per-number topics are wrong — they are the right end state — but because
+the honest prerequisite is consolidating effective access into **one SQL-callable
+resolver** that both the Worker and the policy use. That is a security refactor in
+its own right and doing it inside a topic-granularity change would hide it.
+
+SPEC §8 is corrected to match: it said clients refetch "so authorization stays in one
+place", which is true of content and invited exactly the wrong assumption about the
+topic. It now states plainly that joining is authorized at company granularity,
+reading at per-number granularity, and that `company:{id}` is a delivery channel
+rather than an access boundary.
+
+### The accepted risk, with its trigger
+
+| | |
+|---|---|
+| **Exposure** | Existence, direction and timing of conversations on numbers a member is denied. Ids and timestamps only. |
+| **Bound** | One company. No content, no contact details, no cross-tenant reach — the topic is per company and that check is real. |
+| **Why accepted** | Most workspaces have one number and no exclusions. Closing it properly requires the resolver consolidation above; closing it improperly makes it worse. |
+| **Trigger to revisit** | **Whichever comes first:** (a) #348 ships explicit exclusion as a first-class feature, because that is the point customers start relying on a boundary the transport does not enforce; (b) a customer uses per-number access to separate genuinely distinct parties (a subcontractor, two branches); (c) a security questionnaire asks how realtime is scoped (#285) — the answer must be this entry, not an improvisation. |
+| **Not a trigger** | Volume. This is a correctness boundary, not a scale problem, and waiting for it to get busy is not a plan. |
+
+**Two consequences worth naming rather than leaving implied.** The client is trusted
+to discard events it must not act on, and that trust is placed in three
+separately-implemented clients that have drifted before. And every member's
+connection carries every event in the company, which is fan-out we pay for and
+battery the phones spend on events they will throw away.
+
+**The implementation is scoped and filed as #480** so the resolver consolidation is
+reviewed as the security change it is, rather than as a side effect of a
+performance one.
