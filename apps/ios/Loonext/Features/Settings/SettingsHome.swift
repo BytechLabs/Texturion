@@ -21,6 +21,10 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     /// #382: the route to a human. Last because it is what you go looking
     /// for when something is wrong, not a screen you pass through.
     case help
+    /// #337: hidden until seven taps on the version footer unlock it, the same
+    /// gesture and the same copy as Android's. Below Help because that is the
+    /// order of escalation: try the humans first.
+    case diagnostics
 
     var id: String { rawValue }
 
@@ -39,6 +43,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .profile: "Profile & account"
         case .devices: "Signed-in devices"
         case .help: "Help"
+        case .diagnostics: "Diagnostics"
         }
     }
 
@@ -57,6 +62,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .profile: "Your name, theme, email, and password"
         case .devices: "Every browser and phone with access right now"
         case .help: "Get in touch when something isn't right"
+        case .diagnostics: "Build, connection, and recent events on this phone"
         }
     }
 
@@ -76,6 +82,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .profile: "person.crop.circle"
         case .devices: "laptopcomputer.and.iphone"
         case .help: "lifepreserver"
+        case .diagnostics: "stethoscope"
         }
     }
 }
@@ -110,6 +117,11 @@ struct SettingsHome: View {
     @State private var refreshKey = 0
     @State private var toast: String?
     @State private var toastTask: Task<Void, Never>?
+    // #337: the version-footer easter egg. `diagnosticsUnlocked` mirrors the
+    // persisted flag so the index re-renders the moment it flips.
+    @State private var versionTaps = 0
+    @State private var lastVersionTap = Date.distantPast
+    @State private var diagnosticsUnlocked = DiagnosticsAccess.isUnlocked
 
     private var repo: SettingsRepository {
         SettingsRepository(api: graph.api, sessionStore: graph.sessionStore)
@@ -180,13 +192,35 @@ struct SettingsHome: View {
 
     // MARK: - Index
 
+    /// Every section, plus Diagnostics once it has been unlocked (#337).
+    private var visibleSections: [SettingsSection] {
+        SettingsSection.allCases.filter { $0 != .diagnostics || diagnosticsUnlocked }
+    }
+
+    /// The seven-tap gesture. Taps must be within `tapWindow` of each other, so
+    /// scrolling past the footer and touching it twice an hour apart never
+    /// counts toward anything.
+    private func registerVersionTap() {
+        let now = Date()
+        versionTaps = now.timeIntervalSince(lastVersionTap) <= DiagnosticsAccess.tapWindow
+            ? versionTaps + 1
+            : 1
+        lastVersionTap = now
+        guard versionTaps >= DiagnosticsAccess.tapsToUnlock else { return }
+        versionTaps = 0
+        let next = !diagnosticsUnlocked
+        DiagnosticsAccess.isUnlocked = next
+        diagnosticsUnlocked = next
+        scope.showMessage(DiagnosticsAccess.message(unlocked: next))
+    }
+
     private func indexList(_ company: CompanyView) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 13) {
                 ScreenTitle(text: "Settings")
                 identityCard(company)
                 PaperCard {
-                    ForEach(Array(SettingsSection.allCases.enumerated()), id: \.element.id) { index, section in
+                    ForEach(Array(visibleSections.enumerated()), id: \.element.id) { index, section in
                         if index > 0 { RowDivider() }
                         NavigationLink(value: section) {
                             SettingsSectionRow(section: section)
@@ -194,7 +228,13 @@ struct SettingsHome: View {
                         .buttonStyle(.plain)
                     }
                 }
+                // #337: the easter egg. Seven quick taps flips the pref, and the
+                // counting is SILENT -- no haptic, no ripple, nothing for a
+                // stray tap. Only the seventh says anything, and it says exactly
+                // what Android says.
                 VersionFooter()
+                    .contentShape(Rectangle())
+                    .onTapGesture { registerVersionTap() }
             }
             .padding(.horizontal, 18)
             .padding(.top, 8)
@@ -318,6 +358,8 @@ struct SettingsHome: View {
                     DevicesSectionView(scope: scope)
                 case .help:
                     HelpSectionView(scope: scope, company: company)
+                case .diagnostics:
+                    DiagnosticsSectionView(graph: graph, companyId: companyId)
                 }
             }
             .padding(.vertical, 10)

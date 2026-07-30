@@ -149,6 +149,10 @@ actor RealtimeClient {
     /// number (`numberIds`, access-filtered by the server). Safe to call
     /// repeatedly.
     func connect(companyId: String, numberIds: [String], accessToken: String) {
+        // #337: the count, not the ids. How many number topics this session
+        // expects is the fact that made #480's partial-join case diagnosable;
+        // the ids themselves identify a business's phone lines.
+        DiagnosticsLog.record(.realtime, "connect", detail: "\(numberIds.count) numbers")
         let sameChannel = self.companyId == companyId
         self.companyId = companyId
         self.accessToken = accessToken
@@ -194,7 +198,32 @@ actor RealtimeClient {
         pushAccessToken()
     }
 
+    /// #337 — what this socket would say about itself, in one word a person
+    /// can read down a phone line.
+    ///
+    /// Reported rather than inferred from the outside: "is realtime working" has
+    /// been the question behind several iOS bugs (the parked reconnect most
+    /// recently), and every answer available to a caller today is a guess made
+    /// from whether events have arrived lately.
+    ///
+    /// The number-topic counts are included because #480 made them the thing
+    /// that can be partially wrong: a company topic that joined while a number
+    /// topic silently did not is a live socket delivering three quarters of the
+    /// events, which looks healthy from every other angle.
+    func stateLabel() -> String {
+        guard socket != nil else {
+            return everJoined ? "Disconnected" : "Not started"
+        }
+        guard joined else { return "Connecting" }
+        let want = numberIds.count
+        let have = confirmedNumberTopics.count
+        return want == have
+            ? "Joined (\(have) number topics)"
+            : "Joined (\(have)/\(want) number topics)"
+    }
+
     func disconnect() {
+        DiagnosticsLog.record(.realtime, "disconnect")
         companyId = nil
         numberIds = []
         joinedNumberTopics = []

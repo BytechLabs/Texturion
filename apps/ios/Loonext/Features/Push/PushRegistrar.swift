@@ -72,7 +72,17 @@ private func requestNotificationAuthorization() async {
 actor PushRegistrar {
     private let api: ApiClient
 
-    private enum Keys {
+    /// #337 — has a device token been handed to the server?
+    ///
+    /// Exposed for the diagnostics surface, which needs to answer "is this phone
+    /// registered for push" without reaching for the key string a second time.
+    /// Push authorization never being requested was a real iOS bug here, and it
+    /// is invisible from the outside.
+    static var hasRegisteredToken: Bool {
+        UserDefaults.standard.string(forKey: Keys.token) != nil
+    }
+
+    fileprivate enum Keys {
         /// Last token successfully handed to (or queued for) the server.
         static let token = "push_device_token"
     }

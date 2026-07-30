@@ -214,8 +214,14 @@ actor ApiClient {
         func expectSuccess() throws -> Data {
             if (200 ..< 300).contains(status) { return data }
             let parsed = try? JSONDecoder().decode(ErrorEnvelope.self, from: data)
+            let code = parsed?.error.code ?? ApiErrorCode.internalError
+            // #337: the CODE and the status, never the message. Our own copy
+            // can quote a customer's number back at them ("+1... has opted
+            // out"), so a message on a screen somebody screenshots and sends us
+            // is a leak waiting for the right error.
+            DiagnosticsLog.record(.api, "request_failed", detail: "\(code) \(status)")
             throw ApiError(
-                code: parsed?.error.code ?? ApiErrorCode.internalError,
+                code: code,
                 message: parsed?.error.message ?? "Something went wrong (\(status)).",
                 httpStatus: status
             )
@@ -283,6 +289,11 @@ actor ApiClient {
             // URLSession reports the same thing its own way.
             throw CancellationError()
         } catch {
+            // Transport failure: no HTTP response at all. Recorded separately
+            // from an error envelope because "the server said no" and "the
+            // server was never reached" are the two answers a support
+            // conversation is actually trying to tell apart.
+            DiagnosticsLog.record(.api, "unreachable")
             throw ApiError(
                 code: ApiErrorCode.network,
                 message: "Can't reach Loonext. Check your connection.",
