@@ -23,6 +23,55 @@ Every contrast ratio is computed with the same formula
 
 ---
 
+## AMENDMENT 2 — the repaint needs NO call-site edits (proved 2026-07-30)
+
+Amendment 1 is right that phases 3 and 4 are one commit. It is wrong about how
+big that commit is. Phase 4 as written moves ~200 call sites (77 `bg-primary`,
+84 `text-primary`, 15 `bg-app-petrol`, 41 `text-app-petrol`, 43
+`--app-petrol-deep`) because it assumes the accent cannot be both a text colour
+and a fill.
+
+**One palette member can be both.** `#3A430F` — the lime-chip text from
+`Color.kt:56` — clears AA as text on every ground AND takes a paper label as a
+fill:
+
+| `#3A430F` (light) | ratio |
+|---|---|
+| as text on ground `#F3F3EE` | 9.48 ✅ |
+| as text on paper `#FDFDF9` | 10.35 ✅ |
+| as text on inset `#F0F0E8` | 9.21 ✅ |
+| as a fill, paper `#FDFDF9` label | 10.35 ✅ |
+
+Dark uses `#D6E77E` the same way: 13.53 / 11.99 / 11.43 as text, and 12.90 with
+an ink label as a fill.
+
+And `--app-petrol-deep`, the one genuinely double-meaning token (hover fill in
+some places, text-on-tint in others), is served by **ink** in both roles:
+paper-on-ink 17.05 as a fill, ink-on-tint 14.19 as text, ink-on-ground 15.61.
+
+### So the whole repaint is a token-value change
+
+| token | light | dark |
+|---|---|---|
+| `--primary`, `--app-petrol` | `#3A430F` | `#D6E77E` |
+| `--primary-foreground`, `--app-petrol-foreground` | `#FDFDF9` | `#191B14` |
+| `--app-petrol-deep` | `#191B14` | `#F0F1E5` |
+
+Every existing `bg-*` and `text-*` call site keeps its class and lands on a
+compliant pair. The forcing rule at `globals.css:833` can stay as one selector,
+because there is again one fill foreground per theme — it was only the
+ink/lime split that required two.
+
+**Why this beats the ink-primary mapping.** Amendment 1 followed `Theme.kt`,
+where Material's `primary` is Ink because it paints the outbound bubble. The
+web's `--primary` is shadcn's brand-action colour, which is a different role: it
+paints buttons AND is read as `text-primary` for links and counts in 84 places.
+Ink there would strip the link affordance from every one of them. `#3A430F` is
+a Paper & Olive palette member, reads as olive, and satisfies the owner's
+"ONLY KEEP OLIVE" more literally than ink does.
+
+The bubble itself is a separate token and can stay ink independently.
+
 ## AMENDMENT — phases 3 and 4 must land in ONE commit (proved 2026-07-30)
 
 The plan below sequences "retarget `.app-scope`" (phase 3) and "split the
