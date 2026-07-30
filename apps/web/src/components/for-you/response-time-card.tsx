@@ -66,6 +66,17 @@ export function arcSentence(report: ResponseTimeReport): string | null {
     : `Up from ${then} when you started`;
 }
 
+/**
+ * "2 leads nobody answered" — singular when it is one, because it often is.
+ *
+ * One string rather than JSX fragments: assembling it inline is how a missing
+ * space ships, and it also put the copy out of reach of the parity guard that
+ * keeps this sentence identical on Android and iOS.
+ */
+export function unansweredLine(count: number): string {
+  return count === 1 ? "1 lead nobody answered" : `${count} leads nobody answered`;
+}
+
 /** Why there is no arc yet, said plainly rather than left blank. */
 export function noArcReason(report: ResponseTimeReport): string {
   if (report.baseline_unavailable === "too_new") {
@@ -217,11 +228,7 @@ export function ResponseTimeCard() {
                 className="flex items-center gap-2 border-t border-app-line-soft px-4 py-2.5 text-[13px] transition-colors duration-150 ease-out hover:bg-app-hover"
               >
                 <span className="flex-1 text-app-ink">
-                  <span className="font-semibold tabular-nums">
-                    {report.data.unanswered}
-                  </span>{" "}
-                  {report.data.unanswered === 1 ? "lead" : "leads"} nobody
-                  answered
+                  {unansweredLine(report.data.unanswered)}
                 </span>
                 <ArrowRight
                   className="size-4 shrink-0 text-app-muted-2"

@@ -102,6 +102,61 @@ data class ForYouTriage(
     val tasks: List<ForYouTriageTask> = emptyList(),
 )
 
+/**
+ * GET /v1/reports/response-time (#239) — how fast this workspace answers a NEW
+ * customer, and how that changed since they started.
+ *
+ * Every number here is computed server-side; the client does no arithmetic on
+ * them. A median computed twice is a median that can disagree with itself, and
+ * the whole value of this metric is that the crew trusts it. The definition lives
+ * in docs/RESPONSE-TIME.md.
+ */
+@Serializable
+data class ResponseTimeSide(
+    val leads: Int = 0,
+    val answered: Int = 0,
+    val median_seconds: Double? = null,
+)
+
+@Serializable
+data class ResponseTimeMember(
+    val user_id: String,
+    val answered: Int = 0,
+    val median_seconds: Double? = null,
+)
+
+@Serializable
+data class ResponseTimeBaseline(
+    val leads: Int = 0,
+    val answered: Int = 0,
+    val median_seconds: Double? = null,
+)
+
+@Serializable
+data class ResponseTimeWindow(val days: Int = 30)
+
+@Serializable
+data class ResponseTimeReport(
+    val window: ResponseTimeWindow = ResponseTimeWindow(),
+    val leads: Int = 0,
+    val answered: Int = 0,
+    /** The leak, named. Never hidden beside the median it would otherwise flatter. */
+    val unanswered: Int = 0,
+    val median_seconds: Double? = null,
+    val p90_seconds: Double? = null,
+    val business_hours: ResponseTimeSide = ResponseTimeSide(),
+    val after_hours: ResponseTimeSide = ResponseTimeSide(),
+    /** NULL means the owner has not opted in — not that the crew answered nothing. */
+    val by_member: List<ResponseTimeMember>? = null,
+    val per_member_enabled: Boolean = false,
+    val baseline: ResponseTimeBaseline? = null,
+    /** 'too_new' | 'no_answered_leads' | null — why there is no arc. */
+    val baseline_unavailable: String? = null,
+    val improved_by_seconds: Double? = null,
+    val split_truncated: Boolean = false,
+    val split_row_limit: Int = 0,
+)
+
 /** GET /v1/for-you — the four-section focus queue. */
 /**
  * #306 — what each section ACTUALLY holds, independent of the 20 rows returned.

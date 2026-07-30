@@ -26,6 +26,14 @@ struct ForYouApi: Sendable {
         try await api.get("/v1/for-you", companyId: companyId)
     }
 
+    /// #239: the response-time report. Its own call rather than a section of
+    /// /v1/for-you — it answers a different question (how are we doing) from the
+    /// queue (what needs doing), and it is windowed, so folding it in would make
+    /// the queue refetch every time somebody switched 7/30/90 days.
+    func responseTime(companyId: String, days: Int) async throws -> ResponseTimeReport {
+        try await api.get("/v1/reports/response-time?days=\(days)", companyId: companyId)
+    }
+
     /// #342: spam marks that do not look like spam. Its own call rather than a
     /// section of /v1/for-you — it answers a different question and is empty
     /// on nearly every day.

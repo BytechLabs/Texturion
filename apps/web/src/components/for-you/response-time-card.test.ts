@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { arcSentence, noArcReason } from "./response-time-card";
+import { arcSentence, noArcReason, unansweredLine } from "./response-time-card";
 import type { ResponseTimeReport } from "@/lib/api/reports";
 
 function report(over: Partial<ResponseTimeReport>): ResponseTimeReport {
@@ -107,5 +107,14 @@ describe("noArcReason", () => {
 
   it("says flat is flat", () => {
     expect(noArcReason(report({}))).toBe("About the same as when you started");
+  });
+});
+
+describe("unansweredLine", () => {
+  it("names one lead in the singular, because it often is one", () => {
+    // "1 leads nobody answered" is the kind of thing that makes a careful reader
+    // stop trusting the rest of the panel.
+    expect(unansweredLine(1)).toBe("1 lead nobody answered");
+    expect(unansweredLine(2)).toBe("2 leads nobody answered");
   });
 });

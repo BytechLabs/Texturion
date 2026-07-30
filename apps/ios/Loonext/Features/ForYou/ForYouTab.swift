@@ -28,6 +28,12 @@ struct ForYouTab: View {
     /// that finds you.
     @State private var spamReview: [SpamReviewItem] = []
     @State private var refreshKey = 0
+    /// #239: the response-time report and its window. Its own load rather than a
+    /// section of /v1/for-you — it answers a different question (how are we
+    /// doing) from the queue (what needs doing), and it is windowed, so folding
+    /// it in would make the queue refetch on every 7/30/90 switch.
+    @State private var responseTime: ResponseTimeReport?
+    @State private var responseDays = 30
 
     var body: some View {
         Group {
@@ -53,6 +59,11 @@ struct ForYouTab: View {
                         }
                     },
                     recentCalls: recentCalls,
+                    // #239: nil while it loads — the card says so rather than
+                    // showing a zero.
+                    responseTime: responseTime,
+                    responseDays: responseDays,
+                    onResponseWindow: { responseDays = $0 },
                     onOpenConversation: { AppRouter.shared.openConversationId = $0 },
                     onOpenCalls: onOpenCalls,
                     onRefresh: {
@@ -67,6 +78,9 @@ struct ForYouTab: View {
         .task(id: "\(companyId)#\(refreshKey)") { await reload() }
         .task(id: "\(companyId)#\(refreshKey)") { await reloadSpamReview() }
         .task(id: "\(companyId)#\(refreshKey)") { await reloadRecentCalls() }
+        .task(id: "\(companyId)#\(refreshKey)#\(responseDays)") {
+            await reloadResponseTime()
+        }
         .task(id: companyId) {
             // Any conversation/task/call movement can change the queue —
             // refetch quietly.
@@ -119,6 +133,19 @@ struct ForYouTab: View {
         }
     }
 
+    /// #239. A failure leaves whatever was on screen: this panel is a result to
+    /// read, not an action to take, so an error flash costs more than the stale
+    /// number does. It stays nil until the first success, and the card says it is
+    /// working the number out.
+    private func reloadResponseTime() async {
+        if let fresh = try? await graph.forYouApi.responseTime(
+            companyId: companyId,
+            days: responseDays
+        ) {
+            responseTime = fresh
+        }
+    }
+
     private func reloadRecentCalls() async {
         do {
             recentCalls = .ready(
@@ -140,6 +167,10 @@ private struct ForYouList: View {
     let spamReview: [SpamReviewItem]
     let onAnswerSpamReview: @MainActor (String, Bool) -> Void
     let recentCalls: LoadState<[Call]>
+    /// #239: nil while it loads — the card says so rather than showing a zero.
+    let responseTime: ResponseTimeReport?
+    let responseDays: Int
+    let onResponseWindow: @MainActor (Int) -> Void
     let onOpenConversation: @MainActor (String) -> Void
     let onOpenCalls: (() -> Void)?
     /// Both loaders, awaited together, so the pull-to-refresh spinner settles
@@ -186,6 +217,14 @@ private struct ForYouList: View {
                 // because during the wait the queue is empty by definition —
                 // texting is what fills it, and that has not started yet.
                 WhileYouWait(company: company, onOpenSettings: onOpenSettings)
+                // #239 — the claim we sell, measured. Above the queue because the
+                // arc is the reason a contractor stays, and it is a result to
+                // read rather than a task to do.
+                ResponseTimeCard(
+                    report: responseTime,
+                    days: responseDays,
+                    onWindow: onResponseWindow
+                )
                 // #342: above the queue, because "you're all caught up" is not
                 // true if somebody has been texting a thread nobody can see.
                 spamReviewSection

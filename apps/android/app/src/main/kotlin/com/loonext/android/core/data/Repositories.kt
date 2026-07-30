@@ -8,6 +8,7 @@ import com.loonext.android.core.model.ForYou
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.NotificationItem
 import com.loonext.android.core.model.Page
+import com.loonext.android.core.model.ResponseTimeReport
 import com.loonext.android.core.model.SearchResult
 import com.loonext.android.core.model.SpamReviewPage
 import com.loonext.android.core.model.Task
@@ -39,6 +40,15 @@ class MeRepository(private val api: ApiClient) {
 class ForYouRepository(private val api: ApiClient) {
     suspend fun forYou(companyId: String): ForYou =
         api.get("/v1/for-you", companyId = companyId)
+
+    /**
+     * #239: the response-time report. Its own call rather than a section of
+     * /v1/for-you — it answers a different question (how are we doing) from the
+     * queue (what needs doing), and it is windowed, so folding it in would make
+     * the queue refetch every time somebody switched 7/30/90 days.
+     */
+    suspend fun responseTime(companyId: String, days: Int): ResponseTimeReport =
+        api.get("/v1/reports/response-time?days=$days", companyId = companyId)
 
     /**
      * #342: spam marks that do not look like spam. Its own call rather than a

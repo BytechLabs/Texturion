@@ -111,6 +111,62 @@ struct ForYouTotals: Codable, Sendable {
 }
 
 /// GET /v1/for-you — the four-section focus queue.
+/// GET /v1/reports/response-time (#239) — how fast this workspace answers a NEW
+/// customer, and how that changed since they started.
+///
+/// Every number here is computed server-side; the client does no arithmetic on
+/// them. A median computed twice is a median that can disagree with itself, and
+/// the whole value of this metric is that the crew trusts it. The definition
+/// lives in docs/RESPONSE-TIME.md.
+///
+/// Every property is `var` with a default so a hand-written fixture and an older
+/// server response both decode — a `let` optional gets NO implicit memberwise
+/// default in Swift, which has broken every fixture in this target before.
+struct ResponseTimeSide: Codable, Sendable {
+    var leads: Int = 0
+    var answered: Int = 0
+    var median_seconds: Double? = nil
+}
+
+struct ResponseTimeMember: Codable, Sendable, Identifiable {
+    var user_id: String = ""
+    var answered: Int = 0
+    var median_seconds: Double? = nil
+
+    var id: String { user_id }
+}
+
+struct ResponseTimeBaseline: Codable, Sendable {
+    var leads: Int = 0
+    var answered: Int = 0
+    var median_seconds: Double? = nil
+}
+
+struct ResponseTimeWindowInfo: Codable, Sendable {
+    var days: Int = 30
+}
+
+struct ResponseTimeReport: Codable, Sendable {
+    var window: ResponseTimeWindowInfo = ResponseTimeWindowInfo()
+    var leads: Int = 0
+    var answered: Int = 0
+    /// The leak, named. Never shown apart from the median it would otherwise flatter.
+    var unanswered: Int = 0
+    var median_seconds: Double? = nil
+    var p90_seconds: Double? = nil
+    var business_hours: ResponseTimeSide = ResponseTimeSide()
+    var after_hours: ResponseTimeSide = ResponseTimeSide()
+    /// nil means the owner has not opted in — NOT that the crew answered nothing.
+    var by_member: [ResponseTimeMember]? = nil
+    var per_member_enabled: Bool = false
+    var baseline: ResponseTimeBaseline? = nil
+    /// "too_new" | "no_answered_leads" | nil — why there is no arc.
+    var baseline_unavailable: String? = nil
+    var improved_by_seconds: Double? = nil
+    var split_truncated: Bool = false
+    var split_row_limit: Int = 0
+}
+
 struct ForYou: Codable, Sendable {
     @Default<DefaultEmptyList<ForYouWaiting>> var waiting_on_you: [ForYouWaiting]
     @Default<DefaultEmptyList<ForYouTask>> var my_tasks: [ForYouTask]

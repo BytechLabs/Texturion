@@ -57,6 +57,7 @@ import com.loonext.android.AppGraph
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.ForYou
 import com.loonext.android.core.model.Me
+import com.loonext.android.core.model.ResponseTimeReport
 import com.loonext.android.features.tasks.formatDue
 import com.loonext.android.features.calls.CallsRepository
 import com.loonext.android.features.calls.callOutcomeLabel
@@ -135,6 +136,18 @@ fun ForYouTab(
         key = CacheKeys.forYou(companyId),
         refreshKey = refreshKey,
     ) { graph.forYouRepo.forYou(companyId) }
+
+    // #239: the response-time report. Its own cache-first read rather than a
+    // section of /v1/for-you, because it answers a different question (how are
+    // we doing) from the queue (what needs doing) and it is windowed — folding
+    // it in would make the whole queue refetch every time somebody switched
+    // 7/30/90 days.
+    var responseDays by remember { mutableStateOf(30) }
+    val responseTime = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.responseTime(companyId, responseDays),
+        refreshKey = refreshKey,
+    ) { graph.forYouRepo.responseTime(companyId, responseDays) }
 
     // #342: spam marks that do not look like spam. Empty on nearly every day,
     // and deliberately NOT a badge or a push — a signal you find, not one that
@@ -234,6 +247,10 @@ fun ForYouTab(
                     }
                 },
                 recentCalls = recentCalls,
+                // #239: the response-time report and its window.
+                responseTime = (responseTime as? LoadState.Ready)?.value,
+                responseDays = responseDays,
+                onResponseWindow = { responseDays = it },
                 unreadNotifications = unreadNotifications,
                 me = me,
                 onOpenConversation = { onOpenThread?.invoke(it) },
@@ -252,6 +269,10 @@ private fun ForYouList(
     spamReview: List<SpamReviewItem>,
     onAnswerSpamReview: (conversationId: String, notSpam: Boolean) -> Unit,
     recentCalls: LoadState<List<Call>>,
+    /** #239: null while it loads — the card says so rather than showing a zero. */
+    responseTime: ResponseTimeReport?,
+    responseDays: Int,
+    onResponseWindow: (Int) -> Unit,
     unreadNotifications: Int,
     me: Me,
     onOpenConversation: (String) -> Unit,
@@ -305,6 +326,17 @@ private fun ForYouList(
                 onOpenTeam = { onOpenSettings?.invoke("team") },
                 onOpenHours = { onOpenSettings?.invoke("hours") },
                 modifier = Modifier.padding(top = 14.dp),
+            )
+        }
+
+        // #239 — the claim we sell, measured. Above the queue because the arc
+        // is the reason a contractor stays, and it is a result to read rather
+        // than a task to do.
+        item(key = "response-time") {
+            ResponseTimeCard(
+                report = responseTime,
+                days = responseDays,
+                onWindow = onResponseWindow,
             )
         }
 

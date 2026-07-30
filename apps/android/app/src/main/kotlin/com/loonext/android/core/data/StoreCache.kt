@@ -52,6 +52,13 @@ object CacheKeys {
     fun task(companyId: String, taskId: String) = "task/$companyId/$taskId"
     fun settingsHome(companyId: String) = "settingsHome/$companyId"
     fun usage(companyId: String) = "usage/$companyId"
+    /**
+     * #239 response time, keyed by window. Keyed rather than shared so switching
+     * 7/30/90 days cannot show the previous window's number under the new
+     * label — a stale median beside a fresh window is a number the crew would
+     * reasonably believe.
+     */
+    fun responseTime(companyId: String, days: Int) = "responseTime/$companyId/$days"
     fun team(companyId: String) = "team/$companyId"
     fun numbers(companyId: String) = "numbers/$companyId"
     fun billing(companyId: String) = "billing/$companyId"
