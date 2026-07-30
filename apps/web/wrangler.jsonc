@@ -17,5 +17,16 @@
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
-  }
+  },
+  // #242: the live /status incident line. Writable from the Cloudflare dashboard
+  // with no repo, no CI and no deploy, which is the whole point — the page has to
+  // be able to report an outage whose cause IS the deploy pipeline. The namespace
+  // id is an identifier, not a credential: reading or writing it needs account
+  // credentials, which is why Cloudflare's own docs keep it in this file.
+  "kv_namespaces": [
+    {
+      "binding": "STATUS_FEED",
+      "id": "df82ac76ecd343eabd834f3f48e24fb4"
+    }
+  ]
 }

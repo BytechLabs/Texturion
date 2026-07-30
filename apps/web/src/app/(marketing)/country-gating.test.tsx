@@ -24,7 +24,12 @@ import { CountryProvider } from "@/components/marketing/country";
 
 import SharedInboxPage from "@/app/(marketing)/features/shared-inbox/page";
 import TemplatesPage from "@/app/(marketing)/features/templates-and-tags/page";
-import StatusPage from "@/app/(marketing)/status/page";
+// #242: /status is now an async server component (it reads the live incident
+// line from KV), and this sweep renders synchronously. The country gating lives
+// entirely in the content component, so that is what gets rendered here — the
+// async shell only fetches the feed.
+import { StatusContent } from "@/app/(marketing)/status/page";
+import { EMPTY_STATUS_FEED } from "@/lib/marketing/status-feed";
 import CompareIndexPage from "@/app/(marketing)/compare/page";
 import HeymarketPage from "@/app/(marketing)/compare/heymarket/page";
 import QuoPage from "@/app/(marketing)/compare/quo/page";
@@ -67,11 +72,11 @@ describe("sweep verify: each newly-gated surface is clean in both modes", () => 
   });
 
   it("status", () => {
-    const u = us(<StatusPage />);
+    const u = us(<StatusContent feed={EMPTY_STATUS_FEED} />);
     expect(u).toContain("carrier approval");
     expect(u).not.toContain("no registration to wait on");
 
-    const c = ca(<StatusPage />);
+    const c = ca(<StatusContent feed={EMPTY_STATUS_FEED} />);
     expect(c).toContain("no registration to wait on");
     expect(c).not.toContain("carrier approval");
     expect(c).not.toContain("3 to 7");

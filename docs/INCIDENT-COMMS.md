@@ -28,21 +28,55 @@ the longest. **Say something while you still do not know.**
 
 ## 2. Where it is posted, in priority order
 
-1. **Direct email to affected owners.** This is the channel that matters and the
-   one that does not depend on anybody remembering to check a page. Recipients:
+1. **The `/status` live line.** One plain sentence in Cloudflare KV. **No repo, no
+   CI, no deploy, no API worker** — you edit it in the Cloudflare dashboard from
+   your phone and the page picks it up within a minute. This is the channel that
+   works when the thing that is broken is our own pipeline.
+
+   Dashboard: **Workers & Pages → KV → STATUS_FEED → key `incident`**. Type the
+   sentence. That is the entire procedure. From a terminal, if you have one:
+
+   ```bash
+   pnpm --filter @loonext/web exec wrangler kv key put --binding STATUS_FEED incident "Texts are not sending right now. Incoming texts still arrive." --remote
+   ```
+
+   **Clear it the same way when it is over** (`--remote` delete, or empty the
+   value in the dashboard). An empty or absent value renders nothing at all.
+
+2. **Direct email to affected owners.** Still the channel that matters most,
+   because it does not depend on anybody remembering to check a page. Recipients:
    the owner addresses of affected workspaces (`billingRecipients` gives you the
    shape). If the blast radius is unclear, all owners.
-2. **`/status`** (`apps/web/src/app/(marketing)/status/page.tsx`) — add to
-   `INCIDENTS`, bump `LAST_POSTED`, deploy.
 
-**Know the catch on step 2 before you rely on it.** Posting to `/status` requires
-editing the repo, passing CI, and deploying the marketing app. So it cannot be
-used for an outage whose cause is CI, the deploy pipeline, Cloudflare, or a bad
-migration — the page shares a failure domain with the product. **In those cases
-email is the only channel, and that is fine: use it and skip the page.**
+3. **The written report in `INCIDENTS`** (`apps/web/src/app/(marketing)/status/page.tsx`)
+   — the considered record, added afterward through a normal deploy, with a date
+   and a full write-up. This one does need CI and a deploy, and that is fine: you
+   are writing it when the incident is over.
 
-Moving publishing off the deploy path is the open half of #242. It needs somewhere
-independently writable, and the options have real trade-offs — see §5.
+**Why the live line and the written report are separate mechanisms.** The split
+follows the failure boundary rather than the data shape. The urgent half has to
+work while our deploy pipeline is the thing that is down, so it is one plain-text
+value with no schema to get wrong at 7am. The considered half wants dates,
+structure and review, so it goes through the repo like any other content. Trying
+to serve both from one mechanism means either a JSON payload you have to hand-edit
+during an outage, or a written record nobody can post when it matters.
+
+**The value is plain text on purpose, not JSON.** One missing brace in a JSON
+payload makes it unparseable, and the only safe thing the page can then do is show
+nothing — which is the silence this whole document exists to prevent, with a syntax
+error as its cause. There is no syntax. Type a sentence.
+
+## 2a. The confirmed date
+
+**Key `confirmed` in the same namespace, `YYYY-MM-DD`.** It means *a person
+actually checked texting, the inbox and notifications on this date* — nothing
+else. While it is within a week the page says so; past that, and whenever it is
+absent or unparseable, the page says nobody has checked recently rather than
+showing a date that answers a different question.
+
+**Only set it when you have actually looked.** It is deliberately left EMPTY at
+the time of writing, because nobody had, and a status page asserting a check that
+never happened is the failure mode #242 was filed about.
 
 ## 3. The first message, within 15 minutes
 
@@ -87,11 +121,11 @@ did not arrive, refund them without being asked and say so in the closing
 message — `docs/DECISIONS.md` D34 and the money-back posture make that the
 cheaper choice anyway.
 
-## 5. The open half: publishing while everything is broken
+## 5. Publishing while everything is broken: settled
 
 #242's first acceptance item — publish an incident while the API, CI and the
-deploy pipeline are all broken — is **not met** and needs an infrastructure
-decision. The three candidates, with the trade-off each carries:
+deploy pipeline are all broken — is **met**, by the KV live line in §2. The
+options considered, and why KV won:
 
 | Option | Independent of our deploy? | Cost | The catch |
 |---|---|---|---|
@@ -99,13 +133,30 @@ decision. The three candidates, with the trade-off each carries:
 | **Cloudflare KV**, edited from the dashboard | Yes for CI and the API; **no** for Cloudflare itself | Included | Needs a namespace and binding; a Cloudflare outage takes the page and the product together, so the boundary is narrower than it looks |
 | **A designated GitHub issue**, fetched at request time | Yes for CI, the API, and our deploy | Free | Adds a runtime dependency on GitHub's API and its rate limits; postable from a phone, which is a real advantage at 7am |
 
-**Recommendation: an external provider**, and subscribe-by-email with it. It is
-the only option that is independent of *every* system likely to be down, the
-per-month cost is trivial against one lost customer, and it solves #242's
-"Subscribe" scope item in the same purchase rather than as a separate build.
+**Chosen: Cloudflare KV**, and the earlier recommendation of an external provider
+was wrong on the decisive point. The argument for a provider was that it is
+independent of *every* system likely to be down, and KV's listed catch was that a
+Cloudflare outage takes the page and the product together.
 
-**Until that decision is made, §2's ordering is the mitigation**: email first,
-page second, and never rely on the page for a deploy-path outage.
+That catch is not a real cost. **The status page is served by Cloudflare.** If
+Cloudflare is down, nobody can load the page regardless of where its content came
+from — so a KV dependency adds no failure domain that the page did not already
+have. A Postgres-backed feed, by contrast, would ADD one: Supabase can be the
+thing that is broken, or the thing a bad migration broke, and then the incident
+feed goes down with the incident it exists to report.
+
+So KV buys the whole acceptance criterion for zero new vendors, zero
+subscriptions, and zero recurring cost, on infrastructure already in the critical
+path. An external provider remains the right answer for **subscribe-by-email**,
+which is a separate scope item in #242 and is not covered by any of this: the live
+line still requires a customer to look at the page. That is worth a provider on its
+own merits, when it is worth doing.
+
+**A KV read per request would be a cost center** on a page that gets linked around
+during an incident, so the page caches at the edge for 60 seconds
+(`revalidate = 60`). An incident line can therefore be up to a minute stale, which
+is far inside the fifteen-minute commitment in §3, and a link storm cannot turn the
+status page into a bill.
 
 ## 6. What must never be added to `/status`
 
