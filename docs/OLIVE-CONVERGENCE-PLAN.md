@@ -23,6 +23,43 @@ Every contrast ratio is computed with the same formula
 
 ---
 
+## AMENDMENT — phases 3 and 4 must land in ONE commit (proved 2026-07-30)
+
+The plan below sequences "retarget `.app-scope`" (phase 3) and "split the
+`bg-primary` / `text-primary` call sites" (phase 4) as separate steps. They
+cannot be. Shipping phase 3 alone puts unreadable fills on 52 files.
+
+**Nothing in the palette can carry AA text on olive `#66801F`.** Not a near
+miss — every candidate fails:
+
+| foreground on olive `#66801F` | ratio | AA 4.5 |
+|---|---|---|
+| paper `#FDFDF9` | 4.41 | ❌ |
+| white `#FFFFFF` | 4.49 | ❌ |
+| ink `#191B14` | 3.87 | ❌ |
+| ink-soft `#4A4D3C` | 1.93 | ❌ |
+| lime `#C9DE54` | 3.01 | ❌ |
+| olive-strong `#3A430F` | 2.35 | ❌ |
+
+So olive is **exclusively** a text/icon/stroke colour on a light ground. It is
+not a fill with a darker or lighter label; it is not a fill at all. Ink takes a
+paper label at 17.05:1 and lime takes an ink label at 11.64:1 — those are the
+fills.
+
+`--app-petrol` is a fill TODAY: `bg-app-petrol` exists in 8 files, `bg-primary`
+in 44, and `globals.css:833` carries an unlayered rule forcing
+`color: var(--app-petrol-foreground)` onto both. Retarget that token to olive
+without first moving every fill-meaning call site to ink, and each of those 52
+files renders text on a background where **no** foreground reaches AA — and the
+forcing rule guarantees it, because it overrides whatever the component asked
+for.
+
+**So: one commit.** Retarget the surface and text tokens, move the fill-meaning
+sites to `--primary` (ink) and the accent-meaning sites to `--app-olive` /
+`--app-olive-strong`, and rewrite `globals.css:833` into two selectors — all
+together. The contrast suite gates it, and phase 1 widened it precisely so this
+commit cannot land wrong quietly.
+
 ## Evaluation
 
 Three colour systems, one file. `apps/web/src/app/globals.css` holds `:root`/`.dark` (stone + oklch petrol, ~21 unscoped routes), `.app-scope`/`.dark .app-scope` (petrol hex, the signed-in product + every marketing product embed), and `.mkt-scope` (cobalt `--fr-*`, light-locked by construction). Paper & Olive has to feed all three. The good news the surveys surfaced: `FramedShot` has zero call sites, so marketing's product imagery is live DOM inside `.app-scope` — there is **no screenshot re-capture blocker**, and retargeting `.app-scope` repaints the app *and* the marketing embeds in one commit.
