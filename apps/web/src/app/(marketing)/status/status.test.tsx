@@ -29,7 +29,7 @@ describe("/status — the instrument page, unwired posture (amendment 11)", () =
 
   it("carries incident reports that tell the truth: none posted", () => {
     expect(html).toContain("Incident reports");
-    expect(html).toContain("No incidents to report.");
+    expect(html).toContain("No incidents posted.");
   });
 
   it("timestamps and figures read in mono (fr-eyebrow / fr-mono-data)", () => {
@@ -53,5 +53,31 @@ describe("/status — the instrument page, unwired posture (amendment 11)", () =
     expect(html).not.toMatch(/—|–/);
     expect(String(metadata.description)).not.toMatch(/—|–/);
     expect(String(metadata.description)).not.toMatch(/green|operational/i);
+  });
+});
+
+describe("/status — #242: the page says what it is, and does not imply a probe", () => {
+  it("dates the last POST, not a last check", () => {
+    // "UPDATED <date>" was ambiguous in the one direction that matters: a reader
+    // takes it as the last time somebody CHECKED the service, so an 18-day-old
+    // date read as 18 days of confirmed health when it meant nobody had touched
+    // the page.
+    expect(html).toContain("LAST POSTED");
+    expect(html).not.toContain("UPDATED ");
+  });
+
+  it("says a person writes it, so silence is not read as health", () => {
+    // Without this, no incident report reads as an assertion that nothing is
+    // wrong — which is the failure mode that makes a stale status page worse
+    // than no status page.
+    expect(html).toContain("written by a person");
+    expect(html).toContain("not by an automatic monitor");
+  });
+
+  it("points at a channel that does not share the deploy failure domain", () => {
+    // Posting here needs CI and a deploy, so it cannot report an outage caused
+    // by CI or the deploy. Email can.
+    expect(html).toContain("mailto:");
+    expect(html).toContain("whether or not this page has caught up");
   });
 });

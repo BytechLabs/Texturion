@@ -26,10 +26,32 @@ export const metadata: Metadata = buildMetadata({
  *
  * Ops posting flow: add an entry to INCIDENTS (newest first) and bump
  * LAST_UPDATED, then deploy. Nothing on this page pretends to be a probe.
+ *
+ * #242 — WHAT THIS PAGE DOES NOT CLAIM, said out loud rather than implied.
+ *
+ * "UPDATED <date>" was ambiguous in the one direction that matters. It is the
+ * date somebody last EDITED this file, and a reader takes it as the date
+ * somebody last CHECKED the service — so an eighteen-day-old date read as
+ * eighteen days of confirmed health, when it actually meant nobody had touched
+ * the page. During an incident that is worse than silence: the absence of a
+ * report reads as an assertion that nothing is wrong.
+ *
+ * So the line now says what it is (when a report was last posted), and the page
+ * states plainly that it is maintained by hand and is not a probe. A customer
+ * who needs to know whether something is wrong RIGHT NOW is told to write to
+ * support, which is a channel that does not share a failure domain with the
+ * deploy pipeline this page does.
+ *
+ * The remaining half of #242 — publishing an incident while CI, the deploy
+ * pipeline and the API are all broken — needs somewhere independently writable,
+ * and choosing that is an infrastructure decision (see docs/INCIDENT-COMMS.md).
  */
 
-/** Bump whenever the reports below change. Mono, load-bearing. */
-const LAST_UPDATED = { display: "JULY 7, 2026", iso: "2026-07-07" };
+/**
+ * When a report was last POSTED — not when the service was last checked.
+ * #242: those are different facts and the page must not blur them.
+ */
+const LAST_POSTED = { display: "JULY 7, 2026", iso: "2026-07-07" };
 
 /** Posted incident reports, newest first. Empty means none to report. */
 const INCIDENTS: {
@@ -58,6 +80,18 @@ export default function StatusPage() {
             Service status for texting, the inbox, and notifications is
             published on this page.
           </p>
+          {/* #242: the page is maintained by hand, and saying so is the
+              difference between a quiet page and a misleading one. Without this,
+              no report reads as a claim that nothing is wrong. */}
+          <p className="fr-body mt-3 text-[color:var(--fr-ink-70)]">
+            This page is written by a person, not by an automatic monitor, so it
+            shows what we have posted rather than a live reading. If something
+            looks wrong to you right now and there is nothing here about it,{" "}
+            <a href={`mailto:${SUPPORT_EMAIL}`} className={inlineLink}>
+              write to us
+            </a>
+            . That reaches us whether or not this page has caught up.
+          </p>
 
           <FrCard className="mt-10 p-6 sm:p-8">
             <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
@@ -65,14 +99,14 @@ export default function StatusPage() {
                 Incident reports
               </h2>
               <p className="fr-eyebrow text-[color:var(--fr-ink-55)]">
-                UPDATED{" "}
-                <time dateTime={LAST_UPDATED.iso}>{LAST_UPDATED.display}</time>
+                LAST POSTED{" "}
+                <time dateTime={LAST_POSTED.iso}>{LAST_POSTED.display}</time>
               </p>
             </div>
 
             {INCIDENTS.length === 0 ? (
               <p className="fr-mono-data mt-6 text-[color:var(--fr-ink-70)]">
-                No incidents to report.
+                No incidents posted.
               </p>
             ) : (
               <ul className="mt-6 space-y-6">
