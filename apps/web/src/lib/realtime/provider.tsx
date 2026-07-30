@@ -631,7 +631,23 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       )
       .on("broadcast", { event: "read.notifications" }, ({ payload }) =>
         handleReadState(payload as ReadStateEvent),
-      );
+      )
+      // #480: somebody's number access changed. The payload deliberately names
+      // NOTHING but the company — naming the number or the member would
+      // broadcast the shape of the restriction to every member on the topic — so
+      // a client cannot tell whether it was the subject and simply asks again.
+      //
+      // Everything a member may see is filtered by access server-side: the
+      // conversation lists, the calls list, the numbers, and the company view's
+      // embedded numbers. A revoked member currently keeps reading whatever they
+      // had cached until something else happens to refetch it. This is the
+      // signal that it should be now.
+      .on("broadcast", { event: "access.changed" }, () => {
+        void queryClient.invalidateQueries({
+          queryKey: [companyId],
+          refetchType: "active",
+        });
+      });
 
     void (async () => {
       const { data } = await supabase.auth.getSession();

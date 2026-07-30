@@ -252,6 +252,18 @@ class RealtimeClient(
                 val inner = payload ?: return
                 val name = inner["event"]?.jsonPrimitive?.content ?: return
                 val data = inner["payload"] as? JsonObject ?: buildJsonObject {}
+                // #480: number access changed somewhere in this company. The
+                // payload names only the company — naming the number or the
+                // member would broadcast the shape of the restriction to
+                // everyone on the topic — so a client cannot tell whether it was
+                // the subject and simply refetches.
+                //
+                // Reusing the reconnect signal rather than adding a second one:
+                // every screen already treats it as "your cached pages may be
+                // wrong, ask again", which is exactly what a change of access
+                // means. Emitted IN ADDITION to the event itself, so a future
+                // consumer that wants the event can still have it.
+                if (name == "access.changed") _reconnected.tryEmit(Unit)
                 // trySend on an UNLIMITED channel never fails (never drops) and
                 // never blocks this WebSocket thread — the dispatch pump above
                 // does the (possibly suspending) hand-off to collectors.
