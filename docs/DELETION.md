@@ -187,7 +187,7 @@ leave; an unsent receipt raises in Sentry and is ours to chase.
 
 ## Open, and tracked elsewhere
 
-- **#316** — a released number must carry no history to its next owner.
+- ~~**#316**~~ — **closed.** A released number carries no history to its next owner (D86).
 - **#325** — deletion ordering against a live call or an in-flight port.
 - ~~**#340**~~ — **closed.** `contact_messages` got its own retention rather
   than a hook here (`api_prune_contact_messages`, one year). It is still out of

@@ -179,6 +179,16 @@ jobs:
       - name: Guard parity vectors
         run: node scripts/generate-parity-vectors.mjs --check
 
+      # #427: a binding document that lists what it does NOT cover is only worth
+      # having while that list is true. D48's went stale and was read while
+      # writing the public deletion page — two of its four entries had shipped,
+      # and both would have been published to customers as things we do not do.
+      # Fails when a listed-as-open issue has closed; the fix is one struck line.
+      - name: Guard open-issue lists
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/check-open-lists.mjs
+
       # feat/fix/perf subjects are published verbatim in the release notes, so
       # they are checked like changelog copy. The commit-msg hook catches this
       # locally; this is the gate that --no-verify cannot skip. Only the commits

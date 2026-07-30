@@ -1809,3 +1809,29 @@ Two decisions worth keeping:
 Withheld when `CALL_SESSIONS` is unbound, like the #308 canary: there is no DO
 runtime to answer for, and an expectation about something undeployed alerts
 forever.
+
+---
+
+## 19. Open, and tracked elsewhere
+
+Adopting D48's convention (#427). This document governs the most complex
+subsystem in the product, and a reader needs to know **where it stops being the
+answer** — not to infer from an omission whether something was decided or
+forgotten.
+
+- **#325** — suspension is a billing state applied to a live communications
+  system, and the ordering against an in-flight call or port is undecided. The
+  machine here has no opinion about a session that is live when a workspace is
+  suspended, and that is a gap rather than a design.
+
+**What is NOT on this list, and why that matters.** #427 proposed backfilling
+this section with **#375** and **#366**, both deferrals from this document. Both
+have since shipped — §17a is #375's answer, and #366's ring rotation is in
+`transitions.ts`. A backlog issue naming a deferral is not evidence the deferral
+still exists, which is the whole argument for keeping the list *here*, next to
+the design, and checked.
+
+`scripts/check-open-lists.mjs` verifies every entry above is still open, and
+fails the build when one closes. Strike a resolved entry (`~~#123~~ — closed,
+plus what shipped`) rather than deleting it: the next reader should see it
+resolved, not wonder whether it was ever tracked.

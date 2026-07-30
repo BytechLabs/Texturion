@@ -81,7 +81,8 @@
     "db:test:consent-ledger": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/consent_ledger.test.sql",
     "check:env-doc": "node scripts/check-env-doc.mjs",
     "check:doc-citations": "node scripts/check-doc-citations.mjs",
-    "check:client-parity": "node scripts/check-client-parity.mjs"
+    "check:client-parity": "node scripts/check-client-parity.mjs",
+    "check:open-lists": "node scripts/check-open-lists.mjs"
   },
   "devDependencies": {
     "playwright": "^1.61.1"
