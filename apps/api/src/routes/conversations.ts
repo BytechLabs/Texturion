@@ -53,6 +53,7 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { buildPage, encodeCursor, type Cursor } from "../http/pagination";
+import { dispositionOptions } from "../storage/disposition";
 import {
   buildSuggestionMessages,
   envelopeShape,
@@ -1652,9 +1653,13 @@ conversationsRoutes.get(
           row.bucket === MMS_BUCKET
             ? MMS_SIGNED_URL_TTL_SECONDS
             : ATTACHMENT_SIGNED_URL_TTL_SECONDS;
+        // #317: the disposition follows the type. This is the gallery for a
+        // thread, so most rows ARE inline images and stay that way — but a PDF
+        // a customer texted in reaches this list too, and it gets a download
+        // like it does on the single-attachment route.
         const { data: signed, error } = await db.storage
           .from(row.bucket)
-          .createSignedUrl(row.objectPath, ttl);
+          .createSignedUrl(row.objectPath, ttl, dispositionOptions(row.content_type));
         if (error || !signed?.signedUrl) {
           throw new Error(
             `gallery signed URL failed (${row.bucket}/${row.objectPath}): ${error?.message ?? "no URL"}`,

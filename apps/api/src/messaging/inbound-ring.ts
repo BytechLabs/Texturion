@@ -91,6 +91,14 @@ const VOICEMAIL_MIN_SECS = 2;
 /** The private storage bucket voicemail mp3s live in. */
 export const VOICEMAILS_BUCKET = "voicemails";
 
+/**
+ * What we store voicemail AS. Exported because the play route's #317
+ * disposition decision depends on it: this is the one audio type
+ * `rendersInlineSafely` admits, and if the recording were ever stored as
+ * something else the play button would silently become a save dialog.
+ */
+export const VOICEMAIL_CONTENT_TYPE = "audio/mpeg";
+
 function b64encode(value: string): string {
   return btoa(value);
 }
@@ -289,7 +297,7 @@ export async function storeVoicemailRecording(
   const path = `${resolved.companyId}/${sessionId}.mp3`;
   const upload = await db.storage
     .from(VOICEMAILS_BUCKET)
-    .upload(path, audio, { contentType: "audio/mpeg", upsert: true });
+    .upload(path, audio, { contentType: VOICEMAIL_CONTENT_TYPE, upsert: true });
   if (upload.error) {
     throw new Error(`voicemail store failed: ${upload.error.message}`);
   }

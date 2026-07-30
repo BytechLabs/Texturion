@@ -196,6 +196,103 @@ describe("GET /v1/attachments/:id/url", () => {
     );
   });
 
+  /**
+   * #317 — what a signed URL lets the browser DO with the bytes.
+   *
+   * This product is a conduit between a business and members of the public who are
+   * strangers to it: anyone who knows the number can send a file, because the
+   * number is printed on a truck. We store it, sign it, and hand it to a tech's
+   * phone and the office manager's laptop — so if it is malicious we are the
+   * delivery mechanism, and the customer's antivirus names us.
+   *
+   * The allow-list plus the magic-byte check already refuse the wrong file TYPE.
+   * They cannot refuse a malicious file of an ALLOWED type, and the list has to
+   * include the formats that carry payloads: PDF, and the OpenXML/ODF family,
+   * which are ZIP containers.
+   */
+  describe("#317 content disposition follows the type", () => {
+    /**
+     * The minted URL.
+     *
+     * supabase-js appends `download` as a query parameter to the signed URL
+     * rather than sending it in the sign request, and Storage turns that
+     * parameter into `Content-Disposition: attachment` on the response. So the
+     * URL is both the observable effect and exactly what the browser acts on —
+     * asserting on the sign request body would assert on nothing.
+     */
+    async function mintedUrl(sb: SupabaseStub): Promise<string> {
+      const res = await mint(sb);
+      expect(res.status).toBe(200);
+      return ((await res.json()) as { url: string }).url;
+    }
+
+    async function mint(sb: SupabaseStub): Promise<Response> {
+      egressStubs(sb);
+      sb.on("POST", /^\/storage\/v1\/object\/sign\//, () => ({
+        signedURL: `/object/sign/attachments/x?token=sig`,
+      }));
+      stubFetch(jwksRoute(auth), sb.route);
+      return apiRequest(app, env, await auth.token(), `/v1/attachments/${ATTACHMENT_ID}/url`, {
+        companyId: COMPANY_ID,
+      });
+    }
+
+    it("forces a download for a PDF", async () => {
+      const sb = stubWithRole("member");
+      sb.on("GET", "/rest/v1/attachments", () => [
+        { storage_path: `${COMPANY_ID}/note/x/quote.pdf`, size_bytes: 2048,
+          content_type: "application/pdf" },
+      ]);
+      expect(await mintedUrl(sb)).toMatch(/[?&]download(=|$)/);
+    });
+
+    it("forces a download for the ZIP-container document formats", async () => {
+      // These are the ones the issue is really about — a .docx is a ZIP.
+      for (const type of [
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.oasis.opendocument.spreadsheet",
+      ]) {
+        const sb = stubWithRole("member");
+        sb.on("GET", "/rest/v1/attachments", () => [
+          { storage_path: `${COMPANY_ID}/note/x/doc`, size_bytes: 10, content_type: type },
+        ]);
+        expect(await mintedUrl(sb), type).toMatch(/[?&]download(=|$)/);
+      }
+    });
+
+    it("leaves an image INLINE, because the thread renders it", async () => {
+      // Forcing a download here would replace the product's most common
+      // interaction — looking at a photo of a broken furnace — with a save
+      // dialog. Images are also the lower-risk half: SVG, the format that
+      // actually executes in a document context, is not in the allow-list.
+      const sb = stubWithRole("member");
+      sb.on("GET", "/rest/v1/attachments", () => [
+        { storage_path: `${COMPANY_ID}/note/x/photo.jpg`, size_bytes: 2048,
+          content_type: "image/jpeg" },
+      ]);
+      expect(await mintedUrl(sb)).not.toMatch(/[?&]download(=|$)/);
+    });
+
+    it("forces a download when the type is missing or unrecognised", async () => {
+      // Fails toward the safe direction. A legacy row with no content_type gets a
+      // download rather than whatever the browser decides to do with unknown
+      // bytes — and an unguarded read of an absent column previously turned the
+      // mint into a 500, which is how this assertion earned its place.
+      for (const row of [
+        { storage_path: `${COMPANY_ID}/note/x/legacy`, size_bytes: 1 },
+        { storage_path: `${COMPANY_ID}/note/x/odd`, size_bytes: 1, content_type: null },
+        { storage_path: `${COMPANY_ID}/note/x/svg`, size_bytes: 1,
+          content_type: "image/svg+xml" },
+      ]) {
+        const sb = stubWithRole("member");
+        sb.on("GET", "/rest/v1/attachments", () => [row]);
+        expect(await mintedUrl(sb), JSON.stringify(row)).toMatch(
+          /[?&]download(=|$)/,
+        );
+      }
+    });
+  });
+
   it("falls back to the MMS message_attachments arm (kept intact), 1-hour TTL; a NULL size claims 0", async () => {
     const sb = stubWithRole("member");
     // No generic row → fall through to the MMS table.

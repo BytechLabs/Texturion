@@ -21,6 +21,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
+import { dispositionOptions } from "../storage/disposition";
 import { EXPORTS_BUCKET } from "../workspace/export";
 import { unwrap } from "./core/http";
 
@@ -127,9 +128,13 @@ async function signFiles(
   const signed = await Promise.all(
     files.map(async (entry) => {
       const path = `${row.storage_prefix}/${entry.name}`;
+      // #317: always a download. These are our own CSVs, but a CSV carries a
+      // payload of its own — a cell beginning `=` is a formula the recipient's
+      // spreadsheet may evaluate — and the whole point of the screen is to save
+      // the file, not to read it in a browser tab.
       const { data: url, error: signError } = await db.storage
         .from(EXPORTS_BUCKET)
-        .createSignedUrl(path, DOWNLOAD_TTL_SECONDS);
+        .createSignedUrl(path, DOWNLOAD_TTL_SECONDS, dispositionOptions("text/csv"));
       if (signError || !url?.signedUrl) return null;
       return { name: entry.name, url: url.signedUrl };
     }),

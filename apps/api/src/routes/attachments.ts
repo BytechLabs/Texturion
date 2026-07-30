@@ -54,6 +54,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
+import { dispositionOptions } from "../storage/disposition";
 import {
   ATTACHMENTS_BUCKET,
   ATTACHMENT_SIGNED_URL_TTL_SECONDS,
@@ -492,11 +493,12 @@ attachmentsRoutes.get(
         storage_path: string;
         size_bytes: number | null;
         conversation_id: string | null;
+        content_type: string | null;
       }[]
     >(
       await db
         .from("attachments")
-        .select("storage_path,size_bytes,conversation_id")
+        .select("storage_path,size_bytes,conversation_id,content_type")
         .eq("company_id", companyId)
         .eq("id", id)
         .is("deleted_at", null)
@@ -520,18 +522,31 @@ attachmentsRoutes.get(
         ],
         ATTACHMENT_SIGNED_URL_TTL_SECONDS,
       );
-      return c.json(await signObject(db, ATTACHMENTS_BUCKET, generic[0].storage_path, ATTACHMENT_SIGNED_URL_TTL_SECONDS));
+      return c.json(
+        await signObject(
+          db,
+          ATTACHMENTS_BUCKET,
+          generic[0].storage_path,
+          ATTACHMENT_SIGNED_URL_TTL_SECONDS,
+          generic[0].content_type,
+        ),
+      );
     }
 
     // Fall back to the MMS arm (message_attachments / mms-media) — kept intact.
     // company_id lives on message_attachments so no join is needed; message_id
     // gets us to the conversation for the #106 gate.
     const mms = unwrap<
-      { storage_path: string; size_bytes: number | null; message_id: string }[]
+      {
+        storage_path: string;
+        size_bytes: number | null;
+        message_id: string;
+        content_type: string | null;
+      }[]
     >(
       await db
         .from("message_attachments")
-        .select("storage_path,size_bytes,message_id")
+        .select("storage_path,size_bytes,message_id,content_type")
         .eq("company_id", companyId)
         .eq("id", id)
         .limit(1),
@@ -553,7 +568,15 @@ attachmentsRoutes.get(
         [{ bucket: MMS_BUCKET, path: objectPath, sizeBytes: mms[0].size_bytes }],
         MMS_TTL_SECONDS,
       );
-      return c.json(await signObject(db, MMS_BUCKET, objectPath, MMS_TTL_SECONDS));
+      return c.json(
+        await signObject(
+          db,
+          MMS_BUCKET,
+          objectPath,
+          MMS_TTL_SECONDS,
+          mms[0].content_type,
+        ),
+      );
     }
 
     return errorResponse(c, "not_found", "No such attachment.");
@@ -614,16 +637,28 @@ async function assertMmsVisible(
   await assertConversationVisible(db, c, rows[0]?.conversation_id ?? null);
 }
 
-/** Mint one short-lived signed Storage URL and its expiry (D19 §2.5 / §7). */
+/**
+ * Mint one short-lived signed Storage URL and its expiry (D19 §2.5 / §7).
+ *
+ * #317: the disposition follows the TYPE, which is why `content_type` is selected at
+ * both call sites. `dispositionOptions` owns the rule and documents why — anything
+ * that is not an allowed image or our own voicemail audio gets
+ * `Content-Disposition: attachment`, which is PDF and the OpenXML/ODF family today
+ * and automatically the right answer for whatever is added next.
+ *
+ * Scanning the bytes is the expensive half of #317 and needs a subprocessor
+ * decision; this is the half that ships without one.
+ */
 async function signObject(
   db: Db,
   bucket: string,
   objectPath: string,
   ttlSeconds: number,
+  contentType: string | null | undefined,
 ): Promise<{ url: string; expires_at: string }> {
   const { data, error } = await db.storage
     .from(bucket)
-    .createSignedUrl(objectPath, ttlSeconds);
+    .createSignedUrl(objectPath, ttlSeconds, dispositionOptions(contentType));
   if (error || !data?.signedUrl) {
     throw new Error(
       `signed URL mint failed (${bucket}/${objectPath}): ${error?.message ?? "no data"}`,

@@ -39,6 +39,7 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { isKilled } from "../flags/evaluate";
 import { errorResponse } from "../http/errors";
+import { dispositionOptions } from "../storage/disposition";
 import { buildPage } from "../http/pagination";
 import { resolveActorNames } from "./core/attribution";
 import {
@@ -52,6 +53,7 @@ import {
   LOONEXT_SESSION_HEADER,
   RING_TIMEOUT_SECS,
   VOICEMAILS_BUCKET,
+  VOICEMAIL_CONTENT_TYPE,
 } from "../messaging/inbound-ring";
 import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
 import {
@@ -344,9 +346,18 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) 
     ).catch(() => undefined);
   }
 
+  // #317: INLINE, deliberately. All three clients play this with an audio
+  // element, so forcing a download would replace the play button with a save
+  // dialog. The type is not a stranger's claim about their upload — it is the
+  // constant we stored the recording with, and audio/mpeg goes to the browser's
+  // media decoder rather than its document parser.
   const signed = await db.storage
     .from(VOICEMAILS_BUCKET)
-    .createSignedUrl(call.voicemail_path, 60 * 60);
+    .createSignedUrl(
+      call.voicemail_path,
+      60 * 60,
+      dispositionOptions(VOICEMAIL_CONTENT_TYPE),
+    );
   if (signed.error || !signed.data?.signedUrl) {
     throw new Error(
       `voicemail sign failed: ${signed.error?.message ?? "no URL"}`,

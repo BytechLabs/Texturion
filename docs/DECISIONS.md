@@ -4531,3 +4531,70 @@ needs the departing customer to opt in and supply a forwarding target, it collid
 with the outbound gate above, and us auto-replying on behalf of a business that has
 left is a message we would be originating. That deserves its own design rather than
 a paragraph here.
+
+## D87 — a signed URL says whether the browser may RENDER the bytes (#317, 2026-07-30)
+
+This product is a conduit between a business and members of the public who are
+strangers to it. Anyone who knows the number can send a file, because the number is
+printed on a truck. We store it, sign it, and hand it to a tech's phone and the
+office manager's laptop — so if the file is malicious, we are the delivery
+mechanism and the customer's antivirus names us.
+
+The type gates already refuse the wrong file *type*: `assertAllowedType` plus a
+magic-byte check that catches a script uploaded as a PDF. What they cannot refuse is
+a malicious file of an **allowed** type, and the allow-list necessarily includes the
+formats that carry payloads — PDF, and the OpenXML/ODF family, which are ZIP
+containers. #317 asked for content scanning. Scanning needs a subprocessor decision
+that is not ours to make unilaterally; this is the half that ships without one.
+
+### The rule
+
+`apps/api/src/storage/disposition.ts` is the only place that decides. Inline is the
+narrow case:
+
+- **Allow-listed images stay inline.** The thread renders a photo of a broken
+  furnace with `<img src>`, and forcing a download would replace the product's most
+  common interaction with a file-save dialog. They are also the lower-risk half:
+  **SVG is not in the allow-list**, and SVG is the format that actually executes in
+  a document context. A JPEG goes to the browser's image decoder, not its parser.
+- **Our own voicemail audio stays inline**, or the play button on three clients
+  becomes a save dialog. The type there is not a stranger's claim about an upload —
+  it is the constant `inbound-ring.ts` stored the recording with.
+- **Everything else downloads**, including an absent or unrecognised type. The
+  default is the safe one, so a format nobody has thought about yet gets the right
+  answer without an edit.
+
+### Why it is one function and a filesystem-derived test
+
+The bug was not that the rule was wrong — there was no rule. Five call sites mint
+signed URLs and each had an implicit, undocumented, silently different answer; four
+of them were "whatever the browser feels like", including the media gallery, which
+is the surface that hands out inbound MMS files from strangers. So the rule is one
+resolver (D79's shape), and `apps/api/src/storage/disposition.test.ts` walks the
+source tree for `createSignedUrl` and fails if a site neither uses the resolver nor
+appears in a declared-exception list with a reason. There is one exception today:
+outbound MMS media in `apps/api/src/messaging/media.ts`, fetched by Telnyx and the
+carrier and never by a browser.
+
+### What was verified, because the claim depends on it
+
+`download` is not a field in the sign request — supabase-js appends it to the
+returned URL as a query parameter, and Storage turns that into the response header.
+That was checked against a real Storage server in both directions: with the
+parameter the response carries `Content-Disposition: attachment`, without it there
+is no disposition header at all. Had it been cosmetic, this change would have bought
+nothing and #317 would have needed a proxy route of our own.
+
+One consequence worth naming: the web document chip already showed a download icon
+and an `aria-label` of "Download", and set `<a download>` — which browsers **ignore
+for cross-origin URLs**, and a Storage URL is cross-origin. So a PDF opened in a tab
+while the UI said it would download. The server now keeps the promise the interface
+was already making.
+
+### What #317 still wants
+
+Content scanning (its criteria 1, 2 and 4) is a subprocessor decision. Narrowing the
+document allow-list is the other suggestion in the issue and has no evidence behind
+it yet: production holds four attachment rows, one `image/jpeg` and one
+`application/pdf`, so any narrowing today would be a guess about which formats
+customers send.

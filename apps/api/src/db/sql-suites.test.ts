@@ -3,8 +3,8 @@
  *
  * `supabase/tests/*.test.sql` is where the database's own behaviour is
  * asserted — teardown ordering, gate arithmetic, grant posture, the things
- * that cannot be reached from a stubbed vitest suite. CI runs them through one
- * hand-maintained `db:test:all` script in the root package.json.
+ * that cannot be reached from a stubbed vitest suite. CI runs them through the
+ * one hand-maintained list in `scripts/db-test-all.mjs`.
  *
  * A hand-maintained list of files is a list that falls behind the files. When
  * this was written, NINE suites existed and none of them ran: audit_log,
@@ -15,24 +15,30 @@
  *
  * So the list is checked rather than trusted. Adding a suite and forgetting to
  * register it now fails here, in the test run that already gates every push.
+ *
+ * THE LIST MOVED, AND THIS TEST IS WHY THAT WAS SAFE. It used to live in a
+ * `db:test:all` npm script that concatenated all 62 suites with `&&` — 8,228
+ * characters against a Windows command-line limit of about 8,191, so adding the
+ * 62nd made the whole chain unrunnable locally while staying green in CI. The
+ * runner script has no such ceiling. Its `assertNoneMissed` makes the same
+ * check, but only for whoever runs the suites; this one runs in the vitest gate
+ * on every push, which is where an unregistered suite gets caught first.
  */
-import { readdirSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import packageJson from "../../../../package.json" with { type: "json" };
-
-const TESTS_DIR = join(
+const REPO_ROOT = join(
   fileURLToPath(new URL(".", import.meta.url)),
   "..",
   "..",
   "..",
   "..",
-  "supabase",
-  "tests",
 );
+const TESTS_DIR = join(REPO_ROOT, "supabase", "tests");
+const RUNNER = join(REPO_ROOT, "scripts", "db-test-all.mjs");
 
 function suiteFiles(): string[] {
   return readdirSync(TESTS_DIR)
@@ -41,11 +47,17 @@ function suiteFiles(): string[] {
 }
 
 function suitesInCi(): string[] {
-  const script = (packageJson as { scripts: Record<string, string> }).scripts[
-    "db:test:all"
-  ];
-  return [...script.matchAll(/supabase\/tests\/([a-z0-9_]+\.test\.sql)/g)]
-    .map((match) => match[1])
+  const source = readFileSync(RUNNER, "utf8");
+  const list = /const SUITES = \[([^\]]*)\]/.exec(source);
+  if (!list) {
+    throw new Error(
+      `Could not find the SUITES array in ${RUNNER}. If the runner was ` +
+        `restructured, this test has to be repointed at wherever the list now ` +
+        `lives — silently parsing nothing would make every assertion below pass.`,
+    );
+  }
+  return [...list[1].matchAll(/"([a-z0-9_]+)"/g)]
+    .map((match) => `${match[1]}.test.sql`)
     .sort();
 }
 
