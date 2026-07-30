@@ -53,6 +53,59 @@ Implemented as CSS variables in `globals.css` (shadcn/ui convention, light + dar
   new-message arrival = 200ms fade + 4px rise. `prefers-reduced-motion` disables all.
 - **Icons:** lucide-react, 16px in-line / 20px nav, `stroke-width={1.75}`.
 
+### G2.1 Token discipline (#320)
+
+Theme bugs kept arriving one at a time, found by whoever happened to toggle: mobile
+auth screens unreadable in light (#218), map pins illegible in dark (#219), hovered
+rows invisible in light, a hover state that never lit up, a storage slice nobody
+could see. Each was fixed properly; the pattern was the problem.
+
+**The rule is one sentence: a colour in app code comes from a token.** Not because
+literals are ugly — because a literal gets whichever mode its author had open, and a
+token gets both for free. `apps/web/src/app/(app)/token-discipline.test.ts` enforces
+it and names every exception with its reason.
+
+**What may hold a literal, and why each one is not a loophole:**
+
+| Case | Why |
+|---|---|
+| `error.tsx`, `global-error.tsx` | They render when the thing that styles them has failed. `global-error` replaces the root layout, so a token could resolve to nothing on the one screen whose job is to work when nothing else does. |
+| `not-found.tsx` | Rendered outside the authenticated shell, where the app token scope is absent. |
+| `manifest.ts`, the `theme-color` meta | The operating system and the browser chrome read these values. Neither has any concept of our tokens. |
+| Brand marks, the wordmark, the version footer's olive "o" | A mark whose colour changes with the interface is not a mark. |
+| Google's logo on the OAuth button | Their brand guidelines require those exact four values; theming them makes the button unrecognisable as the thing it is. |
+| Open Graph images | Rendered server-side to a PNG for a social platform. There is no theme, and no stylesheet of ours reaches the viewer. |
+
+Every one of those is a claim that *the app's tokens do not reach this surface*.
+Convenience is not on the list, and "add it to the allow-list" is how a guard stops
+guarding.
+
+**Two deliberate narrowings**, so the check does not argue about things that are fine:
+
+- **Shadows are exempt.** A drop shadow is a dark translucent smudge in both modes —
+  that is what a shadow is. None of the bugs above was a shadow.
+- **Three-digit hex is exempt.** `#fff` on a map marker's hairline border sits against
+  a photographic tile, not a themed surface.
+
+**Surfaces drawn over something that is not a token.** A map pin's contrast target is
+the basemap, not the app background — but it still takes its fill from
+`var(--app-petrol)` rather than a copy of it, because the risk there is palette drift
+rather than mode blindness. The rule holds for the same reason with a different
+argument: one definition, one place to change it.
+
+**Cross-platform.** Three platforms, three token systems, and a fix in one is not a
+fix in the others — which is why #218 and #219 each had to name both iOS and Android.
+The marketing site has its own palette again (#362). This guard covers the web app
+only, deliberately: lumping four token systems together would leave it unable to say
+anything precise about any of them.
+
+**Not yet mechanical, and #320 stays open for it:** contrast ratios against WCAG
+thresholds, and both-theme capture on the phone clients. Both need rendered output.
+The reason that is not simply "next" is #320's own devil's advocate — pixel-diff
+regression produces noisy diffs that get rubber-stamped, which converts a gate into a
+rubber stamp and is worse than nothing. Whatever ships there should assert contrast
+ratios, which fail only when something is genuinely wrong.
+
 ## G3. App architecture & navigation
 
 - **Desktop (≥1024px):** three-region shell.
