@@ -3821,3 +3821,54 @@ insurance, is bought either way**: port-out notices alert on `pending` (#398) an
 `job:call-silence` catches one workspace going quiet against its own history
 (41ebba6). Nothing further is buildable without placing the bet, which is why
 this entry stops at the recommendation.
+
+## D79 — one resolver, enumerated deciders, resolved at fire time (#412, 2026-07-29)
+
+**Decision.** An invariant that must hold across more than one call site gets this
+shape, or records why it does not:
+
+1. **One resolver**, declared in its own file as the only one. A single
+   implementation to be right, rather than two to keep in agreement.
+2. **A test that enumerates who may decide**, derived from the filesystem or the
+   schema rather than hand-listed. Becoming a decider then requires editing a list
+   somebody reviews, so a new path cannot skip the check silently.
+3. **Resolve at fire time**, not at schedule time, whenever the answer can change
+   between the two.
+
+**The reference implementation is D49** (`messaging/destination-clock.ts`, #292),
+which argued all three for quiet hours and whose test names the one file allowed
+to decide.
+
+**Why this is a rule and not a preference.** #412 found **six** open issues asking
+for this shape independently, none of them knowing it already existed — the
+alternative to naming it was not "no document", it was six divergent
+implementations of one idea. All six have since been resolved, several *by*
+applying it, which is the evidence rather than the counter-argument.
+
+**Point 2 is the half that decays without a test**, and it is the half most often
+skipped. `runPreSendGates` was already a single choke point for opt-out by
+argument — *"every send path funnels through this function"* — but nothing stopped
+the next send path from not funnelling. That gap is what #331 was about.
+
+**Instances now in the tree**, so the next person can copy a real one:
+
+| Guard | What it enumerates |
+|---|---|
+| `api messaging/destination-clock.test.ts` | The one file allowed to decide quiet hours |
+| `api messaging/send-paths.test.ts` | Every send path, and which pre-send shape it is (#225) |
+| `web lib/auth/app-routes-registered.test.ts` | Every `(app)` and `(auth)` route, from the filesystem (#133/#258) |
+| `supabase/tests/number_access_surfaces.test.sql` | Every read surface filtering on number access (#368) |
+| `api db-scope.test.ts` + `tenant_scope.test.sql` | Every tenant table, in both languages (#347) |
+| `api flags/flags-roster.test.ts` | Every kill switch, against the ops script and the runbook (#283) |
+| `api billing/carrier-list-prices.test.ts` | External figures, with a recheck date a test fails on (#241) |
+
+**The freshness variant is the same idea applied to facts rather than code
+paths**: a dated constant plus a `RECHECK_AFTER` a test fails on, so an external
+number cannot rot silently (`carrier-list-prices.ts`, `voice-ai-costs.ts`,
+`compare/verification.ts`, `carrier-throughput.ts`). #403 exists because that date
+was once a string literal, which guaranteed the assertion could never fail.
+
+**Where it does NOT apply, recorded so the rule is not cargo-culted.** An
+invariant with exactly one call site does not need a roster; the roster's value is
+catching the *second* one. And a resolver whose answer cannot change between
+schedule and fire time does not need point 3 — D49 needs it because DST moves.
