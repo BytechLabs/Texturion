@@ -80,6 +80,16 @@ struct SettingsRepository: Sendable {
         try await api.get("/v1/members", companyId: companyId)
     }
 
+    /// #348: what one member reaches on every number, and which rule decided it.
+    /// Owner/admin only — it answers for ANOTHER person, which is a management
+    /// question rather than something a member may ask about themselves.
+    func memberNumberAccess(
+        _ companyId: String,
+        userId: String
+    ) async throws -> MemberNumberAccess {
+        try await api.get("/v1/numbers/access/explain/\(userId)", companyId: companyId)
+    }
+
     func setMemberRole(_ companyId: String, memberId: String, role: String) async throws -> Member {
         try await api.patch(
             "/v1/members/\(memberId)",

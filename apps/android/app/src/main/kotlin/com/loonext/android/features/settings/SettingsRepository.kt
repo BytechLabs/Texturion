@@ -8,6 +8,7 @@ import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.HostedUrl
 import com.loonext.android.core.model.Invite
 import com.loonext.android.core.model.Member
+import com.loonext.android.core.model.MemberNumberAccess
 import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.core.model.Usage
@@ -68,6 +69,14 @@ class SettingsRepository(
 
     suspend fun members(companyId: String): Page<Member> =
         api.get("/v1/members", companyId = companyId)
+
+    /**
+     * #348: what one member reaches on every number, and which rule decided it.
+     * Owner/admin only — it answers for ANOTHER person, which is a management
+     * question rather than something a member may ask about themselves.
+     */
+    suspend fun memberNumberAccess(companyId: String, userId: String): MemberNumberAccess =
+        api.get("/v1/numbers/access/explain/$userId", companyId = companyId)
 
     suspend fun setMemberRole(companyId: String, memberId: String, role: String): Member =
         api.patch("/v1/members/$memberId", buildJsonObject { put("role", role) }, companyId)

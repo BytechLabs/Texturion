@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -17,6 +18,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -35,9 +37,15 @@ import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Invite
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
+import com.loonext.android.core.model.NumberAccessExplanation
+import com.loonext.android.core.model.numberAccessIsRestricted
+import com.loonext.android.core.model.numberAccessLevelLabel
+import com.loonext.android.core.model.numberAccessReason
+import com.loonext.android.core.model.sortedForOwner
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
@@ -165,6 +173,11 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
     var roleMenuOpen by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var confirmingDeactivate by remember { mutableStateOf(false) }
+    // #348: what this person actually reaches, on demand.
+    var showingAccess by remember { mutableStateOf(false) }
+    if (showingAccess) {
+        MemberAccessDialog(scope, member, name) { showingAccess = false }
+    }
     var actionError by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
@@ -194,6 +207,11 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
             )
         }
         Spacer(Modifier.width(8.dp))
+        // #348: the access model was complete and entirely invisible. Quiet and
+        // text-only, because it answers a question rather than being an action.
+        if (member.deactivated_at == null) {
+            TextButton(onClick = { showingAccess = true }) { Text("Numbers") }
+        }
         when {
             member.role == MemberRole.OWNER ->
                 StatusPill("Owner", PillTone.Positive)
@@ -443,4 +461,107 @@ private fun InvitesCard(
             }
         }
     }
+}
+
+
+/**
+ * #348 — what this person reaches on every number, and why.
+ *
+ * A DIALOG, not a section on the team list. Most workspaces have one to three
+ * numbers and several people; inlining this would put a paragraph under every
+ * row to answer a question an owner asks about one person, occasionally.
+ *
+ * RESTRICTED ROWS FIRST. Somebody opening this is checking a suspicion, not
+ * reading a report, and a list that opens with unrestricted rows buries the one
+ * that answers them.
+ *
+ * The reason line is the feature rather than decoration: PORTAL-UX section 3.1
+ * asks a card to name the signal that placed it, and here the signal is the
+ * whole screen. It also has to tell apart two states that read alike and are
+ * not — nobody has restricted this number, versus somebody did and left this
+ * person out.
+ */
+@Composable
+private fun MemberAccessDialog(
+    scope: SettingsScope,
+    member: Member,
+    name: String,
+    onDismiss: () -> Unit,
+) {
+    var rows by remember { mutableStateOf<List<NumberAccessExplanation>?>(null) }
+    var failed by remember { mutableStateOf(false) }
+
+    LaunchedEffect(member.user_id) {
+        runCatching { scope.repo.memberNumberAccess(scope.companyId, member.user_id) }
+            .onSuccess { rows = it.numbers.sortedForOwner() }
+            .onFailure { failed = true }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+        title = { Text("Numbers $name can reach") },
+        text = {
+            Column {
+                Text(
+                    "What they can do on each number, and the rule that decided it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(10.dp))
+                val current = rows
+                when {
+                    failed -> Text(
+                        "Couldn't load their access. Try again.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    current == null -> Text(
+                        "Checking…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    current.isEmpty() -> Text(
+                        "This workspace has no numbers yet.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    else -> current.forEachIndexed { index, row ->
+                        if (index > 0) RowDivider()
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 9.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    row.number_e164 ?: "Number",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Text(
+                                    numberAccessReason(row.decided_by, row.principal),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            // Muted rather than red for a restriction: this is a
+                            // settings readout, not an alarm, and most
+                            // restrictions are somebody's deliberate choice.
+                            StatusPill(
+                                numberAccessLevelLabel(row.level),
+                                if (numberAccessIsRestricted(row.level)) {
+                                    PillTone.Neutral
+                                } else {
+                                    PillTone.Positive
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        },
+    )
 }

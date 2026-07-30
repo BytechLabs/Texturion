@@ -10,6 +10,7 @@ import { apiFetch } from "./client";
 import { keys } from "./keys";
 import type {
   AvailableNumbersResult,
+  MemberNumberAccess,
   NumberAccess,
   Page,
   PhoneNumberSummary,
@@ -175,6 +176,24 @@ export function useNumberAccess(numberId: string, enabled = true) {
     queryKey: keys.numberAccess(companyId, numberId),
     queryFn: () =>
       apiFetch<NumberAccess>(`/v1/numbers/${numberId}/access`, { companyId }),
+    enabled,
+  });
+}
+
+/**
+ * #348: what one member actually reaches, and WHY.
+ *
+ * Owner/admin only, and fetched on demand rather than with the team list — the
+ * team screen is a list of people, and this is one question about one of them.
+ */
+export function useMemberNumberAccess(userId: string, enabled = true) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: [...keys.numberAccess(companyId, "explain"), userId],
+    queryFn: () =>
+      apiFetch<MemberNumberAccess>(`/v1/numbers/access/explain/${userId}`, {
+        companyId,
+      }),
     enabled,
   });
 }

@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompany } from "@/lib/api/companies";
+import { MemberAccessDialog } from "@/components/settings/member-access-dialog";
 import { ApiError } from "@/lib/api/error";
 import {
   useCreateInvite,
@@ -90,6 +91,8 @@ function MemberRow({
 }) {
   const updateRole = useUpdateMemberRole();
   const [confirming, setConfirming] = useState(false);
+  // #348: what this person actually reaches, on demand.
+  const [showingAccess, setShowingAccess] = useState(false);
   const name = member.display_name || "Teammate";
   const deactivated = member.deactivated_at !== null;
 
@@ -116,6 +119,27 @@ function MemberRow({
             : `Joined ${formatRelativeTime(member.created_at)}`}
         </p>
       </div>
+      {/* #348: the access model was complete and entirely invisible. Quiet and
+          text-only — it answers a question, it is not an action, and the row
+          already carries a role control and a destructive button. */}
+      {canManage && !deactivated && (
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => setShowingAccess(true)}
+          >
+            Numbers
+          </Button>
+          <MemberAccessDialog
+            userId={member.user_id}
+            name={name}
+            open={showingAccess}
+            onOpenChange={setShowingAccess}
+          />
+        </>
+      )}
       {canManage && member.role !== "owner" && !deactivated ? (
         <Select
           value={member.role}

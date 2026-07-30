@@ -143,6 +143,8 @@ private struct MemberRow: View {
     @State private var busy = false
     @State private var confirmingDeactivate = false
     @State private var actionError: String?
+    // #348: what this person actually reaches, on demand.
+    @State private var showingAccess = false
 
     private var isSelf: Bool { member.user_id == scope.me.user_id }
     private var name: String { member.display_name.isBlank ? "Teammate" : member.display_name }
@@ -165,6 +167,15 @@ private struct MemberRow: View {
                 .foregroundStyle(.secondary)
             }
             Spacer()
+            // #348: the access model was complete and entirely invisible. Quiet
+            // and text-only, because it answers a question rather than being an
+            // action, and the row already carries a role menu.
+            if member.deactivated_at == nil {
+                Button("Numbers") { showingAccess = true }
+                    .font(.footnote)
+                    .foregroundStyle(BrandColor.muted500)
+                    .buttonStyle(.plain)
+            }
             if member.role == MemberRole.owner {
                 StatusPill(label: "Owner", tone: .positive)
             } else if canChangeRole {
@@ -204,6 +215,9 @@ private struct MemberRow: View {
                 onConfirm: { deactivate() },
                 onDismiss: { confirmingDeactivate = false }
             )
+        }
+        .sheet(isPresented: $showingAccess) {
+            MemberAccessSheet(scope: scope, member: member, name: name)
         }
     }
 
@@ -392,5 +406,116 @@ private struct PendingInviteRow: View {
             }
             revoking = false
         }
+    }
+}
+
+
+/// #348 — what this person reaches on every number, and why.
+///
+/// A SHEET, not a section on the team list. Most workspaces have one to three
+/// numbers and several people; inlining this would put a paragraph under every
+/// row to answer a question an owner asks about one person, occasionally.
+///
+/// RESTRICTED ROWS FIRST. Somebody opening this is checking a suspicion, not
+/// reading a report, and a list that opens with unrestricted rows buries the one
+/// that answers them.
+///
+/// The reason line is the feature rather than decoration: PORTAL-UX §3.1 asks a
+/// card to name the signal that placed it, and here the signal is the whole
+/// screen. It also has to tell apart two states that read alike and are not —
+/// nobody has restricted this number, versus somebody did and left this person
+/// out.
+@MainActor
+private struct MemberAccessSheet: View {
+    let scope: SettingsScope
+    let member: Member
+    let name: String
+
+    @State private var rows: [NumberAccessExplanation]?
+    @State private var failed = false
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("What they can do on each number, and the rule that decided it.")
+                        .font(.footnote)
+                        .foregroundStyle(BrandColor.muted500)
+                    PaperCard {
+                        if failed {
+                            quiet("Couldn't load their access. Try again.")
+                        } else if let rows {
+                            if rows.isEmpty {
+                                quiet("This workspace has no numbers yet.")
+                            } else {
+                                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                                    if index > 0 { RowDivider() }
+                                    accessRow(row)
+                                }
+                            }
+                        } else {
+                            quiet("Checking\u{2026}")
+                        }
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                .frame(maxWidth: 640)
+                .frame(maxWidth: .infinity)
+            }
+            .background(BrandColor.canvas)
+            .navigationTitle("Numbers \(name) can reach")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .task {
+            do {
+                let answer = try await scope.repo.memberNumberAccess(
+                    scope.companyId,
+                    userId: member.user_id
+                )
+                rows = answer.numbers.sortedForOwner()
+            } catch {
+                failed = true
+            }
+        }
+    }
+
+    private func quiet(_ text: String) -> some View {
+        Text(text)
+            .font(.golos(12.5))
+            .foregroundStyle(BrandColor.muted500)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 15)
+            .padding(.vertical, 13)
+    }
+
+    private func accessRow(_ row: NumberAccessExplanation) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(row.number_e164 ?? "Number")
+                    .font(.golos(13.5))
+                    .foregroundStyle(BrandColor.ink)
+                Text(numberAccessReason(row.decided_by, row.principal))
+                    .font(.golos(11.5))
+                    .foregroundStyle(BrandColor.muted500)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+            // Muted rather than red for a restriction: this is a settings
+            // readout, not an alarm, and most restrictions are somebody's
+            // deliberate choice.
+            StatusPill(
+                label: numberAccessLevelLabel(row.level),
+                tone: numberAccessIsRestricted(row.level) ? .neutral : .positive
+            )
+        }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 11)
     }
 }

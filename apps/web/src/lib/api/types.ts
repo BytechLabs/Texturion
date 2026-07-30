@@ -7,8 +7,18 @@ import { PLAN_SEATS } from "@loonext/shared";
 import type {
   HoursException,
   MmsMediaKind,
+  NumberAccessExplanation,
   VoicemailIntake,
 } from "@loonext/shared";
+
+/**
+ * #348: GET /v1/numbers/access/explain/:userId — what one member reaches on
+ * every number, and which rule decided it. Owner/admin only.
+ */
+export interface MemberNumberAccess {
+  user_id: string;
+  numbers: NumberAccessExplanation[];
+}
 
 export type SubscriptionStatus =
   | "incomplete"

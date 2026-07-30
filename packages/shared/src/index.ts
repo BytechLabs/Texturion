@@ -163,6 +163,16 @@ export {
 } from "./ai-disclosure";
 
 export {
+  numberAccessIsRestricted,
+  numberAccessLevelLabel,
+  numberAccessReason,
+  sortNumberAccessExplanations,
+  type NumberAccessDecidedBy,
+  type NumberAccessExplanation,
+  type NumberAccessLevel,
+} from "./number-access-explained";
+
+export {
   hasVoicemailIntake,
   voicemailIntakeLines,
   VOICEMAIL_INTAKE_SOURCE_LABEL,
