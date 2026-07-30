@@ -85,6 +85,6 @@ const CSS = `
  * One inert style node carrying the marketing drawn-affordance CSS. Rendered
  * once at the top of the home tree (server component, zero JS).
  */
-export function LedgerStyles() {
+export function MarketingMarks() {
   return <style dangerouslySetInnerHTML={{ __html: CSS }} />;
 }

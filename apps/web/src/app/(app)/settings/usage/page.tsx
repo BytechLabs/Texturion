@@ -39,19 +39,6 @@ function periodRange(usage: Usage): string | null {
   return `${start} to ${end}`;
 }
 
-/** D30 storage lines: human-scale bytes, one decimal above KB. */
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes.toLocaleString()} B`;
-  const units = ["KB", "MB", "GB", "TB"] as const;
-  let value = bytes / 1024;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${units[unit]}`;
-}
-
 /**
  * #178 'pacing': name what is running hot by comparing each meter against its
  * included allowance (used_segments vs included_segments, voice.used_minutes

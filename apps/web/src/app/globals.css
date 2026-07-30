@@ -878,7 +878,7 @@
   --ink-70: var(--fr-ink-70);
   --ink-55: var(--fr-ink-55);
   --hairline: var(--rule-light);
-  /* Old font-variable names → the v4 faces (ledger-css.tsx et al. read the
+  /* Old font-variable names → the v4 faces (marks-css.tsx et al. read the
      raw variables, not the utilities). */
   --font-body-mkt: var(--font-body);
   --font-mono-mkt: var(--font-mono);

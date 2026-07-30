@@ -1,17 +1,106 @@
 # Landing-page loop state
 
+> # ⛔ SUPERSEDED AND CLOSED — 2026-07-29 (#372)
+>
+> **Do not execute anything in this file.** It is kept as a record of how the
+> landing page got here, not as a queue. The identity it schedules — the
+> **job-ledger** system in `ART-DIRECTION.md` and the dispatch-desk hero in
+> `HERO-CONCEPT.md` — **lost.** It was replaced by **v4 "FIRST RESPONSE"**
+> (`DESIGN-DIRECTION.md`, `V4-REDO-PLAN.md`), which is what ships.
+>
+> **Why this warning is at the top rather than in a footnote.** Row 5 below is a
+> detailed, build-ready mandate written in the imperative, and it is still marked
+> **next**. Every other piece of documentation drift in this repo is a stale
+> *statement*, which misleads a reader. This one was a stale *instruction*, which
+> could get somebody to **build the wrong thing** — and to believe a binding
+> document had told them to.
+>
+> **Verified 2026-07-29**, so this is evidence rather than assertion:
+>
+> - **Nothing** under `apps/web/src` references `ART-DIRECTION`, `job-ledger`, or
+>   `ledger spine`.
+> - **73** marketing files use the v4 `fr-` palette (cobalt `#2740de`, ink
+>   `#10173b`, flare `#ff4a1f`).
+> - The shipped hero is the **p5 arrival field** (`components/marketing/hero/`,
+>   `components/marketing/fr/converged-field.tsx`), not the dispatch desk.
+>
+> **The authority list at the bottom of this file is wrong.** What actually binds
+> the marketing surface today, by how much the code cites it:
+>
+> | Doc | Status |
+> |---|---|
+> | `DESIGN-DIRECTION.md` (v4 FIRST RESPONSE) | **BINDING** — cited by 53 files |
+> | `BLUEPRINT.md` | still referenced (25 files) |
+> | `CONVERSION.md` | **BINDING** — the conversion rules, unchanged by v4 |
+> | `V4-REDO-PLAN.md` | **BINDING** — its Law 1 purge list |
+> | `BRAND-MESSAGING.md` | **BINDING** — the source for article facts (#127) |
+> | `ART-DIRECTION.md`, `HERO-CONCEPT.md`, `REFERENCES.md` | **SUPERSEDED** — 0 code references |
+>
+> **Iteration 3 completed.** Its deliverables all exist: the `/for` trade pages,
+> the `/compare` pages and `/canada`. The row said "running" for four weeks
+> because nobody came back to change it, which is the same failure as row 5 in a
+> less dangerous direction.
+>
+> **If a marketing iteration loop is wanted again, start a new state file.**
+> Resuming this one means resuming a direction that lost.
+
+---
+
+## What v4 kept, and what it threw away
+
+#372 asked for this explicitly, because "superseded" on its own invites a reader
+to assume everything below is worthless and rebuild what already works. Measured
+against `apps/web/src` on 2026-07-29:
+
+**Kept, and still load-bearing**
+
+- **Iterations 1–4 in full.** The `(marketing)` route group, nav and footer, the
+  12-section home, the SEO content pages (4 feature, `/canada`, 6 `/for/*`, 3
+  `/compare/*`), the art/infographic library, `Frame`, and the screenshots. v4
+  was a re-skin and a re-write on top of this, not a rebuild.
+- **`BLUEPRINT.md`** — 25 files cite it, mostly its CLS law (§11) and the density
+  wave (§1.4). v4 did not replace the structural rules.
+- **`CONVERSION.md`** — untouched by v4 and still binding: 5-second clarity, one
+  obvious "Start for $29" per view, the benefit→proof→how→price→act spine.
+- **`VISUALS.md`'s floor** — "never empty, looks rich" survived as a standing bar
+  even though the specific visual language changed.
+- **Four small drawn affordances** out of the whole ledger motif: the `.jt-meta`
+  label voice, the delivered-check self-draw, one highlight-swipe, and the
+  arrow-expand secondary CTA. They live in
+  `components/marketing/marks/marks-css.tsx`.
+
+**Thrown away**
+
+- The **job-ledger identity** (`ART-DIRECTION.md`): the 01…12 spine numbering,
+  the status-spine/ticket motif, the FILED stamp, the morning-light two-wash
+  atmosphere, the two 132px numeral moments, the petrol close.
+- The **dispatch-desk hero** (`HERO-CONCEPT.md`), replaced by the p5 arrival
+  field (`components/marketing/hero/`, `fr/converged-field.tsx`).
+- **`REFERENCES.md`'s craft bar** as a governing document — 0 code references.
+  The comparison set it named is not what v4 was measured against.
+
+That directory was called `marketing/ledger/` until this change. A live
+directory named for the superseded identity was the last place a grep for it
+would land, so it is now `marketing/marks/` and the export is
+`MarketingMarks` — the same drift as row 5, in code instead of prose.
+
+---
+
+## Historical record (do not execute)
+
+
 Target: 10 iterations, each = improve → devils-advocate audit → fix.
 
 | Iter | Status | Focus |
 |---|---|---|
 | 1 | done | Research (3 briefs) + BLUEPRINT.md + COPY.md, then a full devils-advocate panel (design-director, buyer, cro-seo) revision. Result: every blocker + major applied — hero is now a live-DOM two-phones thread with no raster (fixes LCP + signature-moment at once), page re-sequenced into a density wave, crew-size slider moved to home, first-month $58 math owned out loud, "500 texts" pinned to its definition everywhere, Quo "included" pricing-table error corrected, FAQPage JSON-LD dropped, /status + /contact added, bring-your-number forwarding workaround moved up. See BLUEPRINT.md "Panel resolutions". |
 | 2 | done | (marketing) route group, nav/footer (zero dead links), home v1 (12 sections, live-DOM hero, 3 real interactives), /pricing, legal set (terms/privacy/aup/subprocessors/security/contact/status), SEO plumbing (metadata/sitemap/robots/OG/JSON-LD, no FAQPage). Committed f40f601, 853 tests green, clean build. Carry-forward minors: two-phones hero signature moment not fully realized (single desktop thread); ops-blocked identity placeholders (pre-launch). |
-| 3 | running | SEO content pages: 4 feature + /canada, 6 trade (/for/*), 3 compare (/compare/*) — genuinely differentiated (no shared sentences, per-cell-sourced compare claims). Plus: realize the two-phones hero signature moment, wire now-real routes into nav/footer dropdowns + sitemap, real Lighthouse pass. |
+| 3 | done | SEO content pages: 4 feature + /canada, 6 trade (/for/*), 3 compare (/compare/*) — genuinely differentiated (no shared sentences, per-cell-sourced compare claims). Plus: realize the two-phones hero signature moment, wire now-real routes into nav/footer dropdowns + sitemap, real Lighthouse pass. |
 | 4 | done | **VISUAL OVERHAUL** per binding docs/marketing/VISUALS.md — user feedback: no images/illustrations/infographics (reads empty) AND the navbar/dropdowns/footer are bare text (don't look like a brand). Built: (0) rebuilt nav+footer per VISUALS §5b — mega-menu dropdowns with icon chips + descriptions + featured cell, branded footer (nav-links.ts enriched with icon+description); (1) real product-screenshot pipeline from the seeded app (inbox/thread/contact/mobile/onboarding, light+dark, pre-sized WebP/AVIF, committed capture script); (2) SVG spot-illustration + infographic library (components/marketing/art/); (3) Frame (browser/phone) component; (4) placement pass across every surface per VISUALS §3. This is the reusable foundation iteration 5 builds ON — nav/footer, art library, Frame, and screenshots are kept, not redone. |
 | — | — | **CREATIVE RESET (2026-07-02).** User verdict after iter 4: the site still reads as generic "section after section" with no identity; the hero is AWFUL. A three-concept creative bake-off (The Signal / two Dispatch concepts) was judged by three panels (design-director, growth-cro, perf-eng) — **unanimous winner: the participatory "dispatch desk" hero (Concept B) as the base**, grafting in Concept A's zero-cost static-SVG spine + signal-check motif and Concept C's morning-light warmth + single-motif discipline. Concept A's above-fold Canvas2D particle field is **rejected** (violates BLUEPRINT §13.9 no-GPU-scenes / §11.4 0KB-above-fold; needed a waiver; degrades away on mid-tier mobile). Two new BINDING docs written: **docs/marketing/ART-DIRECTION.md** (the job-ledger identity system: ticket motif, ledger spine numbering all 12 sections, morning-light two-wash, Inter numeral-display used exactly twice, the FILED-stamp motion, no mascot, conversion guardrails) and **docs/marketing/HERO-CONCEPT.md** (build-ready spec: visitor taps to file a panicked customer text into an assigned job; LCP stays H1 text; server-rendered filed-state fallback; ghost-demo discoverability; <12KB island, 100/100/100/100). See ART-DIRECTION §0 for the decision + reasoning. |
-| 5 | **next** | **HERO + IDENTITY RESET: execute ART-DIRECTION.md + HERO-CONCEPT.md, TO THE REFERENCES.md CRAFT BAR.** (1) Build the signature hero — the visitor-driven dispatch desk (HERO-CONCEPT §1–7), reusing iter 4's live-thread primitives; LCP stays text; ship the ghost-demo discoverability kit + server-rendered filed-state fallback; hard-gate a real-mobile Lighthouse pass. (2) Propagate the identity system across all 12 home sections (ART-DIRECTION): the ledger spine numbering every section (kills "section after section"), the ticket/status-spine motif on every product surface, the morning-light two-wash atmosphere, the two numeral-display moments ($29 + timeline day-count), the FILED-stamp beat, the one dark band + one petrol-flood close. (3) Break the generic rhythm per the density wave (BLUEPRINT §1.4) **AND the silhouette-variety + anti-bland rules (REFERENCES.md §3).** (4) **Close the seven ELEVATE/ADD items in REFERENCES.md §4** — silhouette variety enforced, the ledger-row grammar literally recurring, tabular-numeral ledger texture pervasive, the two 132px numerals rendered at true display scale, a back-half participatory switch (steppable bento), the arrow-expand secondary CTAs, and the warm-neutral pass. The built page must stand next to Column / Rollups / Cofounder / Granola / Solidroad without reading as a template. **Reuse iter 4's foundation** (nav/footer, art/infographic library, Frame component, screenshots) — this is a hero + identity layer ON TOP, not a rebuild. Keep the ledger FELT-not-named and every conversion guardrail (ART-DIRECTION §10). |
-| 6–9 | pending | Audit-driven polish WITH four standing mandates every iteration: **ART-DIRECTION.md** (the job-ledger identity is applied consistently, the spine threads the page, expressive spend stays capped at the sanctioned moments, warmth never tips cold/pretentious) + **REFERENCES.md** (the Column/Rollups/Cofounder/Granola/Solidroad craft bar — no two adjacent sections share a silhouette, every section earns a distinct visual device, the ledger-row grammar recurs, the anti-bland rules §3 are pass/fail majors) + **VISUALS.md** (looks rich like top-tier SaaS, never empty) + **CONVERSION.md** (5-second clarity, one obvious "Start for $29" CTA per view, honest complexity progressively disclosed / never confusing, every interactive ends in a conversion nudge, benefit→proof→how→price→act spine). Design-QA + conversion-QA critics judge all four every round; a REFERENCES.md §3 anti-bland violation or a half-strength §4 elevate-item is a design-QA **major**. |
-| 10 | pending | Final devils-advocate panel + Lighthouse run + sign-off |
+| 5 | ⛔ never ran — superseded by v4 | **HERO + IDENTITY RESET: execute ART-DIRECTION.md + HERO-CONCEPT.md, TO THE REFERENCES.md CRAFT BAR.** (1) Build the signature hero — the visitor-driven dispatch desk (HERO-CONCEPT §1–7), reusing iter 4's live-thread primitives; LCP stays text; ship the ghost-demo discoverability kit + server-rendered filed-state fallback; hard-gate a real-mobile Lighthouse pass. (2) Propagate the identity system across all 12 home sections (ART-DIRECTION): the ledger spine numbering every section (kills "section after section"), the ticket/status-spine motif on every product surface, the morning-light two-wash atmosphere, the two numeral-display moments ($29 + timeline day-count), the FILED-stamp beat, the one dark band + one petrol-flood close. (3) Break the generic rhythm per the density wave (BLUEPRINT §1.4) **AND the silhouette-variety + anti-bland rules (REFERENCES.md §3).** (4) **Close the seven ELEVATE/ADD items in REFERENCES.md §4** — silhouette variety enforced, the ledger-row grammar literally recurring, tabular-numeral ledger texture pervasive, the two 132px numerals rendered at true display scale, a back-half participatory switch (steppable bento), the arrow-expand secondary CTAs, and the warm-neutral pass. The built page must stand next to Column / Rollups / Cofounder / Granola / Solidroad without reading as a template. **Reuse iter 4's foundation** (nav/footer, art/infographic library, Frame component, screenshots) — this is a hero + identity layer ON TOP, not a rebuild. Keep the ledger FELT-not-named and every conversion guardrail (ART-DIRECTION §10). |
+| 6–9 | ⛔ never ran — superseded by v4 | Audit-driven polish WITH four standing mandates every iteration: **ART-DIRECTION.md** (the job-ledger identity is applied consistently, the spine threads the page, expressive spend stays capped at the sanctioned moments, warmth never tips cold/pretentious) + **REFERENCES.md** (the Column/Rollups/Cofounder/Granola/Solidroad craft bar — no two adjacent sections share a silhouette, every section earns a distinct visual device, the ledger-row grammar recurs, the anti-bland rules §3 are pass/fail majors) + **VISUALS.md** (looks rich like top-tier SaaS, never empty) + **CONVERSION.md** (5-second clarity, one obvious "Start for $29" CTA per view, honest complexity progressively disclosed / never confusing, every interactive ends in a conversion nudge, benefit→proof→how→price→act spine). Design-QA + conversion-QA critics judge all four every round; a REFERENCES.md §3 anti-bland violation or a half-strength §4 elevate-item is a design-QA **major**. |
+| 10 | ⛔ never ran — superseded by v4 | Final devils-advocate panel + Lighthouse run + sign-off |
 
 Constraints: iterations 2+ wait for the UI mega-wave (wf_d1f7534d-0df) to release apps/web.
 PO decisions relayed 2026-07-01: jobs-from-messages = v1.1 roadmap; multi-number = already supported, say it; native apps = PWA now, no fake badges.

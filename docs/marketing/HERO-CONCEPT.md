@@ -1,4 +1,20 @@
-# Loonext Marketing — Hero Concept (BINDING, build-ready)
+# Loonext Marketing — Hero Concept (SUPERSEDED — was BINDING, build-ready)
+
+> # ⛔ SUPERSEDED — 2026-07-29 (#372)
+>
+> **The visitor-driven dispatch-desk hero described here did not ship.** It was replaced by **v4 "FIRST
+> RESPONSE"** — see `DESIGN-DIRECTION.md` and `V4-REDO-PLAN.md`, which are what
+> bind the marketing surface.
+>
+> This is a good document about a direction that lost, and #323's rule is that
+> supersession should be legible from **inside** the superseded document rather
+> than only inferable by grepping the palette. Verified 2026-07-29: nothing under
+> `apps/web/src` references this file, and the shipped hero is the p5 arrival
+> field, not the dispatch desk.
+>
+> **Read it for the reasoning, never as an instruction.** `LOOP-STATE.md`
+> scheduled executing it, and that row is why #372 was filed.
+
 
 **Status: BINDING.** The build-ready spec for the home page's one signature moment. Same
 authority as BLUEPRINT.md §3.1 and §0.1, which it supersedes on hero *mechanics* (the "two-phones

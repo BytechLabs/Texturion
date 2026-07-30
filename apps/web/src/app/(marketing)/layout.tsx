@@ -2,7 +2,7 @@ import { ConsentBanner } from "@/components/marketing/consent";
 import { CountryProvider } from "@/components/marketing/country";
 import { Footer } from "@/components/marketing/footer";
 import { GoogleTagManager } from "@/components/marketing/google-tag-manager";
-import { LedgerStyles } from "@/components/marketing/ledger";
+import { MarketingMarks } from "@/components/marketing/marks";
 import { Nav } from "@/components/marketing/nav";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { RevealActivator } from "@/components/marketing/ui/reveal-activator";
@@ -66,7 +66,7 @@ export default function MarketingLayout({
           delivered check): mounted here because ArrowLink and the meta voice
           appear on subpages (canada, compare, features, trades), not just the
           home page that used to carry this style block. */}
-      <LedgerStyles />
+      <MarketingMarks />
       {/* One shared IntersectionObserver drives every [data-reveal] (§4). */}
       <RevealActivator />
       {/* One site-wide country (owner ruling v1): the nav CountrySelector, the

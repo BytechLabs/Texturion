@@ -53,7 +53,7 @@ import {
   suggestionFailureMessage,
   useReplySuggestions,
 } from "@/lib/api/reply-suggestions";
-import { AiOrb, AiStatus } from "@/components/ui/ai-orb";
+import { AiOrb } from "@/components/ui/ai-orb";
 import {
   Dialog,
   DialogContent,
