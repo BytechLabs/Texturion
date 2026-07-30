@@ -11,11 +11,19 @@
  * (footer identity line, /contact, legal pages) updates together.
  */
 
-/** Registered legal entity name, e.g. "Loonext Technologies Inc.", from ops. */
-export const LEGAL_ENTITY_NAME: string | null = null;
+/**
+ * The entity name and mailing address now live in `packages/shared` and are
+ * re-exported here so every existing import keeps working (#312).
+ *
+ * They moved because the API Worker needs the same two values to print an address
+ * in a commercial email footer, and holding the fact twice let the two disagree:
+ * set one and the legal pages show an address while the email refuses to send;
+ * set the other and the email carries an address the pages say we do not have.
+ * Ops still sets them in exactly one file.
+ */
+import { LEGAL_ENTITY_NAME, MAILING_ADDRESS } from "@loonext/shared";
 
-/** Mailing address (single line), required for CASL identification, from ops. */
-export const MAILING_ADDRESS: string | null = null;
+export { LEGAL_ENTITY_NAME, MAILING_ADDRESS };
 
 /** Privacy officer name for Quebec Law 25 (BLUEPRINT §9), from ops. */
 export const PRIVACY_OFFICER_NAME: string | null = null;

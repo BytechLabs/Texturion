@@ -22,6 +22,7 @@ import {
   LedgerBand,
   SwitchBand,
 } from "@/components/marketing/compare/compare-sections";
+import { ComparisonEmailForm } from "@/components/marketing/compare/comparison-email-form";
 import { LedgerTable } from "@/components/marketing/compare/ledger-table";
 import { FrCard, FrSection } from "@/components/marketing/fr";
 import { Reveal } from "@/components/marketing/ui/reveal";
@@ -89,6 +90,24 @@ export default function CompareIndexPage() {
           rows={ELSEWHERE_ROWS}
         />
       </LedgerBand>
+
+      {/* #312: the only thing a visitor who is not ready to buy can do besides
+          leave. Placed under the ledger because the numbers are what they came
+          for and what they would forward to whoever signs off, and kept quieter
+          than "Start for $29" as CONVERSION.md §2 requires of any secondary
+          action. Nothing is gated — the whole table is above it. */}
+      <FrSection>
+        <div className="mx-auto max-w-5xl">
+          <h2 className="fr-h2 text-[color:var(--fr-ink)]">
+            Not the one who signs off?
+          </h2>
+          <p className="fr-body mt-4 mb-8 max-w-2xl text-[color:var(--fr-ink-70)]">
+            We will email you this table so you can forward it. Every number in it
+            is dated, so whoever reads it can see when we last checked.
+          </p>
+          <ComparisonEmailForm source="compare_page" />
+        </div>
+      </FrSection>
 
       {/* The three head-to-heads. */}
       <FrSection>

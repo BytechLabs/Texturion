@@ -402,6 +402,15 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "job:prune-marketing-contacts": {
+    what:
+      "Prospect consent records are no longer being aged out (#312). We are "
+      + "holding the email addresses of people who unsubscribed, and of people "
+      + "who consented to an email that was never sent, past the windows "
+      + "docs/PERSONAL-DATA-INVENTORY.md states.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
   "job:prune-abandoned-identity": {
     what:
       "SSN/SIN fragments from signups that never paid are no longer being "

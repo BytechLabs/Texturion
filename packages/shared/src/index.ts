@@ -155,6 +155,17 @@ export {
   type AiDisclosure,
 } from "./ai-disclosure";
 
+/**
+ * #312: the legal entity and mailing address, read by BOTH the marketing site's
+ * identity surfaces and the Worker that has to print an address in a commercial
+ * email footer. One fact, one place, so the two cannot disagree.
+ */
+export {
+  LEGAL_ENTITY_NAME,
+  MAILING_ADDRESS,
+  hasBusinessIdentity,
+} from "./business-identity";
+
 export {
   LEAD_CHASE_WIDEN_MINUTES,
   LEAD_CHASE_RUNGS,

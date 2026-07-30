@@ -16,7 +16,10 @@ import { runRegistrationStallJob } from "./telnyx/registration-stalls";
 import { runActivationStallJob } from "./analytics/activation-stall";
 import { runCallSilenceJob } from "./calls/call-silence";
 import { runIdentityRetentionJob } from "./telnyx/identity-retention";
-import { runContactRetentionJob } from "./marketing/contact-retention";
+import {
+  runContactRetentionJob,
+  runMarketingContactRetentionJob,
+} from "./marketing/contact-retention";
 import { runRetentionNoticeJob } from "./workspace/retention-notice";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
 import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
@@ -528,6 +531,10 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       runIdentityRetentionJob,
       // #340: marketing contact-form data, two windows.
       runContactRetentionJob,
+      // #312: prospect consent records, also two windows. Beside #340 on purpose
+      // because both are prospect data with no workspace behind them, and the
+      // lesson of #340 was that such a table is easy to forget.
+      runMarketingContactRetentionJob,
       // #284: the warning that precedes enforcement.
       runRetentionNoticeJob,
     ]);

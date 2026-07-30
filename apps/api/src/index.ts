@@ -25,7 +25,10 @@ import { runRegistrationStallJob } from "./telnyx/registration-stalls";
 import { runActivationStallJob } from "./analytics/activation-stall";
 import { runCallSilenceJob } from "./calls/call-silence";
 import { runIdentityRetentionJob } from "./telnyx/identity-retention";
-import { runContactRetentionJob } from "./marketing/contact-retention";
+import {
+  runContactRetentionJob,
+  runMarketingContactRetentionJob,
+} from "./marketing/contact-retention";
 import { runCarrierCeilingJob } from "./billing/carrier-ceiling";
 import { retryInterruptedSends } from "./messaging/retry-interrupted";
 import { runRetentionNoticeJob } from "./workspace/retention-notice";
@@ -58,6 +61,7 @@ import { webrtcRoutes } from "./routes/webrtc";
 import { companiesRoutes } from "./routes/companies";
 import { composeRoutes } from "./routes/compose";
 import { contactRoutes } from "./routes/contact";
+import { marketingRoutes } from "./routes/marketing";
 import { contactsRoutes } from "./routes/contacts";
 import { conversationsRoutes } from "./routes/conversations";
 import { devicePushTokensRoutes } from "./routes/device-push-tokens";
@@ -226,6 +230,14 @@ app.route("/webhooks/resend", resendWebhookRoute);
  * daily cap) and its own APP_ORIGIN-exact CORS live in routes/contact.ts.
  */
 app.route("/", contactRoutes);
+
+/**
+ * #312: the same posture again, for the prospects who leave without asking a
+ * question. Public, no session, its own daily cap so a capture cannot run down
+ * the ceiling that protects the support channel. Unsubscribe is here too and is
+ * deliberately unauthenticated — the token in the email is the whole credential.
+ */
+app.route("/", marketingRoutes);
 
 app.notFound((c) => errorResponse(c, "not_found", "No such route."));
 
@@ -477,6 +489,11 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // #340: names, emails and IPs of non-customers from the marketing contact
     // form. Two windows — the IP goes at 30 days, the message at a year.
     job("job:prune-contact-messages", runContactRetentionJob),
+    // #312: the other prospect table. Unsubscribed rows at 30 days (safe — a
+    // send needs a LIVE row, so no row is the same answer), and a consent that
+    // never produced a send at a year. A live consent is never pruned by age:
+    // it is the lawful basis for the sends we are still making.
+    job("job:prune-marketing-contacts", runMarketingContactRetentionJob),
     // #284: warn BEFORE anything ages out. Deliberately shipped ahead of the
     // enforcement job — nobody should discover retention by losing something.
     job("job:retention-notice", runRetentionNoticeJob),

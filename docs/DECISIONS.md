@@ -4178,3 +4178,91 @@ between 20% and 40% while the crews who *do* use it are demonstrably faster to f
 response (#388's five-minute window is the metric that actually pays), the threshold
 is measuring the wrong thing and should be replaced by that — but only by *that*, and
 only stated in advance, or it is a rationalisation again.
+
+---
+
+## D82 — capture a prospect lawfully, and keep the opt-out off the global list (#312, 2026-07-30)
+
+#312's remaining item had been left open as "a founder decision about whether we run
+marketing email". All three obligations it named are real — an unsubscribe
+mechanism, record-keeping that outlives the message, and a lawful basis to
+maintain — and all three are **engineering**. Building them commits nobody to
+sending a campaign; it makes capture lawful and reversible, which is the only state
+from which the decision to send is even available. So it is built.
+
+### The offer, and where doctrine put it
+
+`CONVERSION.md` §7 is binding and bans "no chat-widget pop-up, no modal on load"
+and "no competing CTAs". §2 permits exactly one thing: a secondary action that is
+"visually quieter". That settles the shape without a taste argument: **an inline
+band under the comparison ledger, an outlined pill against the primary cobalt
+fill.** Exit-intent is the most intrusive version of this available and would have
+meant building the machinery §7 forbids using.
+
+The offer is "we will email you this table so you can forward it", because #403
+made those numbers sourced and dated and the person reading them is often not the
+person who signs off. **Nothing is gated** — the whole table is on the page above
+it, so this is a convenience, never a wall.
+
+### The decision that matters: the opt-out does NOT go in `email_suppressions`
+
+My first draft put it there, reasoning that one list every send already consults
+means an unsubscribe can never be forgotten. That would have been a serious bug.
+
+`email_suppressions` (#386) is **global and has no purpose column**, and `sendEmail`
+consults it on every send in the product. An unsubscribe written there would also
+have stopped that person's **payment-failure notice, their security email and every
+inbound-text alert**. For a prospect who later became a customer, unsubscribing from
+a comparison email would silently have broken their billing mail. Opting out of
+commercial mail has never meant opting out of the messages that keep an account
+working.
+
+So **`marketing_contacts` is the list**, and `unsubscribed_at` on it is the opt-out.
+A commercial send may only go to an address with a live row, which makes the absence
+of a row the safe default: nothing has to remember a negative, and retention can
+delete an unsubscribed row without any risk of resurrecting them. Bounces and
+complaints still stop commercial mail for free, because every send goes through the
+same transport that already filters the global list.
+
+The two lists meet at exactly one point: **a complaint blocks a new capture.**
+Somebody who reported us as spam has not asked to hear from us again because a
+checkbox got ticked. A hard bounce does not block — that is usually a typo, and the
+person retyping their address is the fix. Same principle as an SMS opt-out only the
+customer can lift, applied where the customer's act is unambiguous and withheld
+where it is not.
+
+### Three smaller decisions worth keeping
+
+**The consent record is the WORDS, not just the fact.** `consent_text` snapshots
+what was shown, because marketing copy changes and a record pointing at today's
+wording is not evidence about last year's. The server stores **its own** constant
+and ignores anything the client sends: a client that could supply the wording could
+record any agreement it liked. A test binds the two strings across the boundary.
+
+**The commercial send fails CLOSED where the transport fails open.** `sendEmail`'s
+suppression lookup deliberately sends anyway if the database is unreachable, and
+that is right for transactional mail — "a database blip must not be the reason a
+customer never learns their payment failed". It inverts here: mailing somebody who
+unsubscribed costs a compliance breach, not mailing them costs a table they can read
+on the website.
+
+**The mailing address is ONE fact in `packages/shared`, not a Worker env var.**
+`MAILING_ADDRESS` was already an explicit null awaiting ops, with every identity
+surface written to render honestly without it. I first added a separate
+`MARKETING_POSTAL_ADDRESS` secret and removed it again: holding the same fact twice
+lets the two disagree — set one and the legal pages show an address while the email
+refuses to send; set the other and the email carries an address the pages say we do
+not have. Both are silent inconsistencies on a compliance-adjacent surface, which is
+the class of bug worth designing out rather than commenting about.
+
+**Until ops fills it in, the send is off and says so.** The capture, the consent
+record and the unsubscribe all work; `POST /marketing/comparison` reports
+`sent: false` and the form says "we are not sending marketing email yet" rather than
+promising an inbox arrival. Inventing an address would put a false statement in a
+compliance footer, where a missing one is a feature switched off.
+
+### What is still a founder decision, honestly
+
+Whether to ever **send** anything beyond the requested comparison. That is a
+business decision about running a marketing programme, and it now has working
+machinery behind it instead of a blocker in front of it.

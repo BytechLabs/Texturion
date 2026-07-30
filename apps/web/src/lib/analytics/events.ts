@@ -145,6 +145,27 @@ export function trackContactSubmitted(): void {
 }
 
 /**
+ * #312 — a visitor asked us to email them the comparison instead of buying.
+ *
+ * The other half of the same population as `contact_submitted`, and a distinct
+ * signal: an enquiry is a question we have to answer, this is somebody who liked
+ * the numbers enough to want them in writing and was not ready to sign up. Both
+ * are "arrived, did not buy, raised a hand", and telling them apart is what makes
+ * the step actionable rather than a single undifferentiated count.
+ *
+ * Carries NOTHING about who they are — the address and their consent are stored
+ * server-side in `marketing_contacts` with their own retention. Same reason as
+ * above: SPEC §10 allows UUIDs, counts and feature events only, and moving a
+ * non-customer's identity into a third party for the sake of a count would fail
+ * it even without the module's typing preventing it.
+ *
+ * Not guarded. Somebody who asks again from a different page is asking again.
+ */
+export function trackComparisonRequested(): void {
+  capture("comparison_requested");
+}
+
+/**
  * The checkout return confirmed as paid on the setting-up screen (client
  * view; the API Worker's server-side checkout_completed stays authoritative).
  */

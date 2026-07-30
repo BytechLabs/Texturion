@@ -90,6 +90,14 @@ The most sensitive category, because the person never chose us.
 | Table | Holds | Retention |
 |---|---|---|
 | `contact_messages` | name, **email**, company, message, **IP** | **IP at 30 days**, whole row at **1 year** (#340). Erasure: `scripts/ops/erase-contact.mjs` — no account required |
+| `marketing_contacts` | **email**, the consent timestamp, the surface it was given on, and **the exact words agreed to** | **Unsubscribed rows at 30 days**; a consent that never produced a send at **1 year**. A LIVE consent is kept while it is the basis for sends — deleting it while still mailing somebody is worse than never recording it (#312) |
+
+**One asymmetry in §4 worth stating out loud, because it looks like an oversight
+and is not.** An unsubscribed `marketing_contacts` row loses its plaintext at 30
+days, but the matching `email_suppressions` entry (§5) is kept **indefinitely**.
+That is deliberate: you cannot honour "never email me again" without remembering
+who asked. Forgetting the address to be tidy would let the next capture re-add
+them, which is the opposite of respecting the request.
 
 ## 5. Operational data with an identifier attached
 

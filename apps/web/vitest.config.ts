@@ -24,5 +24,25 @@ export default defineConfig({
     restoreMocks: true,
     unstubEnvs: true,
     unstubGlobals: true,
+    /**
+     * The three REQUIRED public env vars, so a test that renders a page can.
+     *
+     * `src/env.ts` validates at import time and throws when they are missing —
+     * correct in production, where a build without an API URL should fail loudly
+     * rather than ship a site whose forms silently do nothing. But it means any
+     * page-render sweep breaks the moment the page contains a client component
+     * that reads the environment, which is how #312's capture form broke
+     * `country-gating.test.tsx`: a test about country copy, failing on a URL.
+     *
+     * Set here rather than stubbed per test so the next page-render sweep does not
+     * have to rediscover this. Deliberately only the required ones: every optional
+     * var stays unset, so a test still sees the same "not configured" behaviour a
+     * real deploy without it would.
+     */
+    env: {
+      NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
+      NEXT_PUBLIC_API_URL: "https://api.test",
+    },
   },
 });

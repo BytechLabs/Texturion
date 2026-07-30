@@ -39,7 +39,7 @@ declare
     'companies', 'messaging_registrations', 'port_requests', 'phone_numbers',
     'number_access', 'number_health', 'company_ai_settings', 'templates', 'tags',
     -- §4 prospect data
-    'contact_messages',
+    'contact_messages', 'marketing_contacts',
     -- §5 operational data with an identifier attached
     'email_events', 'email_suppressions', 'email_ledger', 'public_link_access',
     'public_links', 'webhook_events', 'webhook_rejections', 'inbound_canary_runs',
