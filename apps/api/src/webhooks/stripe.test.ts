@@ -37,6 +37,8 @@ const COMPANY_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
 /** #421: the owner who must be told a cancellation started. */
 const OWNER_ID = "1f2e3d4c-5b6a-4798-8a9b-0c1d2e3f4a5b";
 const PERIOD_START = 1_750_000_000;
+/** #327: Stripe's own subscription start — the retention cohort anchor. */
+const SUBSCRIPTION_START = 1_740_000_000;
 const PERIOD_END = 1_752_592_000;
 const EVENT_CREATED = 1_750_001_000;
 
@@ -81,6 +83,8 @@ function subscriptionFixture(
     cancelAtPeriodEnd?: boolean;
     modulePriceIds?: string[];
     canceledAt?: number | null;
+    /** #327: Stripe's `start_date`; null models a payload without one. */
+    startDate?: number | null;
     /** #134/D42: every subscription carries the per-plan voice METERED item
      *  (the default, matched to `licensed`); `null` models pre-D42 drift for
      *  the convergence test. */
@@ -95,6 +99,7 @@ function subscriptionFixture(
     cancelAtPeriodEnd = false,
     modulePriceIds = [],
     canceledAt = null,
+    startDate = SUBSCRIPTION_START,
   } = overrides;
   const voiceMetered =
     overrides.voiceMetered !== undefined
@@ -112,6 +117,7 @@ function subscriptionFixture(
     status,
     cancel_at_period_end: cancelAtPeriodEnd,
     canceled_at: canceledAt,
+    start_date: startDate,
     schedule: null,
     items: {
       object: "list",
@@ -683,7 +689,11 @@ describe("§9 event → state table", () => {
       );
 
       expect(harness.callsTo("GET", /subscriptions\/sub_1/)).toHaveLength(1);
-      const patches = harness.callsTo("PATCH", /companies/);
+      // #327 added a SECOND companies PATCH — the cohort anchor — so the mirror
+      // is selected by what it writes rather than by being the only one.
+      const patches = harness
+        .callsTo("PATCH", /companies/)
+        .filter((call) => "subscription_status" in (call.json() as object));
       expect(patches).toHaveLength(1);
       expect(patches[0].url.searchParams.get("stripe_subscription_id")).toBe(
         "eq.sub_1",
@@ -697,6 +707,82 @@ describe("§9 event → state table", () => {
       });
     },
   );
+
+  // #327 — D12's week-4 retention target needs a cohort anchor, and no column
+  // held one: created_at is signup rather than payment, current_period_start
+  // advances monthly, and the funnel events live in PostHog where they cannot
+  // be joined against subscription dates in SQL.
+  it("stamps the retention cohort anchor from Stripe's own start_date", async () => {
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({ status: "active" }),
+      ),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+    ]);
+    await deliver(
+      eventOf("customer.subscription.updated", subscriptionFixture({ status: "active" })),
+      harness,
+    );
+
+    const anchors = harness
+      .callsTo("PATCH", /companies/)
+      .filter((call) => "subscription_started_at" in (call.json() as object));
+    expect(anchors).toHaveLength(1);
+    // From Stripe's start_date, NOT from now(): this webhook is replayed by
+    // Stripe and by the daily reconcile, and a wall-clock stamp would move the
+    // workspace into whichever cohort the last replay happened to land in.
+    expect(anchors[0].json()).toEqual({
+      subscription_started_at: new Date(SUBSCRIPTION_START * 1000).toISOString(),
+    });
+    // Guarded on null, so the anchor is stamped once and never moved.
+    expect(anchors[0].url.searchParams.get("subscription_started_at")).toBe("is.null");
+  });
+
+  it("does not stamp an anchor for a subscription that is not live", async () => {
+    // A cohort is "paying signups".  mirrors to itself and is NOT
+    // live, so this exercises the hasLiveSubscription guard rather than the
+    // earlier unmappable-status return — stamping here would put a workspace
+    // that never paid into a retention denominator. past_due and unpaid ARE
+    // live and do get an anchor, correctly: they paid once and are now late.
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({ status: "incomplete" }),
+      ),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+    ]);
+    await deliver(
+      eventOf("customer.subscription.updated", subscriptionFixture()),
+      harness,
+    );
+
+    expect(
+      harness
+        .callsTo("PATCH", /companies/)
+        .filter((call) => "subscription_started_at" in (call.json() as object)),
+    ).toHaveLength(0);
+  });
+
+  it("skips the anchor when Stripe sends no start_date rather than inventing one", async () => {
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({ status: "active", startDate: null }),
+      ),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+    ]);
+    await deliver(
+      eventOf("customer.subscription.updated", subscriptionFixture()),
+      harness,
+    );
+
+    expect(
+      harness
+        .callsTo("PATCH", /companies/)
+        .filter((call) => "subscription_started_at" in (call.json() as object)),
+    ).toHaveLength(0);
+  });
 
   it("customer.subscription.updated mirrors a pending period-end cancellation (SPEC §9 cancel_at_period_end display)", async () => {
     // Portal cancellation: Stripe keeps status 'active' but flags
@@ -730,7 +816,11 @@ describe("§9 event → state table", () => {
       eventOf("customer.subscription.updated", subscriptionFixture()),
       harness,
     );
-    const patches = harness.callsTo("PATCH", /companies/);
+    // #327: the cohort-anchor PATCH is a second write to the same table, so
+    // the mirror is selected by what it writes.
+    const patches = harness
+      .callsTo("PATCH", /companies/)
+      .filter((call) => "subscription_status" in (call.json() as object));
     expect(patches).toHaveLength(1);
     expect(patches[0].json()).toEqual({
       subscription_status: "active",

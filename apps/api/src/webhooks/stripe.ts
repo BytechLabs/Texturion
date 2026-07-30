@@ -709,6 +709,30 @@ export async function syncSubscription(
     company_modules?: CompanyModuleRow[];
   }[];
 
+  // #327: the cohort anchor for D12's week-4 retention target. Stamped ONCE,
+  // guarded on null, from Stripe's own `start_date` rather than from now() — a
+  // replayed webhook (and this one is replayed often, by the daily reconcile as
+  // well as by Stripe) must never move a workspace into a different cohort.
+  //
+  // No column held this before: `created_at` is signup rather than payment, and
+  // `current_period_start` advances every month, so neither can anchor a
+  // cohort. Best-effort and after the mirror: retention reporting must never be
+  // the reason an account's real state fails to land.
+  if (hasLiveSubscription(status) && subscription.start_date) {
+    const startedAt = new Date(subscription.start_date * 1000).toISOString();
+    const { error: anchorError } = await db
+      .from("companies")
+      .update({ subscription_started_at: startedAt })
+      .eq("stripe_subscription_id", subscriptionId)
+      .is("subscription_started_at", null);
+    if (anchorError) {
+      console.error(
+        `subscription_started_at stamp failed for ${subscriptionId}:`,
+        anchorError.message,
+      );
+    }
+  }
+
   // #421: an irreversible clock just started on this company's phone number
   // and nothing told the person who owns it. Best-effort — the mirror is the
   // truth of the account and must never fail because a courtesy email did.

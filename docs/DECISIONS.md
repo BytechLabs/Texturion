@@ -5484,3 +5484,75 @@ workspace that is by definition not paying — so it needs a cap before it needs
 prompt. It is filed as its own issue with that arithmetic rather than folded in
 here, where it would be the one unreviewed thing in a document about removing
 accidents.
+
+---
+
+## D98 — retention is reported with its caveats attached, or not at all (#327, measures D12, 2026-07-30)
+
+**Decision.** Week-4 logo retention is computed by signup cohort in
+`api_retention_cohorts`, segmented by activation, plan, country and crew size,
+and read through `scripts/ops/retention-report.mjs`. Every row carries its
+cohort size. **A verdict against D12's 85% is withheld entirely below 20
+workspaces** rather than shown with a caveat.
+
+**D12 commits to two numbers and only one could be measured.** #281 fixed the
+activation numerator; retention had nothing behind it. The raw material existed
+— subscription status, cancellations — and nothing joined them, so we could not
+say whether we cleared 85%, whether it was moving, or whether anything in this
+backlog had touched it. #327 puts the cost of that better than a summary can:
+*"intuition favours what is visible. Bugs and feature requests are visible. A
+cohort quietly failing to reach week four is not."*
+
+### The missing piece was an anchor, not a query
+
+A cohort needs the date a workspace started **paying**, and no column held it.
+`created_at` is signup; `current_period_start` advances monthly, so it cannot
+anchor anything; the funnel events live in PostHog, where they cannot be joined
+against subscription dates in SQL. Hence `companies.subscription_started_at`,
+stamped once and guarded on null — the shape #281 chose for the same reason.
+
+**From Stripe's `start_date`, never from `now()`.** This webhook is replayed by
+Stripe and again by the daily reconcile, and a wall-clock stamp would move a
+workspace into whichever cohort the last replay happened to land in — silently
+rewriting history that had already been reported.
+
+### Three refusals, which are most of the value
+
+**Immature cohorts are excluded.** A cohort four days old cannot have churned at
+day 28, so including it reports ~100% for the newest weeks and drags every
+blended figure up — most misleadingly right after shipping something, which is
+exactly when somebody looks. Only cohorts whose 28th day has passed are
+returned.
+
+**A verdict is withheld below 20 workspaces, not annotated.** #327 warns that
+*"the first misleading number will drive a bad decision, which is worse than
+having no number"*, and "72% (thin)" still reads as 72% to somebody deciding
+what to build next week. A rate you are told not to trust still anchors you; a
+verdict you are not shown cannot.
+
+**The activation gap is not computed when either side is thin.** Subtracting two
+noisy rates produces a confident-looking number with none of the confidence,
+which is the same artefact one layer up.
+
+### Approximation is a property of the row, not of the date
+
+Backfilled anchors are marked by `subscription_start_approximate`, set only by
+the backfill. The first draft inferred it from a date boundary, and the
+assertion suite caught the flaw: a subscription that genuinely started sixty
+days ago and is measured from Stripe today is **exact**, and a date test would
+call it approximate forever — a caveat that grows rather than shrinks as the
+data improves.
+
+The backfill itself uses `created_at`, which is a good proxy *in this product
+specifically* because checkout happens inside onboarding, so signup and first
+payment are usually minutes apart. It is still a guess, and it is marked rather
+than smoothed over.
+
+### What this does not do
+
+`rate` is NULL rather than 0 when there is nothing to divide, because a zero
+rate and an unknown rate are different facts. And the report is a script rather
+than a dashboard: #327 asks for the numbers *"somewhere the founder sees them
+without assembling a query"*, and one command clears that bar without a surface
+to maintain. The shared join it establishes is what #255 and #277 should extend
+rather than rebuild.
