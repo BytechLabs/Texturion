@@ -4455,3 +4455,79 @@ battery the phones spend on events they will throw away.
 **The implementation is scoped and filed as #480** so the resolver consolidation is
 reviewed as the security change it is, rather than as a side effect of a
 performance one.
+
+---
+
+## D86 — a released number leaves entirely, and carries nothing with it (#316, 2026-07-30)
+
+A released number does not stop being that business's number in the world. Old
+customers keep texting it — it is saved in their phones, printed on an invoice, and
+in three years of search results — and eventually a stranger receives those
+messages. #316 asked for four things. Two were already true, one was satisfied by
+#413, and one rests on a premise about our architecture that turns out to be wrong.
+
+### The release posture, documented
+
+| | What happens |
+|---|---|
+| **At the carrier** | `DELETE /v2/phone_numbers/{id}`. The number leaves our Telnyx account entirely. A `source='hosted'` row instead cancels the hosted-messaging order, since voice never left the owner's carrier. |
+| **The row** | Retained forever (SPEC §6), marked `released`, so a release is auditable. **Two rows for one E.164 is therefore normal**, not a data error, and anything reading `phone_numbers` by number alone must expect more than one. |
+| **History** | Kept, and readable if the departing customer signs back in. Nothing is deleted on release; deletion is workspace closure's job, on its own 30-day clock. |
+| **Inbound during grace** | **Stored, never dropped.** `thread_inbound_message` has no subscription gate, so a message arriving in the 30-day window threads normally and is there when they sign in. |
+| **Outbound during grace** | **Blocked.** `subscription_status <> 'active'` fails the send gate, so a suspended workspace cannot text. |
+| **After release** | Inbound stops reaching us at all — the number is not ours. |
+
+**Inbound-stored/outbound-blocked is the right asymmetry and worth stating as a
+decision rather than leaving as an implementation detail.** Dropping inbound would
+lose a customer's message to satisfy a billing state they had no part in; allowing
+outbound would let a cancelled workspace keep operating. The party who did nothing
+wrong is the one texting in.
+
+### There is no pool, so there is nothing to quarantine
+
+#316 asks that "numbers returning to our pool are quarantined before reissue". **We
+have no pool.** Release deletes the number at Telnyx and it returns to *their*
+inventory; we cannot hold, age, or refuse to re-sell it, because we do not have it.
+Aging before reissue is the carrier's control.
+
+That does not make the concern imaginary — a number we later buy for a new customer
+may arrive pre-loaded with someone else's history in the world, which is the demand
+side of the same problem and why #235 wants reputation screening at handout. But the
+mitigation lives at acquisition, not at release, and framing it as a quarantine we
+could implement would have produced a feature that cannot exist.
+
+### Nothing crosses owners, and now a test says so
+
+Every piece of state #316 worried about is keyed on `company_id`, so a reissued
+number cannot carry it:
+
+- **`opt_outs` is unique on `(company_id, phone_e164)`.** This is the sharp one. Were
+  it keyed on the number, a reissued number would arrive **pre-broken**: the new
+  owner could not see the suppression, and because only the customer may lift an
+  opt-out, could not clear it either. Every message to that person would vanish
+  silently.
+- **Conversations, messages and contacts** are all company-scoped, and the old
+  conversation points at the old `phone_numbers` row.
+
+All of that is true today, so `supabase/tests/number_reissue.test.sql` passes on
+first run. **That is the point.** It exists to fail if a future migration ever keys
+any of this on the phone number — the exact shape of the bug, and one nobody would
+notice until a stranger's message appeared in a customer's inbox.
+
+### What the departing customer is told
+
+Satisfied by #413, shipped the same day: the day-15 and day-27 notices now say the
+number goes back to the phone company and can be given to another business, day 27
+names porting out with a concrete date, and the public deletion page and in-app
+closure card say the same. The one thing we deliberately do **not** claim is that the
+number *has* been reassigned — we release it to Telnyx and have no way to know when
+or to whom, so every sentence says "can be".
+
+### The off-ramp is a product, and it is filed separately
+
+#316's ask 3 — a forwarding or auto-reply period pointing customers at the
+business's new number — is genuinely valuable and is not a documentation change. It
+needs the departing customer to opt in and supply a forwarding target, it collides
+with the outbound gate above, and us auto-replying on behalf of a business that has
+left is a message we would be originating. That deserves its own design rather than
+a paragraph here.

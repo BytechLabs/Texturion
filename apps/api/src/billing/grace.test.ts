@@ -75,10 +75,16 @@ function run(state: GraceState, now: Date): { harness: Harness; done: Promise<vo
   return { harness, done: runGraceJob(env, now) };
 }
 
-function sentEmails(harness: Harness): { subject: string; to: string[] }[] {
+/**
+ * `text` is included because #413 moved the escalation into the BODY. The old copy
+ * escalated only the subject, so the subject was all a test needed to look at.
+ */
+function sentEmails(
+  harness: Harness,
+): { subject: string; to: string[]; text: string }[] {
   return harness
     .callsTo("POST", /api\.resend\.com/)
-    .map((call) => call.json() as { subject: string; to: string[] });
+    .map((call) => call.json() as { subject: string; to: string[]; text: string });
 }
 
 beforeEach(() => {
