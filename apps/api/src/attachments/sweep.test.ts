@@ -10,7 +10,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { MMS_BUCKET } from "../messaging/media";
+import { VOICEMAILS_BUCKET } from "../messaging/inbound-ring";
 import { ATTACHMENTS_BUCKET } from "../routes/core/attachments";
+import { EXPORTS_BUCKET } from "../workspace/export";
 import { SWEEP_BATCH, SWEEP_GRACE_MS, sweepDeletedAttachments } from "./sweep";
 
 const env = completeEnv();
@@ -28,6 +30,12 @@ interface Captured {
   mmsOrphanScans: { p_cutoff: string; p_limit: number }[];
   mmsGhostScans: { p_cutoff: string; p_limit: number }[];
   mmsRowDeletes: URL[];
+  /** #479: the two buckets that had no reclamation at all. */
+  vmOrphanScans: { p_cutoff: string; p_limit: number }[];
+  vmGhostScans: { p_cutoff: string; p_limit: number }[];
+  exportOrphanScans: { p_cutoff: string; p_limit: number }[];
+  /** The PATCH that clears a call's voicemail pointer (never a DELETE). */
+  callPatches: { url: URL; body: Record<string, unknown> }[];
 }
 
 interface SweepWorldOptions {
@@ -42,6 +50,12 @@ interface SweepWorldOptions {
   mmsOrphanPaths?: string[];
   /** #263: api_ghost_mms_media_rows result (default none). */
   mmsGhostIds?: string[];
+  /** #479: api_orphan_voicemail_objects result (default none). */
+  voicemailOrphanPaths?: string[];
+  /** #479: api_ghost_voicemail_calls result (default none). */
+  voicemailGhostIds?: string[];
+  /** #479: api_orphan_export_objects result (default none). */
+  exportOrphanPaths?: string[];
 }
 
 /**
@@ -64,6 +78,10 @@ function stubSweepWorld(
     mmsOrphanScans: [],
     mmsGhostScans: [],
     mmsRowDeletes: [],
+    vmOrphanScans: [],
+    vmGhostScans: [],
+    exportOrphanScans: [],
+    callPatches: [],
   };
   const removePath = `/storage/v1/object/${ATTACHMENTS_BUCKET}`;
   const route: FetchRoute = (url, request) => {
@@ -147,6 +165,74 @@ function stubSweepWorld(
       return (async () => {
         const body = (await request.clone().json()) as { prefixes: string[] };
         captured.removes.push({ bucket: MMS_BUCKET, paths: body.prefixes });
+        if (opts.removeFails) {
+          return new Response(JSON.stringify({ error: "boom", message: "boom" }), {
+            status: 500,
+          });
+        }
+        return Response.json(body.prefixes.map((p) => ({ name: p })));
+      })();
+    }
+    // #479: the voicemails and exports buckets. Distinct RPC names and
+    // distinct buckets, so nothing above can accidentally satisfy them — the
+    // point being that neither bucket was ever swept at all.
+    if (
+      url.href.startsWith(
+        `${env.SUPABASE_URL}/rest/v1/rpc/api_orphan_voicemail_objects`,
+      ) &&
+      request.method === "POST"
+    ) {
+      return (async () => {
+        const body = (await request.clone().json()) as Captured["orphanScans"][0];
+        captured.vmOrphanScans.push(body);
+        return Response.json(opts.voicemailOrphanPaths ?? []);
+      })();
+    }
+    if (
+      url.href.startsWith(
+        `${env.SUPABASE_URL}/rest/v1/rpc/api_ghost_voicemail_calls`,
+      ) &&
+      request.method === "POST"
+    ) {
+      return (async () => {
+        const body = (await request.clone().json()) as Captured["ghostScans"][0];
+        captured.vmGhostScans.push(body);
+        return Response.json(opts.voicemailGhostIds ?? []);
+      })();
+    }
+    if (
+      url.href.startsWith(
+        `${env.SUPABASE_URL}/rest/v1/rpc/api_orphan_export_objects`,
+      ) &&
+      request.method === "POST"
+    ) {
+      return (async () => {
+        const body = (await request.clone().json()) as Captured["orphanScans"][0];
+        captured.exportOrphanScans.push(body);
+        return Response.json(opts.exportOrphanPaths ?? []);
+      })();
+    }
+    if (
+      url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/calls`) &&
+      request.method === "PATCH"
+    ) {
+      return (async () => {
+        const body = (await request.clone().json()) as Record<string, unknown>;
+        captured.callPatches.push({ url, body });
+        return Response.json([]);
+      })();
+    }
+    if (
+      (url.href.includes(`/storage/v1/object/${VOICEMAILS_BUCKET}`) ||
+        url.href.includes(`/storage/v1/object/${EXPORTS_BUCKET}`)) &&
+      request.method === "DELETE"
+    ) {
+      return (async () => {
+        const body = (await request.clone().json()) as { prefixes: string[] };
+        const bucket = url.href.includes(VOICEMAILS_BUCKET)
+          ? VOICEMAILS_BUCKET
+          : EXPORTS_BUCKET;
+        captured.removes.push({ bucket, paths: body.prefixes });
         if (opts.removeFails) {
           return new Response(JSON.stringify({ error: "boom", message: "boom" }), {
             status: 500,
@@ -379,5 +465,87 @@ describe("#263 — the mms-media bucket gets both anti-joins too", () => {
     await expect(sweepDeletedAttachments(env)).rejects.toThrow();
     expect(captured.mmsOrphanScans).toHaveLength(1);
     expect(captured.mmsRowDeletes).toHaveLength(1);
+  });
+});
+
+
+describe("#479 — the two buckets nothing ever reclaimed", () => {
+  it("removes voicemail objects that no call points at", async () => {
+    // A recording is pulled into our bucket and the Telnyx copy DELETED, so
+    // ours is the only one. Before this pass, an object whose calls-row stamp
+    // failed was unreachable by every read path and billed forever — and it is
+    // a stranger's recorded voice, not just bytes.
+    const { route, captured } = stubSweepWorld([], {
+      voicemailOrphanPaths: ["co/vm-1.mp3", "co/vm-2.mp3"],
+    });
+    stubFetch(route);
+
+    await sweepDeletedAttachments(env);
+
+    expect(captured.vmOrphanScans).toHaveLength(1);
+    expect(
+      captured.removes.find((r) => r.bucket === VOICEMAILS_BUCKET)?.paths,
+    ).toEqual(["co/vm-1.mp3", "co/vm-2.mp3"]);
+  });
+
+  it("CLEARS the pointer on a ghost voicemail rather than deleting the call", async () => {
+    // The assertion this whole pass exists to protect. Every other ghost pass
+    // hard-deletes its row, because those rows only describe an object. A
+    // `calls` row is a record that somebody phoned this business, and it
+    // outlives its audio — deleting it would erase the call from the customer's
+    // history to tidy up a storage pointer.
+    const { route, captured } = stubSweepWorld([], {
+      voicemailGhostIds: ["call-1", "call-2"],
+    });
+    stubFetch(route);
+
+    await sweepDeletedAttachments(env);
+
+    expect(captured.vmGhostScans).toHaveLength(1);
+    expect(captured.callPatches).toHaveLength(1);
+    // BOTH fields, because the two surfaces disagree about which one means
+    // "there is a voicemail": the list draws its player from voicemail_seconds
+    // and the detail route derives has_voicemail from voicemail_path. Clearing
+    // one leaves a play button that 404s on exactly one screen.
+    expect(captured.callPatches[0].body).toEqual({
+      voicemail_path: null,
+      voicemail_seconds: null,
+    });
+    // And the transcript is NOT touched: it is the words of a customer who
+    // rang, and the only remaining record of what they wanted.
+    expect(captured.callPatches[0].body).not.toHaveProperty("voicemail_transcript");
+  });
+
+  it("removes export objects with no live row", async () => {
+    // The worst orphan in the product: an export is a copy of every message,
+    // contact and note a workspace holds, and #378's reaper is driven entirely
+    // by the data_exports row. Lose the row and nothing ever looks again.
+    const { route, captured } = stubSweepWorld([], {
+      exportOrphanPaths: ["co/export-9/messages.csv"],
+    });
+    stubFetch(route);
+
+    await sweepDeletedAttachments(env);
+
+    expect(captured.exportOrphanScans).toHaveLength(1);
+    expect(
+      captured.removes.find((r) => r.bucket === EXPORTS_BUCKET)?.paths,
+    ).toEqual(["co/export-9/messages.csv"]);
+  });
+
+  it("still runs the new passes when an earlier one fails", async () => {
+    // One broken arm never starves the others — the rule the module already
+    // followed, now covering the three passes added last.
+    const { route, captured } = stubSweepWorld([], {
+      orphanScanFails: true,
+      voicemailOrphanPaths: ["co/vm-1.mp3"],
+      exportOrphanPaths: ["co/export-9/messages.csv"],
+    });
+    stubFetch(route);
+
+    await expect(sweepDeletedAttachments(env)).rejects.toThrow();
+
+    expect(captured.vmOrphanScans).toHaveLength(1);
+    expect(captured.exportOrphanScans).toHaveLength(1);
   });
 });

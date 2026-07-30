@@ -725,4 +725,161 @@ begin
 end $$;
 
 
+
+-- ===========================================================================
+-- SA-13 (#479). The two buckets that had NO reclamation at all.
+--
+--   `voicemails` had none in either direction: a recording is pulled into our
+--   bucket and the Telnyx copy deleted, so ours is the only one, and nothing
+--   ever looked for the objects no call row points at. Those are a stranger's
+--   recorded voice, in a bucket the product could not enumerate.
+--
+--   `exports` had delete-on-expiry only, driven entirely by the data_exports
+--   row (#378). Lose the row, or fail midway through a reap, and a copy of
+--   every message in a workspace sits in a bucket with nothing tracking it.
+--
+-- The asymmetry asserted here is the one that matters: an orphan OBJECT is
+-- deletable, but a ghost voicemail row is NOT deleted. `calls` is a business
+-- record and outlives its audio, so the RPC only reports and the caller clears
+-- the pointer while keeping the transcript.
+-- ===========================================================================
+do $$
+declare
+  v_company uuid := 'd3d3d3d3-d3d3-4d3d-8d3d-d3d300000001';
+  v_names   text[];
+  v_ids     uuid[];
+begin
+  insert into storage.objects (bucket_id, name, created_at) values
+    ('voicemails', 'sa13/vm-orphan-old',   now() - interval '1 hour'),
+    ('voicemails', 'sa13/vm-orphan-fresh', now()),
+    ('voicemails', 'sa13/vm-anchored',     now() - interval '1 hour'),
+    ('attachments','sa13/vm-wrong-bucket', now() - interval '1 hour');
+
+  insert into public.calls
+    (id, company_id, call_session_id, caller_e164, direction, outcome,
+     started_at, voicemail_seconds, voicemail_path, voicemail_transcript)
+  values
+    ('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000131', v_company, 'sa13-s1', '+14155550131',
+     'inbound', 'voicemail', now() - interval '1 hour', 12, 'sa13/vm-anchored', 'anchored words'),
+    ('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000132', v_company, 'sa13-s2', '+14155550132',
+     'inbound', 'voicemail', now() - interval '1 hour', 9, 'sa13/vm-ghost', 'ghost words'),
+    ('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000133', v_company, 'sa13-s3', '+14155550133',
+     'inbound', 'voicemail', now(), 5, 'sa13/vm-ghost-fresh', 'too new');
+
+  -- Orphan objects: old, in this bucket, with no call pointing at them. The
+  -- fresh one is inside the grace window (an upload whose row stamp has not
+  -- landed yet); the attachments-bucket object belongs to another sweep.
+  select coalesce(array_agg(name order by name), '{}') into v_names
+    from public.api_orphan_voicemail_objects(now() - interval '15 minutes', 10000) as name
+   where name like 'sa13/%';
+  if v_names is distinct from array['sa13/vm-orphan-old'] then
+    raise exception 'SA-13 FAILED: orphan voicemail objects = % (want {sa13/vm-orphan-old})', v_names;
+  end if;
+
+  -- Ghost calls: a voicemail_path with no object. The fresh row is inside the
+  -- grace window; the anchored one has its object and must never be reported.
+  select coalesce(array_agg(gid), '{}') into v_ids
+    from public.api_ghost_voicemail_calls(now() - interval '15 minutes', 10000) as gid
+   where gid in ('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000131',
+                 'd3d3d3d3-d3d3-4d3d-8d3d-d3d300000132',
+                 'd3d3d3d3-d3d3-4d3d-8d3d-d3d300000133');
+  if v_ids is distinct from array['d3d3d3d3-d3d3-4d3d-8d3d-d3d300000132']::uuid[] then
+    raise exception 'SA-13 FAILED: ghost voicemail calls = % (want the one ghost)', v_ids;
+  end if;
+
+  raise notice 'SA-13 PASSED: voicemail anti-joins, both directions, anchored call safe';
+end $$;
+
+-- ===========================================================================
+-- SA-14 (#479). Orphan export objects, and the prefix match that must not be
+-- a pattern match.
+--
+-- An export object is a copy of an entire company's data. The predicate uses
+-- left(name, length(prefix)) rather than `like prefix || '%'` precisely so a
+-- prefix containing an underscore or a percent sign cannot be read as a
+-- wildcard and match a DIFFERENT workspace's export. Asserted rather than
+-- trusted, because the cost of getting it wrong is deleting the wrong
+-- company's data.
+-- ===========================================================================
+do $$
+declare
+  v_company uuid := 'd3d3d3d3-d3d3-4d3d-8d3d-d3d300000001';
+  v_user    uuid := 'd3d3d3d3-d3d3-4d3d-8d3d-d3d3d3d3d3d3';
+  v_names   text[];
+begin
+  insert into storage.objects (bucket_id, name, created_at) values
+    ('exports', 'sa14/live_x/messages.csv',  now() - interval '1 hour'),
+    ('exports', 'sa14/reaped/messages.csv',  now() - interval '1 hour'),
+    ('exports', 'sa14/nobody/messages.csv',  now() - interval '1 hour'),
+    ('exports', 'sa14/fresh/messages.csv',   now());
+
+  -- A LIVE export whose prefix contains an underscore. Under a `like` predicate
+  -- the underscore is a single-character wildcard, so 'sa14/live_x' would also
+  -- match 'sa14/liveQx' -- the shape of accident this asserts against.
+  insert into public.data_exports (id, company_id, requested_by, status, storage_prefix)
+  values ('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000141', v_company, v_user, 'ready', 'sa14/live_x');
+  -- A REAPED export: #378 already removed its objects, so anything still under
+  -- its prefix is debris from a partly-failed reap.
+  insert into public.data_exports
+    (id, company_id, requested_by, status, storage_prefix, reaped_at)
+  values ('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000142', v_company, v_user, 'ready',
+          'sa14/reaped', now() - interval '1 day');
+
+  select coalesce(array_agg(name order by name), '{}') into v_names
+    from public.api_orphan_export_objects(now() - interval '15 minutes', 10000) as name
+   where name like 'sa14/%';
+  if v_names is distinct from array['sa14/nobody/messages.csv', 'sa14/reaped/messages.csv'] then
+    raise exception 'SA-14 FAILED: orphan export objects = % (want the reaped and the unreferenced)', v_names;
+  end if;
+
+  -- The live export's object is NOT orphaned. This is the assertion that would
+  -- catch a predicate deleting a customer's downloadable export.
+  if 'sa14/live_x/messages.csv' = any(v_names) then
+    raise exception 'SA-14 FAILED: swept a LIVE export object';
+  end if;
+
+  raise notice 'SA-14 PASSED: export orphans found, live export untouched, prefix is not a pattern';
+end $$;
+
+-- ===========================================================================
+-- SA-15 (#479). The three new functions carry the same posture as the rest:
+-- SECURITY DEFINER, empty search_path, service_role only.
+--
+-- They read storage.objects and, for exports, every workspace's prefixes. An
+-- authenticated grant on any of them would let one tenant enumerate another
+-- tenant's object keys.
+-- ===========================================================================
+do $$
+declare
+  fn        regprocedure;
+  is_secdef boolean;
+  cfg       text[];
+  fname     text;
+begin
+  foreach fname in array array[
+    'api_orphan_voicemail_objects',
+    'api_ghost_voicemail_calls',
+    'api_orphan_export_objects'
+  ] loop
+    fn := ('public.' || fname || '(timestamptz, int)')::regprocedure;
+    select p.prosecdef, p.proconfig into is_secdef, cfg
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.proname = fname;
+    if not is_secdef then
+      raise exception 'SA-15 FAILED: % must be SECURITY DEFINER', fname;
+    end if;
+    if cfg is null or not ('search_path=' = any(cfg) or 'search_path=""' = any(cfg)) then
+      raise exception 'SA-15 FAILED: % must pin an empty search_path (got %)', fname, cfg;
+    end if;
+    if has_function_privilege('anon', fn, 'EXECUTE')
+       or has_function_privilege('authenticated', fn, 'EXECUTE') then
+      raise exception 'SA-15 FAILED: anon/authenticated must not EXECUTE %', fname;
+    end if;
+    if not has_function_privilege('service_role', fn, 'EXECUTE') then
+      raise exception 'SA-15 FAILED: service_role must EXECUTE %', fname;
+    end if;
+  end loop;
+  raise notice 'SA-15 PASSED: the three #479 functions are service-role only';
+end $$;
+
 rollback;

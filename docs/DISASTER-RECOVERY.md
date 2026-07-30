@@ -197,8 +197,8 @@ The buckets, all Supabase Storage:
 |---|---|---|
 | `attachments` | `attachments` | `job:sweep-deleted-attachments` |
 | `mms-media` | `message_attachments` | `job:sweep-deleted-attachments`, plus `api_orphan_mms_media_objects` / `api_ghost_mms_media_rows` |
-| `voicemails` | `calls.voicemail_path` | **none, in either direction** |
-| `exports` | `data_exports` | delete-on-expiry only |
+| `voicemails` | `calls.voicemail_path` | `job:sweep-deleted-attachments`, via `api_orphan_voicemail_objects` / `api_ghost_voicemail_calls` (#479) |
+| `exports` | `data_exports` | delete-on-expiry, plus `api_orphan_export_objects` for prefixes whose row is gone or reaped (#479) |
 
 Two kinds of drift, and the *directions matter differently* than the original
 version of this section said:
@@ -241,12 +241,55 @@ reasons from `storage.objects`.** Both directions of drift are invisible to all
 four RPCs. This is a genuine gap, not a procedure to follow, and it is worth
 saying so rather than listing a job that will report zero and be ticked off.
 
-What actually resolves it is an inventory taken on the **storage backend** and
-diffed against the restored rows — probing every live row's object rather than a
-filtered subset, and listing the bucket to find bytes nothing references. We have
-no tool for that today. It is the highest-value thing to build for this runbook,
-and until it exists, the honest expectation after a restore is: some customers
-will have attachments that 404, and we will pay for some objects we cannot see.
+### The procedure (#479)
+
+**Half of that is now a tool, and the other half is provably unbuildable.**
+
+**Broken rows — run `scripts/ops/reconcile-storage.mjs`.** It ignores
+`storage.objects` entirely and asks the storage backend whether each live row's
+object is really there: a signed URL, then a one-byte ranged GET through it. The
+signing step proves nothing on its own (it resolves through the table that is
+wrong); the fetch is the answer.
+
+```
+SUPABASE_URL=... SUPABASE_SECRET_KEY=... node scripts/ops/reconcile-storage.mjs
+SUPABASE_URL=... SUPABASE_SECRET_KEY=... node scripts/ops/reconcile-storage.mjs --apply
+```
+
+Dry run by default, like every script in that directory. It covers all four
+buckets, and what `--apply` does differs by bucket on purpose:
+
+| Bucket | Repair | Why |
+|---|---|---|
+| `attachments`, `mms-media` | row deleted | the row exists only to describe an object |
+| `voicemails` | pointer cleared, row kept | `calls` is a business record; somebody phoned, and that stays true without the audio. **The transcript is kept** — it is the only remaining record of what the caller wanted |
+| `exports` | `reaped_at` stamped | the row is the record of a request (#378); stamping stops the UI offering a download that cannot work |
+
+Each bucket is independent: one that cannot be read is reported loudly and the
+other three still run. That is not hypothetical politeness — the first real dry
+run against production stopped on `exports` because prod was a few migrations
+behind main, which is an ordinary state between releases and must not cost an
+operator the three buckets that would have reported.
+
+**Unreferenced bytes — there is no tool, and there cannot be one on this plan.**
+That was checked rather than assumed. Supabase's S3-compatible endpoint is served
+at `project_ref.storage.supabase.co/storage/v1/s3` — Supabase's own service
+speaking the S3 protocol, not credentials for the bucket underneath. `ListObjectsV2`
+through it lists what `storage.objects` knows, which is precisely the table that
+is wrong after a restore. No inventory of the backing store is purchasable.
+
+**So the residual is a bounded cost leak, and here is the bound.** The orphaned
+objects are exactly those uploaded between the restore point and the restore.
+With PITR **off** (see §2 — the real RPO is up to 24 hours, not 5 minutes), the
+worst case is one day of uploads across `attachments`, `mms-media` and
+`voicemails`. At current volumes that is single-digit megabytes and a cost of
+roughly a cent a month, held forever. It is worth knowing rather than fixing, and
+it will stay worth knowing until upload volume is three orders of magnitude
+larger.
+
+The honest expectation after a restore is therefore: **no customer is left with
+an attachment that 404s** — the script finds and repairs those — and we pay
+indefinitely for up to one RPO window of objects we cannot see or reach.
 
 **Broken rows should be deleted, not left as silent 404s.** A customer needs to
 know a photo is gone, not click a button that fails.

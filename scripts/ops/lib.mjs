@@ -127,6 +127,22 @@ export function opsClient() {
       }),
 
     /**
+     * [#479] DELETE, with the same required filter as `patch` and for a worse
+     * reason: an unfiltered PATCH rewrites every row, and an unfiltered DELETE
+     * removes them. Added when storage reconciliation became the first ops
+     * script that has to drop rows rather than edit them.
+     */
+    remove: (table, where) => {
+      if (!where || Object.keys(where).length === 0) {
+        fail("refusing a DELETE with no filter — that would remove every row.");
+      }
+      return send(`${table} delete`, target(table, where), {
+        method: "DELETE",
+        headers: { Prefer: "return=representation" },
+      });
+    },
+
+    /**
      * Call a SECURITY DEFINER function.
      *
      * Some support work is not a row edit — it is a decision the database

@@ -50,7 +50,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { MMS_BUCKET } from "../messaging/media";
+import { VOICEMAILS_BUCKET } from "../messaging/inbound-ring";
 import { ATTACHMENTS_BUCKET } from "../routes/core/attachments";
+import { EXPORTS_BUCKET } from "../workspace/export";
 
 /**
  * Soft-deleted rows must age past the signed-URL TTL (300s) before the object
@@ -93,6 +95,10 @@ export async function sweepDeletedAttachments(env: Env): Promise<void> {
     // #263: the same two directions for the mms-media bucket.
     ["orphan mms objects", () => sweepOrphanMmsObjects(db, cutoff)],
     ["ghost mms rows", () => sweepGhostMmsRows(db, cutoff)],
+    // #479: the two buckets that had no reclamation at all.
+    ["orphan voicemail objects", () => sweepOrphanVoicemailObjects(db, cutoff)],
+    ["ghost voicemail calls", () => sweepGhostVoicemailCalls(db, cutoff)],
+    ["orphan export objects", () => sweepOrphanExportObjects(db, cutoff)],
   ];
 
   const failures: unknown[] = [];
@@ -291,5 +297,123 @@ async function sweepGhostMmsRows(
     .in("id", ids);
   if (deleteError) {
     throw new Error(`mms ghost row delete failed: ${deleteError.message}`);
+  }
+}
+
+/**
+ * Pass 7 (#479): garbage-collect `voicemails` objects with no calls row.
+ *
+ * The bucket that had no reclamation in either direction. A recording is
+ * downloaded into our bucket and the Telnyx copy DELETED, so ours is the only
+ * one — and if the calls-row stamp that follows fails, the audio is unreachable
+ * by any read path and billed forever. Nothing had ever looked.
+ *
+ * Worth being blunt about what these objects are: a stranger's recorded voice,
+ * sitting in a bucket that nothing in the product could enumerate. The cost was
+ * the reason to build this; it is not the important half.
+ */
+async function sweepOrphanVoicemailObjects(
+  db: SupabaseClient,
+  cutoff: string,
+): Promise<void> {
+  const { data, error } = await db.rpc("api_orphan_voicemail_objects", {
+    p_cutoff: cutoff,
+    p_limit: SWEEP_BATCH,
+  });
+  if (error) {
+    throw new Error(`voicemail orphan object scan failed: ${error.message}`);
+  }
+  const paths = (data ?? []) as string[];
+  if (paths.length === 0) return;
+
+  const { error: removeError } = await db.storage
+    .from(VOICEMAILS_BUCKET)
+    .remove(paths);
+  if (removeError) {
+    // Still row-less, so the next run re-selects and retries.
+    console.error("voicemail orphan object remove failed:", removeError.message);
+    Sentry.captureMessage("voicemail orphan object remove failed", "warning");
+  }
+}
+
+/**
+ * Pass 8 (#479): clear the voicemail pointer on calls whose audio is gone.
+ *
+ * THE ONLY PASS HERE THAT DOES NOT DELETE ITS ROW, and the asymmetry is the
+ * point. An `attachments` or `message_attachments` row exists only to describe
+ * an object, so one with no object is meaningless. A `calls` row is a record
+ * that somebody phoned this business, and it outlives its audio.
+ *
+ * So this clears the POINTER and nothing else. Both fields, because the two
+ * surfaces disagree about which one means "there is a voicemail": the calls list
+ * draws its player from `voicemail_seconds` and the detail route derives
+ * `has_voicemail` from `voicemail_path`. Clearing one would leave a play button
+ * that 404s on exactly one screen, which is harder to diagnose than either
+ * clearing both or clearing neither.
+ *
+ * The TRANSCRIPT stays, and so does the #367 intake. They are the words of a
+ * customer who rang, and they are the only remaining record of what that person
+ * wanted — worth more once the audio is gone, not less. Dropping them would turn
+ * "we lost the recording" into "we lost the message".
+ */
+async function sweepGhostVoicemailCalls(
+  db: SupabaseClient,
+  cutoff: string,
+): Promise<void> {
+  const { data, error } = await db.rpc("api_ghost_voicemail_calls", {
+    p_cutoff: cutoff,
+    p_limit: SWEEP_BATCH,
+  });
+  if (error) {
+    throw new Error(`voicemail ghost scan failed: ${error.message}`);
+  }
+  const ids = (data ?? []) as string[];
+  if (ids.length === 0) return;
+
+  const { error: clearError } = await db
+    .from("calls")
+    .update({ voicemail_path: null, voicemail_seconds: null })
+    .in("id", ids);
+  if (clearError) {
+    throw new Error(`voicemail pointer clear failed: ${clearError.message}`);
+  }
+}
+
+/**
+ * Pass 9 (#479): garbage-collect `exports` objects with no live row.
+ *
+ * #378 built the reaper that makes the seven-day promise true, and it is driven
+ * ENTIRELY by the `data_exports` row: find expired rows, list the prefix, remove
+ * the objects, stamp `reaped_at`. Every step needs the row. Lose it — or fail
+ * midway through a reap, which stamps nothing — and that prefix is never looked
+ * at again.
+ *
+ * This is the worst orphan in the product and it is not close. An export is "a
+ * copy of every message, contact and note the workspace holds"; an unreferenced
+ * one is that copy sitting in a bucket with nothing tracking it, no expiry that
+ * can fire, and no way for the deletion promise in DELETION.md to reach it.
+ * #479 files it as a retention problem rather than a cost one, and that is the
+ * right reading.
+ */
+async function sweepOrphanExportObjects(
+  db: SupabaseClient,
+  cutoff: string,
+): Promise<void> {
+  const { data, error } = await db.rpc("api_orphan_export_objects", {
+    p_cutoff: cutoff,
+    p_limit: SWEEP_BATCH,
+  });
+  if (error) {
+    throw new Error(`export orphan object scan failed: ${error.message}`);
+  }
+  const paths = (data ?? []) as string[];
+  if (paths.length === 0) return;
+
+  const { error: removeError } = await db.storage
+    .from(EXPORTS_BUCKET)
+    .remove(paths);
+  if (removeError) {
+    console.error("export orphan object remove failed:", removeError.message);
+    Sentry.captureMessage("export orphan object remove failed", "warning");
   }
 }
