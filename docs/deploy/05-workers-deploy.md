@@ -43,8 +43,8 @@ bytes).
 
 ## 2. Set the 25 API Worker secrets (before the first deploy)
 
-CI does **not** set these — `deploy.yml` only runs `wrangler deploy`
-(`.github/workflows/deploy.yml:58-62`). The Worker validates the schema at startup
+CI does **not** set these — `ship.yml` only runs `wrangler deploy`
+(`.github/workflows/ship.yml` → the `backend` job's “Push database migrations” step). The Worker validates the schema at startup
 and `/health` re-validates, naming any missing key
 (`apps/api/src/env.ts:22-104,119-135`, `apps/api/src/index.ts:88-92`). Set every
 one on `loonext-api`. A 26th, `POSTHOG_API_KEY`, is **optional** — set it only if
@@ -133,7 +133,7 @@ Full descriptions and formats are in [06 — env reference](./06-env-reference.m
 
 ## 3. Deploy the Workers
 
-CI/Deploy does this automatically on merge to `main` (§5). To deploy **manually**:
+The pipeline does this when the release PR merges, not on every push to `main` (§5). To deploy **manually**: To deploy **manually**:
 
 ### API Worker (`loonext-api`)
 
@@ -195,52 +195,80 @@ The origins must match the secrets exactly: CORS is `APP_ORIGIN` with **no wildc
 
 | Secret | Used by |
 |--------|---------|
-| `CLOUDFLARE_API_TOKEN` | `.github/workflows/deploy.yml:18` — needs **Workers Scripts + DNS + Cache Purge** |
-| `CLOUDFLARE_ACCOUNT_ID` | `.github/workflows/deploy.yml:19` |
-| `CLOUDFLARE_ZONE_ID` | `.github/workflows/deploy.yml` cache-purge step (loonext.com zone → Overview → Zone ID) |
-| `NEXT_PUBLIC_SUPABASE_URL` | web build — `deploy.yml:20` (CI uses a fixed placeholder — `ci.yml:90`) |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | web build — `deploy.yml:21` (CI uses a fixed placeholder — `ci.yml:91`) |
-| `NEXT_PUBLIC_API_URL` | web build — `deploy.yml:22` (set to your API origin) |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` *(optional)* | web build — `deploy.yml:23-26` (only if Supabase captcha is enabled; see below) |
-| `NEXT_PUBLIC_APP_ORIGIN` *(optional)* | web build — `deploy.yml:27-30` (the D27 host split; production value `https://app.loonext.com`, blank = no split) |
-| `SUPABASE_ACCESS_TOKEN` | migrations — `deploy.yml:52` |
-| `SUPABASE_DB_PASSWORD` | migrations — `deploy.yml:53` |
-| `SUPABASE_PROJECT_REF` | migrations — `deploy.yml:55` |
+| `CLOUDFLARE_API_TOKEN` | `.github/workflows/ship.yml` → the `backend` job's `env:` block — needs **Workers Scripts + DNS + Cache Purge** |
+| `CLOUDFLARE_ACCOUNT_ID` | `.github/workflows/ship.yml` → the `backend` job's `env:` block |
+| `CLOUDFLARE_ZONE_ID` | the `backend` job's “Purge Cloudflare cache” step in `ship.yml` (loonext.com zone → Overview → Zone ID) |
+| `NEXT_PUBLIC_SUPABASE_URL` | web build — the `backend` job's `env:` block in `ship.yml` (CI uses a fixed placeholder — the `build` job's `env:` block in `checks.yml`) |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | web build — the `backend` job's `env:` block in `ship.yml` (CI uses a fixed placeholder — the `build` job's `env:` block in `checks.yml`) |
+| `NEXT_PUBLIC_API_URL` | web build — the `backend` job's `env:` block in `ship.yml` (set to your API origin) |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` *(optional)* | web build — the `backend` job's `env:` block in `ship.yml` (only if Supabase captcha is enabled; see below) |
+| `NEXT_PUBLIC_APP_ORIGIN` *(optional)* | web build — the `backend` job's `env:` block in `ship.yml` (the D27 host split; production value `https://app.loonext.com`, blank = no split) |
+| `SUPABASE_ACCESS_TOKEN` | migrations — the `backend` job's “Push database migrations” step in `ship.yml` |
+| `SUPABASE_DB_PASSWORD` | migrations — the `backend` job's “Push database migrations” step in `ship.yml` |
+| `SUPABASE_PROJECT_REF` | migrations — the `backend` job's “Push database migrations” step in `ship.yml` |
 
-### RESOLVED — `NEXT_PUBLIC_API_URL` is now wired into CI/Deploy
+### RESOLVED — `NEXT_PUBLIC_API_URL` is wired into both the gate and the deploy
 
-The previously documented gap is closed. `ci.yml` builds with **fixed
+The previously documented gap is closed. the `build` job in `checks.yml` builds with **fixed
 placeholders for all three required `NEXT_PUBLIC_*` vars**
-(`.github/workflows/ci.yml:81-92`) — safe because `apps/web/src/env.ts` only
+(`.github/workflows/checks.yml` → the `build` job's `env:` block) — safe because `apps/web/src/env.ts` only
 validates shape and the CI build artifact is never deployed; CI reads no repo
-secrets at all. `deploy.yml` rebuilds with the real values from the GitHub
-secrets (`.github/workflows/deploy.yml:20-22`) — set them (table above) or the
+secrets at all. the `backend` job in `ship.yml` rebuilds with the real values from the GitHub
+secrets (`.github/workflows/ship.yml` → the `backend` job's `env:` block) — set them (table above) or the
 automated web deploy builds against a missing var and fails.
 
 > **Captcha ordering:** the deploy job passes the optional
 > `NEXT_PUBLIC_TURNSTILE_SITE_KEY` secret into the web build
-> (`.github/workflows/deploy.yml:23-26`). If you plan to enable Supabase Auth
+> (`.github/workflows/ship.yml` → the `backend` job's `env:` block). If you plan to enable Supabase Auth
 > captcha, **set this secret and redeploy web first** — enabling the dashboard
 > setting against a build with no site key breaks every email/password signup,
 > login, and password reset ([06](./06-env-reference.md) §B).
 
 ### What the pipeline does on merge to `main`
 
-- **CI** (`ci.yml`) runs on PRs and pushes to `main`: **all SQL suites** against a
-  from-zero `supabase db reset` via the root `db:test:ci` script (which delegates
-  to `db:test:all`, `.github/workflows/ci.yml:31-32`, `package.json:35-36`), the
-  hermetic launch-pass E2E job (`.github/workflows/ci.yml:38-77`), then
-  typecheck/lint/test, `next build`, OpenNext build, and `wrangler deploy
-  --dry-run` for the API (`.github/workflows/ci.yml:79-122`).
-- **Deploy** (`deploy.yml`) runs on `workflow_run` of a **successful CI on `main`**,
-  concurrency group `deploy-production` with no cancel-in-progress
-  (`.github/workflows/deploy.yml:3-15`). Steps, in order
-  (`.github/workflows/deploy.yml:31-62`):
-  1. Checkout the exact `head_sha` that passed CI.
-  2. `pnpm install --frozen-lockfile`.
-  3. `supabase link --project-ref <ref>` → `supabase db push` (**migrations first**).
-  4. `pnpm --filter @loonext/api exec wrangler deploy` (API Worker).
-  5. `pnpm --filter @loonext/web run deploy` (OpenNext build + deploy).
+> **Read this first: merging to `main` does NOT deploy.** This section used to say
+> the deploy ran on `workflow_run` of a successful CI on `main`, which described
+> the four-workflow chain that `main.yml` replaced. Shipping and merging are
+> deliberately different events (D50), and an operator who believes otherwise will
+> wait for a deploy that is not coming.
+
+**One pipeline, `.github/workflows/main.yml`, three jobs ordered by `needs:`.**
+
+- **`gate`** calls `.github/workflows/checks.yml` — the same file a pull request
+  runs, so a PR and a merge cannot be checked differently. It runs **all SQL
+  suites** against a from-zero `supabase db reset` via the root `db:test:ci` script
+  (which delegates to `db:test:all` — `.github/workflows/checks.yml` → the `schema`
+  job's “Run SQL assertion suites” step), the hermetic launch-pass E2E job
+  (→ the `e2e` job), typecheck/lint/test plus the migration, env-reference,
+  document-citation and commit-message guards (→ the `verify` job), and
+  `next build`, the OpenNext build and `wrangler deploy --dry-run` for the API
+  (→ the `build` job).
+- **`release`** (`needs: gate`) keeps ONE release-please pull request open and
+  rewrites it on every push. **A red gate stops this**, which means a failing check
+  also freezes the release PR — that is how production came to sit 45 migrations
+  behind `main` on 2026-07-30.
+- **`ship`** (`needs: release`) runs **only when the release PR was the thing that
+  merged**, or on a manual `workflow_dispatch` with a stated reason. That is the
+  door for chore/docs/ci changes, which produce no release PR at all.
+
+So a green merge to `main` updates the release PR and ships nothing. **Merging that
+PR is what reaches customers.**
+
+Steps in the deploy itself (`.github/workflows/ship.yml` → the `backend` job):
+
+1. Checkout. A plain `actions/checkout@v4` on the ref that ran — no `head_sha`
+   pinning, because `ship` is a job inside the same run as `gate` rather than a
+   separate workflow reacting to one, so there is no other commit it could get.
+2. `pnpm install --frozen-lockfile`.
+3. `supabase link --project-ref <ref>` → `supabase db push` (**migrations first**).
+4. `pnpm --filter @loonext/api exec wrangler deploy` (API Worker).
+5. `pnpm --filter @loonext/web run deploy` (OpenNext build + deploy).
+6. Purge the Cloudflare cache — the marketing apex is edge-cached for an hour, so
+   a deploy stays hidden behind stale HTML without it.
+
+The phone apps build in the same run (`ship.yml` → the `android` and `ios` jobs),
+alongside the backend rather than after it: a store review takes days, so there is
+nothing to sequence.
 
 ---
 

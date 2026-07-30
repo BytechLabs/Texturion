@@ -1,4 +1,20 @@
-# v4 redo: purge list + coverage map
+# v4 redo: purge list + coverage map (COMPLETED — historical record)
+
+> # ✅ COMPLETED — the plan below was executed
+>
+> **This is a record of work that was done, not a plan to do.** Every purge in the
+> list shipped: the banned strings now appear in the codebase only inside tests
+> asserting their absence (`legal-pages.test.tsx`, `pricing-facts.test.ts`,
+> `contact.test.tsx`), and the `marketing/night/` components the first two items
+> cite were deleted by this very redo.
+>
+> **So its `file:line` citations describe the code as it stood when the plan was
+> written, and some of those paths no longer exist.** That is correct for a
+> historical document and is why `scripts/check-doc-citations.mjs` skips a file
+> carrying this banner — a completed record is the one legitimate reason to cite a
+> path that is gone (#442).
+>
+> Read `DESIGN-DIRECTION.md` for what currently binds the marketing surface.
 
 ## Purge list (every meta/self-referential string dies)
 

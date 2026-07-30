@@ -118,7 +118,7 @@ Capture into a secure store (you'll paste them in [02](./02-supabase.md)–[05](
   (`CLOUDFLARE_ZONE_ID`, from the loonext.com zone → Overview), and an **API
   token** with *Workers Scripts: Edit* + *Workers Routes: Edit* + *DNS: Edit* +
   *Cache Purge* on the zone (`CLOUDFLARE_API_TOKEN`) — all used by CI
-  (`.github/workflows/deploy.yml`; Cache Purge + Zone ID drive the post-deploy
+  (`.github/workflows/ship.yml`; Cache Purge + Zone ID drive the post-deploy
   marketing-cache purge).
 - The three chosen hostnames.
 

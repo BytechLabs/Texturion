@@ -170,7 +170,7 @@ Source of truth: `apps/web/src/env.ts`.
 ## 5. GitHub Actions secrets (CI / deploy)
 
 Set under repo → Settings → Secrets and variables → Actions. Consumed by
-`.github/workflows/deploy.yml`.
+`.github/workflows/ship.yml`.
 
 | Secret | Purpose |
 |---|---|
@@ -187,7 +187,7 @@ Set under repo → Settings → Secrets and variables → Actions. Consumed by
 | `NEXT_PUBLIC_SENTRY_DSN` | Web build var (§4, optional) — browser error reporting |
 | `NEXT_PUBLIC_POSTHOG_KEY` | Web build var (§4, optional) — browser analytics |
 
-> **Client telemetry (wired 2026-07-08):** `deploy.yml` now passes all six
+> **Client telemetry (wired 2026-07-08):** `ship.yml` now passes all six
 > `NEXT_PUBLIC_*` build vars, including `NEXT_PUBLIC_SENTRY_DSN` and
 > `NEXT_PUBLIC_POSTHOG_KEY`. Both stay optional — leave the Actions secret unset
 > (or blank) and that client is a silent no-op. Two caveats: (1) PostHog's host is
@@ -223,7 +223,7 @@ Set under repo → Settings → Secrets and variables → Actions. Consumed by
 
 *Authoritative sources this file is generated from: `apps/api/src/env.ts`,
 `apps/web/src/env.ts`, `apps/api/scripts/stripe-setup.ts`, `apps/api/wrangler.jsonc`,
-`.github/workflows/deploy.yml`. If they change, regenerate this table.*
+`.github/workflows/ship.yml`. If they change, regenerate this table.*
 
 ## 8. Native mobile apps — store readiness (#150/#164)
 

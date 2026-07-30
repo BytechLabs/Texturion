@@ -150,6 +150,15 @@ jobs:
       - name: Guard the env reference
         run: node scripts/check-env-doc.mjs
 
+      # #442: renaming these very workflow files broke 36 line-numbered citations
+      # across 8 operator documents in one afternoon. The audience is somebody
+      # standing up or repairing production with no staging to be wrong in, so a
+      # citation to a file that moved is worse than no citation. Checks that every
+      # cited path resolves — not line numbers, which would fail on every ordinary
+      # edit and teach people to delete the citation instead.
+      - name: Guard document citations
+        run: node scripts/check-doc-citations.mjs
+
       # feat/fix/perf subjects are published verbatim in the release notes, so
       # they are checked like changelog copy. The commit-msg hook catches this
       # locally; this is the gate that --no-verify cannot skip. Only the commits

@@ -88,7 +88,7 @@ Two halves:
   set, signup/login/reset-password render Turnstile and pass its `captchaToken`
   to Supabase Auth; unset, no captcha renders. The deploy workflow injects it
   from the optional GitHub secret of the same name
-  (`.github/workflows/deploy.yml:23-26`).
+  (`.github/workflows/ship.yml` → the `backend` job's `env:` block).
 
 > **Ordering:** set the `NEXT_PUBLIC_TURNSTILE_SITE_KEY` GitHub secret and
 > redeploy web **before** enabling the dashboard setting. Captcha enforced
@@ -98,7 +98,7 @@ Two halves:
 ## Step 5 — Push migrations
 
 Migrations are applied by the deploy workflow, **before either Worker deploys**
-(`.github/workflows/deploy.yml:50-62`):
+(`.github/workflows/ship.yml` → the `backend` job's “Push database migrations” step):
 
 ```
 supabase link --project-ref "$SUPABASE_PROJECT_REF"
@@ -106,10 +106,10 @@ supabase db push
 ```
 
 This needs three GitHub secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`,
-`SUPABASE_PROJECT_REF` (`.github/workflows/deploy.yml:52-55`). CI additionally
+`SUPABASE_PROJECT_REF` (`.github/workflows/ship.yml` → the `backend` job's “Push database migrations” step). CI additionally
 runs the full migration set from zero against a local stack on every push, then
 **every SQL assertion suite** via the root `db:test:ci` script (delegates to
-`db:test:all` — `.github/workflows/ci.yml:9-36`, `package.json:35-36`), so a
+`db:test:all` — `.github/workflows/checks.yml` → the `schema` job, `package.json:35-36`), so a
 broken migration fails CI before deploy.
 
 The initial schema migrations, in order (`supabase/migrations/` — later feature

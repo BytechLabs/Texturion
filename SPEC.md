@@ -123,7 +123,7 @@ loonext/
 │                       # NANP area-code → {country, region, timezone} table
 │                       # (region = USPS state / CA province code), constants
 ├── supabase/           # config.toml, migrations/
-├── .github/workflows/  # ci.yml (typecheck, lint, vitest, build), deploy.yml (wrangler)
+├── .github/workflows/  # checks.yml (the gate), main.yml (gate/release/ship), ship.yml (deploy)
 ├── pnpm-workspace.yaml
 └── package.json
 ```

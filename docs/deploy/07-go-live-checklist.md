@@ -59,10 +59,10 @@ prerequisites flagged by the marketing/legal docs.
       session (DevTools → copy the request headers off any `/v1/*` call).
 - [ ] All **9** required GitHub Actions secrets set (incl. `CLOUDFLARE_ZONE_ID`, and `CLOUDFLARE_API_TOKEN` carrying Cache Purge) — including
       `NEXT_PUBLIC_API_URL`, which Deploy now reads
-      (`.github/workflows/deploy.yml:22`) — plus the optional two:
-      `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (`deploy.yml:23-26`, **required before
+      (`.github/workflows/ship.yml` → the `backend` job's `env:` block) — plus the optional two:
+      `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (the `backend` job's `env:` block in `ship.yml`, **required before
       enabling Supabase captcha**) and `NEXT_PUBLIC_APP_ORIGIN`
-      (`deploy.yml:27-30`, activates the D27 host split; production value
+      (the `backend` job's `env:` block in `ship.yml`, activates the D27 host split; production value
       `https://app.loonext.com`) ([05](./05-workers-deploy.md) §5).
 - [ ] Both Workers deployed; custom domains bound — `app.loonext.com`,
       `loonext.com`, **and** `www.loonext.com` all on the one `loonext-web`
@@ -111,7 +111,7 @@ Sourced from `docs/marketing/BLUEPRINT.md:979-985` and `docs/marketing/COPY.md:3
 > now runs green in CI as a **hermetic full-stack E2E** (the real `loonext-api` Worker
 > against real local Supabase, Telnyx + Stripe faked at their HTTP boundary and advanced
 > by the same signed webhooks production receives; `apps/api/e2e/*.e2e.ts`, the `e2e` job
-> in `.github/workflows/ci.yml`). That covers the server/state-machine wiring
+> in `.github/workflows/checks.yml`). That covers the server/state-machine wiring
 > deterministically on every push. The manual pass below stays the **human check**: it is
 > the only place a real Stripe-hosted Checkout and a real handset exercise the parts a fake
 > cannot (hosted payment UI, live carrier delivery). Run it before flipping to live.

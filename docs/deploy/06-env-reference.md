@@ -128,7 +128,7 @@ browser bundle).
 > said yes — provided the tags use GTM's built-in consent checks (they read
 > exactly these signals; leave "additional consent checks" at its default).
 > There is deliberately NO GTM `<noscript>` iframe: it cannot respect consent.
-> Unset (dev/CI/previews) = GTM off and no banner. deploy.yml carries this
+> Unset (dev/CI/previews) = GTM off and no banner. the `backend` job in `ship.yml` carries this
 > var as a repo secret (set 2026-07-10), so production builds ship with it.
 >
 > `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (`apps/web/src/env.ts:10`): when set,
@@ -137,7 +137,7 @@ browser bundle).
 > the web-side half of the "enable Supabase Auth captcha" go-live step — the
 > Turnstile **secret** key goes in the Supabase dashboard (section D), the
 > **site** key in this var. Deploy passes it into the web build from the
-> optional GitHub secret of the same name (`.github/workflows/deploy.yml:23-26`);
+> optional GitHub secret of the same name (`.github/workflows/ship.yml` → the `backend` job's `env:` block);
 > CI builds without it (the CI artifact is never deployed). **Set the GitHub
 > secret and redeploy web BEFORE enabling captcha in the Supabase dashboard** —
 > captcha enforced against a build with no site key breaks every email/password
@@ -150,15 +150,15 @@ browser bundle).
 > **only** the product on the app origin — app-surface paths on the marketing
 > host 308 to the app origin and vice versa. Unset (dev/CI/previews) = no
 > gating; every route stays on one origin. Deploy passes it from the optional
-> GitHub secret of the same name (`.github/workflows/deploy.yml:27-30`). All
+> GitHub secret of the same name (`.github/workflows/ship.yml` → the `backend` job's `env:` block). All
 > three hostnames (`loonext.com`, `www.loonext.com`, `app.loonext.com`) attach
 > as custom domains on the **one** web Worker ([01](./01-accounts-and-domain.md)
 > §2). Supabase/Stripe return URLs stay on `APP_ORIGIN` unchanged.
 
 > `NEXT_PUBLIC_API_URL` is wired into both workflows: CI builds with a fixed
-> placeholder (`.github/workflows/ci.yml:92` — the CI artifact is never
+> placeholder (`.github/workflows/checks.yml` → the `build` job's `env:` block — the CI artifact is never
 > deployed), Deploy reads the `NEXT_PUBLIC_API_URL` GitHub secret
-> (`.github/workflows/deploy.yml:22`).
+> (`.github/workflows/ship.yml` → the `backend` job's `env:` block).
 
 ---
 
@@ -166,22 +166,22 @@ browser bundle).
 
 Consumed by the **Deploy** workflow only; never reach the Workers as runtime
 bindings. CI reads **no repo secrets** — its web build uses fixed placeholders
-for all three `NEXT_PUBLIC_*` vars (`.github/workflows/ci.yml:81-92`; the CI
+for all three `NEXT_PUBLIC_*` vars (`.github/workflows/checks.yml` → the `build` job's `env:` block; the CI
 artifact is never deployed).
 
 | Name | Secret? | Source | Used at |
 |------|:------:|--------|---------|
-| `CLOUDFLARE_API_TOKEN` | yes | Cloudflare → My Profile → API Tokens (Workers Scripts + DNS edit + **Cache Purge**) | `deploy.yml:18` |
-| `CLOUDFLARE_ACCOUNT_ID` | yes | Cloudflare dashboard (account ID) | `deploy.yml:19` |
-| `CLOUDFLARE_ZONE_ID` | yes | Cloudflare → loonext.com zone → Overview → Zone ID | `deploy.yml` cache-purge step |
-| `NEXT_PUBLIC_SUPABASE_URL` | yes (as GitHub secret) | Supabase Project URL | `deploy.yml:20` (CI uses a fixed placeholder instead — `ci.yml:90`) |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | yes (as GitHub secret) | Supabase publishable key | `deploy.yml:21` (CI uses a fixed placeholder instead — `ci.yml:91`) |
-| `NEXT_PUBLIC_API_URL` | yes (as GitHub secret) | Operator decision = API origin | `deploy.yml:22` (CI uses a fixed placeholder instead — `ci.yml:92`) |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — **OPTIONAL** | yes (as CI secret) | Cloudflare Turnstile site key (section B) | `deploy.yml:23-26` — **must be set before enabling Supabase captcha** |
-| `NEXT_PUBLIC_APP_ORIGIN` — **OPTIONAL** | yes (as CI secret) | App origin for the D27 host split (section B) | `deploy.yml:27-30` — blank = no host split |
-| `SUPABASE_ACCESS_TOKEN` | yes | Supabase → Account → Access Tokens (`sbp_...`) | `deploy.yml:52` |
-| `SUPABASE_DB_PASSWORD` | yes | The project DB password (from project creation) | `deploy.yml:53` |
-| `SUPABASE_PROJECT_REF` | yes | The project ref (subdomain of the project URL) | `deploy.yml:55` |
+| `CLOUDFLARE_API_TOKEN` | yes | Cloudflare → My Profile → API Tokens (Workers Scripts + DNS edit + **Cache Purge**) | the `backend` job's `env:` block in `ship.yml` |
+| `CLOUDFLARE_ACCOUNT_ID` | yes | Cloudflare dashboard (account ID) | the `backend` job's `env:` block in `ship.yml` |
+| `CLOUDFLARE_ZONE_ID` | yes | Cloudflare → loonext.com zone → Overview → Zone ID | the `backend` job's “Purge Cloudflare cache” step in `ship.yml` |
+| `NEXT_PUBLIC_SUPABASE_URL` | yes (as GitHub secret) | Supabase Project URL | the `backend` job's `env:` block in `ship.yml` (CI uses a fixed placeholder instead — the `build` job's `env:` block in `checks.yml`) |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | yes (as GitHub secret) | Supabase publishable key | the `backend` job's `env:` block in `ship.yml` (CI uses a fixed placeholder instead — the `build` job's `env:` block in `checks.yml`) |
+| `NEXT_PUBLIC_API_URL` | yes (as GitHub secret) | Operator decision = API origin | the `backend` job's `env:` block in `ship.yml` (CI uses a fixed placeholder instead — the `build` job's `env:` block in `checks.yml`) |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — **OPTIONAL** | yes (as CI secret) | Cloudflare Turnstile site key (section B) | the `backend` job's `env:` block in `ship.yml` — **must be set before enabling Supabase captcha** |
+| `NEXT_PUBLIC_APP_ORIGIN` — **OPTIONAL** | yes (as CI secret) | App origin for the D27 host split (section B) | the `backend` job's `env:` block in `ship.yml` — blank = no host split |
+| `SUPABASE_ACCESS_TOKEN` | yes | Supabase → Account → Access Tokens (`sbp_...`) | the `backend` job's “Push database migrations” step in `ship.yml` |
+| `SUPABASE_DB_PASSWORD` | yes | The project DB password (from project creation) | the `backend` job's “Push database migrations” step in `ship.yml` |
+| `SUPABASE_PROJECT_REF` | yes | The project ref (subdomain of the project URL) | the `backend` job's “Push database migrations” step in `ship.yml` |
 
 ---
 

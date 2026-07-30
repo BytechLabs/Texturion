@@ -68,7 +68,7 @@ Key facts:
 
 ## 4. Apply migrations (`supabase link` + `supabase db push`)
 
-Migrations run **before either Worker deploys** (`.github/workflows/deploy.yml:50-62`).
+Migrations run **before either Worker deploys** (`.github/workflows/ship.yml` → the `backend` job's “Push database migrations” step).
 CI does this for you on merge to `main`; to run it manually:
 
 ```bash
@@ -80,7 +80,7 @@ supabase link --project-ref <SUPABASE_PROJECT_REF>
 supabase db push
 ```
 
-This is exactly what the deploy workflow runs (`.github/workflows/deploy.yml:54-56`).
+This is exactly what the deploy workflow runs (`.github/workflows/ship.yml` → the `backend` job's “Push database migrations” step).
 The migrations under `supabase/migrations/` create, among other things:
 
 - **Extensions** (in the `extensions` schema, *not* the dashboard):
@@ -93,7 +93,7 @@ The migrations under `supabase/migrations/` create, among other things:
 
 The three CI secrets this step needs (set them in [05](./05-workers-deploy.md) §5):
 `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_REF`
-(`.github/workflows/deploy.yml:52-55`).
+(`.github/workflows/ship.yml` → the `backend` job's “Push database migrations” step).
 
 ---
 
@@ -156,7 +156,7 @@ Turnstile has **two halves** (`SPEC.md:1052`):
 > rejected — a web build without the site key means **every email/password
 > signup/login/reset breaks**. Set the `NEXT_PUBLIC_TURNSTILE_SITE_KEY` GitHub
 > Actions secret (the deploy workflow passes it into the web build,
-> `.github/workflows/deploy.yml:23-26`), redeploy web, *then* flip the Supabase
+> `.github/workflows/ship.yml` → the `backend` job's `env:` block), redeploy web, *then* flip the Supabase
 > setting. See [06](./06-env-reference.md) §B.
 
 ---

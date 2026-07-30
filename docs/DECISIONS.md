@@ -4266,3 +4266,62 @@ compliance footer, where a missing one is a feature switched off.
 Whether to ever **send** anything beyond the requested comparison. That is a
 business decision about running a marketing programme, and it now has working
 machinery behind it instead of a blocker in front of it.
+
+---
+
+## D83 — cite a job or a step, never a line (#442, 2026-07-30)
+
+`docs/deploy/` set an unusually good standard: *"each fact cites its `file:line`.
+Nothing is invented."* Citing the source is the right instinct and it is why those
+documents are trustworthy at all. **Citing a LINE is the fragile half**, and it
+broke inside a single day: renaming `ci.yml`/`deploy.yml` to `checks.yml`/`ship.yml`
+turned **36 citations across 8 documents** into precise-looking pointers at files
+that no longer existed.
+
+**Decision.** A citation names the file plus a **job or step name**:
+
+```
+`.github/workflows/ship.yml` → the `backend` job's "Push database migrations" step
+```
+
+**Why that is strictly better, not just different.** A line number moves on every
+ordinary edit, so the citation is wrong far more often than the thing it points at
+changes. A step name moves only when somebody renames the step — and at that moment
+the citation reads as *wrong*, which a reader can act on, rather than silently
+resolving to an unrelated line, which they cannot.
+
+**The reason this was worth doing now rather than later.** The person who renamed
+the files knows which line went where today and will not in December. It is the one
+kind of backlog item where waiting makes the work strictly harder rather than just
+later.
+
+### What is guarded, and what deliberately is not
+
+`scripts/check-doc-citations.mjs` (CI, beside the migration and env-reference
+guards) asserts that **every cited repository path resolves**. Paths only.
+
+**Not line numbers**, and not content. A guard that failed whenever a cited line
+moved would fire on every ordinary edit, and the thing people do with a guard that
+cries wolf is delete the citation it complains about — so it would destroy the
+practice it was meant to protect. Checking existence catches the rename class,
+which is the class that actually happened.
+
+**Not the anchor prose either.** Verifying that a named step exists is tempting and
+is the line-number mistake in a new costume: it would couple the docs to a step's
+exact wording, which is the thing that is allowed to change. The file half is
+mechanical and worth enforcing; the anchor half is prose a human reads.
+
+### The one legitimate reason to cite a path that is gone
+
+A document recording work already **done** may cite files the work itself deleted —
+`V4-REDO-PLAN.md` names two components its own purge removed. Those documents carry
+a visible `COMPLETED` or `SUPERSEDED` banner and the guard skips them.
+
+Marked in the document rather than in an allow-list inside the script, deliberately:
+an ignore list is invisible to the person reading the doc, "add it to the ignore
+list" is how a guard stops guarding, and a reader of a historical plan genuinely
+needs to know its citations describe the past.
+
+**The guard earned itself on first run**, finding two stale citations in
+`V4-REDO-PLAN.md` that #442 had not counted — which is the argument for it over a
+one-time sweep.

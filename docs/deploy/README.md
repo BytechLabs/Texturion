@@ -12,9 +12,21 @@ production. Loonext is two Cloudflare Workers plus five backing SaaS vendors:
   Supabase Auth SMTP), **Sentry** (API error tracking).
 
 Every command, secret name, dashboard setting, and URL below was verified
-against the committed source — each fact cites its `file:line`. Nothing is
-invented. Where a value is genuinely the operator's choice (domain names,
+against the committed source, and **each fact cites where it came from. Nothing is
+invented.** Where a value is genuinely the operator's choice (domain names,
 account emails) it is marked **PLACEHOLDER** with a worked example.
+
+**Citations name a job or a step, not a line number** (#442). This used to promise
+`file:line`, which was the better half of the practice and the fragile half: when
+the workflow files were renamed, 36 line-numbered citations across 8 of these
+documents became precise-looking pointers to files that no longer existed, in one
+afternoon. A line moves on every ordinary edit; a step name only moves when
+somebody renames the step, and then the citation reads as *wrong* rather than
+silently pointing somewhere unrelated.
+
+`scripts/check-doc-citations.mjs` fails CI if any cited path stops resolving. It
+checks paths, not line numbers, on purpose — a guard that broke on every edit
+would teach people to delete the citation.
 
 > **Running example used throughout** (replace with your real values):
 > web = `https://app.loonext.com`, api = `https://api.loonext.com`,
@@ -75,16 +87,16 @@ zod schemas ever disagree again.
 
 ### Toolchain (local operator machine)
 
-- **Node ≥ 22**, **pnpm** (CI pins Node 22 — `.github/workflows/ci.yml:48,100`).
+- **Node ≥ 22**, **pnpm** (CI pins Node 22 — `.github/workflows/checks.yml` → every job's `actions/setup-node` step).
 - **wrangler `^4.106.0`** (bundled as a dev dependency — `apps/api/package.json:32`,
   `apps/web/package.json:61`; invoke via `pnpm --filter … exec wrangler`).
-- **Supabase CLI** (`supabase/setup-cli@v1` in CI — `.github/workflows/deploy.yml:46-48`).
+- **Supabase CLI** (`supabase/setup-cli@v1` in CI — `.github/workflows/ship.yml` → the `backend` job's `supabase/setup-cli` step).
 - **Stripe CLI** (optional, for testing webhooks locally).
 - A **Linux or WSL** shell for the web deploy — the OpenNext Cloudflare build must
   run on Linux/WSL (`SPEC.md:88,96`), so run the `loonext-web` deploy from CI or WSL,
   not native Windows.
 - `pnpm install --frozen-lockfile` from the repo root before any deploy
-  (`.github/workflows/deploy.yml:43-44`).
+  (`.github/workflows/ship.yml` → the `backend` job's `supabase/setup-cli` step).
 
 ### The three secret surfaces — do not conflate them
 
@@ -97,7 +109,7 @@ zod schemas ever disagree again.
    opt-in add-on is unsellable until they are set (`apps/api/src/env.ts:64-67`,
    `apps/api/src/routes/billing.ts:190-200`). Set with `wrangler secret put`
    **before the first deploy** — CI does *not* set them
-   (`.github/workflows/deploy.yml:58-62`).
+   (`.github/workflows/ship.yml` → the `backend` job's “Push database migrations” step).
    The `SEND_RATE_LIMITER` and `VERIFY_RATE_LIMITER` rate-limiting bindings are
    the two non-secret bindings — declared in `apps/api/wrangler.jsonc:23-54`,
    deployed with the Worker. See [05](./05-workers-deploy.md) §2.
@@ -112,7 +124,7 @@ zod schemas ever disagree again.
   `/v1/*` request 401s — the API verifies access tokens **ES256-only** against the
   project JWKS (`apps/api/src/auth/jwt.ts:41-44`). See [02](./02-supabase.md) §2.
 - **`NEXT_PUBLIC_API_URL` must exist as a GitHub Actions secret** before the first
-  automated deploy: `deploy.yml` builds the web Worker with it
-  (`.github/workflows/deploy.yml:22`) and `apps/web/src/env.ts` fails the build
-  without it. (CI itself uses a fixed placeholder — `.github/workflows/ci.yml:81-92`
+  automated deploy: `ship.yml` builds the web Worker with it
+  (`.github/workflows/ship.yml` → the `backend` job's `env:` block) and `apps/web/src/env.ts` fails the build
+  without it. (CI itself uses a fixed placeholder — `.github/workflows/checks.yml` → the `build` job's `env:` block
   — since the CI artifact is never deployed.) See [05](./05-workers-deploy.md) §5.
