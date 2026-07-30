@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 
-import { AI_TRAINING_STATEMENT } from "@loonext/shared";
+import {
+  AI_INFERENCE_LOCATION_STATEMENT,
+  AI_INFERENCE_RETENTION_STATEMENT,
+  AI_TRAINING_STATEMENT,
+} from "@loonext/shared";
 
 import {
   LegalLink,
@@ -14,7 +18,7 @@ import {
 import { buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/legal/privacy";
-const LAST_UPDATED = "July 28, 2026";
+const LAST_UPDATED = "July 30, 2026";
 
 export const metadata: Metadata = buildMetadata({
   title: "Privacy policy",
@@ -42,7 +46,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy policy"
-      summary="We collect only what the service needs to run your inbox: account details, the contacts and messages your business handles, and billing through Stripe. Your data is processed and stored in the United States, and we say so plainly. Mobile numbers and SMS consent data are never sold or shared with third parties for their own marketing. You can ask to see, correct, or delete your information at any time."
+      summary="We collect only what the service needs to run your inbox: account details, the contacts and messages your business handles, and billing through Stripe. Your data is processed and stored in the United States, and we say so plainly, with one exception we name rather than bury: AI inference runs on Cloudflare’s global network and cannot be confined to a country. Mobile numbers and SMS consent data are never sold or shared with third parties for their own marketing. You can ask to see, correct, or delete your information at any time."
       lastUpdated={LAST_UPDATED}
       breadcrumbLabel="Privacy policy"
       path={PATH}
@@ -143,7 +147,20 @@ export default function PrivacyPage() {
           . Our database, authentication, and file storage run on Supabase in the
           AWS <span className="fr-mono-data">us-east-1</span> region. If you are
           in Canada, your data is transferred to and processed in the United
-          States, we state this plainly rather than burying it. The full list of
+          States, we state this plainly rather than burying it.
+        </p>
+        <p>
+          {/* #318 V7: this section used to stop at the sentence above, which
+              was true of storage and not true of AI inference. Naming the
+              exception is the whole point of the section. */}
+          <strong>One exception, and we would rather name it than have you
+          find it.</strong> {AI_INFERENCE_LOCATION_STATEMENT} It applies only
+          to the features in section 7, only to what those features send, and
+          only while the request is being answered.{" "}
+          {AI_INFERENCE_RETENTION_STATEMENT}
+        </p>
+        <p>
+          The full list of
           the vendors that process data on our behalf, and the region each
           operates in, is on our{" "}
           <LegalLink href="/legal/subprocessors">
@@ -293,9 +310,10 @@ export default function PrivacyPage() {
           reachable at{" "}
           <LegalLink href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</LegalLink>
           . We disclose above that personal information is transferred to and
-          processed in the United States, and in section 7 that three features
-          send message content or voicemail audio to an AI model on
-          Cloudflare&rsquo;s global network.
+          processed in the United States, that the features in section 7 send
+          message content or voicemail audio to an AI model on
+          Cloudflare&rsquo;s global network, and that this inference in
+          particular is not confined to any one country.
         </p>
       </LegalSectionBlock>
 

@@ -109,35 +109,6 @@ a real pre-handout gate, and a number we cannot vouch for stops becoming
 somebody's phone line. *"No"* closes the ask permanently, and the floor stays
 the answer.
 
-### V7 — where does Workers AI inference actually execute? · Cloudflare · blocks #318's last criterion
-
-**The question.**
-
-> *"For Workers AI inference invoked from a Worker via the AI binding, in which
-> countries can the inference itself execute? Is it pinned to the region of the
-> calling Worker, routed to available GPU capacity wherever it is, or
-> constrainable to a jurisdiction? And is the inference input retained anywhere
-> after the response is returned?"*
-
-**Why it matters.** Our cross-border disclosure names the United States, and
-that is verified for Supabase. The subprocessors page records Cloudflare's
-region as *"Global edge network"*, which is honest about hosting and **silent
-about where a model reads a customer's voicemail**. #318 is explicit that this
-has to be a checked fact rather than an inference, and it is right: Law 25
-makes the answer materially different for Quebec, which #228 opens
-deliberately.
-
-**What we already state correctly**, so nobody re-does it: Workers AI is named
-as a distinct subprocessor with its purpose, its data classes and its opt-in
-status (#389), and the privacy policy carries Cloudflare's published
-no-training statement verbatim alongside our own. The training half of the
-question is answered. **The location half is not.**
-
-**What an answer unblocks.** A region we can name closes #318. A "routed to
-available capacity" answer is also usable — it just has to be *said*, because
-a disclosure that implies US-only processing while inference happens elsewhere
-is worse than one that admits the routing.
-
 ---
 
 ## NOT A VENDOR — for counsel
@@ -233,6 +204,51 @@ that blocks a P1.
 **Residual, blocking nothing:** whether Telnyx applies a Twilio-style
 account-level gate on post-2025-03-26 Canadian long codes. Folded into V5 as a
 courtesy check.
+
+
+### R4 — where does Workers AI inference execute? · ANSWERED from published sources, 2026-07-30
+
+**Was V7**, recorded as blocking #318's last acceptance criterion. Answered
+without asking anybody, which is the second time that has happened here (see R3)
+and is now the pattern rather than the exception.
+
+**The answer: it runs on Cloudflare's global network and CANNOT be confined to a
+country.** Cloudflare's own Data Localization Suite compatibility list marks
+Workers AI **✘ against Regional Services**, and the page's own legend defines
+that mark as *"Not compatible — this product cannot be used with this DLS
+feature."* Regional Services is precisely the product that confines where
+traffic is decrypted and processed, so being outside it is the whole answer.
+
+Source: <https://developers.cloudflare.com/data-localization/compatibility/>,
+read 2026-07-30.
+
+**This is a stronger answer than support would have given**, and worth saying
+why: a support reply would have described current *behaviour*, which can change
+without notice. The compatibility list describes a *capability* — inference is
+not merely un-pinned today, it cannot be pinned by the mechanism Cloudflare
+sells for pinning things. Nothing about that is ambiguous enough to need a
+human.
+
+**The retention half is answered too**, from the Workers AI data-usage page read
+the same day: Cloudflare does not store inference input unless the application
+writes it to a storage service itself. Workers AI is also **✅ fully compatible
+with Customer Metadata Boundary**, which governs where logs and metadata are
+kept — a different question from where the model runs, and the one place a
+regional guarantee IS available.
+
+**Shipped.** The facts live in `packages/shared/src/ai-disclosure.ts`, sourced
+and dated with a recheck a test fails on (the `carrier-list-prices.ts` posture),
+and both `/legal/privacy` §5 and `/legal/subprocessors` now say it. The privacy
+page previously said flatly that we process data in the United States, which was
+true of storage and **not** true of inference — #318 called that exact shape
+*"worse than one that admits the routing"*, and it was live.
+
+**Why this entry exists.** Same lesson as R3, and it cost more this time because
+the entry above it had already learned it: **a fact nobody in the repo knows is
+not the same as a fact only the vendor has.** V7 was filed with a well-written
+question that never needed to be sent. Check the vendor's published
+compatibility and limits pages — not just their feature docs — before writing
+"somebody has to ask" next to something that gates a legal disclosure.
 
 ---
 

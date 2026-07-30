@@ -7,6 +7,10 @@ import {
 } from "@/components/marketing/legal/legal-page";
 import {
   AI_DISCLOSURES,
+  AI_INFERENCE_LOCATION_SOURCE,
+  AI_INFERENCE_LOCATION_STATEMENT,
+  AI_INFERENCE_LOCATION_VERIFIED_ON,
+  AI_INFERENCE_RETENTION_STATEMENT,
   AI_TRAINING_STATEMENT,
   AI_VENDOR_NAMES,
   aiModelsByVendor,
@@ -104,7 +108,11 @@ const ROWS: Row[] = [
     name_note: "including Workers AI",
     purpose: "Application hosting, CDN, network security, and AI features",
     data: "Request metadata (IP, headers); message content and voicemail audio sent to Workers AI for the features listed below",
-    region: "Global edge network",
+    // #318 V7: "Global edge network" was honest about hosting and silent about
+    // the one thing a customer would most want to know — where a model reads
+    // their voicemail. Cloudflare's own compatibility list settles it, and the
+    // answer is that inference cannot be confined to a country.
+    region: "Global edge network. AI inference is not confined to any one country (see below)",
   },
   {
     name: "Resend",
@@ -141,7 +149,7 @@ export default function SubprocessorsPage() {
   return (
     <LegalPage
       title="Sub-processors"
-      summary={`Eight vendors process data on our behalf so Loonext can run, from the SMS carrier to payments, hosting, email, and analytics. Each is limited to what its job requires, and message content stays out of our error and analytics tools. ${featureCountWord()} features send message content or voicemail audio to an AI model, and they are named in full below. Data lives primarily in the United States. When this list changes, this page and the date above change with it.`}
+      summary={`Eight vendors process data on our behalf so Loonext can run, from the SMS carrier to payments, hosting, email, and analytics. Each is limited to what its job requires, and message content stays out of our error and analytics tools. ${featureCountWord()} features send message content or voicemail audio to an AI model, and they are named in full below. Data lives in the United States, with one named exception: AI inference runs on Cloudflare’s global network and cannot be confined to a country. When this list changes, this page and the date above change with it.`}
       lastUpdated={LAST_UPDATED}
       breadcrumbLabel="Sub-processors"
       path={PATH}
@@ -282,6 +290,23 @@ export default function SubprocessorsPage() {
           companies directly. We name them because who wrote the model is
           something you would reasonably want to know before a
           customer&rsquo;s voicemail is transcribed by it.
+        </p>
+        <p>
+          {/* #318 V7. This page said "Global edge network" and left the
+              location question to inference. Cloudflare publishes the answer
+              in its own data-localization compatibility list, and it is the
+              uncomfortable one — so it is stated in full rather than
+              summarised into something more comfortable. */}
+          <strong>Where this happens.</strong> {AI_INFERENCE_LOCATION_STATEMENT}{" "}
+          Everything else on the list above stays where its row says: your
+          database, files and backups are in the United States.{" "}
+          <LegalLink href={AI_INFERENCE_LOCATION_SOURCE}>
+            Cloudflare&rsquo;s compatibility list
+          </LegalLink>{" "}
+          is the source, read {AI_INFERENCE_LOCATION_VERIFIED_ON}.
+        </p>
+        <p>
+          {AI_INFERENCE_RETENTION_STATEMENT}
         </p>
         <p>
           On training, Cloudflare&rsquo;s published Workers AI policy states:{" "}

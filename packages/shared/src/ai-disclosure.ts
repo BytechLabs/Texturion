@@ -144,3 +144,69 @@ export const AI_TRAINING_STATEMENT =
   "Cloudflare does not use your Customer Content to (1) train any AI models " +
   "made available on Workers AI or (2) improve any Cloudflare or third-party " +
   "services";
+
+/**
+ * #318 V7 — WHERE a model reads a customer's voicemail, answered from
+ * Cloudflare's own published compatibility matrix rather than inferred.
+ *
+ * This was filed as a vendor question on the grounds that it "could not be
+ * resolved from the repo". It could not — but it did not need a vendor reply
+ * either, because Cloudflare publishes the answer. The Data Localization Suite
+ * compatibility table marks Workers AI **✘ against Regional Services**, and the
+ * page's own legend defines that mark as *"Not compatible — this product cannot
+ * be used with this DLS feature."*
+ *
+ * That is a stronger answer than a support email would have given, because it is
+ * a statement about the product's capability rather than about its current
+ * behaviour: inference is not merely un-pinned today, it **cannot be pinned** by
+ * the mechanism Cloudflare sells for pinning things. Regional Services is what
+ * constrains where traffic is decrypted and processed; Workers AI is outside it.
+ *
+ * WHY THIS MATTERS ENOUGH TO SIT IN CODE. Our cross-border disclosure named the
+ * United States, verified for Supabase, and said nothing about this. #318 put it
+ * exactly right: *"a disclosure that implies US-only processing while inference
+ * happens elsewhere is worse than one that admits the routing."* Law 25 makes the
+ * answer materially different for Quebec, which #228 opens deliberately.
+ *
+ * SAME POSTURE AS THE OTHER EXTERNAL FIGURES in this repo (carrier list prices,
+ * 10DLC ceilings, voice-AI costs): sourced, dated, and with a recheck a test
+ * fails on. A vendor capability can change; a legal page asserting last year's
+ * capability is the failure this whole file exists to prevent.
+ */
+export const AI_INFERENCE_LOCATION_VERIFIED_ON = "2026-07-30";
+
+/** Re-read by this date; a test fails once it passes. */
+export const AI_INFERENCE_LOCATION_RECHECK_AFTER = "2027-01-30";
+
+/** The primary source, so a reader can check the claim rather than trust it. */
+export const AI_INFERENCE_LOCATION_SOURCE =
+  "https://developers.cloudflare.com/data-localization/compatibility/";
+
+/**
+ * What we can say truthfully about where inference runs, in a customer's words.
+ *
+ * Deliberately NOT softened into "processed globally for performance". The
+ * honest shape of this fact is that we cannot promise a country for this one
+ * class of processing, and the reason is a published vendor limitation rather
+ * than a choice we made and could reverse.
+ */
+export const AI_INFERENCE_LOCATION_STATEMENT =
+  "AI inference runs on Cloudflare's global network and is not restricted to " +
+  "any one country. Cloudflare's own data-localization compatibility list " +
+  "marks Workers AI as not compatible with Regional Services, the feature that " +
+  "confines processing to a region. So we cannot pin it to Canada or to the " +
+  "United States, and we will not imply otherwise.";
+
+/**
+ * The retention half of the same question, also from Cloudflare's published
+ * Workers AI data-usage page (read 2026-07-30): inference input is not kept
+ * unless the caller writes it somewhere itself.
+ *
+ * Worth stating beside the location, because "where does it go" and "how long
+ * does it stay there" are one question in a customer's head, and answering only
+ * the first invites the worst assumption about the second.
+ */
+export const AI_INFERENCE_RETENTION_STATEMENT =
+  "Cloudflare does not store what is sent for inference unless the application " +
+  "writes it to a storage service itself. What comes back, we store in your " +
+  "workspace like any other message data, and delete with it.";
