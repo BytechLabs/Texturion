@@ -12,6 +12,10 @@
  * how a codebase becomes untestable, so a flag past its removal date fails CI
  * rather than living forever.
  */
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import type { Env } from "../env";
@@ -73,6 +77,82 @@ describe("the registry is the roster", () => {
       "kill:outbound-send",
       "kill:realtime",
     ]);
+  });
+
+  /**
+   * #249 — a kill switch is only worth what its ENFORCEMENT POINTS cover.
+   *
+   * `kill:calls` promises to stop calls "being placed or accepted" and was gated
+   * at exactly one place: `POST /v1/webrtc/token`. A Telnyx JWT lives up to 24
+   * hours, so every softphone that had already fetched one kept placing calls
+   * through `POST /v1/calls/browser` for the rest of the day. The switch read as
+   * containment and was not, and the disaster-recovery runbook leaned on it to
+   * quiesce calls before restoring a database.
+   *
+   * Nothing failed when that gate was missing, because a flag's declaration and
+   * its enforcement live in different files with nothing binding them. This is
+   * that binding, derived from the filesystem — the same shape as D79's "one
+   * resolver, and a test enumerating who may decide".
+   */
+  describe("every kill switch is actually enforced somewhere", () => {
+    const API_SRC = join(fileURLToPath(new URL("..", import.meta.url)));
+
+    /** Every .ts under apps/api/src that is not a test. */
+    function sourceFiles(dir: string): string[] {
+      const out: string[] = [];
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) out.push(...sourceFiles(path));
+        else if (entry.name.endsWith(".ts") && !entry.name.includes(".test.")) {
+          out.push(path);
+        }
+      }
+      return out;
+    }
+
+    const sources = sourceFiles(API_SRC).map((path) => ({
+      path,
+      text: readFileSync(path, "utf8"),
+    }));
+
+    /** Files containing a server-side `isKilled(env, "<key>"` gate. */
+    function enforcedIn(key: string): string[] {
+      return sources
+        .filter((file) => file.text.includes(`isKilled(env, "${key}"`))
+        .map((file) => relative(API_SRC, file.path).replace(/\\/g, "/"));
+    }
+
+    it.each(killSwitchKeys())("%s is enforced, server-side or by a client", (key) => {
+      const server = enforcedIn(key);
+      // `kill:realtime` is deliberately NOT enforced server-side: clients hold
+      // their own Supabase token and open the socket themselves, so the switch
+      // travels to them through /v1/me and they stop asking. `flags/client.ts`
+      // is where that list is declared, and being on it IS the enforcement.
+      const clientDelivered = sources.some(
+        (file) =>
+          file.path.endsWith(`flags${sep}client.ts`) &&
+          file.text.includes(`"${key}"`),
+      );
+      expect(
+        server.length > 0 || clientDelivered,
+        `${key} is declared as a kill switch and nothing reads it. A switch ` +
+          `nobody checks does nothing when it is flipped, which is worse than ` +
+          `not having it: somebody will believe an incident is contained.`,
+      ).toBe(true);
+    });
+
+    it("gates kill:calls at BOTH places a call can start", () => {
+      // The defect this test was written for. Refusing the token is necessary
+      // and not sufficient — an issued token outlives the switch by up to a
+      // day, so the route that actually places the call needs its own gate.
+      const files = enforcedIn("kill:calls");
+      expect(
+        files.sort(),
+        "kill:calls must gate the token mint AND the place-a-call route. With " +
+          "only the mint, a softphone holding a 24h token keeps calling after " +
+          "the switch is thrown.",
+      ).toEqual(["routes/calls.ts", "routes/webrtc.ts"]);
+    });
   });
 });
 

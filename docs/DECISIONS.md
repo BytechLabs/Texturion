@@ -3549,7 +3549,7 @@ list, which the composer's "text from" picker reads. A reputation lookup has no
 business being able to stop somebody texting a customer, so any failure returns
 an empty map and no banner.
 
-## D74 — RPO 5 minutes, RTO 4 hours, and the honest asterisk on both (#249, 2026-07-29)
+## D74 — RPO up to 24 hours, RTO 4 hours (#249, 2026-07-29; RPO corrected 2026-07-29)
 
 > **CORRECTED the same day, and the correction is the point of the issue.**
 > This decision set **RPO 5 minutes** on the reasoning below — that it "is what
@@ -3575,9 +3575,15 @@ an empty map and no banner.
 > do not roll back. **Enabling PITR is a paid add-on and a founder decision** — it
 > is the one change that would make 5 minutes true.
 
-**Decision (as originally recorded).** **RPO 5 minutes. RTO 4 hours.** Both are
-commitments about Postgres. Neither covers the reconciliation of the four stores
-that do not roll back.
+**Decision, as it stands.** **RPO up to 24 hours. RTO 4 hours.** Both are
+commitments about Postgres. Neither covers the reconciliation of the five other
+stores.
+
+**Decision as originally recorded, kept visible because the correction is the
+point of the issue:** RPO 5 minutes. That figure is superseded and must not be
+quoted anywhere — see the correction at the top of this entry. It is left in the
+text rather than deleted so the *reasoning* that produced a wrong number stays
+readable; anybody scanning for the number itself should take the line above.
 
 **Why these numbers.** The RPO is not a preference — it is what Supabase PITR's
 WAL granularity gives us, so choosing anything tighter would be a wish. *(This is
@@ -3595,19 +3601,55 @@ about whether the current arrangement is good enough, and so nobody ever does.
 
 **What the drill proves and what it does not.** It proves the logical path: the
 dump restores, no constraint or extension bites only on reload, nothing is
-silently dropped. It is **not** a PITR drill — restoring Supabase's point-in-time
-backup into a fresh project is a dashboard action with a cost, and only the
-founder can perform it. That remains the one open item on #249, and
-`docs/DISASTER-RECOVERY.md` says so rather than letting the script imply coverage
-it does not have.
+silently dropped. It is **not** a PITR drill — restoring Supabase's own backup
+into a fresh project is a dashboard action with a cost, and only the founder can
+perform it. It is also moot while PITR is off: there is no point-in-time backup to
+restore.
 
-**Postgres is not all our state**, and the four others are reconciled, never
-restored: R2 attachments (rows pointing at deleted objects, and orphan objects),
+That was described here as "the one open item on #249", which was never accurate
+and is now clearly not. What remains open, as of 2026-07-30:
+
+1. **Enabling PITR**, and then drilling a restore into a fresh project. A paid
+   add-on and a founder decision.
+2. **An independent, off-Supabase copy** — where it lives, who holds the key, how
+   long it is kept. Also a founder decision (§6). Note the concentration is worse
+   than this entry originally implied: there is no R2, so the database, all four
+   object buckets and the backups are all one account.
+3. **A storage-backend inventory tool.** After a restore, every object-reclamation
+   RPC we have provably reports nothing, because all four reason from
+   `storage.objects` — a table that rolls back with the database while the bytes
+   do not. `DISASTER-RECOVERY.md` §4 states the gap instead of naming a job that
+   would return zero.
+
+**Postgres is not all our state**, and the five others are reconciled, never
+restored: **Supabase Storage** — not R2, which this product does not use — across
+four buckets (`attachments`, `mms-media`, `voicemails`, `exports`), where the
+metadata half *does* roll back;
 Durable Object call state (turn off `kill:calls` *before* restoring — a DB
-restore under live DOs is undefined behaviour), Stripe (the drift is money, and
-we would not know in whose favour), and Telnyx (a row claiming a number we no
-longer hold looks healthy and fails every send). Each has an existing reconcile
-job; the runbook says which, and what each job cannot see.
+restore under live DOs is undefined behaviour); Stripe (the drift is money, and we
+would not know in whose favour); Telnyx numbers (a row claiming a number we no
+longer hold looks healthy and fails every send); and Telnyx **10DLC registrations
+and in-flight ports**, which the first version of this entry omitted and which are
+the two items measured in weeks and paid for per attempt.
+
+**And "each has an existing reconcile job" was the most misleading sentence in
+this entry.** Auditing every claim in the runbook against the code (#249,
+2026-07-30) found that most of the named jobs cannot see post-restore drift: the
+storage RPCs all reason from a metadata table that rolls back, the subscription
+job examines a narrower set of companies than it appears to and has no on-demand
+trigger, `job:sweep-stale-calls` never touches a Durable Object, and the dangerous
+direction of number drift has no tool at all. Naming a job that will report zero
+is worse than naming none, because it gets ticked off. The runbook now says which
+jobs work, which provably do not, and where the gap is unclosed.
+
+**A defect that audit turned up, and it was not in the document.** `kill:calls`
+promises to stop calls "being placed or accepted" and was enforced at exactly one
+place — the WebRTC token mint. A Telnyx JWT lives up to 24 hours, so any softphone
+holding one kept placing calls through `POST /v1/calls/browser` after the switch
+was thrown. Both this runbook's containment step and any real incident response
+were relying on a switch that did not contain. Now gated at both routes, with a
+test that enumerates the enforcement points from the filesystem so the pair cannot
+silently become one again.
 
 **The concentration risk is stated, not solved.** Everything lives in one vendor
 account, so account-level loss takes the backups with the data. Where an

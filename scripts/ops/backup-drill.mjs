@@ -73,8 +73,25 @@ inContainer("pg_dump --version", { quiet: true });
 // 1. What we are trying to get back.
 // ---------------------------------------------------------------------------
 
+// BASE TABLE only, and views counted separately. The unfiltered count included
+// the `task_map_rows` view and reported it as a table, while the per-table row
+// comparison below only ever covered base tables — so the drill record said "66
+// tables verified" when 65 were compared and one was a view that holds no rows
+// of its own. A recovery record that overstates its own coverage by one is the
+// kind of small inaccuracy that makes a reader distrust the rest of it.
 const tableCount = Number(
-  sql("postgres", "select count(*) from information_schema.tables where table_schema='public'"),
+  sql(
+    "postgres",
+    "select count(*) from information_schema.tables " +
+      "where table_schema='public' and table_type='BASE TABLE'",
+  ),
+);
+const viewCount = Number(
+  sql(
+    "postgres",
+    "select count(*) from information_schema.tables " +
+      "where table_schema='public' and table_type='VIEW'",
+  ),
 );
 const rowCount = Number(
   sql(
@@ -89,7 +106,10 @@ const functionCount = Number(
   ),
 );
 
-console.log(`  Source: ${tableCount} tables, ~${rowCount} rows, ${functionCount} functions\n`);
+console.log(
+  `  Source: ${tableCount} base tables (+${viewCount} views), ~${rowCount} rows, ` +
+    `${functionCount} functions\n`,
+);
 
 // ---------------------------------------------------------------------------
 // 2. Dump.
@@ -135,7 +155,11 @@ console.log(`  Restore: ${restoreSeconds}s`);
 // ---------------------------------------------------------------------------
 
 const restoredTables = Number(
-  sql(SCRATCH_DB, "select count(*) from information_schema.tables where table_schema='public'"),
+  sql(
+    SCRATCH_DB,
+    "select count(*) from information_schema.tables " +
+      "where table_schema='public' and table_type='BASE TABLE'",
+  ),
 );
 const restoredFunctions = Number(
   sql(
@@ -186,7 +210,10 @@ if (realErrors.length > 0) {
 }
 
 if (problems.length === 0) {
-  console.log(`  ✓ VERIFIED: ${restoredTables} tables, ${restoredFunctions} functions, every row count matched.`);
+  console.log(
+    `  ✓ VERIFIED: ${restoredTables} base tables, ${restoredFunctions} functions, ` +
+      `every per-table row count matched.`,
+  );
 } else {
   console.log(`  ✗ PROBLEMS: ${problems.join("; ")}`);
   for (const line of realErrors.slice(0, 10)) console.log(`    ${line}`);

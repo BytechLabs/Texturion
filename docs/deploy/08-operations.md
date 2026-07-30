@@ -172,12 +172,16 @@ affected leg (e.g. a Stripe test event after rotating the webhook secret).
   about RPO — including a security questionnaire.
 - **Drill it:** `node scripts/ops/backup-drill.mjs` dumps, restores into a
   scratch database and verifies every per-table row count, timing each phase.
-  Last run 2026-07-29: 2.1s for the full schema, all counts matched. An
+  Last run 2026-07-30: 2.0s for the full schema, all counts matched. An
   untested backup is a belief.
-- **Restore:** use the dashboard's PITR/restore to a timestamp. For a full
-  environment rebuild, migrations are the source of truth — a fresh project +
-  `supabase db push` reproduces the schema exactly (CI proves this on every run via
-  `supabase db reset`, `.github/workflows/ci.yml:22-26`).
+- **Restore: there is no restore-to-a-timestamp.** PITR is **off** on production
+  (verified; `scripts/ops/verify-backup-posture.mjs`), so the restore points are
+  the daily physical snapshots and the real RPO is up to 24 hours.
+  `docs/DISASTER-RECOVERY.md` is the runbook; this bullet is only the pointer.
+  For a full environment rebuild, migrations are the source of truth — a fresh
+  project + `supabase db push` reproduces the schema exactly (CI proves this on
+  every run via `supabase db reset`, `.github/workflows/checks.yml:49-50` in the
+  SQL-tests job, repeated by the E2E job).
 - **Object storage** (the `mms-media` bucket and the generic `attachments`
   bucket, §4) is not covered by DB PITR. Treat MMS media as reconstructable from
   Telnyx where possible; the generic attachments bucket holds note/task files

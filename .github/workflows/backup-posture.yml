@@ -1,0 +1,49 @@
+name: Backup posture
+
+# #249 asked for PITR status to be "a recorded, re-verified fact" with "a periodic
+# re-check, so the doc asserts a fact instead of assigning a chore". The fact was
+# recorded (docs/DISASTER-RECOVERY.md §2, verified 2026-07-29). Nothing re-checked
+# it, which means the document was on its way back to asserting something nobody
+# had looked at since.
+#
+# WHAT THIS ALARMS ON, and what it deliberately does not. It runs the posture
+# script in `--monitor` mode, which fails only when backups have STOPPED — none at
+# all, or the newest older than 36 hours. It does NOT fail because PITR is off:
+# that is a recorded founder decision with a price attached, not news, and a
+# scheduled job that is red every week for a reason everybody already knows is a
+# job people learn to scroll past. The thing worth waking up for is the daily
+# snapshot quietly failing, because that is the one change that would otherwise be
+# discovered during a recovery.
+#
+# PITR turning ON is printed loudly and fails nothing. It is good news whose
+# correct response is editing D74 and §2, not paging anybody.
+on:
+  schedule:
+    # Mondays, 06:00 UTC — after the platform's own daily snapshot window, so a
+    # run never races the backup it is checking for.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+# One at a time. A queued second run would report the same facts to no purpose.
+concurrency:
+  group: backup-posture
+  cancel-in-progress: false
+
+jobs:
+  posture:
+    name: Are backups still arriving?
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # No install: the script uses fetch and nothing else, on purpose, so this
+      # check cannot be broken by a dependency.
+      - name: Verify backup posture
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: node scripts/ops/verify-backup-posture.mjs --monitor

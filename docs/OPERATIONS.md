@@ -9,10 +9,16 @@ to every one of them.
 customer count — it scales with the number of times somebody runs a manual
 statement, and the worst outcome is available on the very first one.
 
-1. **Dry run by default.** Nothing writes without `--apply`. Every script
-   prints the rows it would touch first. This is what catches an unqualified
-   `WHERE`, which is the single failure mode that turns one customer's support
-   request into a multi-tenant incident.
+1. **Dry run by default.** Nothing writes to product data without `--apply`.
+   Every script that writes prints the rows it would touch first. This is what
+   catches an unqualified `WHERE`, which is the single failure mode that turns one
+   customer's support request into a multi-tenant incident.
+
+   The exceptions are named in the table below rather than left for somebody to
+   discover: the three disaster-recovery scripts have no `--apply` because none of
+   them writes product data at all — two are read-only, and `backup-drill.mjs`
+   only ever creates and drops its own scratch database. A blanket rule with a
+   silent exception is worse than a rule with a stated one.
 2. **An audit row, always.** `audit_log` is hardened so that no route and no
    stolen key can rewrite history — but that protects against the *application*.
    A founder typing `update companies set …` bypassed it entirely, because the
@@ -57,7 +63,9 @@ reliable defence.
 | `set-release-policy.mjs` | Recommending — or requiring — an app update (#339) | Prints the blast radius before the write. A floor is governed by **D71** |
 | `version-distribution.mjs` | "Does everyone have the fix?" (#339) | Read-only; no `--apply`. Names the cohort reporting no version at all |
 | `set-flag.mjs` | Containing an incident without a deploy (#283) | Kill switches take ~10s. See **`docs/ROLLBACK.md`** |
-| `backup-drill.mjs` | Proving the data comes back, and timing it (#249) | Dump → restore → verify against a scratch DB. See **`docs/DISASTER-RECOVERY.md`** |
+| `backup-drill.mjs` | Proving the data comes back, and timing it (#249) | Dump → restore → verify against a scratch DB. **Exception to rule 1: no `--apply` and no dry run** — it drops and recreates its own `restore_drill` database every time. It never touches product data, which is why the exception is safe. See **`docs/DISASTER-RECOVERY.md`** |
+| `verify-backup-posture.mjs` | Answering any question about RPO, including a security questionnaire (#249) | Read-only, no `--apply`; asks the Supabase Management API for PITR status and the backup window. **Exits non-zero while PITR is off**, so it can gate an answer rather than merely inform one. `--monitor` inverts that: it fails only if backups have stopped, which is what the weekly `backup-posture.yml` job needs |
+| `prod-dump-scale.mjs` | "How big is production, and how long does getting the data out take?" (#249) | Read-only against production, and **writes nothing to disk** — the dump is streamed to a byte counter and discarded, because a full production dump at rest is customer message bodies with no retention policy |
 | `legal-hold.mjs` | A workspace is in a dispute or under investigation (#284) | Suspends every retention deletion for it. Changes nothing else — a hold that degraded the product would punish somebody for being in a dispute |
 | `erase-contact.mjs` | A non-customer asks us to delete their contact-form data (#340) | They have no account, so no self-serve path reaches it. Prints what we hold **before** removing it, and returns a count |
 

@@ -37,6 +37,7 @@ import { assertNumberLevel, resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
+import { isKilled } from "../flags/evaluate";
 import { errorResponse } from "../http/errors";
 import { buildPage } from "../http/pagination";
 import { resolveActorNames } from "./core/attribution";
@@ -762,6 +763,29 @@ callsRoutes.post("/calls/browser", requireRole("member"), async (c) => {
   const companyId = c.get("companyId");
   const userId = c.get("userId");
   const body = await parseJsonBody(c, outboundBodySchema);
+
+  // #283/#249: the calls kill switch, enforced HERE and not only at the token
+  // mint. `kill:calls` promises to stop calls "being placed or accepted", and
+  // gating only `POST /v1/webrtc/token` did not deliver the first half: a
+  // Telnyx JWT is good for up to 24 hours (webrtc.ts), so every softphone that
+  // had already fetched one kept placing calls straight through this route for
+  // the rest of the day. An owner who hit the switch during an incident, and the
+  // disaster-recovery runbook that relies on it to quiesce calls before a
+  // restore, were both getting a containment that did not contain.
+  //
+  // Placed BEFORE the line claim and the nonce mint on purpose: a refused call
+  // must not consume the number's one line or leave an authorization behind.
+  //
+  // Still nothing about a call already in progress — the customer on the other
+  // end did nothing wrong, and hanging up on them to contain our incident would
+  // be its own outage.
+  if (await isKilled(env, "kill:calls", companyId, db)) {
+    return errorResponse(
+      c,
+      "service_unavailable",
+      "Calling is paused while we deal with an issue. Texting still works.",
+    );
+  }
 
   const auth = await authorizeOutboundCall(c, db, companyId, userId, body);
   if (auth instanceof Response) return auth;
