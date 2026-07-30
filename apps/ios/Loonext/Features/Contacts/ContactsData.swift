@@ -102,6 +102,23 @@ struct ContactMutations: Sendable {
         return page.data.first
     }
 
+    /// #324 — one chronology of everything done for this customer.
+    ///
+    /// `before` is both the page cursor and jump-to-date, because they are the
+    /// same request: show me from here backwards.
+    func timeline(
+        companyId: String,
+        contactId: String,
+        before: String? = nil,
+        limit: Int = 50
+    ) async throws -> ContactTimelinePage {
+        try await api.get(
+            "/v1/contacts/\(contactId)/timeline",
+            query: ["before": before, "limit": String(limit)],
+            companyId: companyId
+        )
+    }
+
     /// Raw UTF-8-BOM CSV (respects the list's q filter; ≤50k rows).
     func exportCsv(companyId: String, q: String?) async throws -> String {
         let data = try await api.raw(

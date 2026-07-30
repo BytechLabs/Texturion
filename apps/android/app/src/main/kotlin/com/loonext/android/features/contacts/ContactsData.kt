@@ -108,6 +108,28 @@ class ContactMutations(private val api: ApiClient, baseUrl: String) {
     )
 
     /**
+     * #324 — one chronology of everything done for this customer.
+     *
+     * D7 threads by recency, so a customer returning after 31 days starts a new
+     * conversation: a homeowner serviced once a year for six years is six
+     * threads. `before` is both the page cursor and jump-to-date, because they
+     * are the same request — show me from here backwards.
+     */
+    internal suspend fun timeline(
+        companyId: String,
+        contactId: String,
+        before: String? = null,
+        limit: Int = 50,
+    ): ContactTimelinePage = api.get(
+        "/v1/contacts/$contactId/timeline",
+        query = mapOf(
+            "before" to before,
+            "limit" to limit.toString(),
+        ),
+        companyId = companyId,
+    )
+
+    /**
      * Mint a fresh signed voicemail playback URL — on demand, per view, NEVER
      * cached (SPEC: signed attachment URLs are always fetched on view). Same
      * data path as the call log's player (features/calls/CallsData.kt).

@@ -647,6 +647,18 @@ private fun ContactDetailBody(
         // day-grouped, cache-first, voicemail playable inline, tap-through to
         // the conversation. Call back reuses the same mic-preflight + softphone
         // path as the header pill.
+        // #324: ONE chronology of texts, calls and jobs. D7 threads by recency,
+        // so a long relationship is many conversations; this is the overview
+        // and the Calls section below stays as the detail view (voicemail
+        // plays in place there).
+        ContactTimelineSection(
+            graph = graph,
+            mutations = mutations,
+            companyId = companyId,
+            contactId = contact.id,
+            onOpenConversation = onOpenConversation,
+        )
+
         ContactCallsSection(
             graph = graph,
             mutations = mutations,

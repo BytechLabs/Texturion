@@ -232,6 +232,17 @@ struct ContactDetailView: View {
                 detailsCard(contact)
                 attributionCaption(contact)
                 conversationSection
+                // #324: ONE chronology of texts, calls and jobs. D7 threads by
+                // recency, so a long relationship is many conversations; this
+                // is the overview and Calls below stays the detail view where a
+                // voicemail plays in place.
+                ContactTimelineSection(
+                    graph: graph,
+                    mutations: mutations,
+                    companyId: companyId,
+                    contactId: contact.id,
+                    onOpenConversation: onOpenConversation
+                )
                 ContactCallsSection(
                     graph: graph,
                     companyId: companyId,
@@ -875,7 +886,9 @@ func groupContactCallsByDay(
 /// ContactCallsSection.kt `ContactSection`): a section header over slotted
 /// content. Calls is the first tenant; per-contact tasks and activity slot in
 /// later with the same shape — build against this, not the calls instance.
-private struct ContactSection<Content: View>: View {
+// #324: internal rather than private so ContactTimelineSection can use the
+// same section chrome instead of growing a second one that drifts.
+struct ContactSection<Content: View>: View {
     let title: String
     var count: Int? = nil
     @ViewBuilder var content: Content

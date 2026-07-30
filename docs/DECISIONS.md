@@ -5556,3 +5556,57 @@ than a dashboard: #327 asks for the numbers *"somewhere the founder sees them
 without assembling a query"*, and one command clears that bar without a surface
 to maintain. The shared join it establishes is what #255 and #277 should extend
 rather than rebuild.
+
+---
+
+## D99 — a customer's history is one stream, assembled at read time (#324, 2026-07-30)
+
+**Decision.** `api_contact_timeline` unions a contact's conversations, calls and
+tasks into one time-ordered stream, rendered as a History section above the
+existing Calls section on all three clients. The prior-conversations list (G6)
+and the per-contact call history (#205) both stay.
+
+**The problem is a consequence of D7, not a defect in it.** Threading reopens a
+conversation closed within 30 days and otherwise starts a new one, so a customer
+serviced once a year for six years is six conversations. That is right — an
+annual furnace service genuinely is a new job — but it means "what have we done
+for this customer?", the question asked before every visit, spans N records with
+nothing assembling them.
+
+**#324 was corrected twice before this, and both corrections were right.** The
+original framing (one enormous thread needing jump-to-date) was backwards, and
+the claim that "nothing assembles a contact's history" was too strong: G6's
+prior-conversations list shipped on all three clients and #205 shipped call
+history. What was actually missing is narrower and still real — those are
+**separate blocks**, and tasks appeared in neither. Three lists a person merges
+by eye is not a history.
+
+**Assembled at read time rather than stored.** The three records differ in shape
+and none is a subset of another: a conversation spans time, a call is an instant
+with a duration, a task is a commitment with a due date. A shared table would
+need a discriminator and would make every existing query pay for it. The union
+costs one query and leaves each table's own indexes doing the work.
+
+**Three membership rules worth stating.** Spam conversations are excluded — one
+untrustworthy entry makes the whole history untrustworthy. Task completion
+**derives** from the source message's `done_at`, exactly as the checklist reads
+it (D17), rather than a second flag that could disagree with the thread it came
+from. And tasks reach a contact through their conversation, because D17 anchors
+a task to a message; when D64's call-anchored tasks land, this needs a fourth
+arm.
+
+**The cursor is a timestamp, not an opaque token,** which makes pagination and
+jump-to-date the same request: *show me from here backwards*. That is why the
+date control needs no second endpoint. On the web it scrolls what is already
+loaded rather than refetching, so going back is free.
+
+**Day grouping is local, not UTC.** An evening call in Vancouver falls on the
+next UTC day, so a UTC grouping files it under a date the crew does not remember
+it happening on. All three clients group in the local calendar, and each has a
+test for it.
+
+**What this does not do.** Search still returns a hit in one conversation
+without saying the same contact has others matching (#324's second ask), and
+there is still no job-level structure — that is #294 and #247, and #291/#246
+own the deeper problem that "prior conversations" is per NUMBER rather than per
+person, since contacts are phone-keyed by D7.
