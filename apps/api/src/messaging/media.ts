@@ -269,35 +269,80 @@ export async function uploadOutboundMedia(
 ): Promise<{ summaries: AttachmentSummary[]; storagePaths: string[] }> {
   const summaries: AttachmentSummary[] = [];
   const storagePaths: string[] = [];
-  for (const [index, item] of args.items.entries()) {
-    const path = mediaStoragePath(args.companyId, args.messageId, index);
-    const upload = await db.storage
-      .from(MMS_BUCKET)
-      .upload(path, item.bytes.slice().buffer, {
-        contentType: item.contentType,
-        upsert: true, // retried sends re-write the same object idempotently
-      });
-    if (upload.error) {
-      throw new Error(`media upload failed (${path}): ${upload.error.message}`);
+  // #263: written objects, tracked so a failure part-way through can take them
+  // back. Each iteration uploads THEN inserts, so a transient PostgREST error on
+  // item N leaves item N's object with no row pointing at it — and there is no
+  // orphan sweeper for this bucket at all (api_orphan_attachment_objects
+  // hardcodes bucket_id = 'attachments'), so it was billed storage nobody could
+  // ever find or delete.
+  const written: string[] = [];
+  try {
+    for (const [index, item] of args.items.entries()) {
+      const path = mediaStoragePath(args.companyId, args.messageId, index);
+      const upload = await db.storage
+        .from(MMS_BUCKET)
+        .upload(path, item.bytes.slice().buffer, {
+          contentType: item.contentType,
+          upsert: true, // retried sends re-write the same object idempotently
+        });
+      if (upload.error) {
+        throw new Error(`media upload failed (${path}): ${upload.error.message}`);
+      }
+      written.push(path);
+      const { data, error } = await db
+        .from("message_attachments")
+        .insert({
+          message_id: args.messageId,
+          company_id: args.companyId,
+          storage_path: path,
+          content_type: item.contentType,
+          size_bytes: item.bytes.byteLength,
+          source_url: null,
+        })
+        .select("id,content_type,size_bytes");
+      if (error) {
+        throw new Error(`message_attachments insert failed: ${error.message}`);
+      }
+      const row = (data ?? [])[0] as AttachmentSummary | undefined;
+      if (!row) throw new Error("message_attachments insert returned no row");
+      summaries.push(row);
+      storagePaths.push(path);
     }
-    const { data, error } = await db
-      .from("message_attachments")
-      .insert({
-        message_id: args.messageId,
-        company_id: args.companyId,
-        storage_path: path,
-        content_type: item.contentType,
-        size_bytes: item.bytes.byteLength,
-        source_url: null,
-      })
-      .select("id,content_type,size_bytes");
-    if (error) {
-      throw new Error(`message_attachments insert failed: ${error.message}`);
+  } catch (cause) {
+    // ALL-OR-NOTHING, not just orphan cleanup. Removing only the unreferenced
+    // object would leave a PARTIAL media set — two of the three photos, with
+    // rows — and the retry path rebuilds mediaUrls from whatever rows exist,
+    // so the customer would receive a silently truncated message. Leaving
+    // nothing persisted means a retry re-uploads the whole set the caller still
+    // holds, or fails again loudly.
+    //
+    // Best-effort: the send is already failing and the caller marks the message
+    // interrupted. A cleanup error must not replace that with a different one,
+    // so it is reported and swallowed.
+    if (written.length > 0) {
+      const removal = await db.storage.from(MMS_BUCKET).remove(written);
+      if (removal.error) {
+        console.error(
+          `#263 outbound media cleanup failed (${written.length} object(s) `
+            + `orphaned under ${args.companyId}/${args.messageId}): `
+            + removal.error.message,
+        );
+      }
     }
-    const row = (data ?? [])[0] as AttachmentSummary | undefined;
-    if (!row) throw new Error("message_attachments insert returned no row");
-    summaries.push(row);
-    storagePaths.push(path);
+    if (summaries.length > 0) {
+      const { error: rowError } = await db
+        .from("message_attachments")
+        .delete()
+        .eq("company_id", args.companyId)
+        .eq("message_id", args.messageId);
+      if (rowError) {
+        console.error(
+          `#263 outbound media row cleanup failed for ${args.messageId}: `
+            + rowError.message,
+        );
+      }
+    }
+    throw cause;
   }
   return { summaries, storagePaths };
 }

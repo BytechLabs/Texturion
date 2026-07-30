@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ATTACHMENT_ACCEPT,
   buildAttachmentForm,
   isAllowedAttachmentType,
   MAX_ATTACHMENT_BYTES,
@@ -203,5 +204,36 @@ describe("buildAttachmentForm (multipart shape POST /v1/attachments — notes-on
     );
     expect(form.get("owner_type")).toBe("note");
     expect(form.get("owner_id")).toBe("note-9");
+  });
+});
+
+describe("#262 — the picker and the gate offer only what the bucket stores", () => {
+  it("agrees with the API on every image type", () => {
+    for (const type of [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "image/heic",
+      "image/heif",
+    ]) {
+      expect(isAllowedAttachmentType(type), type).toBe(true);
+    }
+    for (const type of ["image/tiff", "image/avif", "image/bmp"]) {
+      expect(isAllowedAttachmentType(type), type).toBe(false);
+    }
+  });
+
+  it("never offers a bare image/* in the picker", () => {
+    // The picker offering a TIFF is the half of #262 the customer experiences:
+    // the OS shows the file, they choose it, and the upload fails.
+    expect(ATTACHMENT_ACCEPT).not.toContain("image/*");
+    expect(ATTACHMENT_ACCEPT).toContain("image/jpeg");
+    expect(ATTACHMENT_ACCEPT).toContain("image/heic");
+  });
+
+  it("still offers the document types", () => {
+    expect(ATTACHMENT_ACCEPT).toContain("application/pdf");
+    expect(ATTACHMENT_ACCEPT).toContain(".docx");
   });
 });

@@ -148,3 +148,47 @@ describe("safeFilename + attachmentStoragePath", () => {
     expect(path).toBe("co1/task/t1/u1-Site_Photo.png");
   });
 });
+
+describe("#262 — the image allow-list matches the bucket, not a prefix", () => {
+  // The bucket enumerates six image types. A `startsWith("image/")` rule
+  // admitted everything else, the byte sniffer has no signature for any of them
+  // so it waved them through, a row was claimed, and storage.upload then failed
+  // with InvalidMimeType — surfacing as a 500 rather than the 422 this gate
+  // exists to produce. Enumerating both sides is what makes them agree.
+  it("accepts exactly what the attachments bucket stores", () => {
+    for (const type of [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "image/heic",
+      "image/heif",
+    ]) {
+      expect(isAllowedAttachmentType(type), type).toBe(true);
+    }
+  });
+
+  it("refuses the image types the bucket would reject", () => {
+    // Each of these previously reached Storage and came back a 500. They now
+    // get the honest 422 at the boundary.
+    for (const type of [
+      "image/tiff",
+      "image/avif",
+      "image/bmp",
+      "image/x-icon",
+      "image/vnd.adobe.photoshop",
+    ]) {
+      expect(isAllowedAttachmentType(type), type).toBe(false);
+    }
+  });
+
+  it("still refuses a bare prefix and the SVG XSS vector", () => {
+    expect(isAllowedAttachmentType("image/")).toBe(false);
+    expect(isAllowedAttachmentType("image/svg+xml")).toBe(false);
+  });
+
+  it("is case- and whitespace-insensitive, as the gate was before", () => {
+    expect(isAllowedAttachmentType("  IMAGE/JPEG  ")).toBe(true);
+    expect(isAllowedAttachmentType(" Image/TIFF ")).toBe(false);
+  });
+});

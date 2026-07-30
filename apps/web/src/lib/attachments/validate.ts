@@ -1,3 +1,4 @@
+import { ALLOWED_IMAGE_TYPES, isAllowedImageType } from "@loonext/shared";
 /**
  * Client-side note attachment validation (D19 / D28 / APP-FEATURES-V2 §2.4).
  *
@@ -48,7 +49,9 @@ const ALLOWED_EXACT_TYPES = new Set([
  * common case never trips the error path. Executables aren't offered.
  */
 export const ATTACHMENT_ACCEPT = [
-  "image/*",
+  // #262: the exact image types, never a bare `image/*`. A picker that offers a
+  // TIFF is a picker that walks the user into a rejection.
+  ...ALLOWED_IMAGE_TYPES,
   "application/pdf",
   "text/plain",
   "text/csv",
@@ -73,8 +76,10 @@ export const ATTACHMENT_ACCEPT = [
  */
 export function isAllowedAttachmentType(contentType: string): boolean {
   const type = contentType.trim().toLowerCase();
-  if (type === "image/svg+xml") return false;
-  if (type.startsWith("image/")) return type.length > "image/".length;
+  // #262: enumerated, from the same shared list the API and the Storage bucket
+  // use. The prefix rule this replaces offered the user files the bucket would
+  // refuse, and turned their upload into a 500.
+  if (isAllowedImageType(type)) return true;
   return ALLOWED_EXACT_TYPES.has(type);
 }
 

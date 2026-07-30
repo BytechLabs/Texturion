@@ -14,6 +14,7 @@
  * allow-list) — the bucket is the hard ceiling, this is the API-layer gate
  * that rejects before signing/streaming (D19 §2.4).
  */
+import { isAllowedImageType } from "@loonext/shared";
 import { ApiError } from "../../http/errors";
 
 /** Private bucket for note/task attachments (D19 §2.2). Distinct from mms-media. */
@@ -78,8 +79,12 @@ const ALLOWED_EXACT_TYPES = new Set([
  */
 export function isAllowedAttachmentType(contentType: string): boolean {
   const type = contentType.trim().toLowerCase();
-  if (type === "image/svg+xml") return false;
-  if (type.startsWith("image/")) return type.length > "image/".length;
+  // #262: the image half is ENUMERATED, from the same list the Storage bucket
+  // uses. A `startsWith("image/")` rule admitted image/tiff, image/avif and
+  // image/bmp, none of which the bucket accepts and none of which the byte
+  // sniffer has a signature for — so they reached storage.upload and came back
+  // as a 500 instead of the 422 this function exists to produce.
+  if (isAllowedImageType(type)) return true;
   return ALLOWED_EXACT_TYPES.has(type);
 }
 

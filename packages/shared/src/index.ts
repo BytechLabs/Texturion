@@ -72,6 +72,12 @@ export {
 } from "./mctb";
 
 export {
+  ALLOWED_IMAGE_TYPES,
+  attachmentAcceptList,
+  isAllowedImageType,
+} from "./attachment-types";
+
+export {
   IDENTIFICATION_SUFFIX_TEMPLATE,
   appendIdentification,
   appendIdentificationSuffix,
