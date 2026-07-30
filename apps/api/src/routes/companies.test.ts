@@ -395,6 +395,47 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
     expect(cap.status).toBe(403);
   });
 
+  it("keeps per-member response times off limits to an admin (#239)", async () => {
+    // An admin can already change the shop's hours and its away message. Deciding
+    // that every tech's median reply time is visible to the whole crew is a
+    // different kind of decision — motivating in some crews and toxic in others —
+    // and #239 asks for it to be the owner's, so it sits beside the overage cap
+    // rather than with the ordinary settings.
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    sb.on("GET", "/rest/v1/phone_numbers", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { response_stats_per_member: true },
+    });
+    expect(res.status).toBe(403);
+    // Refused before the write, not after it.
+    expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
+  });
+
+  it("lets the owner turn per-member response times on and off (#239)", async () => {
+    for (const value of [true, false]) {
+      const sb = stubWithRole("owner");
+      sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+      sb.on("GET", "/rest/v1/phone_numbers", () => []);
+      stubFetch(jwksRoute(auth), sb.route);
+
+      const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+        method: "PATCH",
+        companyId: COMPANY_ID,
+        body: { response_stats_per_member: value },
+      });
+      expect(res.status, String(value)).toBe(200);
+      expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
+        response_stats_per_member: value,
+      });
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("echoes the billing kill switch, so a merge cannot restore billing controls", async () => {
     // The switch is a runtime setting rather than a column, so it is absent
     // from the updated row. Clients merge this echo into their cached company,

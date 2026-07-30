@@ -46,6 +46,11 @@ export const COMPANY_COLUMNS =
   // must confirm. Only that. Never read by an automated send path — see the
   // column comment and quiet-hours-confirm.test.ts.
   "quiet_hours_confirm_enabled," +
+  // #239: whether response-time reporting may name individual members. Default
+  // false. Per-member numbers are motivating in some crews and toxic in others,
+  // so it is the OWNER'S call, and every client needs to read the switch to
+  // know whether to offer the breakdown at all.
+  "response_stats_per_member," +
   // D43 Calls v2: voicemail greeting, screening routing, CNAM pair. #193:
   // cnam_submitted_at = when the effective listing last went to the carrier
   // side (CNAM propagation takes days and Telnyx reports no status, so the

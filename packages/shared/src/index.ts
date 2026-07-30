@@ -210,3 +210,10 @@ export {
 export type { SupportContext } from "./support";
 
 export { looksLikeOptOut } from "./opt-out-language";
+
+// #239 — how a response time reads. One phrasing for four surfaces.
+export {
+  formatResponseTime,
+  responseArcDirection,
+  RESPONSE_ARC_MIN_SECONDS,
+} from "./response-time";

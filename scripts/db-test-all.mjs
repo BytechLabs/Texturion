@@ -101,6 +101,7 @@ const SUITES = [
   "ai_outcomes",
   "marketing_contacts",
   "number_reissue",
+  "response_time",
 ];
 
 const args = process.argv.slice(2);

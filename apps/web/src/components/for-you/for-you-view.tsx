@@ -33,6 +33,7 @@ import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 import { callOutcomeLabel } from "@/lib/format/call";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatRelativeTime } from "@/lib/format/time";
+import { ResponseTimeCard } from "@/components/for-you/response-time-card";
 import { WhileYouWait } from "@/components/for-you/while-you-wait";
 import { cn } from "@/lib/utils";
 
@@ -775,6 +776,15 @@ function ForYouSections({ data }: { data: ForYou }) {
           messages. It spans both columns so it is read before the queue. */}
       <div className="lg:col-span-2">
         <SpamReviewSection />
+      </div>
+
+      {/* #239 — the claim we sell, measured. Placed high because the arc is the
+          reason a contractor stays, and below the spam strip because that strip
+          is a problem to fix while this is a result to read.
+          *Applying: Prioritize Intent — the core action first; a highlight the
+          owner reads, not a control they operate.* */}
+      <div className="lg:col-span-2">
+        <ResponseTimeCard />
       </div>
 
       {/* #416/D53: shown to EVERY member, not owners and admins only. The

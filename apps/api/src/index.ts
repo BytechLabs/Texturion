@@ -91,6 +91,7 @@ import { tasksRoutes } from "./routes/tasks";
 import { teamRoutes } from "./routes/team";
 import { templatesRoutes } from "./routes/templates";
 import { textEnablementRoutes } from "./routes/text-enablement";
+import { reportsRoutes } from "./routes/reports";
 import { usageRoutes } from "./routes/usage";
 import { pollPortRequests } from "./telnyx/porting";
 import { reconcileNumbers, sweepStuckProvisioning } from "./telnyx/provisioning";
@@ -182,6 +183,7 @@ app.route("/v1", meRoutes);
 app.route("/v1", companiesRoutes);
 app.route("/v1/billing", billingRoutes);
 app.route("/v1", usageRoutes);
+app.route("/v1", reportsRoutes); // #239 GET /v1/reports/response-time
 app.route("/v1/numbers", numbersRoutes);
 app.route("/v1/available-numbers", availableNumbersRoutes);
 app.route("/v1/port-requests", portingRoutes);

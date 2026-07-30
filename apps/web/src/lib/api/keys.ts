@@ -134,6 +134,15 @@ export const keys = {
     [companyId, "calls", outcome] as const,
 
   /**
+   * #239 response-time report, one entry per window. Keyed by the window so
+   * switching 7/30/90 days does not show the previous window's number while the
+   * new one loads — a stale median next to a fresh label is a number the crew
+   * would reasonably believe.
+   */
+  responseTime: (companyId: string, days: number) =>
+    [companyId, "response-time", days] as const,
+
+  /**
    * Notifications read-model (D24). `feed` is the popover's cursor list;
    * `unreadCount` is the bell badge. Both derive from the same union server-side
    * and are invalidated together whenever the watermark moves or realtime fires.

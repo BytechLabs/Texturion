@@ -170,6 +170,8 @@ const patchSchema = z
     // permission, and nothing automated reads it (the column comment and
     // quiet-hours-confirm.test.ts hold that line).
     quiet_hours_confirm_enabled: z.boolean().optional(),
+    // #239: owner-only, checked below with the same shape as the overage cap.
+    response_stats_per_member: z.boolean().optional(),
   })
   .refine(
     (body) =>
@@ -195,7 +197,8 @@ const patchSchema = z
       "cnam_display_name" in body ||
       body.caller_id_lookup !== undefined ||
       body.first_message_identification !== undefined ||
-      body.quiet_hours_confirm_enabled !== undefined,
+      body.quiet_hours_confirm_enabled !== undefined ||
+      body.response_stats_per_member !== undefined,
     { message: "Provide at least one field to update." },
   );
 
@@ -393,6 +396,21 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
     );
   }
 
+  // #239: naming individuals in a performance number is not an admin's call.
+  // An admin can already change the shop's hours and its away message; deciding
+  // that every tech's median reply time is visible to the whole crew is a
+  // different kind of decision, and the issue asks for it to be the owner's.
+  if (
+    body.response_stats_per_member !== undefined &&
+    c.get("role") !== "owner"
+  ) {
+    return errorResponse(
+      c,
+      "forbidden",
+      "Only the owner can turn per-member response times on or off.",
+    );
+  }
+
   const patch: Record<string, unknown> = {};
   if (body.name !== undefined) patch.name = body.name;
   if (body.timezone !== undefined) {
@@ -469,6 +487,10 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   // #225: the quiet-hours confirmation step (on by default).
   if (body.quiet_hours_confirm_enabled !== undefined) {
     patch.quiet_hours_confirm_enabled = body.quiet_hours_confirm_enabled;
+  }
+  // #239: per-member response times (owner-only, guarded above).
+  if (body.response_stats_per_member !== undefined) {
+    patch.response_stats_per_member = body.response_stats_per_member;
   }
   // FEATURE-GAPS voice wave: missed-call text-back settings.
   if (body.mctb_enabled !== undefined) patch.mctb_enabled = body.mctb_enabled;

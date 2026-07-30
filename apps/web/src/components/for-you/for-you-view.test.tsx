@@ -27,6 +27,21 @@ const state: {
 // a future role gate from being reintroduced unnoticed.
 vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ companyId: "co-1", role: "member" }),
+  // #239: the response-time panel resolves the company for its own query.
+  useCompanyId: () => "co-1",
+}));
+// #239: the panel is part of this surface now, but it is not what these tests
+// are about — they assert the queue's anatomy. Stubbed to its "nothing to
+// measure yet" state so it renders deterministically and adds no rows that could
+// be mistaken for queue items. Its own copy is covered by
+// response-time-card.test.ts.
+vi.mock("@/lib/api/reports", () => ({
+  useResponseTime: () => ({
+    data: undefined,
+    isPending: true,
+    isError: false,
+    refetch: vi.fn(),
+  }),
 }));
 vi.mock("@/lib/api/for-you", () => ({
   useForYou: () => ({
