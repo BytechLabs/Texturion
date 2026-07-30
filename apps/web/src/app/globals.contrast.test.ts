@@ -206,8 +206,25 @@ describe("app-scope guardrails in globals.css", () => {
   // what stops the accent drifting silently, which is why it moved rather than
   // being deleted.
   it("#26/#362 — the app scope anchors its accent and fill on one declared pair", () => {
-    expect(css).toMatch(/\.app-scope[\s\S]*?--primary:\s*#0f766e/i);
-    expect(css).toMatch(/--app-petrol:\s*#0f766e/i);
+    // Olive, per the owner's decision on #362. ONE value serves both jobs:
+    // #3a430f clears AA as text on every ground (9.48 on ground, 10.35 on
+    // paper) AND takes a paper label as a fill (10.35). That is why the repaint
+    // needed no call-site edits — every `bg-primary` and `text-primary` kept
+    // its class and landed on a compliant pair.
+    expect(css).toMatch(/\.app-scope[\s\S]*?--primary:\s*#3a430f/i);
+    expect(css).toMatch(/--app-petrol:\s*#3a430f/i);
+  });
+
+  it("#362 — no petrol or cobalt survives inside the app scope", () => {
+    // The owner's instruction was to remove references to any other style. A
+    // stray petrol hex would be invisible until somebody opened the screen it
+    // paints.
+    const appLight = css.slice(css.indexOf(".app-scope {"));
+    const scoped = appLight.slice(0, appLight.indexOf(".mkt-scope"));
+    for (const dead of ["#0f766e", "#0b4f49", "#2fb3a5", "#a5e2d8", "#2740de"]) {
+      expect(scoped.toLowerCase(), `${dead} must not survive in the app scope`)
+        .not.toContain(dead);
+    }
   });
 
   it("#26 — petrol fills enforce the paired foreground at the token level", () => {

@@ -492,79 +492,79 @@
     Helvetica, Arial, sans-serif;
 
   /* --- Calm palette (PORTAL-UX §4 exact tokens), on the shadcn names (light) --- */
-  /* Grounds: paper #FBFBF9 is the app ground; white is the card/elevated
-     surface. Ink #1A2420 is the warm green-black text (never pure black). */
-  --background: #fbfbf9; /* --paper ground */
-  --foreground: #1a2420; /* --ink */
-  --card: #ffffff; /* --white card */
-  --card-foreground: #1a2420;
-  --popover: #ffffff;
-  --popover-foreground: #1a2420;
+  /* Grounds: paper #f3f3ee is the app ground; white is the card/elevated
+     surface. Ink #191b14 is the warm green-black text (never pure black). */
+  --background: #f3f3ee; /* --paper ground */
+  --foreground: #191b14; /* --ink */
+  --card: #fdfdf9; /* --white card */
+  --card-foreground: #191b14;
+  --popover: #fdfdf9;
+  --popover-foreground: #191b14;
 
-  /* Petrol UI accent (not the brand — that's the double-o, #206): #0F766E
-     primary, deep #0B4F49 for text-on-tint accents. */
-  --primary: #0f766e; /* --petrol */
-  --primary-foreground: #ffffff; /* 5.47:1 on #0f766e — AA (#26) */
+  /* Petrol UI accent (not the brand — that's the double-o, #206): #3a430f
+     primary, deep #191b14 for text-on-tint accents. */
+  --primary: #3a430f; /* #362: the olive accent — text AND fill (see below) */
+  --primary-foreground: #fdfdf9; /* 5.47:1 on #3a430f — AA (#26) */
 
   /* Secondary surface + tinted accent. --secondary is the soft hairline fill
-     (--line-soft #F3F2EE) used for hover/segments; --accent is the petrol tint
+     (--line-soft #f0f0e8) used for hover/segments; --accent is the petrol tint
      used for selected/active moments. */
-  --secondary: #f3f2ee; /* --line-soft */
-  --secondary-foreground: #1a2420;
+  --secondary: #f0f0e8; /* --line-soft */
+  --secondary-foreground: #191b14;
   /* The HOVER fill, deliberately separate from --secondary.
      --secondary doubles as a resting surface (chips, segments, muted blocks),
-     so it has to sit close to paper, and at #f3f2ee on a #ffffff card it is
+     so it has to sit close to paper, and at #f0f0e8 on a #fdfdf9 card it is
      about 5% darker. Most hovers then dilute it further with /60, which halves
      that again: hovering a row in light mode was barely perceptible. This tone
      stays in the same warm neutral family and is used at full strength, so a
      row plainly lights up under the pointer. */
-  --app-hover: #eae8e1;
-  --muted: #f3f2ee;
-  /* #61: was #79837d (3.78:1 on paper — below AA). #5d6761 measures 5.87:1 on
-     white, 5.66:1 on #fbfbf9 paper, 5.24:1 on the #f3f2ee hover/chip fill —
+  --app-hover: #e7e9dc;
+  --muted: #f0f0e8;
+  /* #61: was #79837d (3.78:1 on paper — below AA). #4a4d3c measures 5.87:1 on
+     white, 5.66:1 on #f3f3ee paper, 5.24:1 on the #f0f0e8 hover/chip fill —
      AA everywhere it carries text. Kept in lockstep with --app-muted below. */
-  --muted-foreground: #5d6761;
-  --foreground-tertiary: #a6ada7; /* --faint, DECORATIVE-only meta (below AA by design) */
-  --accent: #edf3f1; /* --petrol-tint, petrol-tinted fill */
-  --accent-foreground: #0b4f49; /* --petrol-deep on tint */
+  --muted-foreground: #4a4d3c;
+  --foreground-tertiary: #a6a996; /* --faint, DECORATIVE-only meta (below AA by design) */
+  --accent: #e3efa3; /* --petrol-tint, petrol-tinted fill */
+  --accent-foreground: #191b14; /* --petrol-deep on tint */
 
   --destructive: #b4623f; /* warm clay, not a jarring red */
-  --border: #ecebe5; /* --line hairline */
-  --border-subtle: #f3f2ee; /* --line-soft, interior hairlines */
-  --input: #ecebe5;
-  --ring: #0f766e; /* petrol focus rings */
+  --border: #e7e9dc; /* --line hairline */
+  --border-subtle: #f0f0e8; /* --line-soft, interior hairlines */
+  --input: #e7e9dc;
+  --ring: #3a430f; /* petrol focus rings */
 
   /* Semantic accents in the calm palette. */
-  --success: #0f766e;
+  --success: #3a430f;
   --warning: #8a6d2f; /* calm amber ink (waiting chip) */
-  --info: #0f766e;
+  --info: #3a430f;
 
-  --chart-1: #0f766e;
-  --chart-2: #2a9e93;
-  --chart-3: #cfe4de;
+  --chart-1: #3a430f;
+  --chart-2: #66801f;
+  --chart-3: #d6e77e;
   --chart-4: #8a6d2f;
-  --chart-5: #a6ada7;
+  --chart-5: #a6a996;
 
   /* Sidebar tokens: the calm left sidebar is white with a hairline right border,
      active = petrol-tint fill + petrol-deep text (no shadow, no heavy pill). */
-  --sidebar: #ffffff;
-  --sidebar-foreground: #1a2420;
-  --sidebar-primary: #0f766e;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #edf3f1; /* petrol-tint active fill */
-  --sidebar-accent-foreground: #0b4f49;
-  --sidebar-border: #ecebe5;
-  --sidebar-ring: #0f766e;
+  --sidebar: #fdfdf9;
+  --sidebar-foreground: #191b14;
+  --sidebar-primary: #3a430f;
+  --sidebar-primary-foreground: #fdfdf9;
+  --sidebar-accent: #e3efa3; /* petrol-tint active fill */
+  --sidebar-accent-foreground: #191b14;
+  --sidebar-border: #e7e9dc;
+  --sidebar-ring: #3a430f;
 
   /* --- Additive --app-* tokens (read by components), repointed to calm --- */
-  --app-ink: #1a2420;
-  --app-ink-soft: #3c4742;
-  --app-petrol: #0f766e;
+  --app-ink: #191b14;
+  --app-ink-soft: #4a4d3c;
+  --app-petrol: #3a430f;
   /* #26: the paired foreground for ANY petrol fill (bubbles, Send, count
-     pills). White measures 5.47:1 on #0f766e and 9.42:1 on the #0b4f49 hover
+     pills). White measures 5.47:1 on #3a430f and 9.42:1 on the #191b14 hover
      deep — AA. The dark block flips this to near-black (see below). */
-  --app-petrol-foreground: #ffffff;
-  --app-petrol-deep: #0b4f49;
+  --app-petrol-foreground: #fdfdf9;
+  --app-petrol-deep: #191b14;
 
   /* --- #362 Paper & Olive, added but not yet adopted (Phase 2) ------------
      Nothing reads these yet, so this block is a zero visual diff. They exist
@@ -591,21 +591,21 @@
      reason one shared fill-foreground had to be split. */
   --app-lime-foreground: #191b14;
 
-  --app-stone-0: #fbfbf9; /* == --paper (kept name; components read it) */
-  --app-stone-1: #f3f2ee; /* == --line-soft (hover fill) */
-  --app-white: #ffffff;
-  --app-line: #ecebe5;
-  --app-line-soft: #f3f2ee;
+  --app-stone-0: #f3f3ee; /* == --paper (kept name; components read it) */
+  --app-stone-1: #f0f0e8; /* == --line-soft (hover fill) */
+  --app-white: #fdfdf9;
+  --app-line: #e7e9dc;
+  --app-line-soft: #f0f0e8;
   /* #61: essential quiet text (snippets, chip labels). Was #79837d (3.78:1 on
-     paper). #5d6761 = 5.87:1 on white / 5.66:1 on #fbfbf9 / 5.24:1 on #f3f2ee. */
-  --app-muted: #5d6761;
-  /* #61: quiet-but-ESSENTIAL meta (row timestamps, ⌘K kbd). Was #a6ada7
-     (2.21:1 — invisible in sunlight). #67716b = 5.06:1 on white / 4.88:1 on
-     #fbfbf9 / 4.52:1 on #f3f2ee — AA on every ground it sits on. Genuinely
+     paper). #4a4d3c = 5.87:1 on white / 5.66:1 on #f3f3ee / 5.24:1 on #f0f0e8. */
+  --app-muted: #4a4d3c;
+  /* #61: quiet-but-ESSENTIAL meta (row timestamps, ⌘K kbd). Was #a6a996
+     (2.21:1 — invisible in sunlight). #5c5f4e = 5.06:1 on white / 4.88:1 on
+     #f3f3ee / 4.52:1 on #f0f0e8 — AA on every ground it sits on. Genuinely
      decorative marks should use --foreground-tertiary instead. */
-  --app-muted-2: #67716b;
-  --app-tint: #edf3f1; /* --petrol-tint */
-  --app-tint-line: #cfe4de;
+  --app-muted-2: #5c5f4e;
+  --app-tint: #e3efa3; /* --petrol-tint */
+  --app-tint-line: #d6e77e;
   --app-amber: #b79447; /* calm amber mark (note icon) */
   --app-amber-bg: #fbf6ec; /* calm note card fill */
   --app-amber-line: #f0e6d2;
@@ -661,59 +661,59 @@
 .dark .app-scope,
 .app-scope.dark,
 .app-scope .dark {
-  --background: #0e1512; /* warm green-black ground */
-  --foreground: #e8efeb; /* near-paper ink on dark */
-  --card: #151d1a; /* card, a hair up from ground */
-  --card-foreground: #e8efeb;
-  --popover: #172019;
-  --popover-foreground: #e8efeb;
+  --background: #141610; /* warm green-black ground */
+  --foreground: #f0f1e5; /* near-paper ink on dark */
+  --card: #1f2218; /* card, a hair up from ground */
+  --card-foreground: #f0f1e5;
+  --popover: #23261a;
+  --popover-foreground: #f0f1e5;
 
-  --primary: #2fb3a5; /* lifted petrol, AA on dark surfaces */
-  --primary-foreground: #04110e; /* 7.43:1 on #2fb3a5 — AA; white is only 2.59:1 (#26) */
+  --primary: #d6e77e; /* #362: lifted olive, AA on the dark grounds */
+  --primary-foreground: #191b14; /* 7.43:1 on #d6e77e — AA; white is only 2.59:1 (#26) */
 
-  --secondary: #172019; /* raised fill on dark */
-  --secondary-foreground: #e8efeb;
+  --secondary: #23261a; /* raised fill on dark */
+  --secondary-foreground: #f0f1e5;
   /* Dark hover lifts instead of deepening: the eye reads "raised" on a dark
      surface the way it reads "pressed in" on a light one. */
-  --app-hover: #1f2a25;
-  --muted: #172019;
-  --muted-foreground: #96a29d; /* quiet on dark, ≥AA */
-  --foreground-tertiary: #74807b;
-  --accent: #14322d; /* petrol tint on dark */
-  --accent-foreground: #a5e2d8;
+  --app-hover: #2c2f22;
+  --muted: #23261a;
+  --muted-foreground: #c9ccba; /* quiet on dark, ≥AA */
+  --foreground-tertiary: #6f7260;
+  --accent: #39421a; /* petrol tint on dark */
+  --accent-foreground: #f0f1e5;
 
   --destructive: #d98466;
-  --border: #232e29; /* visible-but-soft hairline on dark */
-  --border-subtle: #1b2521;
-  --input: #232e29;
-  --ring: #2fb3a5;
+  --border: #2c2f22; /* visible-but-soft hairline on dark */
+  --border-subtle: #23261a;
+  --input: #2c2f22;
+  --ring: #d6e77e;
 
-  --success: #2fb3a5;
+  --success: #d6e77e;
   --warning: #d9b878;
-  --info: #2fb3a5;
+  --info: #d6e77e;
 
-  --chart-1: #2fb3a5;
-  --chart-2: #1c8e83;
-  --chart-3: #14322d;
+  --chart-1: #d6e77e;
+  --chart-2: #b9cf57;
+  --chart-3: #39421a;
   --chart-4: #d9b878;
-  --chart-5: #74807b;
+  --chart-5: #6f7260;
 
-  --sidebar: #111a16;
-  --sidebar-foreground: #e8efeb;
-  --sidebar-primary: #2fb3a5;
-  --sidebar-primary-foreground: #04110e;
-  --sidebar-accent: #14322d;
-  --sidebar-accent-foreground: #a5e2d8;
-  --sidebar-border: #232e29;
-  --sidebar-ring: #2fb3a5;
+  --sidebar: #141610;
+  --sidebar-foreground: #f0f1e5;
+  --sidebar-primary: #d6e77e;
+  --sidebar-primary-foreground: #191b14;
+  --sidebar-accent: #39421a;
+  --sidebar-accent-foreground: #f0f1e5;
+  --sidebar-border: #2c2f22;
+  --sidebar-ring: #d6e77e;
 
-  --app-ink: #e8efeb;
-  --app-ink-soft: #c3cdc8;
-  --app-petrol: #2fb3a5;
-  /* #26: white on lifted petrol #2fb3a5 is 2.59:1 — the dark pair is
-     near-black: 7.43:1 on #2fb3a5 and 13.25:1 on the #a5e2d8 hover deep. */
-  --app-petrol-foreground: #04110e;
-  --app-petrol-deep: #a5e2d8;
+  --app-ink: #f0f1e5;
+  --app-ink-soft: #c9ccba;
+  --app-petrol: #d6e77e;
+  /* #26: white on lifted petrol #d6e77e is 2.59:1 — the dark pair is
+     near-black: 7.43:1 on #d6e77e and 13.25:1 on the #f0f1e5 hover deep. */
+  --app-petrol-foreground: #191b14;
+  --app-petrol-deep: #f0f1e5;
 
   /* #362 Paper & Olive (Phase 2), dark. The accent is LIME here, not olive:
      #66801F is a light-mode value and BrandColor.swift:50 / Theme.kt:56 ship
@@ -723,18 +723,18 @@
   --app-lime: #b9cf57;
   --app-lime-foreground: #191b14;
 
-  --app-stone-0: #0e1512;
-  --app-stone-1: #172019;
-  --app-white: #151d1a; /* the "white" card equivalent on dark */
-  --app-line: #232e29;
-  --app-line-soft: #1b2521;
-  --app-muted: #96a29d; /* 7.01:1 ground / 6.50:1 card / 6.33:1 hover — AA */
-  /* #61 (dark side): was #74807b — only 4.18:1 on the #151d1a card and 4.07:1
-     on the #172019 hover fill, below AA for the timestamps it carries.
-     #7d8983 = 5.09:1 ground / 4.73:1 card / 4.60:1 hover. */
-  --app-muted-2: #7d8983;
-  --app-tint: #14322d;
-  --app-tint-line: #1f4a43;
+  --app-stone-0: #141610;
+  --app-stone-1: #23261a;
+  --app-white: #1f2218; /* the "white" card equivalent on dark */
+  --app-line: #2c2f22;
+  --app-line-soft: #23261a;
+  --app-muted: #c9ccba; /* 7.01:1 ground / 6.50:1 card / 6.33:1 hover — AA */
+  /* #61 (dark side): was #6f7260 — only 4.18:1 on the #1f2218 card and 4.07:1
+     on the #23261a hover fill, below AA for the timestamps it carries.
+     #8f927e = 5.09:1 ground / 4.73:1 card / 4.60:1 hover. */
+  --app-muted-2: #8f927e;
+  --app-tint: #39421a;
+  --app-tint-line: #4a4d3c;
   --app-amber: #d9b878;
   --app-amber-bg: #21201a;
   --app-amber-line: #3a3626;
@@ -817,19 +817,26 @@
 @utility app-bubble-out {
   background: var(--app-bubble-out);
   /* #26: the bubble carries its own AA text pair (white in light, near-black
-     in dark) so callers never hardcode text-white on the petrol fill. */
+     in dark) so callers never hardcode text-white on the accent fill. */
   color: var(--app-petrol-foreground);
 }
 
-/* #26 — token-level enforcement of the on-petrol text pair. Any element inside
-   the app scope that paints the petrol fill (`bg-primary` / `bg-app-petrol`)
-   gets the theme-paired foreground: #ffffff in light (5.47:1 on #0f766e),
-   #04110e in dark (7.43:1 on #2fb3a5 — white there is only 2.59:1, a WCAG AA
-   failure). Unlayered on purpose: it outranks the @layer utilities text-*
-   classes, so a stray `text-white` on a petrol fill (composer.tsx's Send,
-   filter-bar's count) can no longer ship an unreadable dark-mode pair. Elements
-   pairing `bg-primary` with `text-primary-foreground` resolve to the exact same
-   values, so this is a no-op for them. */
+/* #26/#362 — token-level enforcement of the on-accent text pair. Any element
+   inside the app scope that paints the accent fill (`bg-primary` /
+   `bg-app-petrol`) gets the theme-paired foreground: paper #fdfdf9 in light
+   (10.35:1 on the #3a430f fill), ink #191b14 in dark (12.90:1 on #d6e77e).
+   Unlayered on purpose: it outranks the @layer utilities text-* classes, so a
+   stray `text-white` on the accent fill (composer.tsx's Send, filter-bar's
+   count) can no longer ship an unreadable pair. Elements pairing `bg-primary`
+   with `text-primary-foreground` resolve to the same values, so this is a no-op
+   for them.
+
+   ONE selector still, not two: #362's amendment 1 assumed the accent would
+   split into an ink fill and a lime fill needing different labels, which would
+   have forced two rules. It does not — #3a430f carries text AND takes a paper
+   label, so there is one fill foreground per theme, as before. The class names
+   keep saying "petrol"; renaming them is phase 9 and deliberately separate, so
+   this commit stays a value change. */
 .app-scope .bg-primary,
 .app-scope .bg-app-petrol {
   color: var(--app-petrol-foreground);
