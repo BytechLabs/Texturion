@@ -423,9 +423,12 @@ describe("handleInboundMessage — #39 notification budget", () => {
     };
     expect(email.to).toEqual(["owner@team.example"]);
     expect(email.subject).toBe(
-      "Ace Plumbing has reached today's new-text alert limit",
+      "Ace Plumbing has reached today's email alert limit",
     );
-    expect(email.text).toContain("paused until tomorrow");
+    // #401: the channel is named, and push is NOT claimed to be paused —
+    // at the email ceiling it keeps delivering for another 1,900 claims.
+    expect(email.text).toContain("email alerts are paused until midnight");
+    expect(email.text).toContain("still buzzing");
     // notify=false → the §8 pipeline never ran (no conversation read).
     expect(conversations.calls).toHaveLength(0);
   });
@@ -465,7 +468,7 @@ describe("handleInboundMessage — #39 notification budget", () => {
     expect(resend.calls).toHaveLength(1);
     const email = resend.calls[0].body as { subject: string };
     expect(email.subject).toBe(
-      "Ace Plumbing is nearing today's new-text alert limit",
+      "Ace Plumbing is nearing today's email alert limit",
     );
     // The claim still delivered: the §8 pipeline ran (conversation read).
     expect(conversations.calls).toHaveLength(1);
@@ -483,6 +486,36 @@ describe("handleInboundMessage — #39 notification budget", () => {
     await handleInboundMessage(env, inboundEvent({ text: "ordinary text" }));
 
     expect(resend.calls).toHaveLength(0);
+  });
+
+  it("emails the owner when PUSH caps — the crossing that used to reach nobody", async () => {
+    // #401. The RPC has always reported this in notification_alerts; the
+    // handler read only the legacy scalar, which the EMAIL ladder alone sets.
+    // So the crew's phones could stop buzzing for new texts on the busiest day
+    // of the year with nobody told at all.
+    const resend = resendStub();
+    serve(
+      numberStub(),
+      threadStub({
+        notify: false,
+        notification_alert: null,
+        notification_alerts: [{ channel: "push", threshold: 100 }],
+      }),
+      awayDisabledStub(),
+      companyNameStub(),
+      membersStub(),
+      adminUserStub(),
+      resend,
+    );
+
+    await handleInboundMessage(env, inboundEvent({ text: "flood message" }));
+
+    expect(resend.calls).toHaveLength(1);
+    const email = resend.calls[0].body as { subject: string; text: string };
+    expect(email.subject).toBe(
+      "Ace Plumbing's phones have stopped buzzing for new texts today",
+    );
+    expect(email.text).toContain("still lands in your Loonext inbox");
   });
 });
 

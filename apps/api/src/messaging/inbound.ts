@@ -32,6 +32,11 @@ import { insertConversationEvents } from "../routes/core/events";
 import { maybeSendAwayReply } from "./away-reply";
 import { sendEmergencyAcknowledgment } from "./emergency-ack";
 import {
+  budgetAlertCopy,
+  budgetCrossings,
+  type BudgetCrossing,
+} from "./notification-budget-alert";
+import {
   effectiveEmergencyKeywords,
   isEmergencyKeyword,
   START_KEYWORDS,
@@ -387,26 +392,28 @@ export async function handleInboundMessage(
   );
 
   // #39 notification-budget owner alert: the threading RPC meters won §8
-  // claims per (company, UTC day) in the inbound_notification_days ledger and
+  // claims per (company, local day) in the inbound_notification_days ledger and
   // reports each 80%/100% threshold crossing EXACTLY ONCE (stamped under the
   // counter row's lock), so this send can never duplicate — the same
   // ledger-first shape as the usage-alerts emails. Sent BEFORE the member
   // fan-out so a notify failure can never eat the one-shot alert.
-  if (
-    threaded.notification_alert === 80 ||
-    threaded.notification_alert === 100
-  ) {
+  //
+  // #401: PER CHANNEL now, and that is a bug fix rather than a refinement.
+  // #343 split the budget in two and this read only `notification_alert`, the
+  // legacy scalar the EMAIL ladder alone sets — so a push crossing was stamped
+  // in the ledger and announced to nobody. The crew's phones could stop
+  // buzzing for new texts with no one told, on exactly the kind of day that
+  // makes the year.
+  for (const crossing of budgetCrossings(threaded)) {
     // Swallow a send failure (like the away-reply block above): the alert is
     // ledger-stamped once and unrecoverable on replay, so a Resend outage here
     // must NOT abort the handler before the create-gated customer notification
     // below — otherwise the actual new-message alert is dropped forever.
     try {
-      await sendNotificationBudgetAlert(
-        env,
-        db,
-        number.company_id,
-        threaded.notification_alert,
-      );
+      await sendNotificationBudgetAlert(env, db, number.company_id, crossing, {
+        email: company?.notify_email_limit ?? planLimits.email,
+        push: company?.notify_push_limit ?? planLimits.push,
+      });
     } catch (cause) {
       console.error(
         `notification-budget alert for company ${number.company_id} failed:`,
@@ -477,17 +484,21 @@ export async function handleInboundMessage(
 }
 
 /**
- * #39 owner alert for the daily inbound-notification budget: warn at 80%,
- * state the drop plainly at 100%. Operational email to the owner + active
- * admins (bypasses notification_prefs, like every billing/usage alert). The
- * exactly-once guarantee lives in the RPC's ledger stamp — this helper only
- * renders and sends.
+ * #39/#401 owner alert for the daily inbound-notification budget: warn at 80%,
+ * state the pause plainly at 100%, **for the channel that crossed**. Operational
+ * email to the owner + active admins (bypasses notification_prefs, like every
+ * billing/usage alert). The exactly-once guarantee lives in the RPC's ledger
+ * stamp — this helper only renders and sends.
+ *
+ * The copy lives in `notification-budget-alert.ts`, where the reasoning about
+ * what a swamped owner needs to read is written down and tested.
  */
 async function sendNotificationBudgetAlert(
   env: Env,
   db: SupabaseClient,
   companyId: string,
-  threshold: 80 | 100,
+  crossing: BudgetCrossing,
+  limits: { email: number; push: number },
 ): Promise<void> {
   const { data: companies, error } = await db
     .from("companies")
@@ -503,29 +514,13 @@ async function sendNotificationBudgetAlert(
   const to = await billingRecipients(env, companyId, db);
   if (to.length === 0) return;
 
-  const inboxUrl = `${env.APP_ORIGIN}/inbox`;
-  const copy =
-    threshold === 100
-      ? {
-          subject: `${name} has reached today's new-text alert limit`,
-          text:
-            `Hi,\n\n${name}'s team has been alerted about an unusually large ` +
-            `number of new text conversations today and has reached the daily ` +
-            `limit on new-text alerts. Email and push alerts for new texts are ` +
-            `paused until tomorrow so a message flood can't run up costs. ` +
-            `Every text still lands in your Loonext inbox as normal.\n\n` +
-            `Open your inbox: ${inboxUrl}\n\nLoonext`,
-        }
-      : {
-          subject: `${name} is nearing today's new-text alert limit`,
-          text:
-            `Hi,\n\n${name}'s team has been alerted about an unusually large ` +
-            `number of new text conversations today. If this keeps up, email ` +
-            `and push alerts for new texts will pause until tomorrow (every ` +
-            `text still lands in your Loonext inbox as normal). If you aren't ` +
-            `expecting this volume, check your inbox for spam threads.\n\n` +
-            `Open your inbox: ${inboxUrl}\n\nLoonext`,
-        };
+  const copy = budgetAlertCopy({
+    companyName: name,
+    channel: crossing.channel,
+    threshold: crossing.threshold,
+    limit: crossing.channel === "email" ? limits.email : limits.push,
+    inboxUrl: `${env.APP_ORIGIN}/inbox`,
+  });
 
   await sendEmail(env, {
     to,

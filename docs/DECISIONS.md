@@ -5239,3 +5239,95 @@ declined it for now, and this rule tells us what to charge *if* that is ever
 revisited — it does not argue for revisiting it. The cheap half of the category's
 pitch shipped at depth (1) for effectively nothing (0.02¢ per voicemail), and
 that was the point of separating them.
+
+---
+
+## D95 — a ceiling is absolute; only the context around it is elastic (#401, extends D58, 2026-07-30)
+
+**Decision.** Every enforcement cap in the product stays **static** — plan-derived,
+with an ops-only per-company override. Trailing-baseline logic stays on the
+**detection** side, where it already lives (#235 number health, #397 call
+silence, #449's alert context). #401 asked whether caps should become elastic;
+this is the answer, and it is no, for a reason that is not conservatism.
+
+**An elastic ceiling is not a ceiling.** A cap that tracks a company's own
+trailing median moves when their volume moves — including when the volume is the
+thing it exists to bound. A compromised key or a webhook storm raises the
+baseline it is measured against, so the ceiling rises to accommodate the abuse
+and arrives at the ledger having authorised it. The runaway guard would be
+disarmed by precisely the event it guards against, gradually and silently. That
+is the whole argument, and it is why the same baseline machinery is safe in
+#235 and #397: those only ever **alert**, and an attacker who moves a detection
+threshold has still been detected by the other arm.
+
+**D58 already ruled this way and #449 already cited #401 while doing it.**
+`usage-alerts.ts` states it plainly: *"the TRIGGER stays absolute — $70 is $70
+whatever caused it — but the ops copy carries the tenant's own trailing 30 days,
+which is what says 'ten times normal' or 'a busy week' at a glance."* This
+generalises that from the abuse alerts to every cap, so the next one is not
+re-argued from scratch.
+
+### The sizing basis for each cap, which is what #401 actually asked for
+
+| Cap | Value | Sized against | Survives a freeze day? |
+|---|---|---|---|
+| Inbound notify — **email** | 100/day starter, 250 pro | **Cost.** 0.27¢/claim × 30 days ≈ 28% of net revenue at the absolute ceiling, both plans | Pauses. Deliberately — it is the metered, redundant copy |
+| Inbound notify — **push** | 2,000/day starter, 5,000 pro | **Runaway only.** Push is free at both ends | Yes, at 20× the email ceiling |
+| High-priority push | 2,000/day, no plan variation | **Our standing with Google**, which does not improve because a customer pays more | Degrades to NORMAL, never drops |
+| Reply suggestions | 1,500/month | A busy six-person crew tapping on most threads | Convenience; texting unaffected |
+| Voicemail transcripts | 500/month | Gated by someone actually calling | Audio still recorded and playable |
+| Task enrichment | 1,000/month | Fractions of a cent per call | Convenience |
+| Ring targets | 24/session | #366 fairness, not cost | Rotated, never truncated |
+| Included segments | 500/2,500 per month | An allowance, not a ceiling; the stop is `allowance × overage_cap_multiplier` | Customer-set headroom, default 3× |
+
+**#401's premise had already moved on the row that mattered.** It records the
+notification budget as *"200 claims/day, far above any legitimate 1–10-person
+shop"* — an average-based justification, which was its central complaint. #343
+had already replaced it: two channels, sized in **dollars against net revenue**
+rather than against a typical shop, with the day boundary moved to the company's
+own timezone. So ask 2 — *"size them for the spike, not the average"* — was
+answered by splitting the channels rather than by raising a number. On a freeze
+day the crew keeps being notified; what pauses is the paid duplicate of a
+notification they already received.
+
+### What was actually broken, and it was the alerting rather than the sizing
+
+#401 went looking for a defect in the caps and correctly found none. It was one
+layer out: **#343 split the budget and left the alert layer on the old shape.**
+
+- **A push crossing was announced to nobody.** The RPC stamps it under the
+  counter's lock and returns it in `notification_alerts`; the handler read only
+  `notification_alert`, the legacy scalar the email ladder alone sets. So the
+  channel that keeps working after email caps could itself stop, and the crew's
+  phones simply went quiet. #401 predicts that ending in the abstract — *"their
+  phone simply stops buzzing on the busiest day of their year"* — without
+  knowing it was already reachable.
+- **The email alert asserted something false.** It said *"Email and push alerts
+  for new texts are paused"*, written when there was one budget. At the email
+  ceiling push keeps delivering for another 1,900 claims. An owner who believed
+  it would stop trusting their phone on their busiest day, which is worse than
+  the cap and was our doing.
+
+Both fixed, with the copy in `notification-budget-alert.ts` where the reasoning
+is testable. Every message now names its channel, says the texts still land in
+the inbox regardless (#401 ask 3: *"the alerts stop, the texts do not"*), and the
+80% warnings offer to raise the ceiling rather than only warning (ask 4) — a real
+offer, since the limits are ops-overridable per company by a column write.
+
+### Ask 5, checked: the AI caps are fine, and the customer is already told
+
+They are static, flat across plans, and every one degrades rather than blocks —
+texting, recording and playback continue untouched. The customer is told
+in-product with per-reason copy on **all three clients** (`reply-suggestions.ts`,
+`Tasks.kt`, `AiEnrichment.swift`), so a crew leaning on Lou through a storm week
+gets *"This month's drafting is used up. It starts again next month."* rather
+than a surface that quietly stops working. Only the **email** alert is ops-only,
+which is right: an AI convenience degrading is not the phone going quiet.
+
+**One known deviation, recorded rather than changed:** `ai_usage_reserve` keys
+its period to a **UTC calendar month**, so it did not get #343's local-day
+treatment. Left alone deliberately — re-keying the period would orphan the
+current month's ledger rows mid-month and hand everybody a fresh allowance,
+which is a worse failure than a boundary that moves by a few hours once a month.
+A day boundary at 5pm in Vancouver mattered because it landed inside a working
+day; a month boundary does not.
