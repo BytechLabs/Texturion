@@ -1819,10 +1819,14 @@ subsystem in the product, and a reader needs to know **where it stops being the
 answer** — not to infer from an omission whether something was decided or
 forgotten.
 
-- **#325** — suspension is a billing state applied to a live communications
-  system, and the ordering against an in-flight call or port is undecided. The
-  machine here has no opinion about a session that is live when a workspace is
-  suspended, and that is a gap rather than a design.
+- ~~**#325**~~ — **closed (D97).** The machine having no opinion about a live
+  session turned out to be the guarantee rather than the gap: `suspendedOrInactive`
+  is read once, at T1, when the session is minted, and no later event carries it
+  — so a suspension landing mid-call has no path to reach a live session. Two
+  tests in `transitions.test.ts` pin it, and they exist to be in the way of a
+  future change that "hardens" this by consulting billing on every event. What a
+  caller HEARS on a suspended line is split out as #490, because answering costs
+  money on a workspace that is not paying and needs a cap first.
 
 **What is NOT on this list, and why that matters.** #427 proposed backfilling
 this section with **#375** and **#366**, both deferrals from this document. Both

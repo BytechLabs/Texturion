@@ -188,7 +188,12 @@ leave; an unsent receipt raises in Sentry and is ours to chase.
 ## Open, and tracked elsewhere
 
 - ~~**#316**~~ — **closed.** A released number carries no history to its next owner (D86).
-- **#325** — deletion ordering against a live call or an in-flight port.
+- ~~**#325**~~ — **closed (D97).** Deletion cannot race a live call: D48 splits
+  teardown into closure (immediate, transactional) and purge (30 days later),
+  so a live call outlives closure and is long gone before purge. The split was
+  forced by Storage, Stripe and Telnyx not being transactional; that it also
+  makes the race impossible is a second reason to keep it. An in-flight port
+  continues to completion.
 - ~~**#340**~~ — **closed.** `contact_messages` got its own retention rather
   than a hook here (`api_prune_contact_messages`, one year). It is still out of
   reach of a company-scoped teardown, which is now a stated BOUNDARY on

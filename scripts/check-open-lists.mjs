@@ -75,9 +75,20 @@ function openSection(source) {
 }
 
 const found = [];
+/**
+ * Files whose SECTION was found, whether or not it still lists anything open.
+ *
+ * Tracked separately from `found` because an emptied list is a SUCCESS. The
+ * first version derived the floor below from `found` alone, so striking the
+ * last entry in a document — the exact action this guard demands — made it
+ * report that the section had disappeared. A guard that fails when you comply
+ * with it is a guard people turn off.
+ */
+const sectioned = new Set();
 for (const file of markdownFiles(DOCS)) {
   const section = openSection(readFileSync(file, "utf8"));
   if (section === null) continue;
+  sectioned.add(file);
   // ONLY the issue a list item LEADS with, per the convention D48 set:
   //   - **#316** — a released number must carry no history to its next owner
   //
@@ -98,16 +109,23 @@ for (const file of markdownFiles(DOCS)) {
 // A guard that matches nothing passes forever. These two documents carry the
 // convention today; if a rename or a heading edit hides one, this says so
 // rather than reporting a clean run over an empty set.
+//
+// It checks for the SECTION, not for entries in it. The first version required
+// an unstruck entry, which meant striking the last one — the exact action this
+// guard demands — reported that the section had disappeared. Both documents
+// reached that state on the same day, and a guard that fails when you comply
+// with it is a guard somebody turns off.
 const MUST_CARRY = ["DELETION.md", "CALLS-V3.md"];
-const seen = new Set(found.map((entry) => entry.file));
 const missing = MUST_CARRY.filter(
-  (name) => ![...seen].some((file) => file.endsWith(name)),
+  (name) => ![...sectioned].some((file) => file.endsWith(name)),
 );
 if (missing.length > 0) {
   console.error(
-    `\nNo open-list entries found in: ${missing.join(", ")}\n` +
-      "Either the section was removed, or its heading no longer matches. A " +
-      "check that silently stops looking is worse than one that fails.\n",
+    `\nNo "Open, and tracked elsewhere" SECTION found in: ${missing.join(", ")}\n` +
+      "Either it was removed, or its heading no longer matches. A check that " +
+      "silently stops looking is worse than one that fails.\n" +
+      "This is about the section, not its contents: a list whose entries have " +
+      "all been struck is a document telling the truth, and passes.\n",
   );
   process.exit(1);
 }
@@ -155,7 +173,11 @@ for (const line of unknown) console.error(`  ? could not check ${line}`);
 // state reached a different way, and the first version of this file let it
 // through as success. A guard that knows nothing must not look like a guard
 // that found nothing.
-if (unknown.length === found.length) {
+// `found.length > 0` guards the same "zero is a success" case as the floor
+// above: with nothing left to look up, `0 === 0` would report that the token
+// cannot read issues, when in fact every tracked issue has been resolved and
+// struck. Both documents reached that state the day this was written.
+if (found.length > 0 && unknown.length === found.length) {
   console.error(
     `\nVerified NOTHING: all ${found.length} lookup(s) failed. The token cannot ` +
       "read issues — check the workflow's `permissions:` block for " +
@@ -178,6 +200,6 @@ if (stale.length > 0) {
 }
 
 console.log(
-  `Open lists: ${found.length} tracked issue(s) across ` +
-    `${new Set(found.map((entry) => entry.file)).size} document(s), all still open.`,
+  `Open lists: ${found.length} tracked issue(s) still open across ` +
+    `${sectioned.size} document(s) carrying the section.`,
 );
