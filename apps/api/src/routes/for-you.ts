@@ -44,15 +44,13 @@ const SECTION_LIMIT = 20;
 forYouRoutes.get("/for-you", requireRole("member"), async (c) => {
   const db = getDb(getEnv(c.env));
   const role = c.get("role");
-  // #416/D53: the unclaimed queue is no longer owner/admin-only — a crew of
-  // 1-10 has no dispatcher, and the notification about unclaimed work already
-  // went to everyone. `p_is_lead` is retained and ignored by the RPC for one
-  // deploy so the migration and the Worker can ship in either order; the route
-  // stops sending it when the parameter is dropped.
-  //
-  // It stays derived from the VERIFIED membership role rather than the request
-  // for as long as it is sent at all.
-  const isLead = role === "owner" || role === "admin";
+  // #416/D53 opened the unclaimed queue to everyone — a crew of 1-10 has no
+  // dispatcher, and the notification about unclaimed work already went to all
+  // of them. #454: the `p_is_lead` argument that gate used to read is no longer
+  // sent. The 6-arg signature survives as a forwarding shim for one release
+  // (see 20260730120000) because `supabase db push` runs BEFORE
+  // `wrangler deploy`, so dropping it in the same release would 500 every
+  // /v1/for-you for the length of the Worker deploy.
 
   // #106: a restricted member's queue must exclude hidden-number work (leads
   // resolve unrestricted → null → no filter).
@@ -66,7 +64,6 @@ forYouRoutes.get("/for-you", requireRole("member"), async (c) => {
     await db.rpc("api_for_you", {
       p_company_id: c.get("companyId"),
       p_user_id: c.get("userId"),
-      p_is_lead: isLead,
       p_now: new Date().toISOString(),
       p_limit: SECTION_LIMIT,
       p_hidden_number_ids: access.hiddenNumberIds,

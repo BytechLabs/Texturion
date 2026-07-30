@@ -143,9 +143,14 @@ describe("GET /v1/for-you", () => {
     expect(rpc.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
-      p_is_lead: false, // role-derived, never request-supplied
       p_limit: 20,
     });
+    // #454: p_is_lead is no longer sent. It was retained and ignored for one
+    // deploy after #416 removed every gate that read it; a boolean named
+    // p_is_lead on an access-control RPC reads as though it still scopes
+    // something, and the next reader had to trace four call sites to learn it
+    // does not.
+    expect(rpc.body).not.toHaveProperty("p_is_lead");
     // The clock is injected (testable "overdue") — a real ISO timestamp.
     expect(typeof (rpc.body as Record<string, unknown>).p_now).toBe("string");
   });
@@ -168,7 +173,10 @@ describe("GET /v1/for-you", () => {
     ]);
   });
 
-  it("p_is_lead is role-derived: true for owner/admin", async () => {
+  it("sends no p_is_lead for any role (#454)", async () => {
+    // The flag is gone from the call, not merely false. Asserted per-role
+    // because the value used to be role-derived, so "absent for a member" alone
+    // would still pass if an owner reintroduced it.
     for (const role of ["owner", "admin"] as const) {
       const sb = forYouStub(role, LEAD_PAYLOAD);
       stubFetch(jwksRoute(auth), sb.route);
@@ -183,7 +191,7 @@ describe("GET /v1/for-you", () => {
       expect(body.triage.tasks).toHaveLength(1);
 
       const rpc = sb.find("POST", "/rest/v1/rpc/api_for_you")[0];
-      expect(rpc.body, role).toMatchObject({ p_is_lead: true });
+      expect(rpc.body, role).not.toHaveProperty("p_is_lead");
       vi.unstubAllGlobals();
     }
   });
@@ -204,10 +212,10 @@ describe("GET /v1/for-you", () => {
     expect(body.triage.conversations).toHaveLength(1);
     expect(body.triage.tasks).toHaveLength(1);
 
-    // Still role-derived and still false for a member: the flag no longer
-    // gates triage, but it must never become something a caller can assert.
+    // #454: and the flag is not sent at all. It never gated triage after #416,
+    // and it must never become something a caller can assert.
     const rpc = sb.find("POST", "/rest/v1/rpc/api_for_you")[0];
-    expect(rpc.body).toMatchObject({ p_is_lead: false });
+    expect(rpc.body).not.toHaveProperty("p_is_lead");
   });
 
   it("waiting_on_you is urgency-sorted as the RPC returns it (overdue pinned)", async () => {

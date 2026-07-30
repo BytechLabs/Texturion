@@ -1008,4 +1008,46 @@ begin
   raise notice 'FY-416 PASSED: members see unclaimed work, and #106 still hides it per number';
 end $$;
 
+
+-- ===========================================================================
+-- FY-454. While both signatures exist, they must answer identically.
+--
+-- #454 drops `p_is_lead`, which #416/D53 left accepted-and-ignored. The drop
+-- cannot happen in the same release as the Worker change: ship.yml runs
+-- `supabase db push` BEFORE `wrangler deploy`, so removing the 6-arg function
+-- would 500 every /v1/for-you for the length of the Worker deploy.
+--
+-- So the 6-arg survives one release as a forwarding shim. The only way that is
+-- safe is if it cannot answer differently from the 5-arg — which is what this
+-- asserts, in both directions of the boolean it discards.
+-- ===========================================================================
+do $$
+declare
+  v_five  jsonb;
+  v_true  jsonb;
+  v_false jsonb;
+begin
+  v_five := public.api_for_you(
+    '11111111-1111-4111-8111-111111111111'::uuid,
+    '22222222-2222-4222-8222-222222222222'::uuid,
+    now());
+  v_true := public.api_for_you(
+    '11111111-1111-4111-8111-111111111111'::uuid,
+    '22222222-2222-4222-8222-222222222222'::uuid,
+    true, now());
+  v_false := public.api_for_you(
+    '11111111-1111-4111-8111-111111111111'::uuid,
+    '22222222-2222-4222-8222-222222222222'::uuid,
+    false, now());
+
+  if v_five is distinct from v_true then
+    raise exception 'FY-454 FAILED: the shim answered differently with p_is_lead=true';
+  end if;
+  if v_five is distinct from v_false then
+    raise exception 'FY-454 FAILED: the shim answered differently with p_is_lead=false';
+  end if;
+
+  raise notice 'FY-454 PASSED: the deprecated 6-arg shim cannot disagree with the 5-arg';
+end $$;
+
 rollback;
