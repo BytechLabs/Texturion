@@ -107,6 +107,7 @@ const SUITES = [
   "owner_emergency_config",
   "voicemail_intake",
   "retention_cohorts",
+  "contact_timeline",
 ];
 
 const args = process.argv.slice(2);

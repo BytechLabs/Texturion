@@ -420,6 +420,119 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
   });
 });
 
+describe("GET /v1/contacts/:id/timeline (#324)", () => {
+  const entry = (over: Record<string, unknown> = {}) => ({
+    kind: "conversation",
+    id: "0aaa0aaa-1111-4222-8333-444444444444",
+    occurred_at: "2026-07-20T10:00:00.000Z",
+    conversation_id: "0aaa0aaa-1111-4222-8333-444444444444",
+    status: "open",
+    detail: null,
+    ...over,
+  });
+
+  it("returns one stream and a cursor when the page is full", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("POST", "/rest/v1/rpc/api_contact_timeline", () => [
+      entry(),
+      entry({ kind: "call", occurred_at: "2026-07-19T09:00:00.000Z" }),
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/timeline?limit=2`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      entries: { kind: string }[];
+      next_before: string | null;
+    };
+    expect(body.entries.map((e) => e.kind)).toEqual(["conversation", "call"]);
+    // A full page means there may be more: the cursor is the oldest row's time.
+    expect(body.next_before).toBe("2026-07-19T09:00:00.000Z");
+  });
+
+  it("returns a null cursor on a short page, so the client stops", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("POST", "/rest/v1/rpc/api_contact_timeline", () => [entry()]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/timeline?limit=50`,
+      { companyId: COMPANY_ID },
+    );
+    expect(((await res.json()) as { next_before: string | null }).next_before).toBeNull();
+  });
+
+  it("404s an unknown contact BEFORE reading the timeline", async () => {
+    // Otherwise the shape of an empty result tells a caller which contact ids
+    // exist in another workspace.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    let timelineCalls = 0;
+    sb.on("POST", "/rest/v1/rpc/api_contact_timeline", () => {
+      timelineCalls += 1;
+      return [];
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/timeline`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(404);
+    expect(timelineCalls).toBe(0);
+  });
+
+  it("rejects an unparseable `before` rather than paging from the top forever", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/timeline?before=soon`,
+      { companyId: COMPANY_ID },
+    );
+    // 422, the SPEC §7 code for validation_failed.
+    expect(res.status).toBe(422);
+  });
+
+  it("clamps limit so one request cannot ask for the whole history", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    let asked: number | null = null;
+    sb.on("POST", "/rest/v1/rpc/api_contact_timeline", (req) => {
+      asked = (req.body as { p_limit: number }).p_limit;
+      return [];
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/timeline?limit=99999`,
+      { companyId: COMPANY_ID },
+    );
+    expect(asked).toBe(200);
+  });
+});
+
 describe("#191 contact attribution (created/updated/deleted actors + names)", () => {
   it("POST records created_by_user_id = the caller", async () => {
     const sb = stubWithRole("member");

@@ -525,6 +525,62 @@ contactsRoutes.post("/contacts", requireRole("member"), async (c) => {
   return c.json(rows[0], 201);
 });
 
+/**
+ * #324 — one chronology of everything done for this customer.
+ *
+ * D7's threading rule means a long relationship is MANY conversations: a
+ * customer returning after 31 days starts a new one, so a homeowner serviced
+ * once a year for six years is six threads. The prior-conversations list (G6)
+ * and the per-contact call history (#205) both already existed, as separate
+ * blocks with tasks nowhere — so "what have we done for this customer?", the
+ * question asked before every visit, still meant opening threads one at a time.
+ *
+ * `before` is both the pagination cursor and jump-to-date, because they are the
+ * same request: show me from here backwards.
+ */
+contactsRoutes.get("/contacts/:id/timeline", requireRole("member"), async (c) => {
+  const id = pathUuid(c, "id");
+  const companyId = c.get("companyId");
+  const db = getDb(getEnv(c.env));
+
+  // 404 before the timeline: a caller must not be able to probe which contact
+  // ids exist in another workspace by the shape of an empty result.
+  const contact = await findContact(db, companyId, id);
+  if (!contact) {
+    return errorResponse(c, "not_found", "No such contact.");
+  }
+
+  const limitParam = Number(c.req.query("limit") ?? 50);
+  const limit = Number.isFinite(limitParam)
+    ? Math.min(Math.max(Math.trunc(limitParam), 1), 200)
+    : 50;
+  const before = c.req.query("before");
+  // An unparseable date is a client bug, and silently treating it as "no
+  // cursor" would page from the top forever rather than saying so.
+  if (before !== undefined && Number.isNaN(Date.parse(before))) {
+    return errorResponse(c, "validation_failed", "`before` must be a timestamp.");
+  }
+
+  const { data, error } = await db.rpc("api_contact_timeline", {
+    p_company_id: companyId,
+    p_contact_id: id,
+    p_limit: limit,
+    p_before: before ?? null,
+  });
+  if (error) throw new Error(`contact timeline failed: ${error.message}`);
+
+  const entries = (data ?? []) as { occurred_at: string }[];
+  return c.json({
+    entries,
+    // The cursor for the next page, or null at the end. Derived here rather
+    // than by the client so "what is the next page" has one definition.
+    next_before:
+      entries.length === limit
+        ? entries[entries.length - 1]?.occurred_at ?? null
+        : null,
+  });
+});
+
 contactsRoutes.get("/contacts/:id", requireRole("member"), async (c) => {
   const id = pathUuid(c, "id");
   const companyId = c.get("companyId");

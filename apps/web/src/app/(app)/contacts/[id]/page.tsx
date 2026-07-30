@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 
 import { CallButton } from "@/components/calls/call-button";
+import { ContactTimeline } from "@/components/contacts/contact-timeline";
 import { ContactCallHistory } from "@/components/contacts/contact-call-history";
 import { LoadError, SettingsCard } from "@/components/settings/section";
 import { Badge } from "@/components/ui/badge";
@@ -450,6 +451,14 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
       <SettingsCard title="Consent">
         <ConsentLine contact={contact} />
       </SettingsCard>
+
+      {/* #324: ONE chronology of texts, calls and jobs. D7's threading rule
+          makes a long relationship many conversations rather than one thread,
+          so "what have we done for this customer?" spanned N threads with
+          nothing assembling them. The call history below stays: it is the
+          #205 detail view (voicemail playable in place), and this is the
+          overview above it. */}
+      <ContactTimeline contactId={contact.id} />
 
       {/* #205: every call with this customer, in the /calls row grammar —
           day-grouped, voicemail playable in place, threaded rows tap through

@@ -62,6 +62,19 @@ vi.mock("@/lib/api/companies", () => ({
 }));
 // #205: the page mounts ContactCallHistory — stub its data hooks (empty log)
 // so the render stays synchronous and env-free.
+// #324: the contact timeline hook reaches CompanyProvider, which this harness
+// deliberately does not mount (the page is rendered bare).
+vi.mock("@/lib/api/contact-timeline", () => ({
+  useContactTimeline: () => ({
+    data: undefined,
+    isPending: false,
+    isError: false,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: vi.fn(),
+    refetch: vi.fn(),
+  }),
+}));
 vi.mock("@/lib/api/calls", () => ({
   useContactCalls: () => ({
     data: undefined,
