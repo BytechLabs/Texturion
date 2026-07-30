@@ -82,9 +82,27 @@ func timelineTalkTime(_ seconds: Int) -> String {
     return minutes > 0 ? "\(minutes)m \(rest)s" : "\(rest)s"
 }
 
-private func timelineDueLabel(_ iso: String) -> String {
+private func timelineDueLabel(_ iso: String, calendar: Calendar = .current) -> String {
     guard let date = parseWireTimestamp(iso) else { return "soon" }
-    return date.formatted(.dateTime.day().month(.abbreviated))
+    return timelineShortDate(date, calendar: calendar, format: "MMM d")
+}
+
+/// The app's established date formatting: a LOCAL DateFormatter with the posix
+/// locale and an explicit pattern (Format.swift's monthDayString/absoluteTime).
+///
+/// Not `.formatted(.dateTime...)`: that API appears nowhere else in this app, so
+/// it is unproven here, and Swift only compiles in CI. Not a cached formatter
+/// either — the class is not Sendable, so a `static let` is a build error.
+func timelineShortDate(_ date: Date, calendar: Calendar, format: String) -> String {
+    let formatter = DateFormatter()
+    // Format.swift's `posixLocale` is file-private, so it is spelled out here
+    // rather than reached for. A fixed pattern needs a fixed locale, or the
+    // device's regional settings reorder it.
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.calendar = calendar
+    formatter.timeZone = calendar.timeZone
+    formatter.dateFormat = format
+    return formatter.string(from: date)
 }
 
 /// One day's worth of the history.
@@ -143,14 +161,7 @@ func timelineDayLabel(
        calendar.isDate(day, inSameDayAs: yesterday) {
         return "Yesterday"
     }
-    // A locally-created DateFormatter: the class is not Sendable, so it must
-    // never be cached in a `static let`.
-    let formatter = DateFormatter()
-    formatter.calendar = calendar
-    formatter.timeZone = calendar.timeZone
-    formatter.locale = .current
-    formatter.setLocalizedDateFormatFromTemplate("d MMM yyyy")
-    return formatter.string(from: day)
+    return timelineShortDate(day, calendar: calendar, format: "MMM d yyyy")
 }
 
 /// The accumulated history plus the cursor that continues it.

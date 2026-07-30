@@ -228,7 +228,10 @@ private struct TimelineRow: View {
     }
 
     private var timeLabel: String {
-        guard let date = timelineDate(entry.occurred_at) else { return "" }
-        return date.formatted(.dateTime.hour().minute())
+        // parseWireTimestamp and timelineShortDate: the app's own helpers. The
+        // `.formatted(.dateTime...)` API is used nowhere else here, and Swift
+        // only compiles in CI, so an unproven API is a 25-minute round trip.
+        guard let date = parseWireTimestamp(entry.occurred_at) else { return "" }
+        return timelineShortDate(date, calendar: .current, format: "h:mm a")
     }
 }
