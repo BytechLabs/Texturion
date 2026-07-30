@@ -2121,6 +2121,52 @@ never asks produces a 3am text with no error anywhere — so the resolver is the
 only implementation, the compose gate uses it too, and a test enumerates the
 files allowed to decide quiet hours.
 
+**Amendment, 2026-07-29 (#225 ask 5): the confirmation is a setting, and its
+NAME is the load-bearing part.** A 24-hour emergency trade starts new
+conversations at 2am as a matter of routine and lawfully, because the customer's
+house is flooding. For them the confirmation fires on every job at the worst
+possible moment, and a prompt that is always dismissed teaches people to dismiss
+prompts — so `companies.quiet_hours_confirm_enabled` lets an admin switch it off,
+defaulting TRUE so nobody's behaviour changes on deploy.
+
+#225 called for a column named `quiet_hours_enabled`, and we deliberately did not
+build that. The two names describe the same boolean and license completely
+different things:
+
+- `quiet_hours_confirm_enabled` — does a PERSON get asked before starting a
+  conversation into a quiet destination.
+- `quiet_hours_enabled` — reads, to the next author, as "this company has quiet
+  hours off", which is a claim about every send.
+
+#237 (appointment reminders) and #313 (post-job ratings) are queued, and both are
+texts we ORIGINATE on our own clock to somebody who did not just contact us —
+the first genuine quiet-hours exposure this product will have. Their author will
+go looking for existing quiet-hours machinery. Under the second name they would
+find a global off switch, gate on it, and a plumber who dismissed a dialog would
+have silently authorised 3am reminders to their customers. Nobody would have
+decided that, and nobody would have noticed.
+
+So the licence is written into the name, and enforced the D79 way rather than by
+comment: `quiet-hours-confirm.test.ts` enumerates every file allowed to READ the
+column (compose, plus two transport-only files), and names the reply-exempt and
+automated paths that must never acquire it. Four previous sessions on #225 each
+left a comment asking for this; a test is what makes it hold.
+
+**The audit event records the fact, not an attestation.** A send inside the quiet
+window still writes `quiet_hours_confirmed` with the confirmation switched off,
+because the send did happen at 11pm the customer's time and that is what an audit
+asks about. Its payload now carries `confirmed`, so the record distinguishes a
+confirmation somebody gave from a send nobody was asked about — storing the
+latter as the former would be a fabricated attestation in the one place that must
+never hold one. All three clients now read the line as "sent during this
+customer's quiet hours" rather than "confirmed sending"; web always did, and the
+two mobile clients were saying something that the switch makes false.
+
+**What ask 5 did NOT unlock.** Hold-and-release (#225 ask 3) is still unbuilt,
+and deliberately: no send path today originates contact, so a hold queue would be
+a mechanism guarding nothing and dead code by the time anything needed it. The
+window table (ask 4) and the published policy (`/legal/messaging` §6) are done.
+
 ---
 
 ## D50 — merge-to-ship: the release PR is the only thing that reaches production

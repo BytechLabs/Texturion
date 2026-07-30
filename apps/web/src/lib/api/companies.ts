@@ -79,6 +79,8 @@ export interface CompanyPatch {
   /** #393 (O/A): sign the first outbound message to a contact with the business
    *  name. The suffix itself is server-derived and read-only. */
   first_message_identification?: boolean;
+  /** #225: the quiet-hours confirmation prompt (admin-only). */
+  quiet_hours_confirm_enabled?: boolean;
   /** D43 Calls v2 (O/A): voicemail greeting (null = spoken default),
    *  screening routing, CNAM display name (<=15 alnum+space; #193: null =
    *  default to the company name, never "no listing"), inbound caller-name

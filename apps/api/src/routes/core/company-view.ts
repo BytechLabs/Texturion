@@ -42,6 +42,10 @@ export const COMPANY_COLUMNS =
   // #393: whether a first outbound message carries sender identification.
   // Default false — D4's 2026-07 reversal stands until an owner opts in.
   "first_message_identification," +
+  // #225: whether a person STARTING a conversation into a quiet destination
+  // must confirm. Only that. Never read by an automated send path — see the
+  // column comment and quiet-hours-confirm.test.ts.
+  "quiet_hours_confirm_enabled," +
   // D43 Calls v2: voicemail greeting, screening routing, CNAM pair. #193:
   // cnam_submitted_at = when the effective listing last went to the carrier
   // side (CNAM propagation takes days and Telnyx reports no status, so the

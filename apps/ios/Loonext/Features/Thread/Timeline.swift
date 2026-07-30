@@ -293,7 +293,11 @@ func eventLine(
     case "opt_out_revoked":
         return system ? "\(contactName) opted back in" : "\(actor) removed the opt-out"
     case "consent_attested": return "\(actor) attested consent to text \(contactName)"
-    case "quiet_hours_confirmed": return "\(actor) confirmed sending during quiet hours"
+    // #225: names the FACT (a send landed in the customer's quiet window), not an
+    // attestation. With the confirmation switched off the same event is written
+    // and nobody confirmed anything, so "confirmed" would be a lie — and web has
+    // always said it this way, so this is parity too.
+    case "quiet_hours_confirmed": return "\(actor) sent during this customer's quiet hours"
     case "spam_marked": return "\(actor) marked this as spam"
     case "spam_unmarked": return "\(actor) marked this as not spam"
     case "message_done": return "\(actor) marked a message done"

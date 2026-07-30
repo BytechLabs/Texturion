@@ -682,6 +682,55 @@ describe("PATCH /v1/company — send-features settings (FEATURE-GAPS Steps 1 & 2
   });
 });
 
+describe("PATCH /v1/company — the quiet-hours confirmation switch (#225 ask 5)", () => {
+  it("an admin switches the confirmation step off", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { quiet_hours_confirm_enabled: false },
+    });
+    expect(res.status).toBe(200);
+    expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
+      quiet_hours_confirm_enabled: false,
+    });
+  });
+
+  it("a member cannot: it is company config with a liability attached", async () => {
+    // The whole point of ask 5 is that an ADMIN consciously accepts something.
+    // A tech dismissing a dialog they find annoying is not that.
+    const sb = stubWithRole("member");
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { quiet_hours_confirm_enabled: false },
+    });
+    expect(res.status).toBe(403);
+    expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
+  });
+
+  it("counts as a field, so it alone satisfies the at-least-one-field rule", async () => {
+    // The refine() clause enumerates fields by hand, and a boolean left out of
+    // it 422s a body that is perfectly valid — the failure mode is invisible
+    // until somebody flips only this switch.
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { quiet_hours_confirm_enabled: true },
+    });
+    expect(res.status).toBe(200);
+  });
+});
+
 describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)", () => {
   it("admin saves mctb_enabled + mctb_message and enables voice", async () => {
     const sb = stubWithRole("admin");

@@ -185,6 +185,42 @@ final class MessagingTimelineTests: XCTestCase {
         )
     }
 
+    /// #225: the quiet-hours line states a FACT, never an attestation.
+    ///
+    /// It used to read "confirmed sending during quiet hours". Once an admin can
+    /// switch the confirmation step off (#225 ask 5) the same event is written
+    /// for a send nobody was asked about, and the old wording would have put a
+    /// confirmation nobody gave into the customer's own audit trail. Web has
+    /// always said it this way; this is the parity assertion.
+    func testTheQuietHoursLineDoesNotClaimSomebodyConfirmed() {
+        let asked = ConversationEvent(
+            id: "e-quiet",
+            conversation_id: "c1",
+            actor_user_id: "u1",
+            type: "quiet_hours_confirmed",
+            payload: .object(["destination_local_hour": .number(23), "confirmed": .bool(true)]),
+            created_at: "2026-07-15T00:00:00Z"
+        )
+        let line = eventLine(asked, memberNames: ["u1": "Dana"], contactName: "Sam")
+        XCTAssertEqual(line, "Dana sent during this customer's quiet hours")
+        XCTAssertFalse(line.contains("confirmed"))
+
+        // The switched-off case renders identically — the event type is shared,
+        // so the sentence has to be true for both readings of it.
+        let notAsked = ConversationEvent(
+            id: "e-quiet-2",
+            conversation_id: "c1",
+            actor_user_id: "u1",
+            type: "quiet_hours_confirmed",
+            payload: .object(["destination_local_hour": .number(2), "confirmed": .bool(false)]),
+            created_at: "2026-07-15T00:00:00Z"
+        )
+        XCTAssertEqual(
+            eventLine(notAsked, memberNames: ["u1": "Dana"], contactName: "Sam"),
+            line
+        )
+    }
+
     // MARK: - #273: one call event, six readings
     //
     // Every shape that was not a voicemail collapsed to "Call with X ended", so

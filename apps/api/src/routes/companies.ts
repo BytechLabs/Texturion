@@ -164,6 +164,12 @@ const patchSchema = z
     // turning it ON is a deliberate owner act. See D4 for the CASL s.6(2)
     // question (L1) that would change the default.
     first_message_identification: z.boolean().optional(),
+    // #225 ask 5 (O/A): whether a person STARTING a conversation into a
+    // destination inside its local quiet window must confirm first. Default
+    // true. This is the confirmation step ONLY — not an automated-send
+    // permission, and nothing automated reads it (the column comment and
+    // quiet-hours-confirm.test.ts hold that line).
+    quiet_hours_confirm_enabled: z.boolean().optional(),
   })
   .refine(
     (body) =>
@@ -188,7 +194,8 @@ const patchSchema = z
       body.call_screening !== undefined ||
       "cnam_display_name" in body ||
       body.caller_id_lookup !== undefined ||
-      body.first_message_identification !== undefined,
+      body.first_message_identification !== undefined ||
+      body.quiet_hours_confirm_enabled !== undefined,
     { message: "Provide at least one field to update." },
   );
 
@@ -458,6 +465,10 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   // #393: first-message sender identification (off by default).
   if (body.first_message_identification !== undefined) {
     patch.first_message_identification = body.first_message_identification;
+  }
+  // #225: the quiet-hours confirmation step (on by default).
+  if (body.quiet_hours_confirm_enabled !== undefined) {
+    patch.quiet_hours_confirm_enabled = body.quiet_hours_confirm_enabled;
   }
   // FEATURE-GAPS voice wave: missed-call text-back settings.
   if (body.mctb_enabled !== undefined) patch.mctb_enabled = body.mctb_enabled;

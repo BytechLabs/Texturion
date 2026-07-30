@@ -157,6 +157,12 @@ function composeStubs(options: {
   }[];
   /** #393: companies.first_message_identification. Default false — D4. */
   identificationEnabled?: boolean;
+  /**
+   * #225 ask 5: companies.quiet_hours_confirm_enabled. Default undefined, which
+   * the route must read as ON — a company row from before the migration, and the
+   * direction a missing value has to fail in.
+   */
+  quietHoursConfirmEnabled?: boolean;
 } = {}): ComposeStubs {
   const replayLookup = stubRoute(
     restMatch(env, "GET", "messages", (url) =>
@@ -175,6 +181,12 @@ function composeStubs(options: {
       plan: "starter",
       current_period_start: "2026-07-01T00:00:00.000Z",
       first_message_identification: options.identificationEnabled === true,
+      // Spread, not a coerced boolean: the default case must leave the column
+      // ABSENT from the row so the route's own "absent means on" reading is
+      // what the tests exercise.
+      ...(options.quietHoursConfirmEnabled === undefined
+        ? {}
+        : { quiet_hours_confirm_enabled: options.quietHoursConfirmEnabled }),
     },
   ]);
   const contactLookup = stubRoute(
@@ -457,6 +469,22 @@ describe("POST /v1/conversations — quiet hours (§5)", () => {
     expect(stubs.telnyx.calls).toHaveLength(1);
   });
 
+  it("records that a confirmation actually happened", async () => {
+    // The payload has to distinguish a confirmation from a send that was never
+    // asked about — see the switched-off case below, which produces the same
+    // event type.
+    vi.setSystemTime(NIGHTTIME);
+    const stubs = composeStubs();
+    stubFetch(...stubs.all);
+
+    await postCompose({ ...VALID_BODY, quiet_hours_confirmed: true });
+    const events = stubs.events.calls[0].body as Record<string, unknown>[];
+    expect(events[1]).toMatchObject({
+      type: "quiet_hours_confirmed",
+      payload: { confirmed: true },
+    });
+  });
+
   it("needs no confirmation during the daytime and logs no event", async () => {
     const stubs = composeStubs();
     stubFetch(...stubs.all);
@@ -465,6 +493,69 @@ describe("POST /v1/conversations — quiet hours (§5)", () => {
     expect(response.status).toBe(201);
     const events = stubs.events.calls[0].body as Record<string, unknown>[];
     expect(events).toHaveLength(1); // consent only
+  });
+});
+
+describe("POST /v1/conversations — the quiet-hours confirmation switch (#225 ask 5)", () => {
+  it("sends without a confirmation when an admin switched the step off", async () => {
+    // The 24-hour emergency trade: a burst pipe at 11pm is a lawful new
+    // conversation, and the prompt fires on every single one of them.
+    vi.setSystemTime(NIGHTTIME);
+    const stubs = composeStubs({ quietHoursConfirmEnabled: false });
+    stubFetch(...stubs.all);
+
+    const response = await postCompose(VALID_BODY);
+    expect(response.status).toBe(201);
+    expect(stubs.telnyx.calls).toHaveLength(1);
+  });
+
+  it("still records the send as landing inside the quiet window", async () => {
+    // Switching off the PROMPT must not switch off the RECORD. The send did
+    // happen at 23:00 the customer's time, and that is the fact an audit asks
+    // about — with confirmed:false, because nobody was asked and a stored
+    // attestation nobody gave is the one thing an audit trail must never hold.
+    vi.setSystemTime(NIGHTTIME);
+    const stubs = composeStubs({ quietHoursConfirmEnabled: false });
+    stubFetch(...stubs.all);
+
+    await postCompose(VALID_BODY);
+    const events = stubs.events.calls[0].body as Record<string, unknown>[];
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({
+      type: "quiet_hours_confirmed",
+      payload: { destination_local_hour: 23, confirmed: false },
+    });
+  });
+
+  it("keeps the confirmation when the switch is explicitly on", async () => {
+    vi.setSystemTime(NIGHTTIME);
+    const stubs = composeStubs({ quietHoursConfirmEnabled: true });
+    stubFetch(...stubs.all);
+
+    const response = await postCompose(VALID_BODY);
+    expect(response.status).toBe(409);
+    expect(await errorCode(response)).toBe("quiet_hours_confirmation_required");
+  });
+
+  it("keeps the confirmation when the column is absent entirely", async () => {
+    // A company row read before the migration lands, and the only safe
+    // direction for a missing compliance flag: the prompt stays.
+    vi.setSystemTime(NIGHTTIME);
+    const stubs = composeStubs();
+    stubFetch(...stubs.all);
+
+    expect((await postCompose(VALID_BODY)).status).toBe(409);
+  });
+
+  it("changes nothing during the daytime", async () => {
+    // The switch governs the quiet-window prompt and must not become a
+    // general-purpose send flag — a daytime send was never gated to begin with.
+    const stubs = composeStubs({ quietHoursConfirmEnabled: false });
+    stubFetch(...stubs.all);
+
+    expect((await postCompose(VALID_BODY)).status).toBe(201);
+    const events = stubs.events.calls[0].body as Record<string, unknown>[];
+    expect(events).toHaveLength(1); // consent only, no quiet-hours event
   });
 });
 

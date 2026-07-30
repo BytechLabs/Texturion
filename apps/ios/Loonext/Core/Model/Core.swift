@@ -264,6 +264,11 @@ struct CompanyView: Codable, Sendable {
     /// and also when the company name is blank). Render and METER this string —
     /// never build it here, or the part count can drift from what is billed.
     let first_message_identification_suffix: String?
+    /// #225: whether STARTING a conversation inside the destination's 8pm-8am
+    /// local window asks for a confirmation. That prompt only — automated sends
+    /// are held to the window regardless. Defaults TRUE, so a payload decoded
+    /// without the field keeps the prompt.
+    @Default<DefaultTrue> var quiet_hours_confirm_enabled: Bool
     let voicemail_greeting: String?
     @Default<DefaultScreeningOff> var call_screening: String
     let cnam_display_name: String?

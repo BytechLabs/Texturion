@@ -52,6 +52,7 @@ function changedSettings(after: Record<string, unknown>): string {
     mctb_enabled: "the missed-call text-back",
     mctb_message: "the missed-call message",
     first_message_identification: "first-message identification",
+    quiet_hours_confirm_enabled: "the night-texting confirmation",
     voicemail_greeting: "the voicemail greeting",
     call_screening: "call screening",
     cnam_display_name: "the caller ID",

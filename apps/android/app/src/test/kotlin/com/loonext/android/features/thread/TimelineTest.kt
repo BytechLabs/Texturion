@@ -296,4 +296,42 @@ class TimelineTest {
         assertTrue(caption.contains("unavailable"))
         assertTrue(caption.contains("retry"))
     }
+
+    /**
+     * #225: the quiet-hours line states a FACT, never an attestation.
+     *
+     * It used to read "confirmed sending during quiet hours". Once an admin can
+     * switch the confirmation step off (#225 ask 5) the same event is written for
+     * a send nobody was asked about, and the old wording would have put a
+     * confirmation nobody gave into the customer's own audit trail. Web has
+     * always said it this way; this is the parity assertion.
+     */
+    @Test
+    fun `the quiet-hours line does not claim somebody confirmed`() {
+        val asked = ConversationEvent(
+            id = "e-quiet",
+            conversation_id = "c1",
+            actor_user_id = "u1",
+            type = "quiet_hours_confirmed",
+            payload = buildJsonObject {
+                put("destination_local_hour", 23)
+                put("confirmed", true)
+            },
+            created_at = "2026-07-15T00:00:00Z",
+        )
+        val line = eventLine(asked, mapOf("u1" to "Dana"), "Sam")
+        assertEquals("Dana sent during this customer's quiet hours", line)
+        assertFalse(line.contains("confirmed"))
+
+        // The switched-off case renders identically — the event type is shared, so
+        // the sentence has to be true for both readings of it.
+        val notAsked = asked.copy(
+            id = "e-quiet-2",
+            payload = buildJsonObject {
+                put("destination_local_hour", 2)
+                put("confirmed", false)
+            },
+        )
+        assertEquals(line, eventLine(notAsked, mapOf("u1" to "Dana"), "Sam"))
+    }
 }

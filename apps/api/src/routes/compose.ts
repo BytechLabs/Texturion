@@ -16,7 +16,9 @@
  *     messages FK makes the "still empty" check atomic under concurrency).
  *   • quiet hours (soft, §5): destination local hour outside 08–20 requires
  *     quiet_hours_confirmed=true (409 `quiet_hours_confirmation_required`
- *     otherwise); confirmed sends log a quiet_hours_confirmed event.
+ *     otherwise), unless the company switched the confirmation step off
+ *     (#225 ask 5); a send inside the window logs a quiet_hours_confirmed
+ *     event either way, carrying whether anybody actually confirmed.
  *   • open-conversation conflict (conversations_open_uq): append to the
  *     existing open conversation and return it with 200 — gates and
  *     attestation still apply and are recorded.
@@ -410,13 +412,23 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
     throw new ApiError("conflict", "This number is not ready to send yet.");
   }
 
-  // Company (business name — merge fields + audit; #393 identification setting).
+  // Company (business name — merge fields + audit; #393 identification setting;
+  // #225 the night-texting confirmation). Optional, because a row read against a
+  // Worker deployed ahead of the migration has no such column — and the gate
+  // below reads absent as ON so the missing case fails toward asking.
   const company = unwrap<
-    { id: string; name: string; first_message_identification: boolean }[]
+    {
+      id: string;
+      name: string;
+      first_message_identification: boolean;
+      quiet_hours_confirm_enabled?: boolean;
+    }[]
   >(
     await db
       .from("companies")
-      .select("id,name,first_message_identification")
+      .select(
+        "id,name,first_message_identification,quiet_hours_confirm_enabled",
+      )
       .eq("id", companyId)
       .limit(1),
     "company lookup",
@@ -466,7 +478,15 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
     companyId,
     phoneE164: destination,
   });
-  if (clock.quiet && body.quiet_hours_confirmed !== true) {
+  // #225 ask 5: an admin may switch the confirmation STEP off — for a 24-hour
+  // emergency trade it fires on every 2am job, and a prompt that is always
+  // dismissed teaches people to dismiss prompts. THIS IS THE ONLY PLACE THAT
+  // READS THE COLUMN, and quiet-hours-confirm.test.ts keeps it that way: the
+  // flag governs a human's confirmation dialog, never an automated send's right
+  // to fire at 3am. Absent/undefined reads as ON, so a company row loaded
+  // before the migration lands keeps the prompt.
+  const confirmationRequired = company.quiet_hours_confirm_enabled !== false;
+  if (clock.quiet && confirmationRequired && body.quiet_hours_confirmed !== true) {
     // Structural signal: dedicated code (409, same envelope) so the UI shows
     // the quiet-hours confirm dialog by CODE, not by sniffing the message.
     throw new ApiError(
@@ -588,6 +608,12 @@ composeRoutes.post("/conversations", requireRole("member"), async (c) => {
       type: "quiet_hours_confirmed",
       payload: {
         destination_local_hour: clock.localHour,
+        // #225: WAS anybody asked? With the confirmation switched off the send
+        // still happened inside the quiet window and the trail still has to say
+        // so — but recording it as a confirmation nobody gave would be a
+        // fabricated attestation, which is the one thing an audit record must
+        // never contain.
+        confirmed: body.quiet_hours_confirmed === true,
         // #292: which rung of the D49 ladder answered. A confirmation against
         // the shop's clock is a weaker record than one against the customer's
         // own, and the difference matters if it is ever produced as evidence.

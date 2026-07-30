@@ -246,6 +246,11 @@ data class CompanyView(
      *  company name is blank). Render and METER this — never build it here, or
      *  the part count can drift from the body the server bills. */
     val first_message_identification_suffix: String? = null,
+    /** #225: whether STARTING a conversation inside the destination's
+     *  8pm-8am local window asks for a confirmation. That prompt only —
+     *  automated sends are held to the window regardless. Defaults TRUE so a
+     *  payload without the field keeps the prompt. */
+    val quiet_hours_confirm_enabled: Boolean = true,
     val voicemail_greeting: String? = null,
     val call_screening: String = "off",
     val cnam_display_name: String? = null,

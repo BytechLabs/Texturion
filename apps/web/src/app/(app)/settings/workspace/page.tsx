@@ -424,6 +424,104 @@ function SignTextsCard({ company }: { company: CompanyView }) {
   );
 }
 
+/**
+ * #225 ask 5 — the quiet-hours confirmation, for the trade that works nights.
+ *
+ * COPY DISCIPLINE, AND IT IS THE WHOLE DESIGN. This must never read as
+ * "turn off quiet hours". Automated texts are held to the customer's window no
+ * matter what this says, and an owner who believed otherwise would be relying on
+ * a permission we did not grant. So every sentence names the PROMPT, and the
+ * consequence line says out loud what the switch does not do.
+ */
+function QuietHoursCard({ company }: { company: CompanyView }) {
+  const { role } = useActiveCompany();
+  const canEdit = role === "owner" || role === "admin";
+  const update = useUpdateCompany();
+  const [enabled, setEnabled] = useState(company.quiet_hours_confirm_enabled);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setEnabled(company.quiet_hours_confirm_enabled);
+  }, [company.quiet_hours_confirm_enabled]);
+
+  function toggle(next: boolean) {
+    setError(null);
+    setEnabled(next);
+    update.mutate(
+      { quiet_hours_confirm_enabled: next },
+      {
+        onError: (cause) => {
+          setEnabled(company.quiet_hours_confirm_enabled);
+          setError(
+            cause instanceof ApiError
+              ? cause.message
+              : "Couldn't save. Try again.",
+          );
+        },
+      },
+    );
+  }
+
+  return (
+    <SettingsCard
+      title="Texting a new customer at night"
+      description="Starting a brand-new conversation between 8pm and 8am the customer's time asks you to confirm first."
+    >
+      <div className="space-y-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-0.5">
+            <Label htmlFor="quiet-hours-confirm" className="text-sm font-medium">
+              Ask me to confirm
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              Only when you start the conversation. Replying to a customer who
+              texted or called you is never interrupted.
+            </p>
+          </div>
+          <Switch
+            id="quiet-hours-confirm"
+            checked={enabled}
+            disabled={!canEdit || update.isPending}
+            onCheckedChange={toggle}
+          />
+        </div>
+
+        {/* The consequence, inline and at the moment of the decision — and the
+            second sentence is the one that matters: it forecloses the reading
+            that this permits automated night texts. */}
+        {!enabled ? (
+          <div
+            aria-live="polite"
+            className="space-y-2 rounded-md border border-border-subtle bg-accent/40 px-3 py-2.5 text-sm"
+          >
+            <p>
+              You will not be asked. A text you start at 2am goes straight out,
+              and it is on you that the customer wanted to hear from you then.
+            </p>
+            <p className="text-muted-foreground">
+              This does not change automated texts. Reminders and anything else
+              we send on your behalf still wait for the customer&apos;s morning,
+              whatever this is set to.
+            </p>
+          </div>
+        ) : null}
+
+        {error ? (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        {!canEdit ? (
+          <p className="text-sm text-muted-foreground">
+            Only owners and admins can change this.
+          </p>
+        ) : null}
+      </div>
+    </SettingsCard>
+  );
+}
+
 export default function WorkspaceSettingsPage() {
   const company = useCompany();
   const { role } = useActiveCompany();
@@ -445,6 +543,10 @@ export default function WorkspaceSettingsPage() {
           <SignTextsCard company={company.data} />
           <BusinessIdentityCard company={company.data} />
           <TimezoneCard company={company.data} />
+          {/* #225: directly under the timezone card. Both answer "whose clock
+              are we on", and the pair reads as one idea — yours above, the
+              customer's here. */}
+          <QuietHoursCard company={company.data} />
           {/* #227: above the close card on purpose — taking a copy of your
               data is the thing you want BEFORE destroying it. */}
           {(role === "owner" || role === "admin") && <ExportDataCard />}

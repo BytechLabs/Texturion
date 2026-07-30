@@ -18,6 +18,10 @@ struct WorkspaceSectionView: View {
         SignTextsCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
         BusinessIdentificationCard(scope: scope, company: company)
         TimezoneCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
+        // #225: directly under the timezone card. Both answer "whose clock are
+        // we on", and the pair reads as one idea — yours above, the customer's
+        // here.
+        QuietHoursCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
         // #406: everyone except the owner can end their own access. An owner
         // leaving would strand a workspace nobody can administer (#332), which
         // is why they are the one person this is not offered to.
@@ -421,6 +425,83 @@ private struct SignTextsCard: View {
         error = nil
         saving = true
         let body = JSONValue.object(["first_message_identification": .bool(next)])
+        Task {
+            do {
+                let updated = try await scope.repo.updateCompany(scope.companyId, patch: body)
+                onCompanyUpdated(updated)
+            } catch {
+                self.error = error.userMessage
+            }
+            saving = false
+        }
+    }
+}
+
+/// #225 ask 5 — the quiet-hours confirmation, for the trade that works nights.
+///
+/// COPY DISCIPLINE, AND IT IS THE WHOLE DESIGN. This must never read as "turn off
+/// quiet hours". Automated texts are held to the customer's window no matter what
+/// this says, and an owner who believed otherwise would be relying on a permission
+/// we did not grant. Every sentence names the PROMPT, and the consequence block
+/// says out loud what the switch does not do. Copy is identical to the web and
+/// Android cards on purpose.
+private struct QuietHoursCard: View {
+    let scope: SettingsScope
+    let company: CompanyView
+    let onCompanyUpdated: @MainActor (CompanyView) -> Void
+
+    @State private var saving = false
+    @State private var error: String?
+
+    private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
+
+    var body: some View {
+        SettingsCard(
+            title: "Texting a new customer at night",
+            description: "Starting a brand-new conversation between 8pm and 8am "
+                + "the customer's time asks you to confirm first."
+        ) {
+            LabeledToggleRow(
+                label: "Ask me to confirm",
+                supporting: "Only when you start the conversation. Replying to a "
+                    + "customer who texted or called you is never interrupted.",
+                isOn: company.quiet_hours_confirm_enabled,
+                enabled: canEdit && !saving
+            ) { next in
+                save(next)
+            }
+
+            // The consequence, inline and at the moment of the decision. The
+            // second line is the one that matters: it forecloses the reading that
+            // this permits automated night texts.
+            if !company.quiet_hours_confirm_enabled {
+                PreviewBubble(
+                    label: "With this off",
+                    text: "You will not be asked. A text you start at 2am goes "
+                        + "straight out, and it is on you that the customer wanted "
+                        + "to hear from you then."
+                )
+                Spacer().frame(height: 6)
+                ReadOnlyLine(
+                    "This does not change automated texts. Reminders and anything "
+                        + "else we send on your behalf still wait for the "
+                        + "customer's morning, whatever this is set to."
+                )
+            }
+
+            InlineError(error)
+
+            if !canEdit {
+                Spacer().frame(height: 4)
+                ReadOnlyLine("Only owners and admins can change this.")
+            }
+        }
+    }
+
+    private func save(_ next: Bool) {
+        error = nil
+        saving = true
+        let body = JSONValue.object(["quiet_hours_confirm_enabled": .bool(next)])
         Task {
             do {
                 let updated = try await scope.repo.updateCompany(scope.companyId, patch: body)

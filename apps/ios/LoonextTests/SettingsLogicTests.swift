@@ -506,6 +506,13 @@ final class SettingsLogicTests: XCTestCase {
         // name, which would silently never decode.
         XCTAssertFalse(company.first_message_identification)
         XCTAssertNil(company.first_message_identification_suffix)
+        // #225: the night-texting confirmation defaults ON when the server omits
+        // it, and the direction is the whole point — a missing compliance flag
+        // must fail toward asking, never toward sending silently. Same decoder
+        // trap as the line above, in the opposite direction: a plain `Bool` here
+        // would fail the WHOLE response, and @Default<DefaultFalse> would quietly
+        // drop the prompt for every company on an older Worker.
+        XCTAssertTrue(company.quiet_hours_confirm_enabled)
     }
 
     /// #393: the per-customer half of the signing decision, which decides

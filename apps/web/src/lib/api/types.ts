@@ -329,6 +329,12 @@ export interface CompanyView {
   /** #393: whether a first outbound message to a contact is signed with the
    *  business name. Default false — D4's 2026-07 reversal stands. */
   first_message_identification: boolean;
+  /**
+   * #225: whether STARTING a conversation into a destination inside its
+   * 8pm-8am local window asks for a confirmation. Governs that prompt only —
+   * automated sends are held to the window regardless.
+   */
+  quiet_hours_confirm_enabled: boolean;
   /** #393: the EXACT suffix such a message will carry, or null when the setting
    *  is off (or the company name is blank). Render and METER this string —
    *  never compose it here, or the count can drift from what is billed. */

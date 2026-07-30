@@ -250,7 +250,11 @@ fun eventLine(
             if (system) "$contactName opted back in" else "$actor removed the opt-out"
 
         "consent_attested" -> "$actor attested consent to text $contactName"
-        "quiet_hours_confirmed" -> "$actor confirmed sending during quiet hours"
+        // #225: names the FACT (a send landed in the customer's quiet window), not
+        // an attestation. With the confirmation switched off the same event is
+        // written and nobody confirmed anything, so "confirmed" would be a lie —
+        // and web has always said it this way, so this is parity too.
+        "quiet_hours_confirmed" -> "$actor sent during this customer's quiet hours"
         "spam_marked" -> "$actor marked this as spam"
         "spam_unmarked" -> "$actor marked this as not spam"
         "message_done" -> "$actor marked a message done"
