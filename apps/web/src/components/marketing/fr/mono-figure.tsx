@@ -18,7 +18,11 @@ import { cn } from "@/lib/utils";
  * weight so Flare never appears under 24px bold.
  *
  * Usage:
- *   <MonoFigure value="$29" suffix="/mo · the whole crew" size="display" />
+ *   <MonoFigure value={HEADLINE_PRICE} suffix={HEADLINE_PRICE_SUFFIX} size="display" />
+ *
+ * #385: the $29 example uses the constants deliberately. A doc comment is
+ * where the next person copies from, and the literal that used to be here
+ * omitted the crew size the price covers.
  *   <MonoFigure value="$79" size="stat" />
  */
 export function MonoFigure({

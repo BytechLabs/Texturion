@@ -38,6 +38,10 @@ import {
   SIGNUP_HREF,
 } from "@/components/marketing/nav-links";
 import { cn } from "@/lib/utils";
+import {
+  HEADLINE_PRICE,
+  HEADLINE_PRICE_SUFFIX,
+} from "@/lib/marketing/headline-price";
 
 /* -------------------------------------------------------------------------- */
 /* DATELINE HEADER (§5.1): the static converged-arrival mark, the ink fact    */
@@ -310,7 +314,11 @@ export function PricingSnippet({ children }: { children: ReactNode }) {
   return (
     <FrSection ground="frost">
       <FrCard className="mx-auto max-w-3xl p-6 sm:p-10">
-        <MonoFigure value="$29" suffix="/mo · the whole crew" size="display" />
+        <MonoFigure
+          value={HEADLINE_PRICE}
+          suffix={HEADLINE_PRICE_SUFFIX}
+          size="display"
+        />
         <div className="font-body-mkt mt-5 space-y-3 text-[15px] leading-relaxed text-[color:var(--fr-ink-70)]">
           {children}
         </div>

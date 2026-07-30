@@ -49,6 +49,10 @@ import type { SavedReply } from "./saved-replies-picker";
 import { SavedRepliesPicker } from "./saved-replies-picker";
 import type { TradeScript } from "./scripts";
 import { TradeThread } from "./trade-thread";
+import {
+  HEADLINE_PRICE,
+  HEADLINE_PRICE_SUFFIX,
+} from "@/lib/marketing/headline-price";
 
 /* -------------------------------------------------------------------------- */
 /* The template API, the ONLY thing the six pages differ by.                   */
@@ -321,8 +325,8 @@ export function TradePage({ content }: { content: TradeContent }) {
       <FrSection ground="white">
         <FrCard className="mx-auto max-w-3xl p-7 sm:p-12">
           <MonoFigure
-            value="$29"
-            suffix="/mo · the whole crew"
+            value={HEADLINE_PRICE}
+            suffix={HEADLINE_PRICE_SUFFIX}
             size="display"
           />
           <h2 className="fr-h3 mt-7 text-[color:var(--fr-ink)]">

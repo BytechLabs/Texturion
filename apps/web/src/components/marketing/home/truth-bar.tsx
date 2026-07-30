@@ -1,4 +1,8 @@
 import { FrSection, MonoFigure } from "@/components/marketing/fr";
+import {
+  HEADLINE_PRICE,
+  HEADLINE_PRICE_SUFFIX,
+} from "@/lib/marketing/headline-price";
 
 /**
  * S2 · TRUTH BAR (COPY-DECK v2 + #121 amendment). Conversion job: anchor the
@@ -25,8 +29,8 @@ export function TruthBar() {
       containerClassName="flex flex-col items-start gap-8 lg:flex-row lg:items-center lg:justify-between"
     >
       <MonoFigure
-        value="$29"
-        suffix="/mo · the whole crew"
+        value={HEADLINE_PRICE}
+        suffix={HEADLINE_PRICE_SUFFIX}
         size="display"
         tone="ink"
       />
