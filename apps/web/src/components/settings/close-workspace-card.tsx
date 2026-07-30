@@ -85,9 +85,23 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
     >
       <div className="space-y-4 p-4 pt-0">
         <ul className="space-y-1.5 text-sm text-muted-foreground">
+          {/* #413: "released" reads as "gone". It is not — the number goes back
+              to the phone company and can be given to another business, so the
+              customers who have it saved end up texting a stranger. Saying so is
+              the same standard DELETION.md sets for data, applied to numbers, and
+              it is the only version of this sentence somebody can act on. */}
           <li>
-            Everyone loses access straight away, and your number is released —
-            you will not be able to get that number back.
+            Everyone loses access straight away, and your number is released. It
+            goes back to the phone company and can be given to another business,
+            so anyone who still texts it will reach someone else. We cannot get it
+            back for you.
+          </li>
+          <li>
+            If you want to keep the number,{" "}
+            <span className="font-medium text-foreground">
+              port it out to another carrier before you close
+            </span>
+            . Afterwards it is too late.
           </li>
           <li>
             Billing stops today. Everything in the workspace — messages, photos,
@@ -139,9 +153,10 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
           <DialogHeader>
             <DialogTitle>Close {company.name}?</DialogTitle>
             <DialogDescription>
-              Everyone is signed out now and the number is released now. The
-              rest is erased in 30 days, and after that it cannot be undone by
-              anyone — including us.
+              Everyone is signed out now, and the number goes back to the phone
+              company now, where it can be given to another business. We cannot
+              get it back. The rest is erased in 30 days, and after that it cannot
+              be undone by anyone, including us.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">

@@ -161,6 +161,76 @@ describe("runGraceJob — day 1/15/27/30 transitions, ledger-gated", () => {
     expect(releaseCompanyNumbers).not.toHaveBeenCalled();
   });
 
+  /**
+   * #413 — the escalation has to be in the BODY, not only the subject.
+   *
+   * The old copy sent one identical body on all three days and escalated only the
+   * subject line, and that body said the number is "permanently released and
+   * cannot be recovered". True about us, and it reads as "it is gone" — while the
+   * fact is that the number goes back to carrier inventory and gets reassigned to
+   * another business. Only one of those two prompts a customer to act.
+   */
+  describe("#413 what release actually means", () => {
+    it("day 1 stays reassuring and does NOT talk about reassignment", async () => {
+      // Day 1's job is "nothing is lost yet, here is how to come back". There is
+      // nothing to act on for four weeks, so the alarming half would only frighten.
+      const state: GraceState = { ledger: new Set(), nonReleasedNumbers: 1, campaignActive: true };
+      const { harness, done } = run(state, daysAfterCancel(1.1));
+      await done;
+      const [email] = sentEmails(harness);
+      expect(email.text).not.toMatch(/another business/i);
+      expect(email.text).not.toMatch(/port it out/i);
+      expect(email.text).toMatch(/resubscribe/i);
+    });
+
+    it("day 15 says the number is reassigned, not deleted", async () => {
+      const state: GraceState = { ledger: new Set([1]), nonReleasedNumbers: 1, campaignActive: true };
+      const { harness, done } = run(state, daysAfterCancel(15.1));
+      await done;
+      const [email] = sentEmails(harness);
+      expect(email.text).toMatch(/back to the phone company/i);
+      expect(email.text).toMatch(/given to another business/i);
+      // The consequence the customer can actually picture, which is the point.
+      expect(email.text).toMatch(/reach whoever has it next/i);
+      // The way out is day 27's job — at day 15 it is not urgent yet.
+      expect(email.text).not.toMatch(/port it out/i);
+    });
+
+    it("day 27 names the way out and a concrete date", async () => {
+      const state: GraceState = { ledger: new Set([1, 15]), nonReleasedNumbers: 1, campaignActive: true };
+      const { harness, done } = run(state, daysAfterCancel(27.1));
+      await done;
+      const [email] = sentEmails(harness);
+      expect(email.text).toMatch(/port it out/i);
+      // "Before the deadline" is not actionable. A date is.
+      expect(email.text).toMatch(/before \w+ \d{1,2}, \d{4}/);
+      expect(email.text).toMatch(/telling your own customers/i);
+      // Still says what release means — the final notice is not the place to drop it.
+      expect(email.text).toMatch(/another business/i);
+    });
+
+    it("never claims the number cannot be recovered, on any day", async () => {
+      // The exact sentence #413 was filed about. It is true about US and false
+      // about the world, and a reader acts on the second reading.
+      for (const [day, ledger] of [
+        [1.1, new Set<number>()],
+        [15.1, new Set([1])],
+        [27.1, new Set([1, 15])],
+      ] as const) {
+        const state: GraceState = {
+          ledger: new Set(ledger),
+          nonReleasedNumbers: 1,
+          campaignActive: true,
+        };
+        const { harness, done } = run(state, daysAfterCancel(day));
+        await done;
+        for (const email of sentEmails(harness)) {
+          expect(email.text, `day ${day}`).not.toMatch(/cannot be recovered/i);
+        }
+      }
+    });
+  });
+
   it("re-running the same day sends nothing twice (ledger-gated)", async () => {
     const state: GraceState = { ledger: new Set(), nonReleasedNumbers: 1, campaignActive: true };
     const firstRun = run(state, daysAfterCancel(1.2));

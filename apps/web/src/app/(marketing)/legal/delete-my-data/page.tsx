@@ -86,7 +86,10 @@ export default function DeleteMyDataPage() {
           and their photos, voicemail recordings, contacts, tasks, notes, call
           history and saved replies, along with the files behind them and the
           billing record at our payment processor. The phone number is released
-          straight away and cannot be recovered.
+          straight away: it returns to the phone company and can be reassigned to
+          another business, so anyone who still has it saved will eventually reach
+          someone else. We cannot get it back for you. If you want to keep the
+          number, port it out to another carrier before you close.
         </p>
       </LegalSectionBlock>
 

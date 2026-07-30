@@ -47,14 +47,80 @@ function warningCopy(
     15: `${daysLeft} days left before your Loonext business number is released`,
     27: `Final notice: your Loonext business number is released in ${daysLeft} days`,
   };
-  const text =
+  const opening =
     `Hi,\n\nThe Loonext subscription for ${company.name} is canceled. ` +
     `Your business phone number is suspended but reserved for ${GRACE_PERIOD_DAYS} days ` +
     `from cancellation. You still have about ${daysLeft} day${daysLeft === 1 ? "" : "s"} ` +
-    `to resubscribe and keep it, with your full message history intact.\n\n` +
-    `After that the number is permanently released and cannot be recovered.\n\n` +
-    `Resubscribe: ${resubscribeUrl}\n\nLoonext`;
-  return { subject: subjects[day], text };
+    `to resubscribe and keep it, with your full message history intact.\n\n`;
+
+  /**
+   * #413 — what "released" actually means, said from day 15 onward.
+   *
+   * The old copy said the number is "permanently released and cannot be
+   * recovered", which is true about US and reads as "it is gone". The truth is
+   * that it goes back into carrier inventory and gets **reassigned to another
+   * business**. It is recycled, not deleted.
+   *
+   * Those are materially different facts and only one of them prompts action:
+   * the customer's own customers have that number saved, keep texting it, and
+   * eventually reach a stranger — with an address, sometimes a gate code,
+   * sometimes a photo of the inside of a house. Same standard DELETION.md sets
+   * for data ("a deletion feature that claims total erasure is lying"), applied
+   * to numbers.
+   *
+   * NOT on day 1, deliberately. Day 1 is "nothing is lost yet, here is how to
+   * come back"; loading it with what happens in four weeks makes the one message
+   * that should be reassuring alarming instead, and there is nothing to act on
+   * yet.
+   */
+  const reassignment =
+    `When the ${GRACE_PERIOD_DAYS} days are up the number does not disappear — it goes ` +
+    `back to the phone company and can be given to another business. Anyone who ` +
+    `still has it saved and texts it will reach whoever has it next, not you.\n\n`;
+
+  /**
+   * #413 ask 2 — the single most useful sentence we can send a departing
+   * customer, and it costs us nothing: they are leaving either way.
+   *
+   * Only at day 27, when it is urgent and the deadline is concrete. Encouraging a
+   * port-out was worth checking against #398 (nothing noticed a number leaving);
+   * that is closed, so we are no longer blind to the action we are recommending.
+   */
+  const wayOut =
+    `If you want to keep this number, port it out to another carrier or a personal ` +
+    `line before ${releaseDateLabel(company.canceled_at)}. Your new carrier starts ` +
+    `that, not us, and it takes them a few business days — so begin now rather than ` +
+    `on the last day.\n\n` +
+    `It is also worth telling your own customers your new number before the ` +
+    `deadline. One message from you now saves them texting a stranger later.\n\n`;
+
+  const body =
+    day === 1
+      ? opening
+      : day === 15
+        ? opening + reassignment
+        : opening + reassignment + wayOut;
+
+  return { subject: subjects[day], text: `${body}Resubscribe: ${resubscribeUrl}\n\nLoonext` };
+}
+
+/**
+ * The release date, as a person reads it. #413 ask 2 needs a concrete deadline —
+ * "before the deadline" is not something anybody can act on.
+ *
+ * UTC, and deliberately not localised: the grace clock is computed in UTC, so
+ * formatting in a guessed timezone could print a date a day either side of the one
+ * the job will actually act on. A date that is off by one in a final notice is
+ * worse than a date with no timezone.
+ */
+function releaseDateLabel(canceledAt: string): string {
+  const release = new Date(new Date(canceledAt).getTime() + GRACE_PERIOD_DAYS * DAY_MS);
+  return release.toLocaleDateString("en-US", {
+    timeZone: "UTC",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 }
 
 function releasedCopy(company: CanceledCompany): {
@@ -67,6 +133,14 @@ function releasedCopy(company: CanceledCompany): {
       `Hi,\n\nThe ${GRACE_PERIOD_DAYS}-day grace period for ${company.name} has ended, ` +
       `and your business phone number has been released. Your conversation history ` +
       `remains available if you sign back in.\n\n` +
+      // #413: this is the moment it stops being a warning and becomes a fact. The
+      // number is back in carrier inventory now and may already belong to someone
+      // else, so the one useful thing left to say is what a customer texting the
+      // old number will experience — and that we cannot get it back for them.
+      `The number has gone back to the phone company and can be reassigned to ` +
+      `another business, so anyone still texting it may now reach a stranger. We ` +
+      `cannot get it back — not even if you resubscribe today. If your customers ` +
+      `still have it saved, tell them your new number.\n\n` +
       `If you resubscribe, we'll set you up with a new number and re-run US carrier ` +
       `registration where required.\n\nLoonext`,
   };
