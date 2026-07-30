@@ -3087,12 +3087,21 @@ dispute handler would not catch a cron that stopped.
 | Resend | address bounced / complained | ✅ `email_suppressions` + member email state | `email.bounced`, `email.complained` | the member whose address it is (#386) |
 | Supabase | project paused, quota exceeded | ❌ **no state** | nothing | nobody |
 | Cloudflare | Worker or account limit | ❌ **no state** | nothing | nobody |
+| GitHub Actions publishers | change the code our deploy executes | ✅ commit pins in `ship.yml` (D93) | the pin does not move without a commit here | whoever runs the quarterly bump (#444) |
 
 **Four of the five instances #424 was filed about are now closed** — #421
 (cancellation notice), #422 (disputes, D60), #398 (port-out), #423 (suspension).
 That is the argument for writing the table down rather than for closing the
 issue quietly: the instances were fixed one at a time, exactly as #424 warned,
 and without this the fifth would have been found the same way.
+
+**The last row is not a vendor**, and it is here because #444 argued it belongs
+here. Stripe and Telnyx change facts *about* us through an integration we chose.
+A GitHub Action is **code we execute on every deploy**, authored by someone else,
+and until D93 it arrived via a tag that its publisher could move without any
+commit in this repository. That is a larger power than most of the rows above,
+held by parties we never signed anything with, and the distinction between "a
+vendor" and "a dependency" did nothing to protect us on 2026-07-24.
 
 ### The three rows with ❌, said plainly
 
@@ -5095,3 +5104,63 @@ paragraph, not weaker. Four seeded tags any member can rename are now the job
 spine — load-bearing for the board and for the marketed Monday-morning ritual —
 with no protection and no saved view. That is #354's argument, and this decision
 is the reason to take it seriously.
+
+---
+
+## D93 — the deploy path pins its actions to a commit; CI does not (#444, 2026-07-30)
+
+**Decision.** Every `uses:` in `.github/workflows/ship.yml` is pinned to a
+40-character commit SHA with the release it corresponds to in a comment beside
+it. `checks.yml` and `main.yml` keep major tags. `scripts/check-action-pins.mjs`
+enforces the first half; the second is left alone on purpose. Pins are reviewed
+**quarterly**, using `scripts/ops/bump-action-pins.mjs`.
+
+**The argument is not the usual supply-chain one, and it is stronger for it.**
+This repository already took a production hit from a third party choosing what
+our pipeline runs: resolving the Supabase CLI as `latest` cost an
+unauthenticated GitHub API call, that call rate-limited, and the deploy died
+before it executed anything (2026-07-24). The fix — pin it — was correct, and
+it was applied one layer short. A major tag such as `actions/checkout@v4` is
+mutable; its publisher moves it on every minor and patch release, so what ran
+today need not be what runs tomorrow, and the change arrives with no commit
+here. That is the same mechanism with a slower fuse.
+
+**One of them was worse than a tag.** `supabase/setup-cli@v1` was not a tag at
+all — it is a **branch**, so its head moved on every push rather than every
+release. The action carrying the outage comment was the least pinned thing in
+the file. Nobody would have found that by reading; it turned up because
+resolving the refs made the type of each one explicit.
+
+**Why the deploy path only.** Per `docs/ENVIRONMENTS.md` there is one deployed
+environment and no staging, and `ship.yml` runs api + web + database in a single
+job, so an action that changes behaviour mid-release changes what customers get.
+In `checks.yml` the same surprise costs a red build, which is the system
+working. SHA-pinning everything is the textbook answer and the wrong one here:
+ten hand-maintained SHAs plus the dependency-bot noise they attract is the #403
+failure where a guard becomes a thing people click past, and
+`docs/ENVIRONMENTS.md` already states the standard — *"A guard people ignore is
+not a guard."* Asymmetry between two files invites being "corrected" later, so
+the reason is written at the top of `ship.yml` where somebody about to
+regularise it will read it.
+
+**The cadence is part of the decision, not a footnote to it.** Pins rot
+silently, and trading a loud failure for a quiet one would be no gain — a
+floating tag at least receives its publisher's security fixes. Quarterly only
+means something if doing it is cheap, so `bump-action-pins.mjs` resolves what
+each major tag points at today and prints the exact edits. It runs from a
+laptop, never in CI: a job that bumped these automatically would restore the
+property being removed and paint the commit log over it. It prints; a person
+commits.
+
+**Two implementation details worth keeping**, because both would silently
+produce a broken deploy. `gradle/actions@v4` is an annotated tag pointing at
+*another annotated tag*, so a single dereference yields a tag object's SHA,
+which Actions rejects — the resolution loops. And the version comment is
+mandatory rather than decorative: a bare SHA is unreadable, the bump script
+reports drift against those comments, so a pin without one is a pin nobody can
+maintain and the guard fails on it.
+
+**Added to D65's table as its own row.** An action is not a vendor relationship;
+it is code we execute on every deploy, authored by someone we never signed
+anything with. #424's point was that foreign state changes had no artifact to
+review — this is the same gap in a place the schema does not reach.

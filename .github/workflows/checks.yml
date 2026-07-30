@@ -196,6 +196,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/check-open-lists.mjs
 
+      # #444/D93: ship.yml is the only file whose output reaches customers, and
+      # every action in it used to be pinned to a MUTABLE major tag — one of
+      # them to a branch. A publisher moving that tag changes what production
+      # runs with no commit here, which is the property that took a deploy down
+      # on 2026-07-24, one layer lower. The pins are the fix; this stops them
+      # reverting the next time somebody adds a step and types `@v4` from habit.
+      # Deliberately ship.yml ONLY — this file keeps readable major tags, where
+      # a surprise costs a red build and nothing else. Offline, so unlike the
+      # lookup behind that outage it cannot itself be rate-limited.
+      - name: Guard deploy-path action pins
+        run: node scripts/check-action-pins.mjs
+
       # feat/fix/perf subjects are published verbatim in the release notes, so
       # they are checked like changelog copy. The commit-msg hook catches this
       # locally; this is the gate that --no-verify cannot skip. Only the commits

@@ -14,6 +14,46 @@ name: Ship
 # this repo, and none can be invented. Each phone job ends by saying so on the
 # run itself, because a release-day instruction belongs where you are standing,
 # not in a document.
+#
+# -----------------------------------------------------------------------------
+# EVERY ACTION HERE IS PINNED TO A COMMIT, AND checks.yml IS NOT (#444, D93).
+#
+# That asymmetry is deliberate, so read it as a decision rather than as drift.
+#
+# A major tag — `actions/checkout@v4` — is MUTABLE. The publisher moves it on
+# every minor and patch release, so what runs tomorrow need not be what ran
+# today, and the change arrives with no commit in this repo. That is the same
+# property that took a deploy down on 2026-07-24: a third party choosing what
+# our pipeline executes. The fix then was to stop resolving "latest" for the
+# Supabase CLI. This is that same fix one layer up.
+#
+# It is applied HERE ONLY because this is the file whose output reaches
+# customers. Per docs/ENVIRONMENTS.md there is one deployed environment and no
+# staging, and the backend job runs api + web + database together. In checks.yml
+# a surprise costs a red build and nothing else, so it keeps the readable major
+# tags — ten SHAs to hand-maintain for a solo founder buys nothing there, and a
+# guard that is more work than the risk is the #403 failure where people learn
+# to click past it.
+#
+# The comment beside each pin is the version that SHA IS. Keep it accurate; it
+# is the only human-readable thing about a pin, and a stale one is worse than
+# absent because it will be believed.
+#
+# BUMPING IS QUARTERLY AND DELIBERATE, matching the "Bump it deliberately"
+# instruction already written for the Supabase CLI below. SHA pins rot silently,
+# which is a real failure and a different one from floating tags, so the cadence
+# is not left to memory:
+#
+#     node scripts/ops/bump-action-pins.mjs
+#
+# resolves what each major tag points at TODAY and prints the exact edits. It
+# changes nothing on its own — the bump stays a commit somebody made, which is
+# the entire point of pinning.
+#
+# scripts/check-action-pins.mjs fails the build if a floating ref appears in
+# this file, so the asymmetry cannot quietly revert the next time somebody adds
+# a step and types `@v4` out of habit.
+# -----------------------------------------------------------------------------
 on:
   workflow_call:
 
@@ -66,9 +106,9 @@ jobs:
       # omits it — that artifact is never deployed and must not load GTM.
       NEXT_PUBLIC_GTM_ID: ${{ secrets.NEXT_PUBLIC_GTM_ID }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: pnpm
@@ -79,7 +119,15 @@ jobs:
       # Pinned, not "latest": resolving "latest" costs an unauthenticated
       # GitHub API call, and when that rate-limits the whole job dies before it
       # runs anything (it took a deploy down on 2026-07-24).
-      - uses: supabase/setup-cli@v1
+      #
+      # `supabase/setup-cli@v1` was not a tag at all — it is a BRANCH, and a
+      # branch head moves on every push rather than every release. The action
+      # carrying the outage comment was the least pinned thing in the file. The
+      # SHA below is where that branch stood, which is tag v1.7.1.
+      #
+      # Two different versions, both deliberate: the SHA is the ACTION that
+      # installs the CLI, `version:` is the CLI it installs.
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
         with:
           version: 2.109.1
 
@@ -131,16 +179,16 @@ jobs:
       run:
         working-directory: apps/android
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0 # versionCode is the commit count
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
         with:
           distribution: temurin
           java-version: "21"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
       - name: Install SDK 37
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
         with:
           packages: "platforms;android-37.0 build-tools;36.0.0 platform-tools"
           log-accepted-android-sdk-licenses: false
@@ -155,7 +203,7 @@ jobs:
             -PloonextVersionCode="$(git rev-list --count HEAD)"
 
       - name: Attach the bundle to the release
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: loonext-android-release
           path: apps/android/app/build/outputs/bundle/release/*.aab
@@ -177,7 +225,7 @@ jobs:
       run:
         working-directory: apps/ios
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0 # CURRENT_PROJECT_VERSION is the commit count
 
@@ -210,7 +258,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
       - name: Attach the archive to the release
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: loonext-ios-archive
           path: apps/ios/build/Loonext.xcarchive
@@ -255,7 +303,7 @@ jobs:
       # The whole point of this job: it files the to-do.
       issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0 # tags: release-please has already tagged this commit
 
