@@ -30,6 +30,7 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
+import { alarmOnBulkContactAccess } from "../audit/bulk-contact-alarm";
 import { resolveDestinationClock } from "../messaging/destination-clock";
 import { requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
@@ -423,6 +424,26 @@ contactsRoutes.get("/contacts/export", requireRole("member"), async (c) => {
   // UTF-8 BOM (D20 §3.1) so Excel reads the encoding correctly. Emit the body
   // as bytes with a literal EF BB BF prefix: `new Response(string)` would strip
   // a leading U+FEFF, so the BOM must be raw bytes, not a string char.
+  // #345/#231: "a contact export is the departing-employee signature." The
+  // audit row is the record; the alarm below is the only proactive thing in the
+  // audit system, because nobody reads a history screen on an ordinary Tuesday.
+  //
+  // The COUNT and whether a filter was applied — never the rows. This is the
+  // one audit entry describing an action whose whole subject is customer data,
+  // so it says how much moved and nothing about who.
+  const exportedCount = Math.max(table.length - 1, 0);
+  await recordAuditFromRequest(db, c, {
+    companyId,
+    action: "contacts.exported",
+    targetType: "contact",
+    after: { count: exportedCount, filtered: Boolean(rawQ) },
+  });
+  alarmOnBulkContactAccess(c, getEnv(c.env), db, {
+    companyId,
+    actorUserId: c.get("userId"),
+    event: "exported",
+    count: exportedCount,
+  });
   const csvBytes = new TextEncoder().encode(serializeCsv(table));
   const body = new Uint8Array(csvBytes.length + 3);
   body.set([0xef, 0xbb, 0xbf], 0);
@@ -995,6 +1016,20 @@ contactsRoutes.post(
       updated: phones.length - imported,
       source: "csv",
     });
+    // #345: counts, never contacts. An import is how a workspace's customer
+    // list arrives, and "where did these 400 people come from" is asked far
+    // more often than anyone expects.
+    await recordAuditFromRequest(db, c, {
+      companyId,
+      action: "contacts.imported",
+      targetType: "contact",
+      after: {
+        imported,
+        updated: phones.length - imported,
+        skipped: errors.length,
+        source: "csv",
+      },
+    });
     return c.json({
       imported,
       updated: phones.length - imported,
@@ -1152,6 +1187,20 @@ contactsRoutes.post(
       imported,
       updated: phones.length - imported,
       source: "vcard",
+    });
+    // #345: the vCard path is no less an import than the spreadsheet one, and
+    // an audit trail only one route writes is a trail with a hole shaped
+    // exactly like whichever route somebody chose.
+    await recordAuditFromRequest(db, c, {
+      companyId,
+      action: "contacts.imported",
+      targetType: "contact",
+      after: {
+        imported,
+        updated: phones.length - imported,
+        skipped: errors.length,
+        source: "vcard",
+      },
     });
     return c.json({
       imported,

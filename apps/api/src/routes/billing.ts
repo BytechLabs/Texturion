@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { recordAuditFromRequest } from "../audit/log";
 import { requireRole } from "../auth/company";
 import {
   hasLiveSubscription,
@@ -537,6 +538,18 @@ billingRoutes.post("/change-plan", async (c) => {
       .update({ plan: "pro" })
       .eq("id", company.id);
     if (error) throw new Error(`companies plan update failed: ${error.message}`);
+    // #345: the plan is what the workspace is billed and limited by, so "who
+    // moved us to Pro, and when" is a question with a real answer attached to
+    // it. Recorded after the mirror, so the row only exists for a change that
+    // actually took.
+    await recordAuditFromRequest(db, c, {
+      companyId: company.id,
+      action: "billing.plan_changed",
+      targetType: "company",
+      targetId: company.id,
+      before: { plan: "starter" },
+      after: { plan: "pro", effective: "now" },
+    });
     return c.json({ plan: "pro", effective: "now" });
   }
 
@@ -618,6 +631,21 @@ billingRoutes.post("/change-plan", async (c) => {
     ],
   });
 
+  // #345: a downgrade is the half worth having most. It takes effect at the
+  // period end, so the person who notices the smaller allowance is rarely the
+  // person who chose it, and often weeks later.
+  await recordAuditFromRequest(db, c, {
+    companyId: company.id,
+    action: "billing.plan_changed",
+    targetType: "company",
+    targetId: company.id,
+    before: { plan: "pro" },
+    after: {
+      plan: "starter",
+      effective: "period_end",
+      effective_at: new Date(currentPeriodEnd * 1000).toISOString(),
+    },
+  });
   return c.json({
     plan: "starter",
     effective: "period_end",
@@ -759,6 +787,14 @@ billingRoutes.post("/modules", async (c) => {
       { onConflict: "company_id,module" },
     );
     if (error) throw new Error(`module enable failed: ${error.message}`);
+    // #345: a module is a recurring charge somebody added.
+    await recordAuditFromRequest(db, c, {
+      companyId,
+      action: "billing.module_changed",
+      targetType: "company",
+      targetId: companyId,
+      after: { module, enabled: true },
+    });
     return c.json({ module, enabled: true });
   }
 
@@ -783,5 +819,14 @@ billingRoutes.post("/modules", async (c) => {
   if (error) throw new Error(`module disable failed: ${error.message}`);
   // #134: no voice arm — forwarding/MCTB are plan features now, never
   // cleared by a module toggle.
+  // #345: and the disable direction, which is the one that removes a
+  // capability somebody else may be relying on.
+  await recordAuditFromRequest(db, c, {
+    companyId,
+    action: "billing.module_changed",
+    targetType: "company",
+    targetId: companyId,
+    after: { module, enabled: false },
+  });
   return c.json({ module, enabled: false });
 });
