@@ -674,6 +674,90 @@ numbersRoutes.get("/:id/access", requireRole("admin"), async (c) => {
   });
 });
 
+/**
+ * GET /v1/numbers/access/explain/:userId (#348) — what this member actually
+ * reaches, and WHY.
+ *
+ * #348: *"A permission model that cannot be inspected is one nobody trusts, and
+ * one where a misconfiguration is found by a customer rather than by the person
+ * who made it."* The model has been complete and entirely invisible: nothing
+ * anywhere showed an owner which numbers a given member reaches, at what level,
+ * or which of three interacting rules produced that answer.
+ *
+ * The whole answer comes from `member_number_access_explained` — the single
+ * implementation of the #106 precedence rule (D88/D90). This route joins names
+ * onto it and returns; it decides nothing. Ranking the rules here would be a
+ * second implementation of a security decision, which is what
+ * `number-access-surfaces.test.ts` fails the build over.
+ *
+ * Owner/admin only. It answers for ANOTHER person, which is a management
+ * question — a member asking what they themselves can reach is the /v1/me
+ * company embed, already filtered.
+ */
+numbersRoutes.get("/access/explain/:userId", requireRole("admin"), async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const userId = pathUuid(c, "userId");
+  const companyId = c.get("companyId");
+
+  const { data, error } = await db.rpc("member_number_access_explained", {
+    p_user_id: userId,
+    p_company_id: companyId,
+  });
+  if (error) {
+    throw new Error(`member_number_access_explained failed: ${error.message}`);
+  }
+  const rows = (data ?? []) as {
+    phone_number_id: string;
+    level: "text" | "note" | "none";
+    decided_by:
+      | "user"
+      | "role"
+      | "all"
+      | "no-match"
+      | "unruled"
+      | "role-override"
+      | "not-a-member";
+    principal: string | null;
+  }[];
+
+  // The numbers themselves, so the screen can say "+1 415 555 0301" rather than
+  // a uuid. Unfiltered by access on purpose: the reader is an owner or admin,
+  // who reach every number by definition (#106, no self-lockout).
+  const { data: numberRows, error: numberError } = await db
+    .from("phone_numbers")
+    .select("id,number_e164,status")
+    .eq("company_id", companyId)
+    .neq("status", "released");
+  if (numberError) {
+    throw new Error(`phone_numbers lookup failed: ${numberError.message}`);
+  }
+  const numbers = new Map(
+    (numberRows ?? []).map((row) => [
+      (row as { id: string }).id,
+      row as { id: string; number_e164: string },
+    ]),
+  );
+
+  return c.json({
+    user_id: userId,
+    numbers: rows
+      // A released number is gone; reporting access to it would be answering a
+      // question nobody asked with a row nobody can act on.
+      .filter((row) => numbers.has(row.phone_number_id))
+      .map((row) => {
+        const number = numbers.get(row.phone_number_id);
+        return {
+          phone_number_id: row.phone_number_id,
+          number_e164: number?.number_e164 ?? null,
+          level: row.level,
+          decided_by: row.decided_by,
+          principal: row.principal,
+        };
+      }),
+  });
+});
+
 /** PUT /v1/numbers/:id/access — replace the number's access rules (O/A). */
 numbersRoutes.put("/:id/access", requireRole("admin"), async (c) => {
   const env = getEnv(c.env);

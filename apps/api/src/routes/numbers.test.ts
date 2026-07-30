@@ -1328,3 +1328,75 @@ describe("POST /v1/numbers/:id/remediate (no-recharge)", () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe("GET /v1/numbers/access/explain/:userId (#348)", () => {
+  const NUMBER_ID = "aaaaaaaa-0000-4000-8000-0000000000c7";
+  const RELEASED_ID = "aaaaaaaa-0000-4000-8000-0000000000c8";
+  const MEMBER = "bbbbbbbb-0000-4000-8000-0000000000b7";
+
+  function withNumbers(harness: ReturnType<typeof buildHarness>) {
+    harness.rest.insert("phone_numbers", {
+      id: NUMBER_ID,
+      company_id: COMPANY_ID,
+      status: "active",
+      country: "US",
+      number_e164: "+12125559100",
+    });
+    harness.rest.insert("phone_numbers", {
+      id: RELEASED_ID,
+      company_id: COMPANY_ID,
+      status: "released",
+      country: "US",
+      number_e164: "+12125559101",
+    });
+  }
+
+  it("requires owner/admin", async () => {
+    // It answers for ANOTHER person, which is a management question. A member
+    // asking what they themselves reach is the /v1/me company embed.
+    const harness = buildHarness();
+    withNumbers(harness);
+    harness.state.role = "member";
+    const res = await harness.request(`/v1/numbers/access/explain/${MEMBER}`);
+    expect(res.status).toBe(403);
+  });
+
+  it("returns the level AND the rule that decided it", async () => {
+    const harness = buildHarness();
+    withNumbers(harness);
+    harness.rest.rpc("member_number_access_explained", () => [
+      { phone_number_id: NUMBER_ID, level: "note", decided_by: "role", principal: "member" },
+    ]);
+
+    const res = await harness.request(`/v1/numbers/access/explain/${MEMBER}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      user_id: string;
+      numbers: { level: string; decided_by: string; principal: string | null; number_e164: string }[];
+    };
+    expect(body.user_id).toBe(MEMBER);
+    expect(body.numbers).toHaveLength(1);
+    // The whole point of #348: not just what, but why.
+    expect(body.numbers[0].decided_by).toBe("role");
+    expect(body.numbers[0].principal).toBe("member");
+    expect(body.numbers[0].level).toBe("note");
+    // And the number itself, so the screen says +1 212 555 9100 not a uuid.
+    expect(body.numbers[0].number_e164).toBe("+12125559100");
+  });
+
+  it("drops a released number", async () => {
+    // The resolver answers for every row in phone_numbers. A released number is
+    // gone — reporting access to it answers a question nobody asked with a row
+    // nobody can act on.
+    const harness = buildHarness();
+    withNumbers(harness);
+    harness.rest.rpc("member_number_access_explained", () => [
+      { phone_number_id: NUMBER_ID, level: "text", decided_by: "unruled", principal: null },
+      { phone_number_id: RELEASED_ID, level: "text", decided_by: "unruled", principal: null },
+    ]);
+
+    const res = await harness.request(`/v1/numbers/access/explain/${MEMBER}`);
+    const body = (await res.json()) as { numbers: { phone_number_id: string }[] };
+    expect(body.numbers.map((n) => n.phone_number_id)).toEqual([NUMBER_ID]);
+  });
+});

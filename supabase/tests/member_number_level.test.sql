@@ -356,4 +356,94 @@ begin
   raise notice 'NL-7 PASSED: singular is authenticated-callable, plural is not';
 end $$;
 
+
+-- ===========================================================================
+-- NL-8 (#348). The rule can be asked WHY, and the reason cannot disagree with
+-- the level.
+--
+-- #348: "A permission model that cannot be inspected is one nobody trusts, and
+-- one where a misconfiguration is found by a customer rather than by the person
+-- who made it." Three principal kinds interact by precedence, so "why" is a
+-- real question with a non-obvious answer.
+--
+-- The property that matters most is the LAST one asserted here: every row the
+-- explainer returns for a restricted number must agree with what
+-- member_number_levels says. They cannot drift, because the plural is now a
+-- projection of the explainer rather than a second implementation — and this is
+-- what proves that stayed true.
+-- ===========================================================================
+do $$
+declare
+  v_row       record;
+  v_seen      int;
+begin
+  -- A 'user' rule beats the 'role' rule on the same number (NL-1's fixture).
+  select level, decided_by, principal into v_row
+  from public.member_number_access_explained(
+    '4a000000-0000-4000-8000-00000000000c'::uuid,
+    '4a000000-0000-4000-8000-0000000000c1'::uuid)
+  where phone_number_id = '4a000000-0000-4000-8000-0000000000f2'::uuid;
+  if v_row.decided_by is distinct from 'user' then
+    raise exception 'NL-8 FAILED: expected a user rule to decide, got % (%)',
+      v_row.decided_by, v_row.level;
+  end if;
+  -- A 'user' match names nobody: the principal IS the person being asked about,
+  -- and repeating it back would be noise on the screen.
+  if v_row.principal is not null then
+    raise exception 'NL-8 FAILED: a user match named a principal (%)', v_row.principal;
+  end if;
+
+  -- An unruled number is reported as unruled rather than omitted. "Nothing is
+  -- restricting this number" and "I have not looked at this number" are
+  -- different answers, and only one of them is reassuring.
+  select count(*) into v_seen
+  from public.member_number_access_explained(
+    '4a000000-0000-4000-8000-00000000000c'::uuid,
+    '4a000000-0000-4000-8000-0000000000c1'::uuid)
+  where decided_by = 'unruled';
+  if v_seen = 0 then
+    raise exception 'NL-8 FAILED: no unruled number reported — the explainer must return every number';
+  end if;
+
+  -- An owner sees everything, and is told WHY. Silent full access would leave
+  -- an owner wondering whether the rules work at all.
+  select level, decided_by into v_row
+  from public.member_number_access_explained(
+    '4a000000-0000-4000-8000-00000000000a'::uuid,
+    '4a000000-0000-4000-8000-0000000000c1'::uuid)
+  limit 1;
+  if v_row.decided_by is distinct from 'role-override' or v_row.level is distinct from 'text' then
+    raise exception 'NL-8 FAILED: owner should be text/role-override, got %/%',
+      v_row.level, v_row.decided_by;
+  end if;
+
+  -- A stranger is told they are a stranger, on every number.
+  select count(*) into v_seen
+  from public.member_number_access_explained(
+    '4a000000-0000-4000-8000-00000000000f'::uuid,
+    '4a000000-0000-4000-8000-0000000000c1'::uuid)
+  where decided_by <> 'not-a-member' or level <> 'none';
+  if v_seen <> 0 then
+    raise exception 'NL-8 FAILED: a non-member got % non-stranger row(s)', v_seen;
+  end if;
+
+  -- THE ONE THAT MATTERS. The reason and the level are computed from the same
+  -- coalesce order, so for every restricted number the explainer and the plural
+  -- must return the identical level. A mismatch means two implementations again.
+  select count(*) into v_seen
+  from public.member_number_access_explained(
+    '4a000000-0000-4000-8000-00000000000c'::uuid,
+    '4a000000-0000-4000-8000-0000000000c1'::uuid) e
+  join public.member_number_levels(
+    '4a000000-0000-4000-8000-00000000000c'::uuid,
+    '4a000000-0000-4000-8000-0000000000c1'::uuid) l
+    on l.phone_number_id = e.phone_number_id
+  where l.level is distinct from e.level;
+  if v_seen <> 0 then
+    raise exception 'NL-8 FAILED: % number(s) where the reason and the rule disagree', v_seen;
+  end if;
+
+  raise notice 'NL-8 PASSED: the rule explains itself, and cannot disagree with itself';
+end $$;
+
 rollback;
