@@ -364,11 +364,19 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
     // §9 double-charge fail-safe: a stable, cart-derived Idempotency-Key so two
     // concurrent identical submits collapse to ONE Checkout Session (Stripe
     // replays the first) — a double-click can never start two subscriptions.
-    expect(
-      harness.callsTo("POST", /checkout\/sessions/)[0].headers.get(
-        "Idempotency-Key",
-      ),
-    ).toBe(`${COMPANY_ID}:checkout:starter:`);
+    //
+    // #260: the key is derived from the LINE ITEMS now, not from plan + modules.
+    // It used to omit the $29 fee line, whose inputs (country,
+    // us_texting_enabled) are editable on the plan step between attempts BY
+    // DESIGN — so changing the US answer resent the SAME key with DIFFERENT
+    // parameters, Stripe answered idempotency_error, and checkout was blocked
+    // for roughly a day with no other cart input available to change.
+    const feeCartKey = harness
+      .callsTo("POST", /checkout\/sessions/)[0]
+      .headers.get("Idempotency-Key");
+    expect(feeCartKey).toContain(`${COMPANY_ID}:checkout:`);
+    // The fee line is IN the key, which is the whole fix.
+    expect(feeCartKey).toContain(env.STRIPE_US_FEE_PRICE_ID);
   });
 
   it("US company, fee already paid: no one-time line (never charged twice, SPEC §2)", async () => {
@@ -393,6 +401,16 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
       env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID,
     );
     expect(form.has("line_items[3][price]")).toBe(false);
+
+    // #260: the same plan WITHOUT the fee line must not reuse the fee cart's
+    // key. This is the exact collision that hard-blocked checkout: a customer
+    // toggles their US answer on the plan step, the cart changes, the key did
+    // not, and Stripe refuses a reused key whose parameters differ.
+    const noFeeKey = harness
+      .callsTo("POST", /checkout\/sessions/)[0]
+      .headers.get("Idempotency-Key");
+    expect(noFeeKey).toContain(`${COMPANY_ID}:checkout:`);
+    expect(noFeeKey).not.toContain(env.STRIPE_US_FEE_PRICE_ID);
   });
 
   it("CA company with US texting off: pro price pair, no fee, wizard skipped", async () => {

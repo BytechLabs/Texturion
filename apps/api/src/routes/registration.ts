@@ -544,6 +544,9 @@ registrationRoutes.post("/enable-us", requireRole("owner"), async (c) => {
   // while the route reported success and left US texting on. The owner ended up
   // enabled, never charged, and never registered with the carriers.
   const feeKey = idempotencyKey(companyId, "us_registration_fee", startedAt);
+  // #259: remembered OUTSIDE the try, because the rollback below has to be able
+  // to withdraw an invoice this attempt already created.
+  let createdInvoiceId: string | null = null;
   try {
     const invoice = await stripe.invoices.create(
       {
@@ -555,6 +558,7 @@ registrationRoutes.post("/enable-us", requireRole("owner"), async (c) => {
       { idempotencyKey: feeKey },
     );
     if (!invoice.id) throw new Error("Stripe invoice create returned no id");
+    createdInvoiceId = invoice.id;
     await stripe.invoiceItems.create(
       {
         customer: company.stripe_customer_id,
@@ -575,8 +579,54 @@ registrationRoutes.post("/enable-us", requireRole("owner"), async (c) => {
       action: "invoice_created",
     });
   } catch (invoiceError) {
-    // The charge never got off the ground — roll back the start-marker so the
-    // owner can retry (otherwise a failed create would wedge enable-us forever).
+    // #259: WITHDRAW THE INVOICE FIRST, or the rollback below invites a second
+    // charge for the same $29.
+    //
+    // Only `invoices.create` failing means the charge never got off the ground.
+    // A throw from invoiceItems.create or finalizeInvoice leaves a REAL invoice
+    // on the customer, and it carries auto_advance: true — Stripe finalizes and
+    // collects a draft on its own after about an hour. The rollback then
+    // deliberately re-opens enable-us, and the retry mints a NEW key (feeKey is
+    // scoped to this attempt's timestamp, for good reasons of its own), so it
+    // creates a SECOND invoice. Both collect, and the later one reconciles to
+    // nothing because registration_fee_paid_at is already stamped.
+    //
+    // The invoice.payment_failed handler in webhooks/stripe.ts already voids for
+    // exactly this reason. This path reaches the same double-collection with no
+    // payment failure at all, so it needs the same withdrawal.
+    //
+    // Void OR delete, because the state decides which is legal: Stripe voids a
+    // finalized invoice and refuses a draft, which must be deleted instead. The
+    // throw can leave either — finalizeInvoice can fail before or after Stripe
+    // committed — so both are attempted, in that order.
+    //
+    // Best-effort and never rethrown: the customer already has a failure, and
+    // losing the DB rollback on top would wedge enable-us forever. A withdrawal
+    // that fails is reported to Sentry, where the $29 is a human's problem
+    // rather than a silent one.
+    if (createdInvoiceId !== null) {
+      try {
+        await stripe.invoices.voidInvoice(createdInvoiceId);
+      } catch {
+        try {
+          await stripe.invoices.del(createdInvoiceId);
+        } catch (withdrawError) {
+          Sentry.captureException(withdrawError, {
+            extra: {
+              note:
+                "#259: could not withdraw the US-registration fee invoice after "
+                + "a failed enable-us. It may still collect $29 while a retry "
+                + "creates a second invoice.",
+              companyId,
+              invoiceId: createdInvoiceId,
+            },
+          });
+        }
+      }
+    }
+
+    // Now the start-marker, so the owner can retry (otherwise a failed create
+    // would wedge enable-us forever).
     const { error: rollbackError } = await db
       .from("companies")
       // Also undo us_texting_enabled (set true before the invoice above): a

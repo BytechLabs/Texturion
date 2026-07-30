@@ -777,6 +777,125 @@ describe("POST /v1/registration/enable-us", () => {
     expect(harness.telnyx.calls).toHaveLength(0);
   });
 
+  // #259: the rollback deliberately re-opens enable-us so the owner can retry,
+  // and the retry mints a NEW idempotency key (scoped to the attempt's
+  // timestamp). So an invoice left behind by a mid-sequence failure is collected
+  // by Stripe on its own — auto_advance finalizes a draft after about an hour —
+  // while the retry creates a SECOND one. Both take $29, and the later one
+  // reconciles to nothing because registration_fee_paid_at is already stamped.
+  function failingAfterCreate(
+    calls: StripeCall[],
+    failAt: "/v1/invoiceitems" | "/v1/invoices/in_1/finalize",
+  ): FetchRoute {
+    return async (url, request) => {
+      if (url.origin !== "https://api.stripe.com") return undefined;
+      const body = new URLSearchParams(await request.clone().text());
+      calls.push({ path: url.pathname, body, headers: new Headers(request.headers) });
+      if (url.pathname === "/v1/invoices" && request.method === "POST") {
+        return Response.json({ id: "in_1", object: "invoice", status: "draft" });
+      }
+      if (url.pathname === failAt) {
+        return Response.json({ error: { message: "boom" } }, { status: 500 });
+      }
+      // The withdrawal attempts: void first (legal for a finalized invoice),
+      // then delete (the draft case).
+      if (url.pathname === "/v1/invoices/in_1/void") {
+        return Response.json({ id: "in_1", object: "invoice", status: "void" });
+      }
+      if (url.pathname === "/v1/invoices/in_1" && request.method === "DELETE") {
+        return Response.json({ id: "in_1", deleted: true });
+      }
+      return Response.json({ error: { message: `unexpected ${url.pathname}` } }, { status: 500 });
+    };
+  }
+
+  it("withdraws the invoice when the line item fails, before re-opening retry", async () => {
+    const harness = buildHarness({
+      country: "CA",
+      us_texting_enabled: false,
+      registration_fee_paid_at: null,
+    });
+    harness.state.role = "owner";
+    seedCompleteWizard(harness);
+    const stripeCalls: StripeCall[] = [];
+    harness.addRoute(failingAfterCreate(stripeCalls, "/v1/invoiceitems"));
+
+    const res = await harness.request("/v1/registration/enable-us", {
+      method: "POST",
+    });
+    expect(res.status).toBe(500);
+
+    // The invoice this attempt created must not be left collectable.
+    expect(
+      stripeCalls.some((call) => call.path === "/v1/invoices/in_1/void"),
+    ).toBe(true);
+
+    // And the rollback still happened, so the owner is not wedged.
+    const company = harness.rest.rows("companies")[0];
+    expect(company.us_texting_enabled).toBe(false);
+    expect(company.registration_fee_charge_started_at).toBeNull();
+  });
+
+  it("withdraws the invoice when finalize fails too", async () => {
+    const harness = buildHarness({
+      country: "CA",
+      us_texting_enabled: false,
+      registration_fee_paid_at: null,
+    });
+    harness.state.role = "owner";
+    seedCompleteWizard(harness);
+    const stripeCalls: StripeCall[] = [];
+    harness.addRoute(
+      failingAfterCreate(stripeCalls, "/v1/invoices/in_1/finalize"),
+    );
+
+    const res = await harness.request("/v1/registration/enable-us", {
+      method: "POST",
+    });
+    expect(res.status).toBe(500);
+    expect(
+      stripeCalls.some((call) => call.path === "/v1/invoices/in_1/void"),
+    ).toBe(true);
+    expect(harness.rest.rows("companies")[0].us_texting_enabled).toBe(false);
+  });
+
+  it("rolls back without a withdrawal when the invoice was never created", async () => {
+    // Nothing to withdraw, and a spurious void would be a confusing Stripe call
+    // against an id that does not exist.
+    const harness = buildHarness({
+      country: "CA",
+      us_texting_enabled: false,
+      registration_fee_paid_at: null,
+    });
+    harness.state.role = "owner";
+    seedCompleteWizard(harness);
+    const stripeCalls: StripeCall[] = [];
+    harness.addRoute(async (url, request) => {
+      if (url.origin !== "https://api.stripe.com") return undefined;
+      stripeCalls.push({
+        path: url.pathname,
+        body: new URLSearchParams(await request.clone().text()),
+        headers: new Headers(request.headers),
+      });
+      return Response.json({ error: { message: "down" } }, { status: 500 });
+    });
+
+    const res = await harness.request("/v1/registration/enable-us", {
+      method: "POST",
+    });
+    expect(res.status).toBe(500);
+    // Only invoice-create attempts (the Stripe SDK retries a 5xx under the same
+    // idempotency key, so the count is not the assertion) — and crucially NO
+    // withdrawal, because there is nothing to withdraw.
+    expect(
+      stripeCalls.every((call) => call.path === "/v1/invoices"),
+    ).toBe(true);
+    expect(
+      stripeCalls.some((call) => call.path.includes("void")),
+    ).toBe(false);
+    expect(harness.rest.rows("companies")[0].us_texting_enabled).toBe(false);
+  });
+
   it("skips the invoice and submits immediately when the fee was already paid (§2)", async () => {
     const harness = buildHarness({
       country: "CA",

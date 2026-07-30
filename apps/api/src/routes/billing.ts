@@ -18,7 +18,7 @@ import {
   extraNumberPrice,
   findExtraNumberItem,
 } from "../billing/extra-numbers";
-import { idempotencyKey } from "../billing/idempotency";
+import { cartSignature, idempotencyKey } from "../billing/idempotency";
 import {
   allVoiceOveragePrices,
   MODULE_CATALOG,
@@ -284,15 +284,25 @@ billingRoutes.post("/checkout", async (c) => {
     },
     // Stable, cart-derived key: two concurrent identical submits collapse to ONE
     // Checkout Session (Stripe replays the first), so a double-click can never
-    // start two subscriptions. A genuinely different cart (plan/modules) yields a
-    // different key and its own session, as intended. handleCheckoutCompleted's
-    // activation claim is the completion-side backstop for the different-cart case.
+    // start two subscriptions. A genuinely different cart yields a different key
+    // and its own session, as intended. handleCheckoutCompleted's activation
+    // claim is the completion-side backstop for the different-cart case.
+    //
+    // #260: the key is derived from the LINE ITEMS, not from a hand-listed set
+    // of inputs. It used to be plan + modules, and the $29 US-registration line
+    // depends on neither — it depends on country, us_texting_enabled and
+    // registration_fee_paid_at. Both of the first two are editable on the plan
+    // step between two attempts BY DESIGN, so a customer who changed their US
+    // answer produced the same key with different parameters, Stripe returned
+    // idempotency_error, and checkout was hard-blocked for ~24 hours with no
+    // way out. Deriving the key from the cart it describes means any future
+    // line-item input is covered by construction rather than by remembering to
+    // add it here.
     {
       idempotencyKey: idempotencyKey(
         company.id,
         "checkout",
-        plan,
-        selectedModules.slice().sort().join(","),
+        cartSignature(lineItems),
       ),
     },
   );
