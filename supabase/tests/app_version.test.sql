@@ -296,9 +296,17 @@ declare
   v_top     text;
   v_unknown bigint;
 begin
-  select version into v_top
+  -- Ordinality for the same reason `geocode_fair_share.test.sql` GF-3 needs it:
+  -- "sorts first" is the claim, and a bare `limit 1` does not make it. Nothing
+  -- reorders a filtered function scan today, so this one passes either way — but
+  -- it passes by luck, and the day somebody joins this to `user_sessions` for a
+  -- richer assertion it starts picking a row at random, intermittently, in CI
+  -- only. Saying what "first" means costs one line.
+  select q.version into v_top
     from public.api_version_distribution(30)
-   where platform = 'android'
+         with ordinality as q(platform, version, sessions, users, ord)
+   where q.platform = 'android'
+   order by q.ord
    limit 1;
   if v_top is distinct from '2.0.0' then
     raise exception 'newest version must sort first, got %', coalesce(v_top, '<null>');

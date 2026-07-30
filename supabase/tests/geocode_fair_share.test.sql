@@ -129,14 +129,30 @@ declare
 begin
   -- Among THIS suite's workspaces (other tenants exist and may have fewer rows),
   -- the 2-row one must come before the 20-row and 30-row ones.
+  -- WITH ORDINALITY, and an explicit ORDER BY on it. The function is ordered
+  -- (company_pending, company_id, seat), but nothing carries that order through a
+  -- JOIN, so a bare `limit 1` took whichever row the plan happened to emit first.
+  --
+  -- This suite passed locally and failed in CI on the same SQL. Forcing each join
+  -- strategy in turn reproduces it: under a MERGE join both sides come back
+  -- ordered by the join key — `contacts.id`, a random uuid — so the "first" row is
+  -- effectively drawn at random from the 52. Hash and nested-loop happened to
+  -- drive from the function side and looked correct, which is why a local run
+  -- never showed it. CI's fresh database simply costed the plan differently.
+  --
+  -- Ordinality is what makes this deterministic rather than lucky: it also blocks
+  -- SQL-function inlining, so the function really runs and numbers its own rows.
+  -- Asserting "first" requires saying what first means.
   select c.company_id into first_company
-    from public.api_geocode_contact_queue(10000, 4) q
+    from public.api_geocode_contact_queue(10000, 4)
+         with ordinality as q(id, address, ord)
     join public.contacts c on c.id = q.id
    where c.company_id in (
      'fa000000-0000-4000-8000-0000000000b1',
      'fa000000-0000-4000-8000-0000000000c1',
      'fa000000-0000-4000-8000-0000000000d1'
    )
+   order by q.ord
    limit 1;
   if first_company <> 'fa000000-0000-4000-8000-0000000000c1' then
     raise exception 'GF-3 FAILED: the fewest-pending company was not first (got %)',
