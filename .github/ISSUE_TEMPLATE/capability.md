@@ -44,9 +44,15 @@ is where you say what the other two clients do.
 
 ## Acceptance
 
-<!-- What has to be true. Include the shared-logic ports: TypeScript in
-packages/shared is hand-ported to Kotlin and Swift, and each port carries the
-same test cases. -->
+<!-- What has to be true.
+
+If this touches a rule in packages/shared, it is a THREE-EDIT change by
+construction, not by judgement (#376): TypeScript for web and the API, Kotlin
+for Android, Swift for iOS. The rules that must agree exactly are listed in
+scripts/generate-parity-vectors.mjs, with a reason beside each inclusion and
+each exclusion. If yours is one of them, regenerate the vectors — CI fails on a
+stale file, and the Kotlin and Swift suites assert their ports against it. If it
+is not, adding it there is a function and a list entry. -->
 
 ## Priority
 
