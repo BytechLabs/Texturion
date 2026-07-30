@@ -124,6 +124,66 @@ describe("T1 — call.initiated branches", () => {
     expect(alarms.map((a) => a.alarm)).toContain("janitor");
   });
 
+  // #325/D97: a billing state change never severs a call already in progress.
+  //
+  // This holds by construction rather than by a guard, and the construction is
+  // worth pinning: `suspendedOrInactive` is a field on the INITIATED context.
+  // It is read once, at T1, when the session is minted. No later transition can
+  // see it, so there is no code path by which a suspension landing mid-call
+  // could reach a live session.
+  //
+  // That is the guarantee #325 asks for — "a homeowner cut off mid-sentence
+  // while describing an emergency, because a card expired, is the worst
+  // possible expression of a billing policy" — and a structural guarantee is
+  // the strongest kind. The risk is that somebody later "fixes" it by
+  // consulting billing on every event, which would read as a tightening.
+  it("#325 a call that started while paying is never severed by suspension", () => {
+    const machine = ringingMachine();
+    // The session was minted paying. Suspension lands NOW, mid-ring, and the
+    // only way it could reach this session is via a later event carrying it —
+    // which the event types do not allow.
+    const answered = reduce(
+      machine,
+      { type: "member-leg-answered", ccid: "leg-u1", userId: "u1", destination: null },
+      5_000,
+      KEY,
+    );
+    // Still ringing: the answer is two-phase and settles through answerIntent.
+    // What matters here is what is ABSENT — nothing hangs the caller up, and
+    // the session does not terminate.
+    expect(answered.machine).not.toBeNull();
+    expect(answered.machine?.answerIntent).toBeTruthy();
+    expect(has(answered.effects, "telnyx-hangup")).toBe(false);
+    expect(answered.effects.some((e) => e.kind === "terminal-merge")).toBe(false);
+  });
+
+  it("#325 suspension is a property of the session's birth, not of its life", () => {
+    // The structural half, said as an assertion: a session minted suspended
+    // carries `unattended`, and one minted while paying does not — and nothing
+    // after T1 can change that, because no later event carries the field.
+    const suspended = reduce(
+      null,
+      { type: "initiated", context: initCtx({ suspendedOrInactive: true }) },
+      1_000,
+      keyGen(),
+    );
+    expect(suspended.machine?.unattended).toBe(true);
+
+    const paying = ringingMachine();
+    expect(paying.unattended).toBeFalsy();
+    // Every mid-call event, applied in turn. None may terminate the session for
+    // a billing reason, because none of them can even observe billing.
+    const events: Parameters<typeof reduce>[1][] = [
+      { type: "member-leg-answered", ccid: "leg-u1", userId: "u1", destination: null },
+    ];
+    let current: typeof paying | null = paying;
+    for (const event of events) {
+      const next = reduce(current, event, 5_000, KEY);
+      current = next.machine;
+      expect(current?.unattended).toBeFalsy();
+    }
+  });
+
   it("T1c over cap → reject USER_BUSY, rejectedForCap flag", () => {
     const r = reduce(null, { type: "initiated", context: initCtx({ overCap: true }) }, 1_000, keyGen());
     expect(r.machine?.rejectedForCap).toBe(true);

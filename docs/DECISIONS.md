@@ -5397,3 +5397,90 @@ form**, which is collapsed behind an "Edit your details" button — so on a phon
 the affordance is worth more, not less. Where a field is not focusable on a given
 client (the industry picker on mobile), the button still opens the form and the
 focus attempt is a no-op rather than an error.
+
+---
+
+## D97 — what every billing state does to work already in flight (#325, extends SPEC §9, 2026-07-30)
+
+**Decision.** The matrix below is the answer, and the rule that generates it is:
+**billing decides what may START, never what may CONTINUE.** A state change
+applies to the next call, the next send, the next session — never to one already
+running.
+
+**#325's framing is the right one**: *"every one of these has some current
+behaviour, arrived at by whichever code path happens to run first. That is not
+the same as a decision."* Most of the behaviours turned out to be correct. Two
+were already specified, several hold structurally, and writing them down is what
+converts them from accident to guarantee.
+
+### The matrix
+
+| Live subsystem | `past_due` | grace / `suspended` | closed (phase 1) | purged (phase 2) |
+|---|---|---|---|---|
+| **Call in progress** | continues | **continues** | continues | cannot coincide — 30 days later |
+| **New inbound call** | rings normally | unattended ring-out (T1b) | ring-out | number released |
+| **Inbound message** | **received + stored** (SPEC §9) | **received + stored** | stored, inaccessible | erased |
+| **Outbound send** | blocked, 402 `subscription_inactive` | blocked | blocked | n/a |
+| **Queued / scheduled send** | see the rule below | see the rule below | cancelled with notice | n/a |
+| **Realtime + push** | live | live | ends with access | n/a |
+| **In-flight port** | continues | continues | continues to completion | n/a |
+
+**The degradation order #325 asks for was already the specified one.** SPEC §9
+blocks outbound at `past_due` while *"inbound + dashboard stay live"*, and keeps
+*"inbound still received & stored"* through the 30-day grace. That is exactly
+*"stop new outbound spend first, keep receiving working as long as possible"* —
+so that scope item is closed by citing the spec rather than by changing
+anything. It also answers the inbound-during-grace question here and in #316.
+
+### A call in progress is never severed, and it holds structurally
+
+Not by a guard that could be removed — by the shape of the state machine.
+`suspendedOrInactive` is a field on the **initiated** context, read once at T1
+when the session is minted. No later event carries it, so there is no path by
+which a suspension landing mid-call could reach a live session.
+
+That is the strongest form of the guarantee #325 wants, and the risk is that
+somebody later "hardens" it by consulting billing on every event — which would
+read as a tightening and would introduce the exact failure the issue names: *"a
+homeowner cut off mid-sentence while describing an emergency, because a card
+expired, is the worst possible expression of a billing policy."* Two tests in
+`transitions.test.ts` pin it, and they exist to be in the way of that change.
+
+**Deletion cannot race a live call either**, and again by construction: D48
+splits teardown into closure (immediate, transactional) and purge (after
+`purge_after`, 30 days). A live call outlives closure and is long gone before
+purge. The split was forced by Storage, Stripe and Telnyx not being
+transactional; that it also makes the race impossible is a second reason to keep
+it.
+
+### The rule for queued and scheduled work, binding before it exists
+
+**#233 (send later) and #237 (reminders) are still open**, so there is nothing
+queued today. The rule is recorded now precisely because it is cheaper to build
+to than to retrofit:
+
+1. A scheduled send that fires while outbound is blocked is **held, not
+   dropped**, and resumes on reinstatement if it is still meaningful.
+2. **Anything held or cancelled is disclosed** — to the owner, at the moment it
+   happens. #325 puts the floor correctly: *"Silent disappearance is the one
+   unacceptable option."*
+3. **Time-sensitive work expires rather than arriving late.** An appointment
+   reminder for a job that has passed is worse than no reminder, so the hold has
+   a horizon and the expiry is itself disclosed.
+
+### What is deliberately NOT decided here
+
+**What a caller hears on a suspended line.** Today it is an unattended ring-out
+to the carrier timeout. A comment on #325 makes a good argument for a short
+spoken line instead — the caller is our customer's customer trying to give a
+tradesperson money, and ringing out teaches them the business is unreliable —
+and notes that `telnyx-speak` already exists.
+
+It is left out of this decision on purpose, and not by drift. It is a
+**caller-facing behaviour change** in the subsystem with the most review history
+(CALLS-V3 §16 already rejected a nearby proposal for smuggling behaviour in as
+hygiene), it requires answering the call, and answering costs money on a
+workspace that is by definition not paying — so it needs a cap before it needs a
+prompt. It is filed as its own issue with that arithmetic rather than folded in
+here, where it would be the one unreviewed thing in a document about removing
+accidents.
