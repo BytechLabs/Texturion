@@ -4742,3 +4742,44 @@ of that issue, including one real design question: `calls.phone_number_id` is
 NULLABLE, so a call whose number was deleted has no per-number topic to go to.
 Falling back to the company topic quietly reopens the leak for exactly the rows
 most likely to be interesting.
+
+### D88 addendum — the per-number topic is published to, and revocation announces itself
+
+#480 step 4, same day. Two things were settled by looking rather than deciding.
+
+**The nullable number is not a compromise.** `call.updated` fires for a call whose
+number was deleted, and #480 warned that a company-topic fallback "quietly reopens
+the leak for exactly the rows most likely to be interesting". Two foreign keys
+answer it: `number_access.phone_number_id` is `on delete cascade` and
+`calls.phone_number_id` is `on delete set null`. A call with a null number is a
+call whose access rule was deleted along with the number, so there is no
+restriction left to honour — a leak requires a restriction. Dropping the event
+would lose a state update to protect nothing.
+
+**Realtime authorization is a join-time handshake.** The `realtime.messages`
+policy is evaluated on `phx_join`, and again on a live channel only when a
+refreshed JWT is pushed (`setAuth`, roughly hourly). It is never evaluated per
+broadcast. So revoking a member's access does NOT drop their subscription: they
+keep receiving that number's events for up to an hour — a boundary the product
+would believe it was enforcing and would not be.
+
+`broadcast_number_access_changed` closes that. Any change to `number_access`
+announces itself on the COMPANY topic, which every member may already join so the
+announcement needs no new authorization, and the clients re-derive their
+subscriptions. The payload is the company id and nothing else: naming the number
+or the member would broadcast the shape of the restriction to everyone on the
+topic. A client cannot tell whether it was the subject — it just asks again, and
+the answer is authoritative.
+
+**This is the expand half and it closes no leak yet.** Eight events now publish to
+BOTH the company topic and `company:{id}:number:{n}`. Removing the company send is
+what closes D85's leak, and it cannot happen in the same change: two of the three
+clients are store-distributed, so a user who has not updated would simply stop
+receiving realtime. The sequence is expand → clients adopt → contract, and the
+contract step is one statement inside `broadcast_number_scoped` rather than eight
+edits across six trigger functions. That is the only reason the helper exists.
+
+Two events stay company-wide because scoping them would scope the wrong object:
+`registration.updated` (unique per `(company_id, kind)`, and it authorizes every
+number the company has) and `read.notifications` (one watermark per person across
+all numbers).

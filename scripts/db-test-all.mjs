@@ -103,6 +103,7 @@ const SUITES = [
   "number_reissue",
   "response_time",
   "member_number_level",
+  "number_scoped_topics",
 ];
 
 const args = process.argv.slice(2);
