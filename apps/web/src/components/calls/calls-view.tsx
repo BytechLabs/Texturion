@@ -5,8 +5,9 @@
  * the for-you Section card (uppercase 11px header, one bordered card,
  * hairline row separators), the shared CallRow (call-row.tsx — #205 also
  * renders it on the contact detail's call history), and CalmEmptyState.
- * Missed is the only filter: the weekly
- * question is "who called and do I need to act?". #133 polish: a muted
+ * Filters are All | Missed | Voicemail, matching both phone apps: the weekly
+ * question is "who called and do I need to act?", and the other one is "what
+ * did they say?". #133 polish: a muted
  * direction glyph per row and a quiet explainer on unthreaded rows.
  * #134/D42: calling is included on every plan, so the old module-off banner
  * is gone — there is no module state to warn about.

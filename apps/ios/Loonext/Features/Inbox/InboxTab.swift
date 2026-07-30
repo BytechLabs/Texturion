@@ -84,6 +84,37 @@ enum InboxReadSwipe {
     }
 }
 
+/// #295: the copy and the undo decision for a swipe status change, kept pure so
+/// it is testable and so it cannot drift from the Android twin
+/// (`InboxTab.kt`: "Conversation closed" + Undo when closing, a bare
+/// "Conversation reopened" when reopening).
+///
+/// Undo is offered ONLY when closing, and that asymmetry is deliberate: closing
+/// removes the row from the pane, so without an Undo the way back is knowing to
+/// switch to the Closed filter and hunt for it. Reopening puts a row IN FRONT of
+/// you, where the swipe is right there to reverse it.
+enum InboxStatusSwipe {
+    static func isClosing(to status: String) -> Bool {
+        status == ConversationStatus.closed
+    }
+
+    static func notice(to status: String) -> String {
+        isClosing(to: status) ? "Conversation closed" : "Conversation reopened"
+    }
+
+    /// The status to revert to, or nil when no Undo should be offered.
+    ///
+    /// Returns the row's ACTUAL prior status rather than a hardcoded "open".
+    /// #295 asks that an undo restore full prior state, and a conversation that
+    /// was `new` or `waiting` when it got swiped away would otherwise come back
+    /// as `open` — quietly losing the fact that nobody had replied to it yet,
+    /// which is the whole distinction those statuses carry.
+    static func undoTarget(to status: String, from previous: String) -> String? {
+        guard isClosing(to: status), previous != status else { return nil }
+        return previous
+    }
+}
+
 // MARK: - List state
 
 private enum InboxStatusTab: String, CaseIterable, Identifiable, Sendable {
@@ -313,9 +344,21 @@ private final class InboxController {
         }
     }
 
-    private func notify(_ text: String) {
+    /// #295: carries an optional action, exactly like ThreadController's twin.
+    /// The inbox had a text-only version, which is why a swipe-close here had no
+    /// Undo while the same action on Android did.
+    private func notify(
+        _ text: String,
+        actionLabel: String? = nil,
+        action: (@MainActor () -> Void)? = nil
+    ) {
         noticeSeq += 1
-        notice = ThreadNotice(id: noticeSeq, text: text)
+        notice = ThreadNotice(
+            id: noticeSeq,
+            text: text,
+            actionLabel: actionLabel,
+            action: action
+        )
     }
 
     // MARK: Row swipe mutations — the EXACT calls the thread header makes.
@@ -323,7 +366,23 @@ private final class InboxController {
     /// Done/Reopen/Close: PATCH /v1/conversations/:id {status} (the thread
     /// status menu's mutation), then a quiet first-page refetch re-sorts and
     /// drops rows that left the active filter.
-    func setRowStatus(_ conversationId: String, status: String) {
+    /// #295: a full swipe closes the row, so an Undo is not a nicety here — it is
+    /// the only way back. Android has offered it since the swipe shipped; iOS
+    /// closed the conversation silently and the row left the pane, so recovering
+    /// meant knowing to switch to the Closed filter and find it again. The named
+    /// scenario in #295 is a mis-swipe on a phone, and this is that surface.
+    ///
+    /// `undoTo` is the status the row was ON, captured by the caller before the
+    /// mutation, so the revert restores the prior state rather than assuming
+    /// "open" — reopening something that was already closed would be its own
+    /// small lie.
+    func setRowStatus(
+        _ conversationId: String,
+        status: String,
+        /// #295: the status the row was ON, so an Undo restores it exactly.
+        from previous: String? = nil,
+        announce: Bool = false
+    ) {
         Task {
             do {
                 _ = try await repo.setStatus(
@@ -332,6 +391,20 @@ private final class InboxController {
                     status: status
                 )
                 await refreshFirstPage()
+                guard announce else { return }
+                if let previous,
+                   let undoTo = InboxStatusSwipe.undoTarget(to: status, from: previous) {
+                    notify(
+                        InboxStatusSwipe.notice(to: status),
+                        actionLabel: "Undo"
+                    ) { [weak self] in
+                        // The revert itself announces nothing: a toast for the
+                        // undo of a toast is noise.
+                        self?.setRowStatus(conversationId, status: undoTo)
+                    }
+                } else {
+                    notify(InboxStatusSwipe.notice(to: status))
+                }
             } catch {
                 notify(error.userMessage)
             }
@@ -489,7 +562,9 @@ private struct InboxList: View {
     @State private var assigneeSheetOpen = false
     @State private var tagSheetOpen = false
     @State private var assignFor: ConversationListItem?
-    @State private var visibleNotice: String?
+    /// #295: the whole notice, not just its text — the old `String?` discarded
+    /// the action, so an Undo could never have been shown here.
+    @State private var visibleNotice: ThreadNotice?
     @State private var noticeDismissTask: Task<Void, Never>?
 
     var body: some View {
@@ -502,13 +577,24 @@ private struct InboxList: View {
                 }
             }
             if let visibleNotice {
-                Text(visibleNotice)
-                    .font(.golos(12.5))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.regularMaterial, in: Capsule())
-                    .padding(.bottom, 12)
-                    .onTapGesture { self.visibleNotice = nil }
+                HStack(spacing: 12) {
+                    Text(visibleNotice.text)
+                        .font(.golos(12.5))
+                        .lineLimit(2)
+                    if let label = visibleNotice.actionLabel {
+                        Button(label) {
+                            visibleNotice.action?()
+                            self.visibleNotice = nil
+                        }
+                        .font(.golos(12.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.olive)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.regularMaterial, in: Capsule())
+                .padding(.bottom, 12)
+                .onTapGesture { self.visibleNotice = nil }
             }
         }
         .background(BrandColor.canvas)
@@ -534,10 +620,21 @@ private struct InboxList: View {
         }
         .onChange(of: controller?.notice?.id) { _, _ in
             guard let notice = controller?.notice else { return }
-            visibleNotice = notice.text
+            visibleNotice = notice
             noticeDismissTask?.cancel()
             noticeDismissTask = Task {
-                try? await Task.sleep(for: .seconds(3))
+                // #295 point 4: an undoable notice stays up longer than a bare
+                // one. Three seconds is fine for "Copied"; it is not fine for the
+                // only chance to reverse a mis-swipe, and the person doing the
+                // mis-swiping is on a ladder holding a phone.
+                //
+                // Ten seconds matches Android's SnackbarDuration.Long, which its
+                // notice host already picks for exactly this case. It is
+                // deliberately LONGER than the web primitive's 5s: web undo
+                // follows a deliberate click with a mouse, a phone undo follows a
+                // gesture you can make by accident. The platform difference is
+                // the point, not a drift. See docs/UNDO-AUDIT.md.
+                try? await Task.sleep(for: .seconds(notice.actionLabel == nil ? 3 : 10))
                 if !Task.isCancelled { visibleNotice = nil }
             }
         }
@@ -940,7 +1037,11 @@ private struct ConversationListPane: View {
                 Button {
                     controller.setRowStatus(
                         row.id,
-                        status: closed ? ConversationStatus.open : ConversationStatus.closed
+                        status: closed ? ConversationStatus.open : ConversationStatus.closed,
+                        // #295: the swipe announces, so a mis-swipe has an Undo —
+                        // back to the status the row actually had.
+                        from: row.status,
+                        announce: true
                     )
                 } label: {
                     Label(

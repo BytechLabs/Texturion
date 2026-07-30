@@ -28,7 +28,7 @@ import TemplatesPage from "@/app/(marketing)/features/templates-and-tags/page";
 // line from KV), and this sweep renders synchronously. The country gating lives
 // entirely in the content component, so that is what gets rendered here — the
 // async shell only fetches the feed.
-import { StatusContent } from "@/app/(marketing)/status/page";
+import { StatusContent } from "@/components/marketing/status-content";
 import { EMPTY_STATUS_FEED } from "@/lib/marketing/status-feed";
 import CompareIndexPage from "@/app/(marketing)/compare/page";
 import HeymarketPage from "@/app/(marketing)/compare/heymarket/page";

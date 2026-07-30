@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import { EMPTY_STATUS_FEED, type StatusFeed } from "@/lib/marketing/status-feed";
 
-import { metadata, StatusContent } from "./page";
+import { StatusContent } from "@/components/marketing/status-content";
+
+import { metadata } from "./page";
 
 /**
  * /status guards (DESIGN-DIRECTION v4 §6 STATUS + owner amendment 11): until

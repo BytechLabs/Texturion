@@ -137,9 +137,30 @@ export function ThreadHeader({
 
   const setStatus = (status: ConversationStatus) => {
     if (status === conversation.status) return;
+    // #295: closing a conversation removes it from the open inbox, so it is the
+    // one status change with no obvious way back — the same reasoning that put an
+    // Undo on Android's swipe-close since it shipped. The other directions leave
+    // the thread in front of you, where the control that changed it is still
+    // there. Spam and assignment above have had this treatment for longer; the
+    // status control was simply missed.
+    const previous = conversation.status;
+    const closing = status === "closed";
     update.mutate(
       { status },
-      { onError: (e) => onApiError(e, "Couldn't update the status.") },
+      {
+        onError: (e) => onApiError(e, "Couldn't update the status."),
+        onSuccess: closing
+          ? () =>
+              undoableToast({
+                message: "Conversation closed",
+                onUndo: () =>
+                  update.mutate(
+                    { status: previous },
+                    { onError: (e) => onApiError(e, "Couldn't undo.") },
+                  ),
+              })
+          : undefined,
+      },
     );
   };
 

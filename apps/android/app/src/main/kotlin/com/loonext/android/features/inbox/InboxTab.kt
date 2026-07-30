@@ -607,7 +607,14 @@ private class InboxController(
                 repo.setStatus(companyId, row.id, target)
                 scheduleRealtimeRefresh()
                 if (closing) {
-                    notify("Conversation closed", actionLabel = "Undo") { reopen(row.id) }
+                    // #295: revert to the status the row ACTUALLY had, not a
+                    // hardcoded OPEN. A conversation swiped away while it was
+                    // `new` or `waiting` used to come back as `open`, quietly
+                    // losing the fact that nobody had replied to it yet, which
+                    // is the entire distinction those statuses carry.
+                    notify("Conversation closed", actionLabel = "Undo") {
+                        reopen(row.id, row.status)
+                    }
                 } else {
                     notify("Conversation reopened")
                 }
@@ -617,11 +624,16 @@ private class InboxController(
         }
     }
 
-    /** The Undo leg of a swipe-close. */
-    private fun reopen(conversationId: String) {
+    /** The Undo leg of a swipe-close: back to the status the row actually had. */
+    private fun reopen(
+        conversationId: String,
+        previous: String = ConversationStatus.OPEN,
+    ) {
+        val target =
+            if (previous == ConversationStatus.CLOSED) ConversationStatus.OPEN else previous
         scope.launch {
             try {
-                repo.setStatus(companyId, conversationId, ConversationStatus.OPEN)
+                repo.setStatus(companyId, conversationId, target)
                 scheduleRealtimeRefresh()
             } catch (cause: Exception) {
                 notify(cause.userMessage())
