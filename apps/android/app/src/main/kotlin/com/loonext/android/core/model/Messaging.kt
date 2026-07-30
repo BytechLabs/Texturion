@@ -306,3 +306,33 @@ data class OutboundMedia(
     val content_type: String,
     val base64: String,
 )
+
+/**
+ * #275 — what POST /v1/conversations/bulk returns.
+ *
+ * `previous` is a raw JsonObject on purpose: the server decides which field an
+ * action records, the client hands it straight back to build the undo, and
+ * narrowing it here would mean this file has to change every time an action is
+ * added. `applied.size` is the only count that describes reality — `matched` can
+ * be larger (the cap) and both can exceed it (rows that could not be reached).
+ */
+@Serializable
+data class BulkAppliedRow(
+    val id: String,
+    val previous: JsonObject = JsonObject(emptyMap()),
+)
+
+@Serializable
+data class BulkFailedRow(
+    val id: String,
+    val reason: String,
+)
+
+@Serializable
+data class BulkConversationsResult(
+    val action: String = "",
+    val matched: Int = 0,
+    val applied: List<BulkAppliedRow> = emptyList(),
+    val failed: List<BulkFailedRow> = emptyList(),
+    val capped: Boolean = false,
+)

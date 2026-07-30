@@ -6,6 +6,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -132,6 +133,12 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import com.loonext.android.features.compose.attachmentLabel
 import com.loonext.android.features.compose.mmsKindFromName
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 
 private enum class InboxStatusTab(val label: String) {
     Open("Open"), Mine("Mine"), All("All"), Closed("Closed")
@@ -250,6 +257,13 @@ private class InboxController(
         private set
     var cursor by mutableStateOf<String?>(null)
         private set
+    /**
+     * #275: whether another page exists. The escalation to "all matching this
+     * filter" is only offered when it would reach MORE than what is on screen —
+     * otherwise it is the same set with a bigger-sounding name.
+     */
+    val hasMorePages: Boolean get() = cursor != null
+
     var loadingMore by mutableStateOf(false)
         private set
 
@@ -547,6 +561,120 @@ private class InboxController(
     }
 
     // --- Swipe actions (#185) ---------------------------------------------
+
+    // ---------------------------------------------------------------------
+    // #275 multi-select. `selection` is either the ids the user pointed at or the
+    // filter-wide mode the SERVER resolves — see BulkSelection.kt for why those
+    // are different things and why the bar never shows a number it was not told.
+    // ---------------------------------------------------------------------
+    var selection by mutableStateOf(BulkSelection.EMPTY)
+        private set
+    var bulkRunning by mutableStateOf(false)
+        private set
+
+    fun toggleSelected(conversationId: String) {
+        selection = selection.toggleRow(conversationId, rows.map { it.id })
+    }
+
+    fun selectAllLoaded() {
+        selection = selectLoaded(rows.map { it.id })
+    }
+
+    fun selectAllMatchingFilter() {
+        selection = BulkSelection.Filter
+    }
+
+    fun clearSelection() {
+        selection = BulkSelection.EMPTY
+    }
+
+    /**
+     * Run one bulk action over the current selection, then say what actually
+     * happened.
+     *
+     * The message comes from the RESPONSE, never from the selection: those two
+     * differ whenever a row was on a denied number, already gone, or past the cap,
+     * and #275 requires that difference be named rather than swallowed.
+     *
+     * mark_read carries no undo — "unread" is the absence of a read receipt, and
+     * nobody asks to un-read three hundred threads. The reversible actions offer
+     * one Undo for the whole operation, replaying the server's own prior values.
+     */
+    fun runBulk(
+        action: String,
+        verb: String,
+        targetStatus: String? = null,
+        targetSpam: Boolean? = null,
+        targetUserId: String? = null,
+        unassign: Boolean = false,
+    ) {
+        val ids = selection.idsOrNull()
+        // Filter mode sends the tab's own status so "everything matching" means the
+        // set the user is looking at, not every conversation in the company.
+        val filterStatus = if (ids == null) statusFilterForBulk() else null
+        scope.launch {
+            bulkRunning = true
+            try {
+                val result = repo.bulkConversations(
+                    companyId = companyId,
+                    action = action,
+                    ids = ids,
+                    filterStatus = filterStatus,
+                    targetStatus = targetStatus,
+                    targetSpam = targetSpam,
+                    targetUserId = targetUserId,
+                    unassign = unassign,
+                )
+                clearSelection()
+                scheduleRealtimeRefresh()
+                val message = bulkResultMessage(
+                    verb = verb,
+                    applied = result.applied.size,
+                    failed = result.failed.size,
+                    matched = result.matched,
+                    capped = result.capped,
+                )
+                val undo = bulkUndoPlan(result)
+                if (undo == null) {
+                    notify(message)
+                } else {
+                    notify(message, actionLabel = "Undo") { runUndo(undo) }
+                }
+            } catch (cause: Exception) {
+                notify(cause.userMessage())
+            } finally {
+                bulkRunning = false
+            }
+        }
+    }
+
+    /** Replay a plan's groups back, then re-read the page. No toast for an undo. */
+    private fun runUndo(plan: List<BulkUndoGroup>) {
+        scope.launch {
+            try {
+                for (group in plan) {
+                    repo.bulkConversations(
+                        companyId = companyId,
+                        action = group.action,
+                        ids = group.ids,
+                        targetStatus = group.targetStatus,
+                        targetSpam = group.targetSpam,
+                        targetUserId = group.targetUserId,
+                        unassign = group.unassign,
+                    )
+                }
+                scheduleRealtimeRefresh()
+            } catch (cause: Exception) {
+                notify(cause.userMessage())
+            }
+        }
+    }
+
+    /** The status the current tab is showing, for filter-mode bulk calls. */
+    private fun statusFilterForBulk(): String? = when (tab) {
+        InboxStatusTab.Closed -> ConversationStatus.CLOSED
+        else -> null
+    }
 
     private fun notify(
         text: String,
@@ -996,6 +1124,10 @@ private fun GroupedRow(
     last: Boolean,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    /** #275: long-press enters selection mode. Null on rows that cannot be selected. */
+    onLongClick: (() -> Unit)? = null,
+    /** #275: Material's selection treatment — a tinted card, not a checkbox column. */
+    selected: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val radius = 22.dp
@@ -1009,8 +1141,18 @@ private fun GroupedRow(
         modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surface)
-            .let { if (onClick != null) it.clickable(onClick = onClick) else it },
+            .background(
+                if (selected) MaterialTheme.colorScheme.secondaryContainer
+                else MaterialTheme.colorScheme.surface,
+            )
+            .let {
+                when {
+                    onClick != null && onLongClick != null ->
+                        it.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                    onClick != null -> it.clickable(onClick = onClick)
+                    else -> it
+                }
+            },
     ) {
         content()
         if (!last) RowDivider()
@@ -1053,6 +1195,7 @@ private fun ConversationListPane(
         return
     }
 
+    val selecting = !controller.selection.isEmpty()
     val membersById = controller.members.associateBy { it.user_id }
     fun assigneeName(row: ConversationListItem): String? =
         row.assigned_user_id?.let { userId ->
@@ -1063,6 +1206,12 @@ private fun ConversationListPane(
             }
         }
 
+    Column(Modifier.fillMaxSize()) {
+    // #275: only while something is selected, and above the list so ticking a row
+    // does not shove the list under the thumb.
+    if (selecting) {
+        BulkSelectionBar(controller = controller)
+    }
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -1082,7 +1231,11 @@ private fun ConversationListPane(
                     last = index == controller.pinnedRows.lastIndex,
                     // Realtime arrivals fade in; re-sorts glide instead of jump.
                     modifier = Modifier.animateItem(),
-                    onClick = { onOpen(row.id) },
+                    onClick = {
+                        if (selecting) controller.toggleSelected(row.id) else onOpen(row.id)
+                    },
+                    onLongClick = { controller.toggleSelected(row.id) },
+                    selected = controller.selection.isRowSelected(row.id),
                 ) { SwipeableConversationRow(row, controller, assigneeName(row)) }
             }
             if (controller.rows.isNotEmpty()) {
@@ -1097,7 +1250,15 @@ private fun ConversationListPane(
                 first = index == 0,
                 last = index == controller.rows.lastIndex,
                 modifier = Modifier.animateItem(),
-                onClick = { onOpen(row.id) },
+                // #275: in selection mode a tap toggles rather than opens. That is
+                // the Android convention and it is also the only workable one — a
+                // long-press to start and then taps to continue, rather than
+                // long-pressing every row.
+                onClick = {
+                    if (selecting) controller.toggleSelected(row.id) else onOpen(row.id)
+                },
+                onLongClick = { controller.toggleSelected(row.id) },
+                selected = controller.selection.isRowSelected(row.id),
             ) { SwipeableConversationRow(row, controller, assigneeName(row)) }
         }
         if (controller.loadingMore) {
@@ -1110,6 +1271,7 @@ private fun ConversationListPane(
                 ) { LoadingIndicator() }
             }
         }
+    }
     }
 }
 
@@ -2193,6 +2355,133 @@ private fun SearchContactRow(contact: ContactSummary, onClick: () -> Unit) {
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(15.dp),
             )
+        }
+    }
+}
+
+/**
+ * #275 — the selection bar, shown only while something is selected.
+ *
+ * DESIGN NOTES, matching the web twin's reasoning rather than its pixels.
+ *
+ * *The count is never invented.* In filter mode the label reads "All matching this
+ * filter" with no number in it, because the client does not know the number — the
+ * server counts the set when it runs the action. A confident "340 selected" that
+ * acts on the paged rows is the trap #275 names, and `BulkSelection.label()` owns
+ * that rule for both clients.
+ *
+ * *Progressive disclosure.* Long-press one row, then "Select all N loaded", then —
+ * only if more pages exist — "Select all matching this filter". Each step says
+ * what it will do.
+ *
+ * *Three actions, then a menu.* Mark read, Close and Spam are the ones #275's own
+ * scenarios name (back from a week off; a robotext blast). Assign lives behind the
+ * overflow. A row of six icons on a phone is a menu that forgot to collapse.
+ *
+ * There is no send action here and nothing to add one to: bulk management only.
+ */
+@Composable
+private fun BulkSelectionBar(controller: InboxController) {
+    val selection = controller.selection
+    val loadedIds = controller.rows.map { it.id }
+    val running = controller.bulkRunning
+    var menuOpen by remember { mutableStateOf(false) }
+    val showSelectLoaded = selection is BulkSelection.Ids &&
+        loadedIds.isNotEmpty() &&
+        !loadedIds.all { it in selection.ids }
+
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = { controller.clearSelection() },
+                    enabled = !running,
+                ) {
+                    Icon(Icons.Outlined.Close, contentDescription = "Clear selection")
+                }
+                Text(
+                    selection.label(),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Spacer(Modifier.weight(1f))
+                if (running) LoadingIndicator()
+                Box {
+                    IconButton(onClick = { menuOpen = true }, enabled = !running) {
+                        Icon(Icons.Outlined.MoreVert, contentDescription = "More bulk actions")
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        for (member in controller.members) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text("Assign to ${member.display_name.ifBlank { "Teammate" }}")
+                                },
+                                onClick = {
+                                    menuOpen = false
+                                    controller.runBulk(
+                                        action = "assign",
+                                        verb = "Assigned",
+                                        targetUserId = member.user_id,
+                                    )
+                                },
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("Unassign") },
+                            onClick = {
+                                menuOpen = false
+                                controller.runBulk(
+                                    action = "assign",
+                                    verb = "Unassigned",
+                                    unassign = true,
+                                )
+                            },
+                        )
+                    }
+                }
+            }
+
+            // The escalation ladder: the page first, then the filter. Never one
+            // "select all" that quietly means whichever of the two it feels like.
+            if (showSelectLoaded) {
+                TextButton(
+                    onClick = { controller.selectAllLoaded() },
+                    enabled = !running,
+                ) { Text("Select all ${loadedIds.size} loaded") }
+            }
+            if (selection.canEscalate(loadedIds, hasMore = controller.hasMorePages)) {
+                TextButton(
+                    onClick = { controller.selectAllMatchingFilter() },
+                    enabled = !running,
+                ) { Text("Select all matching this filter") }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { controller.runBulk("mark_read", "Marked read") },
+                    enabled = !running,
+                ) { Text("Mark read") }
+                OutlinedButton(
+                    onClick = {
+                        controller.runBulk(
+                            action = "set_status",
+                            verb = "Closed",
+                            targetStatus = ConversationStatus.CLOSED,
+                        )
+                    },
+                    enabled = !running,
+                ) { Text("Close") }
+                OutlinedButton(
+                    onClick = {
+                        controller.runBulk(
+                            action = "set_spam",
+                            verb = "Marked as spam",
+                            targetSpam = true,
+                        )
+                    },
+                    enabled = !running,
+                ) { Text("Spam") }
+            }
         }
     }
 }

@@ -3,6 +3,10 @@ package com.loonext.android.features.thread
 import com.loonext.android.core.model.Attachment
 import com.loonext.android.core.model.AttachmentUrl
 import com.loonext.android.core.model.ComposeResult
+import com.loonext.android.core.model.BulkConversationsResult
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
+import kotlinx.serialization.json.add
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.DestinationClock
 import com.loonext.android.core.model.Conversation
@@ -194,6 +198,54 @@ class MessagingRepository(private val api: ApiClient) {
         pinned: Boolean,
     ): Conversation =
         patchConversation(companyId, conversationId, buildJsonObject { put("pinned", pinned) })
+
+    /**
+     * #275 — one action over many conversations.
+     *
+     * Pass `ids` for a pointed-at selection, or leave it null and pass the filter
+     * so the SERVER resolves the set. That distinction is the whole point: the
+     * client never enumerates "everything matching", so it cannot include rows the
+     * #106 deny list would have excluded.
+     *
+     * The response carries the prior values an undo needs. There is deliberately
+     * no send action — bulk management only.
+     */
+    suspend fun bulkConversations(
+        companyId: String,
+        action: String,
+        ids: List<String>? = null,
+        filterStatus: String? = null,
+        filterUnread: Boolean = false,
+        filterSpam: Boolean = false,
+        targetStatus: String? = null,
+        targetUserId: String? = null,
+        targetSpam: Boolean? = null,
+        targetTagId: String? = null,
+        /** True when the caller means "unassign", which is a null the server needs. */
+        unassign: Boolean = false,
+    ): BulkConversationsResult = api.post(
+        "/v1/conversations/bulk",
+        buildJsonObject {
+            put("action", action)
+            if (ids != null) {
+                putJsonArray("ids") { ids.forEach { add(it) } }
+            } else {
+                putJsonObject("filter") {
+                    if (filterStatus != null) put("status", filterStatus)
+                    if (filterUnread) put("unread", true)
+                    if (filterSpam) put("is_spam", true)
+                }
+            }
+            if (targetStatus != null) put("target_status", targetStatus)
+            if (targetSpam != null) put("target_spam", targetSpam)
+            if (targetTagId != null) put("target_tag_id", targetTagId)
+            // Explicit null is meaningful here (unassign), so it is only written
+            // when the caller says so rather than whenever the id is absent.
+            if (targetUserId != null) put("target_user_id", targetUserId)
+            else if (unassign) put("target_user_id", JsonNull)
+        },
+        companyId = companyId,
+    )
 
     // --- Tags (#165) --------------------------------------------------------
 
