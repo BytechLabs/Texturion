@@ -397,3 +397,62 @@ describe("/pricing rendered page (#121)", () => {
     expect(html).not.toContain("included storage");
   });
 });
+
+/**
+ * #425 — the exit, stated where the objection fires.
+ *
+ * The dominant player in this category is well liked (4.6/5 on G2 across 2,066
+ * reviews) and holds a **D-** from the BBB, with the complaints concentrated on
+ * billing after an attempted cancellation and not being able to reach anybody.
+ * So the exit is the axis nobody in this market defends, and it is one a $29
+ * product can take at almost no cost.
+ *
+ * These assertions exist because the claims are only worth making while they
+ * are TRUE. Each maps to a shipped behaviour — self-serve cancellation (#421),
+ * an in-app route to a human (#382), and the honest account of what happens to
+ * the number (#413) — and if one of those regresses, the page becomes the kind
+ * of promise this issue exists to avoid making.
+ */
+describe("/pricing states what leaving looks like (#425)", () => {
+  const html = renderToStaticMarkup(createElement(PricingPage));
+
+  it("says you cancel yourself, which is the whole differentiator", () => {
+    expect(html).toContain("Cancel yourself, from billing settings");
+    expect(html).toContain("No phone call, no");
+    expect(html).toContain("retention chat");
+  });
+
+  it("promises no charge after cancellation, the literal complaint against the leader", () => {
+    expect(html).toContain("Nothing is charged after that");
+  });
+
+  it("is HONEST about the number rather than comforting", () => {
+    // #413: "cannot be recovered" is not the same as "someone else will have
+    // it", and the second is the true one. A page that markets an easy exit
+    // while soft-pedalling the irreversible part would be exactly the
+    // overclaim #425 ask 4 warns against — and D48's standard applies: a
+    // feature that claims total erasure is lying.
+    expect(html).toContain("given to");
+    expect(html).toContain("another business");
+    expect(html).toContain("reach someone else");
+    expect(html).toContain("Port it out first");
+    // The comforting half-truth must not come back.
+    expect(html).not.toContain("can't be recovered");
+    expect(html).not.toContain("cannot be recovered");
+  });
+
+  it("says a person is reachable on the way out", () => {
+    expect(html).toContain("reachable from inside the app");
+  });
+
+  it("keeps the exit secondary to the offer", () => {
+    // Reassurance, not a section of its own: somebody deciding to START should
+    // not meet a heading about leaving. If this ever becomes an <h2> it has
+    // been promoted past what it should carry on this page.
+    expect(html).toContain(">And if you leave later</h3>");
+  });
+
+  it("links the full cancellation terms rather than summarising them alone", () => {
+    expect(html).toContain('href="/legal/terms"');
+  });
+});

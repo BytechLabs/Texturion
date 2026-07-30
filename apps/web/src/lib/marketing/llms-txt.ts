@@ -189,6 +189,7 @@ Website: https://loonext.com
 - Flat per-company pricing, not per seat: $${PLAN_PRICING.starter.monthlyDollars}/mo covers ${PLAN_PRICING.starter.seats} people; $${PLAN_PRICING.pro.monthlyDollars}/mo covers up to ${PLAN_PRICING.pro.seats}. Bigger crews use the contact-sales Enterprise tier (unlimited seats).
 - Transparent and self-serve: see the price, pay, start texting. No demo, no sales call, no annual contract, no phone number in the nav.
 - Month to month. Cancel anytime from billing settings. 30-day money-back guarantee (full first-invoice refund, registration fee included).
+- Leaving is stated up front, not just permitted: cancel yourself with no retention call, nothing is charged after, and a person is reachable inside the app on the way out. The number is held 30 days in case you come back, then released to the phone company and can be reassigned to another business, so people who saved it eventually reach someone else. Port it out first to keep it. We say the uncomfortable half deliberately; the claim is honesty about the exit, not a painless one.
 - Canada-first: Canadian businesses can text Canadian customers the same day they sign up (no US carrier registration needed for Canada-to-Canada).
 
 ## Pricing (USD, plus sales tax where applicable)

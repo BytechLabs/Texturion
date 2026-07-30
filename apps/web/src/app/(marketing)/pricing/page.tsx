@@ -406,6 +406,60 @@ export default function PricingPage() {
                   Read the whole policy. It&apos;s three paragraphs.
                 </Link>
               </p>
+
+              {/* #425. The block above answers "what if I hate it in week
+                  one?". This answers "what if I leave in month eight?", which
+                  is the objection actually live for a tradesperson who has
+                  been burned by a contract before. It is not hypothetical
+                  positioning: the dominant player in this category holds a D-
+                  from the BBB, and the complaints are about billing after an
+                  attempted cancellation and not being able to reach anybody.
+
+                  Deliberately SECONDARY in weight, not a section of its own.
+                  This reassures; it should not foreground leaving on the page
+                  where somebody is deciding to start.
+
+                  Every line is checkable against a shipped behaviour, which is
+                  the whole point (#425 ask 4): cancel from billing settings
+                  (#421), a human reachable inside the app (#382), and the
+                  number told honestly (#413). The number sentence in
+                  particular says the uncomfortable thing rather than the
+                  comfortable one, because "the differentiator is honesty about
+                  the exit, not a painless exit." */}
+              <div className="mt-8 border-t border-[color:var(--fr-ink-10)] pt-6">
+                <h3 className="fr-h4 text-[color:var(--fr-ink)]">
+                  And if you leave later
+                </h3>
+                <ul className="mt-3 space-y-2 text-[0.9375rem] leading-relaxed text-[color:var(--fr-ink-70)]">
+                  <li>
+                    Cancel yourself, from billing settings. No phone call, no
+                    retention chat, no email to a support queue.
+                  </li>
+                  <li>
+                    Nothing is charged after that. You keep working through the
+                    period you already paid for.
+                  </li>
+                  <li>
+                    Your number is held for 30 days in case you come back. After
+                    that it goes back to the phone company and can be given to
+                    another business, so people who saved it will eventually
+                    reach someone else. Port it out first if you want to keep
+                    it.
+                  </li>
+                  <li>
+                    A real person is reachable from inside the app, including on
+                    the way out.
+                  </li>
+                </ul>
+                <p className="mt-4">
+                  <Link
+                    href={LIVE_ROUTES.terms}
+                    className="text-[0.9375rem] font-semibold text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline"
+                  >
+                    The cancellation terms, in full.
+                  </Link>
+                </p>
+              </div>
             </div>
           </div>
         </FrCard>

@@ -138,7 +138,10 @@ export default function TermsPage() {
         <p>
           After you cancel, we hold your number for 30 days. If you resubscribe
           within that window, you keep the same number. After 30 days the number
-          is released and can&apos;t be recovered.
+          is released back to the phone company and can be reassigned to another
+          business, so anyone who still has it saved will eventually reach
+          someone else. We cannot get it back for you. If you want to keep the
+          number, port it out to another carrier before the 30 days are up.
         </p>
       </LegalSectionBlock>
 
