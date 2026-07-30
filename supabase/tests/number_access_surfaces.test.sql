@@ -52,6 +52,11 @@ declare
     -- Not in #368's list. It takes the parameter and filters on it correctly;
     -- it was simply missing from the enumeration the issue was written from.
     'api_spam_review',
+    -- #275: the bulk WRITE surface, and the only one on this roster that is not
+    -- a read. It belongs here for a stronger reason than the reads do: a missing
+    -- filter on a read leaks rows, and a missing filter here MODIFIES them —
+    -- three hundred at a time, on numbers the actor was denied. NA-5 asserts it.
+    'api_bulk_conversations',
     -- The shared definition behind api_notifications + its badge (#359, the
     -- one-notification-definition refactor). It is not called directly by any
     -- route — both notification surfaces read THROUGH it — which is exactly
@@ -313,5 +318,66 @@ begin
 end $$;
 
 \echo 'number_access_surfaces.test.sql: NA-1..NA-4 PASSED'
+
+
+-- ===========================================================================
+-- NA-5 [#275]. The bulk WRITE surface: a denied number is not merely hidden
+--       from it, it is UNREACHABLE BY IT.
+--
+--       Every other entry on this roster is a read, where a missing filter leaks
+--       rows. This one writes, so a missing filter changes rows the actor was
+--       denied — and at bulk scale, three hundred of them before anybody notices.
+--       Asserted in both selection modes, because they resolve the selection
+--       differently: the filter mode enumerates, the id mode intersects.
+-- ===========================================================================
+do $$
+declare
+  hidden uuid[] := array['36800000-0000-4000-8000-000000000011']::uuid[];
+  co   uuid := '36800000-0000-4000-8000-000000000001';
+  usr  uuid := '36800000-0000-4000-8000-000000000002';
+  res  jsonb;
+  n_open int; n_denied int;
+begin
+  -- These blocks share one transaction, and NA-4 marks the hidden line's
+  -- conversation as spam — which the default filter excludes on its own, making
+  -- the comparison below vacuous for the wrong reason. So this block establishes
+  -- the state it asserts on rather than inheriting NA-4's.
+  update public.conversations set is_spam = false where company_id = co;
+
+  -- Filter mode: denying a number must reach strictly FEWER rows than the
+  -- unrestricted call — the fixture has one conversation on each number.
+  n_open := jsonb_array_length(
+    public.api_bulk_conversations(co, usr, 'mark_read') -> 'applied');
+  n_denied := jsonb_array_length(
+    public.api_bulk_conversations(
+      co, usr, 'mark_read', null, null, null, null, false, false, null,
+      null, null, null, null, hidden) -> 'applied');
+  -- The unrestricted call must reach SOMETHING, or the comparison below is
+  -- vacuous — the exact trap NA-3's header warns about: a surface that returns
+  -- nothing at all passes every deny-only assertion while being broken.
+  if n_open = 0 then
+    raise exception 'NA-5 FAILED: the unrestricted bulk call reached 0 rows, so '
+      'the deny assertion proves nothing';
+  end if;
+  if n_denied >= n_open then
+    raise exception
+      'NA-5 FAILED: denying a number did not reduce what the bulk action reached '
+      '(% denied vs % open)', n_denied, n_open;
+  end if;
+
+  -- Id mode: naming a conversation on a denied number must apply nothing and
+  -- report it as unreached, rather than honouring it because it was asked for.
+  res := public.api_bulk_conversations(
+    co, usr, 'mark_read',
+    (select array_agg(c.id) from public.conversations c
+      where c.company_id = co
+        and c.phone_number_id = '36800000-0000-4000-8000-000000000011'),
+    null, null, null, false, false, null, null, null, null, null, hidden);
+  if jsonb_array_length(res -> 'applied') <> 0 then
+    raise exception 'NA-5 FAILED: a named conversation on a denied number was written';
+  end if;
+
+  raise notice 'NA-5 PASSED: the bulk write surface cannot reach a denied number';
+end $$;
 
 rollback;

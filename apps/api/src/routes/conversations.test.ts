@@ -1274,3 +1274,167 @@ describe("DELETE /v1/conversations/:id/tags/:tag_id", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("POST /v1/conversations/bulk (#275)", () => {
+  function bulkStub(
+    result: Record<string, unknown> = {
+      action: "set_status",
+      matched: 2,
+      applied: [],
+      failed: [],
+      capped: false,
+    },
+  ): { sb: SupabaseStub; calls: Record<string, unknown>[] } {
+    const sb = memberStub();
+    const calls: Record<string, unknown>[] = [];
+    sb.on("POST", "/rest/v1/rpc/api_bulk_conversations", (call) => {
+      calls.push(call.body as Record<string, unknown>);
+      return result;
+    });
+    return { sb, calls };
+  }
+
+  const post = async (body: unknown) =>
+    apiRequest(app, env, await auth.token(), "/v1/conversations/bulk", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body,
+    });
+
+  it("acts on everything matching the filter, not just a loaded page", async () => {
+    // The headline case: back from a week off, close everything still open.
+    // The client sends the FILTER — sending 340 ids would mean the client decided
+    // which rows are in scope, and it does not know about the deny list.
+    const { sb, calls } = bulkStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await post({
+      action: "set_status",
+      filter: { status: "open" },
+      target_status: "closed",
+    });
+    expect(res.status).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      p_action: "set_status",
+      p_ids: null,
+      p_status: "open",
+      p_target_status: "closed",
+    });
+  });
+
+  it("passes the caller's hidden numbers so the RPC can enforce #106", async () => {
+    // The route cannot filter rows itself — it never sees them. What it MUST do
+    // is hand over the deny list; forgetting it would make every bulk action
+    // reach every number in the company.
+    // Built without memberStub(), which registers an EMPTY number_access — and
+    // an empty rule set means unrestricted, so the second handler would never be
+    // consulted and the assertion would pass against a null it did not intend.
+    const sb = supabaseStub(env);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    const calls: Record<string, unknown>[] = [];
+    // One admins-only rule this member cannot match → that number is hidden.
+    sb.on("GET", "/rest/v1/number_access", () => [
+      {
+        phone_number_id: "eeeeeeee-1111-4222-8333-444444444444",
+        principal_kind: "role",
+        principal: "admin",
+        level: "text",
+      },
+    ]);
+    sb.on("POST", "/rest/v1/rpc/api_bulk_conversations", (call) => {
+      calls.push(call.body as Record<string, unknown>);
+      return { action: "mark_read", matched: 0, applied: [], failed: [], capped: false };
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await post({ action: "mark_read", filter: { unread: true } });
+    expect(calls[0].p_hidden_number_ids).not.toBeNull();
+    expect(calls[0].p_hidden_number_ids).toContain(
+      "eeeeeeee-1111-4222-8333-444444444444",
+    );
+  });
+
+  it("refuses every shape of bulk send at the route, before the database", async () => {
+    // The SQL enum is the backstop; this is the first gate. Multi-select plus a
+    // compose box is a mass-texting tool and this product does not have one.
+    const { sb, calls } = bulkStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    for (const action of ["send", "bulk_send", "message", "text", "delete"]) {
+      const res = await post({ action, ids: [CONV_ID] });
+      expect(res.status, action).toBe(422);
+    }
+    // Nothing reached the database.
+    expect(calls).toHaveLength(0);
+  });
+
+  it("refuses a request with neither ids nor filter", async () => {
+    // Both absent would mean "every conversation in the company", which no UI
+    // should be able to ask for by omitting a field.
+    const { sb, calls } = bulkStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    expect((await post({ action: "mark_read" })).status).toBe(422);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("surfaces the RPC's own coherence rejection as a 422", async () => {
+    // e.g. an assign across a whole filter with no target user: the RPC refuses
+    // rather than unassigning everything on screen.
+    const { sb } = bulkStub({ error: "validation_failed" });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await post({ action: "assign", filter: { status: "open" } });
+    expect(res.status).toBe(422);
+  });
+
+  it("returns the applied rows with prior values, and names what it could not reach", async () => {
+    // The client builds its undo from `applied[].previous` and shows the failures
+    // — a bulk action that half-worked must never render as a clean success.
+    const { sb } = bulkStub({
+      action: "set_status",
+      matched: 3,
+      applied: [
+        { id: CONV_ID, previous: { status: "open" } },
+        { id: "aaaaaaaa-2222-4222-8333-444444444444", previous: { status: "waiting" } },
+      ],
+      failed: [{ id: "aaaaaaaa-3333-4222-8333-444444444444", reason: "not_found" }],
+      capped: false,
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await post({
+      action: "set_status",
+      ids: [CONV_ID],
+      target_status: "closed",
+    });
+    const body = (await res.json()) as {
+      applied: { id: string; previous: { status: string } }[];
+      failed: { id: string; reason: string }[];
+      matched: number;
+    };
+    expect(body.applied).toHaveLength(2);
+    expect(body.applied[0].previous.status).toBe("open");
+    expect(body.applied[1].previous.status).toBe("waiting");
+    expect(body.failed).toHaveLength(1);
+    expect(body.matched).toBe(3);
+  });
+
+  it("escapes a search filter before it reaches the RPC", async () => {
+    // The filter is echoed into an ilike inside the function, so a % typed into
+    // the search box must not widen the selection.
+    const { sb, calls } = bulkStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await post({ action: "mark_read", filter: { q: "50%" } });
+    // escapeLike backslash-escapes the LIKE wildcards, so "50%" reaches the
+    // function as the literal characters 5, 0, \, % — matching a contact called
+    // "50%" rather than every contact starting with "50".
+    expect(calls[0].p_q).toBe("50\\%");
+  });
+});

@@ -255,6 +255,128 @@ conversationsRoutes.get("/conversations", requireRole("member"), async (c) => {
 });
 
 /**
+ * POST /v1/conversations/bulk (#275) — one action, every conversation matching
+ * either a list of ids or the CURRENT FILTER.
+ *
+ * The filter mode is the one that matters. "Select all 340
+ * archived-and-untagged" is what a person coming back from a week off actually
+ * wants; selecting only the loaded page while implying more is the trap #275
+ * names. So the client sends the FILTER, not 340 ids, and the server resolves it
+ * — which also means it resolves under the #106 deny list rather than trusting a
+ * list the client assembled.
+ *
+ * Everything else lives in `api_bulk_conversations`, deliberately: the access
+ * filter, the cap, the per-row results and the prior values for undo all have to
+ * be identical across six actions, and a route that reimplemented any of them per
+ * action is how the seventh action gets one wrong. The route's whole job is to
+ * validate shape and hand over.
+ *
+ * THERE IS NO BULK SEND, and the zod enum below is the second of two gates (the
+ * SQL enum is the first). Multi-select plus a compose box is a mass-texting tool,
+ * and that is a product this company has deliberately not built: it is the
+ * fastest route to carrier filtering, CASL exposure, and destroying the number
+ * reputation the business depends on.
+ *
+ * Member-level (not admin): closing and reading your own inbox in bulk is
+ * ordinary daily work. The per-number deny list is what limits reach, not a role.
+ */
+/**
+ * #275: what `api_bulk_conversations` returns. `previous` is opaque here on
+ * purpose — the RPC decides which field an action needs to record, and the client
+ * hands the same object straight back to build the undo, so the Worker has no
+ * business narrowing it.
+ */
+interface BulkResult {
+  action?: string;
+  matched?: number;
+  applied?: { id: string; previous: Record<string, unknown> }[];
+  failed?: { id: string; reason: string }[];
+  capped?: boolean;
+  error?: string;
+}
+
+const bulkSchema = z
+  .object({
+    action: z.enum([
+      "mark_read",
+      "set_status",
+      "assign",
+      "set_spam",
+      "add_tag",
+      "remove_tag",
+    ]),
+    /** Explicit selection. Omit to act on everything matching `filter`. */
+    ids: z.array(z.uuid()).min(1).max(1000).optional(),
+    /** Select-all-matching. Same field names as GET /v1/conversations. */
+    filter: z
+      .object({
+        status: z.enum(["new", "open", "waiting", "closed"]).optional(),
+        assigned_user_id: z.uuid().optional(),
+        tag_id: z.uuid().optional(),
+        is_spam: z.boolean().optional(),
+        unread: z.boolean().optional(),
+        q: z.string().trim().min(1).max(200).optional(),
+      })
+      .optional(),
+    target_user_id: z.uuid().nullable().optional(),
+    target_tag_id: z.uuid().optional(),
+    target_status: z.enum(["new", "open", "waiting", "closed"]).optional(),
+    target_spam: z.boolean().optional(),
+  })
+  .refine((body) => body.ids !== undefined || body.filter !== undefined, {
+    // Neither means "every conversation in the company", which no UI should be
+    // able to ask for by omitting a field.
+    message: "Provide ids or filter.",
+  });
+
+conversationsRoutes.post(
+  "/conversations/bulk",
+  requireRole("member"),
+  async (c) => {
+    const body = parseWith(bulkSchema, await c.req.json().catch(() => ({})));
+    const db = getDb(getEnv(c.env));
+    const access = await resolveNumberAccess(db, {
+      companyId: c.get("companyId"),
+      userId: c.get("userId"),
+      role: c.get("role"),
+    });
+
+    const result = unwrap<BulkResult>(
+      await db.rpc("api_bulk_conversations", {
+        p_company_id: c.get("companyId"),
+        p_user_id: c.get("userId"),
+        p_action: body.action,
+        p_ids: body.ids ?? null,
+        p_status: body.filter?.status ?? null,
+        p_assigned_user_id: body.filter?.assigned_user_id ?? null,
+        p_tag_id: body.filter?.tag_id ?? null,
+        p_is_spam: body.filter?.is_spam ?? false,
+        p_unread: body.filter?.unread ?? false,
+        p_q: body.filter?.q === undefined ? null : escapeLike(body.filter.q),
+        p_target_user_id: body.target_user_id ?? null,
+        p_target_tag_id: body.target_tag_id ?? null,
+        p_target_status: body.target_status ?? null,
+        p_target_spam: body.target_spam ?? null,
+        p_hidden_number_ids: access.hiddenNumberIds,
+      }),
+      "bulk conversations",
+    );
+
+    // The RPC validates argument coherence too (an assign with no target across a
+    // whole filter, a set_status with no status) and says so the same way every
+    // other gate does.
+    if (result && "error" in result && result.error === "validation_failed") {
+      throw new ApiError(
+        "validation_failed",
+        "That bulk action is missing something it needs.",
+      );
+    }
+
+    return c.json(result);
+  },
+);
+
+/**
  * GET /v1/conversations/:id/pinned (#13 part 2) — the conversation's COMPLETE
  * set of pinned messages (pinned_at desc), independent of which thread pages
  * are loaded, so the in-thread "Pinned" banner shows every pin. Company-scoped
