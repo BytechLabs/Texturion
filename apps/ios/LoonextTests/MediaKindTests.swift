@@ -171,4 +171,27 @@ final class MediaKindTests: XCTestCase {
         XCTAssertNil(JSONValue.number(Double.infinity).intValue)
         XCTAssertNil(JSONValue.number(1e300).intValue)
     }
+
+    // MARK: - #272: the audio row's caption and its failure state
+
+    /// The wording, pinned and matched to the Android twin. iOS had a comma
+    /// where Android had a middle dot — drift nobody notices until a screenshot
+    /// puts the two phones side by side.
+    func testTheAudioRowSaysWhatItIsAndWhenItCannotPlay() {
+        XCTAssertEqual(audioRowCaption(failed: false), "Audio message")
+        XCTAssertEqual(
+            audioRowCaption(failed: true),
+            "Audio unavailable · tap to retry"
+        )
+    }
+
+    /// The failed caption has to name the problem AND the way out. What it
+    /// replaces was silence: the icon flipped to "pause", the progress bar stayed
+    /// at zero, no sound played, and the retry tap was gated on a flag that no
+    /// streaming error ever set — so the only recovery was leaving the thread.
+    func testTheFailedCaptionTellsTheUserWhatToDoAboutIt() {
+        let caption = audioRowCaption(failed: true)
+        XCTAssertTrue(caption.contains("unavailable"))
+        XCTAssertTrue(caption.contains("retry"))
+    }
 }

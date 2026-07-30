@@ -161,7 +161,7 @@ fun AttachmentAudio(
         Spacer(Modifier.width(6.dp))
         Column(Modifier.width(170.dp)) {
             Text(
-                if (failed) "Audio unavailable · tap to retry" else "Audio message",
+                audioRowCaption(failed),
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -187,3 +187,14 @@ fun AttachmentAudio(
         }
     }
 }
+
+/**
+ * The audio row's caption.
+ *
+ * #272: extracted so the failed wording is asserted rather than assumed, and so
+ * it stays identical to the iOS twin — a voice message should read the same on
+ * both phones. iOS had a comma where this had a middle dot, which is the sort of
+ * drift nobody notices until a screenshot puts the two side by side.
+ */
+fun audioRowCaption(failed: Boolean): String =
+    if (failed) "Audio unavailable · tap to retry" else "Audio message"

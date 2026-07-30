@@ -275,4 +275,25 @@ class TimelineTest {
         assertEquals("Call answered", line)
         assertFalse(line.contains("ended"))
     }
+
+    // ---------------------------------------------------------------------
+    // #272 — the audio row's caption. Extracted from the composable so the
+    // failed wording is asserted rather than assumed, and so it stays
+    // identical to the iOS twin (which had a comma where this has a dot).
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `the audio row says what it is, and says when it cannot play`() {
+        assertEquals("Audio message", audioRowCaption(false))
+        assertEquals("Audio unavailable · tap to retry", audioRowCaption(true))
+    }
+
+    @Test
+    fun `the failed caption tells the user what to DO about it`() {
+        // The bug it replaces was silence: the icon flipped to pause, the bar
+        // stayed at zero and nothing said the tap had failed or was retryable.
+        val caption = audioRowCaption(true)
+        assertTrue(caption.contains("unavailable"))
+        assertTrue(caption.contains("retry"))
+    }
 }

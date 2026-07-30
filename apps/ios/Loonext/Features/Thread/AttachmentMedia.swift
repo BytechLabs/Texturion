@@ -11,6 +11,17 @@ import SwiftUI
 /// The signed URL is minted per view and never cached, exactly like
 /// `SignedAttachmentImage`. Playback streams from that URL, so nothing is
 /// downloaded until someone presses play.
+/// The audio row's caption.
+///
+/// #272: pure and shared-shaped so the failed wording is asserted rather than
+/// assumed, and so it matches the Android twin exactly — a voice message should
+/// read the same on both phones. Android's string carries a middle dot; iOS used
+/// a comma, which is the sort of drift nobody notices until a screenshot puts
+/// the two side by side.
+func audioRowCaption(failed: Bool) -> String {
+    failed ? "Audio unavailable · tap to retry" : "Audio message"
+}
+
 @MainActor
 struct SignedAudioAttachment: View {
     let attachmentId: String
@@ -40,7 +51,7 @@ struct SignedAudioAttachment: View {
             .accessibilityLabel(playing ? "Pause audio message" : "Play audio message")
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(failed ? "Audio unavailable, tap to retry" : "Audio message")
+                Text(audioRowCaption(failed: failed))
                     .font(.golos(12.5, weight: .medium))
                     .foregroundStyle(BrandColor.ink)
                 ProgressView(value: min(max(progress, 0), 1))
@@ -78,9 +89,31 @@ struct SignedAudioAttachment: View {
         }
         .onReceive(tick) { _ in
             guard playing, let player, let item = player.currentItem else { return }
+            // #272: a URL that cannot be reached fails at LOAD, so no end-time
+            // notification ever arrives. The status is the deterministic signal —
+            // checked here rather than on a timeout heuristic, because "we waited
+            // a while and nothing happened" is not the same claim.
+            if item.status == .failed {
+                markFailed()
+                return
+            }
             let duration = item.duration.seconds
             guard duration.isFinite, duration > 0 else { return }
             progress = player.currentTime().seconds / duration
+        }
+        // #272: the failure arm. AVPlayer(url:) never throws at construction and
+        // nothing here observed the ITEM, so a dead zone or an expired signed URL
+        // left the icon showing "pause", the bar at 0, no sound and no error —
+        // and the retry tap was gated on `failed`, so it was unreachable. The
+        // Android twin has surfaced this through setOnErrorListener all along.
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: AVPlayerItem.failedToPlayToEndTimeNotification
+            )
+        ) { note in
+            guard let item = note.object as? AVPlayerItem,
+                  item === player?.currentItem else { return }
+            markFailed()
         }
         .onReceive(
             NotificationCenter.default.publisher(
@@ -100,8 +133,25 @@ struct SignedAudioAttachment: View {
         }
     }
 
+    /// #272: one place that puts the row into its failed state, so the three
+    /// booleans cannot disagree — `playing` staying true while nothing plays is
+    /// exactly what made the bug invisible. Dropping the player lets `.task`
+    /// re-mint on retry.
+    private func markFailed() {
+        playing = false
+        progress = 0
+        player = nil
+        failed = true
+    }
+
     private func toggle() {
-        guard let player else { return }
+        guard let player, !failed else { return }
+        // #272: an item that already failed to load must not flip the icon to
+        // "pause". Surface the retry instead of pretending.
+        if let item = player.currentItem, item.status == .failed {
+            markFailed()
+            return
+        }
         if playing {
             player.pause()
             playing = false
