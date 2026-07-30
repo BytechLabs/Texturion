@@ -9,8 +9,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { MMS_BUCKET } from "../messaging/media";
 import { ATTACHMENTS_BUCKET } from "../routes/core/attachments";
-import { sweepDeletedAttachments } from "./sweep";
+import { SWEEP_BATCH, SWEEP_GRACE_MS, sweepDeletedAttachments } from "./sweep";
 
 const env = completeEnv();
 
@@ -23,6 +24,10 @@ interface Captured {
   orphanScans: { p_cutoff: string; p_limit: number }[];
   ghostScans: { p_cutoff: string; p_limit: number }[];
   egressDeletes: URL[];
+  /** #263: the mms-media anti-joins and the row deletes they drive. */
+  mmsOrphanScans: { p_cutoff: string; p_limit: number }[];
+  mmsGhostScans: { p_cutoff: string; p_limit: number }[];
+  mmsRowDeletes: URL[];
 }
 
 interface SweepWorldOptions {
@@ -33,6 +38,10 @@ interface SweepWorldOptions {
   ghostIds?: string[];
   /** Make the orphan-scan RPC itself fail (the other passes must still run). */
   orphanScanFails?: boolean;
+  /** #263: api_orphan_mms_media_objects result (default none). */
+  mmsOrphanPaths?: string[];
+  /** #263: api_ghost_mms_media_rows result (default none). */
+  mmsGhostIds?: string[];
 }
 
 /**
@@ -52,6 +61,9 @@ function stubSweepWorld(
     orphanScans: [],
     ghostScans: [],
     egressDeletes: [],
+    mmsOrphanScans: [],
+    mmsGhostScans: [],
+    mmsRowDeletes: [],
   };
   const removePath = `/storage/v1/object/${ATTACHMENTS_BUCKET}`;
   const route: FetchRoute = (url, request) => {
@@ -92,6 +104,55 @@ function stubSweepWorld(
         const body = (await request.clone().json()) as Captured["ghostScans"][0];
         captured.ghostScans.push(body);
         return Response.json(opts.ghostIds ?? []);
+      })();
+    }
+    // #263: the mms-media pair. Separate RPC names and a separate bucket, so
+    // nothing here can be satisfied by the attachments-bucket stubs above —
+    // which is the whole point: those passes never touched this bucket.
+    if (
+      url.href.startsWith(
+        `${env.SUPABASE_URL}/rest/v1/rpc/api_orphan_mms_media_objects`,
+      ) &&
+      request.method === "POST"
+    ) {
+      return (async () => {
+        const body = (await request.clone().json()) as Captured["orphanScans"][0];
+        captured.mmsOrphanScans.push(body);
+        return Response.json(opts.mmsOrphanPaths ?? []);
+      })();
+    }
+    if (
+      url.href.startsWith(
+        `${env.SUPABASE_URL}/rest/v1/rpc/api_ghost_mms_media_rows`,
+      ) &&
+      request.method === "POST"
+    ) {
+      return (async () => {
+        const body = (await request.clone().json()) as Captured["ghostScans"][0];
+        captured.mmsGhostScans.push(body);
+        return Response.json(opts.mmsGhostIds ?? []);
+      })();
+    }
+    if (
+      url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/message_attachments`) &&
+      request.method === "DELETE"
+    ) {
+      captured.mmsRowDeletes.push(url);
+      return Response.json([]);
+    }
+    if (
+      url.href.includes(`/storage/v1/object/${MMS_BUCKET}`) &&
+      request.method === "DELETE"
+    ) {
+      return (async () => {
+        const body = (await request.clone().json()) as { prefixes: string[] };
+        captured.removes.push({ bucket: MMS_BUCKET, paths: body.prefixes });
+        if (opts.removeFails) {
+          return new Response(JSON.stringify({ error: "boom", message: "boom" }), {
+            status: 500,
+          });
+        }
+        return Response.json(body.prefixes.map((p) => ({ name: p })));
       })();
     }
     if (
@@ -238,5 +299,85 @@ describe("sweepDeletedAttachments (D19 §2; #15/#16)", () => {
     // The ghost + retention passes still ran despite the orphan-scan failure.
     expect(captured.deletes).toHaveLength(1);
     expect(captured.egressDeletes).toHaveLength(1);
+  });
+});
+
+describe("#263 — the mms-media bucket gets both anti-joins too", () => {
+  // The bug was an ABSENCE: api_orphan_attachment_objects and
+  // api_ghost_attachment_rows both hardcode bucket_id = 'attachments', so a
+  // crashed MMS send left objects nothing could ever find. These pin that the
+  // mms pair runs on every sweep, against the right bucket and table.
+
+  it("scans both mms directions on every run, with the same grace cutoff", async () => {
+    const { route, captured } = stubSweepWorld([]);
+    stubFetch(route);
+    await sweepDeletedAttachments(env);
+
+    expect(captured.mmsOrphanScans).toHaveLength(1);
+    expect(captured.mmsGhostScans).toHaveLength(1);
+    // Same window as the attachments passes: longer than any Worker request, so
+    // the gap between an upload and its row insert is never swept.
+    expect(captured.mmsOrphanScans[0].p_limit).toBe(SWEEP_BATCH);
+    expect(
+      Date.now() - Date.parse(captured.mmsOrphanScans[0].p_cutoff),
+    ).toBeGreaterThanOrEqual(SWEEP_GRACE_MS);
+    expect(captured.mmsGhostScans[0].p_cutoff).toBe(
+      captured.mmsOrphanScans[0].p_cutoff,
+    );
+  });
+
+  it("removes row-less mms objects from the mms bucket, not the attachments one", async () => {
+    // The bucket matters: removing these paths from `attachments` would delete
+    // nothing and report success, which is how an absent sweep looks like a
+    // working one.
+    const { route, captured } = stubSweepWorld([], {
+      mmsOrphanPaths: ["co/msg/0", "co/msg/1"],
+    });
+    stubFetch(route);
+    await sweepDeletedAttachments(env);
+
+    const mmsRemoves = captured.removes.filter((r) => r.bucket === MMS_BUCKET);
+    expect(mmsRemoves).toHaveLength(1);
+    expect(mmsRemoves[0].paths).toEqual(["co/msg/0", "co/msg/1"]);
+  });
+
+  it("hard-deletes object-less message_attachments rows", async () => {
+    // The worse direction: these are summed into mms_bytes, so they over-report
+    // the customer's storage, and a retry mints a signed URL Telnyx 404s on.
+    const { route, captured } = stubSweepWorld([], {
+      mmsGhostIds: ["11111111-2222-4333-8444-555555555555"],
+    });
+    stubFetch(route);
+    await sweepDeletedAttachments(env);
+
+    expect(captured.mmsRowDeletes).toHaveLength(1);
+    expect(captured.mmsRowDeletes[0].searchParams.get("id")).toContain(
+      "11111111-2222-4333-8444-555555555555",
+    );
+    // No object exists, so there is nothing to remove from Storage.
+    expect(captured.removes.filter((r) => r.bucket === MMS_BUCKET)).toEqual([]);
+  });
+
+  it("leaves mms rows alone when there is nothing to reclaim", async () => {
+    const { route, captured } = stubSweepWorld([]);
+    stubFetch(route);
+    await sweepDeletedAttachments(env);
+
+    expect(captured.mmsRowDeletes).toEqual([]);
+    expect(captured.removes.filter((r) => r.bucket === MMS_BUCKET)).toEqual([]);
+  });
+
+  it("still runs the mms passes when an earlier pass throws", async () => {
+    // One broken arm must never starve the others — and the mms passes are LAST
+    // in the array, so they are exactly what a fail-fast loop would skip.
+    const { route, captured } = stubSweepWorld([], {
+      orphanScanFails: true,
+      mmsGhostIds: ["11111111-2222-4333-8444-555555555555"],
+    });
+    stubFetch(route);
+
+    await expect(sweepDeletedAttachments(env)).rejects.toThrow();
+    expect(captured.mmsOrphanScans).toHaveLength(1);
+    expect(captured.mmsRowDeletes).toHaveLength(1);
   });
 });

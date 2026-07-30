@@ -3918,3 +3918,68 @@ was once a string literal, which guaranteed the assertion could never fail.
 invariant with exactly one call site does not need a roster; the roster's value is
 catching the *second* one. And a resolver whose answer cannot change between
 schedule and fire time does not need point 3 — D49 needs it because DST moves.
+
+---
+
+## D80 — an unwind has to leave the milder residue, and something has to sweep it (#263)
+
+Three defects in one bug, and they are the same mistake seen from three angles:
+work that can half-happen, with nothing downstream that notices.
+
+**A sweeper that covers one bucket is not a sweeper.** `api_orphan_attachment_objects`
+and `api_ghost_attachment_rows` (#15) both hardcode `bucket_id = 'attachments'`.
+Message media lives in `mms-media` against `message_attachments`, so for as long
+as picture messaging has existed, a crashed MMS send has been able to leave an
+object that no read path could reach, no accounting counted (`mms_bytes` sums
+ROWS), and no pass would ever reclaim. Billed forever, findable by nobody. Both
+directions of media could produce it, since inbound stores its own copy the same
+upload-then-insert way. **A cleanup path that is deliberately best-effort — and
+this one is, because a cleanup error must not mask the send failure the caller is
+already reporting — is only honest if something else sweeps what it drops.**
+
+**When an unwind can be interrupted, choose which residue it leaves.** The
+outbound cleanup removed objects first, then rows, which is the wrong order. Both
+residues are recoverable now, but they are not equally bad:
+
+- an object with no row is invisible, unaccounted bytes;
+- a ROW with no object is worse twice over — `api_storage_usage` sums rows, so it
+  over-reports what the customer is storing, and the retry path mints a signed URL
+  for it that Telnyx fetches a 404 from, failing the send for a reason nobody can
+  see.
+
+Rows are deleted first now. The principle generalises: an interruptible unwind has
+a best and a worst stopping point, and the order is a decision, not an accident.
+
+**Make the bad intermediate state unrepresentable before you make it
+recoverable.** The old loop uploaded and inserted per item, so a transient error
+on item N committed rows for 0..N-1 — a partial media set. One batched insert
+makes the row set all-or-nothing at the database, so callers no longer handle a
+partial set: it cannot occur. That is worth more than any amount of downstream
+tolerance for it.
+
+**A retry may not quietly send something different from what was authored.** The
+retry rebuilt its media from whatever rows survived and returned 200, so a send
+whose third photo never persisted went out as a two-photo message with a
+clean-looking thread. `messages.media_count` records what the send was created
+with, written BEFORE the first upload so it survives every failure in the media
+path, and the retry refuses on a shortfall. The bytes are genuinely gone — the API
+never keeps the original payload — so refusing and saying so is the only honest
+answer available. Null skips the check, which is every text message and every row
+predating the column, so nothing historical became un-retryable.
+
+**What could not be closed, stated plainly.** A crash in the instant between the
+gate RPC's insert and the `media_count` write leaves a message that meant to carry
+media with no record that it did. Closing it needs the count inside the gate
+transaction, which means a new parameter on `gate_outbound_send` — and since
+Postgres cannot add one in place, that means duplicating 182 lines of plpgsql into
+a second migration and living with two copies of the send gate. A microsecond
+window is the cheaper thing to accept than a permanently forked gate function,
+and this paragraph exists so the next person does not have to re-derive that.
+
+**And the client half.** Both mobile clients caught the 409 and replaced the
+server's sentence with "This message can't be retried." That was fine while a 409
+meant one thing. It now also means "only 1 of your 3 photos was saved, write it
+again and re-attach them", so a hardcoded line threw away the only actionable part.
+Web had always shown the server message; the two mobile clients now do too. **A
+client that overwrites a server's error copy is making a bet that the server will
+never have anything more specific to say.**

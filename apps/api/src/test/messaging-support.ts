@@ -192,6 +192,10 @@ export function messageRow(overrides: Partial<MessageRow> = {}): MessageRow {
     error_detail: null,
     idempotency_key: "11111111-2222-4333-8444-555555555555",
     provider_cost: null,
+    // #263: no media by default, which is what the retry check must skip. A
+    // media fixture sets it explicitly, so a test that means to exercise the
+    // truncation gate has to say so.
+    media_count: null,
     done_at: null,
     done_by_user_id: null,
     pinned_at: null,

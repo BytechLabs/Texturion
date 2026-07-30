@@ -19,6 +19,12 @@ export interface MessageRow {
   error_detail: string | null;
   idempotency_key: string | null;
   provider_cost: number | string | null;
+  /**
+   * #263: how many outbound media items the send was created with. The retry
+   * path compares it against the message_attachments rows it is about to
+   * re-send. Null = no media (text messages, and rows predating the column).
+   */
+  media_count: number | null;
   /** D14 done state: set/cleared together (messages_done_consistency). */
   done_at: string | null;
   done_by_user_id: string | null;

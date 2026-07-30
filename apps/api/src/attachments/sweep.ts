@@ -21,6 +21,17 @@
  *      billing periods are dropped — the alert/cap windows only ever read the
  *      current period, and an unbounded ledger would itself become a database
  *      cost center (cap-and-drop applies to our own tables too).
+ *   5/6. THE SAME TWO ANTI-JOINS FOR MMS MEDIA (#263). Passes 2 and 3 cover the
+ *      `attachments` bucket ONLY — both RPCs hardcode `bucket_id =
+ *      'attachments'` — and text/picture message media lives in a different
+ *      bucket (`mms-media`) against a different table (`message_attachments`).
+ *      Nothing had ever swept it, so a crashed MMS send left objects that no read
+ *      path could reach, no accounting counted (`mms_bytes` sums ROWS), and no
+ *      pass would ever reclaim: billed forever. Reachable from both directions of
+ *      media, since inbound stores its own copy the same upload-then-insert way.
+ *      Pass 6 is the more urgent direction despite being the rarer one — a row
+ *      with no object OVER-reports the customer's storage and makes a retry mint
+ *      a signed URL Telnyx fetches a 404 from.
  *
  * Why a grace window: a signed download URL minted just before a soft-delete
  * is valid for up to ATTACHMENT_SIGNED_URL_TTL_SECONDS (300s). Waiting past
@@ -38,6 +49,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { MMS_BUCKET } from "../messaging/media";
 import { ATTACHMENTS_BUCKET } from "../routes/core/attachments";
 
 /**
@@ -78,6 +90,9 @@ export async function sweepDeletedAttachments(env: Env): Promise<void> {
     ["orphan objects", () => sweepOrphanObjects(db, cutoff)],
     ["ghost rows", () => sweepGhostRows(db, cutoff)],
     ["egress retention", () => sweepAgedEgressEvents(db)],
+    // #263: the same two directions for the mms-media bucket.
+    ["orphan mms objects", () => sweepOrphanMmsObjects(db, cutoff)],
+    ["ghost mms rows", () => sweepGhostMmsRows(db, cutoff)],
   ];
 
   const failures: unknown[] = [];
@@ -212,5 +227,69 @@ async function sweepAgedEgressEvents(db: SupabaseClient): Promise<void> {
     .lt("created_at", cutoff);
   if (error) {
     throw new Error(`egress retention delete failed: ${error.message}`);
+  }
+}
+
+/**
+ * Pass 5 (#263): garbage-collect `mms-media` objects with no
+ * `message_attachments` row — the mirror of pass 2 for message media.
+ *
+ * Safe for inbound media as well as outbound: `messaging/inbound.ts` stores its
+ * own copy in this bucket at the same {company}/{message}/{n} path before
+ * inserting the row, so an object with no row is debris in both directions. The
+ * grace cutoff is far longer than a Worker request, so the window between an
+ * upload and its row insert is never swept out from under an in-flight send.
+ */
+async function sweepOrphanMmsObjects(
+  db: SupabaseClient,
+  cutoff: string,
+): Promise<void> {
+  const { data, error } = await db.rpc("api_orphan_mms_media_objects", {
+    p_cutoff: cutoff,
+    p_limit: SWEEP_BATCH,
+  });
+  if (error) {
+    throw new Error(`mms orphan object scan failed: ${error.message}`);
+  }
+  const paths = (data ?? []) as string[];
+  if (paths.length === 0) return;
+
+  const { error: removeError } = await db.storage.from(MMS_BUCKET).remove(paths);
+  if (removeError) {
+    // Still row-less, so the next run re-selects and retries.
+    console.error("mms orphan object remove failed:", removeError.message);
+    Sentry.captureMessage("mms orphan object remove failed", "warning");
+  }
+}
+
+/**
+ * Pass 6 (#263): hard-delete `message_attachments` rows whose object is gone.
+ *
+ * The worse of the two residues, and the reason this direction exists at all:
+ * `api_storage_usage` sums these rows into `mms_bytes`, so each one over-reports
+ * what the customer is storing, and the retry path mints a signed URL for it that
+ * Telnyx fetches a 404 from — a send that fails for a reason nobody can see.
+ * Reachable when the #263 unwind removes an object but its row delete fails.
+ */
+async function sweepGhostMmsRows(
+  db: SupabaseClient,
+  cutoff: string,
+): Promise<void> {
+  const { data, error } = await db.rpc("api_ghost_mms_media_rows", {
+    p_cutoff: cutoff,
+    p_limit: SWEEP_BATCH,
+  });
+  if (error) {
+    throw new Error(`mms ghost row scan failed: ${error.message}`);
+  }
+  const ids = (data ?? []) as string[];
+  if (ids.length === 0) return;
+
+  const { error: deleteError } = await db
+    .from("message_attachments")
+    .delete()
+    .in("id", ids);
+  if (deleteError) {
+    throw new Error(`mms ghost row delete failed: ${deleteError.message}`);
   }
 }

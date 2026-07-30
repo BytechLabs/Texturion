@@ -258,25 +258,62 @@ export function decodeOutboundMedia(
 }
 
 /**
- * Outbound media persistence (SPEC §8): upload each validated item to
- * mms-media/{company_id}/{message_id}/{n}, insert `message_attachments`
- * rows (source_url NULL for outbound), and return the attachment summaries
- * with their storage paths.
+ * Outbound media persistence (SPEC §8): record how many items this send carries,
+ * upload each validated item to mms-media/{company_id}/{message_id}/{n}, then
+ * insert every `message_attachments` row in ONE statement (source_url NULL for
+ * outbound), and return the attachment summaries with their storage paths.
+ *
+ * #263 — THE ORDER IS THE FIX, and each of the three steps closes a different
+ * way the old shape lost a customer's photos.
+ *
+ * 1. `messages.media_count` FIRST, before a byte is uploaded. It is the only
+ *    thing that survives to tell a retry that media was ever intended: with the
+ *    rows gone, nothing else in the database distinguishes "a text message" from
+ *    "an MMS whose three photos were cleaned up". The metered `segments` cannot
+ *    stand in — it is a flat MMS_SEGMENTS for any media send regardless of item
+ *    count, and a three-segment text is indistinguishable from it.
+ *
+ * 2. Upload every object, then insert every row in a SINGLE batched insert. The
+ *    old loop did upload-then-insert per item, so a transient PostgREST error on
+ *    item N committed rows for items 0..N-1 and left a PARTIAL media set — and
+ *    the retry path rebuilds its media from whatever rows exist, so the customer
+ *    received two of three photos with a 200 and a clean-looking thread. One
+ *    statement means the row set is all or nothing at the database, so a partial
+ *    set is no longer something callers have to handle: it cannot occur.
+ *
+ * 3. On failure, unwind ROWS BEFORE OBJECTS. Both residues are recoverable now
+ *    that the §11 sweep covers this bucket, but they are not equally bad. An
+ *    object with no row is invisible, unaccounted bytes. A ROW with no object is
+ *    worse twice over: `api_storage_usage` sums rows, so it over-reports the
+ *    customer's storage, and a retry mints a signed URL for it and Telnyx fetches
+ *    a 404. Deleting rows first means an interrupted unwind leaves the milder of
+ *    the two.
+ *
+ * Cleanup is best-effort and stays that way: the send is already failing and the
+ * caller is about to mark the message interrupted, so a cleanup error is logged
+ * and swallowed rather than replacing the real failure with a different one.
+ * That is exactly why the bucket needed a sweeper — best-effort has to have a
+ * backstop, or "best effort" means "billed forever" on the day it fails.
  */
 export async function uploadOutboundMedia(
   db: SupabaseClient,
   args: { companyId: string; messageId: string; items: DecodedMediaItem[] },
 ): Promise<{ summaries: AttachmentSummary[]; storagePaths: string[] }> {
-  const summaries: AttachmentSummary[] = [];
-  const storagePaths: string[] = [];
-  // #263: written objects, tracked so a failure part-way through can take them
-  // back. Each iteration uploads THEN inserts, so a transient PostgREST error on
-  // item N leaves item N's object with no row pointing at it — and there is no
-  // orphan sweeper for this bucket at all (api_orphan_attachment_objects
-  // hardcodes bucket_id = 'attachments'), so it was billed storage nobody could
-  // ever find or delete.
+  // Step 1: the intent, recorded before anything can go wrong. A failure here
+  // aborts before a single byte is billed, which is the right direction — the
+  // caller marks the send interrupted and the retry sees no media and no count.
+  const { error: countError } = await db
+    .from("messages")
+    .update({ media_count: args.items.length })
+    .eq("company_id", args.companyId)
+    .eq("id", args.messageId);
+  if (countError) {
+    throw new Error(`media_count update failed: ${countError.message}`);
+  }
+
   const written: string[] = [];
   try {
+    // Step 2a: every object.
     for (const [index, item] of args.items.entries()) {
       const path = mediaStoragePath(args.companyId, args.messageId, index);
       const upload = await db.storage
@@ -289,62 +326,73 @@ export async function uploadOutboundMedia(
         throw new Error(`media upload failed (${path}): ${upload.error.message}`);
       }
       written.push(path);
-      const { data, error } = await db
-        .from("message_attachments")
-        .insert({
+    }
+
+    // Step 2b: every row, in one statement. PostgREST returns inserted rows in
+    // the order they were supplied, and the select is ordered by storage_path
+    // anyway so the summaries line up with `written` either way (paths are
+    // {…}/0..{…}/2 — MAX_OUTBOUND_MEDIA_ITEMS is 3, so lexical order is numeric
+    // order here).
+    const { data, error } = await db
+      .from("message_attachments")
+      .insert(
+        args.items.map((item, index) => ({
           message_id: args.messageId,
           company_id: args.companyId,
-          storage_path: path,
+          storage_path: mediaStoragePath(args.companyId, args.messageId, index),
           content_type: item.contentType,
           size_bytes: item.bytes.byteLength,
           source_url: null,
-        })
-        .select("id,content_type,size_bytes");
-      if (error) {
-        throw new Error(`message_attachments insert failed: ${error.message}`);
-      }
-      const row = (data ?? [])[0] as AttachmentSummary | undefined;
-      if (!row) throw new Error("message_attachments insert returned no row");
-      summaries.push(row);
-      storagePaths.push(path);
+        })),
+      )
+      .select("id,content_type,size_bytes,storage_path")
+      .order("storage_path", { ascending: true });
+    if (error) {
+      throw new Error(`message_attachments insert failed: ${error.message}`);
     }
+    const rows = (data ?? []) as (AttachmentSummary & { storage_path: string })[];
+    if (rows.length !== args.items.length) {
+      // Not reachable through PostgREST, which either commits the whole insert
+      // or returns an error — but returning a short set would recreate the exact
+      // truncation this function exists to prevent, so it is a failure here
+      // rather than a silent one at the carrier.
+      throw new Error(
+        `message_attachments insert returned ${rows.length} of ${args.items.length} rows`,
+      );
+    }
+    return {
+      summaries: rows.map(({ id, content_type, size_bytes }) => ({
+        id,
+        content_type,
+        size_bytes,
+      })),
+      storagePaths: rows.map((row) => row.storage_path),
+    };
   } catch (cause) {
-    // ALL-OR-NOTHING, not just orphan cleanup. Removing only the unreferenced
-    // object would leave a PARTIAL media set — two of the three photos, with
-    // rows — and the retry path rebuilds mediaUrls from whatever rows exist,
-    // so the customer would receive a silently truncated message. Leaving
-    // nothing persisted means a retry re-uploads the whole set the caller still
-    // holds, or fails again loudly.
-    //
-    // Best-effort: the send is already failing and the caller marks the message
-    // interrupted. A cleanup error must not replace that with a different one,
-    // so it is reported and swallowed.
+    // Step 3: rows first, then objects. See the header for why that order.
+    const { error: rowError } = await db
+      .from("message_attachments")
+      .delete()
+      .eq("company_id", args.companyId)
+      .eq("message_id", args.messageId);
+    if (rowError) {
+      console.error(
+        `#263 outbound media row cleanup failed for ${args.messageId}: `
+          + rowError.message,
+      );
+    }
     if (written.length > 0) {
       const removal = await db.storage.from(MMS_BUCKET).remove(written);
       if (removal.error) {
         console.error(
           `#263 outbound media cleanup failed (${written.length} object(s) `
-            + `orphaned under ${args.companyId}/${args.messageId}): `
+            + `left under ${args.companyId}/${args.messageId} for the §11 sweep): `
             + removal.error.message,
-        );
-      }
-    }
-    if (summaries.length > 0) {
-      const { error: rowError } = await db
-        .from("message_attachments")
-        .delete()
-        .eq("company_id", args.companyId)
-        .eq("message_id", args.messageId);
-      if (rowError) {
-        console.error(
-          `#263 outbound media row cleanup failed for ${args.messageId}: `
-            + rowError.message,
         );
       }
     }
     throw cause;
   }
-  return { summaries, storagePaths };
 }
 
 /**

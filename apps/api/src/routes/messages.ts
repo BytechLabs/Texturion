@@ -244,6 +244,10 @@ export const MESSAGE_COLUMNS =
   "id,company_id,conversation_id,direction,body,telnyx_message_id,status," +
   "segments,encoding,sent_by_user_id,error_code,error_reason,error_detail,idempotency_key," +
   "provider_cost,done_at,done_by_user_id,pinned_at,pinned_by_user_id," +
+  // #263: the retry compares this against the media rows it is about to
+  // re-send, so a message whose photos were cleaned up is refused rather than
+  // dispatched two-thirds complete.
+  "media_count," +
   "created_at,updated_at";
 
 /** SPEC §7 message object: row + attachments summary, tsv column dropped. */
@@ -439,6 +443,34 @@ messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
       .order("storage_path", { ascending: true }),
     "attachments lookup",
   );
+
+  // #263: REFUSE rather than truncate. The rebuild above takes whatever rows
+  // exist, and before this it dispatched them with a 200 — so a send whose third
+  // photo never persisted was retried as a two-photo message, the thread showed
+  // success, and nothing anywhere said a photo had been dropped. The customer got
+  // a partial quote and the sender believed it went.
+  //
+  // `media_count` is the send's own record of what it was created with (set before
+  // any upload, so it survives every failure in the media path). A shortfall means
+  // the bytes are gone and unrecoverable — the API never keeps the original
+  // payload — so the only honest answer is to say so and let the sender re-attach.
+  // Null skips the check: that is every text message and every row written before
+  // the column existed, so nothing historical becomes un-retryable.
+  if (
+    typeof message.media_count === "number" &&
+    attachmentRows.length < message.media_count
+  ) {
+    throw new ApiError(
+      "conflict",
+      attachmentRows.length === 0
+        ? `The ${message.media_count === 1 ? "photo" : "photos"} on this message ` +
+          `weren't saved, so it can't be sent again as-is. Write it again and ` +
+          `re-attach ${message.media_count === 1 ? "it" : "them"}.`
+        : `Only ${attachmentRows.length} of ${message.media_count} attachments ` +
+          `were saved, so sending this again would drop the rest. Write it again ` +
+          `and re-attach them.`,
+    );
+  }
 
   // Re-mint signed URLs for any stored outbound media (24 h TTL, §8) BEFORE
   // the atomic claim — signing has no side effects, so a signing failure

@@ -612,7 +612,16 @@ final class ThreadController {
                 replaceMessage(updated)
             } catch {
                 if (error as? ApiError)?.code == ApiErrorCode.conflict {
-                    notify("This message can't be retried.")
+                    // #263: SHOW THE SERVER'S SENTENCE, don't replace it. A 409
+                    // used to mean one thing — a carrier-finalized row that is
+                    // simply not retryable — and a fixed string was fine for it.
+                    // It now also means "only 1 of your 3 photos was saved, write
+                    // it again and re-attach them", which is actionable and which
+                    // a hardcoded line silently threw away. Web has always shown
+                    // the server message here; this is the parity fix. The
+                    // refresh stays: both cases mean our copy of the row is
+                    // behind.
+                    notify(error.userMessage)
                     try? await refreshMessagesFirstPage()
                 } else {
                     notify(error.userMessage)

@@ -107,6 +107,7 @@ interface SendStubs {
   attachmentsLookup: Stub;
   upload: Stub;
   attachmentInsert: Stub;
+  attachmentCleanup: Stub;
   sign: Stub;
   companyPlan: Stub;
   optOuts: Stub;
@@ -161,15 +162,29 @@ function sendStubs(options: {
     () => [],
   );
   const upload = stubRoute(storageUploadMatch(env), () => ({ Key: "x" }));
+  // #263: the insert is now ONE batched statement, so the body is an ARRAY and
+  // the select asks for storage_path. Echoing back exactly what was sent (rather
+  // than synthesising rows) is what makes the ordering and count assertions real
+  // — a stub that invents its own rows would pass while the route dropped one.
   const attachmentInsert = stubRoute(
     restMatch(env, "POST", "message_attachments"),
-    (call) => [
-      {
+    (call) => {
+      const body = call.body as
+        | { content_type: string; size_bytes: number; storage_path: string }
+        | { content_type: string; size_bytes: number; storage_path: string }[];
+      const items = Array.isArray(body) ? body : [body];
+      return items.map((item) => ({
         id: crypto.randomUUID(),
-        content_type: (call.body as { content_type: string }).content_type,
-        size_bytes: (call.body as { size_bytes: number }).size_bytes,
-      },
-    ],
+        content_type: item.content_type,
+        size_bytes: item.size_bytes,
+        storage_path: item.storage_path,
+      }));
+    },
+  );
+  // #263: the all-or-nothing unwind deletes rows before objects.
+  const attachmentCleanup = stubRoute(
+    restMatch(env, "DELETE", "message_attachments"),
+    () => [],
   );
   const sign = stubRoute(storageSignMatch(env), (call) => ({
     signedURL: `${call.url.pathname.replace("/storage/v1", "")}?token=test-token`,
@@ -197,6 +212,7 @@ function sendStubs(options: {
     attachmentsLookup,
     upload,
     attachmentInsert,
+    attachmentCleanup,
     sign,
     companyPlan,
     optOuts,
@@ -213,6 +229,7 @@ function sendStubs(options: {
       attachmentsLookup.route,
       upload.route,
       attachmentInsert.route,
+      attachmentCleanup.route,
       sign.route,
       modulesLookup.route,
       companyPlan.route,
@@ -685,14 +702,19 @@ describe("POST /v1/messages/send — MMS (§7, §8)", () => {
       `/storage/v1/object/mms-media/${COMPANY_ID}/${MESSAGE_ID}/0`,
     );
 
-    // Attachment row: outbound rows carry source_url NULL (§6).
-    expect(stubs.attachmentInsert.calls[0].body).toMatchObject({
-      message_id: MESSAGE_ID,
-      company_id: COMPANY_ID,
-      storage_path: `${COMPANY_ID}/${MESSAGE_ID}/0`,
-      content_type: "image/jpeg",
-      source_url: null,
-    });
+    // Attachment rows: outbound rows carry source_url NULL (§6). #263: ONE
+    // batched insert, so the body is an array — a partial row set is no longer
+    // representable, which is what stopped a retry re-sending 2 of 3 photos.
+    expect(stubs.attachmentInsert.calls).toHaveLength(1);
+    expect(stubs.attachmentInsert.calls[0].body).toMatchObject([
+      {
+        message_id: MESSAGE_ID,
+        company_id: COMPANY_ID,
+        storage_path: `${COMPANY_ID}/${MESSAGE_ID}/0`,
+        content_type: "image/jpeg",
+        source_url: null,
+      },
+    ]);
 
     // Telnyx got a 24h signed URL.
     const telnyxBody = stubs.telnyx.calls[0].body as { media_urls: string[] };
@@ -724,12 +746,19 @@ describe("POST /v1/messages/send — MMS (§7, §8)", () => {
     expect(response.status).toBe(500);
     // ...but the gate-inserted row was failed out as retryable — never left
     // 'queued' forever (undeliverable + unretryable + counting against the cap).
-    expect(stubs.persist.calls).toHaveLength(1);
-    expect(stubs.persist.calls[0].body).toMatchObject({
+    // #263: two PATCHes now — media_count is recorded BEFORE the upload so a
+    // retry can tell this was meant to carry a photo, then the fail-out. The
+    // order matters: the count has to survive the failure to be worth anything.
+    expect(stubs.persist.calls).toHaveLength(2);
+    expect(stubs.persist.calls[0].body).toMatchObject({ media_count: 1 });
+    expect(stubs.persist.calls[1].body).toMatchObject({
       status: "failed",
       error_code: "send_interrupted",
     });
     expect(stubs.telnyx.calls).toHaveLength(0);
+    // ...and the unwind removed the row it may have written, rows before
+    // objects, so no row survives pointing at a deleted object.
+    expect(stubs.attachmentCleanup.calls).toHaveLength(1);
   });
 
   it("#97: a media send goes out even with the old add-on off (ungated)", async () => {
@@ -866,6 +895,107 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
       env,
     );
   }
+
+  // #263: the defect the customer actually experienced. A retry rebuilt its
+  // media set from whatever message_attachments rows survived, dispatched them,
+  // and returned 200 — so a send whose third photo never persisted went out as a
+  // two-photo message with a clean-looking thread, and nothing anywhere said a
+  // photo had been dropped. `media_count` is the send's own record of what it was
+  // created with, so the retry can compare and refuse.
+
+  it("refuses a retry that would drop attachments, and never reaches the carrier", async () => {
+    const stubs = retryStubs(
+      {
+        status: "failed",
+        telnyx_message_id: null,
+        error_code: "send_interrupted",
+        media_count: 3, // three photos were attached...
+      },
+      { withAttachment: true }, // ...and exactly one row survives
+    );
+    stubFetch(...stubs.all);
+
+    const response = await postRetry();
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("1 of 3");
+    // The refusal must come BEFORE the claim: a requeued row with no send is
+    // the stuck state #20 exists to prevent.
+    expect(stubs.claim.calls).toHaveLength(0);
+    expect(stubs.base.telnyx.calls).toHaveLength(0);
+  });
+
+  it("refuses with re-attach wording when every attachment is gone", async () => {
+    // The common shape: the all-or-nothing unwind removed the whole set, so the
+    // retry would have silently become a text-only send. The API never keeps the
+    // original bytes, so the only honest answer is to say so.
+    const stubs = retryStubs({
+      status: "failed",
+      telnyx_message_id: null,
+      error_code: "send_interrupted",
+      media_count: 2,
+    });
+    stubFetch(...stubs.all);
+
+    const response = await postRetry();
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as { error: { message: string } };
+    expect(body.error.message).toMatch(/photos.*weren't saved/i);
+    expect(body.error.message).toMatch(/re-attach/i);
+    expect(stubs.base.telnyx.calls).toHaveLength(0);
+  });
+
+  it("retries normally when every attachment is still there", async () => {
+    // The gate must not block a healthy media retry — one attached, one stored.
+    const stubs = retryStubs(
+      {
+        status: "failed",
+        telnyx_message_id: null,
+        error_code: "send_interrupted",
+        media_count: 1,
+      },
+      { withAttachment: true },
+    );
+    stubFetch(...stubs.all);
+
+    const response = await postRetry();
+    expect(response.status).toBe(200);
+    const telnyxBody = stubs.base.telnyx.calls[0].body as { media_urls: string[] };
+    expect(telnyxBody.media_urls).toHaveLength(1);
+  });
+
+  it("leaves text-only retries alone (null media_count skips the check)", async () => {
+    // Null is every text message AND every row written before the column, so no
+    // historical message may become un-retryable.
+    const stubs = retryStubs({
+      status: "failed",
+      telnyx_message_id: null,
+      error_code: "send_interrupted",
+      media_count: null,
+    });
+    stubFetch(...stubs.all);
+
+    expect((await postRetry()).status).toBe(200);
+    expect(stubs.base.telnyx.calls).toHaveLength(1);
+  });
+
+  it("does not refuse when MORE rows exist than the count", async () => {
+    // Only a SHORTFALL is a dropped attachment. A surplus cannot come from the
+    // send path, and refusing on it would make a message permanently
+    // un-retryable for no benefit to anybody.
+    const stubs = retryStubs(
+      {
+        status: "failed",
+        telnyx_message_id: null,
+        error_code: "send_interrupted",
+        media_count: 0,
+      },
+      { withAttachment: true },
+    );
+    stubFetch(...stubs.all);
+
+    expect((await postRetry()).status).toBe(200);
+  });
 
   it("retries an API-failure row: atomic claim → new Telnyx call → persist", async () => {
     const stubs = retryStubs({

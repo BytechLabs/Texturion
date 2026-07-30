@@ -605,4 +605,124 @@ begin
   raise notice 'SA-11 PASSED: orphan-object and ghost-row anti-joins';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- SA-12 [#263]. The mms-media anti-joins. Passes 2/3 hardcode
+--       bucket_id = 'attachments', so NOTHING had ever swept the bucket that
+--       holds message media: a crashed MMS send left objects no read path could
+--       reach, no accounting counted (mms_bytes sums ROWS), and no pass would
+--       ever reclaim. These two RPCs are the same pair for that bucket.
+--
+--       The load-bearing assertion is the LAST one. message_attachments holds
+--       INBOUND rows as well as outbound (they carry source_url), so a ghost
+--       sweep that got its predicate wrong would hard-delete a customer's
+--       received photos. Inbound stores its own copy in this bucket before
+--       inserting the row, so an anchored row is safe in both directions — and
+--       that has to be asserted, not assumed.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_company uuid := 'd3d3d3d3-d3d3-4d3d-8d3d-d3d300000001';
+  v_message uuid := 'd3d3d3d3-d3d3-4d3d-8d3d-d3d300000006';
+  v_names text[]; v_ids uuid[];
+  fn oid; is_secdef boolean; cfg text[];
+begin
+  -- Security posture, same bar as every other api_* function. Both must exist;
+  -- the orphan one carries the full posture assertions below (they share a
+  -- definition template, so one is enough to catch a slipped GRANT).
+  if not exists (
+    select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.proname = 'api_ghost_mms_media_rows'
+  ) then
+    raise exception 'SA-12 FAILED: public.api_ghost_mms_media_rows missing';
+  end if;
+
+  select p.oid, p.prosecdef, p.proconfig into fn, is_secdef, cfg
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'api_orphan_mms_media_objects';
+  if not is_secdef then
+    raise exception 'SA-12 FAILED: api_orphan_mms_media_objects must be SECURITY DEFINER';
+  end if;
+  if cfg is null or not ('search_path=' = any(cfg) or 'search_path=""' = any(cfg)) then
+    raise exception 'SA-12 FAILED: api_orphan_mms_media_objects must pin an empty search_path (got %)', cfg;
+  end if;
+  if has_function_privilege('anon', fn, 'EXECUTE')
+     or has_function_privilege('authenticated', fn, 'EXECUTE') then
+    raise exception 'SA-12 FAILED: anon/authenticated must not EXECUTE api_orphan_mms_media_objects';
+  end if;
+  if not has_function_privilege('service_role', fn, 'EXECUTE') then
+    raise exception 'SA-12 FAILED: service_role must EXECUTE api_orphan_mms_media_objects';
+  end if;
+
+  -- Fixtures. sa12/ paths keep this independent of SA-11's objects (which
+  -- deliberately include one mms-media object of its own).
+  insert into storage.objects (bucket_id, name, created_at) values
+    ('mms-media',   'sa12/orphan-old',    now() - interval '1 hour'),
+    ('mms-media',   'sa12/orphan-fresh',  now()),
+    ('mms-media',   'sa12/anchored-out',  now() - interval '1 hour'),
+    ('mms-media',   'sa12/anchored-in',   now() - interval '1 hour'),
+    ('attachments', 'sa12/wrong-bucket',  now() - interval '1 hour');
+
+  -- An OUTBOUND row (source_url null) and an INBOUND row (source_url set), both
+  -- with their object present. Neither may be swept from either direction.
+  insert into public.message_attachments
+    (message_id, company_id, storage_path, content_type, size_bytes, source_url, created_at)
+  values
+    (v_message, v_company, 'sa12/anchored-out', 'image/jpeg', 300, null,
+     now() - interval '1 hour'),
+    (v_message, v_company, 'sa12/anchored-in', 'image/png', 450,
+     'https://media.telnyx.com/sa12-in', now() - interval '1 hour');
+
+  -- Orphan objects: aged + row-less only. The fresh one is inside the grace
+  -- window (that window is what stops an in-flight send being swept between its
+  -- upload and its row insert), the anchored two have rows, and the
+  -- attachments-bucket object belongs to a different pass entirely.
+  select coalesce(array_agg(name order by name), '{}') into v_names
+    from public.api_orphan_mms_media_objects(now() - interval '15 minutes', 10000) as name
+   where name like 'sa12/%';
+  if v_names is distinct from array['sa12/orphan-old'] then
+    raise exception 'SA-12 FAILED: orphan mms objects = % (want {sa12/orphan-old})', v_names;
+  end if;
+
+  -- And the reverse containment: the mms scan must never return an
+  -- attachments-bucket object, or the sweeper would try to remove it from the
+  -- wrong bucket and report success having deleted nothing.
+  if exists (
+    select 1 from public.api_orphan_mms_media_objects(now() - interval '15 minutes', 10000) as name
+     where name = 'sa12/wrong-bucket'
+  ) then
+    raise exception 'SA-12 FAILED: mms orphan scan reached into the attachments bucket';
+  end if;
+
+  -- Ghost rows: an aged row whose object is gone (returned), and a fresh one
+  -- (grace window, excluded).
+  insert into public.message_attachments
+    (message_id, company_id, storage_path, content_type, size_bytes, source_url, created_at)
+  values
+    (v_message, v_company, 'sa12/ghost-old', 'image/jpeg', 10, null,
+     now() - interval '1 hour'),
+    (v_message, v_company, 'sa12/ghost-fresh', 'image/jpeg', 10, null, now());
+
+  select coalesce(array_agg(a.storage_path order by a.storage_path), '{}') into v_names
+    from public.api_ghost_mms_media_rows(now() - interval '15 minutes', 10000) as gid
+    join public.message_attachments a on a.id = gid
+   where a.storage_path like 'sa12/%';
+  if v_names is distinct from array['sa12/ghost-old'] then
+    raise exception 'SA-12 FAILED: ghost mms rows = % (want {sa12/ghost-old})', v_names;
+  end if;
+
+  -- THE ONE THAT MATTERS: neither anchored row is a ghost. If the predicate
+  -- were wrong in the inbound direction this sweep would hard-delete photos a
+  -- customer actually sent us, which is data loss dressed as garbage collection.
+  select coalesce(array_agg(a.storage_path), '{}') into v_names
+    from public.api_ghost_mms_media_rows(now() - interval '15 minutes', 10000) as gid
+    join public.message_attachments a on a.id = gid
+   where a.storage_path in ('sa12/anchored-out', 'sa12/anchored-in');
+  if v_names is distinct from '{}'::text[] then
+    raise exception 'SA-12 FAILED: swept anchored rows % — an object EXISTS for each', v_names;
+  end if;
+
+  raise notice 'SA-12 PASSED: mms-media anti-joins, both directions, inbound rows safe';
+end $$;
+
+
 rollback;

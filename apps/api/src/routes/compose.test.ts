@@ -133,6 +133,7 @@ interface ComposeStubs {
   attachmentsLookup: Stub;
   upload: Stub;
   attachmentInsert: Stub;
+  attachmentCleanup: Stub;
   sign: Stub;
   all: FetchRoute[];
 }
@@ -261,15 +262,29 @@ function composeStubs(options: {
     () => options.attachments ?? [],
   );
   const upload = stubRoute(storageUploadMatch(env), () => ({ Key: "x" }));
+  // #263: the insert is now ONE batched statement, so the body is an ARRAY and
+  // the select asks for storage_path. Echoing back exactly what was sent (rather
+  // than synthesising rows) is what makes the ordering and count assertions real
+  // — a stub that invents its own rows would pass while the route dropped one.
   const attachmentInsert = stubRoute(
     restMatch(env, "POST", "message_attachments"),
-    (call) => [
-      {
+    (call) => {
+      const body = call.body as
+        | { content_type: string; size_bytes: number; storage_path: string }
+        | { content_type: string; size_bytes: number; storage_path: string }[];
+      const items = Array.isArray(body) ? body : [body];
+      return items.map((item) => ({
         id: crypto.randomUUID(),
-        content_type: (call.body as { content_type: string }).content_type,
-        size_bytes: (call.body as { size_bytes: number }).size_bytes,
-      },
-    ],
+        content_type: item.content_type,
+        size_bytes: item.size_bytes,
+        storage_path: item.storage_path,
+      }));
+    },
+  );
+  // #263: the all-or-nothing unwind deletes rows before objects.
+  const attachmentCleanup = stubRoute(
+    restMatch(env, "DELETE", "message_attachments"),
+    () => [],
   );
   const sign = stubRoute(storageSignMatch(env), (call) => ({
     signedURL: `${call.url.pathname.replace("/storage/v1", "")}?token=test-token`,
@@ -294,6 +309,7 @@ function composeStubs(options: {
     attachmentsLookup,
     upload,
     attachmentInsert,
+    attachmentCleanup,
     sign,
     all: [
       jwksRoute(auth),
@@ -320,6 +336,7 @@ function composeStubs(options: {
       attachmentsLookup.route,
       upload.route,
       attachmentInsert.route,
+      attachmentCleanup.route,
       sign.route,
     ],
   };
@@ -921,14 +938,18 @@ describe("POST /v1/conversations — MMS (§7, §8, #12)", () => {
       `/storage/v1/object/mms-media/${COMPANY_ID}/${MESSAGE_ID}/0`,
     );
 
-    // Outbound attachment row carries source_url NULL (§6).
-    expect(stubs.attachmentInsert.calls[0].body).toMatchObject({
-      message_id: MESSAGE_ID,
-      company_id: COMPANY_ID,
-      storage_path: `${COMPANY_ID}/${MESSAGE_ID}/0`,
-      content_type: "image/jpeg",
-      source_url: null,
-    });
+    // Outbound attachment rows carry source_url NULL (§6). #263: ONE batched
+    // insert, so the body is an array — a partial row set is not representable.
+    expect(stubs.attachmentInsert.calls).toHaveLength(1);
+    expect(stubs.attachmentInsert.calls[0].body).toMatchObject([
+      {
+        message_id: MESSAGE_ID,
+        company_id: COMPANY_ID,
+        storage_path: `${COMPANY_ID}/${MESSAGE_ID}/0`,
+        content_type: "image/jpeg",
+        source_url: null,
+      },
+    ]);
 
     // Telnyx got a 24h signed URL.
     const telnyxBody = stubs.telnyx.calls[0].body as { media_urls: string[] };
