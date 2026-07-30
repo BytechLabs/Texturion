@@ -357,4 +357,18 @@ class ComposerBannerTest {
         // dead end.
         assertFalse(offersCallInstead(ComposerBanner.NumberAccess))
     }
+
+    @Test
+    fun `note-only banner names the calls consequence too`() {
+        // #348: dial targets and the call push audience are filtered by 'text'
+        // level, so a note-only member also never rings and never gets call
+        // notifications — and until this line, nothing anywhere said so. The
+        // composer banner is the one place they meet the restriction.
+        val (_, body) = bannerCopy(ComposerBanner.NumberAccess)
+        assertTrue(
+            "the note-only banner must mention calls: ${'$'}body",
+            body.contains("ring", ignoreCase = true),
+        )
+    }
+
 }

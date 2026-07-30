@@ -71,3 +71,22 @@ describe("ComposerBannerCard", () => {
     expect(render({ kind: "usage_cap" })).toContain("Raise cap");
   });
 });
+
+describe("the note-only banner (#363/#348)", () => {
+  it("names the calls consequence, not just the texting one", () => {
+    // #348: dial targets and the call push audience are filtered by 'text'
+    // level, so a note-only member also never rings and never gets call
+    // notifications — and nothing anywhere said so. The composer banner is the
+    // one place they meet the restriction, so it is where the whole truth goes.
+    const html = render({ kind: "number_access" });
+    expect(html).toContain("internal notes");
+    expect(html.toLowerCase()).toContain("ring");
+  });
+
+  it("still says who can undo it", () => {
+    // G10: what happened, and what to do. The remedy is a conversation with a
+    // person, so the sentence has to name which person.
+    const html = render({ kind: "number_access" });
+    expect(html).toMatch(/owner or admin/i);
+  });
+});

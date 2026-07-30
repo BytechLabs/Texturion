@@ -78,7 +78,7 @@ export function ComposerBannerCard({
     // they also cannot change would be a second dead end.
     case "number_access":
       sentence =
-        "You can add internal notes here, but not text this customer from this number. Ask an owner or admin for access.";
+        "You can add internal notes here, but not text this customer from this number. Calls to it won't ring you either. Ask an owner or admin for access.";
       break;
     case "opted_out":
       // Say what can actually be done about it. A STOP is the customer's to

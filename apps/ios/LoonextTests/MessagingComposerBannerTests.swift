@@ -313,4 +313,17 @@ final class MessagingComposerBannerTests: XCTestCase {
         // dead end.
         XCTAssertFalse(offersCallInstead(.numberAccess))
     }
+
+    func testNoteOnlyBannerNamesTheCallsConsequenceToo() {
+        // #348: dial targets and the call push audience are filtered by 'text'
+        // level, so a note-only member also never rings and never gets call
+        // notifications — and until this line, nothing anywhere said so. The
+        // composer banner is the one place they meet the restriction.
+        let copy = bannerCopy(.numberAccess)
+        XCTAssertTrue(
+            copy.body.lowercased().contains("ring"),
+            "the note-only banner must mention calls: \(copy.body)"
+        )
+    }
+
 }

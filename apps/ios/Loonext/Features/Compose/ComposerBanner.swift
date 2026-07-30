@@ -168,7 +168,7 @@ func bannerCopy(_ banner: ComposerBanner) -> (title: String, body: String) {
     case .numberAccess:
         return (
             "You can't text from this number",
-            "You can read this conversation and add internal notes, but texting this customer needs access an owner or admin grants. Ask them if you need it."
+            "You can read this conversation and add internal notes, but texting this customer needs access an owner or admin grants. Calls to this number won't ring you either. Ask them if you need it."
         )
     // #396: says what was seen and who decides. It does NOT opt anyone out —
     // only the customer can, and only they can lift it, so a wrong guess would
