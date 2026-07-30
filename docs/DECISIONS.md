@@ -4325,3 +4325,63 @@ needs to know its citations describe the past.
 **The guard earned itself on first run**, finding two stale citations in
 `V4-REDO-PLAN.md` that #442 had not counted — which is the argument for it over a
 one-time sweep.
+
+---
+
+## D84 — derive the sets, interpolate the numbers, author the prose (#451, 2026-07-30)
+
+Two files described this product to machines and only one could go stale.
+`sitemap.ts` derives from `BLOG_POSTS`, so publishing a post cannot leave it behind.
+`public/llms.txt` was a static asset typed by hand, and per #434 it drifted within a
+fortnight: current through the calls feature, with **zero** mentions of AI,
+transcripts, mentions or Lou a fortnight after all four shipped to three clients.
+Same repo, same audience, ten lines apart in the same directory. The only
+difference was that one was generated.
+
+`llms.txt` is now `app/llms.txt/route.ts`, built by
+`lib/marketing/llms-txt.ts`. But **not all of it is generated**, and the split is
+the decision worth recording — it is by KIND of fact, not by section:
+
+**DERIVED — the enumerable sets.** Every blog post comes from `BLOG_POSTS`, so
+publishing one updates the file with no human step. Every URL comes from
+`LIVE_ROUTES`, so a route rename cannot leave a dead link. The old file summarised
+the guides in one sentence; it now lists all twelve by title and URL, which is
+better for the audience *and* impossible to forget.
+
+**INTERPOLATED — the numbers**, read from `PLAN_PRICING` and
+`US_REGISTRATION_FEE_DOLLARS` inside sentences a person wrote. A price change
+updates the prose without anybody rewriting it, and templating whole sentences to
+achieve the same thing would have produced robotic copy for no gain.
+
+**Only where a digit reads naturally, though.** Interpolating "Two numbers on Pro"
+produced "2 numbers on Pro", which is worse copy — and a sentence that spells a
+number out needs rewording if the number changes anyway. Reverted to the authored
+word; the Pricing section states the same count as a digit and *is* interpolated, so
+the fact is still derived somewhere.
+
+**AUTHORED — the prose, byte for byte.** #451 is explicit that the honest-omissions
+voice ("No phone menus, queues, or call-center features") is the file's best feature
+and a judgement rather than data, so generating it would cost the thing worth
+keeping. Verified by diffing the built output against the file it replaced: the 78
+authored lines are identical.
+
+**Page descriptions stay authored too**, which was a judgement call the issue did not
+ask for. A bare derived link is worse for the reader than a line saying why to open
+it, so `PAGE_NOTES` pairs every `LIVE_ROUTES` key with a description **or an explicit
+`null` and a reason**. It is exhaustive by TYPE, so adding a route fails to compile
+until somebody decides. That immediately surfaced two live routes the hand-typed
+version had silently omitted — the acceptable-use and cookies pages.
+
+### What a test still has to cover, and why that is not a failure of the design
+
+The AI monthly caps live in the API Worker and the web app cannot import across that
+boundary, so `llms-txt.test.ts` reads them out of the API source. That is the seam,
+it is stated in the module header, and it is the assertion that caught two of three
+caps wrong while #434 was being closed.
+
+**More generally: derivation beats a test for facts that exist as data, and a test
+is the only option for facts that do not.** A test tells you the file is wrong;
+derivation means it cannot be. But a test can only assert what it knows to look for,
+which is why #434 happened at all — nothing knew `llms.txt` should mention a feature
+that had just shipped. Deriving the enumerable sets is what closes that hole; the
+remaining tests cover the numbers.

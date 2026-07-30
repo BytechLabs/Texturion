@@ -1,7 +1,7 @@
 # Loonext Brand & Messaging Kit
 
 Reusable marketing copy for Loonext, grounded in the shipped product (SPEC,
-`public/llms.txt`, the live marketing site). Every claim here is a verified
+`apps/web/src/lib/marketing/llms-txt.ts`, the live marketing site). Every claim here is a verified
 product or billing fact. Customer-facing lines follow the house rules: no
 em-dashes, plain language, nothing invented.
 

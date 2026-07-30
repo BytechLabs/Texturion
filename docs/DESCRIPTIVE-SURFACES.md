@@ -30,7 +30,7 @@ Most features touch two or three. "No" is a fine answer; unconsidered is not.
 
 | Surface | Needs a line when | Check |
 |---|---|---|
-| **`apps/web/public/llms.txt`** | the feature changes what the product *is* or *does not do* | it is the whole submission to the "ask an assistant" channel. State the limits too — the file's strength is that it says what we do not do. |
+| **`apps/web/src/lib/marketing/llms-txt.ts`** | the feature changes what the product *is* or *does not do* | it is the whole submission to the "ask an assistant" channel. State the limits too — the file's strength is that it says what we do not do. **Blog posts, page links and prices now derive** (#451/D84), so those need nothing; what still needs a human is the narrative — a new capability, or a new deliberate absence. |
 | **Marketing copy** (home, features, trade pages) | the feature is a reason to buy | search for the **claim**, not the page (see below) |
 | **Comparison pages** (`compare/*`) | the feature is a *differentiator* | needs a **sourced** competitor fact, not an assumption. Do not add a row you cannot cite. |
 | **Pricing / plan copy** | it has a cap, a fee, or a plan gate | a cap stated wrong is worse than a cap omitted |

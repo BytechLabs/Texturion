@@ -1,10 +1,13 @@
 import { readFileSync } from "node:fs";
+// Still reaching into the API source for the caps assertion below: the one fact
+// this file cannot derive, because the caps live in the Worker.
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { BLOG_POSTS } from "@/lib/marketing/blog";
+import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
+import { buildLlmsTxt, notedRoutes } from "@/lib/marketing/llms-txt";
+import { LIVE_ROUTES, absoluteUrl } from "@/lib/marketing/site";
 import { PLAN_PRICING, US_REGISTRATION_FEE_DOLLARS } from "@/lib/api/types";
 
 /**
@@ -26,10 +29,10 @@ import { PLAN_PRICING, US_REGISTRATION_FEE_DOLLARS } from "@/lib/api/types";
  * instead of a discovery.
  */
 
-const LLMS = readFileSync(
-  join(fileURLToPath(new URL("../../../", import.meta.url)), "public/llms.txt"),
-  "utf8",
-);
+// BUILT, not read from disk. That is the change #451 asked for: the file cannot be
+// stale because there is no file, and these assertions therefore run against
+// exactly the bytes a crawler will fetch.
+const LLMS = buildLlmsTxt();
 
 describe("llms.txt states the prices the product actually charges", () => {
   it("names each plan's monthly price", () => {
@@ -55,13 +58,57 @@ describe("llms.txt states the prices the product actually charges", () => {
 });
 
 describe("llms.txt keeps up with what shipped", () => {
-  it("mentions every blog post it claims to list", () => {
-    // The sitemap derives this and cannot fall behind. This file states its
-    // own list, so it can — the same class of drift, caught the same way.
-    const listed = BLOG_POSTS.filter((post) => LLMS.includes(post.slug));
-    if (listed.length > 0) {
-      expect(listed.length, "llms.txt lists some posts but not all").toBe(
-        BLOG_POSTS.length,
+  it("lists EVERY blog post, by title and url", () => {
+    // #451's definition of done: publishing a post updates this file with no
+    // human step. It derives from BLOG_POSTS now, so this asserts the derivation
+    // rather than hoping somebody remembered — and it is `every`, not "all or
+    // none", because a partial list is the failure the old assertion tolerated.
+    const missing = BLOG_POSTS.filter(
+      (post) =>
+        !LLMS.includes(post.title) ||
+        !LLMS.includes(absoluteUrl(blogPostPath(post.slug))),
+    ).map((post) => post.slug);
+    expect(
+      missing,
+      `\n\nPosts absent from llms.txt: ${missing.join(", ")}\n\n` +
+        `These come from BLOG_POSTS, so this failing means the derivation broke, ` +
+        `not that somebody forgot to type them.\n`,
+    ).toEqual([]);
+  });
+
+  it("links every page it says it links, at a url that exists in LIVE_ROUTES", () => {
+    // Every URL is built from LIVE_ROUTES, so a route rename cannot leave a dead
+    // link. Asserted rather than assumed because the grouped lines (trades,
+    // comparisons, legal) are hand-assembled and a typo there would be silent.
+    const missing = notedRoutes().filter(
+      (route) => !LLMS.includes(absoluteUrl(LIVE_ROUTES[route])),
+    );
+    expect(missing, `noted routes not present in the output: ${missing.join(", ")}`)
+      .toEqual([]);
+  });
+
+  it("mentions the trades, comparisons and legal pages it groups", () => {
+    // The grouped lines are the ones with no per-item note, so nothing else would
+    // catch a route silently dropped from them.
+    for (const route of [
+      "forPlumbers",
+      "forHvac",
+      "forLandscapers",
+      "forCleaners",
+      "forSalons",
+      "forContractors",
+      "compareHeymarket",
+      "compareQuo",
+      "terms",
+      "privacy",
+      "messaging",
+      "aup",
+      "fairUse",
+      "refunds",
+      "cookies",
+    ] as const) {
+      expect(LLMS, `${route} is grouped but its url is absent`).toContain(
+        absoluteUrl(LIVE_ROUTES[route]),
       );
     }
   });
