@@ -51,7 +51,21 @@ function buildWorld(
   sb.on("GET", "/rest/v1/company_members", () =>
     options.members ?? [{ user_id: OWNER, role: "owner" }],
   );
-  sb.on("GET", "/rest/v1/number_access", () => options.accessRules ?? []);
+  // #480: the audience path asks the INVERSE resolver — every member of this
+  // number's company with their level.
+  //
+  // The default is DERIVED from the same member list this world stubs, at full
+  // use, which is what an un-ruled number means. Deriving it rather than naming
+  // names keeps a fixture from describing one crew to the member query and a
+  // different one to the resolver — the two disagreeing is how a test asserts
+  // something nobody intended.
+  sb.on("POST", "/rest/v1/rpc/number_member_levels", () =>
+    options.accessRules ??
+    (options.members ?? [{ user_id: OWNER, role: "owner" }]).map((member) => ({
+      ...member,
+      level: "text",
+    })),
+  );
   sb.on("GET", "/rest/v1/notification_prefs", () => []);
   sb.on("GET", "/rest/v1/push_subscriptions", () => []);
   sb.on("GET", /^\/auth\/v1\/admin\/users\//, (call) => {
@@ -108,12 +122,12 @@ describe("notifyMissedCall — #106 number access", () => {
   // is scoped to one specific user, so every other plain member resolves to
   // 'none'.
   const scopedToTrusted = [
-    {
-      phone_number_id: NUMBER_ID,
-      principal_kind: "user",
-      principal: TRUSTED,
-      level: "text",
-    },
+    // #480: the INVERSE resolver answers per MEMBER, so the fixture names the
+    // whole crew and their outcome — which makes the owner's standing override
+    // visible rather than implied. An owner is never denied a number they
+    // administer (#106: no self-lockout), so they stay in the audience.
+    { user_id: OWNER, role: "owner", level: "text" },
+    { user_id: MEMBER, role: "member", level: "none" },
   ];
 
   it("drops unmatched members and keeps owners", async () => {
@@ -141,12 +155,7 @@ describe("notifyMissedCall — #106 number access", () => {
       phoneNumberId: NUMBER_ID,
       members: [{ user_id: MEMBER, role: "member" }],
       accessRules: [
-        {
-          phone_number_id: NUMBER_ID,
-          principal_kind: "user",
-          principal: MEMBER,
-          level: "note",
-        },
+        { user_id: MEMBER, role: "member", level: "note" },
       ],
     });
     stubFetch(...world.routes);
@@ -192,7 +201,12 @@ describe("notifyMissedCall — #106 number access", () => {
         { user_id: OWNER, role: "owner" },
         { user_id: TRUSTED, role: "member" },
       ],
-      accessRules: scopedToTrusted,
+      // TRUSTED is the one member the number is scoped to; the owner is never
+      // denied a number they administer.
+      accessRules: [
+        { user_id: OWNER, role: "owner", level: "text" },
+        { user_id: TRUSTED, role: "member", level: "text" },
+      ],
     });
     stubFetch(...world.routes);
 
@@ -208,7 +222,10 @@ describe("notifyMissedCall — #106 number access", () => {
     const world = buildWorld({
       phoneNumberId: NUMBER_ID,
       members: [{ user_id: MEMBER, role: "member" }],
-      accessRules: scopedToTrusted,
+      // The only member of this crew is denied, so there is nobody to tell. Note
+      // the resolver still ANSWERS — with one 'none' row — which is what
+      // distinguishes "everybody is denied" from "the query broke".
+      accessRules: [{ user_id: MEMBER, role: "member", level: "none" }],
     });
     stubFetch(...world.routes);
 

@@ -123,7 +123,7 @@ function forYouStub(
     membershipResponder(MEMBER_ID, role),
   );
   // #106: the route resolves number_access for members ([] = unrestricted).
-  sb.on("GET", "/rest/v1/number_access", () => numberAccess);
+  sb.on("POST", "/rest/v1/rpc/member_number_levels", () => numberAccess);
   sb.on("POST", "/rest/v1/rpc/api_for_you", () => payload);
   return sb;
 }
@@ -153,12 +153,8 @@ describe("GET /v1/for-you", () => {
   it("#106: a restricted member's RPC receives the hidden-number deny list", async () => {
     const HIDDEN = "dddddddd-0000-4000-8000-00000000000d";
     const sb = forYouStub("member", MEMBER_PAYLOAD, [
-      {
-        phone_number_id: HIDDEN,
-        principal_kind: "role",
-        principal: "admin", // a plain member can't match → hidden
-        level: "text",
-      },
+      // An admins-only rule, so a plain member resolves to hidden.
+      { phone_number_id: HIDDEN, level: "none" },
     ]);
     stubFetch(jwksRoute(auth), sb.route);
 

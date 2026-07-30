@@ -47,7 +47,7 @@ function memberStub(options: { pause?: unknown } = {}): SupabaseStub {
   );
   // #106: the read-model routes resolve number_access; [] = no rules →
   // unrestricted (p_hidden_number_ids null), so the RPC assertions are unchanged.
-  sb.on("GET", "/rest/v1/number_access", () => []);
+  sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
   // #343: the badge endpoint now also reports whether the workspace's daily
   // notification allowance is spent. Nothing paused by default.
   // Handlers are tried in REGISTRATION order and the first match wins, so a
@@ -462,13 +462,8 @@ describe("GET /v1/notifications", () => {
       "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
-    sb.on("GET", "/rest/v1/number_access", () => [
-      {
-        phone_number_id: HIDDEN,
-        principal_kind: "role",
-        principal: "admin",
-        level: "text",
-      },
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: HIDDEN, level: "none" },
     ]);
     sb.on("POST", "/rest/v1/rpc/api_notifications", () => []);
     stubFetch(jwksRoute(auth), sb.route);

@@ -66,6 +66,31 @@ function productionSources(): string[] {
 const repoPath = (file: string) => relative(SRC, file).replaceAll("\\", "/");
 
 /**
+ * A file's CODE, with its prose removed.
+ *
+ * The #480 assertions below look for tokens, and the first run caught the
+ * explanatory comment documenting WHY the token is gone — a guard flagging its own
+ * footnote. Worse than the false positive is what it teaches: a check that fires on
+ * prose gets its roster widened until it guards nothing.
+ *
+ * Deliberately conservative. Block comments go, and so do lines that are wholly a
+ * comment; a trailing slash-slash on a line of code STAYS. Stripping those would
+ * mean finding the sequence inside string literals — every URL in the tree — and
+ * hiding whatever followed it on that line. Being over-eager in a security guard
+ * is the safe direction; being blind is not.
+ */
+function codeOf(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trim();
+      return !trimmed.startsWith("//") && !trimmed.startsWith("*");
+    })
+    .join("\n");
+}
+
+/**
  * The `db.rpc("name", { ... })` call, with its argument object, for one RPC.
  * Deliberately a source scan rather than a runtime spy: the failure being
  * guarded is a call site that was never exercised by a test with a restricted
@@ -127,45 +152,44 @@ describe("#368 — every filtered read surface is called with the deny list", ()
       .toEqual([]);
   });
 
-  it("rosters every file that reads number_access directly", () => {
-    // #368 counted SEVEN implementations, all of them SQL. Running this roll
-    // call for the first time found FOUR MORE, in TypeScript, where the SQL
-    // roster cannot see them at all. The real number is eleven.
+  it("lets only the rule's CRUD read number_access directly (#480)", () => {
+    // #368 counted seven implementations, all SQL. Running this roll call for the
+    // first time found FOUR MORE in TypeScript, where the SQL roster cannot see
+    // them — eleven in total. It left them alone deliberately and said why: the
+    // issue's devil's advocate argued that folding working implementations into a
+    // shared abstraction risks introducing the very bug it prevents, and that it
+    // was #347-sized work.
     //
-    // They are NOT consolidated here, and that is deliberate. The issue's own
-    // devil's advocate makes the case: folding working implementations into a
-    // shared abstraction risks introducing the very bug it prevents, and this
-    // is #347-sized work. What this test buys instead is that the list is
-    // known, written down, and cannot grow silently — which is the mechanism
-    // that was missing, and the thing that matters most before #348 changes
-    // what "hidden" means.
+    // #480 IS THAT WORK, and it had to happen: the realtime topic policy needs
+    // the same rule, and an RLS predicate cannot call TypeScript. Writing a
+    // twelfth copy in SQL for the policy was the alternative.
+    //
+    // What is left is the CRUD. Everything else asks
+    // `public.member_number_levels` — including the three paths that used to
+    // apply the precedence themselves with their own owner/admin override, each
+    // of which decided something a customer would notice: who gets told about a
+    // message, whose phone rings, and who a live call may be transferred to.
     const ALLOWED: Record<string, string> = {
-      // The resolver. Allowed to know the rules; everything else should ask it.
-      "auth/number-access.ts": "the resolver itself",
       // Manages the rules rather than consuming them — the CRUD behind
       // Settings → Numbers. A reader, but of its own table.
       "routes/numbers.ts": "the access-rule CRUD (#106 write path)",
-      // Computes who may be TOLD about a conversation, which is the same
-      // question in a different direction. Named by #349.
-      "auth/conversation-audience.ts": "notification audience (#349)",
-      // The calls DO's 'text'-level filtering for dial targets and push
-      // audience — CALLS-V3 §11, and named by #368 as a non-SQL point.
-      "calls/runtime.ts": "dial targets + ring audience (CALLS-V3 §11)",
-      // Live-call transfer targets: the same filter, on the transfer picker.
-      "routes/live-calls.ts": "transfer targets (#135)",
     };
     const readers = productionSources()
       .filter((file) =>
-        /from\(\s*["'`]number_access["'`]\s*\)/.test(readFileSync(file, "utf8")),
+        /from\(\s*["'`]number_access["'`]\s*\)/.test(
+          codeOf(readFileSync(file, "utf8")),
+        ),
       )
       .map(repoPath);
 
     const unrostered = readers.filter((file) => !(file in ALLOWED));
     expect(
       unrostered,
-      `a NEW implementation of "which numbers may this member see":\n${unrostered.join("\n")}\n` +
-        "Either ask resolveNumberAccess instead, or roster it here with the " +
-        "reason it cannot.",
+      `a NEW reader of the raw access rules:\n${unrostered.join("\n")}\n` +
+        "Ask member_number_levels (every restricted number for one caller) or " +
+        "number_member_levels (every member's level on one number) instead. " +
+        "Reading the table means deciding the precedence, and #480 made that " +
+        "one implementation.",
     ).toEqual([]);
 
     // Stale entries make this weaker without anyone noticing: a rostered file
@@ -173,5 +197,47 @@ describe("#368 — every filtered read surface is called with the deny list", ()
     const stale = Object.keys(ALLOWED).filter((file) => !readers.includes(file));
     expect(stale, `rostered but no longer reads number_access: ${stale.join(", ")}`)
       .toEqual([]);
+  });
+
+  it("keeps the precedence rule out of TypeScript entirely (#480)", () => {
+    // The stronger property, and the one the issue asks for: not just "who reads
+    // the table" but "who DECIDES". Applying #106's precedence means looking at
+    // `principal_kind` — that column is the rule's fingerprint, and it appears in
+    // no production TypeScript once the rule lives in SQL.
+    //
+    // Without this, a future author can reintroduce the rule without touching
+    // `from("number_access")` at all: read the rows through an RPC or a view,
+    // sort them by specificity in TypeScript, and the roster above stays green
+    // while there are two implementations again.
+    const ALLOWED: Record<string, string> = {
+      // The CRUD validates and writes the rows, so it names the column. It
+      // never ranks them.
+      "routes/numbers.ts": "validates the rule shape it writes",
+    };
+    const deciders = productionSources()
+      .filter((file) => /principal_kind/.test(codeOf(readFileSync(file, "utf8"))))
+      .map(repoPath);
+
+    const unrostered = deciders.filter((file) => !(file in ALLOWED));
+    expect(
+      unrostered,
+      `principal_kind appears in production TypeScript:\n${unrostered.join("\n")}\n` +
+        "Ranking 'user' over 'role' over 'all' is the #106 precedence rule, and " +
+        "it has exactly one home: public.member_number_levels in " +
+        "supabase/migrations/20260730030000_member_number_level.sql. Two " +
+        "implementations of one security decision is what D79 exists to prevent.",
+    ).toEqual([]);
+
+    const stale = Object.keys(ALLOWED).filter((file) => !deciders.includes(file));
+    expect(stale, `rostered but no longer names principal_kind: ${stale.join(", ")}`)
+      .toEqual([]);
+  });
+
+  it("finds files at all, so a passing run means something", () => {
+    // Both assertions above are filesystem-derived, and a walk that silently
+    // returned nothing would make them vacuous.
+    const sources = productionSources();
+    expect(sources.length).toBeGreaterThan(50);
+    expect(sources.map(repoPath)).toContain("auth/number-access.ts");
   });
 });

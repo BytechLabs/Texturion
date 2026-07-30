@@ -11,7 +11,6 @@
 import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { levelFromRules, type NumberAccessRule } from "../auth/number-access";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import {
@@ -829,38 +828,28 @@ export function createSessionRuntime(env: Env): SessionRuntime {
 
     async memberEligible(companyId, phoneNumberId, userId) {
       if (!phoneNumberId) return false;
-      const [cred, member, rules] = await Promise.all([
+      // #480: one resolver. This used to read the rules and apply the #106
+      // precedence here, with its own owner/admin override — a third copy of the
+      // rule, deciding whose phone rings. `member_number_level` already checks
+      // membership and deactivation, so the separate member read is gone too.
+      const [cred, level] = await Promise.all([
         db
           .from("member_telephony_credentials")
           .select("sip_username")
           .eq("company_id", companyId)
           .eq("user_id", userId)
           .limit(1),
-        db
-          .from("company_members")
-          .select("role")
-          .eq("company_id", companyId)
-          .eq("user_id", userId)
-          .is("deactivated_at", null)
-          .limit(1),
-        db
-          .from("number_access")
-          .select("phone_number_id,principal_kind,principal,level")
-          .eq("company_id", companyId)
-          .eq("phone_number_id", phoneNumberId),
+        db.rpc("member_number_level", {
+          p_user_id: userId,
+          p_phone_number_id: phoneNumberId,
+        }),
       ]);
-      if (cred.error || member.error || rules.error) return false;
-      const role = member.data?.[0]?.role as string | undefined;
-      if (!cred.data?.[0] || !role) return false;
-      const level =
-        role === "owner" || role === "admin"
-          ? "text"
-          : levelFromRules(
-              (rules.data ?? []) as NumberAccessRule[],
-              userId,
-              role as "admin" | "member",
-            );
-      return level === "text";
+      // Ringing nobody is the safe direction for a failure here: the caller
+      // still reaches voicemail, where a wrongly-rung phone would hand a member
+      // a call on a number they were denied.
+      if (cred.error || level.error) return false;
+      if (!cred.data?.[0]) return false;
+      return level.data === "text";
     },
 
     async computePushAudience(companyId, phoneNumberId) {
@@ -1059,11 +1048,9 @@ export async function computeRingContext(
       .eq("company_id", companyId)
       .is("deactivated_at", null)
       .order("created_at", { ascending: true }),
-    db
-      .from("number_access")
-      .select("phone_number_id,principal_kind,principal,level")
-      .eq("company_id", companyId)
-      .eq("phone_number_id", phoneNumberId),
+    // #480: the one resolver, asked backwards — every active member of this
+    // number's company with their effective level.
+    db.rpc("number_member_levels", { p_phone_number_id: phoneNumberId }),
     db
       .from("notification_prefs")
       .select("user_id,push_enabled")
@@ -1113,7 +1100,13 @@ export async function computeRingContext(
       new Error(`notification_prefs read failed: ${prefs.error.message}`),
     );
   }
-  const accessRules = (rules.data ?? []) as NumberAccessRule[];
+  // #480: the levels come from the one resolver now, keyed by user.
+  const levelByUser = new Map(
+    ((rules.data ?? []) as { user_id: string; level: string }[]).map((row) => [
+      row.user_id,
+      row.level,
+    ]),
+  );
   const sipByUser = new Map(
     (credentials.data ?? []).map((row) => [
       row.user_id as string,
@@ -1136,12 +1129,10 @@ export async function computeRingContext(
   const pushAudience: string[] = [];
   for (const member of members.data ?? []) {
     const userId = member.user_id as string;
-    const role = member.role as string;
-    const level =
-      role === "owner" || role === "admin"
-        ? "text"
-        : levelFromRules(accessRules, userId, role as "admin" | "member");
-    if (level !== "text") continue;
+    // Only full-use members are rung or pushed for a call. A notes-only member
+    // reads the thread; handing them the phone would let them speak to a
+    // customer on a number they were denied texting on.
+    if (levelByUser.get(userId) !== "text") continue;
     const sip = sipByUser.get(userId);
     if (sip) dialTargets.push({ userId, sipUsername: sip });
     const pushEnabled = prefByUser.get(userId) ?? true;

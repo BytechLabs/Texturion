@@ -200,7 +200,7 @@ function sendStubs(options: {
     { plan: "starter", current_period_start: "2026-07-01T00:00:00.000Z" },
   ]);
   // #106: no access rules → the member caller is unrestricted.
-  const numberAccess = stubRoute(restMatch(env, "GET", "number_access"), () => []);
+  const numberAccess = stubRoute(rpcMatch(env, "member_number_levels"), () => []);
   // The pre-send gates end with the opt-out check; these fixtures are opted in.
   const optOuts = stubRoute(restMatch(env, "GET", "opt_outs"), () => []);
 
@@ -555,7 +555,7 @@ describe("POST /v1/messages/send — happy path + idempotency (§7, §8)", () =>
       stubs.persist.route,
       stubs.attachmentsLookup.route,
       stubs.optOuts.route,
-      stubRoute(restMatch(env, "GET", "number_access"), () => []).route,
+      stubRoute(rpcMatch(env, "member_number_levels"), () => []).route,
     );
 
     const response = await postSend({
@@ -1220,7 +1220,7 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
         rpc.route,
         attachmentsLookup.route,
         // #106: no access rules → the member caller is unrestricted.
-        stubRoute(restMatch(env, "GET", "number_access"), () => []).route,
+        stubRoute(rpcMatch(env, "member_number_levels"), () => []).route,
       ],
     };
   }
@@ -1420,7 +1420,7 @@ describe("PATCH /v1/messages/:id — pin state (#3)", () => {
         rpc.route,
         attachmentsLookup.route,
         // #106: no access rules → the member caller is unrestricted.
-        stubRoute(restMatch(env, "GET", "number_access"), () => []).route,
+        stubRoute(rpcMatch(env, "member_number_levels"), () => []).route,
       ],
     };
   }
@@ -1581,7 +1581,7 @@ describe("GET /v1/conversations/:id/messages (§7)", () => {
       conversationCheck.route,
       list.route,
       tasks.route,
-      stubRoute(restMatch(env, "GET", "number_access"), () => []).route,
+      stubRoute(rpcMatch(env, "member_number_levels"), () => []).route,
     );
 
     const response = await app.fetch(

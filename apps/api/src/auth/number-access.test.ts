@@ -1,7 +1,17 @@
 /**
- * #106 per-number access — the pure precedence rules, the resolver's
- * unrestricted fast paths, and the two guards (assert + conversation flavor).
- * Real supabase-js over stubbed fetch.
+ * #106 per-number access — the resolver's unrestricted fast paths and the two
+ * guards (assert + conversation flavor). Real supabase-js over stubbed fetch.
+ *
+ * #480: THE PRECEDENCE RULE IS NO LONGER TESTED HERE, because it is no longer
+ * implemented here. It moved to `public.member_number_levels` so the realtime
+ * topic policy could apply the same rule, and its assertions moved with it to
+ * `supabase/tests/member_number_level.test.sql` (NL-1: user beats role beats
+ * all, and ruled-and-unmatched is hidden). Both suites run in the same CI gate.
+ *
+ * What stays here is everything the Worker still decides: the owner/admin fast
+ * path that costs zero queries, the DENY-LIST shape (an absent id is visible, so
+ * an un-ruled, released or NULL number is never hidden by omission), and the two
+ * guards' status codes.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -11,11 +21,10 @@ import { endpoint, makeHarness } from "../test/billing-support";
 import { completeEnv, stubFetch } from "../test/support";
 import {
   assertNumberLevel,
-  levelFromRules,
   NOTE_ONLY_MESSAGE,
   requireConversationAccess,
   resolveNumberAccess,
-  type NumberAccessRule,
+  type NumberAccessLevel,
 } from "./number-access";
 
 const env = completeEnv();
@@ -28,47 +37,20 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function rule(
+/**
+ * One row of what `member_number_levels` returns: a RESTRICTED number and the
+ * caller's effective level on it.
+ *
+ * The resolver returns rows only for restricted numbers, so building a fixture
+ * now means naming the outcome rather than the rules that produce it — the rules
+ * are the SQL suite's subject.
+ */
+function restricted(
   numberId: string,
-  kind: NumberAccessRule["principal_kind"],
-  principal: string | null,
-  level: "text" | "note" = "text",
-): NumberAccessRule {
-  return {
-    phone_number_id: numberId,
-    principal_kind: kind,
-    principal,
-    level,
-  };
+  level: NumberAccessLevel,
+): { phone_number_id: string; level: NumberAccessLevel } {
+  return { phone_number_id: numberId, level };
 }
-
-describe("levelFromRules (precedence: user > role > all > none)", () => {
-  it("no rules → everyone, full use (the default)", () => {
-    expect(levelFromRules([], USER, "member")).toBe("text");
-  });
-
-  it("a user rule beats a role rule beats an all rule", () => {
-    const rules = [
-      rule(NUM_A, "all", null, "note"),
-      rule(NUM_A, "role", "member", "note"),
-      rule(NUM_A, "user", USER, "text"),
-    ];
-    expect(levelFromRules(rules, USER, "member")).toBe("text");
-    // A different user falls through to the role rule.
-    expect(levelFromRules(rules, "someone-else", "member")).toBe("note");
-    // A different role falls through to the all rule — still note.
-    expect(levelFromRules(rules, "someone-else", "admin")).toBe("note");
-  });
-
-  it("rules exist but none match → hidden", () => {
-    expect(
-      levelFromRules([rule(NUM_A, "user", "someone-else")], USER, "member"),
-    ).toBe("none");
-    expect(
-      levelFromRules([rule(NUM_A, "role", "admin")], USER, "member"),
-    ).toBe("none");
-  });
-});
 
 describe("resolveNumberAccess", () => {
   it("owners and admins are unrestricted with ZERO queries", async () => {
@@ -86,7 +68,7 @@ describe("resolveNumberAccess", () => {
 
   it("no rules in the company → unrestricted (one query, no number fetch)", async () => {
     const harness = makeHarness([
-      endpoint("GET", /\/rest\/v1\/number_access/, () => []),
+      endpoint("POST", /\/rest\/v1\/rpc\/member_number_levels/, () => []),
     ]);
     stubFetch(harness.route);
     const access = await resolveNumberAccess(getDb(env), {
@@ -98,11 +80,13 @@ describe("resolveNumberAccess", () => {
   });
 
   it("restricted member: hidden ids are the ruled-and-unmatched numbers only", async () => {
-    // One query, no phone_numbers fetch — the deny list is built from rules
-    // alone, so un-ruled / released / NULL numbers stay visible by omission.
+    // One query, no phone_numbers fetch — the deny list is built from the
+    // resolver's rows alone, so un-ruled / released / NULL numbers stay visible
+    // by omission. That omission is the whole shape: an id the resolver did not
+    // mention is an id nobody restricted.
     const harness = makeHarness([
-      endpoint("GET", /\/rest\/v1\/number_access/, () => [
-        rule(NUM_A, "user", "someone-else", "text"), // USER not listed → hidden
+      endpoint("POST", /\/rest\/v1\/rpc\/member_number_levels/, () => [
+        restricted(NUM_A, "none"),
       ]),
     ]);
     stubFetch(harness.route);
@@ -121,15 +105,17 @@ describe("resolveNumberAccess", () => {
 });
 
 describe("assertNumberLevel", () => {
-  function memberEndpoints(rules: NumberAccessRule[]) {
+  function memberEndpoints(
+    rows: { phone_number_id: string; level: NumberAccessLevel }[],
+  ) {
     return [
-      endpoint("GET", /\/rest\/v1\/number_access/, () => rules),
+      endpoint("POST", /\/rest\/v1\/rpc\/member_number_levels/, () => rows),
       endpoint("GET", /\/rest\/v1\/phone_numbers/, () => [{ id: NUM_A }]),
     ];
   }
 
   it("404s a hidden number's conversation (indistinguishable from missing)", async () => {
-    stubFetch(makeHarness(memberEndpoints([rule(NUM_A, "role", "admin")])).route);
+    stubFetch(makeHarness(memberEndpoints([restricted(NUM_A, "none")])).route);
     await expect(
       assertNumberLevel(getDb(env), {
         companyId: COMPANY,
@@ -143,7 +129,7 @@ describe("assertNumberLevel", () => {
 
   it("403s a notes-only member on a 'text' need, with the honest copy", async () => {
     stubFetch(
-      makeHarness(memberEndpoints([rule(NUM_A, "user", USER, "note")])).route,
+      makeHarness(memberEndpoints([restricted(NUM_A, "note")])).route,
     );
     const thrown = await assertNumberLevel(getDb(env), {
       companyId: COMPANY,
@@ -161,7 +147,7 @@ describe("assertNumberLevel", () => {
   });
 
   it("lets a notes-only member read and note", async () => {
-    const routes = memberEndpoints([rule(NUM_A, "user", USER, "note")]);
+    const routes = memberEndpoints([restricted(NUM_A, "note")]);
     stubFetch(makeHarness(routes).route);
     await expect(
       assertNumberLevel(getDb(env), {
@@ -194,8 +180,8 @@ describe("requireConversationAccess", () => {
       endpoint("GET", /\/rest\/v1\/conversations/, () => [
         { phone_number_id: NUM_A },
       ]),
-      endpoint("GET", /\/rest\/v1\/number_access/, () => [
-        rule(NUM_A, "role", "admin"),
+      endpoint("POST", /\/rest\/v1\/rpc\/member_number_levels/, () => [
+        restricted(NUM_A, "none"),
       ]),
       endpoint("GET", /\/rest\/v1\/phone_numbers/, () => [{ id: NUM_A }]),
     ]);

@@ -34,7 +34,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { scrubProperties } from "./analytics/posthog";
-import { levelFromRules } from "./auth/number-access";
+import { buildNumberAccessView as viewFrom } from "./auth/number-access";
 import { sanitizeWithReport } from "./messaging/reply-suggestions";
 
 vi.mock("@sentry/cloudflare", () => ({
@@ -119,32 +119,39 @@ describe("premise: an unruled or NULL number stays visible (auth/number-access.t
   // >  (consistent with levelFor, which returns 'none' only for a
   // >  ruled-and-unmatched number)."
   //
-  // This premise gates an access-control shape: the resolver builds a deny
-  // list rather than an allow list, and never fetches phone_numbers at all.
-  // If `levelFromRules` ever returned "none" for an unruled number, the deny
-  // list would be missing entries it believes it does not need — a silent
-  // over-exposure with no error anywhere.
+  // This premise gates an access-control shape: the resolver builds a DENY list
+  // rather than an allow list, and never fetches phone_numbers at all. An id the
+  // resolver did not mention is an id nobody restricted — so if omission ever
+  // came to mean "hidden", or a mentioned id ever failed to hide, the failure
+  // would be silent over- or under-exposure with no error anywhere.
   //
-  // The resolver's own suite already pins levelFor(null) under BOTH an
-  // unrestricted and a restricted view. What is added here is the pure rule
-  // underneath it, which is what would actually change.
+  // #480 MOVED THE RULE AND NOT THE SHAPE. The precedence order (user beats role
+  // beats all, ruled-and-unmatched is hidden) is now
+  // `public.member_number_levels`, asserted in
+  // supabase/tests/member_number_level.test.sql NL-1 and NL-5. What is still
+  // decided in TypeScript, and therefore still belongs here, is how the Worker
+  // reads that answer: omission means visible.
 
-  it("no rules means full use, which is what makes a deny list sound", () => {
-    expect(levelFromRules([], "user-1", "member")).toBe("text");
+  it("an unmentioned id is visible, which is what makes a deny list sound", () => {
+    // The resolver names only restricted numbers. Everything else — un-ruled,
+    // released, or a conversation with no number at all — must come back 'text'
+    // without a second query.
+    const view = viewFrom([{ phone_number_id: "n1", level: "none" }]);
+    expect(view.hiddenNumberIds).toEqual(["n1"]);
+    expect(view.levelFor("n2")).toBe("text");
+    expect(view.levelFor(null)).toBe("text");
   });
 
-  it("returns 'none' ONLY when rules exist and none match", () => {
-    const ruled = [
-      {
-        phone_number_id: "n1",
-        principal_kind: "user" as const,
-        principal: "somebody-else",
-        level: "text" as const,
-      },
-    ];
-    expect(levelFromRules(ruled, "user-1", "member")).toBe("none");
-    // …and the same rule set matches its own principal.
-    expect(levelFromRules(ruled, "somebody-else", "member")).toBe("text");
+  it("a mentioned id at 'none' is the only thing that hides", () => {
+    const view = viewFrom([
+      { phone_number_id: "n1", level: "none" },
+      { phone_number_id: "n2", level: "note" },
+    ]);
+    // 'note' is restricted but NOT hidden: a notes-only member reads the thread.
+    // Folding it into the deny list would hide conversations from people who are
+    // supposed to be reading them.
+    expect(view.hiddenNumberIds).toEqual(["n1"]);
+    expect(view.levelFor("n2")).toBe("note");
   });
 });
 

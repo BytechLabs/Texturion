@@ -65,7 +65,7 @@ function callsStub(
     membershipResponder(MEMBER_ID, opts.role ?? "member"),
   );
   // #106 resolver: member-role reads number_access rules (empty = no rules).
-  sb.on("GET", "/rest/v1/number_access", () => opts.accessRules ?? []);
+  sb.on("POST", "/rest/v1/rpc/member_number_levels", () => opts.accessRules ?? []);
   sb.on("POST", "/rest/v1/rpc/api_list_calls", () => rows);
   return sb;
 }
@@ -162,7 +162,7 @@ describe("GET /v1/calls", () => {
     expect((rpc.body as { p_hidden_number_ids: unknown }).p_hidden_number_ids).toBe(
       null,
     );
-    expect(sb.find("GET", "/rest/v1/number_access")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/member_number_levels")).toHaveLength(0);
   });
 
   it("narrows on ?outcome= and rejects garbage values", async () => {
@@ -372,7 +372,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, opts.role ?? "member"),
     );
-    sb.on("GET", "/rest/v1/number_access", () => []);
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
     sb.on("GET", "/rest/v1/conversations", () => [
       {
         id: CONVERSATION,
@@ -778,15 +778,11 @@ describe("GET /v1/calls/:sessionId (#336 — a call has an address)", () => {
       membershipResponder(MEMBER_ID, "member"),
     );
     // #106: a rule hiding this number from this member.
-    sb.on("GET", "/rest/v1/number_access", () =>
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () =>
       opts.hidden
         ? [
-            {
-              phone_number_id: HIDDEN_NUMBER,
-              principal_kind: "user",
-              principal: "somebody-else",
-              level: "text",
-            },
+            // Named for somebody else, so the caller resolves to hidden.
+            { phone_number_id: HIDDEN_NUMBER, level: "none" },
           ]
         : [],
     );
@@ -941,7 +937,7 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
       "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
-    sb.on("GET", "/rest/v1/number_access", () => []);
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
     sb.on("GET", "/rest/v1/calls", () => [
       {
         phone_number_id: "bbbbbbbb-0000-4000-8000-000000000002",

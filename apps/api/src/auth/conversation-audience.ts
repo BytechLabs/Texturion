@@ -27,7 +27,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { MemberRole } from "../context";
 
-import { levelFromRules, type NumberAccessRule } from "./number-access";
 
 export interface ConversationViewer {
   user_id: string;
@@ -63,19 +62,34 @@ export async function listConversationViewers(
   // access lookup against a number that was never there.
   if (!args.phoneNumberId) return members;
 
-  const rules = unwrapRows<NumberAccessRule>(
-    await db
-      .from("number_access")
-      .select("phone_number_id,principal_kind,principal,level")
-      .eq("company_id", args.companyId)
-      .eq("phone_number_id", args.phoneNumberId),
-    "number access lookup",
+  // #480: the rule asked BACKWARDS — given a number, who may see it. This used
+  // to read the rules and apply the precedence here, member by member, with its
+  // own copy of the owner/admin override: a third place the #106 rule was
+  // written down, and the one that decides who gets told about a customer's
+  // message. `number_viewers` delegates to the same resolver the realtime topic
+  // policy uses, so the precedence has one home.
+  const levels = unwrapRows<ConversationViewer & { level: string }>(
+    await db.rpc("number_member_levels", {
+      p_phone_number_id: args.phoneNumberId,
+    }),
+    "number member levels lookup",
   );
-  // Deny-list: an unrestricted number is everyone's.
-  if (rules.length === 0) return members;
-
-  return members.filter((member) => {
-    if (member.role === "owner" || member.role === "admin") return true;
-    return levelFromRules(rules, member.user_id, member.role) !== "none";
-  });
+  // Not hidden is the audience: a notes-only member still gets told, because
+  // they can read the thread and are expected to (#106 — 'note' is read plus
+  // internal notes, not a lesser kind of membership).
+  const viewers = levels
+    .filter((row) => row.level !== "none")
+    .map(({ user_id, role }) => ({ user_id, role }));
+  // An access read that returned nobody where members exist is the failure mode
+  // this file's unwrapRows exists to refuse: it would silently turn a broken
+  // query into an alert delivered to no one. The resolver returns every member
+  // for an unrestricted number, so an empty list with members present cannot be
+  // a legitimate answer.
+  if (levels.length === 0 && members.length > 0) {
+    throw new Error(
+      `number_member_levels returned nobody for ${args.phoneNumberId} while ` +
+        `the company has ${members.length} member(s)`,
+    );
+  }
+  return viewers;
 }

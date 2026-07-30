@@ -22,9 +22,7 @@ import { z } from "zod";
 import { requireRole } from "../auth/company";
 import {
   assertNumberLevel,
-  levelFromRules,
   resolveNumberAccess,
-  type NumberAccessRule,
 } from "../auth/number-access";
 import type { CallSessionDO, SessionSnapshot } from "../calls/session-do";
 import type { CallState } from "../calls/transitions";
@@ -132,41 +130,30 @@ async function eligibleTarget(
   phoneNumberId: string,
   targetUserId: string,
 ): Promise<{ sipUsername: string } | null> {
-  const [cred, member, rules] = await Promise.all([
+  // #480: one resolver. This used to read the rules and apply the #106
+  // precedence here, with its own owner/admin override — a fourth copy of the
+  // rule, deciding who a live call may be transferred to. `member_number_level`
+  // already checks membership and deactivation, so the separate member read is
+  // gone too.
+  const [cred, level] = await Promise.all([
     db
       .from("member_telephony_credentials")
       .select("sip_username")
       .eq("company_id", companyId)
       .eq("user_id", targetUserId)
       .limit(1),
-    db
-      .from("company_members")
-      .select("role")
-      .eq("company_id", companyId)
-      .eq("user_id", targetUserId)
-      .is("deactivated_at", null)
-      .limit(1),
-    db
-      .from("number_access")
-      .select("phone_number_id,principal_kind,principal,level")
-      .eq("company_id", companyId)
-      .eq("phone_number_id", phoneNumberId),
+    db.rpc("member_number_level", {
+      p_user_id: targetUserId,
+      p_phone_number_id: phoneNumberId,
+    }),
   ]);
   if (cred.error) throw new Error(`credential read failed: ${cred.error.message}`);
-  if (member.error) throw new Error(`member read failed: ${member.error.message}`);
-  if (rules.error) throw new Error(`rules read failed: ${rules.error.message}`);
+  if (level.error) {
+    throw new Error(`number level read failed: ${level.error.message}`);
+  }
   const sipUsername = cred.data?.[0]?.sip_username as string | undefined;
-  const role = member.data?.[0]?.role as string | undefined;
-  if (!sipUsername || !role) return null;
-  const level =
-    role === "owner" || role === "admin"
-      ? "text"
-      : levelFromRules(
-          (rules.data ?? []) as NumberAccessRule[],
-          targetUserId,
-          role as "admin" | "member",
-        );
-  return level === "text" ? { sipUsername } : null;
+  if (!sipUsername) return null;
+  return level.data === "text" ? { sipUsername } : null;
 }
 
 /** How far back a live (outcome-null) call can plausibly reach — mirrors the
@@ -456,21 +443,17 @@ liveCallsRoutes.get(
     if (gate instanceof Response) return gate;
     const companyId = c.get("companyId");
 
-    const [credentials, members, rules, liveCalls] = await Promise.all([
+    const [credentials, rules, liveCalls] = await Promise.all([
       db
         .from("member_telephony_credentials")
         .select("user_id,sip_username")
         .eq("company_id", companyId),
-      db
-        .from("company_members")
-        .select("user_id,role,display_name:user_id")
-        .eq("company_id", companyId)
-        .is("deactivated_at", null),
-      db
-        .from("number_access")
-        .select("phone_number_id,principal_kind,principal,level")
-        .eq("company_id", companyId)
-        .eq("phone_number_id", gate.call.phone_number_id),
+      // #480: the one resolver, asked backwards. It already excludes deactivated
+      // members and returns each one's role, so the separate company_members
+      // read this used to need is gone — one fewer query on the transfer picker.
+      db.rpc("number_member_levels", {
+        p_phone_number_id: gate.call.phone_number_id,
+      }),
       db
         .from("calls")
         .select("answered_by_user_id")
@@ -482,31 +465,25 @@ liveCallsRoutes.get(
           new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
         ),
     ]);
-    if (credentials.error || members.error || rules.error || liveCalls.error) {
+    if (credentials.error || rules.error || liveCalls.error) {
       throw new Error("transfer target reads failed");
     }
-    const roleByUser = new Map(
-      (members.data ?? []).map((m) => [m.user_id as string, m.role as string]),
-    );
     const busy = new Set(
       (liveCalls.data ?? []).map((r) => r.answered_by_user_id as string),
     );
-    const accessRules = (rules.data ?? []) as NumberAccessRule[];
+    // #480: the levels come from the one resolver now.
+    const levelByUser = new Map(
+      ((rules.data ?? []) as { user_id: string; level: string }[]).map((row) => [
+        row.user_id,
+        row.level,
+      ]),
+    );
 
     const targets = (credentials.data ?? [])
       .filter((cred) => (cred.user_id as string) !== c.get("userId"))
-      .filter((cred) => {
-        const role = roleByUser.get(cred.user_id as string);
-        if (!role) return false;
-        if (role === "owner" || role === "admin") return true;
-        return (
-          levelFromRules(
-            accessRules,
-            cred.user_id as string,
-            role as "admin" | "member",
-          ) === "text"
-        );
-      })
+      // A call may only be transferred to somebody with full use of the number:
+      // a notes-only member reads the thread and does not speak to the customer.
+      .filter((cred) => levelByUser.get(cred.user_id as string) === "text")
       .map((cred) => ({
         user_id: cred.user_id as string,
         busy: busy.has(cred.user_id as string),

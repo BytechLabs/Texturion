@@ -87,7 +87,7 @@ function membersRoute(role: "member" | "admin" | "owner" = "member"): FetchRoute
  * this route with a rule and a conversations lookup explicitly.
  */
 function numberAccessRoute(rules: unknown[] = []): FetchRoute {
-  return stubRoute(restMatch(env, "GET", "number_access"), () => rules).route;
+  return stubRoute(rpcMatch(env, "member_number_levels"), () => rules).route;
 }
 
 function taskRow(overrides: Record<string, unknown> = {}) {
@@ -518,12 +518,7 @@ describe("GET /v1/tasks — list filters + derived status", () => {
       jwksRoute(auth),
       membersRoute(),
       numberAccessRoute([
-        {
-          phone_number_id: HIDDEN_NUM,
-          principal_kind: "role",
-          principal: "admin",
-          level: "text",
-        },
+        { phone_number_id: HIDDEN_NUM, level: "none" },
       ]),
       list.route,
     );
@@ -1333,19 +1328,9 @@ describe("#106/#107 number access on tasks", () => {
   const VIS_NUM = "f0000000-0000-4000-8000-0000000000f2";
 
   /** An admins-only rule the default 'member' caller can never match → none. */
-  const hidingRule = {
-    phone_number_id: HIDDEN_NUM,
-    principal_kind: "role",
-    principal: "admin",
-    level: "text",
-  };
-  /** A note-level rule that names the caller directly. */
-  const noteRule = () => ({
-    phone_number_id: VIS_NUM,
-    principal_kind: "user",
-    principal: auth.subject,
-    level: "note",
-  });
+  const hidingRule = { phone_number_id: HIDDEN_NUM, level: "none" };
+  /** The caller resolved to note level on the visible number. */
+  const noteRule = () => ({ phone_number_id: VIS_NUM, level: "note" });
 
   it("detail: a hidden number redacts conversation content but keeps the task identity", async () => {
     const detail = stubRoute(restMatch(env, "GET", "tasks"), () => [

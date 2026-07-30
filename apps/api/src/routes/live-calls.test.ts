@@ -62,7 +62,11 @@ function liveWorld(opts: {
       ? [{ role: "member" }]
       : undefined,
   );
-  sb.on("GET", "/rest/v1/number_access", () => []);
+  sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
+  // #480: the transfer path asks the SINGULAR resolver for one target's level on
+  // one number. Default 'text' — an un-ruled number — so the tests that are
+  // about transfer mechanics do not each have to restate access.
+  sb.on("POST", "/rest/v1/rpc/member_number_level", () => "text");
   sb.on("GET", "/rest/v1/calls", () =>
     opts.call === null
       ? []
@@ -500,11 +504,17 @@ describe("GET /v1/calls/live/mine (#168 part D — post-crash recovery)", () => 
     answered_at: "2026-07-16T00:00:07Z",
   };
 
-  /** Minimal world: membership + the mine read (+ #106 rules for members). */
+  /**
+   * Minimal world: membership + the mine read (+ #106 access for members).
+   *
+   * `restricted` is the CALLER'S own access — /mine filters what this member may
+   * enumerate — so it answers the per-number resolver. Empty means nothing is
+   * restricted.
+   */
   function mineWorld(opts: {
     role?: string;
     rows?: Record<string, unknown>[];
-    accessRules?: unknown[];
+    restricted?: { phone_number_id: string; level: string }[];
   }): SupabaseStub {
     const sb = supabaseStub(env);
     sb.on(
@@ -513,7 +523,11 @@ describe("GET /v1/calls/live/mine (#168 part D — post-crash recovery)", () => 
       membershipResponder(MEMBER_ID, opts.role ?? "owner"),
     );
     sb.on("GET", "/rest/v1/calls", () => opts.rows ?? []);
-    sb.on("GET", "/rest/v1/number_access", () => opts.accessRules ?? []);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/member_number_levels",
+      () => opts.restricted ?? [],
+    );
     return sb;
   }
 
@@ -554,15 +568,9 @@ describe("GET /v1/calls/live/mine (#168 part D — post-crash recovery)", () => 
     const sb = mineWorld({
       role: "member",
       rows: [LIVE_ROW],
-      // The number is ruled for someone else — this member resolves 'none'.
-      accessRules: [
-        {
-          phone_number_id: NUMBER_ID,
-          principal_kind: "user",
-          principal: TARGET_ID,
-          level: "text",
-        },
-      ],
+      // The number is ruled for someone else, so this member resolves 'none'
+      // and the call must not enumerate at all.
+      restricted: [{ phone_number_id: NUMBER_ID, level: "none" }],
     });
     stubFetch(jwksRoute(auth), sb.route);
 

@@ -4642,3 +4642,103 @@ Writing the event is best-effort and swallows its own failure: a message must ne
 be lost over a note about its attachment. That makes the SQL assertion
 (`supabase/tests/messaging.test.sql` R9) the only thing that would ever notice a
 broken enum, which is why it exists.
+
+## D88 — effective number access has one implementation, and it is in SQL (#480, 2026-07-30)
+
+#106 made access per number. The rule — a `user` row beats a `role` row beats an
+`all` row, a ruled number that matches nobody is hidden, an un-ruled number is
+open, and owners and admins are never locked out — lived in TypeScript, and the
+#106 migration said so plainly: "enforced in the Worker, not here."
+
+That was fine until something in the database needed the same answer. D85 accepted
+that realtime topics are `company:{company_id}`, so a member denied a number still
+receives every id-only event for conversations on it. The fix is a per-number
+topic, and joining a topic is authorized by an RLS predicate — which cannot call
+TypeScript. The choice was to write the rule a second time in SQL for the policy,
+or to move it. Two implementations of one security decision is the drift class D79
+exists to prevent, on the worst surface in the product.
+
+### It was not two implementations. It was six.
+
+`number-access-surfaces.test.ts` (#368) had already counted eleven — seven in SQL,
+four in TypeScript — and deliberately left the TypeScript ones alone, arguing that
+folding working implementations together risks introducing the bug it prevents.
+Reasonable at the time. Consolidating them found that three of the four were not
+just readers but full re-applications of the precedence, each with its own
+owner/admin override, and each deciding something a customer would notice:
+
+- `listConversationViewers` — **who gets told** about a customer's message.
+- `callRuntime.memberEligible` — **whose phone rings** on an inbound call.
+- `liveCalls.eligibleTarget` and the transfer-target list — **who a live call may
+  be handed to**.
+
+Plus `resolveNumberAccess` itself and `levelFromRules` underneath it. Any of the
+six could have drifted from the other five and the failure would have been silent
+in the permissive direction, which is the direction nobody reports.
+
+### The shape
+
+Three functions, one rule:
+
+- `member_number_levels(user, company)` — every RESTRICTED number for one caller.
+  **The only place the precedence is written.** The Worker calls it once per
+  request, exactly as before.
+- `member_number_level(user, number)` — one number, for the RLS policy. A thin
+  lookup into the plural; it computes nothing.
+- `number_member_levels(number)` — the rule asked backwards, for the three paths
+  that need it that way. Returns the level rather than a filtered list, because
+  the three want different cuts: the notification audience wants everyone not
+  hidden, the ring and transfer paths want `text` only.
+
+A non-member gets explicit `none` rows for every number rather than an empty set.
+Empty means "nothing is restricted", which is the right answer for an owner and
+the exact opposite for a stranger — and the singular's absent-means-`text` default
+would have turned that into a hole.
+
+### What stayed in TypeScript, and why that is not a seventh copy
+
+`buildNumberAccessView` turns the resolver's rows into the deny list the routes
+use. That is not the rule; it is how the Worker READS the rule — omission means
+visible, and only `none` hides while `note` does not. It is exported so
+`premises.test.ts` can assert it without a database.
+
+### The topic policy is a real boundary now
+
+`is_company_topic_member` authorizes `company:{id}` as before, and
+`company:{id}:number:{n}` only when `member_number_level` is not `none`. The uuid
+is validated with a regex before it is cast, because a cast of arbitrary text
+RAISES and this runs inside an RLS predicate — a client joining
+`company:{id}:number:garbage` would otherwise get a database error instead of a
+refusal.
+
+### The guard is stronger than a roster of readers
+
+`number-access-surfaces.test.ts` now asserts two things. Only the CRUD route may
+read `number_access` directly. And `principal_kind` — the rule's fingerprint —
+appears in no production TypeScript at all, because without that second check a
+future author can reintroduce the rule without touching the table: read the rows
+through an RPC, rank them in TypeScript, and the reader roster stays green while
+there are two implementations again.
+
+It scans code rather than file text. Its first run flagged the comment explaining
+why the token is gone, and a check that fires on its own prose gets its roster
+widened until it guards nothing.
+
+### Every fixture now names the outcome, not the rules
+
+Around thirty test fixtures described raw rule rows and let the TypeScript resolve
+them. They now state what the resolver says. That is the point: a fixture that
+re-derives the rule is another implementation of it, and the one place the
+precedence is asserted is `supabase/tests/member_number_level.test.sql`, against
+the implementation that decides. The `numbers` route's in-memory fake gets the
+same treatment — implementing the precedence inside a test double would have been
+the seventh copy.
+
+### Still open on #480
+
+The per-number topic is now *authorizable* and nothing publishes to it yet. Moving
+the eight number-scoped broadcasts and the three client subscriptions is the rest
+of that issue, including one real design question: `calls.phone_number_id` is
+NULLABLE, so a call whose number was deleted has no per-number topic to go to.
+Falling back to the company topic quietly reopens the leak for exactly the rows
+most likely to be interesting.

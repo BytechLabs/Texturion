@@ -112,7 +112,16 @@ function buildHarness(
   rest.table("companies", { paid_extra_numbers: 0, paid_capacity_epoch: 0 });
   rest.table("phone_numbers", NUMBER_DEFAULTS);
   rest.table("company_members");
+  // The rule table itself: this route is the #106 CRUD, so it reads and writes
+  // the raw rows and its own tests assert on them.
   rest.table("number_access");
+  // #480: reads of EFFECTIVE access go through the resolver instead. A default of
+  // "nothing restricted" matches the un-ruled company nearly every test here
+  // uses; the access test overrides it. Implementing the precedence inside a test
+  // double would be a seventh copy of the rule — the exact thing #480 removed —
+  // so fixtures name what the resolver SAYS, and the rule is asserted where it
+  // lives (supabase/tests/member_number_level.test.sql).
+  rest.rpc("member_number_levels", () => []);
   rest.table("messaging_registrations");
   rest.user(OWNER_ID, "owner@acme.example");
   rest.insert("companies", {
@@ -286,15 +295,12 @@ describe("GET /v1/numbers", () => {
       country: "US",
       number_e164: "+12125550002",
     });
-    // Admins-only rule on the second number → the member (role 'member') can't
-    // match → hidden. The first number has no rule → open to everyone.
-    harness.rest.insert("number_access", {
-      company_id: COMPANY_ID,
-      phone_number_id: hiddenId,
-      principal_kind: "role",
-      principal: "admin",
-      level: "text",
-    });
+    // An admins-only rule on the second number, so a plain member resolves to
+    // hidden. The first number is un-ruled and stays open to everyone, which is
+    // the omission the deny list depends on.
+    harness.rest.rpc("member_number_levels", () => [
+      { phone_number_id: hiddenId, level: "none" },
+    ]);
 
     const res = await harness.request("/v1/numbers");
     expect(res.status).toBe(200);

@@ -266,7 +266,7 @@ describe("GET /v1/company", () => {
     sb.on("GET", "/rest/v1/phone_numbers", () => []);
     sb.on("GET", "/rest/v1/messaging_registrations", () => []);
     sb.on("GET", "/rest/v1/company_modules", () => []); // #133 enabled_modules
-    sb.on("GET", "/rest/v1/number_access", () => []); // #106 gate → unrestricted
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []); // #106 gate → unrestricted
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
@@ -300,13 +300,8 @@ describe("GET /v1/company", () => {
     sb.on("GET", "/rest/v1/company_modules", () => []);
     // One admins-only rule the member can't match → HIDDEN resolves to 'none';
     // the un-ruled VISIBLE number stays visible.
-    sb.on("GET", "/rest/v1/number_access", () => [
-      {
-        phone_number_id: HIDDEN,
-        principal_kind: "role",
-        principal: "admin",
-        level: "text",
-      },
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: HIDDEN, level: "none" },
     ]);
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -326,7 +321,7 @@ describe("GET /v1/company", () => {
     sb.on("GET", "/rest/v1/phone_numbers", () => []);
     sb.on("GET", "/rest/v1/messaging_registrations", () => []);
     sb.on("GET", "/rest/v1/company_modules", () => []); // #133 enabled_modules
-    sb.on("GET", "/rest/v1/number_access", () => []); // #106 gate → unrestricted
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []); // #106 gate → unrestricted
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/company", {

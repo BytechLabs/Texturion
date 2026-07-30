@@ -66,7 +66,7 @@ function stubWithRole(role: string | null): SupabaseStub {
   // #106: the access guards resolve number_access for members; [] = no rules →
   // unrestricted, so the guard short-circuits and these assertions are
   // unchanged. Tests that exercise a hidden number stub this route explicitly.
-  sb.on("GET", "/rest/v1/number_access", () => []);
+  sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
   return sb;
 }
 
@@ -1137,13 +1137,8 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
       membershipResponder(MEMBER_ID, "member"),
     );
     // One admins-only rule the member can't match → the number is hidden.
-    sb.on("GET", "/rest/v1/number_access", () => [
-      {
-        phone_number_id: "99999999-8888-4777-8666-555555555555",
-        principal_kind: "role",
-        principal: "admin",
-        level: "text",
-      },
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: "99999999-8888-4777-8666-555555555555", level: "none" },
     ]);
     sb.on("GET", "/rest/v1/attachments", () => [
       {
@@ -1190,13 +1185,8 @@ describe("#106 number access — attachments never leak a hidden number", () => 
       "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
-    sb.on("GET", "/rest/v1/number_access", () => [
-      {
-        phone_number_id: HIDDEN_NUMBER,
-        principal_kind: "role",
-        principal: "admin",
-        level: "text",
-      },
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: HIDDEN_NUMBER, level: "none" },
     ]);
     sb.on("GET", "/rest/v1/conversations", () => [
       { phone_number_id: HIDDEN_NUMBER },
@@ -1322,6 +1312,6 @@ describe("#106 number access — attachments never leak a hidden number", () => 
     );
     expect(res.status).toBe(200);
     // Owner is unrestricted: the access guard never queries number_access.
-    expect(sb.find("GET", "/rest/v1/number_access")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/member_number_levels")).toHaveLength(0);
   });
 });

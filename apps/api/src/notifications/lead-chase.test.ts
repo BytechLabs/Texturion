@@ -92,7 +92,7 @@ function buildWorld(
       { user_id: TECH, role: "member" },
     ],
   );
-  sb.on("GET", "/rest/v1/number_access", () => []);
+  sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
   sb.on("GET", "/rest/v1/notification_prefs", () => options.prefs ?? []);
   sb.on("GET", "/rest/v1/push_subscriptions", () => []);
 
@@ -231,7 +231,7 @@ describe("claiming", () => {
     sb.on("POST", "/rest/v1/rpc/api_due_lead_chases", () => [dueRow()]);
     sb.on("POST", "/rest/v1/rpc/api_claim_lead_chases", () => []);
     sb.on("GET", "/rest/v1/company_members", () => [{ user_id: OWNER, role: "owner" }]);
-    sb.on("GET", "/rest/v1/number_access", () => []);
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
     sb.on("GET", "/rest/v1/notification_prefs", () => []);
     sb.on("GET", "/rest/v1/push_subscriptions", () => []);
     stubFetch(sb.route);

@@ -70,11 +70,9 @@ function world(options: { role?: string; hidden?: string[] } = {}): SupabaseStub
     "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, options.role ?? "owner"),
   );
-  sb.on("GET", "/rest/v1/number_access", () =>
+  sb.on("POST", "/rest/v1/rpc/member_number_levels", () =>
     (options.hidden ?? []).map((id) => ({
       phone_number_id: id,
-      principal_kind: "member",
-      principal: MEMBER_ID,
       level: "none",
     })),
   );
@@ -148,7 +146,7 @@ describe("PATCH /v1/conversations/:id — answering the review prompt (#342)", (
       { id: CONVERSATION_ID, company_id: COMPANY_ID, ...(call.body as object) },
     ]);
     sb.on("POST", "/rest/v1/conversation_events", () => []);
-    sb.on("GET", "/rest/v1/number_access", () => []);
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
     sb.on("GET", "/rest/v1/phone_numbers", () => [{ id: NUMBER_ID }]);
     return sb;
   }

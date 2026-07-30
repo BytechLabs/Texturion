@@ -256,7 +256,7 @@ function composeStubs(options: {
     () => (options.mmsEnabled === false ? [] : [{ module: "mms" }]),
   );
   // #106: no access rules → the member caller is unrestricted.
-  const numberAccess = stubRoute(restMatch(env, "GET", "number_access"), () => []);
+  const numberAccess = stubRoute(rpcMatch(env, "member_number_levels"), () => []);
   const attachmentsLookup = stubRoute(
     restMatch(env, "GET", "message_attachments"),
     () => options.attachments ?? [],
@@ -819,7 +819,7 @@ describe("POST /v1/conversations — destination + gate failures", () => {
       stubs.replayLookup.route,
       stubs.numberLookup.route,
       stubs.companyLookup.route,
-      stubRoute(restMatch(env, "GET", "number_access"), () => []).route,
+      stubRoute(rpcMatch(env, "member_number_levels"), () => []).route,
       optedOut.route,
       stubs.contactLookup.route,
       stubs.contactInsert.route,

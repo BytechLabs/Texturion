@@ -50,7 +50,7 @@ function memberStub(): SupabaseStub {
     membershipResponder(MEMBER_ID, "member"),
   );
   // #106: no access rules → the member caller is unrestricted.
-  sb.on("GET", "/rest/v1/number_access", () => []);
+  sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
   return sb;
 }
 
@@ -258,13 +258,8 @@ describe("GET /v1/search", () => {
       "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
-    sb.on("GET", "/rest/v1/number_access", () => [
-      {
-        phone_number_id: HIDDEN_NUM,
-        principal_kind: "role",
-        principal: "admin",
-        level: "text",
-      },
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: HIDDEN_NUM, level: "none" },
     ]);
     sb.on("POST", "/rest/v1/rpc/api_search_v2", () => ({
       conversations: [],

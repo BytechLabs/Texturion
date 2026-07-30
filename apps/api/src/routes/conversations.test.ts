@@ -48,7 +48,7 @@ function memberStub(): SupabaseStub {
     membershipResponder(MEMBER_ID, "member"),
   );
   // #106: no access rules → every member unrestricted (today's default).
-  sb.on("GET", "/rest/v1/number_access", () => []);
+  sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
   return sb;
 }
 
@@ -843,12 +843,31 @@ describe("POST /v1/conversations/:id/notes", () => {
         call.url.searchParams.get("select") === "user_id,role" ? rows : undefined;
     }
 
+    /**
+     * #480: the same people, as the INVERSE resolver answers — every member with
+     * their level on the conversation's number.
+     *
+     * Registered from the same list as `viewersResponder` so a fixture cannot
+     * describe one audience to the member query and a different one to the
+     * resolver. `level` defaults to 'text'; a test that needs somebody hidden
+     * passes it explicitly.
+     */
+    function audience(
+      sb: SupabaseStub,
+      rows: { user_id: string; role: string; level?: string }[],
+    ) {
+      sb.on("GET", "/rest/v1/company_members", viewersResponder(rows));
+      sb.on("POST", "/rest/v1/rpc/number_member_levels", () =>
+        rows.map((row) => ({ ...row, level: row.level ?? "text" })),
+      );
+    }
+
     it("records a mention for a teammate who can see the thread", async () => {
       const sb = memberStub();
-      sb.on("GET", "/rest/v1/company_members", viewersResponder([
+      audience(sb, [
         { user_id: auth.subject, role: "member" },
         { user_id: TEAMMATE, role: "member" },
-      ]));
+      ]);
       sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
       sb.on("POST", "/rest/v1/messages", () =>
         Response.json([noteRow()], { status: 201 }),
@@ -893,9 +912,7 @@ describe("POST /v1/conversations/:id/notes", () => {
       // A note body quotes the customer, and the alert carries a snippet of it,
       // so an id outside the audience must never reach the table.
       const sb = memberStub();
-      sb.on("GET", "/rest/v1/company_members", viewersResponder([
-        { user_id: auth.subject, role: "member" },
-      ]));
+      audience(sb, [{ user_id: auth.subject, role: "member" }]);
       sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
       stubFetch(jwksRoute(auth), sb.route);
 
@@ -918,10 +935,10 @@ describe("POST /v1/conversations/:id/notes", () => {
 
     it("offers only teammates who can see the conversation", async () => {
       const sb = memberStub();
-      sb.on("GET", "/rest/v1/company_members", viewersResponder([
+      audience(sb, [
         { user_id: auth.subject, role: "member" },
         { user_id: TEAMMATE, role: "member" },
-      ]));
+      ]);
       sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
       sb.on("GET", "/rest/v1/profiles", () => [
         { user_id: TEAMMATE, display_name: "Sam Rivera" },
@@ -1338,13 +1355,8 @@ describe("POST /v1/conversations/bulk (#275)", () => {
     );
     const calls: Record<string, unknown>[] = [];
     // One admins-only rule this member cannot match → that number is hidden.
-    sb.on("GET", "/rest/v1/number_access", () => [
-      {
-        phone_number_id: "eeeeeeee-1111-4222-8333-444444444444",
-        principal_kind: "role",
-        principal: "admin",
-        level: "text",
-      },
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: "eeeeeeee-1111-4222-8333-444444444444", level: "none" },
     ]);
     sb.on("POST", "/rest/v1/rpc/api_bulk_conversations", (call) => {
       calls.push(call.body as Record<string, unknown>);

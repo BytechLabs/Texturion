@@ -7,7 +7,6 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { NumberAccessRule } from "../auth/number-access";
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
@@ -39,8 +38,16 @@ function buildWorld(options: {
   members?: string[];
   /** Role per user id; anything unmapped defaults to 'member' (OWNER→owner). */
   roles?: Record<string, string>;
-  /** #106 rules for NUMBER_ID; default none → no filtering. */
-  numberAccess?: NumberAccessRule[];
+  /**
+   * #480: what the ONE resolver answers for NUMBER_ID — each active member and
+   * their effective level. Default: every member at 'text', which is what an
+   * un-ruled number means.
+   *
+   * The fixture names the OUTCOME now rather than the rules that produce it. The
+   * precedence those rules go through is asserted where it is implemented,
+   * supabase/tests/member_number_level.test.sql NL-1.
+   */
+  numberLevels?: { user_id: string; role: string; level: string }[];
   prefs?: { user_id: string; email_enabled: boolean; push_enabled: boolean }[];
   subscriptions?: {
     id: string;
@@ -67,7 +74,15 @@ function buildWorld(options: {
       role: options.roles?.[user_id] ?? (user_id === OWNER ? "owner" : "member"),
     })),
   );
-  sb.on("GET", "/rest/v1/number_access", () => options.numberAccess ?? []);
+  sb.on("POST", "/rest/v1/rpc/number_member_levels", () => {
+    if (options.numberLevels) return options.numberLevels;
+    // An un-ruled number: everybody, full use.
+    return (options.members ?? [OWNER, MEMBER]).map((user_id) => ({
+      user_id,
+      role: options.roles?.[user_id] ?? (user_id === OWNER ? "owner" : "member"),
+      level: "text",
+    }));
+  });
   sb.on("GET", "/rest/v1/notification_prefs", () => options.prefs ?? []);
   sb.on("GET", "/rest/v1/push_subscriptions", () => options.subscriptions ?? []);
   sb.on("DELETE", "/rest/v1/push_subscriptions", () => []);
@@ -208,13 +223,9 @@ describe("notifyInboundMessage (§8)", () => {
     // An admins-only rule: OWNER keeps full access (always), MEMBER resolves to
     // 'none' and must not receive the snippet/contact name.
     const world = buildWorld({
-      numberAccess: [
-        {
-          phone_number_id: NUMBER_ID,
-          principal_kind: "role",
-          principal: "admin",
-          level: "text",
-        },
+      numberLevels: [
+        { user_id: OWNER, role: "owner", level: "text" },
+        { user_id: MEMBER, role: "member", level: "none" },
       ],
     });
     stubFetch(...world.routes);
@@ -228,14 +239,7 @@ describe("notifyInboundMessage (§8)", () => {
   it("#106: notes-only members still get notified (they can read the thread)", async () => {
     const world = buildWorld({
       members: [MEMBER],
-      numberAccess: [
-        {
-          phone_number_id: NUMBER_ID,
-          principal_kind: "user",
-          principal: MEMBER,
-          level: "note",
-        },
-      ],
+      numberLevels: [{ user_id: MEMBER, role: "member", level: "note" }],
     });
     stubFetch(...world.routes);
 

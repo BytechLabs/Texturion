@@ -24,12 +24,11 @@ import { ApiError } from "../http/errors";
 
 export type NumberAccessLevel = "text" | "note" | "none";
 
-export interface NumberAccessRule {
-  phone_number_id: string;
-  principal_kind: "all" | "role" | "user";
-  principal: string | null;
-  level: "text" | "note";
-}
+// #480: `NumberAccessRule` — the shape of a RAW rule row — is gone from here
+// too. Nothing outside the CRUD route needs it any more, and a type describing
+// the rules invites reading them: naming `principal_kind` in TypeScript is the
+// first step of writing the precedence a second time, which is what
+// number-access-surfaces.test.ts now refuses.
 
 export interface NumberAccessView {
   /** null = unrestricted (owner/admin, or no rules in the company). Otherwise
@@ -46,25 +45,20 @@ const UNRESTRICTED: NumberAccessView = {
   levelFor: () => "text",
 };
 
-/** Pure resolution for one number's rules against one caller. */
-export function levelFromRules(
-  rules: readonly NumberAccessRule[],
-  userId: string,
-  role: MemberRole,
-): NumberAccessLevel {
-  if (rules.length === 0) return "text"; // no rules → everyone, full use
-  const user = rules.find(
-    (rule) => rule.principal_kind === "user" && rule.principal === userId,
-  );
-  if (user) return user.level;
-  const roleRule = rules.find(
-    (rule) => rule.principal_kind === "role" && rule.principal === role,
-  );
-  if (roleRule) return roleRule.level;
-  const all = rules.find((rule) => rule.principal_kind === "all");
-  if (all) return all.level;
-  return "none"; // rules exist, none match → hidden
-}
+// #480: THE PRECEDENCE RULE USED TO BE HERE, as `levelFromRules`. It is now
+// `public.member_number_levels` in
+// supabase/migrations/20260730030000_member_number_level.sql, because the
+// realtime topic policy has to apply the same rule and an RLS predicate cannot
+// call TypeScript.
+//
+// It is DELETED rather than kept as a convenience, deliberately. A second
+// implementation nothing calls is still a second implementation: the next person
+// to change the precedence finds it, changes it, and changes nothing. Its unit
+// coverage moved to supabase/tests/member_number_level.test.sql (NL-1), which
+// asserts the same precedence against the implementation that now decides.
+//
+// `resolveNumberAccess` below is unchanged in shape and cost — one round trip
+// per request, every restricted number at once.
 
 /** The send-path refusal copy — one honest sentence, reused everywhere. */
 export const NOTE_ONLY_MESSAGE =
@@ -176,35 +170,54 @@ export async function resolveNumberAccess(
 ): Promise<NumberAccessView> {
   if (args.role === "owner" || args.role === "admin") return UNRESTRICTED;
 
-  const { data, error } = await db
-    .from("number_access")
-    .select("phone_number_id,principal_kind,principal,level")
-    .eq("company_id", args.companyId);
+  // #480: the RULE lives in SQL now (`member_number_levels`), because the
+  // realtime topic policy has to apply the same rule and a policy cannot call
+  // TypeScript. Two implementations of one security decision is the drift class
+  // D79 exists to prevent, and this is the worst surface to have it on.
+  //
+  // The shape and the call count here are unchanged — one round trip per
+  // request, resolving every restricted number at once. What moved is where the
+  // precedence order is written down.
+  const { data, error } = await db.rpc("member_number_levels", {
+    p_user_id: args.userId,
+    p_company_id: args.companyId,
+  });
   if (error) {
-    throw new Error(`number_access lookup failed: ${error.message}`);
+    throw new Error(`member_number_levels failed: ${error.message}`);
   }
-  const rules = (data ?? []) as NumberAccessRule[];
-  if (rules.length === 0) return UNRESTRICTED;
+  return buildNumberAccessView(
+    (data ?? []) as { phone_number_id: string; level: NumberAccessLevel }[],
+  );
+}
 
-  const byNumber = new Map<string, NumberAccessRule[]>();
-  for (const rule of rules) {
-    const list = byNumber.get(rule.phone_number_id) ?? [];
-    list.push(rule);
-    byNumber.set(rule.phone_number_id, list);
-  }
+/**
+ * Turn the resolver's rows into the view the routes use.
+ *
+ * Exported so the premise it rests on is assertable without a database (see
+ * premises.test.ts). #480 moved the RULE to SQL and left this here, because this
+ * is not the rule — it is how the Worker READS the rule, and getting it wrong is
+ * its own silent failure.
+ *
+ * OMISSION MEANS VISIBLE. The resolver returns rows only for RESTRICTED numbers,
+ * so an id it never mentioned is an id nobody restricted: un-ruled, released, or
+ * a conversation with no number at all. And only 'none' joins the deny list —
+ * 'note' is restricted but not hidden, because a notes-only member is supposed to
+ * be reading the thread.
+ */
+export function buildNumberAccessView(
+  rows: readonly { phone_number_id: string; level: NumberAccessLevel }[],
+): NumberAccessView {
+  if (rows.length === 0) return UNRESTRICTED;
 
   const levels = new Map<string, NumberAccessLevel>();
   const hidden: string[] = [];
-  for (const [numberId, numberRules] of byNumber) {
-    const level = levelFromRules(numberRules, args.userId, args.role);
-    levels.set(numberId, level);
-    if (level === "none") hidden.push(numberId);
+  for (const row of rows) {
+    levels.set(row.phone_number_id, row.level);
+    if (row.level === "none") hidden.push(row.phone_number_id);
   }
 
   return {
     hiddenNumberIds: hidden,
-    // Only a ruled-and-unmatched number is hidden; anything else — un-ruled,
-    // released (no rule row), or NULL — is open to everyone.
     levelFor: (phoneNumberId) =>
       (phoneNumberId !== null && levels.get(phoneNumberId)) || "text",
   };

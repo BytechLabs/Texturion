@@ -53,7 +53,7 @@ function memberStub(): SupabaseStub {
     membershipResponder(MEMBER_ID, "member"),
   );
   // #106: no access rules → the member caller is unrestricted.
-  sb.on("GET", "/rest/v1/number_access", () => []);
+  sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
   // The conversation existence gate (findConversation).
   sb.on("GET", "/rest/v1/conversations", () => [{ id: CONV_ID }]);
   // #16 egress-claim stubs every non-empty page needs (mirrors the
@@ -221,7 +221,7 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
       "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
-    sb.on("GET", "/rest/v1/number_access", () => []);
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
     sb.on("GET", "/rest/v1/conversations", () => [{ id: CONV_ID }]);
     sb.on("GET", "/rest/v1/message_attachments", () => [
       {
@@ -263,7 +263,7 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
       "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
-    sb.on("GET", "/rest/v1/number_access", () => []);
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
     sb.on("GET", "/rest/v1/conversations", () => [{ id: CONV_ID }]);
     sb.on("GET", "/rest/v1/message_attachments", () => [
       {

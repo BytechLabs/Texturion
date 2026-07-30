@@ -82,7 +82,7 @@ function stubs(options: StubOptions = {}): SupabaseStub {
     membershipResponder(MEMBER_ID, "member"),
   );
   // #106: no access rules → every member unrestricted.
-  sb.on("GET", "/rest/v1/number_access", () => []);
+  sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
   sb.on("GET", "/rest/v1/conversations", () => [
     {
       id: CONV_ID,

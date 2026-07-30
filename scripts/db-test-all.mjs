@@ -102,6 +102,7 @@ const SUITES = [
   "marketing_contacts",
   "number_reissue",
   "response_time",
+  "member_number_level",
 ];
 
 const args = process.argv.slice(2);
