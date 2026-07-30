@@ -34,6 +34,13 @@ final class ParityVectorsTests: XCTestCase {
         let country: String?
     }
 
+    private struct RejectionVector: Decodable {
+        let domain: String
+        let reason: String
+        let recognised: Bool
+        let field: String?
+    }
+
     /// Walk UP to the repo root from this source file rather than counting
     /// directories. The test bundle's own resources would be a COPY of the
     /// vectors, which is a fourth place the cases live — the exact problem this
@@ -51,6 +58,42 @@ final class ParityVectorsTests: XCTestCase {
         }
         XCTFail("parity vectors \(name) not found; run node scripts/generate-parity-vectors.mjs")
         return []
+    }
+
+    /// #352. Pins WHERE a rejection sends the customer and whether we claim to
+    /// understand it — never the wording, which each platform may phrase its own
+    /// way. A client that focuses the wrong field walks somebody through
+    /// re-entering the one thing that was already right, then bills them another
+    /// multi-day carrier review for it.
+    ///
+    /// This case earned its vectors before it shipped: the obvious matcher is a
+    /// word-boundary regex, and `ein` does not match `EIN_MISMATCH`
+    /// because an underscore is a word character — so the whole catalogue
+    /// matched nothing while reading as correct. Hence no regex on any side.
+    func testRejectionRoutingAgreesWithTheTypeScript() throws {
+        let cases = try vectors("rejections.json", as: [RejectionVector].self)
+        XCTAssertFalse(cases.isEmpty, "no rejection vectors")
+        for testCase in cases {
+            let domain: RejectionDomain
+            switch testCase.domain {
+            case "registration": domain = .registration
+            case "port": domain = .port
+            default:
+                XCTFail("unknown domain \(testCase.domain)")
+                continue
+            }
+            let guidance = explainRejection(domain, testCase.reason)
+            let label = "\(testCase.domain)/\(testCase.reason.prefix(40))"
+            XCTAssertEqual(guidance != nil, testCase.recognised, "recognised for \(label)")
+            XCTAssertEqual(guidance?.field, testCase.field, "field for \(label)")
+            if let guidance {
+                // Wording is free; empty wording is not. A recognised reason
+                // that renders nothing is worse than an unrecognised one,
+                // because the raw fall-through never runs.
+                XCTAssertFalse(guidance.what.isEmpty, "what for \(label)")
+                XCTAssertFalse(guidance.fix.isEmpty, "fix for \(label)")
+            }
+        }
     }
 
     func testSegmentCountingAgreesWithTheTypeScript() throws {

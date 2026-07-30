@@ -58,6 +58,22 @@
  *   business-hours display, error copy  Presentation. A platform is allowed to
  *             phrase things its own way, and forcing character-identical copy
  *             across three clients would be pinning the wrong thing.
+ *
+ *   rejections  ADDED for #352, and carefully: it pins which FIELD a carrier
+ *             rejection sends the customer to, and whether the reason was
+ *             recognised at all — never the wording. The exclusion above still
+ *             holds; the copy is free and the routing is not. A client that
+ *             focuses the wrong field walks somebody through re-entering the
+ *             one thing that was already right, then charges them another
+ *             multi-day carrier review for it.
+ *
+ *             It earned its place by failing first. The obvious spelling of the
+ *             matcher is a word-boundary regex, and `ein` does not match
+ *             `EIN_MISMATCH` — an underscore is a word character. Every coded
+ *             reason a carrier sends is underscore-separated, so the whole
+ *             catalogue matched NOTHING while reading as correct. That is the
+ *             precise failure a hand-port repeats, in a language where `` is
+ *             a backspace escape rather than a boundary.
  */
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -65,6 +81,7 @@ import { join } from "node:path";
 
 import { estimateSegments } from "../packages/shared/src/segments.ts";
 import { isUsCaDestination, lookupAreaCode } from "../packages/shared/src/nanp.ts";
+import { explainRejection } from "../packages/shared/src/rejection-guidance.ts";
 
 const OUT_DIR = join("packages", "shared", "vectors");
 
@@ -157,9 +174,64 @@ function nanpVectors() {
   });
 }
 
+/**
+ * Rejection reasons, in the shapes carriers actually send: coded and
+ * underscore-separated, as prose, wrapped in a ticket reference, and a few
+ * nobody has a mapping for. The unrecognised ones matter most — a client that
+ * invented guidance there would hide the only concrete thing the customer was
+ * given.
+ */
+const REJECTION_INPUTS = [
+  ["registration", "BRAND_LEGAL_NAME_MISMATCH"],
+  ["registration", "EIN_MISMATCH"],
+  ["registration", "The Tax ID provided does not match IRS records."],
+  ["registration", "Rejected (ref 88213): federal tax id could not be verified"],
+  ["registration", "CAMPAIGN_OPT_IN_INSUFFICIENT"],
+  ["registration", "WEBSITE_UNVERIFIED"],
+  ["registration", "SAMPLE_MESSAGE_CONTENT_MISMATCH"],
+  ["registration", "USE_CASE_MISMATCH"],
+  ["registration", "ADDRESS_MISMATCH"],
+  ["registration", "ENTITY_TYPE_MISMATCH"],
+  ["registration", "CONTACT_UNREACHABLE"],
+  // Recognised, and deliberately routed to NO field: no edit to this form
+  // releases a brand somebody else registered.
+  ["registration", "DUPLICATE_BRAND"],
+  ["registration", "TCR-9911 anomaly, see portal"],
+  ["port", "ACCOUNT_NUMBER_MISMATCH"],
+  ["port", "Invalid port-out PIN supplied"],
+  ["port", "LOA_SIGNATURE_INVALID"],
+  ["port", "ENTITY_NAME_MISMATCH"],
+  ["port", "SERVICE_ADDRESS_MISMATCH"],
+  ["port", "PENDING_ORDER_EXISTS"],
+  ["port", "NUMBER_NOT_ACTIVE"],
+  ["port", "SPI_REJECT_47"],
+  // A port reason read against the registration catalogue must NOT resolve.
+  // Being told to check a phone bill would send somebody hunting the wrong
+  // document entirely.
+  ["registration", "ACCOUNT_NUMBER_MISMATCH"],
+  ["port", "CAMPAIGN_OPT_IN_INSUFFICIENT"],
+  ["registration", ""],
+];
+
+function rejectionVectors() {
+  return REJECTION_INPUTS.map(([domain, reason]) => {
+    const guidance = explainRejection(domain, reason);
+    return {
+      domain,
+      reason,
+      // Whether we claim to understand it. The clients branch on this to decide
+      // between translated guidance and the carrier's own words.
+      recognised: guidance !== null,
+      // WHERE it sends them. Null is a real answer and is pinned as one.
+      field: guidance?.field ?? null,
+    };
+  });
+}
+
 const FILES = {
   "segments.json": segmentVectors,
   "nanp.json": nanpVectors,
+  "rejections.json": rejectionVectors,
 };
 
 const check = process.argv.includes("--check");

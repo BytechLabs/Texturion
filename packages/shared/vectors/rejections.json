@@ -1,0 +1,146 @@
+[
+  {
+    "domain": "registration",
+    "reason": "BRAND_LEGAL_NAME_MISMATCH",
+    "recognised": true,
+    "field": "companyName"
+  },
+  {
+    "domain": "registration",
+    "reason": "EIN_MISMATCH",
+    "recognised": true,
+    "field": "ein"
+  },
+  {
+    "domain": "registration",
+    "reason": "The Tax ID provided does not match IRS records.",
+    "recognised": true,
+    "field": "ein"
+  },
+  {
+    "domain": "registration",
+    "reason": "Rejected (ref 88213): federal tax id could not be verified",
+    "recognised": true,
+    "field": "ein"
+  },
+  {
+    "domain": "registration",
+    "reason": "CAMPAIGN_OPT_IN_INSUFFICIENT",
+    "recognised": true,
+    "field": "messageFlow"
+  },
+  {
+    "domain": "registration",
+    "reason": "WEBSITE_UNVERIFIED",
+    "recognised": true,
+    "field": "website"
+  },
+  {
+    "domain": "registration",
+    "reason": "SAMPLE_MESSAGE_CONTENT_MISMATCH",
+    "recognised": true,
+    "field": "sample1"
+  },
+  {
+    "domain": "registration",
+    "reason": "USE_CASE_MISMATCH",
+    "recognised": true,
+    "field": "vertical"
+  },
+  {
+    "domain": "registration",
+    "reason": "ADDRESS_MISMATCH",
+    "recognised": true,
+    "field": "street"
+  },
+  {
+    "domain": "registration",
+    "reason": "ENTITY_TYPE_MISMATCH",
+    "recognised": true,
+    "field": "companyName"
+  },
+  {
+    "domain": "registration",
+    "reason": "CONTACT_UNREACHABLE",
+    "recognised": true,
+    "field": "email"
+  },
+  {
+    "domain": "registration",
+    "reason": "DUPLICATE_BRAND",
+    "recognised": true,
+    "field": null
+  },
+  {
+    "domain": "registration",
+    "reason": "TCR-9911 anomaly, see portal",
+    "recognised": false,
+    "field": null
+  },
+  {
+    "domain": "port",
+    "reason": "ACCOUNT_NUMBER_MISMATCH",
+    "recognised": true,
+    "field": "account_number"
+  },
+  {
+    "domain": "port",
+    "reason": "Invalid port-out PIN supplied",
+    "recognised": true,
+    "field": "account_number"
+  },
+  {
+    "domain": "port",
+    "reason": "LOA_SIGNATURE_INVALID",
+    "recognised": true,
+    "field": "auth_person_name"
+  },
+  {
+    "domain": "port",
+    "reason": "ENTITY_NAME_MISMATCH",
+    "recognised": true,
+    "field": "entity_name"
+  },
+  {
+    "domain": "port",
+    "reason": "SERVICE_ADDRESS_MISMATCH",
+    "recognised": true,
+    "field": "service_street"
+  },
+  {
+    "domain": "port",
+    "reason": "PENDING_ORDER_EXISTS",
+    "recognised": true,
+    "field": null
+  },
+  {
+    "domain": "port",
+    "reason": "NUMBER_NOT_ACTIVE",
+    "recognised": true,
+    "field": null
+  },
+  {
+    "domain": "port",
+    "reason": "SPI_REJECT_47",
+    "recognised": false,
+    "field": null
+  },
+  {
+    "domain": "registration",
+    "reason": "ACCOUNT_NUMBER_MISMATCH",
+    "recognised": false,
+    "field": null
+  },
+  {
+    "domain": "port",
+    "reason": "CAMPAIGN_OPT_IN_INSUFFICIENT",
+    "recognised": false,
+    "field": null
+  },
+  {
+    "domain": "registration",
+    "reason": "",
+    "recognised": false,
+    "field": null
+  }
+]

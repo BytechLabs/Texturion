@@ -224,7 +224,13 @@ struct RegistrationFixForm: View {
     let campaign: RegistrationDetail?
     let submitLabel: String
     let onSubmitted: @MainActor () -> Void
+    /// #352: the field a carrier rejection concerns. The notice above sets it;
+    /// this opens itself and puts the cursor there, because handing somebody who
+    /// has just been rejected a sixteen-field form and no direction is how they
+    /// resubmit the same mistake and buy another multi-day carrier review.
+    @Binding var focusField: String?
 
+    @FocusState private var focused: String?
     @State private var form = RegistrationFixValues()
     @State private var seeded = false
     @State private var open = false
@@ -241,6 +247,25 @@ struct RegistrationFixForm: View {
     private var last4Label: String { country == "US" ? "SSN" : "SIN" }
 
     var body: some View {
+        // Grouped so the focus effect has somewhere to live: the branch below
+        // does not render at all when neither row is editable, and an effect on
+        // a branch that disappears never runs.
+        Group {
+            content
+        }
+        .task(id: focusField) {
+            guard let target = focusField else { return }
+            open = true
+            // The requester cannot resolve until the field has composed, which
+            // is at least one runloop turn after `open` flips.
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            focused = target
+            focusField = nil
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if editBrand || editCampaign {
             if open {
                 VStack(alignment: .leading, spacing: 0) {
@@ -274,15 +299,16 @@ struct RegistrationFixForm: View {
                 field("First name", text: $form.firstName)
                 field("Last name", text: $form.lastName)
             } else {
-                field("Legal business name", text: $form.companyName)
+                field("Legal business name", text: $form.companyName, key: "companyName")
             }
             field("Business name customers know", text: $form.displayName)
             field(
                 soleProp ? "Last 4 of \(last4Label)" : idLabel,
                 text: $form.ein,
-                keyboard: soleProp ? .numberPad : .default
+                keyboard: soleProp ? .numberPad : .default,
+                key: "ein"
             )
-            field("Contact email", text: $form.email, keyboard: .emailAddress)
+            field("Contact email", text: $form.email, keyboard: .emailAddress, key: "email")
             field("Contact phone", text: $form.phone, keyboard: .phonePad)
             if soleProp {
                 field(
@@ -291,7 +317,7 @@ struct RegistrationFixForm: View {
                     keyboard: .phonePad
                 )
             }
-            field("Website (optional)", text: $form.website, keyboard: .URL)
+            field("Website (optional)", text: $form.website, keyboard: .URL, key: "website")
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Industry")
@@ -307,7 +333,7 @@ struct RegistrationFixForm: View {
             }
             .padding(.vertical, 4)
 
-            field("Street address", text: $form.street)
+            field("Street address", text: $form.street, key: "street")
             field("City", text: $form.city)
             field(regionLabel, text: $form.state)
             field(postalLabel, text: $form.postalCode)
@@ -323,8 +349,8 @@ struct RegistrationFixForm: View {
             )
             .font(.footnote)
             .foregroundStyle(.secondary)
-            field("How customers opt in", text: $form.messageFlow, lines: 3)
-            field("Sample text 1", text: $form.sample1, lines: 2)
+            field("How customers opt in", text: $form.messageFlow, lines: 3, key: "messageFlow")
+            field("Sample text 1", text: $form.sample1, lines: 2, key: "sample1")
             field("Sample text 2", text: $form.sample2, lines: 2)
         }
     }
@@ -333,13 +359,17 @@ struct RegistrationFixForm: View {
         _ label: String,
         text: Binding<String>,
         keyboard: UIKeyboardType = .default,
-        lines: Int = 1
+        lines: Int = 1,
+        key: String? = nil
     ) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             TextField(label, text: text, axis: lines > 1 ? .vertical : .horizontal)
+                // Unkeyed fields get a value nothing routes to, rather than a
+                // conditional modifier that would change the view's type.
+                .focused($focused, equals: key ?? "unrouted:\(label)")
                 .textFieldStyle(.roundedBorder)
                 .keyboardType(keyboard)
                 .textInputAutocapitalization(

@@ -5331,3 +5331,69 @@ current month's ledger rows mid-month and hand everybody a fresh allowance,
 which is a worse failure than a boundary that moves by a few hours once a month.
 A day boundary at 5pm in Vancouver mattered because it landed inside a working
 day; a month boundary does not.
+
+---
+
+## D96 — a carrier rejection is translated, or shown raw; never generically (#352, satisfies DESIGN.md G7, 2026-07-30)
+
+**Decision.** A rejection reason from TCR, a carrier, or a losing provider is
+mapped to two sentences in G10's shape — *what happened* and *what to do* — plus
+the one form field to correct. An unrecognised reason falls through to the
+carrier's own words, never to a generic sentence. One catalogue serves both
+10DLC registration and number porting.
+
+**This closes a spec gap rather than adding an idea.** `docs/DESIGN.md` G7 has
+required *"rejection reason in plain language + 'Fix and resubmit' form"* since
+before launch. The form shipped; the plain language did not. What a customer saw
+was `BRAND_LEGAL_NAME_MISMATCH` followed by a sixteen-field form and the claim
+that it takes two minutes — on all three clients, identically.
+
+**Who that fails is specific.** A sole trader registered as "Dave's Plumbing"
+while the registry holds "D. Chen Holdings Ltd" is told about a mismatch it does
+not name, in a field it does not identify. They have already paid, already
+waited days, and have now been told no. They resubmit the same details, or they
+stop. Both cost more than the translation did.
+
+**Unknown reasons stay raw, and that is the load-bearing half.** A catalogue
+that answers everything is worse than one that covers the common cases, because
+the reader cannot tell which kind of answer they are looking at. The carrier's
+own string is also kept on screen when a reason IS recognised, so a support
+conversation quotes what the customer is looking at.
+
+**Second rejection offers a person.** Two, not three: by the second the customer
+has demonstrated they cannot tell what is wrong from what we have shown them,
+and a third solo attempt buys another multi-day review to learn the same thing.
+Offered *alongside* the form rather than instead of it — somebody who now knows
+what to change should not wait on a reply to change it.
+
+### The bug that decided how the matching is written
+
+The natural spelling is a word-boundary regex. **`\bein\b` does not match
+`EIN_MISMATCH`** — an underscore is a word character, so there is no boundary
+between them. Every coded reason a carrier sends is underscore-separated, so the
+first implementation matched **nothing at all** while reading as obviously
+correct; it was caught only because the tests asserted real carrier strings
+rather than the catalogue's own vocabulary.
+
+So there is no regex anywhere in the rule. The reason is normalised once —
+lower-cased, every run of non-alphanumerics collapsed to a space — and the
+patterns are plain substrings. That also removes the hand-port hazard this
+repository has been bitten by before: in Kotlin and Swift `\b` is a **backspace
+escape**, not a boundary, so the ported version would have failed differently
+from the original and neither would have looked wrong.
+
+**It is pinned by parity vectors** (`packages/shared/vectors/rejections.json`),
+which pin *which field* a reason routes to and *whether it was recognised* —
+never the wording. The existing exclusion for copy still stands: a platform may
+phrase things its own way, but a client that focuses the wrong field walks
+somebody through re-entering the one thing that was already right.
+
+### What the three clients do
+
+All three render the same guidance, keep the raw reason, state the wait, and
+offer help on the second rejection. The jump-to-field differs in a way worth
+recording: on web it focuses the input; on Android and iOS it **also opens the
+form**, which is collapsed behind an "Edit your details" button — so on a phone
+the affordance is worth more, not less. Where a field is not focusable on a given
+client (the industry picker on mobile), the button still opens the form and the
+focus attempt is a no-op rather than an error.

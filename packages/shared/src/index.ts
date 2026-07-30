@@ -258,3 +258,14 @@ export {
   responseArcDirection,
   RESPONSE_ARC_MIN_SECONDS,
 } from "./response-time";
+
+// #352 — a carrier rejection, in words the customer can act on. One catalogue
+// for registration and porting, because #352 asked for exactly that rather
+// than two inventions of the same idea.
+export {
+  explainRejection,
+  needsHumanHelp,
+  REJECTIONS_BEFORE_HELP,
+  RESUBMISSION_WAIT,
+} from "./rejection-guidance";
+export type { RejectionDomain, RejectionGuidance } from "./rejection-guidance";

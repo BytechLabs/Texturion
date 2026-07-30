@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.CompanyView
+import com.loonext.android.core.model.RejectionDomain
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
@@ -71,6 +72,9 @@ fun RegistrationBlock(
             return@SettingsCard
         }
 
+        // #352: which field the rejection notice asked the form to focus.
+        var focusField by remember { mutableStateOf<String?>(null) }
+
         RegistrationRow(label = "Business identity", detail = brand)
         Spacer(Modifier.height(8.dp))
         RegistrationRow(label = "Messaging campaign", detail = campaign)
@@ -79,11 +83,15 @@ fun RegistrationBlock(
             .firstOrNull { it.status == RegistrationStatus.REJECTED }
         if (rejected != null) {
             Spacer(Modifier.height(8.dp))
-            Text(
-                "The carrier registry rejected this" +
-                    (rejected.rejection_reason?.let { ": $it" } ?: ".") +
-                    " Fix the details below and resubmit.",
-                style = MaterialTheme.typography.bodySmall,
+            // #352: the carrier's token, translated into what happened and the
+            // one thing to change, with a jump to the field it concerns. G7 has
+            // required "rejection reason in plain language" since before launch;
+            // what shipped was the reason, raw.
+            RejectionNotice(
+                domain = RejectionDomain.REGISTRATION,
+                reason = rejected.rejection_reason,
+                submissionCount = rejected.submission_count,
+                onGoToField = { focusField = it },
             )
         }
 
@@ -104,6 +112,8 @@ fun RegistrationBlock(
                     "Submit registration"
                 },
                 onSubmitted = onChanged,
+                focusField = focusField,
+                onFocusHandled = { focusField = null },
             )
             if (rejected != null) {
                 Button(

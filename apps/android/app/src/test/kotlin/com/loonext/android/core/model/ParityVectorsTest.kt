@@ -52,6 +52,14 @@ class ParityVectorsTest {
         val country: String? = null,
     )
 
+    @Serializable
+    private data class RejectionVector(
+        val domain: String,
+        val reason: String,
+        val recognised: Boolean,
+        val field: String? = null,
+    )
+
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
@@ -96,6 +104,42 @@ class ParityVectorsTest {
         // message; this one fails with the reason.
         assertEquals("GSM-7", SmsEncoding.GSM7)
         assertEquals("UCS-2", SmsEncoding.UCS2)
+    }
+
+    @Test
+    fun `rejection routing agrees with the TypeScript`() {
+        // #352. Pins WHERE a rejection sends the customer and whether we claim
+        // to understand it — never the wording, which each platform may phrase
+        // its own way. A client that focuses the wrong field walks somebody
+        // through re-entering the one thing that was already right, then bills
+        // them another multi-day carrier review for it.
+        //
+        // This case earned its vectors before it shipped: the obvious matcher
+        // is a word-boundary regex, and `ein` does not match
+        // `EIN_MISMATCH` because an underscore is a word character — so the
+        // whole catalogue matched nothing while reading as correct. In Kotlin
+        // that mistake is worse, since "" here is a backspace character
+        // rather than a boundary. Hence no regex on either side.
+        val cases = json.decodeFromString<List<RejectionVector>>(vectors("rejections.json"))
+        assertTrue("no rejection vectors", cases.isNotEmpty())
+        for (case in cases) {
+            val domain = when (case.domain) {
+                "registration" -> RejectionDomain.REGISTRATION
+                "port" -> RejectionDomain.PORT
+                else -> throw AssertionError("unknown domain ${case.domain}")
+            }
+            val guidance = explainRejection(domain, case.reason)
+            val label = "${case.domain}/${case.reason.take(40)}"
+            assertEquals("$label: recognised", case.recognised, guidance != null)
+            assertEquals("$label: field", case.field, guidance?.field)
+            if (guidance != null) {
+                // Wording is free, but empty wording is not: a recognised
+                // reason that renders nothing is worse than an unrecognised one,
+                // because the raw fall-through never runs.
+                assertTrue("$label: what", guidance.what.isNotBlank())
+                assertTrue("$label: fix", guidance.fix.isNotBlank())
+            }
+        }
     }
 
     @Test

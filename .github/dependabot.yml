@@ -158,7 +158,16 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: actions/upload-artifact
         update-types: ["version-update:semver-major"]
+      # BOTH spellings, and the second one is the one that works. Dependabot
+      # names an action by the path in `uses:`, so the entry it matches here is
+      # `gradle/actions/setup-gradle` — the repository-level name alone silently
+      # matches nothing. Verified the hard way: with only the short form, PR #488
+      # proposed setup-gradle v4.4.3 -> v6.2.0, a major, straight onto the
+      # SHA-pinned deploy path. The short form is kept in case another action
+      # from that repo is ever used.
       - dependency-name: gradle/actions
+        update-types: ["version-update:semver-major"]
+      - dependency-name: gradle/actions/setup-gradle
         update-types: ["version-update:semver-major"]
       - dependency-name: android-actions/setup-android
         update-types: ["version-update:semver-major"]

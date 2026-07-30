@@ -13,6 +13,8 @@ struct RegistrationBlock: View {
 
     @State private var submitting = false
     @State private var error: String?
+    /// #352: which field the rejection notice asked the form to focus.
+    @State private var focusField: String?
 
     private var canManage: Bool { SettingsRoleGate.canManageNumbers(scope.role) }
 
@@ -47,12 +49,16 @@ struct RegistrationBlock: View {
                         .first { $0.status == RegistrationStatus.rejected }
                     if let rejected {
                         Spacer().frame(height: 8)
-                        Text(
-                            "The carrier registry rejected this"
-                                + (rejected.rejection_reason.map { ": \($0)" } ?? ".")
-                                + " Fix the details below and resubmit."
+                        // #352: the carrier's token translated into what
+                        // happened and the one thing to change, with a jump to
+                        // the field it concerns. G7 has required plain language
+                        // here since before launch; the raw reason shipped.
+                        RejectionNotice(
+                            domain: .registration,
+                            reason: rejected.rejection_reason,
+                            submissionCount: rejected.submission_count,
+                            onGoToField: { focusField = $0 }
                         )
-                        .font(.footnote)
                     }
 
                     // Draft and rejected rows are both editable, and both are
@@ -70,7 +76,8 @@ struct RegistrationBlock: View {
                             submitLabel: rejected != nil
                                 ? "Resubmit registration"
                                 : "Submit registration",
-                            onSubmitted: onChanged
+                            onSubmitted: onChanged,
+                            focusField: $focusField
                         )
                         if rejected != nil {
                             Button(

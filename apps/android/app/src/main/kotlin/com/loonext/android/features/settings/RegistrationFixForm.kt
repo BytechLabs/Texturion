@@ -15,12 +15,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.loonext.android.ui.common.userMessage
@@ -256,6 +259,12 @@ fun RegistrationFixForm(
     campaign: RegistrationDetail?,
     submitLabel: String,
     onSubmitted: () -> Unit,
+    // #352: the field a carrier rejection concerns. The notice above sets it;
+    // this opens itself and puts the cursor there, because handing somebody who
+    // has just been rejected a sixteen-field form and no direction is how they
+    // resubmit the same mistake and buy another multi-day carrier review.
+    focusField: String? = null,
+    onFocusHandled: () -> Unit = {},
 ) {
     val editBrand = registrationEditable(brand)
     val editCampaign = registrationEditable(campaign)
@@ -286,6 +295,9 @@ fun RegistrationFixForm(
         )
     }
     var open by remember { mutableStateOf(false) }
+    // Keyed by the same field names the shared catalogue routes to, so the
+    // vectors that pin the routing also pin what this can reach.
+    val focusRequesters = remember { mutableMapOf<String, FocusRequester>() }
     var verticalOpen by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -302,19 +314,42 @@ fun RegistrationFixForm(
         onChange: (String) -> Unit,
         keyboard: KeyboardType = KeyboardType.Text,
         lines: Int = 1,
+        key: String? = null,
     ) {
+        val requester = key?.let { name ->
+            remember(name) { FocusRequester() }.also { focusRequesters[name] = it }
+        }
         OutlinedTextField(
             value = value,
             onValueChange = onChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp),
+                .padding(vertical = 4.dp)
+                .let { if (requester != null) it.focusRequester(requester) else it },
             singleLine = lines == 1,
             minLines = lines,
             enabled = !saving,
             label = { Text(label) },
             keyboardOptions = KeyboardOptions(keyboardType = keyboard),
         )
+    }
+
+    // #352: a rejection notice asking for a field opens the form for them.
+    // Opening it is half the value on a phone — the form is collapsed by
+    // default, so "take me to it" that only scrolls would land on a button.
+    LaunchedEffect(focusField) {
+        if (focusField != null) open = true
+    }
+    // Separate from the effect above because the requester does not exist until
+    // the field has composed, which is one frame after `open` becomes true.
+    LaunchedEffect(focusField, open) {
+        val target = focusField ?: return@LaunchedEffect
+        if (!open) return@LaunchedEffect
+        // requestFocus throws if the node is gone (a field the current country
+        // or sole-proprietor branch does not render). Losing the cursor is a
+        // worse-than-nothing outcome, not a crash-worthy one.
+        runCatching { focusRequesters[target]?.requestFocus() }
+        onFocusHandled()
     }
 
     if (!open) {
@@ -340,6 +375,7 @@ fun RegistrationFixForm(
                     form.companyName,
                     "Legal business name",
                     { form = form.copy(companyName = it) },
+                    key = "companyName",
                 )
             }
             field(
@@ -360,12 +396,14 @@ fun RegistrationFixForm(
                     }
                 },
                 keyboard = if (soleProp) KeyboardType.Number else KeyboardType.Text,
+                key = "ein",
             )
             field(
                 form.email,
                 "Contact email",
                 { form = form.copy(email = it) },
                 keyboard = KeyboardType.Email,
+                key = "email",
             )
             field(
                 form.phone,
@@ -381,7 +419,7 @@ fun RegistrationFixForm(
                     keyboard = KeyboardType.Phone,
                 )
             }
-            field(form.website, "Website (optional)", { form = form.copy(website = it) })
+            field(form.website, "Website (optional)", { form = form.copy(website = it) }, key = "website")
 
             ExposedDropdownMenuBox(
                 expanded = verticalOpen,
@@ -419,7 +457,7 @@ fun RegistrationFixForm(
                 }
             }
 
-            field(form.street, "Street address", { form = form.copy(street = it) })
+            field(form.street, "Street address", { form = form.copy(street = it) }, key = "street")
             field(form.city, "City", { form = form.copy(city = it) })
             field(form.state, regionLabel, { form = form.copy(state = it) })
             field(form.postalCode, postalLabel, { form = form.copy(postalCode = it) })
@@ -438,12 +476,14 @@ fun RegistrationFixForm(
                 "How customers opt in",
                 { form = form.copy(messageFlow = it) },
                 lines = 3,
+                key = "messageFlow",
             )
             field(
                 form.sample1,
                 "Sample text 1",
                 { form = form.copy(sample1 = it) },
                 lines = 2,
+                key = "sample1",
             )
             field(
                 form.sample2,

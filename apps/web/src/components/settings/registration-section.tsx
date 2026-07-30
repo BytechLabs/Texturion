@@ -1,10 +1,11 @@
 "use client";
 
 import { Check, CircleDashed } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { RegistrationFixForm } from "@/components/settings/registration-fix-form";
+import { RejectionNotice } from "@/components/settings/rejection-notice";
 import { LoadError, SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import {
@@ -253,6 +254,11 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
   const { role } = useActiveCompany();
   const registration = useRegistration();
   const canEdit = role === "owner" || role === "admin";
+  // #352: the notice focuses the field the rejection concerns, scoped to the
+  // form rather than reaching across the document for a name attribute.
+  // Declared here, above every early return — hooks must run in the same order
+  // on every render, and this component returns early four times below.
+  const fixFormRef = useRef<HTMLDivElement | null>(null);
 
   // No registration owed: CA company that hasn't enabled US texting.
   if (company.country === "CA" && !company.us_texting_enabled) {
@@ -377,19 +383,28 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
 
         {rejectedRow && (
           <div className="space-y-3">
-            {/* rejection_reason is carrier-authored — break long tokens at 375px. */}
-            <p className="rounded-md bg-warning/10 px-3 py-2 text-sm break-words">
-              US registration needs a fix:{" "}
-              {rejectedRow.rejection_reason ??
-                "the carrier didn't say why, check your details below"}
-              . Update and resubmit; it takes 2 minutes.
-            </p>
+            {/* #352: the carrier's token translated into what happened and the
+                one thing to change, with a jump to the field it concerns. The
+                raw reason stays on screen, demoted. */}
+            <RejectionNotice
+              domain="registration"
+              reason={rejectedRow.rejection_reason}
+              submissionCount={rejectedRow.submission_count}
+              formRef={fixFormRef}
+              company={{
+                id: company.id,
+                name: company.name,
+                plan: company.plan,
+              }}
+            />
             {canEdit ? (
-              <RegistrationFixForm
-                brand={brand}
-                campaign={campaign}
-                country={company.country}
-              />
+              <div ref={fixFormRef}>
+                <RegistrationFixForm
+                  brand={brand}
+                  campaign={campaign}
+                  country={company.country}
+                />
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">
                 Ask an owner or admin to update and resubmit the registration.
