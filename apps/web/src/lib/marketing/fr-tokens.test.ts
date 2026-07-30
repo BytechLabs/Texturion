@@ -45,11 +45,19 @@ describe("globals.css — the --fr-* system (direction §2)", () => {
     expect(css).toMatch(/\.mkt-scope,\s*\.marketing\s*\{/);
   });
 
-  it("keeps the APP's petrol system untouched (Law 2: marketing never repaints the product)", () => {
-    // The app scope still anchors on petrol #0F766E.
-    expect(css).toMatch(/\.app-scope[\s\S]*?--primary:\s*#0f766e/i);
-    expect(css).toMatch(/--app-petrol:\s*#0f766e/i);
-  });
+  // #362 — the app-scope assertion that used to live here has MOVED to
+  // globals.contrast.test.ts, where the app's own tokens are asserted.
+  //
+  // It read the app's petrol values from inside a marketing test, to enforce
+  // Law 2 ("marketing never repaints the product"). The owner has since
+  // reversed Law 2 — marketing and the app converge on the mobile apps' olive —
+  // so the assertion is going to change value. Holding it here would have made
+  // the two surfaces impossible to sequence independently: retargeting the app
+  // would have failed a marketing test for a reason that has nothing to do with
+  // marketing.
+  //
+  // What belongs here is the marketing scope only. What the app anchors on is
+  // the app suite's business.
 
   it("the v3 palette is dead: no night grounds, no porch amber, no copper literals", () => {
     for (const deadHex of ["#041f1c", "#02110f", "#ffb454", "#9a4f26", "#c06a3b", "#3fd5c0"]) {
