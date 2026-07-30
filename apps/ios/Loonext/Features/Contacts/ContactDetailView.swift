@@ -1327,6 +1327,8 @@ private func previewDetailContact(optedOut: Bool) -> Contact {
         consent_source: ConsentSource.inboundSms,
         consent_at: "2026-07-08T14:00:00Z",
         consent_attested_by: nil,
+        // #393: nil means a first text here would still carry the signature.
+        first_identification_sent_at: nil,
         deleted_at: nil,
         created_at: "2026-07-08T14:00:00Z",
         updated_at: "2026-07-10T09:00:00Z",
