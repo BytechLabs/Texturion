@@ -120,6 +120,22 @@ updates:
   # The workflows themselves. A pinned action that goes unmaintained is supply
   # chain risk with our deploy credentials in scope, and this is the cheapest
   # ecosystem to keep current.
+  #
+  # THIS IS ALSO THE BUMP MECHANISM FOR ship.yml's COMMIT PINS (#444, D93).
+  # Every action there is pinned to a SHA so a publisher cannot change what
+  # production runs without a commit here. Dependabot understands SHA pins and
+  # moves the version comment with them, so it is what NOTICES a pin has gone
+  # stale — the failure mode SHA-pinning otherwise introduces. The pin stops the
+  # change being silent; this stops it being permanent. A human still merges,
+  # which is the review the pin exists to force.
+  #
+  # Majors are ignored for exactly the actions ship.yml pins, for the reason
+  # already applied to Compose and AGP below: a major is a deliberate migration
+  # with its own issue, not a chore PR merged on a Monday. `actions/checkout` is
+  # on v7 upstream while the deploy runs v4 — closing that gap is a decision
+  # somebody makes, and letting it arrive grouped with a patch bump is how it
+  # would instead be made by accident, in the one job that reaches customers.
+  # Minor and patch updates still flow, which is the whole point.
   # -------------------------------------------------------------------------
   - package-ecosystem: github-actions
     directory: /
@@ -131,6 +147,23 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+    ignore:
+      - dependency-name: actions/checkout
+        update-types: ["version-update:semver-major"]
+      - dependency-name: pnpm/action-setup
+        update-types: ["version-update:semver-major"]
+      - dependency-name: actions/setup-node
+        update-types: ["version-update:semver-major"]
+      - dependency-name: actions/setup-java
+        update-types: ["version-update:semver-major"]
+      - dependency-name: actions/upload-artifact
+        update-types: ["version-update:semver-major"]
+      - dependency-name: gradle/actions
+        update-types: ["version-update:semver-major"]
+      - dependency-name: android-actions/setup-android
+        update-types: ["version-update:semver-major"]
+      - dependency-name: supabase/setup-cli
+        update-types: ["version-update:semver-major"]
     labels: ["dependencies", "P3"]
     commit-message:
       prefix: chore

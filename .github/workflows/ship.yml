@@ -39,16 +39,20 @@ name: Ship
 # is the only human-readable thing about a pin, and a stale one is worse than
 # absent because it will be believed.
 #
-# BUMPING IS QUARTERLY AND DELIBERATE, matching the "Bump it deliberately"
-# instruction already written for the Supabase CLI below. SHA pins rot silently,
-# which is a real failure and a different one from floating tags, so the cadence
-# is not left to memory:
+# BUMPING. SHA pins rot silently, which is a real failure and a different one
+# from floating tags, so the cadence is not left to memory. Dependabot's
+# `github-actions` entry already runs monthly, understands SHA pins and moves
+# the version comment with them — so it is what NOTICES, and majors are ignored
+# there for exactly these actions so a v4 -> v7 jump cannot arrive on the deploy
+# path grouped with a patch bump. A human merges, which is the review the pin
+# exists to force.
 #
 #     node scripts/ops/bump-action-pins.mjs
 #
-# resolves what each major tag points at TODAY and prints the exact edits. It
+# is the manual path for when you want to look without waiting for the bot:
+# it resolves what each major tag points at TODAY and prints the exact edits. It
 # changes nothing on its own — the bump stays a commit somebody made, which is
-# the entire point of pinning.
+# the entire point of pinning. Neither route runs unattended.
 #
 # scripts/check-action-pins.mjs fails the build if a floating ref appears in
 # this file, so the asymmetry cannot quietly revert the next time somebody adds

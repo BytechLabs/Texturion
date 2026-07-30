@@ -5145,12 +5145,29 @@ regularise it will read it.
 
 **The cadence is part of the decision, not a footnote to it.** Pins rot
 silently, and trading a loud failure for a quiet one would be no gain — a
-floating tag at least receives its publisher's security fixes. Quarterly only
-means something if doing it is cheap, so `bump-action-pins.mjs` resolves what
-each major tag points at today and prints the exact edits. It runs from a
-laptop, never in CI: a job that bumped these automatically would restore the
-property being removed and paint the commit log over it. It prints; a person
-commits.
+floating tag at least receives its publisher's security fixes.
+
+**Dependabot already does the noticing, and that changes the answer #444
+assumed.** The issue argued against SHA pins partly on the grounds that they
+attract "Dependabot noise that gets ignored". The `github-actions` entry in
+`.github/dependabot.yml` was already there, already monthly, and already grouped
+to at most two PRs by D68's anti-noise design — and Dependabot understands SHA
+pins, moving the version comment along with the SHA. So the mechanism that
+rescues pins from rotting was in place before the pins were, which is the
+argument the issue was missing rather than a point against it.
+
+**Majors are ignored there for exactly the actions `ship.yml` pins**, using the
+reasoning already applied to Compose and AGP: a major is a deliberate migration
+with its own issue, not a chore PR merged on a Monday. `actions/checkout` is on
+v7 upstream while the deploy runs v4. Closing that gap should be a decision
+somebody makes; arriving grouped with a patch bump, in the one job that reaches
+customers, is how it would instead be made by accident.
+
+`scripts/ops/bump-action-pins.mjs` is the manual path — for looking without
+waiting for the bot, or when the bot is wrong. It runs from a laptop, never in
+CI: a job that bumped these automatically would restore the property being
+removed and paint the commit log over it. It prints; a person commits. Neither
+route runs unattended, which is the only property that matters.
 
 **Two implementation details worth keeping**, because both would silently
 produce a broken deploy. `gradle/actions@v4` is an annotated tag pointing at
