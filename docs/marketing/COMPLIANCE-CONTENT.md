@@ -51,8 +51,9 @@ than a one-time fix.
 
 ## 3. When a post has to be revisited
 
-Compliance posts are a **descriptive surface**, the third after `llms.txt` and the
-subprocessors page (#434 ask 3). Re-read them when:
+Compliance posts are a **descriptive surface** — one row of the checklist in
+`docs/DESCRIPTIVE-SURFACES.md`, which #434 asked for and which lists every
+artifact a shipped feature may need to tell. Re-read the posts when:
 
 - **the product gains or loses a compliance behaviour.** #396 turned an unbacked
   sentence into a backed one; the reverse is just as possible.

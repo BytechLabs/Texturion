@@ -75,4 +75,62 @@ describe("llms.txt keeps up with what shipped", () => {
       expect(lower, `llms.txt never mentions "${term}"`).toContain(term);
     }
   });
+
+  it("does NOT claim the AI features are off by default, because they are not", () => {
+    // The defect found while closing #434, and worse than the omission it
+    // reported: the file said "opt-in, off by default" and "every AI feature is
+    // off until an owner turns it on". All four settings default to TRUE
+    // server-side — 20260723020000_ai_settings_default_on.sql flipped enrichment
+    // deliberately. So the file understated what the product does with message
+    // text, which is the one direction a privacy claim must never be wrong in.
+    // Scoped to the AI section: "off by default" is a legitimate and accurate
+    // claim elsewhere in the file (the optional temporary number offered during a
+     // port really is off by default), so a whole-file match would forbid a true
+    // sentence to catch a false one.
+    const aiSection = LLMS.slice(
+      LLMS.indexOf("## AI features"),
+      LLMS.indexOf("## Optional add-on modules"),
+    );
+    expect(aiSection.length).toBeGreaterThan(100);
+    expect(aiSection).not.toMatch(/off by default/i);
+    expect(aiSection).not.toMatch(/every AI feature is off/i);
+    // And it says the true thing, including that each one can be switched off.
+    expect(aiSection).toMatch(/on by default/i);
+    expect(aiSection).toMatch(/switch/i);
+  });
+
+  it("states the AI caps that the API actually enforces", () => {
+    // Presence tests cannot catch a wrong NUMBER, and a stale cap on the file
+    // whose job is describing us is the same class of miss as the omission. So
+    // the numbers are read out of the source that enforces them rather than
+    // copied — which is how I caught two of my own three wrong on the way in.
+    const caps: { file: string; constant: string }[] = [
+      {
+        file: "messaging/reply-suggestions.ts",
+        constant: "SUGGEST_REPLY_MONTHLY_CAP",
+      },
+      {
+        file: "calls/voicemail-transcript.ts",
+        constant: "VOICEMAIL_TRANSCRIPT_MONTHLY_CAP",
+      },
+      { file: "tasks/enrichment.ts", constant: "ENRICHMENT_MONTHLY_CAP" },
+    ];
+
+    for (const { file, constant } of caps) {
+      const source = readFileSync(
+        join(process.cwd(), "..", "api", "src", file),
+        "utf8",
+      );
+      const match = new RegExp(`${constant}\\s*=\\s*(\\d+)`).exec(source);
+      expect(match, `${constant} not found in apps/api/src/${file}`).not.toBeNull();
+      const value = Number(match?.[1]);
+      // Formatted with a thousands separator in prose, bare below 1000.
+      const written = value >= 1000 ? value.toLocaleString("en-US") : String(value);
+      expect(
+        LLMS,
+        `llms.txt does not state ${constant} (${written}). A cap the file gets ` +
+          `wrong is worse than one it omits: a machine repeats it as fact.`,
+      ).toContain(written);
+    }
+  });
 });
