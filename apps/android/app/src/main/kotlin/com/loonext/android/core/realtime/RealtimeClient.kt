@@ -3,6 +3,7 @@ package com.loonext.android.core.realtime
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -86,13 +87,40 @@ class RealtimeClient(
     private val _state = MutableStateFlow<RealtimeState>(RealtimeState.Disconnected)
     val state: StateFlow<RealtimeState> = _state
 
-    private val _reconnected = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    // #483: DROP_OLDEST, where this used to take the default SUSPEND — and with
+    // SUSPEND, [tryEmit] returns false on a full buffer and the edge is gone.
+    // Gone for EVERY subscriber, not just a slow one: the single slot is shared
+    // by all ~12 collectors and is freed only once the LAST of them has taken the
+    // value, so "full" routinely means one screen was descheduled for a moment
+    // rather than that anybody is behind. What that costs is the whole point of
+    // the signal — the 11 screens that refetch first pages on it keep stale
+    // content with no self-heal until the user navigates away, and
+    // RootViewModel's collector, which re-derives the per-number topic set, never
+    // runs. Broadcasts are NOT replayed (D88 addendum), so a dropped edge for an
+    // `access.changed` published while this app was offline is the only notice a
+    // newly granted number would ever have got: post-contract-step that member
+    // silently receives nothing on it for the life of the process, with the
+    // socket reporting Joined throughout.
+    //
+    // DROP_OLDEST keeps the NEWEST edge instead. Collapsing several into one is
+    // correct for what this means — "something may have changed while you were
+    // away, ask again" — because the later refetch subsumes the earlier one.
+    // Losing the last one is not, and now cannot happen: tryEmit never returns
+    // false when the overflow policy is not SUSPEND.
+    private val _reconnected = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
 
     /**
      * Fires once per re-JOIN of the company topic after the first — refetch
      * first pages. Once per RECONNECT, not once per topic: with N+1 channels on
      * the socket, a signal per join reply would mean N redundant refetches of
      * every open screen.
+     *
+     * Coalescing, not lossless: edges arriving faster than a collector drains
+     * them are delivered as one. See [_reconnected] for why that is the right
+     * trade and why the newest is nonetheless guaranteed.
      */
     val reconnected: SharedFlow<Unit> = _reconnected
 
@@ -412,7 +440,7 @@ class RealtimeClient(
                     // [reconnected] stays a single emission.
                     if (ok && _state.value != RealtimeState.Joined) {
                         _state.value = RealtimeState.Joined
-                        if (everJoined) _reconnected.tryEmit(Unit)
+                        if (everJoined) signalReconnected()
                         everJoined = true
                     } else if (!ok) {
                         // A REJECTED join (expired JWT being the common case) was
@@ -461,7 +489,7 @@ class RealtimeClient(
                 // wrong, ask again", which is exactly what a change of access
                 // means. Emitted IN ADDITION to the event itself, so a future
                 // consumer that wants the event can still have it.
-                if (name == "access.changed") _reconnected.tryEmit(Unit)
+                if (name == "access.changed") signalReconnected()
                 // trySend on an UNLIMITED channel never fails (never drops) and
                 // never blocks this WebSocket thread — the dispatch pump above
                 // does the (possibly suspending) hand-off to collectors.
@@ -485,6 +513,19 @@ class RealtimeClient(
                 }
             }
         }
+    }
+
+    /**
+     * Publish one "your cached pages may be wrong, ask again" edge.
+     *
+     * [tryEmit] rather than [MutableSharedFlow.emit] because both callers are on
+     * the OkHttp reader thread, which must never suspend — a blocked reader stops
+     * delivering every other frame on the socket. That was also how the edge got
+     * lost, which is what [_reconnected]'s overflow policy now prevents; the
+     * return value is unused because it can no longer be false.
+     */
+    private fun signalReconnected() {
+        _reconnected.tryEmit(Unit)
     }
 
     @Synchronized
@@ -552,5 +593,20 @@ class RealtimeClient(
      */
     internal fun ingestForTest(event: RealtimeEvent) {
         ingress.trySend(event)
+    }
+
+    /**
+     * #483 test seam: publish a reconnect edge through the real
+     * [signalReconnected], exactly as a company-topic re-JOIN reply and an
+     * `access.changed` frame do. Not used in production.
+     *
+     * A seam rather than real frames because what is under test is the flow's
+     * overflow behaviour with a collector held mid-callback, and the emissions
+     * have to land at a moment the test chooses — a reconnect on the wire costs a
+     * transport drop and a backoff, neither of which can be timed against a
+     * collector.
+     */
+    internal fun signalReconnectForTest() {
+        signalReconnected()
     }
 }

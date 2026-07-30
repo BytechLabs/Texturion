@@ -18,8 +18,11 @@ struct RealtimeEvent: Sendable {
 ///   the per-number topic is admitted only when `member_number_level` is not
 ///   'none', so a join for a number the member cannot see is REFUSED — that
 ///   refusal is the boundary working and must not disturb the other channels or
-///   the transport. Token refreshes are pushed per channel (see
-///   `pushAccessToken`) so the socket survives JWT rotation.
+///   the transport. It is not final either: a refusal is indistinguishable here
+///   from a join that raced a token refresh, so `repairNumberTopics` asks again,
+///   once a minute, for whatever the server has not confirmed (#483). Token
+///   refreshes are pushed per channel (see `pushAccessToken`) so the socket
+///   survives JWT rotation.
 /// - Reconnects with capped exponential backoff; each successful re-JOIN of the
 ///   COMPANY channel emits on `reconnected()` so callers refetch first pages
 ///   (payloads may have been lost while offline — the web client does exactly
@@ -32,6 +35,7 @@ actor RealtimeClient {
     private var socket: URLSessionWebSocketTask?
     private var connectLoop: Task<Void, Never>?
     private var heartbeat: Task<Void, Never>?
+    private var numberTopicRepair: Task<Void, Never>?
     private var ref: UInt64 = 1
     private var companyId: String?
 
@@ -52,6 +56,23 @@ actor RealtimeClient {
     /// `topicsAfterSend`). It is also what `pushAccessToken` iterates, so a topic
     /// dropped from it stops being re-authorized as well as unsubscribed.
     private var joinedNumberTopics: Set<String> = []
+
+    /// The per-number topics the SERVER has confirmed on the CURRENT socket — a
+    /// `phx_reply` with status ok. Always a subset of `joinedNumberTopics`.
+    ///
+    /// Kept apart from it because "we sent a join" and "we are joined" are
+    /// different facts, and only the second one means events are arriving. A
+    /// refused join, a channel a realtime node closed while rebalancing, and a
+    /// join whose reply never came all leave the first true and the second false,
+    /// and each of them is a number whose `message.created`,
+    /// `conversation.updated`, `message.status`, `task.changed`,
+    /// `read.conversation` and `call.updated` stop — on a socket that reports
+    /// perfect health. `repairNumberTopics` diffs against THIS set, and it is the
+    /// only thing that asks again: the reconcile in `setNumbers` cannot, because
+    /// the wanted set has not changed.
+    ///
+    /// Reset by `joinFrames`: a new socket has confirmed nothing.
+    private var confirmedNumberTopics: Set<String> = []
 
     private var accessToken: String?
     private var everJoined = false
@@ -155,6 +176,11 @@ actor RealtimeClient {
     /// turn one edit into a burst. Diffing also leaves the company channel
     /// untouched, which keeps `reconnected()` meaning "you had a gap" rather than
     /// "access changed".
+    ///
+    /// Which is also why this is the wrong place to notice a channel that was
+    /// LOST rather than revoked: access did not change, so the wanted set is
+    /// identical and there is nothing here to diff. `repairNumberTopics` is what
+    /// covers that (#483).
     func setNumbers(_ numberIds: [String]) {
         let wanted = Set(numberIds)
         guard wanted != self.numberIds else { return }
@@ -172,10 +198,13 @@ actor RealtimeClient {
         companyId = nil
         numberIds = []
         joinedNumberTopics = []
+        confirmedNumberTopics = []
         connectLoop?.cancel()
         connectLoop = nil
         heartbeat?.cancel()
         heartbeat = nil
+        numberTopicRepair?.cancel()
+        numberTopicRepair = nil
         socket?.cancel(with: .normalClosure, reason: nil)
         socket = nil
         joined = false
@@ -185,6 +214,8 @@ actor RealtimeClient {
         connectLoop?.cancel()
         heartbeat?.cancel()
         heartbeat = nil
+        numberTopicRepair?.cancel()
+        numberTopicRepair = nil
         socket?.cancel(with: .normalClosure, reason: nil)
         socket = nil
         connectLoop = Task { await self.runLoop() }
@@ -226,6 +257,7 @@ actor RealtimeClient {
             return
         }
         startHeartbeat(task)
+        startNumberTopicRepair(task)
         while !Task.isCancelled {
             do {
                 let message = try await task.receive()
@@ -236,6 +268,8 @@ actor RealtimeClient {
         }
         heartbeat?.cancel()
         heartbeat = nil
+        numberTopicRepair?.cancel()
+        numberTopicRepair = nil
         if socket === task { socket = nil }
     }
 
@@ -278,6 +312,7 @@ actor RealtimeClient {
               let event = msg["event"]?.stringValue
         else { return }
         let payload = msg["payload"]
+        let topic = msg["topic"]?.stringValue
         // Only the COMPANY channel's health governs the reconnect: heartbeat
         // replies ride topic "phoenix", and a per-number channel may legitimately
         // be refused or closed on its own.
@@ -287,26 +322,33 @@ actor RealtimeClient {
         // per-number join — the intended answer once access is revoked — as a
         // rejected company join and cancelled the transport, turning one closed
         // channel into an endless reconnect.
-        let isCompanyTopic = Self.isCompanyTopic(msg["topic"]?.stringValue, company: companyId)
+        let isCompanyTopic = Self.isCompanyTopic(topic, company: companyId)
 
         switch event {
         case "phx_reply":
             let ok = payload?["status"]?.stringValue == "ok"
-            if ok, isCompanyTopic, !joined {
-                joined = true
-                if everJoined {
-                    for continuation in reconnectObservers.values { continuation.yield(()) }
+            if isCompanyTopic {
+                if ok, !joined {
+                    joined = true
+                    if everJoined {
+                        for continuation in reconnectObservers.values { continuation.yield(()) }
+                    }
+                    everJoined = true
+                } else if !ok {
+                    // A REJECTED join (expired JWT being the common case) was
+                    // previously ignored outright, parking the loop forever.
+                    task.cancel(with: .normalClosure, reason: nil)
                 }
-                everJoined = true
-            } else if !ok, isCompanyTopic {
-                // A REJECTED join (expired JWT being the common case) was
-                // previously ignored outright, parking the loop forever.
-                task.cancel(with: .normalClosure, reason: nil)
+            } else if let topic {
+                // A per-number reply used to be ignored outright. That was right
+                // about the transport — a refusal means this member may not see
+                // that number, which is the policy doing its job, and the other
+                // channels and the socket have to survive it — and wrong about the
+                // bookkeeping: the topic stayed claimed either way, so an accepted
+                // join was never told apart from a refused one and the refused one
+                // was never asked for again (#483).
+                noteNumberTopicReply(topic, ok: ok)
             }
-            // A per-number reply, accepted or refused, is deliberately not acted
-            // on. A refusal means this member may not see that number, which is
-            // the policy doing its job — the remaining channels and the socket
-            // have to survive it.
 
         case "broadcast":
             // #480 expand window: eight of the ten events publish to the company
@@ -346,7 +388,16 @@ actor RealtimeClient {
             // lives on, heartbeating, while the channel is dead. Scoped to the
             // company channel — a per-number channel the server closes because
             // access went away must cost that one channel, not realtime.
-            if isCompanyTopic { task.cancel(with: .normalClosure, reason: nil) }
+            if isCompanyTopic {
+                task.cancel(with: .normalClosure, reason: nil)
+            } else if let topic {
+                // And that one channel has to be ASKED FOR AGAIN, because a close
+                // is not only a revocation: a realtime node closes channels while
+                // it rebalances, and a token it will not take closes them too.
+                // Recording the loss is what lets the once-a-minute sweep find it —
+                // the wanted set is unchanged, so nothing else ever would (#483).
+                noteNumberTopicLost(topic)
+            }
 
         default:
             break
@@ -415,9 +466,61 @@ actor RealtimeClient {
         return next
     }
 
+    /// What the server said about ONE per-number channel: `ok` confirms the join,
+    /// anything else means we hold nothing there.
+    ///
+    /// Only a topic this socket still HOLDS can be confirmed. The `phx_reply` to a
+    /// `phx_leave` is an ok on that same topic and the channel it acknowledges has
+    /// just ended, so reading it as a confirmed join would leave a confirmation
+    /// behind for a channel nobody is on — and if that number were granted back and
+    /// its join frame failed, the sweep would never ask for it. The same rule is
+    /// what keeps the company channel and the heartbeat's "phoenix" replies out of
+    /// this bookkeeping entirely: neither is ever in the held set.
+    ///
+    /// Internal, and free of any socket, so the accounting can be asserted without
+    /// standing one up — the same reason `joinFrames` and `deliver` are.
+    func noteNumberTopicReply(_ topic: String, ok: Bool) {
+        guard joinedNumberTopics.contains(topic) else { return }
+        if ok {
+            confirmedNumberTopics.insert(topic)
+        } else {
+            noteNumberTopicLost(topic)
+        }
+    }
+
+    /// This per-number channel is gone — refused, closed, or errored. The
+    /// transport is fine and the other channels are untouched.
+    ///
+    /// Dropped from the HELD set as well as the confirmed one, because there is no
+    /// channel there any more: keeping it would push refreshed tokens at a topic
+    /// the server does not have us on, and would make the next reconcile read a
+    /// re-grant as a no-op. Nothing here is a revocation, so nothing here touches
+    /// the WANTED set — which is why `numberTopicsToRejoin` still asks for it.
+    func noteNumberTopicLost(_ topic: String) {
+        guard joinedNumberTopics.contains(topic) else { return }
+        joinedNumberTopics.remove(topic)
+        confirmedNumberTopics.remove(topic)
+    }
+
     /// The per-number channels this client should hold for `company`.
     private func numberTopics(_ company: String) -> Set<String> {
         Set(numberIds.map { Self.numberTopic(company, $0) })
+    }
+
+    /// The per-number channels to ask for again: wanted, and not confirmed by the
+    /// server on this socket.
+    ///
+    /// Diffed against CONFIRMED rather than against the held set, which is the
+    /// whole point — a refused, closed or unanswered join is exactly where the two
+    /// disagree. Diffed on the WANT side, which is what keeps a topic held only
+    /// because its `phx_leave` could not be sent out of this list: it is not
+    /// wanted, so it can never appear here, and re-joining it would undo the very
+    /// revocation the leave retry is still trying to land.
+    ///
+    /// Takes the company rather than reading `companyId`, like `joinFrames`, so it
+    /// can be asserted without a connect.
+    func numberTopicsToRejoin(_ company: String) -> [String] {
+        Self.topicDelta(have: confirmedNumberTopics, want: numberTopics(company)).join
     }
 
     /// The `phx_join` frames a fresh socket sends: the company channel first —
@@ -433,6 +536,10 @@ actor RealtimeClient {
     func joinFrames(_ company: String) -> [String] {
         let perNumber = numberTopics(company).sorted()
         joinedNumberTopics = Set(perNumber)
+        // A new socket has confirmed nothing, whatever the last one had. Carrying
+        // a confirmation across would hide a join on THIS socket that is refused or
+        // never answered from the repair sweep — the case the sweep exists for.
+        confirmedNumberTopics = []
         let payload = joinPayload()
         return ([Self.companyTopic(company)] + perNumber).map {
             frame(topic: $0, event: "phx_join", payload: payload)
@@ -449,6 +556,62 @@ actor RealtimeClient {
         // One task, so the frames ride the socket in the order they were computed:
         // leaves before joins — a revocation must not wait behind a grant.
         Task { await self.flushTopicDelta(delta, for: company, on: socket) }
+    }
+
+    /// #483: how often a live socket asks again for the per-number channels the
+    /// server has not confirmed.
+    ///
+    /// A MINUTE, and it is a cost decision rather than a tuning knob — the web
+    /// provider's `GIVE_UP_RETRY_MS` is the same number for the same reason. Every
+    /// `phx_join` runs `is_company_topic_member` → `member_number_level` →
+    /// `member_number_levels` against Postgres, and a member whose access really
+    /// went away while their number list still lists that number is refused on
+    /// every single sweep. Asking on the transport's own ~10s ladder would be six
+    /// of those a minute, per number, for the life of the process; a minute makes a
+    /// genuine revocation one cheap refusal and brings a channel lost to a
+    /// token-refresh race back inside one.
+    ///
+    /// Internal so the cadence can be pinned by a test.
+    static let numberTopicRepairInterval: Duration = .seconds(60)
+
+    /// Ask again, once a minute, for every per-number channel this socket wants and
+    /// the server has not confirmed. Started per socket, next to the heartbeat, and
+    /// dies with it.
+    ///
+    /// THE ONLY thing that recovers a per-number channel lost on a socket that
+    /// stays up. `setNumbers` reconciles a CHANGE of the wanted set and returns
+    /// early when the set is the same — which it is here, because access did not
+    /// change — so before this, a join refused inside a token-refresh window, or a
+    /// channel a realtime node closed while rebalancing, was lost until the process
+    /// restarted, with the socket reporting healthy the whole time.
+    private func startNumberTopicRepair(_ task: URLSessionWebSocketTask) {
+        numberTopicRepair?.cancel()
+        numberTopicRepair = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.numberTopicRepairInterval)
+                if Task.isCancelled { return }
+                await self.repairNumberTopics(on: task)
+            }
+        }
+    }
+
+    /// One sweep. Nothing to ask for is the normal case and costs a set diff.
+    ///
+    /// Deliberately does NOT emit `reconnected()`. A frame going out says nothing
+    /// about whether the join was accepted, so emitting here would fire a whole-app
+    /// backfill every minute for a member whose number really was revoked —
+    /// trimming every list to page 1 for a gap that does not exist. The web
+    /// provider draws the same line (a per-number re-subscribe does not arm its
+    /// backfill), and what a closed-then-rejoined channel missed is what the
+    /// `.resyncOnForeground` net on every surface is for (#215).
+    private func repairNumberTopics(on socket: URLSessionWebSocketTask) async {
+        guard let company = companyId, self.socket === socket else { return }
+        for topic in numberTopicsToRejoin(company) {
+            // Through `sendTopicFrame`, so the rejoin is recorded by what the send
+            // actually did and a number dropped from the wanted set between the
+            // diff and the send is not joined after all.
+            _ = await sendTopicFrame(topic, leaving: false, for: company, on: socket)
+        }
     }
 
     /// Put a reconcile's frames on the wire and record only the ones that went
@@ -472,8 +635,11 @@ actor RealtimeClient {
         for topic in delta.join {
             // A join that failed to send is not retried here: the failure means
             // this socket is going, and the next one joins the whole current set
-            // from `joinFrames`. Under-subscribing until then is the safe
-            // direction; claiming a channel that was never joined is not.
+            // from `joinFrames` — or, if this socket survives after all, the
+            // once-a-minute sweep asks for it, since an unsent join is one more
+            // wanted topic the server never confirmed. Under-subscribing until
+            // then is the safe direction; claiming a channel that was never joined
+            // is not.
             _ = await sendTopicFrame(topic, leaving: false, for: company, on: socket)
         }
         await retryUnsentLeaves(unsentLeaves, for: company, on: socket)
@@ -516,6 +682,14 @@ actor RealtimeClient {
             leaving: leaving,
             sent: sent
         )
+        // A confirmation belongs to a join the server answered, and this frame
+        // retires it: a leave that went out ended that channel, and a join being
+        // (re-)sent is us asking again. A leave that did NOT go out is the one case
+        // that changes nothing — that channel is still joined and still confirmed,
+        // which is what keeps the repair sweep from reading a topic held for the
+        // leave retry as a lost one (#483).
+        let stillJoinedServerSide = leaving && !sent
+        if !stillJoinedServerSide { confirmedNumberTopics.remove(topic) }
         return sent
     }
 

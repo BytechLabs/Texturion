@@ -19,6 +19,41 @@ enum RootState {
     case failed(String)
 }
 
+/// #483: the waits before each retry of a bootstrap number list that failed.
+///
+/// GET /v1/numbers is the only source of the access-filtered list that decides
+/// which per-number realtime topics this client joins, and when it fails the
+/// socket opens with an EMPTY one — the company topic, and not a single
+/// per-number topic. The reconnect observer in `start()` heals that on the next
+/// re-JOIN, which on a healthy socket can be hours away, and after D88's
+/// contract step those are hours of an inbox that never updates. Three tries
+/// across ~17s turn one transient failure into a blink; going longer would only
+/// race the re-JOIN heal that already exists. (Android's ladder, same numbers.)
+let numberListRetryDelays: [Duration] = [.seconds(1), .seconds(4), .seconds(12)]
+
+/// Run `attempt` after each wait in `delays` until one reports success.
+///
+/// Waits FIRST: a read that just failed fails the same way if it is repeated in
+/// the same millisecond. `Task.isCancelled` is then checked explicitly because
+/// `try?` swallows the cancellation error out of `Task.sleep` — without that
+/// check a cancelled ladder would run its remaining attempts back to back,
+/// reading /v1/numbers for a company the app has already moved off.
+///
+/// `delays` is a parameter, defaulted to the production ladder, so a test can
+/// describe this schedule in milliseconds: XCTest has no virtual clock to skip
+/// the seventeen seconds the way kotlinx-coroutines-test does for Android's twin.
+func retryNumberList(
+    delays: [Duration] = numberListRetryDelays,
+    attempt: @Sendable () async -> Bool
+) async -> Bool {
+    for delay in delays {
+        try? await Task.sleep(for: delay)
+        if Task.isCancelled { return false }
+        if await attempt() { return true }
+    }
+    return false
+}
+
 @MainActor
 @Observable
 final class RootViewModel {
@@ -29,6 +64,9 @@ final class RootViewModel {
 
     /// Bumped by every realtime number re-derive; see `resubscribeNumbers`.
     private var numbersGeneration = 0
+
+    /// #483: the in-flight `retryNumberList`, so bootstraps cannot stack them.
+    private var numberListRetry: Task<Void, Never>?
 
     init(graph: AppGraph) {
         self.graph = graph
@@ -99,7 +137,9 @@ final class RootViewModel {
 
         // Broadcasts are not replayed, so an `access.changed` that landed while
         // the socket was down is simply gone — re-derive on every re-JOIN too.
-        // This is also what heals a number list that failed to load at bootstrap.
+        // This is also the LAST resort for a number list that failed to load at
+        // bootstrap: it heals that too, but a re-JOIN can be hours away on a
+        // healthy socket, which is why `numberListRetry` gets there first (#483).
         // It overlaps the observer above (an `access.changed` also fires the
         // reconnect signal) and that is fine: the newest answer wins and an
         // unchanged set costs nothing.
@@ -168,19 +208,46 @@ final class RootViewModel {
             // `!= false` rather than a truthiness check: an absent flag means
             // "no statement", which must read as ON.
             let realtimeAllowed = me.flags?["kill:realtime"] != false
+            // #483: only ever true when the read was actually attempted AND failed.
+            // An empty list is a real answer — a member restricted out of every
+            // number joins the company topic alone and works — so it must not be
+            // retried at; a failure wears the same shape by accident and must be.
+            var numberListFailed = false
             if realtimeAllowed, let session = graph.sessionStore.current() {
                 // #480: the per-number topics are joined with the company one, so
                 // the list is awaited here rather than filled in afterwards — a
                 // socket that opens with an incomplete subscription set has a gap
                 // in it, and one small GET is the honest price of not having one.
                 let numberIds = await visibleNumberIds(membership.company_id)
+                numberListFailed = numberIds == nil
                 await graph.realtime.connect(
                     companyId: membership.company_id,
-                    numberIds: numberIds,
+                    numberIds: numberIds ?? [],
                     accessToken: session.accessToken
                 )
             }
             state = .ready(me, companyId: membership.company_id)
+
+            // #483: one transient failure of that GET must not cost a whole session
+            // of per-number realtime. Retried OFF the bootstrap path — the shell is
+            // already `.ready` above, so nothing here is waited on — and through
+            // `resubscribeNumbers`, which is exactly the work the `access.changed`
+            // and reconnect observers do.
+            //
+            // A ladder still pending from an earlier bootstrap is stale whatever
+            // happened here: this pass has just read for the company it would have
+            // read for.
+            numberListRetry?.cancel()
+            numberListRetry = nil
+            if numberListFailed {
+                numberListRetry = Task { [weak self] in
+                    guard let self else { return }
+                    // Strong `self` from here down: Swift 6 forbids referencing the
+                    // captured weak var from the nested @Sendable closure (see the
+                    // same upgrade in `start()`).
+                    _ = await retryNumberList { await self.resubscribeNumbers() }
+                }
+            }
         } catch let error as ApiError {
             state = error.code == ApiErrorCode.unauthorized ? .signedOut : .failed(error.message)
         } catch {
@@ -193,16 +260,18 @@ final class RootViewModel {
     /// this asks rather than reasons: a client-side reading of the access rule
     /// would be the extra implementation D88 spent an issue removing.
     ///
-    /// A failure yields no numbers, which leaves the client on the company topic
-    /// alone — exactly how it behaved before per-number topics existed, so a
-    /// flaky call degrades instead of breaking. The list is re-derived on
-    /// `access.changed` and on every re-JOIN, so it heals.
-    private func visibleNumberIds(_ companyId: String) async -> [String] {
+    /// `nil` is a FAILED read, and telling it apart from an empty list is the
+    /// whole point (#483): an empty list is a real answer for a member restricted
+    /// out of every number, who joins the company topic alone and works normally,
+    /// while a failure produces that same shape by accident. The caller degrades
+    /// either way — the company topic alone is exactly how this behaved before
+    /// per-number topics existed — but only the failure is worth retrying.
+    private func visibleNumberIds(_ companyId: String) async -> [String]? {
         let page: Page<PhoneNumberSummary>? = try? await graph.api.get(
             "/v1/numbers",
             companyId: companyId
         )
-        return page?.data.map(\.id) ?? []
+        return page?.data.map(\.id)
     }
 
     /// Re-derive the number list and move the realtime subscription onto it.
@@ -212,12 +281,22 @@ final class RootViewModel {
     /// response must not land after a newer one and re-subscribe to a set that
     /// has already been superseded — which, for a revoked number, would mean
     /// staying on its channel with nothing left to correct it.
-    private func resubscribeNumbers() async {
-        guard case .ready(_, let companyId) = state else { return }
+    ///
+    /// Reports whether a fresh list was actually applied, which is what the #483
+    /// bootstrap ladder needs to know when it is standing in for a GET that
+    /// failed. A superseded answer reports `false` too: a newer read owns the
+    /// subscription set now, and if the ladder has rungs left, one more cheap GET
+    /// beats betting the heal on a result we just discarded. The two observers in
+    /// `start()` ignore it — they fire off a signal that will come again, so there
+    /// is nothing for them to do about a `false`.
+    @discardableResult
+    private func resubscribeNumbers() async -> Bool {
+        guard case .ready(_, let companyId) = state else { return false }
         numbersGeneration += 1
         let generation = numbersGeneration
-        let numberIds = await visibleNumberIds(companyId)
-        guard generation == numbersGeneration else { return }
+        guard let numberIds = await visibleNumberIds(companyId) else { return false }
+        guard generation == numbersGeneration else { return false }
         await graph.realtime.setNumbers(numberIds)
+        return true
     }
 }

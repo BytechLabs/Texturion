@@ -134,6 +134,32 @@ export function realtimeTopics(companyId: string, key: string): string[] {
 }
 
 /**
+ * #483: the waits before each retry of a bootstrap number list that FAILED to
+ * read, longest last.
+ *
+ * The hydrated `/v1/me` is the ONLY source of the access-filtered number list,
+ * and when it fails `topicKey` below is "" — this client holds the company topic
+ * and not one per-number topic. Nothing re-derived it. React Query gives up after
+ * its own two retries and then sits on the error: `useMeCompany` has a 60s
+ * staleTime, `refetchOnWindowFocus` is off globally, the focus resync invalidates
+ * only the `[companyId]` prefix while the list lives at `["me", ...]`, and the one
+ * path that does invalidate `keys.me` (`refetchFirstPages`) runs only after a
+ * connectivity gap — which on a healthy socket may never come.
+ *
+ * So one transient 5xx or cold isolate on /v1/me at page load cost that tab its
+ * whole session of per-number realtime: once D88's contract step lands, no
+ * messages, conversations, calls, tasks or read state, with a green socket, no
+ * error anywhere, and a reload as the only recovery.
+ *
+ * Three tries across ~17s, the same ladder Android uses for the same read
+ * (`NUMBER_LIST_RETRY_DELAYS_MS` in RootViewModel.kt). Waits FIRST: the read that
+ * just failed fails the same way if it is repeated in the same millisecond.
+ * Bounded, because a /v1/me still down after seventeen seconds is an outage the
+ * reconnect path already heals, not a blip worth polling through.
+ */
+const NUMBER_LIST_RETRY_DELAYS_MS = [1_000, 4_000, 12_000];
+
+/**
  * One Supabase Realtime private Broadcast channel for the company (SPEC §8,
  * G12) — `company:{id}` — plus one per number this member may see (#480),
  * authorized by RLS on realtime.messages via
@@ -162,8 +188,27 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
    * whenever the list actually moves — `access.changed` and `number.updated`
    * both invalidate `keys.me`, so a revoked or added number re-derives here and
    * the subscription set follows.
+   *
+   * The `?? []` is a REAL state and not only a loading one: a member restricted
+   * out of every number derives "" and joins the company topic alone, which is
+   * correct and must keep working. It is a BUG when it comes from a failed read —
+   * see `numberListFailed` below, which is why that is read separately rather
+   * than inferred from an empty key.
    */
   const topicKey = numberTopicKey(meCompany.data?.company?.numbers ?? []);
+  /**
+   * #483: the number list could not be READ. Not the same thing as an empty one,
+   * and the two must never be conflated — they produce an identical `topicKey`
+   * and want opposite treatment. "Restricted out of everything" is settled and
+   * must be left alone; "we do not know yet" needs asking again, because nothing
+   * else will (see `NUMBER_LIST_RETRY_DELAYS_MS`).
+   *
+   * `isError` and not `!data`: React Query reports error status only when there
+   * is no successful data to fall back on, so a background refetch failing while
+   * a good list is cached does not arm the ladder — that list is still the right
+   * one to be subscribed to.
+   */
+  const numberListFailed = meCompany.isError;
   /**
    * #358: whose read state this client cares about. The events ride the
    * company topic, so a colleague's reading must be ignored.
@@ -208,6 +253,48 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
   const routerRef = useRef(router);
   routerRef.current = router;
+
+  /**
+   * #483: ask /v1/me again, on a bounded ladder, when the read that decides the
+   * subscription set failed.
+   *
+   * Its own effect rather than a branch inside the socket effect below, because
+   * the two want opposite lifecycles: the socket must open on the company topic
+   * immediately (everything company-wide still reaches the member, and during
+   * D88's expand window that is everything full stop), while this keeps working
+   * behind it until the list arrives. Folding it in would tie the retry clock to
+   * a teardown-and-rebuild.
+   *
+   * `invalidateQueries` rather than `meCompany.refetch`: it is the same primitive
+   * `access.changed` and `refetchFirstPages` already use for exactly this
+   * re-derivation, and it needs no assumption about the identity stability of a
+   * function handed back by a hook. The extra `["me"]`-prefixed queries it
+   * refetches (`me/firsts`) are a harmless extra on a path that only runs after a
+   * failure.
+   *
+   * A success flips `numberListFailed` and this effect's cleanup cancels whatever
+   * was still scheduled, so the ladder stops at the first read that works instead
+   * of firing its remaining rungs at a server that already answered.
+   */
+  useEffect(() => {
+    if (!numberListFailed) return;
+    let attempt = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleNext = () => {
+      timer = setTimeout(() => {
+        attempt += 1;
+        void queryClient.invalidateQueries({ queryKey: keys.me });
+        // Chained rather than three timers armed at once, so the delays are waits
+        // BETWEEN attempts. Armed together they would be offsets from the same
+        // instant, and a slow /v1/me would have all three in flight.
+        if (attempt < NUMBER_LIST_RETRY_DELAYS_MS.length) scheduleNext();
+      }, NUMBER_LIST_RETRY_DELAYS_MS[attempt]);
+    };
+    scheduleNext();
+    return () => {
+      if (timer !== undefined) clearTimeout(timer);
+    };
+  }, [numberListFailed, queryClient]);
 
   useEffect(() => {
     // #283: the realtime kill switch, and it can only be honoured here. The

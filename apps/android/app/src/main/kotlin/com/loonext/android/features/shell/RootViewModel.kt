@@ -122,6 +122,17 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
         // Re-deriving on every re-JOIN is the heal. It also covers a number list
         // that failed to load at bootstrap, which otherwise left the member with
         // no per-number subscriptions at all until the app was killed.
+        //
+        // AWAITED inside the callback, unlike the `access.changed` collector
+        // above, which cannot be. Two round trips in here no longer cost anyone an
+        // edge: `reconnected`'s overflow policy is DROP_OLDEST (#483), so a signal
+        // arriving while this works replaces the pending one and is delivered when
+        // it returns, and the eleven screen collectors are handed it meanwhile.
+        // Launching per signal would instead put two /v1/me-then-connect passes in
+        // flight at once, and the loser of that race hands the realtime client the
+        // OLDER number list — leaving a revoked number joined, or a granted one
+        // unjoined, until some later signal. Serial and one behind beats parallel
+        // and wrong.
         viewModelScope.launch {
             graph.realtime.reconnected.collect { reconnectRealtime() }
         }

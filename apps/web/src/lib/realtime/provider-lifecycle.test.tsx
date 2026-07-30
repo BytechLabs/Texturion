@@ -5,9 +5,10 @@
  *
  * `provider.test.ts` covers the two pure derivations and the realtime-js premise
  * they rest on. Everything between them — which topics get joined, what happens
- * when the policy refuses one, how `access.changed` moves the set, and when the
- * reconnect backfill fires — lived only in the effect, which could not run: this
- * app's vitest environment is `node` and there was no renderer.
+ * when the policy refuses one, what happens when the /v1/me read that DECIDES the
+ * set fails, how `access.changed` moves the set, and when the reconnect backfill
+ * fires — lived only in the effect, which could not run: this app's vitest
+ * environment is `node` and there was no renderer.
  *
  * So the environment is opted into HERE, per file, rather than flipped
  * project-wide. 175 other test files are node-environment page renders and pure
@@ -121,6 +122,12 @@ function createFakeSupabase() {
 let fake = createFakeSupabase();
 /** What the mocked /v1/me says this member may see; a test moves it and re-renders. */
 let visibleNumbers: { id: string }[] = [];
+/**
+ * Whether the hydrated /v1/me read SUCCEEDED (#483). The distinction the provider
+ * turns on: "failed" and an empty `visibleNumbers` derive an identical topic key
+ * and want opposite treatment.
+ */
+let numberListRead: "ok" | "failed" = "ok";
 
 vi.mock("@/lib/supabase/browser", () => ({
   getSupabaseBrowser: () => fake.client as unknown as SupabaseClient,
@@ -133,9 +140,20 @@ vi.mock("@/lib/company/provider", () => ({
   useCompanyId: () => COMPANY,
 }));
 vi.mock("@/lib/api/me-company", () => ({
-  useMeCompany: () => ({
-    data: { user_id: USER, flags: {}, company: { numbers: visibleNumbers } },
-  }),
+  // React Query's shape narrowed to what the provider reads. A failed read has no
+  // `data` at all — including no `flags`, so the #283 kill switch reads as "no
+  // statement" and the socket still opens on the company topic.
+  useMeCompany: () =>
+    numberListRead === "failed"
+      ? { data: undefined, isError: true }
+      : {
+          data: {
+            user_id: USER,
+            flags: {},
+            company: { numbers: visibleNumbers },
+          },
+          isError: false,
+        },
 }));
 // The provider reads the active thread from the path and pushes on a toast
 // action; neither is under test, and both throw outside a Next router.
@@ -213,6 +231,7 @@ function setup() {
 beforeEach(() => {
   fake = createFakeSupabase();
   visibleNumbers = [];
+  numberListRead = "ok";
 });
 afterEach(cleanup);
 
@@ -453,6 +472,103 @@ describe("the reconnect backfill", () => {
 
     expect(meInvalidations()).toBe(1);
     expect(loadedPages()).toBe(1);
+  });
+});
+
+describe("a bootstrap number list that failed to read", () => {
+  // #483 finding 4, the web half. `topicKey` is derived from the hydrated /v1/me
+  // and NOTHING re-derived it: React Query gives up after its own two retries,
+  // `useMeCompany` has a 60s staleTime, `refetchOnWindowFocus` is off globally,
+  // and the focus resync only invalidates the `[companyId]` prefix while the list
+  // lives at `["me", ...]`. So one transient 5xx at page load left that tab on the
+  // company topic alone for its whole session — which after the contract step is
+  // no messages, conversations, calls, tasks or read state, with a green socket
+  // and a reload as the only recovery.
+  it("is asked for again on a ladder, then given up on rather than polled", async () => {
+    vi.useFakeTimers();
+    try {
+      numberListRead = "failed";
+      const { meInvalidations } = setup();
+      await flush();
+
+      // Realtime still comes up. Everything company-wide reaches this member
+      // while the ladder runs, and during D88's expand window that is every event
+      // there is — the retry is what stops the per-number half from being lost.
+      expect([...fake.live.keys()]).toEqual([COMPANY_TOPIC]);
+      expect(meInvalidations()).toBe(0);
+
+      // Waits FIRST. The read that just failed fails the same way if it is
+      // repeated in the same millisecond.
+      await vi.advanceTimersByTimeAsync(999);
+      expect(meInvalidations()).toBe(0);
+
+      // 1s, then 4s, then 12s — waits BETWEEN attempts, not three offsets from
+      // one instant. Armed together, a slow /v1/me would have all three in flight.
+      await vi.advanceTimersByTimeAsync(1);
+      expect(meInvalidations()).toBe(1);
+      await vi.advanceTimersByTimeAsync(4_000);
+      expect(meInvalidations()).toBe(2);
+      await vi.advanceTimersByTimeAsync(12_000);
+      expect(meInvalidations()).toBe(3);
+
+      // Bounded. A /v1/me still down after seventeen seconds is an outage, and
+      // the reconnect backfill already invalidates `keys.me` when it ends; polling
+      // for the life of the page would buy nothing and cost every tab a request a
+      // minute through it.
+      await vi.advanceTimersByTimeAsync(600_000);
+      expect(meInvalidations()).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops at the first read that works, and joins what it returns", async () => {
+    vi.useFakeTimers();
+    try {
+      numberListRead = "failed";
+      const { rerender, meInvalidations } = setup();
+      await flush();
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(meInvalidations()).toBe(1);
+
+      // The retry landed. The remaining rungs must not fire at a server that has
+      // already answered.
+      numberListRead = "ok";
+      visibleNumbers = [{ id: "n1" }];
+      rerender();
+      await flush();
+
+      await vi.advanceTimersByTimeAsync(600_000);
+      expect(meInvalidations()).toBe(1);
+      // And the per-number topic is joined with no reload, which is the whole
+      // point of the ladder.
+      expect([...fake.live.keys()]).toEqual([COMPANY_TOPIC, numberTopic("n1")]);
+      for (const channel of fake.live.values()) {
+        expect(channel.report).not.toBeNull();
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is not the same thing as a member who may see no numbers", async () => {
+    // THE non-conflation test. This member derives the identical empty topic key
+    // and wants the opposite treatment: the server answered, the answer is "none
+    // of them", and re-asking every few seconds would be a retry loop against a
+    // settled state for every restricted member on every page load.
+    visibleNumbers = [];
+    vi.useFakeTimers();
+    try {
+      const { meInvalidations } = setup();
+      await flush();
+
+      expect([...fake.live.keys()]).toEqual([COMPANY_TOPIC]);
+      await vi.advanceTimersByTimeAsync(600_000);
+      expect(meInvalidations()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

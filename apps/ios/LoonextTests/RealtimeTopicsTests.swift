@@ -8,8 +8,10 @@ import XCTest
 /// pinned here is the arithmetic that decides the subscription set: the topic
 /// names (a wire contract with the trigger functions), the company-vs-number
 /// classification (which governs whether a frame may cancel the transport), the
-/// join/leave diff, and what a frame's SEND RESULT does to the set of topics this
-/// client believes it holds (#483 — a leave that never went out).
+/// join/leave diff, what a frame's SEND RESULT does to the set of topics this
+/// client believes it holds (#483 — a leave that never went out), and what the
+/// SERVER's answer does to it (#483 — a channel refused or closed on a socket
+/// that stays up).
 final class RealtimeTopicsTests: XCTestCase {
     private let company = "11111111-1111-1111-1111-111111111111"
     private let numberA = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
@@ -181,5 +183,122 @@ final class RealtimeTopicsTests: XCTestCase {
             RealtimeClient.companyTopic(company),
             RealtimeClient.numberTopic(company, numberA),
         ])
+    }
+
+    // MARK: - #483: a channel lost on a live socket has to come back
+
+    /// The re-join gap. The held set claimed a topic for the life of the socket
+    /// whatever the server said about it, and `setNumbers` returns early when the
+    /// wanted set is unchanged — which it is when a channel is lost without access
+    /// changing. So a per-number join refused inside a token-refresh window was
+    /// never asked for again: after the contract step that number's
+    /// `message.created`, `conversation.updated`, `message.status`, `task.changed`,
+    /// `read.conversation` and `call.updated` stop until the app restarts, with the
+    /// socket reporting perfect health throughout.
+    ///
+    /// The confirmed number in the same company is the control: a channel the
+    /// server accepted must never be re-joined, or the sweep becomes a `phx_join`
+    /// per number per minute for a company where nothing is wrong.
+    func testARefusedNumberChannelIsAskedForAgainAndAConfirmedOneIsNot() async {
+        let client = RealtimeClient()
+        let confirmed = RealtimeClient.numberTopic(company, numberA)
+        let refused = RealtimeClient.numberTopic(company, numberB)
+        await client.setNumbers([numberA, numberB])
+        _ = await client.joinFrames(company)
+
+        await client.noteNumberTopicReply(confirmed, ok: true)
+        await client.noteNumberTopicReply(refused, ok: false)
+
+        let pending = await client.numberTopicsToRejoin(company)
+        XCTAssertEqual(pending, [refused])
+    }
+
+    /// A close is not only a revocation — a realtime node closes channels while it
+    /// rebalances, and a token it will not take closes them too — so the channel it
+    /// took has to be asked for again rather than written off.
+    func testAServerClosedNumberChannelIsAskedForAgain() async {
+        let client = RealtimeClient()
+        let topic = RealtimeClient.numberTopic(company, numberA)
+        await client.setNumbers([numberA])
+        _ = await client.joinFrames(company)
+        await client.noteNumberTopicReply(topic, ok: true)
+
+        let afterConfirmation = await client.numberTopicsToRejoin(company)
+        XCTAssertTrue(afterConfirmation.isEmpty, "a confirmed channel must not be re-joined")
+
+        await client.noteNumberTopicLost(topic)
+        let pending = await client.numberTopicsToRejoin(company)
+        XCTAssertEqual(pending, [topic])
+    }
+
+    /// The interaction with the leave retry, and the one thing the sweep must never
+    /// do. A `phx_leave` whose send failed leaves its topic HELD on purpose (see
+    /// `topicsAfterSend`) while the wanted set no longer has it, so that every JWT
+    /// push keeps re-running the topic policy against that channel. Re-joining it
+    /// would undo the revocation that retry is still trying to land — which is why
+    /// the sweep diffs the WANTED set, where a revoked number is simply absent.
+    func testATopicHeldOnlyForAFailedLeaveIsNeverReJoined() async {
+        let client = RealtimeClient()
+        let kept = RealtimeClient.numberTopic(company, numberA)
+        let revoked = RealtimeClient.numberTopic(company, numberB)
+        await client.setNumbers([numberA, numberB])
+        _ = await client.joinFrames(company)
+        await client.noteNumberTopicReply(kept, ok: true)
+        await client.noteNumberTopicReply(revoked, ok: true)
+
+        // Access is taken away with no socket to send the leave on, which leaves
+        // exactly the bookkeeping a failed leave does: still held, still confirmed,
+        // no longer wanted.
+        await client.setNumbers([numberA])
+
+        let pending = await client.numberTopicsToRejoin(company)
+        XCTAssertTrue(pending.isEmpty)
+    }
+
+    /// Confirmation belongs to the socket that earned it. A new socket re-joins
+    /// everything and does not know whether it is on those channels until the
+    /// server replies, so a confirmation carried across would hide a join on the
+    /// NEW socket that is refused, or never answered, from the sweep.
+    func testConfirmationDoesNotSurviveANewSocket() async {
+        let client = RealtimeClient()
+        let topic = RealtimeClient.numberTopic(company, numberA)
+        await client.setNumbers([numberA])
+        _ = await client.joinFrames(company)
+        await client.noteNumberTopicReply(topic, ok: true)
+
+        // The socket dropped and `runLoop` opened a fresh one.
+        _ = await client.joinFrames(company)
+
+        let pending = await client.numberTopicsToRejoin(company)
+        XCTAssertEqual(pending, [topic])
+    }
+
+    /// The `phx_reply` to a `phx_leave` is an `ok` on that same per-number topic,
+    /// and one can also arrive after the server has already refused or closed the
+    /// channel. Only a topic this client still HOLDS may be confirmed — otherwise
+    /// that stale ok records a channel nobody is on and the sweep stops asking for
+    /// it, which is the original bug with an extra step. It is the same rule that
+    /// keeps the company channel and the heartbeat's "phoenix" replies out of this
+    /// bookkeeping entirely.
+    func testAnOkReplyForATopicWeNoLongerHoldConfirmsNothing() async {
+        let client = RealtimeClient()
+        let topic = RealtimeClient.numberTopic(company, numberA)
+        await client.setNumbers([numberA])
+        _ = await client.joinFrames(company)
+        await client.noteNumberTopicReply(topic, ok: false) // refused: nothing held
+        await client.noteNumberTopicReply(topic, ok: true) // a stale ok lands after
+
+        let pending = await client.numberTopicsToRejoin(company)
+        XCTAssertEqual(pending, [topic])
+    }
+
+    /// A cost boundary rather than a tuning knob. Every `phx_join` runs
+    /// `is_company_topic_member` → `member_number_level` against Postgres, and a
+    /// member whose access really went away is refused on every sweep for as long
+    /// as their number list still lists that number — the transport's own ~10s
+    /// ladder would be six of those a minute, per number, forever. The web provider
+    /// settled on the same minute for the same reason.
+    func testTheRejoinSweepAsksOnceAMinute() {
+        XCTAssertEqual(RealtimeClient.numberTopicRepairInterval, Duration.seconds(60))
     }
 }
