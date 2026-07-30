@@ -565,6 +565,32 @@
      deep — AA. The dark block flips this to near-black (see below). */
   --app-petrol-foreground: #ffffff;
   --app-petrol-deep: #0b4f49;
+
+  /* --- #362 Paper & Olive, added but not yet adopted (Phase 2) ------------
+     Nothing reads these yet, so this block is a zero visual diff. They exist
+     first because the convergence needs THREE tokens where the web has one:
+     Paper & Olive's `primary` is INK (Theme.kt:23, MessageBubbles.kt:161 fills
+     the outbound bubble with it), olive is the TEXT accent, and lime is the
+     highlight FILL. Collapsing them is how `--primary: #66801F` with a white
+     label computes 4.49:1 and fails AA by 0.01.
+
+     Values are the shipped mobile hexes (Color.kt / BrandColor.swift), never
+     invented. */
+
+  /* The accent for icons, rings, rails, chart fills and >=18.66px bold — the
+     3:1 bar. NOT small text: #66801F is 4.04:1 on the olive ground. */
+  --app-olive: #66801f;
+  /* Small accent text: links, counts, emphasis. 9.48:1 on ground, 10.35:1 on
+     paper. This is the token that keeps the web off the sub-AA path the phones
+     are on today (#238). */
+  --app-olive-strong: #3a430f;
+  /* The highlight fill (Answer, selection). */
+  --app-lime: #c9de54;
+  /* Fixed INK in BOTH themes, matching `onTertiary` in Theme.kt:32,66 — 11.64:1
+     light, 10.04:1 dark. Paper on lime would be 1.46:1, which is the whole
+     reason one shared fill-foreground had to be split. */
+  --app-lime-foreground: #191b14;
+
   --app-stone-0: #fbfbf9; /* == --paper (kept name; components read it) */
   --app-stone-1: #f3f2ee; /* == --line-soft (hover fill) */
   --app-white: #ffffff;
@@ -688,6 +714,15 @@
      near-black: 7.43:1 on #2fb3a5 and 13.25:1 on the #a5e2d8 hover deep. */
   --app-petrol-foreground: #04110e;
   --app-petrol-deep: #a5e2d8;
+
+  /* #362 Paper & Olive (Phase 2), dark. The accent is LIME here, not olive:
+     #66801F is a light-mode value and BrandColor.swift:50 / Theme.kt:56 ship
+     #B9CF57 on dark. The on-lime label stays ink in both themes. */
+  --app-olive: #b9cf57;
+  --app-olive-strong: #d6e77e;
+  --app-lime: #b9cf57;
+  --app-lime-foreground: #191b14;
+
   --app-stone-0: #0e1512;
   --app-stone-1: #172019;
   --app-white: #151d1a; /* the "white" card equivalent on dark */

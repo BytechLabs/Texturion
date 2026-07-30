@@ -160,6 +160,38 @@ describe.each([
     ).toBeGreaterThanOrEqual(UI);
   });
 
+  // #362 Phase 2 — the incoming olive tokens, asserted the day they land rather
+  // than the day they are adopted. Nothing reads them yet; this is what stops a
+  // wrong value sitting unnoticed until the repaint makes it visible.
+  it("#362 — the on-lime label AAs against the lime fill, in BOTH themes", () => {
+    // Fixed ink on lime in both, matching Theme.kt's `onTertiary`. Paper on
+    // lime is 1.46:1, which is why the fills assertion above had to be split
+    // per-fill before any of this could be adopted.
+    const fill = token(theme, "--app-lime");
+    const fg = token(theme, "--app-lime-foreground");
+    expect(
+      contrast(fg, fill),
+      `--app-lime-foreground ${fg} on --app-lime ${fill}`,
+    ).toBeGreaterThanOrEqual(AA);
+  });
+
+  it("#362 — the olive accent splits text from decoration, and both hold", () => {
+    // The whole point of two tokens. --app-olive carries icons/rings/rails at
+    // the 3:1 bar; --app-olive-strong carries small text at 4.5:1. Asserted
+    // against the CURRENT grounds, which is the stricter test in light mode
+    // (today's paper #fbfbf9 is brighter than the olive ground it becomes).
+    const decorative = token(theme, "--app-olive");
+    const textual = token(theme, "--app-olive-strong");
+    for (const [name, bg] of Object.entries(grounds(theme))) {
+      expect
+        .soft(contrast(decorative, bg), `--app-olive (3:1) ${decorative} on ${name} ${bg}`)
+        .toBeGreaterThanOrEqual(UI);
+      expect
+        .soft(contrast(textual, bg), `--app-olive-strong (AA) ${textual} on ${name} ${bg}`)
+        .toBeGreaterThanOrEqual(AA);
+    }
+  });
+
   it("#26 — --primary-foreground matches the on-petrol pair (shadcn fills)", () => {
     expect(token(theme, "--primary-foreground")).toBe(
       token(theme, "--app-petrol-foreground"),
