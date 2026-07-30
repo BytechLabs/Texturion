@@ -91,8 +91,52 @@ function toastSnippet(message: Message | undefined): string {
 }
 
 /**
- * One Supabase Realtime private Broadcast channel per company (SPEC §8,
- * G12): `company:{id}`, authorized by RLS on realtime.messages via
+ * #480: the numbers this client subscribes to, as ONE by-value comparable
+ * string. Sorted, so the same set in a different order is the same key.
+ *
+ * The socket effect depends on this, and every /v1/me refetch hands back a
+ * fresh array — depending on the array would rebuild the socket on each
+ * refetch, while this rebuilds it only when the set actually changed. Ids only,
+ * for the same reason: `number.updated` invalidates /v1/me on every provisioning
+ * tick, and a number going pending → active is not a reason to re-open a socket.
+ *
+ * Takes the rows VERBATIM. The company view is already access-filtered
+ * server-side (routes/core/company-view.ts drops `access.hiddenNumberIds`), and
+ * deciding again here would be a second implementation of the rule D88 put in
+ * exactly one place.
+ */
+export function numberTopicKey(numbers: readonly { id: string }[]): string {
+  return numbers
+    .map((n) => n.id)
+    .sort()
+    .join(",");
+}
+
+/**
+ * #480: every topic one client joins — `company:{id}` plus
+ * `company:{id}:number:{n}` for each number it may see.
+ *
+ * The per-number shape must match `broadcast_number_scoped` character for
+ * character; `is_company_topic_member` admits it only when
+ * `member_number_level` is not 'none' (D88).
+ *
+ * The company topic is always present, and not only for the three events that
+ * stay company-wide (`registration.updated`, `read.notifications`,
+ * `access.changed`): `call.updated` for a call whose number was DELETED has no
+ * per-number topic at all — `calls.phone_number_id` is `on delete set null`, so
+ * the company topic is that event's only route (D88 addendum). A member with no
+ * visible numbers therefore joins this one topic and works normally.
+ */
+export function realtimeTopics(companyId: string, key: string): string[] {
+  const company = `company:${companyId}`;
+  if (key === "") return [company];
+  return [company, ...key.split(",").map((id) => `${company}:number:${id}`)];
+}
+
+/**
+ * One Supabase Realtime private Broadcast channel for the company (SPEC §8,
+ * G12) — `company:{id}` — plus one per number this member may see (#480),
+ * authorized by RLS on realtime.messages via
  * `realtime.setAuth(session token)`. The §8 events patch/invalidate the Query
  * cache by ID (including `task.changed`, TASKS.md T1.3 — the cross-client task
  * signal that refetches the affected conversation's checklist + the /tasks
@@ -107,6 +151,19 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   // both mean "no statement", and the socket opens as it always did.
   const meCompany = useMeCompany();
   const realtimeEnabled = meCompany.data?.flags?.["kill:realtime"];
+  /**
+   * #480: which per-number topics this client joins, as a stable key.
+   *
+   * A real DEPENDENCY of the socket effect, and the exact mirror of
+   * `meUserIdRef` below: that one is a ref precisely so the socket does NOT
+   * rebuild when /v1/me resolves, and this one cannot be, because the ids decide
+   * which channels EXIST rather than what a handler does with an event. So it
+   * costs one teardown+rebuild when /v1/me resolves after mount, and one more
+   * whenever the list actually moves — `access.changed` and `number.updated`
+   * both invalidate `keys.me`, so a revoked or added number re-derives here and
+   * the subscription set follows.
+   */
+  const topicKey = numberTopicKey(meCompany.data?.company?.numbers ?? []);
   /**
    * #358: whose read state this client cares about. The events ride the
    * company topic, so a colleague's reading must be ignored.
@@ -529,6 +586,18 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         queryKey: [companyId],
         refetchType: "active",
       });
+      // #480: RE-DERIVE THE NUMBER LIST, not just the data. Broadcasts are not
+      // replayed, so an `access.changed` published while this tab was offline is
+      // gone — and `keys.me` lives outside the `[companyId]` prefix above, has a
+      // 60s staleTime, and `refetchOnWindowFocus` is off globally. Without this
+      // the caches refresh while `topicKey` keeps whichever numbers were visible
+      // before the gap, so a number granted (or provisioned) during an outage is
+      // never subscribed to for the life of the page.
+      //
+      // Harmless while the company topic still carries everything; the moment
+      // that send is removed it is the difference between self-healing and a
+      // silently dead subscription.
+      queryClient.invalidateQueries({ queryKey: keys.me });
     }
 
     // #215 Part A — the resync-on-focus safety net. A broadcast frame can be
@@ -588,6 +657,19 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener("blur", markAway);
     window.addEventListener("focus", maybeResync);
 
+    // ONE gap flag for the whole socket rather than one per channel (#480).
+    // Every channel drops and rejoins together, so a per-channel flag would run
+    // the backfill N times for a single outage; the first channel back clears it
+    // and the rest ride along.
+    //
+    // Deliberately NOT hoisted into a ref across effect runs. The cleanup below
+    // removes every channel, which reports CLOSED, so a rebuilt effect that
+    // inherited the flag would trim everybody's pagination to page 1 on every
+    // rebuild — and a rebuild is not what the backfill is for. It means the topic
+    // set moved (/v1/me resolving at mount, a number added or removed, an
+    // `access.changed`, a workspace switch): a deliberate re-join, with whatever
+    // moved the set already refetching the reads it affects. The backfill exists
+    // for a connectivity gap, which has events lost inside it.
     let hadDrop = false;
 
     // Private-topic authorization uses the Supabase session token; keep the
@@ -600,54 +682,98 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    const channel = supabase.channel(`company:${companyId}`, {
-      config: { private: true },
-    });
-    channel
-      .on("broadcast", { event: "message.created" }, ({ payload }) =>
-        void handleMessageCreated(payload as MessageCreatedEvent),
-      )
-      .on("broadcast", { event: "conversation.updated" }, ({ payload }) =>
-        handleConversationUpdated(payload as ConversationUpdatedEvent),
-      )
-      .on("broadcast", { event: "message.status" }, ({ payload }) =>
-        handleMessageStatus(payload as MessageStatusEvent),
-      )
-      .on("broadcast", { event: "task.changed" }, ({ payload }) =>
-        handleTaskChanged(payload as TaskChangedEvent),
-      )
-      // #133: {call_id, conversation_id} — ID-only like everything else, and
-      // the handler needs neither: the calls list refetches whole.
-      .on("broadcast", { event: "call.updated" }, handleCallUpdated)
-      .on("broadcast", { event: "number.updated" }, handleProvisioningUpdate)
-      .on(
-        "broadcast",
-        { event: "registration.updated" },
-        handleProvisioningUpdate,
-      )
-      // #358: read state, filtered to this person inside the handler.
-      .on("broadcast", { event: "read.conversation" }, ({ payload }) =>
-        handleReadState(payload as ReadStateEvent),
-      )
-      .on("broadcast", { event: "read.notifications" }, ({ payload }) =>
-        handleReadState(payload as ReadStateEvent),
-      )
-      // #480: somebody's number access changed. The payload deliberately names
-      // NOTHING but the company — naming the number or the member would
-      // broadcast the shape of the restriction to every member on the topic — so
-      // a client cannot tell whether it was the subject and simply asks again.
-      //
-      // Everything a member may see is filtered by access server-side: the
-      // conversation lists, the calls list, the numbers, and the company view's
-      // embedded numbers. A revoked member currently keeps reading whatever they
-      // had cached until something else happens to refetch it. This is the
-      // signal that it should be now.
-      .on("broadcast", { event: "access.changed" }, () => {
-        void queryClient.invalidateQueries({
-          queryKey: [companyId],
-          refetchType: "active",
+    /**
+     * #480: the SAME handler set on every topic — the company channel and each
+     * per-number channel alike.
+     *
+     * No de-duplication, on purpose. During the expand window the eight
+     * number-scoped events publish to BOTH topics (D88 addendum), so a client on
+     * both receives each of them twice. Every handler below is an idempotent
+     * id-only refetch trigger and `conversation.updated` already coalesces, so a
+     * duplicate costs one redundant read — not a wrong cache. A seen-set would be
+     * new state to get wrong, and it would break the one delivery that MUST come
+     * through the company topic: `call.updated` for a call whose number was
+     * deleted has no per-number topic to arrive on. The duplicates end on their
+     * own when the server drops the company-topic send.
+     *
+     * Three of these only ever arrive on the company topic —
+     * `registration.updated` (one 10DLC brand/campaign per company),
+     * `read.notifications` (one watermark per person) and `access.changed`. They
+     * are registered uniformly anyway: one registration site is what keeps
+     * "which events go where" a server decision, so the contract step needs no
+     * edit here.
+     */
+    function openTopic(topic: string) {
+      const channel = supabase.channel(topic, { config: { private: true } });
+      channel
+        .on("broadcast", { event: "message.created" }, ({ payload }) =>
+          void handleMessageCreated(payload as MessageCreatedEvent),
+        )
+        .on("broadcast", { event: "conversation.updated" }, ({ payload }) =>
+          handleConversationUpdated(payload as ConversationUpdatedEvent),
+        )
+        .on("broadcast", { event: "message.status" }, ({ payload }) =>
+          handleMessageStatus(payload as MessageStatusEvent),
+        )
+        .on("broadcast", { event: "task.changed" }, ({ payload }) =>
+          handleTaskChanged(payload as TaskChangedEvent),
+        )
+        // #133: {call_id, conversation_id} — ID-only like everything else, and
+        // the handler needs neither: the calls list refetches whole.
+        .on("broadcast", { event: "call.updated" }, handleCallUpdated)
+        .on("broadcast", { event: "number.updated" }, handleProvisioningUpdate)
+        .on(
+          "broadcast",
+          { event: "registration.updated" },
+          handleProvisioningUpdate,
+        )
+        // #358: read state, filtered to this person inside the handler.
+        .on("broadcast", { event: "read.conversation" }, ({ payload }) =>
+          handleReadState(payload as ReadStateEvent),
+        )
+        .on("broadcast", { event: "read.notifications" }, ({ payload }) =>
+          handleReadState(payload as ReadStateEvent),
+        )
+        // #480: somebody's number access changed. The payload deliberately names
+        // NOTHING but the company — naming the number or the member would
+        // broadcast the shape of the restriction to every member on the topic — so
+        // a client cannot tell whether it was the subject and simply asks again.
+        //
+        // Everything a member may see is filtered by access server-side: the
+        // conversation lists, the calls list, the numbers, and the company view's
+        // embedded numbers. A revoked member currently keeps reading whatever they
+        // had cached until something else happens to refetch it. This is the
+        // signal that it should be now.
+        .on("broadcast", { event: "access.changed" }, () => {
+          // `keys.me` FIRST, and it is load-bearing, not housekeeping (#480): the
+          // company view embeds the access-filtered number list that decides
+          // WHICH topics this client joins, and its key is `["me", "company", id]`
+          // — outside the `[companyId]` prefix below. Without it the caches would
+          // refresh while the subscription set kept the number that was just taken
+          // away, and realtime authorization is a join-time handshake, so nothing
+          // else would drop it until the JWT refreshed (D88 addendum).
+          void queryClient.invalidateQueries({ queryKey: keys.me });
+          void queryClient.invalidateQueries({
+            queryKey: [companyId],
+            refetchType: "active",
+          });
         });
-      });
+      return channel;
+    }
+
+    // The company topic is torn down and re-opened under the SAME name whenever
+    // this effect rebuilds, and that is only safe because of one realtime-js
+    // property worth naming: `supabase.channel(topic)` returns the EXISTING
+    // channel when the client still holds one for that topic, and
+    // `removeChannel` drops it from the client's registry synchronously (phoenix
+    // `leave()` sets the state to leaving, so its own `canPush()` is false and it
+    // closes without waiting for the server's ack). React runs the cleanup and
+    // the next effect body in one tick, so the removal has already landed and we
+    // get a fresh channel. If that ever became asynchronous we would instead
+    // register a second set of handlers on the channel being torn down, and
+    // `subscribe()` — a no-op unless the channel is closed — would leave the
+    // company topic dead for the rest of the session.
+    const channels = realtimeTopics(companyId, topicKey).map(openTopic);
 
     void (async () => {
       const { data } = await supabase.auth.getSession();
@@ -655,26 +781,34 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       if (data.session?.access_token) {
         await supabase.realtime.setAuth(data.session.access_token);
       }
-      channel.subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          // Backfill whenever there WAS a gap, whether or not this channel had
-          // joined before. The old guard also required a previous successful
-          // join, which swallowed the case that needs the backfill most: a
-          // first join that FAILED and succeeded on a retry. There a gap is
-          // open from page load until the retry lands, and nothing else closes
-          // it — mounted queries stay fresh for thirty seconds and the
-          // away-tab resync never fires for someone who never left. A clean
-          // first join records no gap, so it still refetches nothing.
-          if (hadDrop) refetchFirstPages();
-          hadDrop = false;
-        } else if (
-          status === "CHANNEL_ERROR" ||
-          status === "TIMED_OUT" ||
-          status === "CLOSED"
-        ) {
-          hadDrop = true;
-        }
-      });
+      for (const channel of channels) {
+        channel.subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            // Backfill whenever there WAS a gap, whether or not this channel had
+            // joined before. The old guard also required a previous successful
+            // join, which swallowed the case that needs the backfill most: a
+            // first join that FAILED and succeeded on a retry. There a gap is
+            // open from page load until the retry lands, and nothing else closes
+            // it — mounted queries stay fresh for thirty seconds and the
+            // away-tab resync never fires for someone who never left. A clean
+            // first join records no gap, so it still refetches nothing.
+            if (hadDrop) refetchFirstPages();
+            hadDrop = false;
+          } else if (
+            status === "CHANNEL_ERROR" ||
+            status === "TIMED_OUT" ||
+            status === "CLOSED"
+          ) {
+            // A REFUSED per-number join lands here too — access was taken away
+            // between the /v1/me read and the join. That is not a transport
+            // failure and must not be treated as one: the sibling channels are
+            // already joined and stay joined, realtime-js retries this one on its
+            // own backoff, and the `access.changed` rebuild replaces the whole set
+            // with the list the server now agrees with.
+            hadDrop = true;
+          }
+        });
+      }
     })();
 
     return () => {
@@ -685,9 +819,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       for (const timer of pendingUpdates.values()) clearTimeout(timer);
       pendingUpdates.clear();
       authSubscription.unsubscribe();
-      void supabase.removeChannel(channel);
+      for (const channel of channels) void supabase.removeChannel(channel);
     };
-  }, [companyId, queryClient, realtimeEnabled]);
+  }, [companyId, queryClient, realtimeEnabled, topicKey]);
 
   return <>{children}</>;
 }

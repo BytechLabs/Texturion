@@ -27,8 +27,8 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.min
 
 /**
- * One realtime event off the company broadcast channel (SPEC §8). Payloads are
- * ID-only by design — consumers refetch the referenced resource via the API.
+ * One realtime event off this company's broadcast topics (SPEC §8). Payloads
+ * are ID-only by design — consumers refetch the referenced resource via the API.
  */
 data class RealtimeEvent(val event: String, val payload: JsonObject)
 
@@ -40,14 +40,19 @@ sealed interface RealtimeState {
 
 /**
  * Supabase Realtime private-broadcast client (Phoenix protocol over OkHttp
- * WebSocket) for the per-company channel `company:{id}`.
+ * WebSocket) for one company's topics: `company:{id}` and, since #480, one
+ * `company:{id}:number:{n}` per number this member is allowed to see.
  *
- * - Private channel: join carries `access_token`; RLS on realtime.messages
- *   authorizes membership. Token refreshes are pushed via the `access_token`
- *   event so the socket survives JWT rotation.
- * - Reconnects with capped exponential backoff; each successful re-JOIN emits
- *   [reconnected] so callers refetch first pages (payloads may have been lost
- *   while offline — the web client does exactly this).
+ * - N+1 topics on ONE socket. Phoenix multiplexes channels over a single
+ *   connection, so per-number topics cost join frames, not sockets.
+ * - Private channels: every join carries `access_token`; RLS on
+ *   realtime.messages authorizes membership, and the per-number shape only when
+ *   `member_number_level` is not 'none' (D88). Token refreshes are pushed to
+ *   EVERY joined topic, because a private channel re-checks authorization only
+ *   when a refreshed JWT arrives on it.
+ * - Reconnects with capped exponential backoff; each successful re-JOIN of the
+ *   COMPANY topic emits [reconnected] so callers refetch first pages (payloads
+ *   may have been lost while offline — the web client does exactly this).
  */
 class RealtimeClient(
     private val http: OkHttpClient,
@@ -79,7 +84,12 @@ class RealtimeClient(
 
     private val _reconnected = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    /** Fires on every re-JOIN after the first — refetch first pages. */
+    /**
+     * Fires once per re-JOIN of the company topic after the first — refetch
+     * first pages. Once per RECONNECT, not once per topic: with N+1 channels on
+     * the socket, a signal per join reply would mean N redundant refetches of
+     * every open screen.
+     */
     val reconnected: SharedFlow<Unit> = _reconnected
 
     init {
@@ -96,23 +106,50 @@ class RealtimeClient(
     private val ref = AtomicLong(1)
     private var companyId: String? = null
     private var accessToken: String? = null
+
+    /**
+     * #480: the numbers whose per-number topics we WANT joined — the
+     * access-filtered list exactly as the server reported it. Never narrowed
+     * here: which numbers a member may see is D88's rule, and re-deciding it on
+     * the client would be a second implementation of it.
+     */
+    private var numberIds: List<String> = emptyList()
+
+    /**
+     * Topics with a join frame sent on the CURRENT socket and not since refused.
+     * Deliberately distinct from [numberIds]: the server refuses a number topic
+     * whenever our list is a moment stale (a revocation we have not heard about
+     * yet), and a refusal must not be retried on a loop.
+     */
+    private val joinedTopics = mutableSetOf<String>()
+
     private var everJoined = false
 
-    /** Connect (or switch) to a company channel. Safe to call repeatedly. */
+    /**
+     * Connect (or switch) to a company's topics. Safe to call repeatedly, and
+     * also how a changed number list is applied: pass the new one.
+     */
     @Synchronized
-    fun connect(companyId: String, accessToken: String) {
+    fun connect(companyId: String, accessToken: String, numberIds: List<String>) {
         val sameChannel = this.companyId == companyId
         this.companyId = companyId
         this.accessToken = accessToken
+        this.numberIds = numberIds
         if (sameChannel && _state.value != RealtimeState.Disconnected) {
             pushAccessToken()
+            // #480: a number list that changed under a live connection is joined
+            // and left in place. Restarting the socket would also arrive at the
+            // right set, but it would cost the gap between close and re-JOIN
+            // plus a [reconnected] refetch on every open screen — for what is
+            // one extra frame.
+            socket?.let { syncTopics(it) }
             return
         }
         everJoined = false
         restart()
     }
 
-    /** Push a refreshed JWT into the live channel (call on every refresh). */
+    /** Push a refreshed JWT into every live channel (call on every refresh). */
     @Synchronized
     fun setAuth(accessToken: String) {
         this.accessToken = accessToken
@@ -126,6 +163,8 @@ class RealtimeClient(
         socket?.close(1000, "bye")
         socket = null
         companyId = null
+        numberIds = emptyList()
+        joinedTopics.clear()
         _state.value = RealtimeState.Disconnected
     }
 
@@ -159,8 +198,13 @@ class RealtimeClient(
         }
     }
 
+    @Synchronized
     private fun open(closed: CompletableDeferred<Unit>): WebSocket? {
-        val company = companyId ?: return null
+        if (companyId == null) return null
+        // Channel joins are per-connection: nothing carries over from the socket
+        // that just died, so the set has to start empty or [syncTopics] would
+        // skip the joins it believes it already sent.
+        joinedTopics.clear()
         val wsBase = supabaseUrl
             .replaceFirst("https://", "wss://")
             .replaceFirst("http://", "ws://")
@@ -170,7 +214,7 @@ class RealtimeClient(
 
         return http.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                webSocket.send(joinMessage(company))
+                syncTopics(webSocket)
                 startHeartbeat(webSocket)
             }
 
@@ -188,6 +232,37 @@ class RealtimeClient(
                 closed.complete(Unit)
             }
         })
+    }
+
+    /**
+     * Bring the joined topics in line with [numberIds] on [ws]: the company
+     * topic plus one per visible number, all on this one connection.
+     *
+     * Guarded per topic because Phoenix answers a second phx_join for a channel
+     * already joined with an ERROR reply, which is indistinguishable from an
+     * authorization refusal — so an unguarded re-join would make us forget a
+     * channel we are in fact receiving on.
+     */
+    @Synchronized
+    private fun syncTopics(ws: WebSocket) {
+        val company = companyId ?: return
+        val companyTopic = companyTopic(company)
+        if (joinedTopics.add(companyTopic)) ws.send(joinMessage(companyTopic))
+
+        val wanted = numberIds.mapTo(mutableSetOf()) { numberTopic(company, it) }
+        for (topic in wanted) {
+            if (joinedTopics.add(topic)) ws.send(joinMessage(topic))
+        }
+
+        // A number we no longer have is LEFT, not merely dropped from the list.
+        // Authorization is a join-time handshake (D88 addendum): the server goes
+        // on publishing to every channel we hold, so a member whose access was
+        // just revoked would keep receiving that number's events until the socket
+        // dropped if we only stopped wanting it.
+        for (topic in joinedTopics - wanted - companyTopic) {
+            joinedTopics.remove(topic)
+            ws.send(message(topic, "phx_leave", buildJsonObject {}))
+        }
     }
 
     private var heartbeat: Job? = null
@@ -217,9 +292,11 @@ class RealtimeClient(
      *
      * The trigger is ordinary: the loop rejoins with whatever token was last
      * stashed, so an idle or offline stretch past the ~1h JWT lifetime draws a
-     * rejected join (or a server-side channel close). Closing the transport on
-     * any channel-level failure hands control back to the EXISTING capped
-     * backoff, which rejoins with the latest token.
+     * rejected join (or a server-side channel close). Closing the transport on a
+     * channel-level failure of the COMPANY topic hands control back to the
+     * EXISTING capped backoff, which rejoins with the latest token.
+     *
+     * A per-number topic (#480) is judged the opposite way — see the branches.
      */
     private fun handle(webSocket: WebSocket, text: String) {
         val msg = try {
@@ -229,22 +306,46 @@ class RealtimeClient(
         }
         val event = msg["event"]?.jsonPrimitive?.content ?: return
         val payload = msg["payload"] as? JsonObject
-        // Heartbeat replies ride topic "phoenix"; only the company channel's
-        // health governs the reconnect.
-        val isCompanyTopic =
-            msg["topic"]?.jsonPrimitive?.content?.startsWith("realtime:company:") == true
+        val topic = msg["topic"]?.jsonPrimitive?.content
+        val companyTopic = companyId?.let { companyTopic(it) }
+        // An EXACT match where this used to test the prefix `realtime:company:`.
+        // That prefix now also matches the per-number topics riding the same
+        // socket (#480), so it would have let a number topic's reply flip the
+        // whole connection to Joined and a number topic's error close the
+        // transport. The company topic is the one every member may join and the
+        // only one whose loss means realtime is dead, so it alone governs the
+        // reconnect; heartbeat replies ride topic "phoenix" and govern nothing.
+        val isCompanyTopic = topic != null && topic == companyTopic
+        val isNumberTopic = topic != null && companyTopic != null &&
+            topic.startsWith("$companyTopic:number:")
 
         when (event) {
             "phx_reply" -> {
                 val ok = payload?.get("status")?.jsonPrimitive?.content == "ok"
-                if (ok && isCompanyTopic && _state.value != RealtimeState.Joined) {
-                    _state.value = RealtimeState.Joined
-                    if (everJoined) _reconnected.tryEmit(Unit)
-                    everJoined = true
-                } else if (!ok && isCompanyTopic) {
-                    // A REJECTED join (expired JWT being the common case) was
-                    // previously ignored outright, parking the loop forever.
-                    webSocket.close(1000, "join-rejected")
+                if (isCompanyTopic) {
+                    // Once per CONNECTION, not once per join: N+1 replies land
+                    // per reconnect and only this branch can flip the state, so
+                    // [reconnected] stays a single emission.
+                    if (ok && _state.value != RealtimeState.Joined) {
+                        _state.value = RealtimeState.Joined
+                        if (everJoined) _reconnected.tryEmit(Unit)
+                        everJoined = true
+                    } else if (!ok) {
+                        // A REJECTED join (expired JWT being the common case) was
+                        // previously ignored outright, parking the loop forever.
+                        webSocket.close(1000, "join-rejected")
+                    }
+                } else if (isNumberTopic && !ok) {
+                    // #480: a refused NUMBER topic is an ordinary outcome, not a
+                    // transport failure. `is_company_topic_member` refuses it
+                    // whenever the member's level is 'none', which is exactly
+                    // what a stale list looks like. Closing the socket here — the
+                    // right move for the company topic, so the backoff can rejoin
+                    // with a fresh token — would reconnect, be refused again, and
+                    // loop forever, taking every other subscription down on each
+                    // pass. Forget the topic instead; the next access.changed or
+                    // reconnect re-derives the list and asks again.
+                    forgetTopic(topic)
                 }
             }
 
@@ -252,6 +353,19 @@ class RealtimeClient(
                 val inner = payload ?: return
                 val name = inner["event"]?.jsonPrimitive?.content ?: return
                 val data = inner["payload"] as? JsonObject ?: buildJsonObject {}
+                // Eight of the ten §8 events publish to BOTH the company topic
+                // and the number's topic for the length of D88's
+                // expand → adopt → contract transition, so a client joined to
+                // both receives them twice. Deliberately NOT de-duplicated:
+                // every consumer of [events] is an id-only refetch trigger, so a
+                // duplicate costs one redundant read and never correctness,
+                // while a seen-set would be new state to get wrong — and it
+                // would need an exception for `call.updated` on a call whose
+                // number was deleted (`calls.phone_number_id` is `on delete set
+                // null`), which has no per-number topic and can only arrive on
+                // the company one. The duplicates stop themselves when the
+                // server drops the company send.
+
                 // #480: number access changed somewhere in this company. The
                 // payload names only the company — naming the number or the
                 // member would broadcast the shape of the restriction to
@@ -273,15 +387,37 @@ class RealtimeClient(
             "phx_close", "phx_error" -> {
                 // NOT a transport close (see the docblock): without this the
                 // socket lives on, heartbeating, while the channel is dead.
-                if (isCompanyTopic) webSocket.close(1000, "channel-closed")
+                if (isCompanyTopic) {
+                    webSocket.close(1000, "channel-closed")
+                } else if (isNumberTopic) {
+                    // #480: one number's channel dying is not the connection
+                    // dying, and must not be able to take the socket with it —
+                    // same reasoning as the refusal branch. Forgetting it stops
+                    // us pushing tokens at a dead channel; the next reconnect or
+                    // access change joins it again. Nothing is lost meanwhile:
+                    // during the transition every number-scoped event also
+                    // arrives on the company topic.
+                    forgetTopic(topic)
+                }
             }
         }
     }
 
-    private fun joinMessage(company: String): String {
+    @Synchronized
+    private fun forgetTopic(topic: String) {
+        joinedTopics.remove(topic)
+    }
+
+    private fun companyTopic(company: String) = "realtime:company:$company"
+
+    /** Must match `broadcast_number_scoped`'s topic exactly (D88). */
+    private fun numberTopic(company: String, numberId: String) =
+        "realtime:company:$company:number:$numberId"
+
+    private fun joinMessage(topic: String): String {
         val token = accessToken.orEmpty()
         return message(
-            topic = "realtime:company:$company",
+            topic = topic,
             event = "phx_join",
             payload = buildJsonObject {
                 putJsonObject("config") {
@@ -297,16 +433,24 @@ class RealtimeClient(
         )
     }
 
+    @Synchronized
     private fun pushAccessToken() {
-        val company = companyId ?: return
         val token = accessToken ?: return
-        socket?.send(
-            message(
-                topic = "realtime:company:$company",
-                event = "access_token",
-                payload = buildJsonObject { put("access_token", token) },
-            ),
-        )
+        val ws = socket ?: return
+        // EVERY joined topic, not just the company one. A private channel
+        // authorizes itself at join time and re-checks only when a refreshed JWT
+        // is pushed TO IT (D88 addendum), so a per-number topic left on the old
+        // token keeps running until the socket drops — and would never notice the
+        // revocation this push exists to enforce.
+        for (topic in joinedTopics.toList()) {
+            ws.send(
+                message(
+                    topic = topic,
+                    event = "access_token",
+                    payload = buildJsonObject { put("access_token", token) },
+                ),
+            )
+        }
     }
 
     private fun message(topic: String, event: String, payload: JsonObject): String =

@@ -288,4 +288,56 @@ begin
     'the company';
 end $$;
 
+-- ===========================================================================
+-- NT-6. A NEW number is discoverable.
+--
+-- The hole an adversarial review found in NT-1: `number.updated` is
+-- number-scoped, so after the contract step it publishes only to the topic of the
+-- number it is about — which is unhearable for a number no client has joined,
+-- i.e. every number that has just appeared. And `access.changed` does not fire
+-- for it, because a new number has no `number_access` rows (no rules = open).
+--
+-- Post-contract that would mean a company's second number had realtime for
+-- nobody until every client restarted, with the socket looking healthy. So a
+-- phone_numbers change ALSO emits the company-wide "ask again".
+-- ===========================================================================
+do $$
+declare v_topics text[]; v_payload jsonb; v_keys text[];
+begin
+  delete from realtime.messages;
+
+  update public.phone_numbers set status = 'active'
+   where id = '7c000000-0000-4000-8000-0000000000f1'::uuid;
+
+  -- The scoped event, as before.
+  v_topics := pg_temp.topics_for('number.updated');
+  if v_topics <> array[pg_temp.company_topic(), pg_temp.number_topic()] then
+    raise exception 'NT-6 FAILED: number.updated published to %', v_topics;
+  end if;
+
+  -- And the discovery signal, on the topic every member is already joined to.
+  v_topics := pg_temp.topics_for('access.changed');
+  if v_topics <> array[pg_temp.company_topic()] then
+    raise exception 'NT-6 FAILED: a number change did not announce itself '
+      'company-wide (topics %) — a new number would be unhearable', v_topics;
+  end if;
+
+  -- Same discipline as NT-5: the company id and nothing else. Naming the number
+  -- would tell every member that a number they may be denied exists, which is
+  -- exactly what the access-filtered list withholds.
+  select m.payload into v_payload
+  from realtime.messages m where m.event = 'access.changed' limit 1;
+  select array_agg(k order by k) into v_keys
+  from jsonb_object_keys(v_payload) k where k <> 'id';
+  if v_keys <> array['company_id'] then
+    raise exception 'NT-6 FAILED: the discovery payload carries %', v_keys;
+  end if;
+  if v_payload::text like '%7c000000-0000-4000-8000-0000000000f1%' then
+    raise exception 'NT-6 FAILED: the discovery payload names the number';
+  end if;
+
+  raise notice 'NT-6 PASSED: a number change announces itself company-wide, '
+    'naming only the company';
+end $$;
+
 rollback;

@@ -1,22 +1,29 @@
 import Foundation
 
-/// One realtime event off the company broadcast channel (SPEC §8). Payloads
-/// are ID-only by design — consumers refetch the referenced resource via the
-/// API.
+/// One realtime event off a company or per-number broadcast channel (SPEC §8).
+/// Payloads are ID-only by design — consumers refetch the referenced resource
+/// via the API.
 struct RealtimeEvent: Sendable {
     let event: String
     let payload: JSONValue
 }
 
 /// Supabase Realtime private-broadcast client (Phoenix protocol over
-/// URLSessionWebSocketTask) for the per-company channel `company:{id}`.
+/// URLSessionWebSocketTask) for the per-company channel `company:{id}` and, per
+/// #480/D88, one `company:{id}:number:{n}` channel per number this member may
+/// see. All of them ride ONE socket — Phoenix multiplexes channels by topic.
 ///
-/// - Private channel: join carries `access_token`; RLS on realtime.messages
-///   authorizes membership. Token refreshes are pushed via the `access_token`
-///   event so the socket survives JWT rotation.
-/// - Reconnects with capped exponential backoff; each successful re-JOIN emits
-///   on `reconnected()` so callers refetch first pages (payloads may have been
-///   lost while offline — the web client does exactly this).
+/// - Private channels: each join carries `access_token`; RLS on
+///   realtime.messages authorizes it. The company topic admits every member;
+///   the per-number topic is admitted only when `member_number_level` is not
+///   'none', so a join for a number the member cannot see is REFUSED — that
+///   refusal is the boundary working and must not disturb the other channels or
+///   the transport. Token refreshes are pushed per channel (see
+///   `pushAccessToken`) so the socket survives JWT rotation.
+/// - Reconnects with capped exponential backoff; each successful re-JOIN of the
+///   COMPANY channel emits on `reconnected()` so callers refetch first pages
+///   (payloads may have been lost while offline — the web client does exactly
+///   this).
 actor RealtimeClient {
     private let supabaseURL: URL
     private let publishableKey: String
@@ -27,6 +34,20 @@ actor RealtimeClient {
     private var heartbeat: Task<Void, Never>?
     private var ref: UInt64 = 1
     private var companyId: String?
+
+    /// #480: the numbers this member may see — one topic each. The list comes in
+    /// from the caller ALREADY access-filtered by the server (GET /v1/numbers);
+    /// deciding here which numbers are visible would be a second copy of the
+    /// rule D88 spent an issue collapsing into one.
+    private var numberIds: Set<String> = []
+
+    /// The per-number topics a `phx_join` has been SENT for on the CURRENT
+    /// socket — not necessarily accepted, since a refused join is a normal
+    /// outcome. Kept apart from `numberIds` because that is what the reconcile
+    /// has to diff against: diffing against the desired set would compute an
+    /// empty delta and leave a revoked number's channel open.
+    private var joinedNumberTopics: Set<String> = []
+
     private var accessToken: String?
     private var everJoined = false
     private var joined = false
@@ -45,7 +66,9 @@ actor RealtimeClient {
 
     // MARK: - Streams (multicast: every call returns an independent stream)
 
-    /// Broadcast events off the joined company channel.
+    /// Broadcast events off every joined channel — the company one and each
+    /// number's (#480). One stream, because a consumer refetches by id and does
+    /// not care which channel carried the hint.
     ///
     /// Buffering is `.unbounded` (#215): realtime payloads are ID-only routing
     /// hints and every one MUST reach its consumer, because a screen refetches
@@ -96,17 +119,42 @@ actor RealtimeClient {
 
     // MARK: - Lifecycle
 
-    /// Connect (or switch) to a company channel. Safe to call repeatedly.
-    func connect(companyId: String, accessToken: String) {
+    /// Connect (or switch) to a company channel plus one channel per visible
+    /// number (`numberIds`, access-filtered by the server). Safe to call
+    /// repeatedly.
+    func connect(companyId: String, numberIds: [String], accessToken: String) {
         let sameChannel = self.companyId == companyId
         self.companyId = companyId
         self.accessToken = accessToken
         if sameChannel && connectLoop != nil {
             pushAccessToken()
+            // Already up: move the number channels on the live socket rather
+            // than tearing it down (see setNumbers).
+            setNumbers(numberIds)
             return
         }
+        self.numberIds = Set(numberIds)
         everJoined = false
         restart()
+    }
+
+    /// Replace the set of numbers whose channels this client holds.
+    ///
+    /// #480: realtime authorization is a JOIN-TIME handshake — the topic policy
+    /// is evaluated on `phx_join` and on a pushed token, never per broadcast — so
+    /// nothing drops a revoked member's subscription except leaving the channel.
+    /// `access.changed` is what tells the app to re-derive and land here.
+    ///
+    /// Unchanged set, nothing happens: one access edit rewrites several rules and
+    /// fires `access.changed` once per row, so anything heavier than a diff would
+    /// turn one edit into a burst. Diffing also leaves the company channel
+    /// untouched, which keeps `reconnected()` meaning "you had a gap" rather than
+    /// "access changed".
+    func setNumbers(_ numberIds: [String]) {
+        let wanted = Set(numberIds)
+        guard wanted != self.numberIds else { return }
+        self.numberIds = wanted
+        reconcileNumberTopics()
     }
 
     /// Push a refreshed JWT into the live channel (call on every refresh).
@@ -117,6 +165,8 @@ actor RealtimeClient {
 
     func disconnect() {
         companyId = nil
+        numberIds = []
+        joinedNumberTopics = []
         connectLoop?.cancel()
         connectLoop = nil
         heartbeat?.cancel()
@@ -157,12 +207,16 @@ actor RealtimeClient {
         socket = task
         task.resume()
         do {
-            try await task.send(.string(frame(
-                topic: topicName(company),
-                event: "phx_join",
-                payload: joinPayload()
-            )))
+            for text in joinFrames(company) {
+                try await task.send(.string(text))
+            }
         } catch {
+            // A failed JOIN send means the transport is gone. Cancel it rather
+            // than abandon it: with the number channels there can now be a
+            // socket whose company channel joined before a later send failed,
+            // and an abandoned one would sit unread until the server idle-closed
+            // it. `runLoop` backs off and opens a fresh one either way.
+            task.cancel(with: .normalClosure, reason: nil)
             if socket === task { socket = nil }
             return
         }
@@ -219,9 +273,16 @@ actor RealtimeClient {
               let event = msg["event"]?.stringValue
         else { return }
         let payload = msg["payload"]
-        // Heartbeat replies ride topic "phoenix"; only the company channel's
-        // health governs the reconnect.
-        let isCompanyTopic = msg["topic"]?.stringValue?.hasPrefix("realtime:company:") == true
+        // Only the COMPANY channel's health governs the reconnect: heartbeat
+        // replies ride topic "phoenix", and a per-number channel may legitimately
+        // be refused or closed on its own.
+        //
+        // An EXACT match, not the prefix this used to be: a per-number topic
+        // starts with the company topic, so the prefix check read a refused
+        // per-number join — the intended answer once access is revoked — as a
+        // rejected company join and cancelled the transport, turning one closed
+        // channel into an endless reconnect.
+        let isCompanyTopic = Self.isCompanyTopic(msg["topic"]?.stringValue, company: companyId)
 
         switch event {
         case "phx_reply":
@@ -237,8 +298,21 @@ actor RealtimeClient {
                 // previously ignored outright, parking the loop forever.
                 task.cancel(with: .normalClosure, reason: nil)
             }
+            // A per-number reply, accepted or refused, is deliberately not acted
+            // on. A refusal means this member may not see that number, which is
+            // the policy doing its job — the remaining channels and the socket
+            // have to survive it.
 
         case "broadcast":
+            // #480 expand window: eight of the ten events publish to the company
+            // topic AND the number's topic, so a client on both sees each of them
+            // twice — and handles both, on purpose. Every consumer of `events()`
+            // is an id-only refetch trigger, so a duplicate costs one redundant
+            // refetch and nothing else, while a seen-set would be new state to
+            // get wrong AND would have to carve out `call.updated` for a call
+            // whose number was deleted: that one has no per-number topic at all
+            // and can only ever arrive on the company topic. The duplicates end
+            // by themselves when the server drops the company-topic send.
             guard let name = payload?["event"]?.stringValue else { return }
             let inner: JSONValue
             if let raw = payload?["payload"], raw.objectValue != nil {
@@ -264,7 +338,9 @@ actor RealtimeClient {
 
         case "phx_close", "phx_error":
             // NOT a transport close (see the docblock): without this the socket
-            // lives on, heartbeating, while the channel is dead.
+            // lives on, heartbeating, while the channel is dead. Scoped to the
+            // company channel — a per-number channel the server closes because
+            // access went away must cost that one channel, not realtime.
             if isCompanyTopic { task.cancel(with: .normalClosure, reason: nil) }
 
         default:
@@ -272,8 +348,87 @@ actor RealtimeClient {
         }
     }
 
-    private func topicName(_ company: String) -> String {
+    // MARK: - Topics
+    //
+    // The names must match `broadcast_number_scoped`
+    // (supabase/migrations/20260730040000_number_scoped_topics.sql) exactly: the
+    // server sends to `company:{id}` and `company:{id}:number:{n}`, and Phoenix
+    // prefixes the channel name with `realtime:`.
+
+    /// `realtime:company:{id}` — every member of the company may join it.
+    static func companyTopic(_ company: String) -> String {
         "realtime:company:\(company)"
+    }
+
+    /// `realtime:company:{id}:number:{n}` — admitted by `is_company_topic_member`
+    /// only when `member_number_level` is not 'none' (D88).
+    static func numberTopic(_ company: String, _ number: String) -> String {
+        "realtime:company:\(company):number:\(number)"
+    }
+
+    /// True only for the company channel itself. See `handle` for why this cannot
+    /// be a prefix test.
+    static func isCompanyTopic(_ topic: String?, company: String?) -> Bool {
+        guard let topic, let company else { return false }
+        return topic == companyTopic(company)
+    }
+
+    /// The channels to leave and to join to get from `have` to `want`. Sorted, so
+    /// a reconcile emits the same frames in the same order every time.
+    static func topicDelta(
+        have: Set<String>,
+        want: Set<String>
+    ) -> (join: [String], leave: [String]) {
+        (join: want.subtracting(have).sorted(), leave: have.subtracting(want).sorted())
+    }
+
+    /// The per-number channels this client should hold for `company`.
+    private func numberTopics(_ company: String) -> Set<String> {
+        Set(numberIds.map { Self.numberTopic(company, $0) })
+    }
+
+    /// The `phx_join` frames a fresh socket sends: the company channel first —
+    /// it is the one every member may join and the one whose reply governs the
+    /// reconnect — then one per visible number.
+    ///
+    /// Also records the per-number topics as sent, by ASSIGNMENT: a new socket
+    /// starts from the set it is about to join, never from the previous socket's.
+    ///
+    /// Internal, and lifted out of `runSocket`, so the subscription set can be
+    /// asserted without standing up a websocket — the same reason `deliver` is
+    /// internal.
+    func joinFrames(_ company: String) -> [String] {
+        let perNumber = numberTopics(company).sorted()
+        joinedNumberTopics = Set(perNumber)
+        let payload = joinPayload()
+        return ([Self.companyTopic(company)] + perNumber).map {
+            frame(topic: $0, event: "phx_join", payload: payload)
+        }
+    }
+
+    /// Move a live socket from the channels it has joined to the channels it
+    /// should hold. Without a socket this is a no-op on purpose: `joinFrames`
+    /// joins the whole current set on the next connection.
+    private func reconcileNumberTopics() {
+        guard let company = companyId, let socket else { return }
+        let want = numberTopics(company)
+        let delta = Self.topicDelta(have: joinedNumberTopics, want: want)
+        guard !delta.join.isEmpty || !delta.leave.isEmpty else { return }
+        // Frames are built inside the actor so `ref` stays monotonic and ordered;
+        // the sends then ride one task in that same order. Leaves before joins —
+        // a revocation must not wait behind a grant.
+        let payload = joinPayload()
+        let leaving = delta.leave.map {
+            frame(topic: $0, event: "phx_leave", payload: .object([:]))
+        }
+        let joining = delta.join.map {
+            frame(topic: $0, event: "phx_join", payload: payload)
+        }
+        let frames = leaving + joining
+        joinedNumberTopics = want
+        Task {
+            for text in frames { try? await socket.send(.string(text)) }
+        }
     }
 
     private func joinPayload() -> JSONValue {
@@ -287,14 +442,22 @@ actor RealtimeClient {
         ])
     }
 
+    /// Push a refreshed JWT onto EVERY channel this socket holds.
+    ///
+    /// Per channel, not per socket: the server re-authorizes a channel when it
+    /// receives `access_token` ON THAT TOPIC, and closes a channel whose token
+    /// expired. Pushing only to the company topic would have the number channels
+    /// die about an hour in while the company channel stayed healthy — realtime
+    /// half-working, which is the hardest kind of broken to notice.
     private func pushAccessToken() {
         guard let company = companyId, let token = accessToken, let socket else { return }
-        let text = frame(
-            topic: topicName(company),
-            event: "access_token",
-            payload: .object(["access_token": .string(token)])
-        )
-        Task { try? await socket.send(.string(text)) }
+        let payload: JSONValue = .object(["access_token": .string(token)])
+        let frames: [String] = ([Self.companyTopic(company)] + joinedNumberTopics.sorted()).map {
+            frame(topic: $0, event: "access_token", payload: payload)
+        }
+        Task {
+            for text in frames { try? await socket.send(.string(text)) }
+        }
     }
 
     private func frame(topic: String, event: String, payload: JSONValue) -> String {
