@@ -5001,3 +5001,47 @@ one of those, once.
 Blank issues stay enabled (`.github/ISSUE_TEMPLATE/config.yml`): a server
 change, a document fix or an Android-only IME bug has one surface, and forcing
 those through a three-client checklist is how the checklist becomes ceremony.
+
+## D91 — "read-only" is a role, not a number level (#348/#315, 2026-07-30)
+
+**Decision.** `number_access.level` stays a three-value ladder — `text`, `note`,
+`none` — and **no `read`-without-notes level is added**. A read-only observer is
+expressed by #315's forthcoming read-only ROLE, which composes with per-number
+access rather than duplicating it.
+
+#348 asks for this jointly with #315 *"so the product has one meaning for the
+term"*, and that phrase is the whole decision: the two candidates sit at
+**different grains**, and shipping both would give the product two different
+things called read-only.
+
+**The grains, stated plainly.** `number_access.level` answers *"may this person
+speak to customers on THIS LINE"* — a fact about a phone number. Whether somebody
+may write in the crew's internal record at all is a fact about **the person's
+standing in the crew**, and it does not vary by line. An accountant is read-only
+everywhere or nowhere; there is no coherent workspace in which they may add
+internal notes on the plumbing number and not the roofing one.
+
+**So a per-number `read` level would be a rule that decays.** It would have to be
+set on every number, and re-set every time a number is bought — and the failure
+mode of forgetting is the observer silently gaining a voice in the crew's
+internal record on the newest line. A property of a person, enforced per object,
+is a property that goes wrong the moment a new object appears.
+
+**What it would have cost, for a case #348 itself calls narrow.** The `('text',
+'note')` CHECK, the precedence resolver and its explanation vocabulary, three
+clients' copy, the composer banner, the dial-target filter and the call push
+audience — every one of them, to express something the role axis expresses once.
+
+**What #315 inherits from this.** Its read-only role means *no writes anywhere*,
+and per-number access continues to decide **which** numbers that person can see
+at all. The two compose: a read-only member restricted to one number sees that
+number and writes nothing. #315's own devil's advocate warns that *"permission
+systems are where small products go to become enterprise software"* — one axis
+per question is how that is avoided, and adding a fourth level here would have
+been the first step in the other direction.
+
+**What this closes.** #348's third scope item, by deciding against it with the
+reason rather than leaving the level list open. The other two items shipped:
+`member_number_access_explained` and the owner-facing screen on all three
+clients (#348's first), and the note-only composer banner now naming the calls
+consequence as well as the texting one (#348's second).
