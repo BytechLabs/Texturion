@@ -8,6 +8,11 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import {
+  EMERGENCY_SAFETY_LINE,
+  emergencyReplyBody,
+} from "@loonext/shared";
+
 import { getDb } from "../db";
 import type { Env } from "../env";
 import {
@@ -57,7 +62,44 @@ describe("what the message actually says (#414 ask 4)", () => {
 
   it("names the alternative, which is the ask's actual requirement", () => {
     expect(EMERGENCY_ACK_BODY).toMatch(/911/);
-    expect(EMERGENCY_ACK_BODY).toMatch(/emergency line/i);
+  });
+
+  it("names no trade — #460", () => {
+    // The old wording said "if you smell gas, call 911 or your utility's
+    // emergency line", which is a plumber's sentence auto-sent by locksmiths,
+    // landscapers and mobile mechanics. A default is what most workspaces
+    // actually send, so a default naming somebody else's trade is the product
+    // putting words in an owner's mouth.
+    for (const pattern of [/gas/i, /utility/i, /heat/i, /pipe/i, /furnace/i]) {
+      expect(EMERGENCY_ACK_BODY).not.toMatch(pattern);
+    }
+  });
+
+  it("keeps the safety line whatever the owner writes — #460", () => {
+    // THE safety property, now that the body is owner-authored. #414 ask 4
+    // survives as one non-removable sentence rather than as ownership of the
+    // whole message, so this is the assertion standing between an owner and a
+    // reply that promises a callback nobody will make.
+    const hostile = [
+      "We'll call you right back, promise!",
+      "", // blank falls back to the product default
+      "   ",
+      "URGENT received.",
+    ];
+    for (const owner of hostile) {
+      expect(emergencyReplyBody(owner)).toContain(EMERGENCY_SAFETY_LINE);
+    }
+  });
+
+  it("does not say it twice when the owner pastes it in — #460", () => {
+    // They WILL paste it: the settings preview shows the composed message, and
+    // copying it is the obvious way to start writing your own. Two "call 911"s
+    // in one message reads as a broken robot at the moment it most needs to be
+    // believed.
+    const pasted = `Flagged as urgent. ${EMERGENCY_SAFETY_LINE}`;
+    const composed = emergencyReplyBody(pasted);
+    expect(composed).toBe(pasted);
+    expect(composed.split(EMERGENCY_SAFETY_LINE)).toHaveLength(2);
   });
 
   it("confirms the word worked, so the instruction was not for nothing", () => {

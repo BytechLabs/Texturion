@@ -32,6 +32,7 @@ import { insertConversationEvents } from "../routes/core/events";
 import { maybeSendAwayReply } from "./away-reply";
 import { sendEmergencyAcknowledgment } from "./emergency-ack";
 import {
+  effectiveEmergencyKeywords,
   isEmergencyKeyword,
   START_KEYWORDS,
   STOP_KEYWORDS,
@@ -182,8 +183,8 @@ export async function handleInboundMessage(
         // Canada-only and US-enabled reported apart, because they have
         // structurally different time-to-value). All three ride the lookup this
         // path already makes, so activation costs no extra round trip either.
-        "emergency_keyword_enabled,first_inbound_reply_at,country," +
-        "us_texting_enabled)",
+        "emergency_keyword_enabled,emergency_keywords,emergency_message," +
+        "first_inbound_reply_at,country,us_texting_enabled)",
     )
     .eq("number_e164", toE164)
     .neq("status", "released")
@@ -201,6 +202,8 @@ export async function handleInboundMessage(
           notify_email_limit?: number | null;
           notify_push_limit?: number | null;
           emergency_keyword_enabled?: boolean | null;
+          emergency_keywords?: string[] | null;
+          emergency_message?: string | null;
           first_inbound_reply_at?: string | null;
           country?: string | null;
           us_texting_enabled?: boolean | null;
@@ -271,12 +274,19 @@ export async function handleInboundMessage(
   });
 
   // #414: the reply we asked for. The default away message — on by default,
-  // kept by most owners — tells a homeowner "for a no-heat or burst-pipe
-  // emergency, reply URGENT and we'll call you", and until now that reply
+  // kept by most owners — invites an emergency reply, and until now that reply
   // threaded as an ordinary message.
+  //
+  // #460: matched against THIS workspace's words. A null column means the
+  // product list, so nothing changes for a workspace that never opened the
+  // setting — but a locksmith whose customers text LOCKEDOUT is now heard, and
+  // the settings screen warns against the same list this line acts on.
   const emergency =
     (company?.emergency_keyword_enabled ?? true) &&
-    isEmergencyKeyword(payload.text ?? "");
+    isEmergencyKeyword(
+      payload.text ?? "",
+      effectiveEmergencyKeywords(company?.emergency_keywords),
+    );
 
   // #396: a plain-English opt-out is legally binding and only the KEYWORD was
   // ever detected. "Please stop texting me" is not an exact STOP, so Telnyx
@@ -357,6 +367,9 @@ export async function handleInboundMessage(
         conversationId: threaded.conversation_id,
         fromE164,
         triggerBody: payload.text ?? "",
+        // #460: the owner's own words, already on the company row this handler
+        // read. The product's safety line is appended inside, not here.
+        ownerMessage: company?.emergency_message ?? null,
       });
     } catch (cause) {
       console.error(

@@ -8,18 +8,31 @@
  *
  * So this is not the away reply with different words. The away reply exists to
  * set an expectation; this exists to correct one. It promises no callback,
- * because we cannot guarantee a person is awake, and it names the two numbers
- * that are staffed at 3am when ours may not be.
+ * because we cannot guarantee a person is awake.
  *
- * WHY IT IS NOT OWNER-AUTHORED, in a module whose stated principle is that the
- * owner controls what is promised: that principle is about not speaking for
- * the owner about their own availability. This is the product speaking about
- * its own limits — the one thing an owner cannot be asked to write, since
- * #414 exists precisely because owner-facing copy promised what no code
- * delivered. An editable version re-opens the hole. The owner's control here
- * is the switch that turns the whole mechanism off.
+ * #460 SPLIT IT, and the split is the point. This module used to argue that
+ * because the safety property is ours, the whole message had to be — "an
+ * editable version re-opens the hole". That conclusion was too broad, and the
+ * cost of it was a plumber's sentence ("you smell gas", "your utility's
+ * emergency line") auto-sent on behalf of locksmiths, landscapers and mobile
+ * mechanics. The founder called that out and was right: assuming somebody's
+ * trade is its own kind of dishonesty.
+ *
+ * The body is now the owner's, and `emergencyReplyBody` always appends
+ * {@link EMERGENCY_SAFETY_LINE}, which no setting can remove. The owner controls
+ * what is promised; they do not control whether the alternative is named,
+ * because the person reading it may be in danger and did not choose this vendor.
+ * The safety property survives with a narrower blast radius than "we write
+ * everything".
  */
-import { estimateSegments } from "@loonext/shared";
+import { emergencyReplyBody, estimateSegments } from "@loonext/shared";
+
+/**
+ * Re-exported so the one sentence with a safety property has a home in the
+ * module that enforces it. `emergencyReplyBody` appends this to whatever an
+ * owner wrote and no setting removes it (#414 ask 4, narrowed by #460).
+ */
+export { EMERGENCY_SAFETY_LINE } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
@@ -27,29 +40,24 @@ import { runPreSendGates } from "./send";
 import { guardedAutoSend, type AutoSendOutcome } from "./auto-send";
 
 /**
- * Exactly 159 GSM-7 characters — one segment, checked deliberately. A person
- * reading this on a cracked phone in a cold house should not receive it in two
- * pieces that arrive out of order, and the cheapest message is also the one
- * least likely to be truncated by a carrier along the way.
+ * The default reply, for a workspace that has not written its own. One GSM-7
+ * segment, asserted by the tests rather than hoped for: a person reading this on
+ * a cracked phone in a cold house should not receive it in two pieces that
+ * arrive out of order.
  *
- * Every clause earns its place:
+ * Every clause still earns its place, and none of them names a trade:
  *   "Flagged as urgent"      — confirms the instruction worked. Without this
  *                              they do not know whether the word did anything.
  *   "the whole team has
  *    been alerted now"       — states what actually happened, which is true and
  *                              is NOT the same as "someone will call you".
- *   "If anyone is in danger
- *    or you smell gas"       — the two cases where waiting for us is the wrong
- *                              choice, in the words a person would recognise.
- *   "call 911 or your
- *    utility's emergency
- *    line"                   — the alternative the ask requires us to name.
  *   "Do not wait on us."     — the sentence that makes the rest honest.
+ *   "If anyone is in danger,
+ *    call 911."              — the alternative the ask requires us to name, and
+ *                              the half an owner cannot edit away. 911 is the
+ *                              emergency number in both markets we sell to.
  */
-export const EMERGENCY_ACK_BODY =
-  "Flagged as urgent - the whole team has been alerted now. " +
-  "If anyone is in danger or you smell gas, call 911 or your utility's " +
-  "emergency line. Do not wait on us.";
+export const EMERGENCY_ACK_BODY = emergencyReplyBody(null);
 
 /**
  * One acknowledgment per conversation per hour. Shorter than the away reply's
@@ -85,6 +93,13 @@ export async function sendEmergencyAcknowledgment(
     conversationId: string;
     fromE164: string;
     triggerBody: string;
+    /**
+     * #460: the workspace's own emergency reply, or null/blank for the product
+     * default. Passed in rather than re-read here — the inbound handler already
+     * has the company row, and a second round trip on the emergency path is the
+     * one place to not spend a network call.
+     */
+    ownerMessage?: string | null;
   },
 ): Promise<AutoSendOutcome> {
   const { data: convRows, error: convError } = await db
@@ -123,7 +138,7 @@ export async function sendEmergencyAcknowledgment(
     conversationId: args.conversationId,
     from,
     to,
-    body: EMERGENCY_ACK_BODY,
+    body: emergencyReplyBody(args.ownerMessage),
     triggerBody: args.triggerBody,
     clearance,
     // No merge fields: {first_name} on a message about a gas leak reads as
@@ -136,6 +151,9 @@ export async function sendEmergencyAcknowledgment(
 }
 
 /** Segment count for the fixed body — asserted by the tests, not guessed. */
-export function emergencyAckSegments(): number {
-  return Math.max(1, estimateSegments(EMERGENCY_ACK_BODY).segments);
+export function emergencyAckSegments(ownerMessage?: string | null): number {
+  return Math.max(
+    1,
+    estimateSegments(emergencyReplyBody(ownerMessage)).segments,
+  );
 }

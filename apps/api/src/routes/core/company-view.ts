@@ -5,7 +5,10 @@
  */
 import {
   effectiveAwayMessage,
+  effectiveEmergencyKeywords,
+  effectiveEmergencyMessage,
   effectiveMctbMessage,
+  emergencyReplyBody,
   identificationSuffix,
   seatLimit,
 } from "@loonext/shared";
@@ -30,7 +33,7 @@ export const COMPANY_COLUMNS =
   // the promise have to be readable in one place, or an owner turns one off
   // and leaves the other making an offer nobody answers.
   "business_hours,business_hours_exceptions,away_enabled,away_message," +
-  "emergency_keyword_enabled," +
+  "emergency_keyword_enabled,emergency_keywords,emergency_message," +
   // #388: the unanswered-lead ladder switches.
   "lead_chase_enabled,lead_chase_crew_enabled," +
   // #430: whether a push may carry words a person typed. Workspace-wide on
@@ -199,6 +202,47 @@ export function withAwayDerived<T extends Record<string, unknown>>(
 }
 
 /**
+ * #460 ask — the emergency twin of {@link withAwayDerived}, and it exists for
+ * exactly the same reason that one does.
+ *
+ * Three settings screens must show what will ACTUALLY be sent, including the
+ * safety line the owner cannot remove. Letting each client concatenate that
+ * itself would put the one sentence with a safety property behind three
+ * hand-written string joins — which is how the away preview came to show a
+ * message the server would never send (#414 ask 5). The server composes it; the
+ * clients render it.
+ *
+ * `emergency_effective_keywords` is resolved here too, so the settings warning
+ * about an unrecognised reply word is computed against the list the inbound
+ * handler will really match on.
+ */
+export function withEmergencyDerived<T extends Record<string, unknown>>(
+  company: T,
+): T & {
+  emergency_effective_message: string;
+  emergency_effective_keywords: string[];
+  emergency_message_is_custom: boolean;
+  emergency_keywords_are_custom: boolean;
+} {
+  const owner =
+    typeof company.emergency_message === "string"
+      ? company.emergency_message
+      : null;
+  const effective = effectiveEmergencyMessage(owner);
+  const stored = Array.isArray(company.emergency_keywords)
+    ? (company.emergency_keywords as string[])
+    : null;
+  return {
+    ...company,
+    // What lands on the customer's phone, safety line included.
+    emergency_effective_message: emergencyReplyBody(owner),
+    emergency_effective_keywords: [...effectiveEmergencyKeywords(stored)],
+    emergency_message_is_custom: effective.custom,
+    emergency_keywords_are_custom: (stored ?? []).length > 0,
+  };
+}
+
+/**
  * #193: stamp the derived caller ID fields on a raw companies row — the
  * EFFECTIVE outbound display name (explicit cnam_display_name, else the
  * company name in the carrier alphabet) and its source. Applied everywhere
@@ -294,7 +338,9 @@ export async function loadCompanyView(
   return {
     ...withSeatDerived(
       withCallerIdDerived(
-        withMctbDerived(withAwayDerived(withIdentificationDerived(company))),
+        withEmergencyDerived(
+          withMctbDerived(withAwayDerived(withIdentificationDerived(company))),
+        ),
       ),
     ),
     numbers,

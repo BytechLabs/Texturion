@@ -104,6 +104,7 @@ const SUITES = [
   "response_time",
   "member_number_level",
   "number_scoped_topics",
+  "owner_emergency_config",
 ];
 
 const args = process.argv.slice(2);

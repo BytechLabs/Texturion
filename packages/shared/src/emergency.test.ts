@@ -10,7 +10,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_EMERGENCY_MESSAGE,
+  EMERGENCY_KEYWORDS,
+  EMERGENCY_SAFETY_LINE,
   awayEmergencyNotice,
+  effectiveEmergencyKeywords,
+  effectiveEmergencyMessage,
+  emergencyKeywordError,
+  emergencyReplyBody,
   isEmergencyKeyword,
   mentionsEmergencyKeyword,
   unrecognizedReplyKeyword,
@@ -210,5 +217,113 @@ describe("#453 — what the away-reply screen says, identically on all clients",
         awayMessage: `${SHIPPED_DEFAULT} Reply STOP to unsubscribe.`,
       }),
     ).toBeNull();
+  });
+});
+
+describe("#460 — the workspace's own words", () => {
+  it("falls back to the product list, and null does not mean silence", () => {
+    // The trap this contract avoids: a column that stored the defaults would
+    // freeze whatever the list was the day each workspace signed up, so
+    // improving it later would reach nobody.
+    expect(effectiveEmergencyKeywords(null)).toEqual(EMERGENCY_KEYWORDS);
+    expect(effectiveEmergencyKeywords(undefined)).toEqual(EMERGENCY_KEYWORDS);
+    expect(effectiveEmergencyKeywords([])).toEqual(EMERGENCY_KEYWORDS);
+  });
+
+  it("normalises what an owner typed rather than refusing it", () => {
+    expect(effectiveEmergencyKeywords([" lockedout ", "ASAP"])).toEqual([
+      "LOCKEDOUT",
+      "ASAP",
+    ]);
+    // A word that could never match is dropped rather than stored: the matcher
+    // splits on whitespace, so "no heat" has no first token equal to itself.
+    expect(effectiveEmergencyKeywords(["no heat", "SOS"])).toEqual(["SOS"]);
+    expect(effectiveEmergencyKeywords(["SOS", "sos"])).toEqual(["SOS"]);
+  });
+
+  it("hears the locksmith's word and stops hearing ours", () => {
+    // The whole point of the issue: a workspace that chose its own words is
+    // listening for those, not for a plumber's.
+    const own = effectiveEmergencyKeywords(["LOCKEDOUT"]);
+    expect(isEmergencyKeyword("LOCKEDOUT front door won't open", own)).toBe(true);
+    expect(isEmergencyKeyword("URGENT no heat", own)).toBe(false);
+    // And the default list still behaves exactly as #414 pinned it.
+    expect(isEmergencyKeyword("URGENT no heat")).toBe(true);
+  });
+
+  it("stops warning about a word the owner has just added — #453 crossover", () => {
+    const copy = "We're closed. Reply ASAP if it can't wait.";
+    // Before they add it: named, so they can act on it.
+    expect(unrecognizedReplyKeyword(copy)).toBe("ASAP");
+    expect(
+      awayEmergencyNotice({ emergencyEnabled: true, awayMessage: copy }),
+    ).toMatchObject({ tone: "warn" });
+    // After: silence. A warning that survives the fix teaches owners to ignore
+    // warnings, which is worse than never having shown one.
+    const own = effectiveEmergencyKeywords(["ASAP"]);
+    expect(unrecognizedReplyKeyword(copy, own)).toBeNull();
+    expect(
+      awayEmergencyNotice({
+        emergencyEnabled: true,
+        awayMessage: copy,
+        keywords: own,
+      }),
+    ).toBeNull();
+  });
+
+  it("refuses a keyword the carrier answers, and says why", () => {
+    // STOP reaches Telnyx before it reaches us, so storing it would be storing
+    // a setting that provably cannot fire.
+    expect(emergencyKeywordError("STOP")).toMatch(/carrier/i);
+    expect(emergencyKeywordError("no heat")).toMatch(/one word/i);
+    expect(emergencyKeywordError("SOS!")).toMatch(/letters and numbers/i);
+    expect(emergencyKeywordError("X")).toMatch(/too short/i);
+    expect(emergencyKeywordError("")).toMatch(/type a word/i);
+    expect(emergencyKeywordError("lockedout")).toBeNull();
+  });
+
+  it("names the workspace's own words when it warns", () => {
+    const notice = awayEmergencyNotice({
+      emergencyEnabled: true,
+      awayMessage: "Reply NOW if it's an emergency.",
+      keywords: effectiveEmergencyKeywords(["LOCKEDOUT"]),
+    });
+    // Telling an owner who uses LOCKEDOUT to "use URGENT instead" would be the
+    // product arguing with a setting it offers.
+    expect(notice?.text).toContain("LOCKEDOUT");
+    expect(notice?.text).not.toContain("URGENT");
+  });
+});
+
+describe("#460 — the reply body, and the sentence that is not the owner's", () => {
+  it("appends the safety line to whatever the owner wrote", () => {
+    expect(emergencyReplyBody("On our way when we can.")).toBe(
+      `On our way when we can. ${EMERGENCY_SAFETY_LINE}`,
+    );
+  });
+
+  it("falls back to the product default when blank", () => {
+    for (const blank of [null, undefined, "", "   "]) {
+      expect(emergencyReplyBody(blank)).toContain(DEFAULT_EMERGENCY_MESSAGE);
+      expect(emergencyReplyBody(blank)).toContain(EMERGENCY_SAFETY_LINE);
+    }
+  });
+
+  it("names no trade in the default, which is the founder's complaint", () => {
+    for (const trade of [/gas/i, /utility/i, /burst/i, /no-heat/i, /pipe/i]) {
+      expect(DEFAULT_EMERGENCY_MESSAGE).not.toMatch(trade);
+      expect(EMERGENCY_SAFETY_LINE).not.toMatch(trade);
+    }
+  });
+
+  it("reports custom vs default so a screen can say which is in effect", () => {
+    expect(effectiveEmergencyMessage("mine")).toEqual({
+      message: "mine",
+      custom: true,
+    });
+    expect(effectiveEmergencyMessage("  ")).toEqual({
+      message: DEFAULT_EMERGENCY_MESSAGE,
+      custom: false,
+    });
   });
 });

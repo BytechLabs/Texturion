@@ -43,6 +43,7 @@ import {
   loadCompanyView,
   withCallerIdDerived,
   withAwayDerived,
+  withEmergencyDerived,
   withIdentificationDerived,
   withMctbDerived,
   withSeatDerived,
@@ -124,6 +125,31 @@ const patchSchema = z
     // and should then take the offer out of its away message too, which is
     // why the switch lives next to the message on every client.
     emergency_keyword_enabled: z.boolean().optional(),
+    // #460: the words THIS workspace treats as an emergency. Null restores the
+    // product list — the same nullable-means-default contract away_message uses,
+    // so improving the defaults later still reaches everybody who never opened
+    // the setting. Shape mirrors `companies_emergency_keywords_ck` exactly:
+    // uppercase, single word, 2-15 chars, because the inbound matcher splits on
+    // whitespace and upper-cases before comparing and anything else could never
+    // fire. Refusing it here means an owner is told, rather than silently
+    // storing a setting that does nothing.
+    emergency_keywords: z
+      .array(
+        z
+          .string()
+          .trim()
+          .toUpperCase()
+          .regex(/^[A-Z0-9]{2,15}$/, "one word, letters and numbers, 2-15 chars"),
+      )
+      .min(1)
+      .max(10)
+      .nullable()
+      .optional(),
+    // #460: the workspace's own reply to an emergency keyword; null restores the
+    // product default. The product's safety sentence is appended at send time
+    // and is deliberately NOT stored here, so an owner cannot remove it by
+    // editing this field (#414 ask 4).
+    emergency_message: z.string().trim().max(1000).nullable().optional(),
     // #388: the unanswered-lead ladder. Two switches rather than one because
     // they carry different risks — the first reaches only people who were
     // already told once, the second reaches people who were not.
@@ -187,6 +213,8 @@ const patchSchema = z
       body.away_enabled !== undefined ||
       "away_message" in body ||
       body.emergency_keyword_enabled !== undefined ||
+      "emergency_keywords" in body ||
+      "emergency_message" in body ||
       body.lead_chase_enabled !== undefined ||
       body.lead_chase_crew_enabled !== undefined ||
       body.push_include_content !== undefined ||
@@ -469,6 +497,22 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   if (body.emergency_keyword_enabled !== undefined) {
     patch.emergency_keyword_enabled = body.emergency_keyword_enabled;
   }
+  if ("emergency_keywords" in body) {
+    // De-duplicated before it is stored, matching the CHECK. Two of the same
+    // word is not an error worth refusing an owner over — it is a slip while
+    // typing a list — but storing it would report a keyword count nobody typed.
+    const words = body.emergency_keywords;
+    patch.emergency_keywords =
+      words && words.length > 0 ? [...new Set(words)] : null;
+  }
+  if ("emergency_message" in body) {
+    // Empty string clears to null, so the product default comes back rather
+    // than an emergency reply that is only the safety line.
+    patch.emergency_message =
+      body.emergency_message && body.emergency_message.length > 0
+        ? body.emergency_message
+        : null;
+  }
   // #388: unanswered-lead chasing.
   if (body.lead_chase_enabled !== undefined) {
     patch.lead_chase_enabled = body.lead_chase_enabled;
@@ -662,6 +706,7 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
         key,
         key === "away_message" ||
         key === "mctb_message" ||
+        key === "emergency_message" ||
         key === "voicemail_greeting"
           ? value === null
             ? "cleared"
@@ -760,7 +805,9 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
   return c.json({
     ...withSeatDerived(
       withCallerIdDerived(
-        withMctbDerived(withAwayDerived(withIdentificationDerived(company))),
+        withEmergencyDerived(
+          withMctbDerived(withAwayDerived(withIdentificationDerived(company))),
+        ),
       ),
     ),
     billing_writes_enabled: billingWritesEnabled(env),

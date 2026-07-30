@@ -31,10 +31,21 @@
  * `EMERGENCY_KEYWORDS`: it is the sentence that made #414 a real defect, and it
  * is only honest because replying URGENT now wakes the crew.
  */
+/*
+ * #460: TRADE-NEUTRAL, and that is the whole edit. This used to read "For a
+ * no-heat or burst-pipe emergency", which is a plumber's sentence sent on behalf
+ * of every landscaper, locksmith, mobile mechanic and cleaner on the product.
+ * The founder called it awful and was right: a default is what most workspaces
+ * actually send, so a default that names somebody else's trade is the product
+ * putting words in an owner's mouth.
+ *
+ * "If this is an emergency" carries the same instruction for every trade and
+ * leaves the owner's own wording — which they can and should write — as the
+ * thing that makes it specific.
+ */
 export const DEFAULT_AWAY_MESSAGE =
   "Thanks for texting us. We're out of the office right now and will reply " +
-  "first thing. For a no-heat or burst-pipe emergency, reply URGENT and we'll " +
-  "call you.";
+  "first thing. If this is an emergency, reply URGENT and we'll call you.";
 
 /** The effective away template + whether it is owner-authored. */
 export interface EffectiveAwayMessage {

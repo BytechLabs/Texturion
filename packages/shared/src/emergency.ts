@@ -15,6 +15,72 @@
  */
 export const EMERGENCY_KEYWORDS = ["URGENT", "EMERGENCY", "911", "SOS"] as const;
 
+/**
+ * #460 — the product's list is a DEFAULT, not the law.
+ *
+ * The founder's objection was that the product assumes a trade, and the sharpest
+ * version of that is the word itself: an owner whose customers would naturally
+ * text "HELP" (taken — carrier keyword), "ASAP", "NOW" or a word in their own
+ * language had no way to be listening for it. #453 already proved owners write
+ * their own words into the away message, because it exists to warn them when the
+ * word they chose is one nothing watches for. That warning was the product
+ * telling an owner to change their words to suit our list, when the list was the
+ * easier thing to change.
+ *
+ * NULL means the product list rather than "none", the same contract
+ * `away_message` and `mctb_message` use. A stored copy of the defaults would
+ * freeze whatever the list was the day a workspace signed up.
+ */
+export function effectiveEmergencyKeywords(
+  custom: readonly string[] | null | undefined,
+): readonly string[] {
+  const cleaned = (custom ?? [])
+    .map((word) => word.trim().toUpperCase())
+    .filter((word) => isValidEmergencyKeyword(word));
+  // Deduplicated, because the same word twice would report a keyword count
+  // nobody typed and reads as a bug on the settings screen.
+  const unique = [...new Set(cleaned)];
+  return unique.length > 0 ? unique : EMERGENCY_KEYWORDS;
+}
+
+/**
+ * The same rule as the `companies_emergency_keywords_ck` CHECK, so a client can
+ * refuse a keyword before the round trip and say why.
+ *
+ * Single word, 2–15 characters, A–Z and digits only. Not arbitrary: the matcher
+ * below splits an inbound on whitespace and punctuation and upper-cases the
+ * first token, so a keyword with a space, a hyphen or a lowercase letter could
+ * never match anything. Accepting one would be storing a setting that silently
+ * does nothing — the exact failure #414 exists to prevent.
+ */
+export function isValidEmergencyKeyword(word: string): boolean {
+  return /^[A-Z0-9]{2,15}$/.test(word);
+}
+
+/**
+ * Why a keyword was refused, in the owner's terms, or null when it is fine.
+ *
+ * Returned as copy rather than a code because all three clients must say the
+ * same thing, and "invalid keyword" tells somebody nothing about what to type
+ * instead.
+ */
+export function emergencyKeywordError(raw: string): string | null {
+  const word = raw.trim().toUpperCase();
+  if (word.length === 0) return "Type a word first.";
+  if (/\s/.test(raw.trim())) {
+    return "One word only — customers text a single word, so a phrase would never match.";
+  }
+  if (!/^[A-Z0-9]+$/.test(word)) {
+    return "Letters and numbers only. Punctuation is stripped from what customers send.";
+  }
+  if (word.length < 2) return "Too short — use at least 2 characters.";
+  if (word.length > 15) return "Too long — 15 characters at most.";
+  if (CARRIER_SET.has(word)) {
+    return `${word} is answered by the phone carrier before it reaches us, so it can't be an emergency word.`;
+  }
+  return null;
+}
+
 const KEYWORD_SET: ReadonlySet<string> = new Set(EMERGENCY_KEYWORDS);
 
 /**
@@ -31,12 +97,23 @@ const KEYWORD_SET: ReadonlySet<string> = new Set(EMERGENCY_KEYWORDS);
  * with the word, and a crew woken for nothing stops trusting the one that
  * matters.
  */
-export function isEmergencyKeyword(body: string): boolean {
+export function isEmergencyKeyword(
+  body: string,
+  /**
+   * #460: the workspace's own list. Defaults to the product's so every existing
+   * caller keeps the behaviour it was written against — the callers that matter
+   * (the inbound handler, the settings screens) pass the resolved list.
+   */
+  keywords: readonly string[] = EMERGENCY_KEYWORDS,
+): boolean {
   const first = body
     .trim()
     .split(/[\s,.!?:;-]+/, 1)[0]
     ?.toUpperCase();
-  return first !== undefined && KEYWORD_SET.has(first);
+  if (first === undefined) return false;
+  return keywords === EMERGENCY_KEYWORDS
+    ? KEYWORD_SET.has(first)
+    : keywords.includes(first);
 }
 
 /**
@@ -55,8 +132,11 @@ export function isEmergencyKeyword(body: string): boolean {
  * reading one extra sentence, and the cost of a missed one is the promise
  * this issue exists to keep.
  */
-export function mentionsEmergencyKeyword(copy: string): boolean {
-  return EMERGENCY_KEYWORDS.some((keyword) =>
+export function mentionsEmergencyKeyword(
+  copy: string,
+  keywords: readonly string[] = EMERGENCY_KEYWORDS,
+): boolean {
+  return keywords.some((keyword) =>
     new RegExp(`\\b${keyword}\\b`, "i").test(copy),
   );
 }
@@ -119,12 +199,18 @@ const REPLY_INSTRUCTION =
  * an owner reading one extra sentence; the cost of a missed one is a homeowner
  * texting a word into the void on the coldest night of the year.
  */
-export function unrecognizedReplyKeyword(copy: string): string | null {
+export function unrecognizedReplyKeyword(
+  copy: string,
+  keywords: readonly string[] = EMERGENCY_KEYWORDS,
+): string | null {
   for (const match of copy.matchAll(REPLY_INSTRUCTION)) {
     const word = match[1]?.toUpperCase();
     if (word === undefined) continue;
-    // One we watch for, or one the carrier answers: both are handled.
-    if (KEYWORD_SET.has(word) || CARRIER_SET.has(word)) continue;
+    // One we watch for, or one the carrier answers: both are handled. #460 makes
+    // the first half per-workspace — an owner who added their own word must stop
+    // being warned about it the moment they add it, or the warning teaches them
+    // to ignore warnings.
+    if (keywords.includes(word) || CARRIER_SET.has(word)) continue;
     // Must READ as a keyword: all-caps in the original, letters only. This is
     // what keeps "reply within 24 hours" and "we'll reply Monday" out of it.
     if (match[1] !== word || !/^[A-Z]{2,}$/.test(word)) continue;
@@ -163,9 +249,16 @@ export interface AwayEmergencyNotice {
 export function awayEmergencyNotice(args: {
   emergencyEnabled: boolean;
   awayMessage: string;
+  /**
+   * #460: the workspace's own words. Omitted means the product list, so a caller
+   * that has not been taught about custom keywords yet still gets the old
+   * answer rather than a wrong one.
+   */
+  keywords?: readonly string[];
 }): AwayEmergencyNotice | null {
-  const invites = mentionsEmergencyKeyword(args.awayMessage);
-  const unknown = unrecognizedReplyKeyword(args.awayMessage);
+  const keywords = args.keywords ?? EMERGENCY_KEYWORDS;
+  const invites = mentionsEmergencyKeyword(args.awayMessage, keywords);
+  const unknown = unrecognizedReplyKeyword(args.awayMessage, keywords);
 
   if (!args.emergencyEnabled) {
     if (!invites && unknown === null) return null;
@@ -181,10 +274,14 @@ export function awayEmergencyNotice(args: {
   if (unknown !== null) {
     return {
       tone: "warn",
+      // #460: names the workspace's OWN words rather than the product's four.
+      // Telling an owner who added ASAP to "use URGENT instead" would be the
+      // product arguing with a setting it offers, and the fix is now theirs to
+      // make in either direction — reword the message, or add the word.
       text:
         `Your away message tells customers to reply ${unknown}, which nothing ` +
-        "watches for. Use URGENT, EMERGENCY, 911 or SOS instead, or take the offer " +
-        "out of the message.",
+        `watches for. Use ${listWords(keywords)} instead, add ${unknown} to your ` +
+        "emergency words, or take the offer out of the message.",
     };
   }
 
@@ -198,4 +295,82 @@ export function awayEmergencyNotice(args: {
   }
 
   return null;
+}
+
+/** "URGENT, EMERGENCY, 911 or SOS" — an owner reads a list, not an array. */
+function listWords(words: readonly string[]): string {
+  if (words.length === 0) return "nothing";
+  if (words.length === 1) return words[0]!;
+  return `${words.slice(0, -1).join(", ")} or ${words[words.length - 1]!}`;
+}
+
+/**
+ * #460 — the emergency reply, split into the half that is the owner's and the
+ * half that is ours.
+ *
+ * #414 ask 4 said this message must never promise a human: *"'We'll call you
+ * shortly' sent by a robot to someone with a gas smell is worse than silence.
+ * If we cannot guarantee a human, the honest response names the alternative."*
+ * That reasoning is sound and it is a safety property, not a house style, so it
+ * survives. What did NOT survive is the conclusion drawn from it — that the
+ * whole message therefore had to be ours. The result was a plumber's sentence
+ * ("you smell gas", "your utility's emergency line") auto-sent by locksmiths and
+ * landscapers, which is what #460 objected to.
+ *
+ * So: the owner writes the body and says whatever is true of their business, and
+ * the product appends {@link EMERGENCY_SAFETY_LINE}, which it will not let them
+ * delete. An owner controls what is promised; they do not get to control whether
+ * the alternative is named, because the person reading it may be in a burning
+ * building and did not choose this vendor.
+ *
+ * Trade-neutral by construction. "If anyone is in danger, call 911" is true for
+ * every trade in every market we sell to (911 is the emergency number in both
+ * the US and Canada), which the old gas-and-utility wording was not.
+ */
+export const EMERGENCY_SAFETY_LINE = "If anyone is in danger, call 911.";
+
+/**
+ * The product default body. Says what actually happened — which is true, and is
+ * NOT the same as "someone will call you" — and nothing about a trade.
+ */
+export const DEFAULT_EMERGENCY_MESSAGE =
+  "Flagged as urgent - the whole team has been alerted now. Do not wait on us.";
+
+/** The effective emergency reply body + whether it is owner-authored. */
+export interface EffectiveEmergencyMessage {
+  /** The owner's body, or the product default. Without the safety line. */
+  message: string;
+  /** True when the owner's own text is in effect. */
+  custom: boolean;
+}
+
+/**
+ * The same non-blank-wins rule as {@link effectiveAwayMessage} and
+ * `effectiveMctbMessage`. Three auto-send surfaces resolving their copy three
+ * different ways is how two of them drifted apart before.
+ */
+export function effectiveEmergencyMessage(
+  ownerMessage: string | null | undefined,
+): EffectiveEmergencyMessage {
+  const trimmed = (ownerMessage ?? "").trim();
+  return trimmed.length > 0
+    ? { message: trimmed, custom: true }
+    : { message: DEFAULT_EMERGENCY_MESSAGE, custom: false };
+}
+
+/**
+ * What is actually sent: the effective body with the safety line appended.
+ *
+ * Appended rather than merged, and idempotent — an owner who pastes the safety
+ * line into their own text (having seen it in the preview, which is exactly how
+ * they would) must not receive it twice. Two copies of "call 911" in one message
+ * reads as a broken robot at the moment the message most needs to be believed.
+ */
+export function emergencyReplyBody(
+  ownerMessage: string | null | undefined,
+): string {
+  const body = effectiveEmergencyMessage(ownerMessage).message;
+  return body.includes(EMERGENCY_SAFETY_LINE)
+    ? body
+    : `${body} ${EMERGENCY_SAFETY_LINE}`;
 }

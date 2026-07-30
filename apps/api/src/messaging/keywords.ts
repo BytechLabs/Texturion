@@ -29,7 +29,11 @@ export const HELP_KEYWORDS = new Set(["HELP", "INFO"]);
  */
 import { isEmergencyKeyword } from "@loonext/shared";
 
-export { EMERGENCY_KEYWORDS, isEmergencyKeyword } from "@loonext/shared";
+export {
+  EMERGENCY_KEYWORDS,
+  effectiveEmergencyKeywords,
+  isEmergencyKeyword,
+} from "@loonext/shared";
 
 /**
  * True when the inbound body is a standalone STOP/START/HELP-family keyword

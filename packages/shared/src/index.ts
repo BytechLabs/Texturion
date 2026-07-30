@@ -188,13 +188,23 @@ export {
 
 export {
   CARRIER_REPLY_KEYWORDS,
+  DEFAULT_EMERGENCY_MESSAGE,
   EMERGENCY_KEYWORDS,
+  EMERGENCY_SAFETY_LINE,
   awayEmergencyNotice,
+  effectiveEmergencyKeywords,
+  effectiveEmergencyMessage,
+  emergencyKeywordError,
+  emergencyReplyBody,
   isEmergencyKeyword,
+  isValidEmergencyKeyword,
   mentionsEmergencyKeyword,
   unrecognizedReplyKeyword,
 } from "./emergency";
-export type { AwayEmergencyNotice } from "./emergency";
+export type {
+  AwayEmergencyNotice,
+  EffectiveEmergencyMessage,
+} from "./emergency";
 
 export {
   DEFAULT_AWAY_MESSAGE,
