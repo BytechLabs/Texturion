@@ -38,7 +38,10 @@ final class MessagingMergedSegmentsTests: XCTestCase {
         _ draft: String,
         contactName: String? = nil,
         businessName: String? = nil,
-        signature: String? = Self.signature
+        // Spelled out rather than `Self.signature`: Swift refuses a covariant
+        // `Self` in a DEFAULT ARGUMENT expression even on a final class, and the
+        // rest of this file's `Self.` uses are inside bodies, where it is legal.
+        signature: String? = MessagingMergedSegmentsTests.signature
     ) -> SegmentMeterState {
         segmentMeter(
             Signature.append(
