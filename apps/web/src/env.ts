@@ -23,6 +23,15 @@ const publicEnvSchema = z.object({
   // client instrumentation lazily loads @sentry/browser with the same PII
   // scrubbing posture as the API Worker (lib/observability/sentry.ts);
   // unset (dev/CI/previews) = client error reporting silently off.
+  /**
+   * #428: the Map's basemap. Optional — with no provider configured the map
+   * renders pins on an empty ground rather than falling back to OSM's donated
+   * tile servers, which their policy does not license a paid product to serve.
+   * Both must be set together; see docs/MAP-TILES.md.
+   */
+  NEXT_PUBLIC_MAP_TILE_URL: z.string().min(1).optional(),
+  NEXT_PUBLIC_MAP_TILE_ATTRIBUTION: z.string().min(1).optional(),
+  NEXT_PUBLIC_MAP_TILE_MAX_ZOOM: z.string().min(1).optional(),
   NEXT_PUBLIC_SENTRY_DSN: z.url().optional(),
   // Optional: PostHog project API key (D8/D12 product analytics). When set,
   // the client instrumentation lazily loads posthog-js — sanitized pageviews
@@ -52,6 +61,13 @@ const parsed = publicEnvSchema.safeParse({
     process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || undefined,
   NEXT_PUBLIC_APP_ORIGIN: process.env.NEXT_PUBLIC_APP_ORIGIN || undefined,
   NEXT_PUBLIC_BLOG_ORIGIN: process.env.NEXT_PUBLIC_BLOG_ORIGIN || undefined,
+  // #428: the basemap. Read explicitly like every other public value — a blank
+  // line in .env means "not configured", which is the compliant state.
+  NEXT_PUBLIC_MAP_TILE_URL: process.env.NEXT_PUBLIC_MAP_TILE_URL || undefined,
+  NEXT_PUBLIC_MAP_TILE_ATTRIBUTION:
+    process.env.NEXT_PUBLIC_MAP_TILE_ATTRIBUTION || undefined,
+  NEXT_PUBLIC_MAP_TILE_MAX_ZOOM:
+    process.env.NEXT_PUBLIC_MAP_TILE_MAX_ZOOM || undefined,
   NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN || undefined,
   NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY || undefined,
   NEXT_PUBLIC_GTM_ID: process.env.NEXT_PUBLIC_GTM_ID || undefined,

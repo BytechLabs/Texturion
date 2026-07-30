@@ -78,7 +78,6 @@ import com.loonext.android.ui.theme.BrandColor
 import kotlin.math.abs
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
@@ -308,6 +307,17 @@ private fun TaskMapContent(
     }
 
     Column(modifier.fillMaxSize()) {
+        // #428: named, not left blank. A map with no streets is confusing until
+        // somebody says why, and the fix belongs to the owner rather than support.
+        // Same sentence as the web twin, asserted by a test on each side.
+        if (!Basemap.isConfigured()) {
+            Text(
+                Basemap.NO_BASEMAP_NOTICE,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 9.dp),
+            )
+        }
         if (model.located > 0) {
             Row(
                 Modifier.padding(start = 24.dp, end = 24.dp, bottom = 9.dp),
@@ -680,7 +690,11 @@ private fun OsmTaskMap(
         factory = { context ->
             ensureOsmConfiguration(context)
             MapView(context).apply {
-                setTileSource(TileSourceFactory.MAPNIK)
+                // #428: a licensed provider, or NO basemap. MAPNIK is
+                // tile.openstreetmap.org, which the OSMF does not license a paid
+                // product to serve. Pins still plot without a tile layer, so the
+                // absence costs one layer rather than the feature. See Basemap.kt.
+                Basemap.tileSource()?.let { setTileSource(it) }
                 setMultiTouchControls(true)
                 isTilesScaledToDpi = true
                 // Pinch is the zoom affordance; the +/- buttons are not in the

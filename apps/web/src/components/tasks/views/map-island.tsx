@@ -16,6 +16,13 @@ import {
   useMap,
 } from "react-leaflet";
 
+import { publicEnv } from "@/env";
+import {
+  NO_BASEMAP_NOTICE,
+  readBasemap,
+} from "@/lib/maps/basemap";
+import { createTileHealth } from "@/lib/maps/tile-health";
+
 import { taskThreadHref } from "../task-format";
 import { mapsDirectionsHref, type LocatedTask } from "./map-types";
 
@@ -121,7 +128,30 @@ export function MapIsland({
     return [39.5, -98.35]; // Continental US fallback (never reached — guarded).
   }, [tasks]);
 
+  // Static for the bundle's lifetime, so it is read once rather than per render.
+  const basemap = readBasemap(publicEnv);
+  // #428 ask 4: a provider that blocks us leaves tiles blank and throws nothing,
+  // so the state is tracked and surfaced rather than left for the customer to
+  // puzzle over. See lib/maps/tile-health.ts for why it reports once.
+  const [tilesFailing, setTilesFailing] = useState(false);
+  const health = useMemo(
+    () =>
+      createTileHealth({
+        onUnhealthy: ({ errors, sample }) => {
+          setTilesFailing(true);
+          // Client Sentry is unreliable here (ad blockers), so this is a console
+          // marker a support session can find, plus the visible notice below. The
+          // point is that SOMEBODY knows, not that it retries.
+          console.error(
+            `#428 basemap tiles are not loading (${errors} failures). Sample: ${sample ?? "n/a"}`,
+          );
+        },
+      }),
+    [],
+  );
+
   return (
+    <div className="space-y-2">
     <div className="h-[520px] overflow-hidden rounded-xl border border-border">
       <MapContainer
         center={center}
@@ -130,12 +160,26 @@ export function MapIsland({
         className="h-full w-full"
         style={{ background: "var(--muted)" }}
       >
-        <TileLayer
-          // OSM raster tiles — free, no key; attribution is required by policy.
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          maxZoom={19}
-        />
+        {/* #428: the basemap is whatever a licensed provider is configured as,
+            and NOTHING when none is. This used to be tile.openstreetmap.org —
+            the OSMF's donated infrastructure, which their policy does not
+            license a paid product to serve. Pins, clustering and "you are here"
+            all work without it, so the absence costs one layer rather than the
+            feature. See lib/maps/basemap.ts. */}
+        {basemap && (
+          <TileLayer
+            url={basemap.url}
+            attribution={basemap.attribution}
+            maxZoom={basemap.maxZoom}
+            eventHandlers={{
+              tileerror: (event) => {
+                const url =
+                  event.tile instanceof HTMLImageElement ? event.tile.src : undefined;
+                health.recordError(url);
+              },
+            }}
+          />
+        )}
         <FitBounds bounds={bounds} nearMe={nearMe} />
         <Clusters tasks={tasks} />
         {nearMe && (
@@ -144,6 +188,22 @@ export function MapIsland({
           </Marker>
         )}
       </MapContainer>
+    </div>
+      {/* Named, not hidden: a map with no streets is confusing until somebody
+          says why, and the fix belongs to the owner rather than to support. */}
+      {!basemap && (
+        <p className="text-[13px] leading-relaxed text-app-muted">
+          {NO_BASEMAP_NOTICE}
+        </p>
+      )}
+      {basemap && tilesFailing && (
+        // Configured but not serving us: a different sentence, because the fix is
+        // ours and not the owner's.
+        <p className="text-[13px] leading-relaxed text-app-muted" role="status">
+          The street background isn&apos;t loading right now. Job pins are still
+          exact, and we&apos;re looking at it.
+        </p>
+      )}
     </div>
   );
 }
