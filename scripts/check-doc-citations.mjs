@@ -34,6 +34,7 @@
  *
  * Usage: node scripts/check-doc-citations.mjs
  */
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
 
@@ -109,18 +110,50 @@ for (const root of ROOTS) {
         if (isGlob(cited)) continue;
         checked += 1;
         if (!existsSync(cited.split("/").join(sep))) {
-          problems.push(`${file}:${index + 1}  cites ${cited}`);
+          problems.push({ path: cited, where: `${file}:${index + 1}` });
         }
       }
     });
   }
 }
 
-if (problems.length > 0) {
+/**
+ * A citation to a GITIGNORED path is fine, and this guard shipped without knowing
+ * that — it passed on my machine and failed in CI on `README.md` telling a reader
+ * to create `apps/api/.dev.vars`. That instruction is correct documentation; the
+ * file is absent from a fresh checkout by design, which is the whole point of
+ * mentioning it.
+ *
+ * So a missing path is only a problem if git is NOT ignoring it. Checked in one
+ * batched call, and only when something is already missing, so the normal run pays
+ * nothing. It also makes the guard machine-independent, which was the actual defect
+ * here: I validated it where those files happened to exist.
+ */
+function ignoredByGit(paths) {
+  if (paths.length === 0) return new Set();
+  try {
+    const out = execFileSync("git", ["check-ignore", "--stdin"], {
+      input: paths.join("\n"),
+      encoding: "utf8",
+    });
+    return new Set(out.split(/\r?\n/).filter(Boolean));
+  } catch (cause) {
+    // `git check-ignore` exits 1 when NOTHING matched, which is not an error.
+    const out = String(cause.stdout ?? "");
+    return new Set(out.split(/\r?\n/).filter(Boolean));
+  }
+}
+
+const ignored = ignoredByGit([...new Set(problems.map((p) => p.path))]);
+const real = problems.filter((problem) => !ignored.has(problem.path));
+
+if (real.length > 0) {
   console.error(
-    `\n${problems.length} document citation(s) point at a path that does not exist:\n`,
+    `\n${real.length} document citation(s) point at a path that does not exist:\n`,
   );
-  for (const problem of problems) console.error(`  ${problem}`);
+  for (const problem of real) {
+    console.error(`  ${problem.where}  cites ${problem.path}`);
+  }
   console.error(
     `\nThe operator reading these has no staging environment to be wrong in, so a\n` +
       `citation to a file that moved is worse than no citation. Update it to where\n` +
@@ -133,6 +166,9 @@ if (problems.length > 0) {
 
 console.log(
   `Document citations: ${checked} cited path(s) all resolve` +
+    (ignored.size > 0
+      ? `, ${ignored.size} gitignored path(s) the docs tell you to create`
+      : "") +
     (skipped.length > 0
       ? `, and ${skipped.length} historical document(s) skipped.`
       : "."),
