@@ -159,6 +159,17 @@ jobs:
       - name: Guard document citations
         run: node scripts/check-doc-citations.mjs
 
+      # #338: "done" was defined per pull request rather than per capability, so
+      # whether the other two clients received a change was nobody's checked
+      # responsibility. #198 closed with iOS never implemented (#337), and that
+      # was the third instance of the same class — after a 35-gap parity audit
+      # had already been run and paid for. This is a directory diff: every
+      # feature surface on every client must be registered, and every registered
+      # surface must say what all three clients do. A new directory fails until
+      # somebody answers that question. Cheap, so it runs with the other guards.
+      - name: Guard client parity
+        run: node scripts/check-client-parity.mjs
+
       # feat/fix/perf subjects are published verbatim in the release notes, so
       # they are checked like changelog copy. The commit-msg hook catches this
       # locally; this is the gate that --no-verify cannot skip. Only the commits

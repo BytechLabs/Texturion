@@ -4937,3 +4937,67 @@ had shipped. Both are #389 happening again: a fact about the data, kept in step
 with the data by memory. Both are now derived — `defaultOn` is asserted against
 the settings the gate actually reads, and the vendor sentence and feature count
 are computed from the disclosure list rather than written beside it.
+
+## D90 — "done" is per capability, and the clients are named (#338, 2026-07-30)
+
+**Decision.** A user-visible capability is not done until **web, Android and iOS
+are each either implemented or explicitly recorded as not applicable, with the
+reason**. "Not applicable" is a perfectly good answer. Silence is not.
+
+Enforced by two things, both deliberately small: a `Clients` checklist in
+`.github/ISSUE_TEMPLATE/capability.md`, and `scripts/check-client-parity.mjs`
+in CI beside the migration, env-reference and citation guards.
+
+**Why a rule rather than more care.** #198 closed as done with iOS never
+implemented (#337) — the third instance of one class, after a **35-gap parity
+audit had already been run and paid for**, and after the #257–#273 defect batch
+that is largely one fix ported to one client (#268 is titled *"iOS fix never
+ported"*). The structural cause is that done was defined per pull request rather
+than per capability: a change lands, tests pass, the issue closes, and whether
+the other two clients received it was nobody's checked responsibility. Every
+instance was caught later by a person noticing, or by a sweep.
+
+**iOS is the one that goes missing**, and not by coincidence. Swift compiles
+only in Mobile CI, so iOS work ships compile-checked and visually unverified —
+the platform most likely to be skipped and the least likely for anyone to
+notice.
+
+**The check is a directory diff, and that is the point.** #337 was found in
+seconds by listing two directories side by side. The mechanism is:
+
+1. Every feature directory on every client must appear in `SURFACES`.
+2. Every `SURFACES` entry must say, for each client, where it lives **or why it
+   is absent**.
+
+**Rule 1 is the load-bearing half.** Adding `apps/ios/Loonext/Features/Whatever`
+fails CI until somebody registers it — and registering it is exactly the moment
+they have to answer "what do web and Android do about this?". The question gets
+asked when the code is written rather than when an audit is commissioned
+eighteen months later.
+
+**What it cannot do**, stated so nobody trusts it further than it deserves: it
+proves somebody *decided*, not that a capability is *implemented*. A directory
+can exist and be empty. That is the honest ceiling of a directory diff, and it
+still catches the entire class that has actually bitten us — a whole surface
+missing from a client.
+
+**The noise problem is why the registry has reasons rather than names.** A raw
+three-way diff reports web's `billing/`, `numbers/`, `porting/`, `registration/`
+and `invites/` as gaps; on mobile every one is a section inside Settings. iOS
+has `Push/` because APNs is a platform concern. Thirteen of the twenty-three
+registered surfaces are deliberate asymmetries, and a check that flagged them
+would be ignored within a week — which #338 names as the exact failure mode this
+backlog keeps warning about. So an absence without a written reason is itself a
+failure.
+
+**Deliberately NOT built:** a governance process, a matrix document, or a
+required label. #338's own devil's advocate is right that *"process invented in
+a backlog usually decays before it pays for itself"*, and the honest test is
+whether it is cheaper than the alternative. The alternative here is measurable:
+a 35-gap audit, a 17-issue defect batch, and #337, all re-discovering work
+already known to be needed. A checklist and a directory diff are cheaper than
+one of those, once.
+
+Blank issues stay enabled (`.github/ISSUE_TEMPLATE/config.yml`): a server
+change, a document fix or an Android-only IME bug has one surface, and forcing
+those through a three-client checklist is how the checklist becomes ceremony.

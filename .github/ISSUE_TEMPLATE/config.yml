@@ -1,0 +1,9 @@
+# #338 — blank issues stay available on purpose.
+#
+# The capability template exists for user-visible work, where "which clients?"
+# is the question that keeps going unasked. A platform-specific defect, a server
+# change, a document fix and a piece of research all have one surface, and
+# forcing them through a three-client checklist would make the checklist
+# ceremony — which is how a process invented in a backlog decays before it pays
+# for itself (#338's own devil's advocate).
+blank_issues_enabled: true
