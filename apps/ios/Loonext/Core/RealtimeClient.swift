@@ -351,15 +351,15 @@ actor RealtimeClient {
             }
 
         case "broadcast":
-            // #480 expand window: eight of the ten events publish to the company
-            // topic AND the number's topic, so a client on both sees each of them
-            // twice — and handles both, on purpose. Every consumer of `events()`
-            // is an id-only refetch trigger, so a duplicate costs one redundant
-            // refetch and nothing else, while a seen-set would be new state to
-            // get wrong AND would have to carve out `call.updated` for a call
-            // whose number was deleted: that one has no per-number topic at all
-            // and can only ever arrive on the company topic. The duplicates end
-            // by themselves when the server drops the company-topic send.
+            // Handled the same whichever topic it arrived on, and deliberately
+            // not de-duplicated. Since #484's contract step each event arrives
+            // exactly once — number-scoped ones on their number's topic,
+            // company-wide ones on the company topic. Even a repeat would be
+            // harmless: every consumer of `events()` is an id-only refetch
+            // trigger, so it costs one redundant refetch, while a seen-set would
+            // be new state to get wrong AND would have to carve out
+            // `call.updated` for a call whose number was deleted — that one has
+            // no per-number topic at all and can only arrive on the company one.
             guard let name = payload?["event"]?.stringValue else { return }
             let inner: JSONValue
             if let raw = payload?["payload"], raw.objectValue != nil {

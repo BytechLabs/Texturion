@@ -547,7 +547,7 @@ declare
 begin
   select coalesce(array_agg(id), '{}') into before_ids
   from realtime.messages
-  where topic = 'company:b5b5b5b5-b5b5-4b5b-8b5b-b5b5b5b5b5b5'
+  where topic like 'company:b5b5b5b5-b5b5-4b5b-8b5b-b5b5b5b5b5b5%'
     and event = 'port.updated' and extension = 'broadcast'
     and payload->>'port_request_id' = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000a2';
 
@@ -558,7 +558,7 @@ begin
 
   select count(*) into new_count
   from realtime.messages
-  where topic = 'company:b5b5b5b5-b5b5-4b5b-8b5b-b5b5b5b5b5b5'
+  where topic like 'company:b5b5b5b5-b5b5-4b5b-8b5b-b5b5b5b5b5b5%'
     and event = 'port.updated' and extension = 'broadcast'
     and payload->>'port_request_id' = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000a2'
     and id <> all (before_ids);
@@ -568,7 +568,7 @@ begin
 
   select payload into new_payload
   from realtime.messages
-  where topic = 'company:b5b5b5b5-b5b5-4b5b-8b5b-b5b5b5b5b5b5'
+  where topic like 'company:b5b5b5b5-b5b5-4b5b-8b5b-b5b5b5b5b5b5%'
     and event = 'port.updated' and extension = 'broadcast'
     and payload->>'port_request_id' = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000a2'
     and id <> all (before_ids);

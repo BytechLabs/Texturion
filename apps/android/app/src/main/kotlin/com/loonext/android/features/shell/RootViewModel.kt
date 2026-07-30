@@ -41,8 +41,8 @@ sealed interface RootState {
  * and when it fails [RootViewModel] hands realtime an empty one — the member
  * holds the company topic and not a single per-number topic. The reconnect
  * collector heals that on the next re-JOIN, which on a healthy socket can be
- * hours away, and once D88's contract step lands those are hours of an inbox
- * that never updates. Three tries across ~17s turn one transient 5xx into a
+ * hours away, and since #484's contract step those are hours of an inbox that
+ * never updates. Three tries across ~17s turn one transient 5xx into a
  * blink; going longer would only race the re-JOIN heal that already exists.
  */
 internal val NUMBER_LIST_RETRY_DELAYS_MS = listOf(1_000L, 4_000L, 12_000L)

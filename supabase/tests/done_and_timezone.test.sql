@@ -206,7 +206,7 @@ declare
 begin
   select coalesce(array_agg(id), '{}') into before_ids
   from realtime.messages
-  where topic = 'company:ffffffff-ffff-4fff-8fff-ffffffffffff'
+  where topic like 'company:ffffffff-ffff-4fff-8fff-ffffffffffff%'
     and event = 'message.status' and extension = 'broadcast'
     and payload->>'message_id' = 'ffffffff-ffff-4fff-8fff-fff000000004';
 
@@ -217,7 +217,7 @@ begin
 
   select count(*) into new_count
   from realtime.messages
-  where topic = 'company:ffffffff-ffff-4fff-8fff-ffffffffffff'
+  where topic like 'company:ffffffff-ffff-4fff-8fff-ffffffffffff%'
     and event = 'message.status' and extension = 'broadcast'
     and payload->>'message_id' = 'ffffffff-ffff-4fff-8fff-fff000000004'
     and id <> all (before_ids);
@@ -228,7 +228,7 @@ begin
 
   select payload into new_payload
   from realtime.messages
-  where topic = 'company:ffffffff-ffff-4fff-8fff-ffffffffffff'
+  where topic like 'company:ffffffff-ffff-4fff-8fff-ffffffffffff%'
     and event = 'message.status' and extension = 'broadcast'
     and payload->>'message_id' = 'ffffffff-ffff-4fff-8fff-fff000000004'
     and id <> all (before_ids);
@@ -258,7 +258,7 @@ declare
 begin
   select coalesce(array_agg(id), '{}') into before_ids
   from realtime.messages
-  where topic = 'company:ffffffff-ffff-4fff-8fff-ffffffffffff'
+  where topic like 'company:ffffffff-ffff-4fff-8fff-ffffffffffff%'
     and event = 'message.status' and extension = 'broadcast'
     and payload->>'message_id' = 'ffffffff-ffff-4fff-8fff-fff000000004';
 
@@ -267,7 +267,7 @@ begin
 
   select count(*) into new_count
   from realtime.messages
-  where topic = 'company:ffffffff-ffff-4fff-8fff-ffffffffffff'
+  where topic like 'company:ffffffff-ffff-4fff-8fff-ffffffffffff%'
     and event = 'message.status' and extension = 'broadcast'
     and payload->>'message_id' = 'ffffffff-ffff-4fff-8fff-fff000000004'
     and id <> all (before_ids);
@@ -278,7 +278,7 @@ begin
 
   select payload into new_payload
   from realtime.messages
-  where topic = 'company:ffffffff-ffff-4fff-8fff-ffffffffffff'
+  where topic like 'company:ffffffff-ffff-4fff-8fff-ffffffffffff%'
     and event = 'message.status' and extension = 'broadcast'
     and payload->>'message_id' = 'ffffffff-ffff-4fff-8fff-fff000000004'
     and id <> all (before_ids);
@@ -303,7 +303,7 @@ declare
 begin
   select count(*) into before_n
   from realtime.messages
-  where topic = 'company:ffffffff-ffff-4fff-8fff-ffffffffffff'
+  where topic like 'company:ffffffff-ffff-4fff-8fff-ffffffffffff%'
     and event = 'message.status'
     and payload->>'message_id' = 'ffffffff-ffff-4fff-8fff-fff000000004';
 
@@ -313,7 +313,7 @@ begin
 
   select count(*) into after_n
   from realtime.messages
-  where topic = 'company:ffffffff-ffff-4fff-8fff-ffffffffffff'
+  where topic like 'company:ffffffff-ffff-4fff-8fff-ffffffffffff%'
     and event = 'message.status'
     and payload->>'message_id' = 'ffffffff-ffff-4fff-8fff-fff000000004';
 

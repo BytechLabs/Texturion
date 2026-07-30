@@ -4456,6 +4456,43 @@ battery the phones spend on events they will throw away.
 reviewed as the security change it is, rather than as a side effect of a
 performance one.
 
+### RETIRED, 2026-07-30 (#484) — the exposure is closed, not still accepted
+
+The risk table above is history. It is kept rather than deleted because a security
+questionnaire asking "how is realtime scoped" (trigger (c)) deserves the reasoning
+and not just the current answer, and because the finding that decided it — that a
+naive per-number topic would have been *worse* — is the part worth not relearning.
+
+What actually happened, in the order it had to happen:
+
+1. The resolver consolidation landed (#480), so effective access is one
+   SQL-callable rule rather than a second implementation in the topic policy.
+2. Both topics were published to at once — the expand half — which closed nothing
+   on its own and was never meant to.
+3. All three clients adopted the per-number topic, and the three ways one could
+   *silently* lose a per-number channel were fixed first (#484): iOS never
+   re-joining a refused channel, Android dropping a reconnect edge, and a failed
+   bootstrap number-list read on web and iOS. Contracting over those would have
+   converted each into an inbox that stops updating behind a healthy-looking
+   socket — a worse failure than the leak, because it is invisible.
+4. The company send was deleted (`20260730070000_contract_step.sql`).
+
+**`company:{id}` is now a delivery channel for genuinely company-wide events only**
+— `registration.updated`, `read.notifications`, `access.changed`,
+`number_set.changed` — plus one deliberate fallback: `call.updated` for a call whose
+number was deleted, which has no number to be scoped to and, because
+`number_access.phone_number_id` cascades, no surviving restriction to honour. A leak
+requires a restriction.
+
+Both consequences named above are gone with it. The clients are no longer trusted to
+discard events they must not act on, because they no longer receive them; and a
+member's connection now carries only the numbers they can reach, which is the
+fan-out and the battery back.
+
+`number_scoped_topics.test.sql` is what keeps this true: NT-1 fails if the company
+topic reappears for a number-scoped event, and NT-4 fails if the fallback is
+removed by someone tidying up.
+
 ---
 
 ## D86 — a released number leaves entirely, and carries nothing with it (#316, 2026-07-30)
@@ -4778,6 +4815,27 @@ clients are store-distributed, so a user who has not updated would simply stop
 receiving realtime. The sequence is expand → clients adopt → contract, and the
 contract step is one statement inside `broadcast_number_scoped` rather than eight
 edits across six trigger functions. That is the only reason the helper exists.
+
+**Addendum, 2026-07-30 (#484): the contract step has landed** —
+`20260730070000_contract_step.sql`. There is one boundary now, not two
+granularities in transition, and D85's accepted risk is retired above.
+
+The store-distribution constraint was discharged rather than waived, and it is
+worth recording *how*, because "we decided it was fine" is not a reason anyone can
+check later. Three facts, none of them a judgement call: nothing is distributed —
+`ship.yml` builds the Android and iOS artifacts and attaches them to the run, and
+names store upload as a credentials gap it cannot close; the expand half had not
+reached production either, because Ship runs only when the release PR merges, so
+expand and contract land in the same release and no client ever sees one without
+the other; and web is served fresh, with #484's bootstrap retry now re-deriving the
+topic key after a failed `/v1/me` instead of leaving it empty for the life of the
+page.
+
+If a mobile build ever does ship ahead of a schema change, the gate is
+`app_release_policy` and its version floor (#339) — a mechanism that already exists
+and tells old builds to update. Building a second adoption gate for this one
+migration would have been a machine to answer a question that had three facts and
+no ambiguity.
 
 Two events stay company-wide because scoping them would scope the wrong object:
 `registration.updated` (unique per `(company_id, kind)`, and it authorizes every

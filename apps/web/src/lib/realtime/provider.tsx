@@ -147,9 +147,9 @@ export function realtimeTopics(companyId: string, key: string): string[] {
  * connectivity gap — which on a healthy socket may never come.
  *
  * So one transient 5xx or cold isolate on /v1/me at page load cost that tab its
- * whole session of per-number realtime: once D88's contract step lands, no
- * messages, conversations, calls, tasks or read state, with a green socket, no
- * error anywhere, and a reload as the only recovery.
+ * whole session of per-number realtime — and since #484's contract step that is
+ * no messages, conversations, calls, tasks or read state at all, with a green
+ * socket, no error anywhere, and a reload as the only recovery.
  *
  * Three tries across ~17s, the same ladder Android uses for the same read
  * (`NUMBER_LIST_RETRY_DELAYS_MS` in RootViewModel.kt). Waits FIRST: the read that
@@ -260,10 +260,10 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
    *
    * Its own effect rather than a branch inside the socket effect below, because
    * the two want opposite lifecycles: the socket must open on the company topic
-   * immediately (everything company-wide still reaches the member, and during
-   * D88's expand window that is everything full stop), while this keeps working
-   * behind it until the list arrives. Folding it in would tie the retry clock to
-   * a teardown-and-rebuild.
+   * immediately — `access.changed` and `number_set.changed` arrive there, and
+   * they are how this client learns its number list is wrong — while this keeps
+   * working behind it until the list arrives. Folding it in would tie the retry
+   * clock to a teardown-and-rebuild.
    *
    * `invalidateQueries` rather than `meCompany.refetch`: it is the same primitive
    * `access.changed` and `refetchFirstPages` already use for exactly this
@@ -807,15 +807,15 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
      * #480: the SAME handler set on every topic — the company channel and each
      * per-number channel alike.
      *
-     * No de-duplication, on purpose. During the expand window the eight
-     * number-scoped events publish to BOTH topics (D88 addendum), so a client on
-     * both receives each of them twice. Every handler below is an idempotent
-     * id-only refetch trigger and `conversation.updated` already coalesces, so a
-     * duplicate costs one redundant read — not a wrong cache. A seen-set would be
-     * new state to get wrong, and it would break the one delivery that MUST come
-     * through the company topic: `call.updated` for a call whose number was
-     * deleted has no per-number topic to arrive on. The duplicates end on their
-     * own when the server drops the company-topic send.
+     * No de-duplication, on purpose. Since #484's contract step each event
+     * arrives exactly once — a number-scoped one on its number's topic, a
+     * company-wide one on the company topic — so there is nothing to de-duplicate
+     * and never was anything worth building for it. Every handler below is an
+     * idempotent id-only refetch trigger and `conversation.updated` coalesces, so
+     * even a repeat would cost one redundant read rather than a wrong cache. A
+     * seen-set would be new state to get wrong, and it would break the one
+     * delivery that MUST come through the company topic: `call.updated` for a call
+     * whose number was deleted has no per-number topic to arrive on.
      *
      * Three of these only ever arrive on the company topic —
      * `registration.updated` (one 10DLC brand/campaign per company),

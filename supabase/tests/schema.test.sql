@@ -611,7 +611,20 @@ end $$;
 
 -- ===========================================================================
 -- T18. Broadcast triggers actually write realtime.messages rows with ID-only
---      payloads into company:{id} (all five §8 events).
+--      payloads onto a topic belonging to the right company (all five §8 events).
+--
+--      TOPIC GRANULARITY IS NOT THIS TEST'S SUBJECT and after the #484 contract
+--      step it cannot be: four of the five now publish to
+--      `company:{id}:number:{n}` rather than `company:{id}`. What T18 is actually
+--      for is that the trigger fires at all, that the payload carries ids and
+--      nothing else, and that the row lands under the company that owns it — so
+--      the topic is matched by PREFIX. Which granularity each event gets is
+--      asserted exactly once, in `number_scoped_topics.test.sql`, and pinning it
+--      in two places is how the two disagree later.
+--
+--      `registration.updated` below keeps an exact match on purpose: it is one of
+--      the two events that are genuinely company-wide, and a prefix match would
+--      stop noticing if it were ever wrongly scoped to a number.
 -- ===========================================================================
 do $$
 declare
@@ -619,7 +632,7 @@ declare
 begin
   -- message.created was fired by the T10 fixture insert
   select count(*) into n from realtime.messages
-  where topic = 'company:cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  where topic like 'company:cccccccc-cccc-4ccc-8ccc-cccccccccccc%'
     and event = 'message.created' and extension = 'broadcast'
     and payload->>'message_id' = '99999999-9999-4999-8999-999999999999';
   if n < 1 then
@@ -630,7 +643,7 @@ begin
   update public.messages set status = 'delivered'
   where id = '99999999-9999-4999-8999-999999999999';
   select count(*) into n from realtime.messages
-  where topic = 'company:cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  where topic like 'company:cccccccc-cccc-4ccc-8ccc-cccccccccccc%'
     and event = 'message.status' and payload->>'status' = 'delivered';
   if n < 1 then
     raise exception 'T18 FAILED: message.status broadcast row not found';
@@ -638,7 +651,7 @@ begin
 
   -- conversation.updated fires on conversation update (T8 closed conv1)
   select count(*) into n from realtime.messages
-  where topic = 'company:cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  where topic like 'company:cccccccc-cccc-4ccc-8ccc-cccccccccccc%'
     and event = 'conversation.updated'
     and payload->>'conversation_id' = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   if n < 1 then
@@ -649,7 +662,7 @@ begin
   update public.phone_numbers set status = 'suspended', suspended_at = now()
   where id = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
   select count(*) into n from realtime.messages
-  where topic = 'company:cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  where topic like 'company:cccccccc-cccc-4ccc-8ccc-cccccccccccc%'
     and event = 'number.updated' and payload->>'status' = 'suspended';
   if n < 1 then
     raise exception 'T18 FAILED: number.updated broadcast row not found';

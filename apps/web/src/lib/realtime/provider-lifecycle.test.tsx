@@ -492,8 +492,9 @@ describe("a bootstrap number list that failed to read", () => {
       await flush();
 
       // Realtime still comes up. Everything company-wide reaches this member
-      // while the ladder runs, and during D88's expand window that is every event
-      // there is — the retry is what stops the per-number half from being lost.
+      // while the ladder runs — `access.changed` and `number_set.changed` above
+      // all — but since the contract step that is ALL this tab would ever get.
+      // The retry is what stops the per-number half from being lost.
       expect([...fake.live.keys()]).toEqual([COMPANY_TOPIC]);
       expect(meInvalidations()).toBe(0);
 

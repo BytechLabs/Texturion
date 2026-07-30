@@ -225,7 +225,7 @@ declare
 begin
   select count(*) into before_count
   from realtime.messages
-  where topic = 'company:dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  where topic like 'company:dddddddd-dddd-4ddd-8ddd-dddddddddddd%'
     and event = 'message.status' and extension = 'broadcast'
     and payload->>'message_id' = 'dddddddd-dddd-4ddd-8ddd-ddd000000004';
 
@@ -236,7 +236,7 @@ begin
 
   select count(*) into after_count
   from realtime.messages
-  where topic = 'company:dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  where topic like 'company:dddddddd-dddd-4ddd-8ddd-dddddddddddd%'
     and event = 'message.status' and extension = 'broadcast'
     and payload->>'message_id' = 'dddddddd-dddd-4ddd-8ddd-ddd000000004';
 
@@ -246,7 +246,7 @@ begin
 
   select payload into latest
   from realtime.messages
-  where topic = 'company:dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  where topic like 'company:dddddddd-dddd-4ddd-8ddd-dddddddddddd%'
     and event = 'message.status' and extension = 'broadcast'
     and payload->>'message_id' = 'dddddddd-dddd-4ddd-8ddd-ddd000000004'
   order by inserted_at desc limit 1;

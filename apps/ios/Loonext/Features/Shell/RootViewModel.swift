@@ -25,7 +25,7 @@ enum RootState {
 /// which per-number realtime topics this client joins, and when it fails the
 /// socket opens with an EMPTY one — the company topic, and not a single
 /// per-number topic. The reconnect observer in `start()` heals that on the next
-/// re-JOIN, which on a healthy socket can be hours away, and after D88's
+/// re-JOIN, which on a healthy socket can be hours away, and since #484's
 /// contract step those are hours of an inbox that never updates. Three tries
 /// across ~17s turn one transient failure into a blink; going longer would only
 /// race the re-JOIN heal that already exists. (Android's ladder, same numbers.)

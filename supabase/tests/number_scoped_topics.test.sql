@@ -88,7 +88,12 @@ $$;
 do $$
 declare
   v_topics text[];
-  v_want text[] := array[pg_temp.company_topic(), pg_temp.number_topic()];
+  -- #484 contract step: the per-number topic ALONE. Until that migration these
+  -- five also went to the company topic for clients that had not adopted the
+  -- per-number one, which is precisely the D85 exposure — a member denied a
+  -- number could still watch its traffic. The company topic appearing here again
+  -- would be that leak returning.
+  v_want text[] := array[pg_temp.number_topic()];
   v_event text;
 begin
   -- conversation.updated — number on NEW.
@@ -125,13 +130,13 @@ begin
   loop
     v_topics := pg_temp.topics_for(v_event);
     if v_topics <> v_want then
-      raise exception 'NT-1 FAILED: % published to % (want both %)',
+      raise exception 'NT-1 FAILED: % published to % (want %)',
         v_event, v_topics, v_want;
     end if;
   end loop;
 
-  raise notice 'NT-1/NT-2 PASSED: five number-scoped events reach both topics, '
-    'with the number resolved on NEW and by join';
+  raise notice 'NT-1/NT-2 PASSED: five number-scoped events reach the per-number '
+    'topic and nothing else, with the number resolved on NEW and by join';
 end $$;
 
 -- ===========================================================================
@@ -200,6 +205,15 @@ begin
       'company topic alone)', v_topics;
   end if;
 
+  -- `topics_for` reports every row for an event in the whole transaction, so the
+  -- null-number send above is still sitting there. Clear it, or the next
+  -- assertion reads two inserts as one and cannot tell the company topic it is
+  -- looking at from the one it just legitimately produced. Before the #484
+  -- contract step this happened to pass — {company} then {company, number}
+  -- accumulated to exactly the answer being asserted — which is how a test can
+  -- be right about the product and wrong about itself. Same idiom as NT-6.
+  delete from realtime.messages where event = 'call.updated';
+
   -- And with a number present it scopes like everything else.
   insert into public.calls
     (id, company_id, phone_number_id, call_session_id, direction, state)
@@ -210,12 +224,13 @@ begin
      'nt-session-2', 'inbound', 'ringing');
 
   v_topics := pg_temp.topics_for('call.updated');
-  if v_topics <> array[pg_temp.company_topic(), pg_temp.number_topic()] then
-    raise exception 'NT-4 FAILED: a call WITH a number published to %', v_topics;
+  if v_topics <> array[pg_temp.number_topic()] then
+    raise exception 'NT-4 FAILED: a call WITH a number published to % (want the '
+      'per-number topic alone)', v_topics;
   end if;
 
   raise notice 'NT-4 PASSED: a null number falls back to the company topic, a '
-    'real one scopes';
+    'real one scopes to it alone';
 end $$;
 
 -- ===========================================================================
@@ -309,9 +324,11 @@ begin
   update public.phone_numbers set status = 'active'
    where id = '7c000000-0000-4000-8000-0000000000f1'::uuid;
 
-  -- The scoped event, as before.
+  -- The scoped event, now on its own topic alone — which is the very thing this
+  -- test exists to compensate for, and the reason the discovery signal below is
+  -- not optional.
   v_topics := pg_temp.topics_for('number.updated');
-  if v_topics <> array[pg_temp.company_topic(), pg_temp.number_topic()] then
+  if v_topics <> array[pg_temp.number_topic()] then
     raise exception 'NT-6 FAILED: number.updated published to %', v_topics;
   end if;
 
