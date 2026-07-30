@@ -42,6 +42,9 @@ this PR merges and at no other time:
   release bundle and an iOS archive. You download and upload those. Uploading
   is not automated because the repo holds no signing credentials — see
   *Archiving mobile* for what that would take.
+  **The run also files an issue** titled `Upload to the stores: <tags>` with the
+  checklist, the run link and the artifact expiry date (#443). Close it when the
+  stores actually have the build; while it is open, they do not.
 
 So the tag means the same thing for all four: *this is what shipped*. It used to
 mean "live" for the Workers and "somebody should build this eventually" for the
@@ -109,7 +112,40 @@ For `android`/`ios` the released version is the one you archive and upload, and
 the generated notes are the "What's new" text. Those are the only artifacts where
 a version is user-facing.
 
+## Has either app actually been submitted? (#443)
+
+**Unknown as of 2026-07-30, and that is the honest answer rather than a gap in this
+document.** The repo can prove the release configuration builds; it has no way to
+know what a human did with the artifact afterwards, because the decisive act happens
+at Apple and Google and produces no state we hold.
+
+| Platform | Submitted? | To what | When |
+|---|---|---|---|
+| Android | **not recorded** | — | — |
+| iOS | **not recorded** | — | — |
+
+**Fill this in, once, and then keep it current by closing the handoff issue** — that
+issue is now the running record, so this table only needs to say where things stood
+the first time. Until it says otherwise, assume the stores are behind the tags: a
+version tagged here and a version available to a customer are different facts, and
+this is the only place that distinguishes them.
+
+Why it matters beyond tidiness: release-please publishes notes that become the
+store's "What's new" text. A changelog describing a build nobody can download is a
+customer-facing claim about a version that does not exist for them.
+
+**The one thing that can answer it without a dashboard** is version telemetry
+(#339): `node scripts/ops/version-distribution.mjs` reports what the wild is
+actually running. If a tagged version has no users a week after upload, it was
+either never submitted or never approved — and that is a question worth asking
+rather than assuming.
+
 ## Archiving mobile
+
+**The artifacts expire after 90 days** (`retention-days` on both upload steps). An
+unsigned archive that expires is a release that can no longer be shipped without a
+rebuild — recoverable, but the clock is real and the handoff issue states the exact
+date.
 
 The build number must be overridden or the store rejects the upload:
 

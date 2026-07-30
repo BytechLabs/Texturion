@@ -41,6 +41,12 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
+  # #443: ship.yml's `handoff` job files the store-upload to-do. A called workflow
+  # cannot exceed its CALLER's permissions, so granting it there is not enough —
+  # without this line the job fails on release day, which is the worst possible
+  # moment to discover a permissions problem. `pull-requests: write` does not imply
+  # it; issues and pull requests are separate scopes.
+  issues: write
 
 jobs:
   # ---------------------------------------------------------------------------

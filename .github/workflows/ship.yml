@@ -222,3 +222,47 @@ jobs:
           echo "::notice::Sign and upload it from Xcode — automating that needs an"
           echo "::notice::App Store Connect API key and a distribution certificate,"
           echo "::notice::which this repo does not have."
+
+  # ---------------------------------------------------------------------------
+  # The store handoff, as a tracked to-do rather than a log line (#443).
+  #
+  # THE GAP THIS CLOSES. The two `What is left to do by hand` notices above are the
+  # only thing standing between a built artifact and a shipped app, and a notice
+  # lives in a run summary somebody has to deliberately open. Meanwhile the same
+  # push tags a version, writes a changelog, and generates the store's "What's new"
+  # text. So the system could reach a state where a version is tagged, notes are
+  # published, and the app was never submitted — with nothing anywhere saying so.
+  #
+  # An open issue is the signal that was missing: it survives the run, it is visible
+  # without opening anything, and it closes when the work is actually done. Same
+  # shape as #387 (an expected thing not happening needs a signal) applied to the
+  # release path.
+  #
+  # IT DOES NOT DUPLICATE. One issue per release, found by title; a re-run comments
+  # instead of filing a second one.
+  #
+  # IT RUNS EVEN WHEN A MOBILE BUILD FAILED, on purpose. "The iOS archive did not
+  # build, so there is nothing to sign" is exactly the kind of thing that should be
+  # written down rather than inferred from an absence.
+  # ---------------------------------------------------------------------------
+  handoff:
+    name: Store handoff to-do
+    needs: [android, ios]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # The whole point of this job: it files the to-do.
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags: release-please has already tagged this commit
+
+      - name: File or update the release-day to-do
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANDROID_RESULT: ${{ needs.android.result }}
+          IOS_RESULT: ${{ needs.ios.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bash .github/scripts/store-handoff.sh
