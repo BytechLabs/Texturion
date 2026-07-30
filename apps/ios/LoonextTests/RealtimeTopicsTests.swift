@@ -7,8 +7,9 @@ import XCTest
 /// None of this can be exercised through a socket in a unit test, so what is
 /// pinned here is the arithmetic that decides the subscription set: the topic
 /// names (a wire contract with the trigger functions), the company-vs-number
-/// classification (which governs whether a frame may cancel the transport), and
-/// the join/leave diff.
+/// classification (which governs whether a frame may cancel the transport), the
+/// join/leave diff, and what a frame's SEND RESULT does to the set of topics this
+/// client believes it holds (#483 — a leave that never went out).
 final class RealtimeTopicsTests: XCTestCase {
     private let company = "11111111-1111-1111-1111-111111111111"
     private let numberA = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
@@ -82,6 +83,68 @@ final class RealtimeTopicsTests: XCTestCase {
         let delta = RealtimeClient.topicDelta(have: [held], want: [held])
         XCTAssertTrue(delta.join.isEmpty)
         XCTAssertTrue(delta.leave.isEmpty)
+    }
+
+    /// A revocation is only real once the `phx_leave` is on the wire. The client
+    /// used to record the whole desired set as joined BEFORE sending anything and
+    /// discard every send error, so a leave that never left the device counted as
+    /// a completed revocation — and since the held set is also what
+    /// `pushAccessToken` re-authorizes, the topic fell out of the hourly token
+    /// push too. With authorization a join-time handshake (D88), nothing was left
+    /// to close the channel: the server kept publishing that number's events to a
+    /// member who may no longer see it until the socket happened to drop.
+    ///
+    /// Holding it instead is what makes the next reconcile ask again.
+    func testAFailedLeaveStaysHeldAndIsStillPendingOnTheNextReconcile() {
+        let topic = RealtimeClient.numberTopic(company, numberA)
+        let held = RealtimeClient.topicsAfterSend([topic], topic: topic, leaving: true, sent: false)
+        XCTAssertEqual(held, [topic])
+        let delta = RealtimeClient.topicDelta(have: held, want: [])
+        XCTAssertEqual(delta.leave, [topic])
+        XCTAssertTrue(delta.join.isEmpty)
+    }
+
+    func testALeaveThatWentOutReleasesTheTopic() {
+        let topic = RealtimeClient.numberTopic(company, numberA)
+        let held = RealtimeClient.topicsAfterSend([topic], topic: topic, leaving: true, sent: true)
+        XCTAssertTrue(held.isEmpty)
+        // And is not asked for again — the channel is gone, not pending.
+        let delta = RealtimeClient.topicDelta(have: held, want: [])
+        XCTAssertTrue(delta.leave.isEmpty)
+    }
+
+    /// The other direction of the same rule. A join whose frame never reached the
+    /// socket joined nothing, so recording it would claim a channel that does not
+    /// exist — putting a dead topic in every token push and stopping the next
+    /// reconcile from ever retrying the join.
+    func testAJoinIsHeldOnlyIfItsFrameWentOut() {
+        let topic = RealtimeClient.numberTopic(company, numberA)
+        XCTAssertEqual(
+            RealtimeClient.topicsAfterSend([], topic: topic, leaving: false, sent: true),
+            [topic]
+        )
+        let unsent = RealtimeClient.topicsAfterSend([], topic: topic, leaving: false, sent: false)
+        XCTAssertTrue(unsent.isEmpty)
+        XCTAssertEqual(RealtimeClient.topicDelta(have: unsent, want: [topic]).join, [topic])
+    }
+
+    /// Bookkeeping for one topic must not disturb the others: a company with two
+    /// numbers loses one, that leave fails, and the number still granted has to
+    /// stay exactly as it was.
+    func testRecordingOneTopicLeavesTheOthersAlone() {
+        let kept = RealtimeClient.numberTopic(company, numberA)
+        let revoked = RealtimeClient.numberTopic(company, numberB)
+        let held = RealtimeClient.topicsAfterSend(
+            [kept, revoked],
+            topic: revoked,
+            leaving: true,
+            sent: false
+        )
+        XCTAssertEqual(held, [kept, revoked])
+        XCTAssertEqual(
+            RealtimeClient.topicsAfterSend([kept, revoked], topic: revoked, leaving: true, sent: true),
+            [kept]
+        )
     }
 
     func testAFreshSocketJoinsTheCompanyChannelAndOnePerVisibleNumber() async {

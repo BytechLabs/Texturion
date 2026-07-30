@@ -1,6 +1,7 @@
 package com.loonext.android.core.realtime
 
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +18,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
@@ -95,6 +97,35 @@ private class FakeRealtimeServer : WebSocketListener() {
 }
 
 /**
+ * The real transport with one behaviour changed: the first [refusals] phx_leave
+ * frames are REFUSED, the way OkHttp refuses any send once its output buffer is
+ * full or the socket is closing.
+ *
+ * Staged in a decorator rather than on the wire because the real conditions are
+ * unobservable: a socket that refuses sends for real has also stopped
+ * delivering, so what this exists to test — what the client still believes it is
+ * joined to after a leave it could not send — could never be read back.
+ */
+private class RefusesLeaves(
+    private val delegate: WebSocket,
+    private val refusals: AtomicInteger,
+) : WebSocket by delegate {
+    override fun send(text: String): Boolean = when {
+        !text.contains("\"phx_leave\"") -> delegate.send(text)
+        refusals.getAndDecrement() > 0 -> false
+        else -> delegate.send(text)
+    }
+}
+
+private class RefusingSockets(
+    private val real: OkHttpClient,
+    private val refusals: AtomicInteger,
+) : WebSocket.Factory {
+    override fun newWebSocket(request: Request, listener: WebSocketListener): WebSocket =
+        RefusesLeaves(real.newWebSocket(request, listener), refusals)
+}
+
+/**
  * #480 step 5: the client subscribes to `company:{id}` AND one
  * `company:{id}:number:{n}` per number it may see, all on one socket.
  *
@@ -109,13 +140,16 @@ class RealtimeTopicsTest {
     private lateinit var scope: CoroutineScope
     private lateinit var client: RealtimeClient
 
+    /** How many phx_leave sends the transport will refuse — none by default. */
+    private val refusedLeaves = AtomicInteger(0)
+
     @Before
     fun setUp() {
         channel = FakeRealtimeServer()
         server = MockWebServer().also { it.start() }
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         client = RealtimeClient(
-            http = OkHttpClient(),
+            http = RefusingSockets(OkHttpClient(), refusedLeaves),
             supabaseUrl = server.url("/").toString().trimEnd('/'),
             publishableKey = "pk",
             scope = scope,
@@ -155,6 +189,19 @@ class RealtimeTopicsTest {
                 .collect { seen.add(it) }
         }
         // replay=0: a frame sent before the collector registers is nobody's.
+        runBlocking { withTimeout(5_000) { ready.await() } }
+        return seen
+    }
+
+    /** Start collecting [RealtimeClient.reconnected] and wait until registered. */
+    private fun collectReconnects(): List<Unit> {
+        val seen = CopyOnWriteArrayList<Unit>()
+        val ready = CompletableDeferred<Unit>()
+        scope.launch {
+            client.reconnected
+                .onSubscription { ready.complete(Unit) }
+                .collect { seen.add(Unit) }
+        }
         runBlocking { withTimeout(5_000) { ready.await() } }
         return seen
     }
@@ -312,14 +359,7 @@ class RealtimeTopicsTest {
     @Test
     fun `reconnected fires once per reconnect, not once per topic`() {
         serve(2)
-        val reconnects = CopyOnWriteArrayList<Unit>()
-        val ready = CompletableDeferred<Unit>()
-        scope.launch {
-            client.reconnected
-                .onSubscription { ready.complete(Unit) }
-                .collect { reconnects.add(Unit) }
-        }
-        runBlocking { withTimeout(5_000) { ready.await() } }
+        val reconnects = collectReconnects()
 
         client.connect(COMPANY, "jwt-1", listOf("num-a", "num-b", "num-c"))
         awaitUntil("four joins") { channel.topicsOf("phx_join").size == 4 }
@@ -339,5 +379,118 @@ class RealtimeTopicsTest {
         // than once per number.
         Thread.sleep(250)
         assertEquals(1, reconnects.size)
+    }
+
+    @Test
+    fun `an access change while the socket is down still backfills on reconnect`() {
+        serve(2)
+        val reconnects = collectReconnects()
+
+        client.connect(COMPANY, "jwt-1", listOf("num-a"))
+        awaitUntil("both joins") { channel.topicsOf("phx_join").size == 2 }
+        awaitUntil("the channel to join") { client.state.value == RealtimeState.Joined }
+
+        // The socket dies — an elevator, a lost cell. The loop is now sitting in
+        // its backoff delay with no transport.
+        channel.connections[0].send(channelErrorFrame(COMPANY_TOPIC))
+        awaitUntil("the transport to drop") {
+            client.state.value == RealtimeState.Disconnected
+        }
+
+        // `access.changed` lands in exactly that window. Ordinary rather than
+        // exotic: RootViewModel spends ~300ms on /v1/me before it gets here.
+        client.connect(COMPANY, "jwt-1", listOf("num-a", "num-b"))
+
+        awaitUntil("the re-JOIN with the new list", timeoutMs = 20_000) {
+            channel.topicsOf("phx_join").size == 5
+        }
+        assertEquals(
+            listOf(COMPANY_TOPIC, numberTopic("num-a"), numberTopic("num-b")),
+            channel.topicsOf("phx_join").drop(2),
+        )
+        // The point: connect() no longer clears the backfill gate just because
+        // the socket happened to be down. It used to, and then InboxTab,
+        // ThreadScreen, CallsScreen and TasksTab kept their pre-gap pages with no
+        // self-heal until the user navigated away and back.
+        awaitUntil("the reconnect signal") { reconnects.size == 1 }
+        // One socket per drop: the live backoff was not cancelled and restarted
+        // underneath itself either.
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun `switching company is a first join, not a reconnect`() {
+        serve(2)
+        val reconnects = collectReconnects()
+
+        client.connect(COMPANY, "jwt-1", listOf("num-a"))
+        awaitUntil("both joins") { channel.topicsOf("phx_join").size == 2 }
+        awaitUntil("the channel to join") { client.state.value == RealtimeState.Joined }
+
+        // A DIFFERENT company is the one case that legitimately clears the gate:
+        // co-2 has no cached pages that could have missed anything.
+        client.connect("co-2", "jwt-1", emptyList())
+
+        awaitUntil("the second socket") { server.requestCount == 2 }
+        awaitUntil("co-2's join") {
+            channel.topicsOf("phx_join").contains("realtime:company:co-2")
+        }
+        // The fake replies before it records, so the reply is already on the
+        // wire; this is the client's reader being given time to act on it.
+        Thread.sleep(250)
+        assertEquals(RealtimeState.Joined, client.state.value)
+        assertEquals(0, reconnects.size)
+    }
+
+    @Test
+    fun `a leave the socket refuses stays on the token push list`() {
+        serve(1)
+        refusedLeaves.set(Int.MAX_VALUE)
+        client.connect(COMPANY, "jwt-1", listOf("num-a"))
+        awaitUntil("both joins") { channel.topicsOf("phx_join").size == 2 }
+        awaitUntil("the channel to join") { client.state.value == RealtimeState.Joined }
+
+        // Access revoked: num-a leaves the list, and every leave frame for it is
+        // refused by the transport.
+        client.connect(COMPANY, "jwt-1", emptyList())
+        client.setAuth("jwt-2")
+
+        // connect() pushes the token BEFORE it syncs topics, so the pair that
+        // proves the topic survived the refused leave is the second one.
+        awaitUntil("both token pushes") { channel.topicsOf("access_token").size == 4 }
+        // Still ours to close, so the hourly token push keeps re-running the topic
+        // policy against it — the only other thing that can shut a channel whose
+        // authorization was a join-time handshake. Forgetting it here recorded a
+        // failed revocation as a completed one AND removed that backstop, leaving
+        // the server publishing this number to us until the socket happened to die.
+        assertEquals(
+            listOf(COMPANY_TOPIC, numberTopic("num-a")),
+            channel.topicsOf("access_token").drop(2),
+        )
+        // Nothing reached the server, so nothing was in fact left.
+        assertTrue(channel.topicsOf("phx_leave").isEmpty())
+    }
+
+    @Test
+    fun `a refused leave is retried until the socket takes it`() {
+        serve(1)
+        refusedLeaves.set(1)
+        client.connect(COMPANY, "jwt-1", listOf("num-a"))
+        awaitUntil("both joins") { channel.topicsOf("phx_join").size == 2 }
+        awaitUntil("the channel to join") { client.state.value == RealtimeState.Joined }
+
+        client.connect(COMPANY, "jwt-1", emptyList())
+
+        // The first leave was refused and nothing else calls syncTopics, so a
+        // leave arriving at all IS the retry. Without one the revocation would
+        // wait for the socket to drop or for a token push to be refused — the
+        // hour `broadcast_number_access_changed` exists to remove.
+        awaitUntil("the retried leave") { channel.topicsOf("phx_leave").size == 1 }
+        assertEquals(listOf(numberTopic("num-a")), channel.topicsOf("phx_leave"))
+
+        // And now that it really is gone, it drops off the push list too.
+        client.setAuth("jwt-2")
+        awaitUntil("the last token push") { channel.topicsOf("access_token").size == 3 }
+        assertEquals(listOf(COMPANY_TOPIC), channel.topicsOf("access_token").drop(2))
     }
 }

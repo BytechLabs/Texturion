@@ -102,10 +102,30 @@ describe("realtimeTopics", () => {
  * would register a second set of handlers on the dying channel and leave the
  * company topic silently dead for the rest of the session. Asserted here so a
  * supabase-js upgrade that changes it fails a test instead of the inbox.
+ *
+ * DELIBERATELY COUPLED TO @supabase/realtime-js INTERNALS, and kept that way
+ * after #483 asked whether it should survive a supabase-js bump. It should. The
+ * premise is not observable through the public API: reaching the state that makes
+ * the premise interesting — a channel already JOINED on a CONNECTED socket, the
+ * only case where a leave could plausibly wait for the server's ack — needs a
+ * real websocket server or the two internals below. A version of this test
+ * written to the public surface alone would remove a never-subscribed channel,
+ * which proves the easy half and would keep passing through exactly the change it
+ * exists to catch.
+ *
+ * So the internals are named, and the SILENT failure is closed: a rename of
+ * `channelAdapter` or `socketAdapter` throws, and a rename of what we set on them
+ * is caught by the two assertions below, which check through the public surface
+ * that the setup actually took. Without those, a renamed `state` field would
+ * leave us writing a dead property and quietly testing the easy half again.
+ *
+ * If a bump breaks this test, the job is to re-establish the premise against the
+ * new internals — not to delete it. The provider's whole rebuild path depends on
+ * the behaviour it pins.
  */
 describe("realtime-js remove-then-reopen (premise)", () => {
   /** Neither of these is in the public types; the premise is about them anyway. */
-  type ChannelInternals = { channelAdapter: { state: string } };
+  type ChannelInternals = { channelAdapter: { state: string; isClosed: () => boolean } };
   type SocketInternals = {
     socketAdapter: { isConnected: () => boolean; push: (data: unknown) => void };
   };
@@ -116,13 +136,18 @@ describe("realtime-js remove-then-reopen (premise)", () => {
       config: { private: true },
     });
     // Put the channel in the state a LIVE one is in when the effect rebuilds:
-    // joined, on a connected socket. That is the case where a leave could
-    // plausibly wait for the server's ack, so testing a never-subscribed channel
-    // would prove the easy half only.
-    (first as unknown as ChannelInternals).channelAdapter.state = "joined";
+    // joined, on a connected socket.
+    const adapter = (first as unknown as ChannelInternals).channelAdapter;
+    adapter.state = "joined";
     const socket = (client.realtime as unknown as SocketInternals).socketAdapter;
     socket.isConnected = () => true;
     socket.push = () => {};
+    // The setup took: realtime-js reads both of these itself (`subscribe()` skips
+    // a channel that is not closed, and `isConnected()` is the public reading of
+    // the socket state), so a rename that made either write a no-op fails here
+    // rather than downgrading the test to the trivial case.
+    expect(adapter.isClosed()).toBe(false);
+    expect(client.realtime.isConnected()).toBe(true);
 
     void client.removeChannel(first); // exactly what the effect cleanup does
 

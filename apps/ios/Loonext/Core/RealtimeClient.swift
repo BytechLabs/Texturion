@@ -42,10 +42,15 @@ actor RealtimeClient {
     private var numberIds: Set<String> = []
 
     /// The per-number topics a `phx_join` has been SENT for on the CURRENT
-    /// socket — not necessarily accepted, since a refused join is a normal
-    /// outcome. Kept apart from `numberIds` because that is what the reconcile
-    /// has to diff against: diffing against the desired set would compute an
-    /// empty delta and leave a revoked number's channel open.
+    /// socket and no `phx_leave` has gone out for — not necessarily accepted,
+    /// since a refused join is a normal outcome. Kept apart from `numberIds`
+    /// because that is what the reconcile has to diff against: diffing against
+    /// the desired set would compute an empty delta and leave a revoked number's
+    /// channel open.
+    ///
+    /// SENT, not intended: a send that failed must not move this set (see
+    /// `topicsAfterSend`). It is also what `pushAccessToken` iterates, so a topic
+    /// dropped from it stops being re-authorized as well as unsubscribed.
     private var joinedNumberTopics: Set<String> = []
 
     private var accessToken: String?
@@ -382,6 +387,34 @@ actor RealtimeClient {
         (join: want.subtracting(have).sorted(), leave: have.subtracting(want).sorted())
     }
 
+    /// `have` after a reconcile frame for `topic` either reached the socket or did
+    /// not. This is a function of the SEND RESULT rather than an assignment of the
+    /// desired set, which is what it replaces.
+    ///
+    /// A `phx_leave` that failed to send has left nothing: the channel is still
+    /// joined, and the server authorizes a channel on `phx_join` and on a pushed
+    /// token but never per broadcast (D88), so it keeps publishing that number's
+    /// events. Keeping the topic held is what keeps `pushAccessToken` re-running
+    /// the topic policy against that channel — the only other thing that makes the
+    /// server drop it. Recording the leave as done instead loses both the retry
+    /// and the token push, and the member goes on receiving events for a number
+    /// they may no longer see until the socket happens to drop.
+    ///
+    /// A `phx_join` that failed to send joined nothing, so it must not be held:
+    /// claiming it would put a topic this socket never joined into every token
+    /// push, and would keep the next reconcile from asking for it again.
+    static func topicsAfterSend(
+        _ have: Set<String>,
+        topic: String,
+        leaving: Bool,
+        sent: Bool
+    ) -> Set<String> {
+        var next = have
+        let held = leaving ? !sent : sent
+        if held { next.insert(topic) } else { next.remove(topic) }
+        return next
+    }
+
     /// The per-number channels this client should hold for `company`.
     private func numberTopics(_ company: String) -> Set<String> {
         Set(numberIds.map { Self.numberTopic(company, $0) })
@@ -411,23 +444,112 @@ actor RealtimeClient {
     /// joins the whole current set on the next connection.
     private func reconcileNumberTopics() {
         guard let company = companyId, let socket else { return }
-        let want = numberTopics(company)
-        let delta = Self.topicDelta(have: joinedNumberTopics, want: want)
+        let delta = Self.topicDelta(have: joinedNumberTopics, want: numberTopics(company))
         guard !delta.join.isEmpty || !delta.leave.isEmpty else { return }
-        // Frames are built inside the actor so `ref` stays monotonic and ordered;
-        // the sends then ride one task in that same order. Leaves before joins —
-        // a revocation must not wait behind a grant.
-        let payload = joinPayload()
-        let leaving = delta.leave.map {
-            frame(topic: $0, event: "phx_leave", payload: .object([:]))
+        // One task, so the frames ride the socket in the order they were computed:
+        // leaves before joins — a revocation must not wait behind a grant.
+        Task { await self.flushTopicDelta(delta, for: company, on: socket) }
+    }
+
+    /// Put a reconcile's frames on the wire and record only the ones that went
+    /// out, re-sending a leave that did not.
+    ///
+    /// `joinedNumberTopics` used to be assigned the DESIRED set here, before these
+    /// frames were sent, and every send was a discarded `try?`. A `phx_leave` that
+    /// never left the device was therefore filed as a completed revocation — see
+    /// `topicsAfterSend` for what that costs.
+    private func flushTopicDelta(
+        _ delta: (join: [String], leave: [String]),
+        for company: String,
+        on socket: URLSessionWebSocketTask
+    ) async {
+        var unsentLeaves: [String] = []
+        for topic in delta.leave {
+            guard let sent = await sendTopicFrame(topic, leaving: true, for: company, on: socket)
+            else { continue }
+            if !sent { unsentLeaves.append(topic) }
         }
-        let joining = delta.join.map {
-            frame(topic: $0, event: "phx_join", payload: payload)
+        for topic in delta.join {
+            // A join that failed to send is not retried here: the failure means
+            // this socket is going, and the next one joins the whole current set
+            // from `joinFrames`. Under-subscribing until then is the safe
+            // direction; claiming a channel that was never joined is not.
+            _ = await sendTopicFrame(topic, leaving: false, for: company, on: socket)
         }
-        let frames = leaving + joining
-        joinedNumberTopics = want
-        Task {
-            for text in frames { try? await socket.send(.string(text)) }
+        await retryUnsentLeaves(unsentLeaves, for: company, on: socket)
+    }
+
+    /// Build ONE reconcile frame, send it, and move `joinedNumberTopics` by what
+    /// the send actually did. `true`/`false` is that send's result; `nil` means no
+    /// frame was put on the wire at all, so there is nothing to retry.
+    private func sendTopicFrame(
+        _ topic: String,
+        leaving: Bool,
+        for company: String,
+        on socket: URLSessionWebSocketTask
+    ) async -> Bool? {
+        guard self.socket === socket else { return nil }
+        // The intent is re-read HERE, not at diff time. Every send suspends and
+        // this actor is reentrant, so an `access.changed` landing mid-flush
+        // re-derives against a set this flush has not finished moving, computes an
+        // empty delta of its own, and leaves this now-stale frame as the only one
+        // anybody will act on: obeying it would leave a channel just granted back,
+        // or join one just revoked. Building the frame here too keeps `ref` in the
+        // order the pushes actually go out.
+        let stillWanted = numberTopics(company).contains(topic)
+        guard stillWanted != leaving else { return nil }
+        let text = frame(
+            topic: topic,
+            event: leaving ? "phx_leave" : "phx_join",
+            payload: leaving ? .object([:]) : joinPayload()
+        )
+        var sent = true
+        do {
+            try await socket.send(.string(text))
+        } catch {
+            // The failure the old `try?` swallowed.
+            sent = false
+        }
+        joinedNumberTopics = Self.topicsAfterSend(
+            joinedNumberTopics,
+            topic: topic,
+            leaving: leaving,
+            sent: sent
+        )
+        return sent
+    }
+
+    /// A `phx_leave` whose send failed is re-sent this many times, this far apart.
+    ///
+    /// Bounded, because the retry only SHORTENS the exposure — what closes it is
+    /// the topic staying held until a leave actually goes out, which keeps every
+    /// JWT push re-running the topic policy against that channel.
+    private static let leaveRetryLimit = 3
+    private static let leaveRetryDelay: Duration = .seconds(2)
+
+    /// Re-send the leaves that did not make it, on the SAME socket.
+    ///
+    /// Abandoned once this is no longer the live socket (`sendTopicFrame` returns
+    /// nil and the queue drains): a replacement socket joins from `joinFrames`,
+    /// which starts from the current number set, so it never joined the revoked
+    /// topic and there is nothing left to leave.
+    private func retryUnsentLeaves(
+        _ topics: [String],
+        for company: String,
+        on socket: URLSessionWebSocketTask
+    ) async {
+        var pending = topics
+        var attempt = 0
+        while !pending.isEmpty, attempt < Self.leaveRetryLimit {
+            attempt += 1
+            try? await Task.sleep(for: Self.leaveRetryDelay)
+            var stillUnsent: [String] = []
+            for topic in pending {
+                guard let sent = await sendTopicFrame(topic, leaving: true, for: company, on: socket)
+                else { continue }
+                if !sent { stillUnsent.append(topic) }
+            }
+            pending = stillUnsent
         }
     }
 

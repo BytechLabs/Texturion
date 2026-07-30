@@ -662,6 +662,17 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     // the backfill N times for a single outage; the first channel back clears it
     // and the rest ride along.
     //
+    // ARMED BY THE COMPANY TOPIC, and by a per-number topic only when its failure
+    // is unambiguously a transport one (#483 finding 3). A per-number
+    // CHANNEL_ERROR on a live socket is refusal-shaped, and treating that as a
+    // gap pinned the flag for the life of the page: the refused channel re-joins
+    // every ~10s forever, re-arming it, while nothing ever cleared it — so the
+    // next legitimate join trimmed every infinite query to page 1 and collapsed
+    // the user's scrolled-back pagination for an outage that never happened. The
+    // company topic loses its transport at the same instant as everybody else and
+    // can never be refused (`is_company_topic_member` admits every member), so it
+    // is a complete and unambiguous witness for the case the backfill is for.
+    //
     // Deliberately NOT hoisted into a ref across effect runs. The cleanup below
     // removes every channel, which reports CLOSED, so a rebuilt effect that
     // inherited the flag would trim everybody's pagination to page 1 on every
@@ -773,7 +784,29 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     // register a second set of handlers on the channel being torn down, and
     // `subscribe()` — a no-op unless the channel is closed — would leave the
     // company topic dead for the rest of the session.
-    const channels = realtimeTopics(companyId, topicKey).map(openTopic);
+    const companyTopic = `company:${companyId}`;
+    // Paired with its topic rather than read back off the channel: realtime-js
+    // prefixes `channel.topic` with `realtime:`, and leaning on
+    // `realtimeTopics` putting the company topic first would make the gap-flag
+    // rule below depend on an array order nothing enforces.
+    const channels = realtimeTopics(companyId, topicKey).map((topic) => ({
+      topic,
+      channel: openTopic(topic),
+    }));
+
+    /**
+     * #483 finding 3: how many times a per-number join must be refused on a live
+     * socket before we stop asking and drop the channel.
+     *
+     * TWO, not one, and the second one is what makes `isConnected()` below safe
+     * to trust. Phoenix errors every channel from `heartbeatTimeout()` while the
+     * socket's readyState is still `open` and only then tears it down — so that
+     * path produces exactly ONE error on a seemingly-live socket and can never
+     * produce a second (the channel is `errored` by then, and `triggerChanError`
+     * skips errored channels). A refusal is re-pushed on the rejoin ladder and
+     * refused again, every time, for the life of the page.
+     */
+    const REFUSALS_BEFORE_GIVING_UP = 2;
 
     void (async () => {
       const { data } = await supabase.auth.getSession();
@@ -781,9 +814,14 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       if (data.session?.access_token) {
         await supabase.realtime.setAuth(data.session.access_token);
       }
-      for (const channel of channels) {
+      for (const { topic, channel } of channels) {
+        const isCompanyTopic = topic === companyTopic;
+        // Consecutive refusals of THIS topic. Per channel, because one number
+        // being taken away says nothing about the others.
+        let refusals = 0;
         channel.subscribe((status) => {
           if (status === "SUBSCRIBED") {
+            refusals = 0;
             // Backfill whenever there WAS a gap, whether or not this channel had
             // joined before. The old guard also required a previous successful
             // join, which swallowed the case that needs the backfill most: a
@@ -794,19 +832,42 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             // first join records no gap, so it still refetches nothing.
             if (hadDrop) refetchFirstPages();
             hadDrop = false;
-          } else if (
-            status === "CHANNEL_ERROR" ||
-            status === "TIMED_OUT" ||
-            status === "CLOSED"
-          ) {
-            // A REFUSED per-number join lands here too — access was taken away
-            // between the /v1/me read and the join. That is not a transport
-            // failure and must not be treated as one: the sibling channels are
-            // already joined and stay joined, realtime-js retries this one on its
-            // own backoff, and the `access.changed` rebuild replaces the whole set
-            // with the list the server now agrees with.
-            hadDrop = true;
+            return;
           }
+          if (isCompanyTopic) {
+            // Every failure of this topic is a real one — it cannot be refused
+            // for a member who is in the company — so realtime-js keeps retrying
+            // it and the gap is recorded.
+            hadDrop = true;
+            return;
+          }
+          // A per-number CHANNEL_ERROR on a socket that is still connected is the
+          // policy answering: access was taken away between the /v1/me read and
+          // the join. Retrying that forever costs a `phx_join` every ~10s for the
+          // life of the page, each one running `is_company_topic_member` →
+          // `member_number_level` → `member_number_levels` against Postgres, and
+          // it can never succeed — only an access edit can bring the number back,
+          // and that arrives as `access.changed`, which rebuilds this whole set
+          // from the list the server now agrees with. So give up on it and drop
+          // it; the siblings are already joined and stay joined.
+          if (status === "CHANNEL_ERROR" && supabase.realtime.isConnected()) {
+            refusals += 1;
+            // On the threshold crossing exactly: `removeChannel` reports CLOSED
+            // back into this callback, and a leave in flight can still surface an
+            // error, so a `>=` test would try to remove the channel twice.
+            if (refusals === REFUSALS_BEFORE_GIVING_UP) {
+              void supabase.removeChannel(channel);
+            }
+            return;
+          }
+          refusals = 0;
+          // What is left is a per-number failure that is NOT refusal-shaped: the
+          // socket had already gone (so this number's events were being lost with
+          // everybody else's) or the join timed out unanswered (so they were
+          // being lost for this number alone, which the company topic would not
+          // have noticed). Both are gaps. CLOSED is not — nothing leaves a
+          // per-number topic except this file.
+          if (status !== "CLOSED") hadDrop = true;
         });
       }
     })();
@@ -819,7 +880,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       for (const timer of pendingUpdates.values()) clearTimeout(timer);
       pendingUpdates.clear();
       authSubscription.unsubscribe();
-      for (const channel of channels) void supabase.removeChannel(channel);
+      for (const { channel } of channels) void supabase.removeChannel(channel);
     };
   }, [companyId, queryClient, realtimeEnabled, topicKey]);
 

@@ -8,6 +8,8 @@ import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.SubscriptionStatus
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -32,9 +34,38 @@ sealed interface RootState {
     data class Failed(val message: String) : RootState
 }
 
+/**
+ * #483: the waits before each retry of a bootstrap number list that failed.
+ *
+ * The hydrated `/v1/me` is the ONLY source of the access-filtered number list,
+ * and when it fails [RootViewModel] hands realtime an empty one — the member
+ * holds the company topic and not a single per-number topic. The reconnect
+ * collector heals that on the next re-JOIN, which on a healthy socket can be
+ * hours away, and once D88's contract step lands those are hours of an inbox
+ * that never updates. Three tries across ~17s turn one transient 5xx into a
+ * blink; going longer would only race the re-JOIN heal that already exists.
+ */
+internal val NUMBER_LIST_RETRY_DELAYS_MS = listOf(1_000L, 4_000L, 12_000L)
+
+/**
+ * Run [attempt] after each wait in [NUMBER_LIST_RETRY_DELAYS_MS] until one
+ * reports success. Waits FIRST: the read that just failed fails the same way if
+ * it is repeated in the same millisecond.
+ */
+internal suspend fun retryNumberList(attempt: suspend () -> Boolean): Boolean {
+    for (delayMs in NUMBER_LIST_RETRY_DELAYS_MS) {
+        delay(delayMs)
+        if (attempt()) return true
+    }
+    return false
+}
+
 class RootViewModel(private val graph: AppGraph) : ViewModel() {
     private val _state = MutableStateFlow<RootState>(RootState.Loading)
     val state: StateFlow<RootState> = _state
+
+    /** #483: the in-flight [retryNumberList], so bootstraps cannot stack them. */
+    private var numberListRetry: Job? = null
 
     init {
         // Session appearing/disappearing drives everything.
@@ -125,11 +156,16 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
      * the member did, so a failed read must leave the shell exactly as it was.
      * The subscriptions are then a moment stale until the next reconnect, and a
      * topic we no longer have access to is refused when we next try to join it.
+     *
+     * Reports whether the list actually moved, which is what [retryNumberList]
+     * needs to know when it is standing in for a bootstrap read that failed
+     * (#483). The two collectors above discard it: they fire off a signal that
+     * will come again, so there is nothing for them to do about a `false`.
      */
-    private suspend fun reconnectRealtime() {
-        val ready = _state.value as? RootState.Ready ?: return
-        val refreshed = runCatching { graph.meRepo.me(ready.companyId) }.getOrNull() ?: return
-        val session = graph.sessionStore.session.first() ?: return
+    private suspend fun reconnectRealtime(): Boolean {
+        val ready = _state.value as? RootState.Ready ?: return false
+        val refreshed = runCatching { graph.meRepo.me(ready.companyId) }.getOrNull() ?: return false
+        val session = graph.sessionStore.session.first() ?: return false
         graph.realtime.connect(
             ready.companyId,
             session.accessToken,
@@ -139,6 +175,7 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
         // picker, the composer's From), so a member who just lost a number stops
         // being offered it here rather than on their next app launch.
         _state.value = RootState.Ready(refreshed, ready.companyId)
+        return true
     }
 
     private suspend fun bootstrap() {
@@ -177,8 +214,10 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
             // Best-effort, because a failed hydration must not cost the shell.
             // Without it the member joins the company topic alone, which for the
             // length of D88's dual-publish transition still carries every event.
-            val hydrated = runCatching { graph.meRepo.me(membership.company_id) }
-                .getOrNull() ?: me
+            // Kept as a nullable rather than folded into `view`, because whether
+            // it failed is what decides the #483 retry at the bottom.
+            val hydrated = runCatching { graph.meRepo.me(membership.company_id) }.getOrNull()
+            val view = hydrated ?: me
 
             // Connect realtime for the active workspace.
             //
@@ -190,19 +229,37 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
             //
             // `!= false` rather than a truthiness check: an absent flag means
             // "no statement", which must read as ON.
-            val realtimeAllowed = hydrated.flags["kill:realtime"] != false
+            val realtimeAllowed = view.flags["kill:realtime"] != false
             val session = graph.sessionStore.session.first()
             if (session != null && realtimeAllowed) {
                 graph.realtime.connect(
                     membership.company_id,
                     session.accessToken,
-                    // Empty is a real state, not a failure: a member restricted
-                    // out of every number joins the company topic and nothing
-                    // else, and everything company-wide still reaches them.
-                    hydrated.company?.numbers?.map { it.id }.orEmpty(),
+                    // Empty is a real state when the read SUCCEEDED: a member
+                    // restricted out of every number joins the company topic and
+                    // nothing else, and everything company-wide still reaches
+                    // them. It is a failure when it came from the unhydrated `me`,
+                    // whose `company` is always null — hence the retry below.
+                    view.company?.numbers?.map { it.id }.orEmpty(),
                 )
             }
-            _state.value = RootState.Ready(hydrated, membership.company_id)
+            _state.value = RootState.Ready(view, membership.company_id)
+
+            // #483: one transient 5xx on the hydrated read must not cost a whole
+            // session of per-number realtime. Retried OFF the bootstrap path —
+            // the shell is already Ready above, so nothing here is waited on —
+            // and through [reconnectRealtime], which is exactly the same work the
+            // `access.changed` and reconnect collectors do.
+            //
+            // A retry still pending from an earlier bootstrap is stale whatever
+            // happened here: this pass has just read for the company it would
+            // read for.
+            numberListRetry?.cancel()
+            numberListRetry = if (hydrated == null) {
+                viewModelScope.launch { retryNumberList { reconnectRealtime() } }
+            } else {
+                null
+            }
         } catch (cause: ApiException) {
             if (cause.code == ApiErrorCode.UNAUTHORIZED) {
                 _state.value = RootState.SignedOut

@@ -18,7 +18,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
@@ -55,7 +54,12 @@ sealed interface RealtimeState {
  *   may have been lost while offline — the web client does exactly this).
  */
 class RealtimeClient(
-    private val http: OkHttpClient,
+    // The app's OkHttpClient, narrowed to the one thing this class asks of it.
+    // #483: it is also the only place a test can stage a REFUSED send — OkHttp
+    // refuses one only on a transport that is closing, and such a transport has
+    // stopped delivering too, which would make the thing under test (what the
+    // client remembers after a phx_leave it could not send) unobservable.
+    private val http: WebSocket.Factory,
     private val supabaseUrl: String,
     private val publishableKey: String,
     private val scope: CoroutineScope,
@@ -116,13 +120,22 @@ class RealtimeClient(
     private var numberIds: List<String> = emptyList()
 
     /**
-     * Topics with a join frame sent on the CURRENT socket and not since refused.
+     * Topics with a join frame sent on the CURRENT socket and not since refused,
+     * plus any whose phx_leave the socket would not take (see [leaveUnwanted]).
      * Deliberately distinct from [numberIds]: the server refuses a number topic
      * whenever our list is a moment stale (a revocation we have not heard about
-     * yet), and a refusal must not be retried on a loop.
+     * yet), and a refusal must not be retried on a loop. This is also the set
+     * [pushAccessToken] walks, so it is the roster of channels we might still be
+     * receiving on — never the roster we would LIKE to be receiving on.
      */
     private val joinedTopics = mutableSetOf<String>()
 
+    /**
+     * True once [companyId]'s COMPANY topic has been joined — the gate on
+     * [reconnected]. Scoped to the COMPANY, not to a socket: a socket that
+     * dropped is precisely the case a backfill exists for, so it is reset only
+     * when the company itself changes.
+     */
     private var everJoined = false
 
     /**
@@ -131,11 +144,20 @@ class RealtimeClient(
      */
     @Synchronized
     fun connect(companyId: String, accessToken: String, numberIds: List<String>) {
-        val sameChannel = this.companyId == companyId
+        val sameCompany = this.companyId == companyId
         this.companyId = companyId
         this.accessToken = accessToken
         this.numberIds = numberIds
-        if (sameChannel && _state.value != RealtimeState.Disconnected) {
+        // Gated on a live reconnect LOOP, not on [_state]. This is a hot path
+        // now — every `access.changed` runs it, not once per bootstrap — and
+        // `_state != Disconnected` fell through to [restart] whenever the socket
+        // happened to be down or in backoff: that cancelled the running backoff
+        // and started it again at attempt 0, and cleared [everJoined], so the
+        // re-JOIN that followed emitted no [reconnected] and every open screen
+        // silently kept the gap that signal exists to backfill. The loop already
+        // owns getting back up; all it needs is the new list, which [open]
+        // applies on its next connection.
+        if (sameCompany && loop?.isActive == true) {
             pushAccessToken()
             // #480: a number list that changed under a live connection is joined
             // and left in place. Restarting the socket would also arrive at the
@@ -145,6 +167,8 @@ class RealtimeClient(
             socket?.let { syncTopics(it) }
             return
         }
+        // A genuine company SWITCH: the next company's first join IS a first
+        // join, and backfilling pages nothing has ever fetched means nothing.
         everJoined = false
         restart()
     }
@@ -190,6 +214,12 @@ class RealtimeClient(
                     // Disconnected on the next line).
                     if (_state.value == RealtimeState.Joined) attempt = 0
                 }
+                // A closed socket is not a socket to send on. [connect] may now
+                // land at any point in this backoff (it no longer restarts the
+                // loop), and pushing joins into a dead transport would mark
+                // topics joined that no server ever answered — [open] clears the
+                // set on the next connection, so the joins would never be resent.
+                socket = null
                 _state.value = RealtimeState.Disconnected
                 attempt++
                 val backoffMs = min(30_000L, 1_000L * (1L shl min(attempt, 5)))
@@ -224,11 +254,15 @@ class RealtimeClient(
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 heartbeat?.cancel()
+                // A channel cannot outlive its transport, so an unsent leave has
+                // nothing left to close.
+                leaves?.cancel()
                 closed.complete(Unit)
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 heartbeat?.cancel()
+                leaves?.cancel()
                 closed.complete(Unit)
             }
         })
@@ -254,14 +288,64 @@ class RealtimeClient(
             if (joinedTopics.add(topic)) ws.send(joinMessage(topic))
         }
 
-        // A number we no longer have is LEFT, not merely dropped from the list.
-        // Authorization is a join-time handshake (D88 addendum): the server goes
-        // on publishing to every channel we hold, so a member whose access was
-        // just revoked would keep receiving that number's events until the socket
-        // dropped if we only stopped wanting it.
-        for (topic in joinedTopics - wanted - companyTopic) {
-            joinedTopics.remove(topic)
-            ws.send(message(topic, "phx_leave", buildJsonObject {}))
+        if (leaveUnwanted(ws) > 0) retryLeaves(ws)
+    }
+
+    /**
+     * Leave every joined number topic [numberIds] no longer wants, and report how
+     * many the socket would not take.
+     *
+     * A number we no longer have is LEFT, not merely dropped from the list.
+     * Authorization is a join-time handshake (D88 addendum): the server goes on
+     * publishing to every channel we hold, so a member whose access was just
+     * revoked would keep receiving that number's events until the socket dropped
+     * if we only stopped wanting it.
+     *
+     * The topic is forgotten only once its leave is ON THE WIRE. Forgetting first
+     * recorded a refused send as a completed revocation, and because
+     * [pushAccessToken] iterates this same set it also dropped the topic from the
+     * hourly token push — the one other thing that would have re-run the topic
+     * policy and closed the channel. So a leave lost to a dying socket or a full
+     * write buffer left the server publishing that number to us for up to an
+     * hour, which is the exact window `broadcast_number_access_changed` exists to
+     * shut. A topic kept here is retried by [retryLeaves] and re-checked by every
+     * token push until one of them closes it.
+     */
+    @Synchronized
+    private fun leaveUnwanted(ws: WebSocket): Int {
+        val company = companyId ?: return 0
+        val keep = numberIds.mapTo(mutableSetOf(companyTopic(company))) {
+            numberTopic(company, it)
+        }
+        var refused = 0
+        for (topic in joinedTopics - keep) {
+            if (ws.send(message(topic, "phx_leave", buildJsonObject {}))) {
+                joinedTopics.remove(topic)
+            } else {
+                refused++
+            }
+        }
+        return refused
+    }
+
+    private var leaves: Job? = null
+
+    /**
+     * Retry the leaves [leaveUnwanted] could not hand to [ws]. One job at a time,
+     * and bounded: a closing socket will never take them and a channel dies with
+     * its transport anyway, so what retrying buys is the transient refusal — a
+     * full output buffer, a backgrounding app. Anything still unsent when the
+     * bound runs out is still in [joinedTopics], where the next access change and
+     * every token push keep asking.
+     */
+    @Synchronized
+    private fun retryLeaves(ws: WebSocket) {
+        if (leaves?.isActive == true) return
+        leaves = scope.launch {
+            repeat(5) {
+                delay(1_000)
+                if (leaveUnwanted(ws) == 0) return@launch
+            }
         }
     }
 
