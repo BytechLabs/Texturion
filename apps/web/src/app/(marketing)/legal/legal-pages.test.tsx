@@ -22,6 +22,7 @@ import SubprocessorsPage, {
   metadata as subprocessorsMetadata,
 } from "./subprocessors/page";
 import TermsPage, { metadata as termsMetadata } from "./terms/page";
+import { DELETION_GAPS, DELETION_GRACE_DAYS } from "@loonext/shared";
 
 /**
  * The seven legal pages (COPY-DECK v2, V4 coverage map): quiet register,
@@ -280,5 +281,36 @@ describe("delete-my-data — the store-facing deletion page", () => {
     // They are not our user; the business controls their data, and the fastest
     // remedy is in their own hands.
     expect(page.html).toContain("reply");
+  });
+});
+
+describe("#357 — the deletion page is bound to the facts, not to prose", () => {
+  const page = PAGES.find((entry) => entry.name === "delete-my-data")!;
+
+  it("states the boundary from the shared constant", () => {
+    // #357: "A published page must not imply either is handled." The gap text
+    // lives in packages/shared so the page, the emails and #285's questionnaire
+    // answers cannot drift into three different promises — D48's own
+    // requirement, applied to the surface where a mismatch reads as dishonesty
+    // rather than staleness.
+    for (const gap of DELETION_GAPS) {
+      // A distinctive fragment: the rendered HTML escapes apostrophes, so the
+      // whole sentence would never match literally.
+      const fragment = gap.split(",")[0];
+      expect(page.html, `missing boundary: ${fragment}`).toContain(fragment);
+    }
+  });
+
+  it("quotes the same reversible window everything else does", () => {
+    expect(page.html).toContain(`${DELETION_GRACE_DAYS} days`);
+  });
+
+  it("still says what survives AND why", () => {
+    // The reasoning is the selling point. "We keep your STOP list forever"
+    // alarms when stripped of it and reassures when carrying it, so a tidy-up
+    // that shortened this section would remove the thing that makes it work.
+    expect(page.html).toMatch(/do-not-text/i);
+    expect(page.html).toMatch(/belongs to the person who sent it/i);
+    expect(page.html).toMatch(/three years/i);
   });
 });

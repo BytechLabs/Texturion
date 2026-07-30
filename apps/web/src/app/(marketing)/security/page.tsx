@@ -119,7 +119,13 @@ const CLAIMS: { title: string; body: React.ReactNode }[] = [
         message data is kept afterward only as long as legal, tax, and carrier
         record-keeping duties require, then deleted or anonymized, exactly as
         documented in our <SecLink href="/legal/terms">terms</SecLink> and{" "}
-        <SecLink href="/legal/privacy">privacy policy</SecLink>.
+        <SecLink href="/legal/privacy">privacy policy</SecLink>. What is erased,
+        what survives and why, and what closing a workspace does not reach are
+        set out in full on{" "}
+        <SecLink href="/legal/delete-my-data">
+          deletion and what we keep
+        </SecLink>
+        .
       </>
     ),
   },

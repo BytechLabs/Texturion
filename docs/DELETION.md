@@ -189,8 +189,14 @@ leave; an unsent receipt raises in Sentry and is ours to chase.
 
 - **#316** — a released number must carry no history to its next owner.
 - **#325** — deletion ordering against a live call or an in-flight port.
-- **#340** — `contact_messages` from the public marketing form is keyed to
-  nobody and is structurally out of reach of a company-scoped teardown. It
-  needs its own retention, not a hook here.
-- **#346** — deleting an *account* (a person across every workspace) is a
-  different operation that builds on this one.
+- ~~**#340**~~ — **closed.** `contact_messages` got its own retention rather
+  than a hook here (`api_prune_contact_messages`, one year). It is still out of
+  reach of a company-scoped teardown, which is now a stated BOUNDARY on
+  `/legal/delete-my-data` rather than an unmentioned gap (#357).
+- ~~**#346**~~ — **closed.** Deleting an *account* ships, and the public page
+  covers it.
+
+Both were listed here as open while the pages that quote this document were
+being written, which is the drift #323 is about: a stale "open" list is read as
+an admission. Struck rather than deleted, so the next reader can see the two
+resolved rather than wonder whether they were ever tracked.

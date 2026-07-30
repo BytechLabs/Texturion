@@ -163,6 +163,11 @@ export {
 } from "./ai-disclosure";
 
 export {
+  DELETION_GAPS,
+  DELETION_GRACE_DAYS,
+} from "./deletion-promises";
+
+export {
   numberAccessIsRestricted,
   numberAccessLevelLabel,
   numberAccessReason,

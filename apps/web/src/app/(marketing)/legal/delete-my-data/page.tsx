@@ -7,6 +7,7 @@ import {
 } from "@/components/marketing/legal/legal-page";
 import { PRIVACY_EMAIL } from "@/lib/marketing/business";
 import { buildMetadata } from "@/lib/marketing/seo";
+import { DELETION_GAPS } from "@loonext/shared";
 
 /**
  * #227: the public deletion URL.
@@ -36,7 +37,8 @@ const sections = [
   { id: "what-goes", number: "3", heading: "What is deleted" },
   { id: "what-stays", number: "4", heading: "What we have to keep" },
   { id: "when", number: "5", heading: "When it happens" },
-  { id: "help", number: "6", heading: "If you cannot sign in" },
+  { id: "boundary", number: "6", heading: "What closing a workspace does not reach" },
+  { id: "help", number: "7", heading: "If you cannot sign in" },
 ];
 
 export default function DeleteMyDataPage() {
@@ -136,7 +138,29 @@ export default function DeleteMyDataPage() {
         </p>
       </LegalSectionBlock>
 
-      <LegalSectionBlock id="help" number="6" heading="If you cannot sign in">
+      {/* #357: "A published page must not imply either is handled." The two
+          gaps that issue named have both since closed — account deletion
+          shipped, and the contact form's messages got their own retention — so
+          what is left is a boundary rather than a gap. It is still worth
+          saying: something held outside your workspace is not removed by
+          closing your workspace, and a reader deserves to know where to ask. */}
+      <LegalSectionBlock
+        id="boundary"
+        number="6"
+        heading="What closing a workspace does not reach"
+      >
+        <p>
+          Closing a workspace erases what is in it. One thing sits outside every
+          workspace, so it is worth naming rather than leaving to be discovered.
+        </p>
+        <ul>
+          {DELETION_GAPS.map((gap) => (
+            <li key={gap}>{gap}</li>
+          ))}
+        </ul>
+      </LegalSectionBlock>
+
+      <LegalSectionBlock id="help" number="7" heading="If you cannot sign in">
         <p>
           If you have lost access to your account and cannot use the in-app
           controls, email{" "}
