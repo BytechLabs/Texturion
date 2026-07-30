@@ -89,6 +89,22 @@ export const VOICEMAIL_TRANSCRIPT_FEATURE_SPEC: AiFeatureSpec = {
     "new voicemails are still recorded and playable, just not transcribed.",
   timeoutMs: VOICEMAIL_TRANSCRIPT_TIMEOUT_MS,
   enabled: (settings) => settings.transcribe_voicemail,
+  outcomes: {
+    // ONE observable outcome, and #431 names it: "played the audio anyway".
+    //
+    // The positive case — read the words and moved on — is a person NOT doing
+    // something. No client can see that without inferring it from unmount and
+    // scroll timing, and on a list-based screen a row disposes when you scroll
+    // past it, which would count "scrolled by" as "read and satisfied". Three
+    // platforms guessing differently would make the number worse than absent.
+    //
+    // So this row reports how many transcripts failed to save a listen, against
+    // `used` (how many were produced), and states no positive count it cannot
+    // observe. There is also no editing a transcript.
+    used: null,
+    edited: null,
+    discarded: "listened anyway",
+  },
 };
 
 /**

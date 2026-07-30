@@ -132,7 +132,28 @@ data class AiFeatureUsage(
     val used: Long = 0,
     val cap: Long = 0,
     val enabled: Boolean = true,
+    /**
+     * #431 ask 3 — what people did with the output, beside what it cost.
+     *
+     * Labelled by the server in each feature's own words ("sent as written",
+     * "cleared") so all three clients say the same thing. EMPTY until outcomes
+     * arrive, and an empty list must render as "not measured yet" rather than as
+     * zeroes: a feature used forty times with nothing recorded is an
+     * instrumentation gap, and "0 sent as written" would report that gap as a
+     * verdict on the quality.
+     */
+    val outcomes: List<AiOutcomeLine> = emptyList(),
+    /**
+     * How many outcomes those lines cover. Separate from `used` because they
+     * will not match — a draft offered and never read is a request with no
+     * outcome — and no rate is computed anywhere, deliberately.
+     */
+    val outcomesRecorded: Long = 0,
 )
+
+/** #431: what a person did with one feature's output, ready to render. */
+@Serializable
+data class AiOutcomeLine(val label: String, val count: Long = 0)
 
 /** GET /v1/billing/modules — admin-only add-on catalog with enabled state. */
 @Serializable

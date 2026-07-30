@@ -1195,6 +1195,22 @@ export interface AiFeatureUsage {
   cap: number;
   /** False when the workspace has this feature switched off. */
   enabled: boolean;
+  /**
+   * #431 ask 3 — what people did with the output, beside what it cost.
+   *
+   * Server-labelled in each feature's own words ("sent as written", "cleared")
+   * so all three clients say the same thing. EMPTY until outcomes arrive, and an
+   * empty list must render as "not measured yet", never as three zeroes: a
+   * feature used forty times with nothing recorded is an instrumentation gap,
+   * and showing it as "0 sent as written" reports that gap as a quality result.
+   */
+  outcomes: { label: string; count: number }[];
+  /**
+   * How many outcomes those lines cover. Separate from `used` because they will
+   * not match — a draft offered and never looked at is a request with no
+   * outcome — and no rate is computed anywhere, deliberately.
+   */
+  outcomesRecorded: number;
 }
 
 export interface Usage {

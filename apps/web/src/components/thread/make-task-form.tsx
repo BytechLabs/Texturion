@@ -15,7 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { enrichmentOutcome } from "@/lib/ai/outcome";
 import { enrichTaskFromMessage, useAiSettings } from "@/lib/api/ai-settings";
+import { reportAiOutcome } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
 import { useMe } from "@/lib/api/me";
 import { useCreateTaskFromMessage, type TaskAddressInput } from "@/lib/api/tasks";
@@ -117,6 +119,18 @@ export function MakeTaskForm({
   const [addrOpen, setAddrOpen] = useState(false);
   const [enriching, setEnriching] = useState(false);
 
+  /**
+   * #431 — what enrichment actually filled in, so the outcome can be judged
+   * against it at create time.
+   *
+   * Refs, not state: nothing renders from them, and they must survive the same
+   * render the form submits on. `suggestedDue` holds the VALUE rather than a
+   * flag, because "changed the due date" can only be told from "kept it" by
+   * comparing against what Lou proposed.
+   */
+  const suggestedAddress = useRef(false);
+  const suggestedDue = useRef<string | null>(null);
+
   // Enrich once, as soon as the company's AI settings resolve with a toggle on.
   const enrichedRef = useRef(false);
   useEffect(() => {
@@ -147,8 +161,10 @@ export function MakeTaskForm({
         .then((res) => {
           if (cancelled || res.enrichment_disabled) return;
           if (settings.enrich_task_due && res.due_at) {
-            setDue(isoToLocalInput(res.due_at));
+            const suggested = isoToLocalInput(res.due_at);
+            setDue(suggested);
             setDueSuggested(true);
+            suggestedDue.current = suggested;
           }
           if (settings.enrich_task_address && res.address) {
             setAddr({
@@ -161,6 +177,7 @@ export function MakeTaskForm({
             });
             setAddrProvenance(res.address_provenance);
             setAddrOpen(true);
+            suggestedAddress.current = true;
           }
         })
         .finally(() => {
@@ -231,6 +248,18 @@ export function MakeTaskForm({
         due_at: due === "" ? null : new Date(due).toISOString(),
         address,
       });
+      // #431: report only on a successful create. Somebody who abandoned the
+      // form has told us nothing about whether the address was any good, and
+      // counting that as a rejection would blame Lou for an unrelated decision.
+      const outcome = enrichmentOutcome({
+        suggestedAddress: suggestedAddress.current,
+        suggestedDue: suggestedDue.current !== null,
+        addressEdited: hasAddress && addrProvenance === "manual",
+        addressCleared: !hasAddress,
+        dueEdited: due !== "" && due !== suggestedDue.current,
+        dueCleared: due === "",
+      });
+      if (outcome) reportAiOutcome(companyId, "enrich", outcome);
       toast.success("Made a task from this message.");
       onDone();
     } catch (error) {

@@ -4052,3 +4052,87 @@ error; understating what you do with customer data is a different thing. When in
 doubt, describe the product as doing more with the data and less for the customer
 than you think, and let the correction be the flattering one.
 
+
+---
+
+## D81 — the keep-or-kill number for Lou, chosen before the data (#431, 2026-07-29)
+
+`ai/run.ts` was a good spend gate and nothing else. Every AI feature declared a cap,
+an alert threshold, a timeout and an opt-in before it could spend, and
+`ai_usage_reserve` recorded the reservation per company per feature per month. So
+*"what did Lou cost this tenant?"* had a precise answer and *"was it worth it?"* had
+none — for the one feature in this product whose output is explicitly **optional**.
+
+### The measurement
+
+**Three counters on the same ledger row as the spend**, never one rate.
+`company_ai_usage` gains `outcome_used_count` / `outcome_edited_count` /
+`outcome_discarded_count`. Same row, deliberately: cost and value are then physically
+inseparable and no surface can show one without the other.
+
+**Three, not one, because #431's own devil's advocate is right.** A discard can mean
+the draft was wrong or that the crew member wanted to say something more personal,
+which is the product working as intended. An edit can mean 80% right and time saved
+or 20% right and time lost. Collapsing them into an "acceptance rate" destroys the
+distinction that makes the number worth reading, so no function anywhere computes a
+ratio — `api_ai_value_report` returns counts and both denominators.
+
+**Through the authed API, not client analytics.** #431 suggests the enum-only PostHog
+contract, which fits the shape exactly. But client telemetry is unreliable here — ad
+blockers eat it, and the Sentry tunnel that would have fixed the same problem was
+declined. A keep-or-kill decision must not be biased by *which* customers block
+trackers.
+
+**No message content, ever.** The recorded value is one of three enum strings.
+
+### What the numbers mean, per feature
+
+| Feature | used | edited | discarded |
+|---|---|---|---|
+| **reply drafting** | sent as written | sent after changes | shown and not used |
+| **task enrichment** | kept as filled in | corrected first | cleared |
+| **voicemail transcript** | *unobservable* | *not editable* | listened anyway |
+
+The transcript row is the interesting one. #431 names its negative signal — "played
+the audio anyway" — and that is fully visible **server-side**, because
+`GET /v1/calls/:id/voicemail` is the only way to obtain playable audio. So it is
+recorded there, once, identically for all three clients, with no client code at all.
+
+The positive case is a person **not** doing something. Observing it client-side means
+inferring "read the words and moved on" from view-disposal timing, and on the list
+screens Android and iOS use, a row disposes when you scroll past it — the inference
+would count *scrolled by* as *read and satisfied*. Three platforms each guessing
+differently is worse than one honest absence, so that label is null and the usage
+screen prints no line for it rather than a zero. **A null label means unobservable,
+not "none yet".**
+
+### The threshold, set now (#431 ask 5)
+
+> *"A number chosen before the data arrives is a decision; one chosen after is a
+> rationalisation."*
+
+Judged on **reply drafting**, over a full month with at least **200 outcomes
+recorded** across at least **five** workspaces — below that it is one crew's habits,
+not a signal.
+
+- **Keep and invest** if `used + edited` is **at least 40%** of outcomes recorded,
+  **and** `used` alone is at least **15%**. Two thresholds because they answer
+  different questions: the first is "did it help", the second is "was it ever right
+  first time". A feature that is always edited and never sent as written is a typing
+  aid, which is worth less than it costs.
+- **Keep, unchanged, no further AI investment** between **20% and 40%**. It helps
+  some crews; it is not evidence for a larger bet.
+- **Turn it off by default** below **20%** — the feature stays available to anyone
+  who switches it on, but stops spending for everyone who never asked.
+
+**And the bet this gates.** #367/#397 (an AI receptionist) is the largest AI
+commitment available to us, and its case rests on AI output being good enough for
+customers to rely on. Reply drafting failing to clear 40% is evidence against that
+premise from our own product, with our own customers, at a cost of nothing. Shipping
+the bigger bet before reading this number is betting twice on an untested premise.
+
+**What would make me wrong.** The rate is a proxy and a noisy one. If drafting lands
+between 20% and 40% while the crews who *do* use it are demonstrably faster to first
+response (#388's five-minute window is the metric that actually pays), the threshold
+is measuring the wrong thing and should be replaced by that — but only by *that*, and
+only stated in advance, or it is a rationalisation again.

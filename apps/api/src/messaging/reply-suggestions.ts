@@ -111,6 +111,11 @@ export const SUGGEST_REPLY_FEATURE_SPEC: AiFeatureSpec = {
   stops: "the composer simply stops offering drafts.",
   timeoutMs: SUGGEST_REPLY_TIMEOUT_MS,
   enabled: (settings) => settings.suggest_replies,
+  outcomes: {
+    used: "sent as written",
+    edited: "sent after changes",
+    discarded: "not used",
+  },
 };
 /** Truncate the person's in-progress draft before it reaches the model. */
 export const SUGGEST_REPLY_MAX_DRAFT_CHARS = 500;

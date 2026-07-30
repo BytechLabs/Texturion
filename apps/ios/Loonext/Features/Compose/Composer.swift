@@ -153,6 +153,11 @@ struct ThreadComposerView: View {
     var duplicateReply: DuplicateReplyContext?
     /// Ask for AI-drafted replies. Nil hides the affordance entirely.
     var suggestReplies: (@MainActor (String) async -> ReplySuggestions)?
+    /// #431: report what happened to one of Lou's drafts — sent as written, sent
+    /// after changes, or shown and not used. Enum only; the draft's words never
+    /// leave the device for this. Nil skips the measurement (a screen with no
+    /// company context behind it), never the send.
+    var reportAiOutcome: (@MainActor (String, String) -> Void)?
     /// Place a call to this customer, offered by a banner that blocks texting
     /// but not calling. Nil withholds it (a member without text level on the
     /// number would be refused by the API).
@@ -178,6 +183,11 @@ struct ThreadComposerView: View {
     /// #408: the pause before landing on top of a colleague's answer.
     @State private var confirmCollision = false
     @State private var suggesting = false
+    /// #431: which of Lou's drafts (if any) was taken into the composer, and
+    /// whether any were shown at all. Kept so the outcome can be judged at the
+    /// moment of sending — the only moment that says whether it was useful.
+    @State private var pickedSuggestion: String?
+    @State private var suggestionsWereShown = false
     @State private var photosPickerOpen = false
     @State private var fileImporterOpen = false
     @State private var photoSelection: [PhotosPickerItem] = []
@@ -332,6 +342,8 @@ struct ThreadComposerView: View {
         // what Lou wrote rather than paying for the same answer twice.
         if let draftCacheKey, let cached = DraftSuggestionsCache.read(draftCacheKey) {
             suggestions = cached
+            // #431: shown but not taken. A send from here counts as discarded.
+            suggestionsWereShown = true
             return
         }
         guard let ask = suggestReplies, !suggesting else { return }
@@ -345,6 +357,7 @@ struct ThreadComposerView: View {
             } else {
                 suggestions = drafted.suggestions
                 businessUnknown = drafted.business_unknown
+                suggestionsWereShown = true
                 if let draftCacheKey {
                     DraftSuggestionsCache.write(draftCacheKey, suggestions: drafted.suggestions)
                 }
@@ -369,7 +382,18 @@ struct ThreadComposerView: View {
                     // per-message cost into an unbounded one, for an answer
                     // that is a starting point you edit anyway. The next set
                     // comes when the thread moves.
-                    Button("Dismiss") { suggestions = [] }
+                    Button("Dismiss") {
+                        suggestions = []
+                        // #431: closed the strip without taking one. Reported
+                        // now rather than deferred to a send that may never come.
+                        if suggestionsWereShown {
+                            suggestionsWereShown = false
+                            reportAiOutcome?(
+                                AiOutcome.featureSuggestReply,
+                                AiOutcome.discarded
+                            )
+                        }
+                    }
                         .font(.golos(11))
                         .foregroundStyle(BrandColor.muted500)
                         .buttonStyle(.plain)
@@ -391,6 +415,10 @@ struct ThreadComposerView: View {
                     // also queues the draft save, which a raw assignment skips).
                     state.onTextChange(suggestion)
                     suggestions = []
+                    // #431: taken into the composer. Whether it was CHANGED is
+                    // decided at send time by comparing with what goes out.
+                    pickedSuggestion = suggestion
+                    suggestionsWereShown = false
                 } label: {
                     Text(suggestion)
                         .font(.golos(13))
@@ -651,6 +679,22 @@ struct ThreadComposerView: View {
     private func submit() {
         guard canSend else { return }
         let body = state.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // #431: judge Lou's draft against what is actually being sent, before the
+        // composer is cleared. Notes are excluded — a note reaches no customer, so
+        // a draft was never in play. Cleared either way, so one draft can only ever
+        // yield one outcome.
+        if !isNote {
+            let outcome = AiOutcome.forDraft(
+                shown: pickedSuggestion != nil || suggestionsWereShown,
+                picked: pickedSuggestion,
+                sent: body
+            )
+            pickedSuggestion = nil
+            suggestionsWereShown = false
+            if let outcome {
+                reportAiOutcome?(AiOutcome.featureSuggestReply, outcome)
+            }
+        }
         if isNote {
             let files = state.files
             let mentionIds = MentionLogic.resolveMentions(text: body, picked: state.picked)

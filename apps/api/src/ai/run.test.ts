@@ -14,6 +14,11 @@ const SPEC: AiFeatureSpec = {
   timeoutMs: 50,
   unitCostCents: 0.04,
   enabled: (s) => s.suggest_replies,
+  // #431: a metered feature must also say what its outcomes MEAN, so the ledger
+  // can record whether anyone used the output. Required rather than optional for
+  // the same reason `unitCostCents` is — a cost centre that cannot be measured
+  // should not be declarable.
+  outcomes: { used: "used it", edited: "changed it", discarded: "ignored it" },
 };
 
 const SETTINGS = {

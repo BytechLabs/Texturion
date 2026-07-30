@@ -309,6 +309,13 @@ fun ThreadComposer(
     /** Ask for AI-drafted replies. Null hides the affordance entirely. */
     suggestReplies: (suspend (draft: String) -> ReplySuggestions)? = null,
     /**
+     * #431: report what happened to one of Lou's drafts — sent as written, sent
+     * after changes, or shown and not used. Enum only; the draft's words never
+     * leave the device for this. Null skips the measurement (a screen with no
+     * company context behind it), never the send.
+     */
+    reportAiOutcome: ((feature: String, outcome: String) -> Unit)? = null,
+    /**
      * Open the AI settings, offered under the drafts when Lou has not been
      * told what the business does. Null withholds the offer rather than
      * printing a sentence with nothing behind it.
@@ -357,6 +364,13 @@ fun ThreadComposer(
     // changes when someone writes the line.
     var businessUnknown by remember { mutableStateOf(false) }
     var suggesting by remember { mutableStateOf(false) }
+    /**
+     * #431: which of Lou's drafts (if any) was taken into the composer, and
+     * whether any were shown at all. Kept so the outcome can be judged at the
+     * moment of sending — the only moment that says whether it was useful.
+     */
+    var pickedSuggestion by remember { mutableStateOf<String?>(null) }
+    var suggestionsWereShown by remember { mutableStateOf(false) }
 
     val askForSuggestions: () -> Unit = {
         val ask = suggestReplies
@@ -365,6 +379,8 @@ fun ThreadComposer(
             // Already drafted for this thread, and nothing has happened since:
             // show what Lou wrote rather than paying for the same answer twice.
             suggestions = cached
+            // #431: shown but not taken. A send from here counts as discarded.
+            suggestionsWereShown = true
         } else if (ask != null && !suggesting) {
             suggesting = true
             suggestions = emptyList()
@@ -376,6 +392,7 @@ fun ThreadComposer(
                 } else {
                     suggestions = drafted.suggestions
                     businessUnknown = drafted.business_unknown
+                    suggestionsWereShown = true
                     draftCacheKey?.let { DraftSuggestionsCache.write(it, drafted.suggestions) }
                 }
             }
@@ -435,6 +452,22 @@ fun ThreadComposer(
     fun send() {
         haptics.confirm()
         val body = state.text.trim()
+        // #431: judge Lou's draft against what is actually being sent, before
+        // the composer is cleared. Notes are excluded — a note reaches no
+        // customer, so a draft was never in play. Cleared either way, so one
+        // draft can only ever yield one outcome.
+        if (!isNote) {
+            val outcome = AiOutcome.forDraft(
+                shown = pickedSuggestion != null || suggestionsWereShown,
+                picked = pickedSuggestion,
+                sent = body,
+            )
+            pickedSuggestion = null
+            suggestionsWereShown = false
+            if (outcome != null) {
+                reportAiOutcome?.invoke(AiOutcome.FEATURE_SUGGEST_REPLY, outcome)
+            }
+        }
         if (isNote) {
             val files = state.files
             val mentionIds = MentionLogic.resolveMentions(body, state.picked)
@@ -559,8 +592,23 @@ fun ThreadComposer(
                     haptics.tap()
                     state.onTextChange(suggestion)
                     suggestions = emptyList()
+                    // #431: taken into the composer. Whether it was CHANGED is
+                    // decided at send time by comparing it with what goes out.
+                    pickedSuggestion = suggestion
+                    suggestionsWereShown = false
                 },
-                onDismiss = { suggestions = emptyList() },
+                onDismiss = {
+                    suggestions = emptyList()
+                    // #431: closed the strip without taking one. Reported now
+                    // rather than deferred to a send that may never come.
+                    if (suggestionsWereShown) {
+                        suggestionsWereShown = false
+                        reportAiOutcome?.invoke(
+                            AiOutcome.FEATURE_SUGGEST_REPLY,
+                            AiOutcome.DISCARDED,
+                        )
+                    }
+                },
             )
         }
 

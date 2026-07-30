@@ -48,6 +48,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,6 +70,7 @@ import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.TaskAddressInput
 import com.loonext.android.core.model.addressProvenanceLabel
+import com.loonext.android.features.compose.AiOutcome
 import com.loonext.android.ui.common.AiOrb
 import com.loonext.android.ui.common.AiOrbState
 import com.loonext.android.ui.common.AppSheet
@@ -76,6 +78,7 @@ import com.loonext.android.ui.common.CountryField
 import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -245,6 +248,9 @@ fun MakeTaskSheet(
     var pickerOpen by remember { mutableStateOf(false) }
     val zone = remember { ZoneId.systemDefault() }
     val haptics = rememberHaptics()
+    // #431: the outcome report rides its own coroutine so it can never delay
+    // the create it describes.
+    val scope = rememberCoroutineScope()
 
     // #214 enrichment: the structured address + its provenance, the collapsible
     // state, and the in-flight spinner. Editing any field marks it "manual".
@@ -252,6 +258,14 @@ fun MakeTaskSheet(
     var addrProvenance by remember { mutableStateOf<String?>(null) }
     var addrOpen by remember { mutableStateOf(false) }
     var enriching by remember { mutableStateOf(false) }
+    /**
+     * #431: what enrichment actually filled in, so the outcome can be judged
+     * against it at create time. `suggestedDueIso` holds the VALUE rather than a
+     * flag, because "changed the due date" can only be told apart from "kept it"
+     * by comparing against what Lou proposed.
+     */
+    var suggestedAddress by remember { mutableStateOf(false) }
+    var suggestedDueIso by remember { mutableStateOf<String?>(null) }
 
     fun editAddr(update: (AddressFields) -> AddressFields) {
         addr = update(addr)
@@ -285,6 +299,7 @@ fun MakeTaskSheet(
         if (settings.enrich_task_due && result.due_at != null && due == null) {
             due = DueChoice(suggestedDueLabel(result.due_at, zone), result.due_at)
             dueSuggested = true
+            suggestedDueIso = result.due_at
         }
         val suggested = result.address
         if (settings.enrich_task_address && suggested != null) {
@@ -298,6 +313,7 @@ fun MakeTaskSheet(
             )
             addrProvenance = result.address_provenance
             addrOpen = true
+            suggestedAddress = true
         }
     }
 
@@ -521,6 +537,28 @@ fun MakeTaskSheet(
                                 country = addr.country.trim().ifEmpty { null },
                                 provenance = addrProvenance ?: AddressProvenance.MANUAL,
                             )
+                        }
+                        // #431: report only on an actual create. Somebody who
+                        // closed the sheet has told us nothing about whether
+                        // the address was any good, and counting that as a
+                        // rejection would blame Lou for an unrelated decision.
+                        val outcome = AiOutcome.forEnrichment(
+                            suggestedAddress = suggestedAddress,
+                            suggestedDue = suggestedDueIso != null,
+                            addressEdited = address != null &&
+                                addrProvenance == AddressProvenance.MANUAL,
+                            addressCleared = address == null,
+                            dueEdited = due?.iso != null && due?.iso != suggestedDueIso,
+                            dueCleared = due?.iso == null,
+                        )
+                        if (outcome != null) {
+                            scope.launch {
+                                aiRepo.reportAiOutcome(
+                                    companyId,
+                                    AiOutcome.FEATURE_ENRICH,
+                                    outcome,
+                                )
+                            }
                         }
                         onCreate(title.trim(), assigneeId, due?.iso, address)
                     }

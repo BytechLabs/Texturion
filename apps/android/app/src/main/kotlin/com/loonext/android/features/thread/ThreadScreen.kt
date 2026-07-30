@@ -760,6 +760,11 @@ private fun ThreadLoaded(
             suggestReplies = { draft ->
                 graph.aiRepo.suggestReplies(companyId, detail.id, draft)
             },
+            // #431: fire-and-forget on its own coroutine. A slow or failed
+            // outcome report must never delay or fail the send it describes.
+            reportAiOutcome = { feature, outcome ->
+                scope.launch { graph.aiRepo.reportAiOutcome(companyId, feature, outcome) }
+            },
         )
     }
 

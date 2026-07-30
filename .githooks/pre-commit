@@ -39,10 +39,23 @@ fi
 staged=$(git diff --cached --name-only --diff-filter=ACM)
 [ -n "$staged" ] || exit 0
 
+# Each shape must START a token. Without that guard the Resend prefix matched
+# INSIDE ordinary identifiers: any constant of the form FEATURE_<20-plus more
+# word characters> contains that three-character prefix at "FEATU|RE_", so #431's
+# voicemail-transcript feature key tripped the hook. `\b` cannot express the fix,
+# because `_` is a word character and there is therefore no boundary between the
+# U and the R. Hence an explicit not-a-token-character before each shape.
+#
+# This is not a loosening. A real key is `re_...` / `sb_secret_...` / `KEY...` at
+# the start of a value, never buried mid-word — and the comment above is the
+# reason it matters: a check that fires on normal code is a check somebody
+# switches off.
+pre='(^|[^A-Za-z0-9_-])'
+
 # shellcheck disable=SC2086
 hits=$(git diff --cached -U0 -- $staged \
   | grep -E '^\+' \
-  | grep -Ei 'sb_secret_[A-Za-z0-9_-]{20,}|KEY[0-9A-F]{24,}|re_[A-Za-z0-9_-]{20,}|rk_live_[A-Za-z0-9]{20,}|sk_live_[A-Za-z0-9]{20,}' \
+  | grep -Ei "${pre}(sb_secret_[A-Za-z0-9_-]{20,}|KEY[0-9A-F]{24,}|re_[A-Za-z0-9_-]{20,}|rk_live_[A-Za-z0-9]{20,}|sk_live_[A-Za-z0-9]{20,})" \
   | grep -v 'sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz' \
   || true)
 

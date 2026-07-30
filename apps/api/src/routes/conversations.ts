@@ -918,6 +918,58 @@ conversationsRoutes.post(
 );
 
 // --------------------------------------------------------------------------
+/**
+ * POST /v1/ai/outcome (#431) — what a human did with one piece of AI output.
+ *
+ * We metered every AI unit we spent and recorded nothing about whether anyone used
+ * it. For the one feature whose output is explicitly OPTIONAL — a drafted reply a
+ * person accepts or discards — that was the single missing number, and it made the
+ * question "is Lou worth what it costs?" unanswerable rather than merely unanswered.
+ *
+ * THROUGH THE AUTHED API, NOT CLIENT ANALYTICS. #431 suggests the enum-only
+ * PostHog contract, which genuinely fits the shape. But client telemetry is
+ * unreliable in this product — ad blockers eat it, and the tunnel that would have
+ * fixed the same problem for Sentry was declined — so the rate would be silently
+ * biased by WHICH customers block trackers. A keep-or-kill decision cannot rest on
+ * that.
+ *
+ * NO MESSAGE CONTENT. The body is one enum. The server never learns what the draft
+ * said, what the human typed instead, or how much they changed — only which of the
+ * three things happened, which is the entire measurement.
+ *
+ * Fire-and-forget by design: a failure here must never surface to the person
+ * sending a text. Losing an outcome costs a data point; failing a send costs a job.
+ */
+const aiOutcomeSchema = z.object({
+  // The LEDGER keys, not prettier names: the outcome lands on the same row the
+  // spend does, so a mismatch here would open a second row and separate cost
+  // from value permanently. A test asserts this list is exactly
+  // AI_USAGE_FEATURES, so adding a cost centre cannot leave it behind.
+  feature: z.enum(["suggest_reply", "enrich", "voicemail_transcript"]),
+  // Three outcomes, never a rate. #431's own devil's advocate is right that
+  // acceptance is noisy: a discard can mean "the draft was wrong" or "I wanted to
+  // say something more personal", and an edit can mean 80% right or 20% right.
+  // Collapsing them here would destroy the distinction before anybody could read it.
+  outcome: z.enum(["used", "edited", "discarded"]),
+});
+
+conversationsRoutes.post("/ai/outcome", requireRole("member"), async (c) => {
+  const body = await parseJsonBody(c, aiOutcomeSchema);
+  const db = getDb(getEnv(c.env));
+  const result = unwrap<{ recorded?: string; error?: string }>(
+    await db.rpc("ai_outcome_record", {
+      p_company_id: c.get("companyId"),
+      p_feature: body.feature,
+      p_outcome: body.outcome,
+    }),
+    "ai outcome",
+  );
+  if (result && "error" in result && result.error) {
+    throw new ApiError("validation_failed", "Unknown AI outcome.");
+  }
+  return c.json(result);
+});
+
 // POST /v1/conversations/:id/reply-suggestions — AI-drafted replies.
 //
 // A pure SUGGESTION endpoint, exactly like POST /v1/tasks/enrich: it writes no

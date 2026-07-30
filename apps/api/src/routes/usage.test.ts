@@ -81,7 +81,19 @@ function usageStub(
   sb.on("POST", "/rest/v1/rpc/api_period_forwarded_calls", () => 0);
   // The AI section reads the workspace's opt-ins and its monthly counters.
   sb.on("GET", "/rest/v1/company_ai_settings", () => []);
-  sb.on("GET", "/rest/v1/company_ai_usage", () => []);
+  // #431: spend and outcomes are columns on the SAME ledger row, so one row
+  // carries both. Only reply drafting has been used here — the other two
+  // features stay unmeasured on purpose, because "no outcomes yet" and "nobody
+  // liked it" must not render the same way.
+  sb.on("GET", "/rest/v1/company_ai_usage", () => [
+    {
+      feature: "suggest_reply",
+      request_count: 40,
+      outcome_used_count: 12,
+      outcome_edited_count: 5,
+      outcome_discarded_count: 3,
+    },
+  ]);
   // #85/#93: decideOverage's revenue read still consults company_modules
   // (the #121 storage retirement removed the BUDGET read, not this one).
   // #134/D42: the route itself reads NO voice module state anymore.
@@ -152,14 +164,44 @@ describe("GET /v1/usage", () => {
       // Every AI cost centre gets a line, used or not: a feature nobody has
       // touched yet still has to say where it stands.
       ai: [
-        { key: "suggest_reply", label: "reply drafting", used: 0, cap: 1500, enabled: true },
-        { key: "enrich", label: "task enrichment", used: 0, cap: 1000, enabled: true },
+        {
+          key: "suggest_reply",
+          label: "reply drafting",
+          used: 40,
+          cap: 1500,
+          enabled: true,
+          // #431 ask 3: value beside cost, in this feature's own words, ordered
+          // best-case first. 20 outcomes against 40 requests is the honest
+          // shape — half the drafts were offered and never looked at — which is
+          // why `outcomesRecorded` is reported instead of a rate.
+          outcomes: [
+            { label: "sent as written", count: 12 },
+            { label: "sent after changes", count: 5 },
+            { label: "not used", count: 3 },
+          ],
+          outcomesRecorded: 20,
+        },
+        {
+          key: "enrich",
+          label: "task enrichment",
+          used: 0,
+          cap: 1000,
+          enabled: true,
+          // No outcomes recorded: an EMPTY list, never three zeroes. A feature
+          // used forty times with nothing recorded is an instrumentation gap,
+          // and rendering it as "0 kept as filled in" would report that gap as
+          // a quality result.
+          outcomes: [],
+          outcomesRecorded: 0,
+        },
         {
           key: "voicemail_transcript",
           label: "voicemail transcript",
           used: 0,
           cap: 500,
           enabled: true,
+          outcomes: [],
+          outcomesRecorded: 0,
         },
       ],
       voice: {

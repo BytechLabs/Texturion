@@ -709,6 +709,11 @@ private struct ThreadBody: View {
                     draft: draft
                 )
             },
+            // #431: detached inside the controller, so a slow or failed outcome
+            // report can never delay or fail the send it describes.
+            reportAiOutcome: { feature, outcome in
+                controller.reportAiOutcome(feature: feature, outcome: outcome)
+            },
             onCallInstead: onCallInstead,
             // Reuse drafts already paid for until a message moves the thread.
             draftCacheKey: DraftSuggestionsCache.key(
@@ -1259,6 +1264,12 @@ private struct MakeTaskSheet: View {
     @State private var addrOpen = false
     @State private var enriching = false
     @State private var enrichStarted = false
+    /// #431: what enrichment actually filled in, so the outcome can be judged
+    /// against it at create time. `suggestedDueAt` holds the VALUE rather than a
+    /// flag, because "changed the due date" can only be told apart from "kept it"
+    /// by comparing against what Lou proposed.
+    @State private var suggestedAddress = false
+    @State private var suggestedDueAt: Date?
 
     private enum AddrField: Hashable {
         case street, unit, city, state, postal, country
@@ -1632,6 +1643,19 @@ private struct MakeTaskSheet: View {
             address: addr,
             provenance: addrProvenance ?? AddressProvenance.manual
         )
+        // #431: report only on an actual create. Somebody who closed the sheet has
+        // told us nothing about whether the address was any good, and counting that
+        // as a rejection would blame Lou for an unrelated decision.
+        if let outcome = AiOutcome.forEnrichment(
+            suggestedAddress: suggestedAddress,
+            suggestedDue: suggestedDueAt != nil,
+            addressEdited: !addr.isEmpty && addrProvenance == AddressProvenance.manual,
+            addressCleared: addr.isEmpty,
+            dueEdited: due != nil && due != suggestedDueAt,
+            dueCleared: due == nil
+        ) {
+            controller.reportAiOutcome(feature: AiOutcome.featureEnrich, outcome: outcome)
+        }
         onDismiss()
     }
 
@@ -1654,6 +1678,7 @@ private struct MakeTaskSheet: View {
            let iso = result.due_at, let date = parseWireTimestamp(iso) {
             due = date
             dueSuggested = true
+            suggestedDueAt = date
         }
         if settings.enrich_task_address, let address = result.address {
             let seeded = AddressFieldValues(address)
@@ -1661,6 +1686,7 @@ private struct MakeTaskSheet: View {
                 addr = seeded
                 addrProvenance = result.address_provenance
                 addrOpen = true
+                suggestedAddress = true
             }
         }
     }

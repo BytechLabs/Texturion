@@ -11,6 +11,19 @@ import type { AiFeatureUsage } from "@/lib/api/types";
  * Unlike messages, an AI cap is a HARD stop rather than a fair-use line, so
  * each feature shows a real proportion of a real ceiling. A feature nobody has
  * used still gets a row: an empty section reads as "this does not exist".
+ *
+ * #431 ask 3 — WHAT IT BOUGHT, under what it cost. The bar was a spend meter
+ * with nothing to weigh against it: 400 of 1,500 drafts is cheap or expensive
+ * entirely depending on whether they got sent, and that was unknowable. So each
+ * row now carries what people did with the output, in that feature's own words.
+ * *Applying: Meaningful Highlights & Context — never show a number without the
+ * insight it supports.*
+ *
+ * NO PERCENTAGE, deliberately. The denominators do not match (a draft offered
+ * and never read is a request with no outcome), and one blessed ratio here would
+ * quietly become the definition of the keep-or-kill threshold that D81 says must
+ * be chosen before the data arrives. Counts in order carry the shape without
+ * pretending to a precision they do not have.
  */
 export function AiUsage({ features }: { features: AiFeatureUsage[] }) {
   if (features.length === 0) return null;
@@ -65,6 +78,26 @@ export function AiUsage({ features }: { features: AiFeatureUsage[] }) {
                 Close to this month&rsquo;s limit. It resets on the 1st.
               </p>
             )}
+            {/* An empty list is NOT three zeroes. A feature used 40 times with
+                nothing recorded is an instrumentation gap, and "0 sent as
+                written" would report that gap as a verdict on the quality. */}
+            {feature.enabled && feature.outcomesRecorded > 0 ? (
+              <p className="mt-1 text-[12px] text-muted-foreground">
+                {feature.outcomes.map((outcome, index) => (
+                  <span key={outcome.label}>
+                    {index > 0 && <span aria-hidden> · </span>}
+                    <span className="tabular-nums">
+                      {outcome.count.toLocaleString()}
+                    </span>{" "}
+                    {outcome.label}
+                  </span>
+                ))}
+              </p>
+            ) : feature.enabled && feature.used > 0 ? (
+              <p className="mt-1 text-[12px] text-muted-foreground">
+                Nothing recorded yet about whether these got used.
+              </p>
+            ) : null}
           </li>
         );
       })}

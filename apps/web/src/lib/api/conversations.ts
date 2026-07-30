@@ -575,3 +575,36 @@ export function useBulkConversations() {
     },
   });
 }
+
+/**
+ * #431 — report what a human did with one piece of AI output.
+ *
+ * Fire-and-forget on purpose: a failure here must never surface to the person
+ * sending a text. Losing an outcome costs a data point; failing a send costs a job.
+ * So this swallows its errors and is deliberately NOT a mutation hook — nothing in
+ * the UI should ever wait on it, retry it, or show a state for it.
+ *
+ * Enum only. The server never learns what the draft said or what the human typed
+ * instead, which is both the privacy posture and the entire measurement.
+ */
+export type AiOutcome = "used" | "edited" | "discarded";
+/**
+ * The LEDGER keys, not friendlier names. The outcome lands on the same row the
+ * spend does, so "enrich_task" — which reads better than the ledger's "enrich" —
+ * would open a second row and separate cost from value permanently.
+ */
+export type AiOutcomeFeature = "suggest_reply" | "enrich" | "voicemail_transcript";
+
+export function reportAiOutcome(
+  companyId: string,
+  feature: AiOutcomeFeature,
+  outcome: AiOutcome,
+): void {
+  void apiFetch("/v1/ai/outcome", {
+    method: "POST",
+    companyId,
+    body: { feature, outcome },
+  }).catch(() => {
+    // Intentionally silent. See above.
+  });
+}

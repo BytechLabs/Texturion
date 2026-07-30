@@ -450,6 +450,33 @@ struct MessagingRepository: Sendable {
         return result
     }
 
+    /// POST /v1/ai/outcome (#431) — record what a human did with one piece of AI
+    /// output.
+    ///
+    /// We metered every AI unit we spent and recorded nothing about whether anyone
+    /// used it, so "is Lou worth what it costs?" was unanswerable rather than
+    /// merely unanswered. `feature` is a LEDGER key (see `AiOutcome`) and
+    /// `outcome` one of three enum strings; no message content ever leaves the
+    /// device for this.
+    ///
+    /// NEVER throws. Losing an outcome costs a data point; surfacing an error
+    /// here would cost the person sending a text their attention at the worst
+    /// possible moment.
+    func reportAiOutcome(companyId: String, feature: String, outcome: String) async {
+        do {
+            let _: JSONValue = try await api.post(
+                "/v1/ai/outcome",
+                body: JSONValue.object([
+                    "feature": .string(feature),
+                    "outcome": .string(outcome),
+                ]),
+                companyId: companyId
+            )
+        } catch {
+            // Intentionally silent. See above.
+        }
+    }
+
     // MARK: - Supporting reads
 
     func templates(companyId: String) async throws -> Page<Template> {

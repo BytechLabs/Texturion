@@ -461,6 +461,26 @@ private fun AiUsageBars(features: List<AiFeatureUsage>) {
                         color = MaterialTheme.colorScheme.tertiary,
                     )
                 }
+                // #431 ask 3: what it bought, under what it cost. An empty list
+                // is NOT zeroes — a feature used 40 times with nothing recorded
+                // is an instrumentation gap, and "0 sent as written" would
+                // report that gap as a verdict on the quality.
+                val outcomeLine =
+                    if (feature.enabled && feature.outcomesRecorded > 0) {
+                        feature.outcomes.joinToString(" · ") { "${it.count} ${it.label}" }
+                    } else if (feature.enabled && feature.used > 0) {
+                        "Nothing recorded yet about whether these got used."
+                    } else {
+                        null
+                    }
+                if (outcomeLine != null) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        outcomeLine,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }

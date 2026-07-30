@@ -261,6 +261,35 @@ class AiRepository(private val api: ApiClient) {
     } catch (_: Exception) {
         ReplySuggestions(reason = "model_error")
     }
+
+    /**
+     * #431 — record what a human did with one piece of AI output.
+     *
+     * We metered every AI unit we spent and recorded nothing about whether
+     * anyone used it, so "is Lou worth what it costs?" was unanswerable rather
+     * than merely unanswered. `feature` is a LEDGER key and `outcome` one of
+     * three enum strings; no message content ever leaves the device for this.
+     *
+     * Silent on failure by design. Losing an outcome costs a data point;
+     * surfacing an error here would cost the person sending a text their
+     * attention at the worst possible moment.
+     */
+    suspend fun reportAiOutcome(companyId: String, feature: String, outcome: String) {
+        try {
+            api.post<JsonObject, JsonObject>(
+                "/v1/ai/outcome",
+                buildJsonObject {
+                    put("feature", JsonPrimitive(feature))
+                    put("outcome", JsonPrimitive(outcome))
+                },
+                companyId = companyId,
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Intentionally silent. See above.
+        }
+    }
 }
 
 /**

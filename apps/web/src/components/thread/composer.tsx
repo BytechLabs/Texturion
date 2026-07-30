@@ -45,7 +45,9 @@ import {
   cacheSuggestions,
   readCachedSuggestions,
 } from "@/lib/messaging/draft-suggestions-cache";
+import { draftOutcome } from "@/lib/ai/outcome";
 import {
+  reportAiOutcome,
   useConversation,
   useCreateNote,
 } from "@/lib/api/conversations";
@@ -91,6 +93,7 @@ import {
   MAX_ATTACHMENTS_PER_OWNER,
 } from "@/lib/attachments/validate";
 import { cn } from "@/lib/utils";
+import { useCompanyId } from "@/lib/company/provider";
 
 import { formatBytes } from "./gallery-grouping";
 import { segmentMeter, segmentTooltip } from "./segment-meter";
@@ -547,6 +550,8 @@ export function Composer({
     const cached = readCachedSuggestions(conversationId, lastActivityAt);
     if (cached) {
       setSuggestions(cached);
+      // #431: shown but not yet used. A send from here counts as discarded.
+      suggestionsWereShown.current = true;
       return;
     }
     setSuggestions([]);
@@ -556,6 +561,7 @@ export function Composer({
         if (result.suggestions.length > 0) {
           setSuggestions(result.suggestions);
           cacheSuggestions(conversationId, lastActivityAt, result.suggestions);
+          suggestionsWereShown.current = true;
           return;
         }
         toast(suggestionFailureMessage(result.reason));
@@ -564,11 +570,46 @@ export function Composer({
     });
   }, [conversationId, lastActivityAt, suggestReplies, text]);
 
+  /**
+   * #431: which of Lou's drafts (if any) was taken into the composer, kept in a ref
+   * so comparing it at send time costs no render. Null once reported, so one draft
+   * yields exactly one outcome.
+   */
+  // #431: needed to report what a human did with Lou's draft.
+  const companyId = useCompanyId();
+  const pickedSuggestion = useRef<string | null>(null);
+  /** #431: suggestions were shown and none was taken — a send now means discarded. */
+  const suggestionsWereShown = useRef(false);
+
   /** Take a draft into the composer to read, edit, and send. Never auto-sent. */
   const useSuggestion = (suggestion: string) => {
     setText(suggestion);
     setSuggestions([]);
+    pickedSuggestion.current = suggestion;
+    suggestionsWereShown.current = false;
     textareaRef.current?.focus();
+  };
+
+  /**
+   * #431: report the outcome of a draft, once, at the moment of sending.
+   *
+   * Three outcomes kept distinct rather than collapsed into a rate: "used" is sent
+   * unchanged, "edited" is sent after changes, "discarded" is a draft that was shown
+   * and not used. An edit can mean the draft was 80% right and saved time or 20%
+   * right and cost time, and a discard can mean the draft was wrong OR that the
+   * crew member wanted to say something more personal — which is the product
+   * working as intended. Only separate counters keep that readable.
+   */
+  const reportSuggestionOutcome = (sentText: string) => {
+    const outcome = draftOutcome({
+      shown: pickedSuggestion.current !== null || suggestionsWereShown.current,
+      picked: pickedSuggestion.current,
+      sent: sentText,
+    });
+    // Cleared either way, so one draft can only ever yield one outcome.
+    pickedSuggestion.current = null;
+    suggestionsWereShown.current = false;
+    if (outcome) reportAiOutcome(companyId, "suggest_reply", outcome);
   };
   const insertTemplate = (body: string) => {
     setText((current) =>
@@ -701,6 +742,10 @@ export function Composer({
       {
         onSuccess: () => {
           lastFailedSendRef.current = null;
+          // #431: on success only. A draft that failed to send tells us nothing
+          // about whether the crew found it useful, and counting it either way
+          // would put network trouble into a quality measurement.
+          reportSuggestionOutcome(draftText);
           for (const a of draftAttachments) {
             if (a.previewUrl !== null) URL.revokeObjectURL(a.previewUrl);
           }
@@ -874,7 +919,13 @@ export function Composer({
           loading={suggestReplies.isPending}
           businessUnknown={businessUnknown}
           onUse={useSuggestion}
-          onDismiss={() => setSuggestions([])}
+          onDismiss={() => {
+            setSuggestions([]);
+            // An explicit dismissal is the clearest possible discard signal, and
+            // clearing the flag keeps a later send from reporting it twice.
+            suggestionsWereShown.current = false;
+            reportAiOutcome(companyId, "suggest_reply", "discarded");
+          }}
         />
       )}
       {!isNote && <MediaErrors errors={mediaErrors} />}

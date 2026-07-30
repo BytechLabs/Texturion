@@ -74,6 +74,37 @@ export interface AiFeatureSpec {
   timeoutMs: number;
   /** The company's opt-in for this feature. */
   enabled: (settings: CompanyAiSettings) => boolean;
+  /**
+   * #431: what the three recorded outcomes MEAN for this feature, in this
+   * feature's own words.
+   *
+   * The ledger stores three generic counters, because "used / changed first /
+   * not used" is the same measurement everywhere. What differs is what the
+   * person actually did: a draft is *sent*, an enrichment is *kept*, a
+   * transcript is *read*. Declaring the wording next to the cap is what lets
+   * all three clients label the same numbers identically without any of them
+   * inventing copy — the failure #437 found sixteen times over.
+   *
+   * EVERY label is nullable, and a null one means "this feature cannot observe
+   * that outcome" — not "it has not happened yet". Voicemail transcripts are the
+   * case that forces it: the only signal available is the negative one (#431's
+   * own "played the audio anyway"), because "read the words and moved on" is a
+   * person NOT doing something, which no client can observe without inventing a
+   * heuristic out of scroll and unmount timing — and three platforms inventing
+   * three different heuristics would make the number worthless.
+   *
+   * So a null label means the row omits that line entirely, rather than printing
+   * a zero. Printing "0 read without listening" would report an unobservable
+   * outcome as a measured absence, which is worse than saying nothing.
+   */
+  outcomes: {
+    /** The output was used as it came. Null where that is unobservable. */
+    used: string | null;
+    /** Changed, then used. Null where the output is not editable. */
+    edited: string | null;
+    /** Not used. Not necessarily a quality failure — see the ledger comments. */
+    discarded: string | null;
+  };
 }
 
 /**

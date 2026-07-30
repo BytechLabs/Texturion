@@ -319,6 +319,30 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) 
     60 * 60,
   );
 
+  // #431: this recording already had its words written down, and somebody is
+  // fetching the audio anyway. That is the transcript failing at its one job —
+  // it exists so nobody has to listen — and it is the ONE outcome for this
+  // feature that is observable without guesswork.
+  //
+  // RECORDED HERE, not on a client, deliberately: this route is the only way to
+  // obtain playable audio, so every platform reports identically and none of
+  // them needs a line of code. The client-side alternative was three different
+  // heuristics built out of unmount and scroll timing, and on a list screen a
+  // row disposes when you scroll past it — which would have counted "scrolled
+  // by" as "read and satisfied".
+  //
+  // Fire-and-forget: losing an outcome costs a data point, failing this request
+  // costs somebody the voicemail they are trying to hear.
+  if (call.voicemail_transcript !== null) {
+    void Promise.resolve(
+      db.rpc("ai_outcome_record", {
+        p_company_id: c.get("companyId"),
+        p_feature: VOICEMAIL_TRANSCRIPT_FEATURE_SPEC.key,
+        p_outcome: "discarded",
+      }),
+    ).catch(() => undefined);
+  }
+
   const signed = await db.storage
     .from(VOICEMAILS_BUCKET)
     .createSignedUrl(call.voicemail_path, 60 * 60);

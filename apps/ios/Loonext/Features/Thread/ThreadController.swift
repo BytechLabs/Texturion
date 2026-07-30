@@ -802,6 +802,22 @@ final class ThreadController {
         )
     }
 
+    /// #431: record what a human did with one piece of AI output.
+    ///
+    /// Detached so it can never delay the create or send it describes, and the
+    /// repository swallows every failure — losing an outcome costs a data point,
+    /// interrupting somebody mid-job costs a job. Lives here rather than in the
+    /// view so `companyId` stays private.
+    func reportAiOutcome(feature: String, outcome: String) {
+        Task { [repo, companyId] in
+            await repo.reportAiOutcome(
+                companyId: companyId,
+                feature: feature,
+                outcome: outcome
+            )
+        }
+    }
+
     // MARK: - Conversation controls
 
     private func applyConversationRow(_ row: Conversation) {

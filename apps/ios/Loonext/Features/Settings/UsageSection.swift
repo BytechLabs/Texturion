@@ -535,6 +535,20 @@ private struct StorageDetail: View {
 private struct AiUsageDetail: View {
     let features: [AiFeatureUsage]
 
+    /// #431: the outcome line, or nil where there is honestly nothing to say.
+    private func outcomeLine(_ feature: AiFeatureUsage) -> String? {
+        guard feature.enabled else { return nil }
+        if feature.outcomesRecorded > 0 {
+            return feature.outcomes
+                .map { "\($0.count) \($0.label)" }
+                .joined(separator: " · ")
+        }
+        if feature.used > 0 {
+            return "Nothing recorded yet about whether these got used."
+        }
+        return nil
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             DetailHeader("Lou this month")
@@ -572,6 +586,15 @@ private struct AiUsageDetail: View {
                         Text("Close to this month's limit. It resets on the 1st.")
                             .font(.golos(12))
                             .foregroundStyle(BrandColor.overdueAmber)
+                    }
+                    // #431 ask 3: what it bought, under what it cost. An empty
+                    // list is NOT zeroes — a feature used 40 times with nothing
+                    // recorded is an instrumentation gap, and "0 sent as written"
+                    // would report that gap as a verdict on the quality.
+                    if let line = outcomeLine(feature) {
+                        Text(line)
+                            .font(.golos(12))
+                            .foregroundStyle(BrandColor.muted600)
                     }
                 }
                 .padding(.top, 6)

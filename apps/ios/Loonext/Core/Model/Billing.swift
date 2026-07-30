@@ -181,8 +181,29 @@ struct AiFeatureUsage: Codable, Sendable, Identifiable {
     @Default<DefaultZero> var used: Int
     @Default<DefaultZero> var cap: Int
     @Default<DefaultTrue> var enabled: Bool
+    /// #431 ask 3 — what people did with the output, beside what it cost.
+    ///
+    /// Labelled by the server in each feature's own words ("sent as written",
+    /// "cleared") so all three clients say the same thing. EMPTY until outcomes
+    /// arrive, and an empty list must render as "not measured yet" rather than as
+    /// zeroes: a feature used forty times with nothing recorded is an
+    /// instrumentation gap, and "0 sent as written" would report that gap as a
+    /// verdict on the quality.
+    @Default<DefaultEmptyList<AiOutcomeLine>> var outcomes: [AiOutcomeLine]
+    /// How many outcomes those lines cover. Separate from `used` because they
+    /// will not match — a draft offered and never read is a request with no
+    /// outcome — and no rate is computed anywhere, deliberately.
+    @Default<DefaultZero> var outcomesRecorded: Int
 
     var id: String { key }
+}
+
+/// #431: what a person did with one feature's output, ready to render.
+struct AiOutcomeLine: Codable, Sendable, Identifiable {
+    let label: String
+    @Default<DefaultZero> var count: Int
+
+    var id: String { label }
 }
 
 /// GET /v1/billing/modules — admin-only add-on catalog with enabled state.

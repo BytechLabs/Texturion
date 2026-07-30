@@ -60,6 +60,11 @@ export const ENRICHMENT_FEATURE_SPEC: AiFeatureSpec = {
   // what the company actually opted into.
   enabled: (settings) =>
     settings.enrich_task_address || settings.enrich_task_due,
+  outcomes: {
+    used: "kept as filled in",
+    edited: "corrected first",
+    discarded: "cleared",
+  },
 };
 /** Cap the model's output — the JSON object is tiny. */
 export const ENRICHMENT_MAX_OUTPUT_TOKENS = 256;
