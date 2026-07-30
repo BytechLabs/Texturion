@@ -28,9 +28,18 @@ import type { Env } from "../env";
 import { geocodeAddress, NOMINATIM_MIN_INTERVAL_MS } from "./nominatim";
 
 /** Rows geocoded per run (≈1s each from the fair-use pace); backfill spans runs. */
-export const GEOCODE_TASKS_BATCH = 40;
+export const GEOCODE_TASKS_BATCH = 120;
 
-const RETRYABLE_STATUSES = "geocode_status.eq.pending,geocode_status.eq.failed";
+/**
+ * Rows any ONE workspace may take from a single run. See the contacts twin for
+ * why a seat cap rather than a different sort order: flipping to newest-first
+ * would starve old rows forever, which is the same bug pointed the other way.
+ */
+export const GEOCODE_TASKS_PER_COMPANY = 40;
+
+// Which statuses are re-attempted now lives in api_geocode_task_queue, beside the
+// ordering it belongs with: 'pending' and 'failed' are retried, 'ok' and
+// 'no_address' are terminal. GF-6 asserts the SQL agrees.
 
 interface GeocodableTask {
   id: string;
@@ -89,19 +98,16 @@ export async function geocodeTasksJob(
 ): Promise<void> {
   const db: SupabaseClient = getDb(env);
 
-  const { data, error } = await db
-    .from("tasks")
-    .select(
-      "id,addr_street,addr_unit,addr_city,addr_state,addr_postal_code,addr_country",
-    )
-    // Soft-deleted tasks never appear on the Map (the /v1/tasks feed filters
-    // them), so geocoding them is pure waste — and worse, they'd consume the
-    // capped batch and the paced Nominatim budget ahead of live tasks. Exclude
-    // them, exactly like the contacts twin.
-    .is("deleted_at", null)
-    .or(RETRYABLE_STATUSES)
-    .order("created_at", { ascending: true })
-    .limit(GEOCODE_TASKS_BATCH);
+  // #440 ask 5: the same fair-share queue as the contacts twin. The old scan was
+  // `created_at asc` across every tenant, so a workspace creating tasks in bulk
+  // queued behind everybody else's backlog — the identical starvation, with the
+  // identical first-week exposure. Soft-deleted and address-less rows are excluded
+  // in the SQL (they never reach the Map, so geocoding them is pure waste and
+  // would consume the paced budget ahead of live tasks).
+  const { data, error } = await db.rpc("api_geocode_task_queue", {
+    p_limit: GEOCODE_TASKS_BATCH,
+    p_per_company: GEOCODE_TASKS_PER_COMPANY,
+  });
   if (error) throw new Error(`geocode task scan failed: ${error.message}`);
 
   const tasks = (data ?? []) as GeocodableTask[];

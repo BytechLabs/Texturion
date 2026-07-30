@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/settings/section";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAllTasks } from "@/lib/api/tasks";
+import { useGeocodeProgress, useAllTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
 import type { Task } from "@/lib/api/types";
 
@@ -55,6 +55,9 @@ export function MapView({ state }: { state: TaskPageState }) {
   const [geoError, setGeoError] = useState<string | null>(null);
 
   const { located, missing } = useMemo(() => partitionLocated(tasks), [tasks]);
+  // #440: the backfill's outstanding count, so an in-progress Map says so.
+  const geocodeProgress = useGeocodeProgress();
+  const pendingGeocodes = geocodeProgress.data?.contacts_pending ?? 0;
 
   const requestNearMe = () => {
     if (!("geolocation" in navigator)) {
@@ -116,6 +119,21 @@ export function MapView({ state }: { state: TaskPageState }) {
             </span>
           )}
         </p>
+        {/* #440: the sentence that turns "broken" into "busy". A switcher who has
+            just imported 2,000 contacts opens this view before the hourly, 1-req/s
+            backfill has finished, and an empty Map with nothing saying why reads as
+            a feature that does not work. Shown only while work is outstanding. */}
+        {pendingGeocodes > 0 && (
+          <p
+            role="status"
+            className="basis-full text-[13px] leading-relaxed text-muted-foreground"
+          >
+            Still locating <span className="tabular-nums">{pendingGeocodes}</span>{" "}
+            {pendingGeocodes === 1 ? "address" : "addresses"}. Addresses are looked
+            up a few hundred at a time, so a big import can take a few hours to
+            finish plotting.
+          </p>
+        )}
         <Button variant="outline" size="sm" onClick={requestNearMe} disabled={locating}>
           <Navigation className="size-3.5" strokeWidth={1.75} aria-hidden />
           {locating ? "Locating…" : "Near me"}

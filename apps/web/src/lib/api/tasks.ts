@@ -568,3 +568,32 @@ export function useToggleTaskDone(conversationId: string) {
     },
   });
 }
+
+/**
+ * #440 — how far along this workspace's Map is.
+ *
+ * Geocoding is paced at 1 request/second by Nominatim's policy, so a large import
+ * genuinely takes hours. Without a number saying so, "busy" and "broken" look
+ * identical to somebody who just imported 2,000 contacts and opened the Map.
+ *
+ * Polled while there is work outstanding and not at all once there isn't: the
+ * backfill runs hourly, so a fast poll would be noise, and a customer watching the
+ * number move at all is the point rather than watching it move smoothly.
+ */
+export interface GeocodeProgress {
+  contacts_located: number;
+  contacts_pending: number;
+  contacts_without_address: number;
+}
+
+export function useGeocodeProgress() {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: [companyId, "tasks", "geocode-progress"] as const,
+    queryFn: () =>
+      apiFetch<GeocodeProgress>("/v1/tasks/geocode-progress", { companyId }),
+    // Only while something is outstanding, and gently: the cron is hourly.
+    refetchInterval: (query) =>
+      (query.state.data?.contacts_pending ?? 0) > 0 ? 60_000 : false,
+  });
+}

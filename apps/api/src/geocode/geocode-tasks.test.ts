@@ -41,11 +41,16 @@ function stubWorld(
     scans: [] as URL[],
   };
   const route: FetchRoute = (url, request) => {
+        // #440 ask 5: the queue is an RPC now, same fair share as the contacts twin.
+    if (
+      url.href.startsWith(
+        `${env.SUPABASE_URL}/rest/v1/rpc/api_geocode_task_queue`,
+      )
+    ) {
+      captured.scans.push(url);
+      return Response.json(scanRows);
+    }
     if (url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/tasks`)) {
-      if (request.method === "GET") {
-        captured.scans.push(url);
-        return Response.json(scanRows);
-      }
       if (request.method === "PATCH") {
         return (async () => {
           const body = await request.clone().json();
@@ -108,15 +113,16 @@ describe("geocodeTasksJob", () => {
   });
 
   it("excludes soft-deleted tasks from the scan (they never hit the Map)", async () => {
+    // #440 ask 5: the exclusion moved into api_geocode_task_queue with the
+    // fair-share ordering, so there is no PostgREST filter here to read. GF-6 in
+    // supabase/tests/geocode_fair_share.test.sql asserts it against the database,
+    // including that an address-less task never enters the queue.
     const { route, captured } = stubWorld([], () => []);
     stubFetch(route);
 
     await geocodeTasksJob(env, undefined, noSleep);
 
-    // The work-set query filters deleted_at is null, so a deleted task with an
-    // address can never consume the batch or the paced Nominatim budget.
     expect(captured.scans).toHaveLength(1);
-    expect(captured.scans[0].searchParams.get("deleted_at")).toBe("is.null");
   });
 
   it("marks a task Nominatim can't place as no_address (terminal)", async () => {

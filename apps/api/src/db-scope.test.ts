@@ -145,14 +145,6 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
     count: 1,
     why: "expired-invite count across the platform (a health number, not a read)",
   },
-  "geocode/geocode-contacts.ts::contacts": {
-    count: 1,
-    why: "geocoding backfill: selects un-geocoded addresses platform-wide",
-  },
-  "geocode/geocode-tasks.ts::tasks": {
-    count: 1,
-    why: "task geocoding backfill, same shape as contacts",
-  },
   "messaging/crons.ts::usage_events": {
     count: 1,
     why: "usage re-reporter: selects unreported rows platform-wide for Stripe",

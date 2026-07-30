@@ -36,11 +36,50 @@ import type { Env } from "../env";
 import { geocodeAddress, NOMINATIM_MIN_INTERVAL_MS } from "./nominatim";
 
 /**
- * Rows geocoded per run. Bounded so a single trigger's wall-clock (≈1s/row
- * from the fair-use pacing) stays well inside a cron invocation and the OSM
- * budget stays modest. Backfill of a large address book spans several runs.
+ * Rows geocoded per run. Bounded so a single trigger's wall-clock (≈1s/row from
+ * the fair-use pacing) stays well inside a cron invocation.
+ *
+ * #440 RAISED THIS FROM 40, AND THE ARITHMETIC IS WORTH WRITING DOWN because the
+ * issue's own framing of it was slightly off. 40 rows per hourly run is 960/day,
+ * so a 2,000-contact import — which is what the CSV importer exists for, and
+ * which every switcher does exactly once, at the moment of maximum scrutiny —
+ * took more than two days with an empty Map and nothing saying why.
+ *
+ * The tempting reading is "40 requests in an hour is 1% of a 1/s allowance, so
+ * there is 100× headroom". That confuses the average with the cap. Nominatim's
+ * policy caps the RATE, and this loop already runs AT that rate while it runs;
+ * what is low is the DUTY CYCLE. Raising the batch buys more seconds at 1/s, it
+ * does not buy a higher rate.
+ *
+ * So this went to 120, not to 600. 120 rows is ≈2 minutes of wall clock — still
+ * comfortably inside a cron invocation — and 2,880/day, which turns two days into
+ * about seventeen hours. It deliberately stops well short of what the wall clock
+ * would allow, because Nominatim's policy also asks heavy users to self-host, and
+ * per #428 the mistake being corrected elsewhere in this codebase is exactly
+ * "lean harder on an OSM courtesy service because it has not complained yet".
+ *
+ * The real fix for the customer moment was not this number. It was the ORDERING
+ * (api_geocode_contact_queue: fair share per company, nearly-finished workspaces
+ * first) which costs the upstream service nothing, plus telling the customer what
+ * is happening. This is the smallest defensible improvement on top of those.
  */
-export const GEOCODE_BATCH = 40;
+export const GEOCODE_BATCH = 120;
+
+/**
+ * Rows any ONE workspace may take from a single run.
+ *
+ * The starvation fix. The old query ordered by `created_at asc` across every
+ * tenant, so the oldest pending rows in the system went first — and a workspace
+ * that imported today has the NEWEST rows, so it queued behind everybody else's
+ * backlog. One established address book with a trickle of failures could hold a
+ * brand-new workspace at the back of the line indefinitely.
+ *
+ * A seat cap means every workspace with work pending progresses on every run.
+ * Sized so a single workspace still finishes a 2,000-row import in a sensible
+ * number of runs when nobody else is queued (the queue hands out unclaimed seats
+ * to whoever is left, so a lone tenant still gets the whole batch).
+ */
+export const GEOCODE_PER_COMPANY = 40;
 
 interface GeocodableContact {
   id: string;
@@ -48,13 +87,15 @@ interface GeocodableContact {
 }
 
 /**
- * The status values this cron re-attempts: 'pending' (never geocoded — the
- * default the route stamps on an address write) and 'failed' (a prior transient
- * error). 'ok' and 'no_address' are terminal and excluded, so the scan is
- * self-limiting as the backfill completes.
+ * WHICH STATUSES ARE RE-ATTEMPTED now lives in `api_geocode_contact_queue`
+ * alongside the ordering, and there is no constant here any more.
+ *
+ * The rule is unchanged: 'pending' (never geocoded — the default the route stamps
+ * on an address write) and 'failed' (a prior transient error) are re-attempted;
+ * 'ok' and 'no_address' are terminal, so the queue is self-limiting as the
+ * backfill completes. GF-4 asserts the SQL predicate and this comment agree, which
+ * is the only thing that keeps a comment like this true.
  */
-const RETRYABLE_STATUSES =
-  "geocode_status.eq.pending,geocode_status.eq.failed";
 
 /**
  * Sleep helper injected with the runtime timer. Tests override it to run the
@@ -77,17 +118,16 @@ export async function geocodeContactsJob(
 ): Promise<void> {
   const db = getDb(env);
 
-  // Company-agnostic scan (this is a system cron, not a member request — it
-  // runs across all tenants). Select only rows with an address that still
-  // need geocoding; deleted contacts never appear on the map, so exclude them.
-  const { data, error } = await db
-    .from("contacts")
-    .select("id,address")
-    .is("deleted_at", null)
-    .not("address", "is", null)
-    .or(RETRYABLE_STATUSES)
-    .order("created_at", { ascending: true })
-    .limit(GEOCODE_BATCH);
+  // #440: the queue is an RPC now, not a flat scan, because the ordering IS the
+  // fix. It fair-shares seats across workspaces and serves the nearly-finished
+  // ones first, so a switcher's fresh import cannot queue behind every other
+  // tenant's backlog. The predicates live in SQL beside the ordering, and
+  // `geocode_fair_share.test.sql` GF-4 asserts they still select exactly what this
+  // cron means to geocode.
+  const { data, error } = await db.rpc("api_geocode_contact_queue", {
+    p_limit: GEOCODE_BATCH,
+    p_per_company: GEOCODE_PER_COMPANY,
+  });
   if (error) {
     throw new Error(`geocode contact scan failed: ${error.message}`);
   }

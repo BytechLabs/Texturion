@@ -840,6 +840,33 @@ tasksRoutes.get("/tasks", requireRole("member"), async (c) => {
  * live tasks for the thread, (created_at) order, no cursor (a thread's task
  * count is small). Each row carries the derived `done` + attachment_count.
  */
+/**
+ * GET /v1/tasks/geocode-progress (#440) — how far along this workspace's Map is.
+ *
+ * The customer moment this exists for: a switcher imports 2,000 contacts, opens the
+ * Map, and sees it empty. Geocoding is paced at 1 request/second by Nominatim's
+ * policy (which is correct and stays), so a large import genuinely takes hours. With
+ * nothing saying so, "busy" and "broken" look identical, and they conclude the
+ * feature does not work during the week they are deciding whether switching was
+ * worth it.
+ *
+ * Registered BEFORE `/tasks/:id` so "geocode-progress" is never read as an id.
+ *
+ * `without_address` is separate from `pending` deliberately: a contact with no
+ * address is not waiting for anything, and folding it in would make an "N of M"
+ * that never reaches its total, which looks permanently stuck.
+ */
+tasksRoutes.get("/tasks/geocode-progress", requireRole("member"), async (c) => {
+  const db = getDb(getEnv(c.env));
+  const progress = unwrap<Record<string, number>>(
+    await db.rpc("api_geocode_progress", {
+      p_company_id: c.get("companyId"),
+    }),
+    "geocode progress",
+  );
+  return c.json(progress);
+});
+
 tasksRoutes.get(
   "/conversations/:id/tasks",
   requireRole("member"),

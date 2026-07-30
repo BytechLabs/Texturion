@@ -11,6 +11,7 @@ import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import {
   geocodeContactsJob,
   GEOCODE_BATCH,
+  GEOCODE_PER_COMPANY,
   type Sleeper,
 } from "./geocode-contacts";
 import { NOMINATIM_BASE, NOMINATIM_MIN_INTERVAL_MS } from "./nominatim";
@@ -20,6 +21,8 @@ const env = completeEnv();
 afterEach(() => vi.unstubAllGlobals());
 
 interface Captured {
+  /** #440: the RPC's arguments, so the configured batch/seat caps are asserted. */
+  scanBodies: Record<string, unknown>[];
   scans: URL[];
   updates: { url: URL; body: unknown }[];
   nominatim: URL[];
@@ -34,13 +37,24 @@ function stubGeocodeWorld(
   scanRows: { id: string; address: string | null }[],
   geocodeFor: (q: string) => unknown,
 ): { route: FetchRoute; captured: Captured } {
-  const captured: Captured = { scans: [], updates: [], nominatim: [] };
+  const captured: Captured = { scans: [], scanBodies: [], updates: [], nominatim: [] };
   const route: FetchRoute = (url, request) => {
-    if (url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/contacts`)) {
-      if (request.method === "GET") {
-        captured.scans.push(url);
+    // #440: the queue is an RPC now, not a GET — the fair-share ordering lives in
+    // SQL beside the predicates it has to agree with.
+    if (
+      url.href.startsWith(
+        `${env.SUPABASE_URL}/rest/v1/rpc/api_geocode_contact_queue`,
+      )
+    ) {
+      captured.scans.push(url);
+      return (async () => {
+        captured.scanBodies.push(
+          (await request.clone().json()) as Record<string, unknown>,
+        );
         return Response.json(scanRows);
-      }
+      })();
+    }
+    if (url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/contacts`)) {
       if (request.method === "PATCH") {
         return (async () => {
           const body = await request.clone().json();
@@ -106,14 +120,21 @@ describe("geocodeContactsJob", () => {
 
     await geocodeContactsJob(env, undefined, noSleep);
 
-    const scan = captured.scans[0];
-    // Excludes soft-deleted + null-address; only pending/failed statuses.
-    expect(scan.searchParams.get("deleted_at")).toBe("is.null");
-    expect(scan.searchParams.get("address")).toBe("not.is.null");
-    expect(scan.searchParams.get("or")).toBe(
-      "(geocode_status.eq.pending,geocode_status.eq.failed)",
-    );
-    expect(scan.searchParams.get("limit")).toBe(String(GEOCODE_BATCH));
+    // #440: the predicates moved INTO api_geocode_contact_queue, beside the
+    // fair-share ordering they have to agree with, so there are no PostgREST
+    // filters left here to assert. That they still select exactly what this cron
+    // means to geocode — addressed, not soft-deleted, pending-or-failed — is
+    // asserted directly against the database in
+    // supabase/tests/geocode_fair_share.test.sql (GF-4), which is a stronger check
+    // than a URL string ever was: it compares the function's output against the
+    // predicate rather than against a spelling of it.
+    expect(captured.scans).toHaveLength(1);
+    // What IS still this file's job: that the cron hands the queue its configured
+    // caps rather than hardcoding numbers that could drift from the constants.
+    expect(captured.scanBodies[0]).toEqual({
+      p_limit: GEOCODE_BATCH,
+      p_per_company: GEOCODE_PER_COMPANY,
+    });
     // No rows → no geocode calls (skip-already-geocoded is enforced by the query).
     expect(captured.nominatim).toHaveLength(0);
   });
@@ -134,10 +155,16 @@ describe("geocodeContactsJob", () => {
   });
 
   it("caches status=failed (retryable) on a Nominatim error and does not set lat/lng", async () => {
-    const captured: Captured = { scans: [], updates: [], nominatim: [] };
+    const captured: Captured = { scans: [], scanBodies: [], updates: [], nominatim: [] };
     stubFetch((url, request) => {
+      if (
+        url.href.startsWith(
+          `${env.SUPABASE_URL}/rest/v1/rpc/api_geocode_contact_queue`,
+        )
+      ) {
+        return Response.json([{ id: "c3", address: "x" }]);
+      }
       if (url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/contacts`)) {
-        if (request.method === "GET") return Response.json([{ id: "c3", address: "x" }]);
         return (async () => {
           captured.updates.push({ url, body: await request.clone().json() });
           return Response.json([]);
