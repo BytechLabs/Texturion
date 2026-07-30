@@ -22,6 +22,10 @@ import {
   normalizeFilters,
   type ConversationFilters,
 } from "./filters";
+import type {
+  BulkConversationsBody,
+  BulkConversationsResult,
+} from "@/lib/inbox/bulk-selection";
 import { keys } from "./keys";
 import { nextCursorParam } from "./pagination";
 import type {
@@ -520,6 +524,52 @@ export function useDetachTag(conversationId: string) {
       });
       queryClient.invalidateQueries({
         queryKey: keys.conversations.events(companyId, conversationId),
+        refetchType: "active",
+      });
+    },
+  });
+}
+
+/**
+ * #275 — one bulk action over a selection, plus the undo it comes back with.
+ *
+ * The server decides scope: send `ids` for a pointed-at selection, or omit them
+ * and send the `filter` so it resolves the set itself under the #106 deny list.
+ * The client never enumerates "everything matching" — see
+ * `lib/inbox/bulk-selection.ts` for why that distinction is load-bearing.
+ *
+ * The response carries `applied[].previous`, which is what makes ONE undo for the
+ * whole batch possible (docs/UNDO-AUDIT.md §4): reverting means replaying those
+ * exact rows back to those exact values, never "reopen everything closed in the
+ * last minute" — which would also revert a teammate's concurrent work.
+ *
+ * Every list is invalidated rather than patched. A bulk action can move hundreds
+ * of rows across filters at once, and hand-reconciling that in the cache is how a
+ * list ends up showing a thread the server no longer puts there.
+ */
+export function useBulkConversations() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: BulkConversationsBody) =>
+      apiFetch<BulkConversationsResult>("/v1/conversations/bulk", {
+        method: "POST",
+        companyId,
+        body,
+      }),
+    onSuccess: () => {
+      // Everything: lists, the pinned supplement, the spam strip, and the unread
+      // badge can all move in one call.
+      queryClient.invalidateQueries({
+        queryKey: keys.conversations.lists(companyId),
+        refetchType: "active",
+      });
+      queryClient.invalidateQueries({
+        queryKey: keys.conversations.pinnedRoot(companyId),
+        refetchType: "active",
+      });
+      queryClient.invalidateQueries({
+        queryKey: keys.spamReview(companyId),
         refetchType: "active",
       });
     },

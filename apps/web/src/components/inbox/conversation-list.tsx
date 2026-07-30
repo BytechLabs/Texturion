@@ -12,7 +12,27 @@ import type { ConversationFilters } from "@/lib/api/filters";
 import type { ConversationListItem } from "@/lib/api/types";
 import { flattenPages } from "@/lib/api/pagination";
 import { prefersReducedMotion } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 
+import { Checkbox } from "@/components/ui/checkbox";
+import { useBulkConversations } from "@/lib/api/conversations";
+import {
+  bulkResultMessage,
+  EMPTY_SELECTION,
+  isEmpty,
+  isRowSelected,
+  selectAllMatching,
+  selectionIds,
+  selectLoaded,
+  toggleRow,
+  undoBulkCalls,
+  type BulkConversationsBody,
+  type BulkSelection,
+} from "@/lib/inbox/bulk-selection";
+import { undoableToast } from "@/components/ui/optimistic-undo";
+import { toast } from "sonner";
+
+import { BulkBar } from "./bulk-bar";
 import { ConversationRow, ROW_HEIGHT } from "./conversation-row";
 import {
   ActivationEmptyState,
@@ -139,6 +159,50 @@ export function ConversationList({
     ...flattenPages(query.data).filter((row) => !pinnedIds.has(row.id)),
   ];
 
+  // #275 multi-select. `loadedIds` is what the client can name; anything wider
+  // than that is filter mode, which the SERVER resolves — see
+  // lib/inbox/bulk-selection.ts for why those are different things.
+  const loadedIds = rows.map((row) => row.id);
+  const [selection, setSelection] = useState<BulkSelection>(EMPTY_SELECTION);
+  const bulk = useBulkConversations();
+
+  /**
+   * Run one bulk action, then offer ONE undo for the batch.
+   *
+   * The toast is built from the RESPONSE (`bulkResultMessage`), never from the
+   * selection: the two differ whenever a row was on a denied number, already
+   * gone, or past the cap, and that difference is what #275 says must not be
+   * swallowed. The undo replays the server's own `previous` values back, grouped,
+   * so 300 threads that were a mix of new/open/waiting each land where they were
+   * (docs/UNDO-AUDIT.md §4).
+   */
+  const runBulk = (body: Omit<BulkConversationsBody, "ids" | "filter">, verb: string) => {
+    const ids = selectionIds(selection);
+    const request: BulkConversationsBody = {
+      ...body,
+      ...(ids ? { ids } : { filter: filters }),
+    };
+    bulk.mutate(request, {
+      onSuccess: (result) => {
+        setSelection(EMPTY_SELECTION);
+        const message = bulkResultMessage(verb, result);
+        const undoCalls = undoBulkCalls(result, request);
+        if (undoCalls.length === 0) {
+          toast.success(message);
+          return;
+        }
+        undoableToast({
+          message,
+          onUndo: () => {
+            for (const call of undoCalls) bulk.mutate(call);
+          },
+        });
+      },
+      onError: () =>
+        toast.error("That bulk action didn't go through. Nothing changed."),
+    });
+  };
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowElements = useRef<Map<string, HTMLElement>>(new Map());
 
@@ -196,6 +260,33 @@ export function ConversationList({
   }
 
   return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* #275: only while something is selected, and ABOVE the scroller so
+          ticking a row does not shove the list out from under the pointer. */}
+      {!isEmpty(selection) && (
+        <BulkBar
+          selection={selection}
+          loadedIds={loadedIds}
+          hasMore={query.hasNextPage === true}
+          pending={bulk.isPending}
+          onSelectLoaded={() => setSelection(selectLoaded(loadedIds))}
+          onSelectAllMatching={() => setSelection(selectAllMatching())}
+          onClear={() => setSelection(EMPTY_SELECTION)}
+          onMarkRead={() => runBulk({ action: "mark_read" }, "Marked read")}
+          onClose={() =>
+            runBulk({ action: "set_status", target_status: "closed" }, "Closed")
+          }
+          onSpam={() =>
+            runBulk({ action: "set_spam", target_spam: true }, "Marked as spam")
+          }
+          onAssign={(userId) =>
+            runBulk({ action: "assign", target_user_id: userId }, "Assigned")
+          }
+          onTag={(tagId) =>
+            runBulk({ action: "add_tag", target_tag_id: tagId }, "Tagged")
+          }
+        />
+      )}
     <div
       ref={scrollRef}
       className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 pb-3 pt-1.5"
@@ -231,6 +322,31 @@ export function ConversationList({
                 active={row.id === activeConversationId}
                 spamView={filters.is_spam === true}
               />
+              {/* #275: a SIBLING of the row's <Link>, positioned over its avatar
+                  — never a descendant. An interactive control inside an anchor is
+                  invalid HTML and every click on it would also navigate. Shown on
+                  hover/focus, and kept visible once anything is selected so the
+                  selection is legible without hovering each row. */}
+              <div
+                className={cn(
+                  "absolute left-[13px] top-[13px] z-10 transition-opacity",
+                  isEmpty(selection)
+                    ? "opacity-0 focus-within:opacity-100 hover:opacity-100 group-hover/list:opacity-100"
+                    : "opacity-100",
+                )}
+              >
+                <Checkbox
+                  checked={isRowSelected(selection, row.id)}
+                  aria-label={`Select conversation with ${
+                    row.contact.name ?? row.contact.phone_e164
+                  }`}
+                  onCheckedChange={() =>
+                    setSelection((current) =>
+                      toggleRow(current, row.id, loadedIds),
+                    )
+                  }
+                />
+              </div>
             </div>
           );
         })}
@@ -263,6 +379,7 @@ export function ConversationList({
           Loading more…
         </p>
       )}
+    </div>
     </div>
   );
 }
