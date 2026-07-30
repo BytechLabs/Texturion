@@ -163,6 +163,17 @@ extension Nanp {
         metadata(for: e164)?.country
     }
 
+    /// #376: the destination's primary IANA zone, or nil for a non-geographic
+    /// or unknown code.
+    ///
+    /// Mirrors `destinationCountry` and exists for the same reason: the
+    /// generated parity vectors compare this port's answer against the
+    /// TypeScript's, and `metadata(for:)` is file-private, which `@testable`
+    /// does not open. A rule worth checking needs an accessor to check it with.
+    static func destinationTimezone(_ e164: String) -> String? {
+        metadata(for: e164)?.timezone
+    }
+
     /// Local wall-clock time (hour/minute) at the destination's primary
     /// timezone, or nil for non-geographic/unknown codes — "unknown local
     /// time" shows no hint.

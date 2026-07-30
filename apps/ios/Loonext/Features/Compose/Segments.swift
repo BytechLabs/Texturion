@@ -17,6 +17,10 @@ import Foundation
 ///   boundary: a 2-unit character that does not fit starts the next segment
 ///   (the stranded unit is wasted padding — reflected in `segments`, not in
 ///   `unitsUsed`).
+///
+/// #376: the TypeScript original is packages/shared/src/segments.ts, and the
+/// Kotlin twin is features/compose/Segments.kt. ParityVectorsTests asserts this
+/// port against cases generated from the TypeScript.
 
 enum SmsEncoding {
     static let gsm7 = "GSM-7"

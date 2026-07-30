@@ -170,6 +170,15 @@ jobs:
       - name: Guard client parity
         run: node scripts/check-client-parity.mjs
 
+      # #376: `packages/shared` is shared by two of four clients, so every rule
+      # Android and iOS need exists three times. The generated vectors are what
+      # the Kotlin and Swift suites assert against — if a shared rule changes and
+      # the vectors do not, those suites go on checking last month's rule and the
+      # divergence they exist to catch becomes invisible. Regenerates and fails
+      # on any difference.
+      - name: Guard parity vectors
+        run: node scripts/generate-parity-vectors.mjs --check
+
       # feat/fix/perf subjects are published verbatim in the release notes, so
       # they are checked like changelog copy. The commit-msg hook catches this
       # locally; this is the gate that --no-verify cannot skip. Only the commits

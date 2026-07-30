@@ -29,6 +29,15 @@
  * Non-geographic codes have no state/province or local clock, so their
  * `region`/`timezone` are null (`geographic` discriminates); they still
  * count as US/CA destinations for {@link isUsCaDestination}.
+ *
+ * #376 SIBLINGS — this rule exists three times, and a change here is a
+ * three-edit change:
+ *   apps/android/app/src/main/kotlin/com/loonext/android/features/compose/Nanp.kt
+ *   apps/ios/Loonext/Features/Compose/NanpMetadata.swift (+ Contacts/Nanp.swift)
+ * They are asserted against `packages/shared/vectors/nanp.json`, generated from
+ * THIS file by scripts/generate-parity-vectors.mjs and checked in CI.
+ * The vectors pin only what all three carry (country, timezone) — `region` is
+ * TypeScript-only by design, because nothing on a phone renders a state.
  */
 
 export type NanpCountry = "US" | "CA";

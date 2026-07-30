@@ -14,6 +14,10 @@ import java.time.ZoneId
  * the table IS the US/CA destination check — Caribbean NANP codes, NANP-wide
  * service codes (toll-free, premium), and unassigned codes are deliberately
  * missing, mirroring the server's SMS-pumping gate (SPEC §10).
+ *
+ * #376: the TypeScript original is packages/shared/src/nanp.ts, and the Swift
+ * twin is apps/ios/Loonext/Features/Compose/NanpMetadata.swift. ParityVectorsTest
+ * asserts this port against cases generated from the TypeScript.
  */
 data class NanpEntry(val country: String, val timezone: String?)
 

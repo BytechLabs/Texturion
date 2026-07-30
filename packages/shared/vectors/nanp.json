@@ -1,0 +1,92 @@
+[
+  {
+    "e164": "+14155550123",
+    "is_us_ca": true,
+    "timezone": "America/Los_Angeles",
+    "country": "US"
+  },
+  {
+    "e164": "+12125550123",
+    "is_us_ca": true,
+    "timezone": "America/New_York",
+    "country": "US"
+  },
+  {
+    "e164": "+13065550123",
+    "is_us_ca": true,
+    "timezone": "America/Regina",
+    "country": "CA"
+  },
+  {
+    "e164": "+16135550123",
+    "is_us_ca": true,
+    "timezone": "America/Toronto",
+    "country": "CA"
+  },
+  {
+    "e164": "+19075550123",
+    "is_us_ca": true,
+    "timezone": "America/Anchorage",
+    "country": "US"
+  },
+  {
+    "e164": "+18085550123",
+    "is_us_ca": true,
+    "timezone": "Pacific/Honolulu",
+    "country": "US"
+  },
+  {
+    "e164": "+17875550123",
+    "is_us_ca": true,
+    "timezone": "America/Puerto_Rico",
+    "country": "US"
+  },
+  {
+    "e164": "+18005550123",
+    "is_us_ca": false,
+    "timezone": null,
+    "country": null
+  },
+  {
+    "e164": "+15555550123",
+    "is_us_ca": false,
+    "timezone": null,
+    "country": null
+  },
+  {
+    "e164": "+447700900123",
+    "is_us_ca": false,
+    "timezone": null,
+    "country": null
+  },
+  {
+    "e164": "+1415555012",
+    "is_us_ca": false,
+    "timezone": null,
+    "country": null
+  },
+  {
+    "e164": "+141555501234",
+    "is_us_ca": false,
+    "timezone": null,
+    "country": null
+  },
+  {
+    "e164": "4155550123",
+    "is_us_ca": false,
+    "timezone": null,
+    "country": null
+  },
+  {
+    "e164": "",
+    "is_us_ca": false,
+    "timezone": null,
+    "country": null
+  },
+  {
+    "e164": "not a number",
+    "is_us_ca": false,
+    "timezone": null,
+    "country": null
+  }
+]

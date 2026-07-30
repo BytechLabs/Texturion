@@ -17,6 +17,10 @@ package com.loonext.android.features.compose
  *   boundary: a 2-unit character that does not fit starts the next segment
  *   (the stranded unit is wasted padding — reflected in `segments`, not in
  *   `unitsUsed`).
+ *
+ * #376: the TypeScript original is packages/shared/src/segments.ts, and the
+ * Swift twin is apps/ios/Loonext/Features/Compose/Segments.swift. ParityVectorsTest
+ * asserts this port against cases generated from the TypeScript.
  */
 
 object SmsEncoding {

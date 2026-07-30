@@ -22,6 +22,13 @@
  *   segment boundary: a 2-unit character that does not fit in the current
  *   segment starts the next one (the stranded unit is wasted padding —
  *   reflected in `segments` but not in `unitsUsed`, which counts content).
+ *
+ * #376 SIBLINGS — this rule exists three times, and a change here is a
+ * three-edit change:
+ *   apps/android/app/src/main/kotlin/com/loonext/android/features/compose/Segments.kt
+ *   apps/ios/Loonext/Features/Compose/Segments.swift
+ * They are asserted against `packages/shared/vectors/segments.json`, generated
+ * from THIS file by scripts/generate-parity-vectors.mjs and checked in CI.
  */
 
 export type SmsEncoding = "GSM-7" | "UCS-2";
