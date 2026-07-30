@@ -21,6 +21,7 @@ import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
 import { CONTRACTORS_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
+import { ACTIVATION_CHIP, ACTIVATION_CLAIM } from "@/lib/marketing/activation";
 
 const PATH = "/for/contractors";
 
@@ -40,7 +41,7 @@ const CONTENT: TradeContent = {
   heroSub:
     "The homeowner's change request is worth real money, if it lands where the crew can see it and gets approved in writing. Loonext gives the client, the GC, and the subs a business number to text and the crew one shared inbox, so every decision is on the record. $29 a month.",
   heroTruth:
-    "Job texts off your personal cell · Live in minutes · Month to month",
+    `Job texts off your personal cell · ${ACTIVATION_CHIP} · Month to month`,
 
   painH2: "The change order is in a text thread on your estimator's phone.",
   painBody: [
@@ -182,7 +183,7 @@ const CONTENT: TradeContent = {
 
   finalH2: "Get the job off your personal phone.",
   finalSub:
-    "One shared inbox for the client, the GC, and the subs, where every decision lands in writing. Live in minutes.",
+    `One shared inbox for the client, the GC, and the subs, where every decision lands in writing. ${ACTIVATION_CLAIM}.`,
 };
 
 export default function ContractorsPage() {

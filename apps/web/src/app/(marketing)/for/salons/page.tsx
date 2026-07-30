@@ -18,6 +18,7 @@ import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
 import { SALONS_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
+import { ACTIVATION_CHIP, ACTIVATION_CLAIM } from "@/lib/marketing/activation";
 
 const PATH = "/for/salons";
 
@@ -37,7 +38,7 @@ const CONTENT: TradeContent = {
   heroSub:
     "A running-late text only helps if somebody sees it before the chair sits empty. Loonext gives the whole floor one shared inbox, so confirmations, reschedules, and waitlist fills get handled by whoever's free, not whoever's phone it landed on. $29 a month for the whole salon.",
   heroTruth:
-    "One inbox for the whole floor · Live in minutes · Month to month",
+    `One inbox for the whole floor · ${ACTIVATION_CHIP} · Month to month`,
 
   painH2:
     "The chair is empty and the “running late” text is on someone's personal phone.",
@@ -164,7 +165,7 @@ const CONTENT: TradeContent = {
 
   finalH2: "Keep the chairs full.",
   finalSub:
-    "Confirm appointments, fill cancellations from the waitlist, and follow up after the big color, all from one inbox the whole floor shares. Live in minutes.",
+    `Confirm appointments, fill cancellations from the waitlist, and follow up after the big color, all from one inbox the whole floor shares. ${ACTIVATION_CLAIM}.`,
 };
 
 export default function SalonsPage() {

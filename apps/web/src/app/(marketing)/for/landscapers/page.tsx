@@ -16,6 +16,7 @@ import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
 import { LANDSCAPERS_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
+import { ACTIVATION_CHIP, ACTIVATION_CLAIM } from "@/lib/marketing/activation";
 
 const PATH = "/for/landscapers";
 
@@ -35,7 +36,7 @@ const CONTENT: TradeContent = {
   heroSub:
     "The crew is at the gate, the gate is locked, and the code is in a text thread on somebody's day off. Loonext puts every gate code, reschedule, and add-on ask in one shared inbox on your business number. $29 a month for the whole company.",
   heroTruth:
-    "One inbox for every property · Live in minutes · No busy-season lock-in",
+    `One inbox for every property · ${ACTIVATION_CHIP} · No busy-season lock-in`,
 
   painH2: "You can't answer the phone from the top of a mower.",
   painBody: [
@@ -161,7 +162,7 @@ const CONTENT: TradeContent = {
 
   finalH2: "One inbox for every property you service.",
   finalSub:
-    "Quote from a photo, dispatch the nearest crew, and keep every gate code in one shared inbox. Live in minutes.",
+    `Quote from a photo, dispatch the nearest crew, and keep every gate code in one shared inbox. ${ACTIVATION_CLAIM}.`,
 };
 
 export default function LandscapersPage() {

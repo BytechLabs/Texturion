@@ -3,6 +3,7 @@ import { BlogPlate } from "@/components/marketing/blog/blog-plate";
 import { FeatureCta } from "@/components/marketing/features/feature-page";
 import { Breadcrumbs } from "@/components/marketing/ui/breadcrumbs";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
+import { ACTIVATION_CLAIM } from "@/lib/marketing/activation";
 import type { BlogPost } from "@/lib/marketing/blog";
 import { blogPostPath } from "@/lib/marketing/blog";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
@@ -27,7 +28,7 @@ import {
 export function ArticlePage({
   post,
   ctaHeading = "Give your crew one inbox to share.",
-  ctaSub = "A local business number and a shared text inbox the whole team can see, live in minutes. See the price, pay, and start today.",
+  ctaSub = `A local business number and a shared text inbox the whole team can see, ${ACTIVATION_CLAIM}. See the price.`,
   children,
 }: {
   post: BlogPost;

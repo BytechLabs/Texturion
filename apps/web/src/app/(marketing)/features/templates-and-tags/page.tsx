@@ -31,6 +31,7 @@ import {
 import { SavedRepliesVisual } from "@/components/marketing/features/saved-replies-visual";
 import { TagsDoneVisual } from "@/components/marketing/features/tags-done-visual";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
+import { ACTIVATION_CLAIM_SHORT } from "@/lib/marketing/activation";
 
 const PATH = "/features/templates-and-tags";
 
@@ -277,7 +278,7 @@ export default function TemplatesAndTagsPage() {
 
       <FeatureCta
         heading="Give your crew the shortcuts they'll actually use."
-        sub="Saved replies, sell-pipeline tags, done-marks, and search, the workflow layer on your shared inbox, live in minutes."
+        sub={`Saved replies, sell-pipeline tags, done-marks, and search, the workflow layer on your shared inbox, ${ACTIVATION_CLAIM_SHORT}.`}
       />
     </>
   );

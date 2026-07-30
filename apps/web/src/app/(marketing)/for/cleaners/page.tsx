@@ -16,6 +16,7 @@ import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
 import { CLEANERS_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
+import { ACTIVATION_CHIP, ACTIVATION_CLAIM } from "@/lib/marketing/activation";
 
 const PATH = "/for/cleaners";
 
@@ -35,7 +36,7 @@ const CONTENT: TradeContent = {
   heroSub:
     "Key under the mat, dog in the crate, oven this time, and Friday moved to Monday. Half of cleaning is what the client told you last week, and it can't live on one phone. Loonext keeps every access note, reschedule, and add-on in one inbox the whole team can see. $29 a month.",
   heroTruth:
-    "Access notes saved to the client · Live in minutes · Month to month",
+    `Access notes saved to the client · ${ACTIVATION_CHIP} · Month to month`,
 
   painH2: "Every key, code, and reschedule lives in somebody's texts.",
   painBody: [
@@ -161,7 +162,7 @@ const CONTENT: TradeContent = {
 
   finalH2: "Get every gate code off one person's phone.",
   finalSub:
-    "One shared inbox for recurring clients, access notes, and reschedules, so whoever shows up knows how to get in. Live in minutes.",
+    `One shared inbox for recurring clients, access notes, and reschedules, so whoever shows up knows how to get in. ${ACTIVATION_CLAIM}.`,
 };
 
 export default function CleanersPage() {

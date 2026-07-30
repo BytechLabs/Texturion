@@ -17,6 +17,7 @@ import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
 import { HVAC_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
+import { ACTIVATION_CHIP, ACTIVATION_CLAIM } from "@/lib/marketing/activation";
 
 const PATH = "/for/hvac";
 
@@ -36,7 +37,7 @@ const CONTENT: TradeContent = {
   heroSub:
     "It's 6:48 in the morning, the house is cold, and the customer texted the only number they had. In a shared inbox, whoever's up answers, the right part rides the van, and the no-heat call is booked before the shop opens. A local business number, $29 a month for the whole crew.",
   heroTruth:
-    "Works on the phones your techs already carry · Live in minutes · No busy-season contract",
+    `Works on the phones your techs already carry · ${ACTIVATION_CHIP} · No busy-season contract`,
 
   painH2: "You can't quote a furnace swap from the top of a ladder.",
   painBody: [
@@ -162,7 +163,7 @@ const CONTENT: TradeContent = {
 
   finalH2: "Turn the cold-snap pile-up into a queue.",
   finalSub:
-    "One shared inbox to triage the surge, read the fault, and keep the follow-ups from leaking. Live in minutes.",
+    `One shared inbox to triage the surge, read the fault, and keep the follow-ups from leaking. ${ACTIVATION_CLAIM}.`,
 };
 
 export default function HvacPage() {

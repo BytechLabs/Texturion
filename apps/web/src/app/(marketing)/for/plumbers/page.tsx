@@ -16,13 +16,18 @@ import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
 import { PLUMBERS_SCRIPT } from "@/components/marketing/trades/scripts";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
+import {
+  ACTIVATION_CHIP,
+  ACTIVATION_CLAIM,
+  ACTIVATION_CLAIM_SHORT,
+} from "@/lib/marketing/activation";
 
 const PATH = "/for/plumbers";
 
 export const metadata: Metadata = buildMetadata({
   title: "Texting software for plumbers",
   description:
-    "A shared text inbox for your plumbing crew: customers text photos of the problem, anyone on the team replies, nothing gets missed. Local number, flat $29/mo, live in minutes.",
+    `A shared text inbox for your plumbing crew: customers text photos of the problem, anyone on the team replies, nothing gets missed. Local number, flat $29/mo, ${ACTIVATION_CLAIM_SHORT}.`,
   path: PATH,
 });
 
@@ -35,7 +40,7 @@ const CONTENT: TradeContent = {
   heroSub:
     "Customers text a photo of the leak. Whoever's free answers. The owner's personal cell goes back to being a personal cell. A local business number, one shared inbox, $29 a month for the whole crew.",
   heroTruth:
-    "Works on the phones your techs already carry · Live in minutes · Month to month",
+    `Works on the phones your techs already carry · ${ACTIVATION_CHIP} · Month to month`,
 
   painH2: "You can't quote a water heater with your hands in a drain.",
   painBody: [
@@ -161,7 +166,7 @@ const CONTENT: TradeContent = {
 
   finalH2: "Get the texts off your personal cell.",
   finalSub:
-    "A local number and a shared inbox for the whole crew, live in minutes.",
+    `A local number and a shared inbox for the whole crew, ${ACTIVATION_CLAIM}.`,
 };
 
 export default function PlumbersPage() {

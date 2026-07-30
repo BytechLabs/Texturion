@@ -4,7 +4,8 @@
  *
  * Dateline `THE NUMBER BELONGS TO THE BUSINESS` → H1 "A local number that
  * belongs to the business, not to somebody's phone." → sections: pick a
- * local number (live in minutes), bring your number (free porting,
+ * local number (set up today, US texting after carrier approval), bring your
+ * number (free porting,
  * self-serve, the old number keeps working until the scheduled cutover,
  * usually a few days to two weeks for US numbers and often faster in
  * Canada), two numbers on Pro → Truth Strip branched by country (US
@@ -34,6 +35,7 @@ import {
 } from "@/components/marketing/features/feature-page";
 import { NumberCardsVisual } from "@/components/marketing/features/number-cards-visual";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
+import { ACTIVATION_CLAIM } from "@/lib/marketing/activation";
 
 const PATH = "/features/business-number";
 
@@ -300,7 +302,7 @@ export default function BusinessNumberPage() {
 
       <FeatureCta
         heading="Get a number your customers can text."
-        sub="Pick your local area code or bring the number you have, keep your personal cell private, and give the whole crew a business number they share. Live in minutes."
+        sub={`Pick your local area code or bring the number you have, keep your personal cell private, and give the whole crew a business number they share. ${ACTIVATION_CLAIM}.`}
       />
     </>
   );

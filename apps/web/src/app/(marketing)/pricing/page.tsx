@@ -69,6 +69,7 @@ import {
 } from "./pricing-data";
 import { SegmentCounterStatic } from "./segment-counter-static";
 import { COMPARE_AS_OF } from "../compare/verification";
+import { ACTIVATION_CHIP } from "@/lib/marketing/activation";
 
 const PATH = LIVE_ROUTES.pricing;
 
@@ -458,7 +459,7 @@ export default function PricingPage() {
             </CtaButton>
           </div>
           <p className="fr-mono-data mt-5 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
-            Live in minutes · Month to month · 30-day money-back guarantee
+            ${ACTIVATION_CHIP} · Month to month · 30-day money-back guarantee
           </p>
         </div>
       </FrSection>
