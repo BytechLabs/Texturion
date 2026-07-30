@@ -2,7 +2,7 @@
 
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -174,6 +174,29 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
    * would tear down and rebuild the socket the moment the profile arrived.
    * The ref gives the handler today's value without either.
    */
+  /**
+   * #483: bumped when a per-number channel is given up on, purely to make the
+   * socket effect rebuild.
+   *
+   * Giving up used to be PERMANENT, and the comment justifying it was wrong: it
+   * claimed `access.changed` would bring the number back by rebuilding the set,
+   * but the effect's dependency is `topicKey` — a sorted-id string. When the
+   * refetched list is unchanged the string is identical, the effect never re-runs,
+   * and `removeChannel` has already dropped the channel from realtime-js, so a
+   * socket reconnect does not rejoin it either.
+   *
+   * That mattered because refusal and a transient error are indistinguishable at
+   * this seam. A laptop waking with an expired JWT can push two joins with the
+   * stale token before the refresh lands — two CHANNEL_ERRORs on a connected
+   * socket, which the refusal branch reads as "access was taken away". The tab
+   * then received nothing for that number for the rest of its life, with a green
+   * socket and no error anywhere.
+   *
+   * So the ambiguous case is treated as slow rather than final: one rebuild a
+   * minute instead of a join every ten seconds, and a real revocation settles into
+   * that cadence rather than a hot loop.
+   */
+  const [retryGeneration, setRetryGeneration] = useState(0);
   const meUserIdRef = useRef<string | null>(null);
   meUserIdRef.current = meCompany.data?.user_id ?? null;
   const queryClient = useQueryClient();
@@ -807,6 +830,16 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
      * refused again, every time, for the life of the page.
      */
     const REFUSALS_BEFORE_GIVING_UP = 2;
+    /**
+     * How long before a given-up per-number topic is tried again.
+     *
+     * A minute, not ten seconds: the original bug was a `phx_join` every ~10s
+     * for the life of the page, each running the access policy against Postgres.
+     * A genuinely revoked number settles into one cheap refusal a minute, and a
+     * number lost to a token-refresh race comes back within one.
+     */
+    const GIVE_UP_RETRY_MS = 60_000;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     void (async () => {
       const { data } = await supabase.auth.getSession();
@@ -857,6 +890,13 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             // error, so a `>=` test would try to remove the channel twice.
             if (refusals === REFUSALS_BEFORE_GIVING_UP) {
               void supabase.removeChannel(channel);
+              // #483: and come back to it. Without this the channel is gone for
+              // the life of the page — see `retryGeneration`. Cleared on
+              // teardown so a rebuild cannot be scheduled against a disposed
+              // effect.
+              retryTimer = setTimeout(() => {
+                if (!disposed) setRetryGeneration((g) => g + 1);
+              }, GIVE_UP_RETRY_MS);
             }
             return;
           }
@@ -879,10 +919,14 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("focus", maybeResync);
       for (const timer of pendingUpdates.values()) clearTimeout(timer);
       pendingUpdates.clear();
+      // #483: a rebuild scheduled for a given-up topic must not outlive the run
+      // that scheduled it — the `disposed` guard already refuses it, but leaving
+      // the timer would keep a company switch alive for a minute for nothing.
+      if (retryTimer !== undefined) clearTimeout(retryTimer);
       authSubscription.unsubscribe();
       for (const { channel } of channels) void supabase.removeChannel(channel);
     };
-  }, [companyId, queryClient, realtimeEnabled, topicKey]);
+  }, [companyId, queryClient, realtimeEnabled, topicKey, retryGeneration]);
 
   return <>{children}</>;
 }

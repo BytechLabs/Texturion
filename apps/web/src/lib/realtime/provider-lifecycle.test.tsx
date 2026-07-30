@@ -293,9 +293,47 @@ describe("a per-number join the policy refuses", () => {
 
     expect(fake.removed).toEqual([numberTopic("n1")]);
     expect([...fake.live.keys()]).toEqual([COMPANY_TOPIC, numberTopic("n2")]);
-    // Never re-opened: only an access edit can bring the number back, and that
-    // arrives as `access.changed` and rebuilds the whole set.
+    // Not re-opened IMMEDIATELY — that was the ~10s hot loop this closes.
     expect(fake.opened.filter((t) => t === numberTopic("n1"))).toHaveLength(1);
+  });
+
+  it("comes back a minute later, because giving up must not be permanent", async () => {
+    // #483: the first version of this fix was permanent, and the comment
+    // justifying it was wrong — it claimed `access.changed` would bring the
+    // number back by rebuilding the set, but the effect's dependency is a sorted-id
+    // STRING. When the refetched list is unchanged the string is identical and the
+    // effect never re-runs, while `removeChannel` has already dropped the channel
+    // from realtime-js so a reconnect does not rejoin it either.
+    //
+    // That is load-bearing because refusal and a transient error are
+    // indistinguishable here: a laptop waking with an expired JWT can push two
+    // joins with the stale token before the refresh lands, and the tab would then
+    // receive nothing for that number for the rest of its life with a green socket.
+    vi.useFakeTimers();
+    try {
+      visibleNumbers = [{ id: "n1" }, { id: "n2" }];
+      const { report } = setup();
+      await flush();
+      report(COMPANY_TOPIC, "SUBSCRIBED");
+      report(numberTopic("n2"), "SUBSCRIBED");
+
+      report(numberTopic("n1"), "CHANNEL_ERROR");
+      report(numberTopic("n1"), "CHANNEL_ERROR");
+      await flush();
+      expect(fake.opened.filter((t) => t === numberTopic("n1"))).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      await flush();
+
+      // Re-opened once the retry window elapses. A genuinely revoked number
+      // settles into one cheap refusal a minute; one lost to a token race is back
+      // within one.
+      expect(
+        fake.opened.filter((t) => t === numberTopic("n1")).length,
+      ).toBeGreaterThan(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not arm the reconnect gap flag", async () => {
