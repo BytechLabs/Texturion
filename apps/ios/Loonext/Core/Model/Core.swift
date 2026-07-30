@@ -234,6 +234,23 @@ struct CompanyView: Codable, Sendable {
     /// Defaults TRUE against a lagging server, matching it — the away copy
     /// that asks a homeowner to send it is on by default too.
     @Default<DefaultTrue> var emergency_keyword_enabled: Bool
+    /// #460: the workspace's own emergency words, or nil for the product list.
+    /// Nil means "use the default", never "watch for nothing".
+    var emergency_keywords: [String]?
+    /// #460: the workspace's own emergency reply, or nil for the default.
+    var emergency_message: String?
+    /// #460: the words the inbound handler will really match on, resolved by
+    /// the SERVER. The unrecognised-reply-word warning reads THIS — warning
+    /// against a list nothing uses teaches an owner to ignore warnings.
+    @Default<DefaultEmptyList<String>> var emergency_effective_keywords: [String]
+    /// #460: what actually lands on the customer's phone — the effective body
+    /// PLUS the safety sentence no setting removes. Composed by the server for
+    /// the same reason `away_effective_message` is.
+    @Default<DefaultEmptyString> var emergency_effective_message: String
+    /// True when the owner's own emergency reply is in effect.
+    @Default<DefaultFalse> var emergency_message_is_custom: Bool
+    /// True when the owner set their own words rather than the defaults.
+    @Default<DefaultFalse> var emergency_keywords_are_custom: Bool
     /// #388: chase a new lead nobody has answered. The defaults MATCH the
     /// server's and are asymmetric on purpose — rung one re-alerts only people
     /// already told once, so it ships on; rung two reaches people who were not

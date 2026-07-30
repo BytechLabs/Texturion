@@ -13,6 +13,7 @@ import {
   usTextingOff,
 } from "@/components/thread/composer-banner";
 import { ClosedDatesCard } from "@/components/settings/closed-dates-card";
+import { EmergencyCard } from "@/components/settings/emergency-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +22,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
-import { awayEmergencyNotice } from "@loonext/shared";
+import {
+  awayEmergencyNotice,
+  effectiveEmergencyKeywords,
+  emergencyWordList,
+} from "@loonext/shared";
 
 import { previewAwayMessage } from "@/lib/settings/away-preview";
 import {
@@ -203,6 +208,15 @@ function AwayMessageCard({
   const notice = awayEmergencyNotice({
     emergencyEnabled: emergency,
     awayMessage: effectiveMessage,
+    // #460: THIS workspace's words. Warning against the product list when the
+    // owner watches for their own would be the product arguing with a setting
+    // it offers, and a warning that survives the fix teaches people to ignore
+    // warnings.
+    // Through the shared resolver, which treats a missing or empty list as the
+    // product's. A response from an API that predates #460 has no list at all,
+    // and a settings page that throws on an older server is a worse bug than
+    // the copy this replaces.
+    keywords: effectiveEmergencyKeywords(company.emergency_effective_keywords),
   });
 
   function save() {
@@ -311,10 +325,18 @@ function AwayMessageCard({
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-0.5">
               <Label htmlFor="emergency-enabled" className="text-sm font-medium">
-                Treat a reply of URGENT as an emergency
+                Treat an emergency word as an emergency
               </Label>
+              {/* #460: names the words THIS workspace watches for. Hardcoding
+                  the product's four was fine until an owner could change them,
+                  at which point a switch label naming words nothing matches is
+                  the #414 defect in a different place. */}
               <p className="text-sm text-muted-foreground">
-                Texts back that start with URGENT, EMERGENCY, 911 or SOS reach
+                Texts back that start with{" "}
+                {emergencyWordList(
+                  effectiveEmergencyKeywords(company.emergency_effective_keywords),
+                )}{" "}
+                reach
                 everyone on the crew straight away, at the priority that wakes a
                 phone — no away reply, and never held back by your daily
                 notification limit.
@@ -398,6 +420,13 @@ export default function AwayReplySettingsPage() {
               *Applying: Relationship Strength.* */}
           <ClosedDatesCard company={company.data} canEdit={canEdit} />
           <AwayMessageCard company={company.data} canEdit={canEdit} />
+
+          {/* #460: directly beneath the away message, which is the sentence
+              that TELLS a customer the word. An owner changing the word has to
+              see the offer in the same scroll — the same adjacency argument
+              #414 used to put the switch on the away card.
+              *Applying: Relationship Strength & Chunking.* */}
+          <EmergencyCard company={company.data} canEdit={canEdit} />
         </div>
       )}
     </SettingsPage>

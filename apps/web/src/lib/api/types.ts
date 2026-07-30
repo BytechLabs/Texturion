@@ -313,6 +313,26 @@ export interface CompanyView {
    *  whole crew at high priority, exempt from the daily notification limit.
    *  On by default, because the away-message copy that asks for it is. */
   emergency_keyword_enabled: boolean;
+  /** #460: the workspace's own emergency words, or null for the product list.
+   *  Null means "use the default", never "watch for nothing" — a stored copy of
+   *  the defaults would freeze whatever they were on signup day. */
+  emergency_keywords: string[] | null;
+  /** #460: the workspace's own reply to an emergency word, or null for the
+   *  product default. Never what is actually SENT — see below. */
+  emergency_message: string | null;
+  /** #460: the words the inbound handler will really match on, resolved by the
+   *  SERVER. Every screen that warns about an unrecognised reply word must read
+   *  THIS, or it warns about a list nothing uses. */
+  emergency_effective_keywords: string[];
+  /** #460: what actually lands on the customer's phone — the effective body
+   *  PLUS the safety sentence no setting removes (#414 ask 4). Composed on the
+   *  server for the same reason `away_effective_message` is: three clients
+   *  concatenating a safety line by hand is three chances to drop it. */
+  emergency_effective_message: string;
+  /** True when the owner's own emergency reply is in effect. */
+  emergency_message_is_custom: boolean;
+  /** True when the owner set their own words rather than using the defaults. */
+  emergency_keywords_are_custom: boolean;
   /**
    * #392: the seat allowance, served rather than recomputed. A pricing lever
    * that needed a client release to pull was not a lever, and a client copy

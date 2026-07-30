@@ -196,6 +196,7 @@ export {
   effectiveEmergencyMessage,
   emergencyKeywordError,
   emergencyReplyBody,
+  emergencyWordList,
   isEmergencyKeyword,
   isValidEmergencyKeyword,
   mentionsEmergencyKeyword,

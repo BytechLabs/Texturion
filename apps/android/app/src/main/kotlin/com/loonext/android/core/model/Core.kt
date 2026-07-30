@@ -218,6 +218,29 @@ data class CompanyView(
      */
     val emergency_keyword_enabled: Boolean = true,
     /**
+     * #460: the workspace's own emergency words, or null for the product list.
+     * Null means "use the default", never "watch for nothing".
+     */
+    val emergency_keywords: List<String>? = null,
+    /** #460: the workspace's own emergency reply, or null for the default. */
+    val emergency_message: String? = null,
+    /**
+     * #460: the words the inbound handler will really match on, resolved by the
+     * SERVER. The unrecognised-reply-word warning reads THIS — warning against
+     * a list nothing uses is how an owner learns to ignore warnings.
+     */
+    val emergency_effective_keywords: List<String> = emptyList(),
+    /**
+     * #460: what actually lands on the customer's phone — the effective body
+     * PLUS the safety sentence no setting removes. Composed by the server, for
+     * the same reason [away_effective_message] is.
+     */
+    val emergency_effective_message: String = "",
+    /** True when the owner's own emergency reply is in effect. */
+    val emergency_message_is_custom: Boolean = false,
+    /** True when the owner set their own words rather than the defaults. */
+    val emergency_keywords_are_custom: Boolean = false,
+    /**
      * #388: chase a new lead nobody has answered. The defaults MATCH the
      * server's and are asymmetric on purpose — rung one re-alerts only people
      * already told once, so it ships on; rung two reaches people who were not

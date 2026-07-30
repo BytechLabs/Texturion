@@ -511,8 +511,13 @@ let carrierReplyKeywords = [
 /// The boundaries are `\\b` in SOURCE, which is `\b` in the pattern. Swift has
 /// no `\b` string escape at all, so writing it unescaped is not a subtle bug —
 /// it does not compile.
-func mentionsEmergencyKeyword(_ copy: String) -> Bool {
-    emergencyKeywords.contains { keyword in
+func mentionsEmergencyKeyword(
+    _ copy: String,
+    // #460: the workspace's own words. Defaults to the product list so a caller
+    // not yet taught about custom keywords gets the old answer, not a wrong one.
+    keywords: [String] = emergencyKeywords
+) -> Bool {
+    keywords.contains { keyword in
         guard let regex = try? NSRegularExpression(
             pattern: "\\b\(keyword)\\b",
             options: [.caseInsensitive]
@@ -534,7 +539,10 @@ private let replyInstructionPattern =
 /// #453 — the word an owner told customers to send that nothing listens for.
 /// Returns it so the screen can quote it back; an owner cannot fix what we
 /// will not name. Mirror of `unrecognizedReplyKeyword` in shared.
-func unrecognizedReplyKeyword(_ copy: String) -> String? {
+func unrecognizedReplyKeyword(
+    _ copy: String,
+    keywords: [String] = emergencyKeywords
+) -> String? {
     guard let regex = try? NSRegularExpression(
         pattern: replyInstructionPattern,
         options: [.caseInsensitive]
@@ -545,12 +553,62 @@ func unrecognizedReplyKeyword(_ copy: String) -> String? {
               let range = Range(match.range(at: 1), in: copy) else { continue }
         let raw = String(copy[range])
         let word = raw.uppercased()
-        if emergencyKeywords.contains(word) || carrierReplyKeywords.contains(word) { continue }
+        // #460: a word the owner has just ADDED must stop being warned about
+        // the moment they add it, or the warning teaches them to ignore it.
+        if keywords.contains(word) || carrierReplyKeywords.contains(word) { continue }
         // Must READ as a keyword: all-caps in the original, letters only. This
         // is what keeps "reply within 24 hours" and "we'll reply Monday" out.
         if raw != word { continue }
         if word.count < 2 || !word.allSatisfy({ $0.isLetter && $0.isUppercase }) { continue }
         return word
+    }
+    return nil
+}
+
+extension CompanyView {
+    /// #460 — the words this workspace really watches for, safe against a
+    /// lagging server that has not learned to send them yet.
+    ///
+    /// An empty array from an older API must read as "the product list", not as
+    /// "nothing" — a switch labelled "texts starting with nothing reach the
+    /// crew" is worse than the hardcoded copy it replaced.
+    var effectiveEmergencyWords: [String] {
+        emergency_effective_keywords.isEmpty
+            ? emergencyKeywords
+            : emergency_effective_keywords
+    }
+}
+
+/// "URGENT, EMERGENCY, 911 or SOS" — an owner reads a list, not an array.
+/// Mirror of `emergencyWordList` in shared; keep the joining identical or the
+/// same switch reads differently on three phones.
+func emergencyWordList(_ words: [String]) -> String {
+    if words.isEmpty { return "nothing" }
+    if words.count == 1 { return words[0] }
+    return words.dropLast().joined(separator: ", ") + " or " + (words.last ?? "")
+}
+
+/// #460 — why a keyword was refused, in the owner's terms, or nil when it is
+/// fine. Mirror of `emergencyKeywordError` in shared.
+///
+/// The client checks first so an owner is told immediately rather than after a
+/// round trip, but the server and the CHECK constraint remain the authority —
+/// this is a courtesy, not the gate.
+func emergencyKeywordError(_ rawInput: String) -> String? {
+    let trimmed = rawInput.trimmingCharacters(in: .whitespaces)
+    let word = trimmed.uppercased()
+    if word.isEmpty { return "Type a word first." }
+    if trimmed.contains(where: { $0.isWhitespace }) {
+        return "One word only — customers text a single word, so a phrase would never match."
+    }
+    if !word.allSatisfy({ ($0.isLetter && $0.isUppercase) || $0.isNumber }) {
+        return "Letters and numbers only. Punctuation is stripped from what customers send."
+    }
+    if word.count < 2 { return "Too short — use at least 2 characters." }
+    if word.count > 15 { return "Too long — 15 characters at most." }
+    if carrierReplyKeywords.contains(word) {
+        return "\(word) is answered by the phone carrier before it reaches us, "
+            + "so it can't be an emergency word."
     }
     return nil
 }
@@ -571,10 +629,11 @@ struct AwayEmergencyNotice {
 /// thing. Mirror of `awayEmergencyNotice` in shared; keep the copy identical.
 func awayEmergencyNotice(
     emergencyEnabled: Bool,
-    awayMessage: String
+    awayMessage: String,
+    keywords: [String] = emergencyKeywords
 ) -> AwayEmergencyNotice? {
-    let invites = mentionsEmergencyKeyword(awayMessage)
-    let unknown = unrecognizedReplyKeyword(awayMessage)
+    let invites = mentionsEmergencyKeyword(awayMessage, keywords: keywords)
+    let unknown = unrecognizedReplyKeyword(awayMessage, keywords: keywords)
 
     if !emergencyEnabled {
         if !invites, unknown == nil { return nil }
@@ -590,8 +649,8 @@ func awayEmergencyNotice(
         return AwayEmergencyNotice(
             tone: .warn,
             text: "Your away message tells customers to reply \(unknown), which nothing "
-                + "watches for. Use URGENT, EMERGENCY, 911 or SOS instead, or take the offer "
-                + "out of the message."
+                + "watches for. Use \(emergencyWordList(keywords)) instead, add \(unknown) to "
+                + "your emergency words, or take the offer out of the message."
         )
     }
 

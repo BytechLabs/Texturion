@@ -297,7 +297,18 @@ export function awayEmergencyNotice(args: {
   return null;
 }
 
-/** "URGENT, EMERGENCY, 911 or SOS" — an owner reads a list, not an array. */
+/**
+ * "URGENT, EMERGENCY, 911 or SOS" — an owner reads a list, not an array.
+ *
+ * Exported because three settings screens print this sentence and used to
+ * hardcode the four product words into it. That copy became a lie the moment
+ * #460 let a workspace choose its own, and a switch whose label names words
+ * nothing watches for is the #414 defect wearing a different hat.
+ */
+export function emergencyWordList(words: readonly string[]): string {
+  return listWords(words);
+}
+
 function listWords(words: readonly string[]): string {
   if (words.length === 0) return "nothing";
   if (words.length === 1) return words[0]!;

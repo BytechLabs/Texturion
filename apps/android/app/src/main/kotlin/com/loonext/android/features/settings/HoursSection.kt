@@ -65,6 +65,10 @@ fun HoursSection(
     // shut on Boxing Day" looks where they set their hours.
     ClosedDatesCard(scope, company, onCompanyUpdated)
     AwayReplyCard(scope, company, onCompanyUpdated)
+    // #460: directly beneath the away message, which is the sentence that
+    // TELLS a customer the word. An owner changing the word has to see the
+    // offer in the same scroll.
+    EmergencyCard(scope, company, onCompanyUpdated)
 }
 
 @Composable
@@ -246,6 +250,10 @@ private fun AwayReplyCard(
     val emergencyNotice = awayEmergencyNotice(
         emergencyEnabled = emergency,
         awayMessage = effectiveMessage,
+        // #460: THIS workspace's words, resolved by the server. Warning against
+        // the product list when the owner watches for their own would be the
+        // product arguing with a setting it offers.
+        keywords = company.effectiveEmergencyWords,
     )
 
     SettingsCard(
@@ -292,10 +300,16 @@ private fun AwayReplyCard(
         // inviting URGENT with the mechanism off is the exact defect this
         // issue is about, and an owner can only see it if both are together.
         LabeledSwitchRow(
-            label = "Treat a reply of URGENT as an emergency",
-            supporting = "Texts back starting with URGENT, EMERGENCY, 911 or SOS reach " +
-                "everyone on the crew straight away, at the priority that wakes a phone — " +
-                "no away reply, and never held back by your daily notification limit.",
+            label = "Treat an emergency word as an emergency",
+            // #460: names the words THIS workspace watches for. Hardcoding the
+            // product's four was fine until an owner could change them, at
+            // which point a switch naming words nothing matches is the #414
+            // defect in a different place.
+            supporting = "Texts back starting with " +
+                emergencyWordList(company.effectiveEmergencyWords) +
+                " reach everyone on the crew straight away, at the priority that wakes " +
+                "a phone — no away reply, and never held back by your daily " +
+                "notification limit.",
             checked = emergency,
             onCheckedChange = { emergency = it },
             enabled = canEdit && !saving,

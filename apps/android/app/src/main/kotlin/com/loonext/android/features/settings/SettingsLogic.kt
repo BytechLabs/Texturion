@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Invite
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
@@ -541,7 +542,12 @@ val CARRIER_REPLY_KEYWORDS = listOf(
  * would never match anything, leaving this function silently returning false
  * for every message and the warning permanently invisible.
  */
-fun mentionsEmergencyKeyword(copy: String): Boolean = EMERGENCY_KEYWORDS.any { keyword ->
+fun mentionsEmergencyKeyword(
+    copy: String,
+    // #460: the workspace's own words. Defaults to the product list so a caller
+    // not yet taught about custom keywords gets the old answer, not a wrong one.
+    keywords: List<String> = EMERGENCY_KEYWORDS,
+): Boolean = keywords.any { keyword ->
     Regex("\\b$keyword\\b", RegexOption.IGNORE_CASE).containsMatchIn(copy)
 }
 
@@ -563,11 +569,16 @@ private val ALL_CAPS_WORD = Regex("^[A-Z]{2,}$")
  * Returns it so the screen can quote it back; an owner cannot fix what we
  * will not name. Mirror of `unrecognizedReplyKeyword` in shared.
  */
-fun unrecognizedReplyKeyword(copy: String): String? {
+fun unrecognizedReplyKeyword(
+    copy: String,
+    keywords: List<String> = EMERGENCY_KEYWORDS,
+): String? {
     for (match in REPLY_INSTRUCTION.findAll(copy)) {
         val raw = match.groupValues[1]
         val word = raw.uppercase()
-        if (word in EMERGENCY_KEYWORDS || word in CARRIER_REPLY_KEYWORDS) continue
+        // #460: a word the owner has just ADDED must stop being warned about
+        // the moment they add it, or the warning teaches them to ignore it.
+        if (word in keywords || word in CARRIER_REPLY_KEYWORDS) continue
         if (raw != word || !ALL_CAPS_WORD.matches(word)) continue
         return word
     }
@@ -587,9 +598,10 @@ data class AwayEmergencyNotice(val tone: AwayNoticeTone, val text: String)
 fun awayEmergencyNotice(
     emergencyEnabled: Boolean,
     awayMessage: String,
+    keywords: List<String> = EMERGENCY_KEYWORDS,
 ): AwayEmergencyNotice? {
-    val invites = mentionsEmergencyKeyword(awayMessage)
-    val unknown = unrecognizedReplyKeyword(awayMessage)
+    val invites = mentionsEmergencyKeyword(awayMessage, keywords)
+    val unknown = unrecognizedReplyKeyword(awayMessage, keywords)
 
     if (!emergencyEnabled) {
         if (!invites && unknown == null) return null
@@ -605,8 +617,8 @@ fun awayEmergencyNotice(
         return AwayEmergencyNotice(
             AwayNoticeTone.Warn,
             "Your away message tells customers to reply $unknown, which nothing " +
-                "watches for. Use URGENT, EMERGENCY, 911 or SOS instead, or take the offer " +
-                "out of the message.",
+                "watches for. Use ${emergencyWordList(keywords)} instead, add $unknown to " +
+                "your emergency words, or take the offer out of the message.",
         )
     }
 
@@ -618,6 +630,56 @@ fun awayEmergencyNotice(
         )
     }
 
+    return null
+}
+
+
+/**
+ * #460 — the words this workspace really watches for, safe against a lagging
+ * server that has not learned to send them yet.
+ *
+ * An empty list from an older API must read as "the product list", not as
+ * "nothing" — a switch labelled "texts starting with nothing reach the crew" is
+ * worse than the hardcoded copy it replaced.
+ */
+val CompanyView.effectiveEmergencyWords: List<String>
+    get() = emergency_effective_keywords.ifEmpty { EMERGENCY_KEYWORDS }
+
+/**
+ * "URGENT, EMERGENCY, 911 or SOS" — an owner reads a list, not an array.
+ * Mirror of `emergencyWordList` in shared; keep the joining identical or the
+ * same switch reads differently on three phones.
+ */
+fun emergencyWordList(words: List<String>): String = when {
+    words.isEmpty() -> "nothing"
+    words.size == 1 -> words[0]
+    else -> words.dropLast(1).joinToString(", ") + " or " + words.last()
+}
+
+/**
+ * #460 — why a keyword was refused, in the owner's terms, or null when it is
+ * fine. Mirror of `emergencyKeywordError` in shared.
+ *
+ * The client checks first so an owner is told immediately rather than after a
+ * round trip, but the server and the CHECK constraint remain the authority —
+ * this is a courtesy, not the gate.
+ */
+fun emergencyKeywordError(rawInput: String): String? {
+    val trimmed = rawInput.trim()
+    val word = trimmed.uppercase()
+    if (word.isEmpty()) return "Type a word first."
+    if (trimmed.any { it.isWhitespace() }) {
+        return "One word only — customers text a single word, so a phrase would never match."
+    }
+    if (!Regex("^[A-Z0-9]+$").matches(word)) {
+        return "Letters and numbers only. Punctuation is stripped from what customers send."
+    }
+    if (word.length < 2) return "Too short — use at least 2 characters."
+    if (word.length > 15) return "Too long — 15 characters at most."
+    if (word in CARRIER_REPLY_KEYWORDS) {
+        return "$word is answered by the phone carrier before it reaches us, " +
+            "so it can't be an emergency word."
+    }
     return null
 }
 

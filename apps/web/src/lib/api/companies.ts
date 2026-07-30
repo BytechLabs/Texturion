@@ -66,6 +66,11 @@ export interface CompanyPatch {
   away_message?: string | null;
   /** #414: whether a reply of URGENT wakes the whole crew. */
   emergency_keyword_enabled?: boolean;
+  /** #460: the workspace's own emergency words. `null` restores the product
+   *  list; omit the key entirely to leave it alone. */
+  emergency_keywords?: string[] | null;
+  /** #460: the workspace's own emergency reply. `null` restores the default. */
+  emergency_message?: string | null;
   /** #388: chase a lead nobody has answered, and whether that chase ends up
    *  waking the whole crew (O/A). */
   lead_chase_enabled?: boolean;

@@ -37,6 +37,10 @@ struct HoursSectionView: View {
         // "we're shut on Boxing Day" looks where they set their hours.
         ClosedDatesCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
         AwayReplyCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
+        // #460: directly beneath the away message, which is the sentence that
+        // TELLS a customer the word. An owner changing the word has to see the
+        // offer in the same scroll.
+        EmergencyCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
     }
 }
 
@@ -194,7 +198,14 @@ private struct AwayReplyCard: View {
         trimmed.isEmpty ? company.away_effective_message : trimmed
     }
     private var emergencyNotice: AwayEmergencyNotice? {
-        awayEmergencyNotice(emergencyEnabled: emergency, awayMessage: effectiveMessage)
+        // #460: THIS workspace's words, resolved by the server. Warning against
+        // the product list when the owner watches for their own would be the
+        // product arguing with a setting it offers.
+        awayEmergencyNotice(
+            emergencyEnabled: emergency,
+            awayMessage: effectiveMessage,
+            keywords: company.effectiveEmergencyWords
+        )
     }
 
     var body: some View {
@@ -242,8 +253,14 @@ private struct AwayReplyCard: View {
             // defect this issue is about, and an owner can only see it if the
             // two are on screen together.
             LabeledToggleRow(
-                label: "Treat a reply of URGENT as an emergency",
-                supporting: "Texts back starting with URGENT, EMERGENCY, 911 or SOS reach "
+                label: "Treat an emergency word as an emergency",
+                // #460: names the words THIS workspace watches for. Hardcoding
+                // the product's four was fine until an owner could change them,
+                // at which point a switch naming words nothing matches is the
+                // #414 defect in a different place.
+                supporting: "Texts back starting with "
+                    + emergencyWordList(company.effectiveEmergencyWords)
+                    + " reach "
                     + "everyone on the crew straight away, at the priority that wakes a phone — "
                     + "no away reply, and never held back by your daily notification limit.",
                 isOn: emergency,
