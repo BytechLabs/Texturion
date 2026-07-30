@@ -43,8 +43,11 @@ jobs:
         with:
           version: 2.109.1
 
+      # Diagnoses the host ports first and retries once. A bare `supabase start`
+      # cost a whole deploy on 2026-07-30 by losing a race to bind 54322, and a
+      # red gate blocks release-please (main.yml's release job needs it).
       - name: Start local Supabase stack
-        run: supabase start
+        run: sh scripts/start-supabase-ci.sh
 
       - name: Apply migrations from zero (db reset)
         run: supabase db reset
@@ -85,8 +88,10 @@ jobs:
       # and serves the API at 127.0.0.1:54321 with the CLI-default keys — the
       # exact host/keys the D31 harness resolves via `supabase status -o json`
       # (with the literal fallbacks). `db reset` applies migrations from zero.
+      # Same hardened start as the SQL job — this is the job the 2026-07-30 bind
+      # failure actually killed.
       - name: Start local Supabase stack
-        run: supabase start
+        run: sh scripts/start-supabase-ci.sh
 
       - name: Apply migrations from zero (db reset)
         run: supabase db reset
