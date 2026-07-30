@@ -184,13 +184,14 @@ jobs:
       # writing the public deletion page — two of its four entries had shipped,
       # and both would have been published to customers as things we do not do.
       # Fails when a listed-as-open issue has closed; the fix is one struck line.
+      # The default GITHUB_TOKEN already reads issues here — this step passed on
+      # its first run. It is NOT restated as a step-level `permissions:` block:
+      # that key is only valid at workflow or job level, and putting it on a step
+      # made BOTH workflow files unparseable, which presents as every run failing
+      # with the file path where the workflow name should be. If the repository's
+      # default token grant is ever narrowed, the script fails loudly rather than
+      # passing over a list it could not check.
       - name: Guard open-issue lists
-        # `issues: read` explicitly: the repo's default token permissions are a
-        # settings toggle, and this step is useless without it. The script now
-        # fails rather than passing when it can verify nothing, so a missing
-        # grant is loud instead of a green run over an unchecked list.
-        permissions:
-          issues: read
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/check-open-lists.mjs
