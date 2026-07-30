@@ -5045,3 +5045,53 @@ reason rather than leaving the level list open. The other two items shipped:
 `member_number_access_explained` and the owner-facing screen on all three
 clients (#348's first), and the note-only composer banner now naming the calls
 consequence as well as the texting one (#348's second).
+
+## D92 — job state is a tag on the conversation, not a column on the task (#361, ratifies PORTAL-UX §7, 2026-07-30)
+
+**Decision.** Task workflow state is **option 2** of #361: the product has ONE
+model of where a job stands, and it is the pre-seeded pipeline tags on the
+conversation. Advancing a job is a tag PATCH; the Pipeline/board is a grouped
+**view** over `GET /v1/conversations` filtered by tag — pure UI, **off by
+default**. **No `task_status` column is added.**
+
+**This ratifies rather than decides.** `docs/PORTAL-UX.md` §7 already states it
+as binding build direction. What was missing is the record: D25 and `TASKS.md`
+T9 still read as though the question is open, so a reader met two documents
+saying *"deferred, do not build"* and one saying *"here is how it works"* —
+#323's forward-only supersession problem, on a schema question.
+
+**T9's richer status is SUPERSEDED, not deferred**, and the difference is the
+point. "Deferred" invites somebody to revisit it and add the very column
+PORTAL-UX routes around. T9's own reason for caution was that a richer status
+*"reintroduces a stored non-`done` status distinct from message completion"* —
+the dual-source-of-truth hazard D17 exists to prevent. Option 2 does not
+resolve that hazard; it **avoids needing to**. Nothing about D17's derived
+completion is disturbed, and D25's instruction not to build a stored
+multi-status column ahead of the decision is honoured literally and
+permanently.
+
+**Why not the two-column status quo (#361's option 3), which its own devil's
+advocate favoured.** Because the inconsistency was the real complaint: we
+already sell a four-state workflow through the seeded tags, and
+`/for/plumbers` markets the ritual built on them. Two states on tasks plus four
+on conversations is two notions of "where is this job", neither aware of the
+other. Choosing option 3 would have meant either retracting the marketing or
+keeping the contradiction.
+
+**And "off by default" answers the restraint objection** that made option 3
+attractive. D14's restraint rule is cited across these documents for good
+reason, and a four-person crew is not made to adopt a pipeline — the workspaces
+that want stages get them, and the rest see a list. That was the objection #361
+could not resolve, and the spec had already resolved it.
+
+**Made jointly with #356, as #361 required.** #356 closed as **D64** — a task
+promotes a message OR a call — so the anchoring half is settled. Status and
+anchoring were the same question about the same object, and both are now
+answered: what a task hangs off (D64), and where job state lives (here). Neither
+is a half-design waiting for the other.
+
+**What this raises rather than settles.** #354 gets stronger from the same
+paragraph, not weaker. Four seeded tags any member can rename are now the job
+spine — load-bearing for the board and for the marketed Monday-morning ritual —
+with no protection and no saved view. That is #354's argument, and this decision
+is the reason to take it seriously.

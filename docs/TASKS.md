@@ -560,10 +560,12 @@ Both are **pure read-views over existing tables** — no new storage. They share
 - **Standalone (message-less) tasks (Option B, T0.1)** — requires **amending D17** to add a
   task-owned `done_at` used only when `message_id IS NULL`, with derive-logic branching on message
   presence. Deliberately out of MVP; a PO decision, not a silent build-spec addition.
-- **Richer status** (in-progress / blocked / waiting) — the D25 Board view groups by status, so a
-  richer status column becomes relevant there; MVP `/tasks` List uses the derived `open`/`done` only.
-  Added later behind an explicit decision (it reintroduces a stored non-`done` status distinct from
-  message completion).
+- ~~**Richer status** (in-progress / blocked / waiting)~~ — **SUPERSEDED by D92 (#361), not
+  deferred.** Job state lives on the CONVERSATION as a pipeline tag; the board is a grouped view
+  over those tags, off by default. No `task_status` column is added, so the hazard this entry was
+  cautious about — a stored non-`done` status distinct from message completion — never arises.
+  Marked superseded rather than deleted because "deferred" invites somebody to revisit it and add
+  the column D92 deliberately routes around.
 - **Natural-language due/assignee** in the promote form ("tomorrow", "@sam") — MVP is a plain date +
   assignee select.
 - **Per-conversation task counts / progress badges** — held back per the D14 restraint rule; add only
