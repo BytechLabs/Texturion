@@ -128,11 +128,22 @@ both phones together.
 
 ---
 
-## 4. Bulk actions: the undo story, before #275 ships
+## 4. Bulk actions: the undo story — DECIDED HERE, then BUILT to it (#275)
 
-#295 asks for this to be settled before bulk actions are built, because the
+#295 asked for this to be settled before bulk actions were built, because the
 per-row toast pattern does not extend and discovering that mid-build would mean
 either shipping bulk actions with no guard or redesigning them late.
+
+**Status, 2026-07-29: #275 shipped against these rules on all three clients**
+(`api_bulk_conversations`, then web, Android and iOS). The rules below were written
+first and the implementation followed them, which is the whole reason this section
+existed. What it looks like in practice:
+
+| | Where |
+|---|---|
+| Grouped undo builder | `undoBulkCalls` (web), `bulkUndoPlan` (Kotlin, Swift) |
+| Prior values to revert to | `api_bulk_conversations` returns `applied[].previous` |
+| The count that gets reported | `applied.length` from the RESPONSE, never the selection |
 
 **The rule for #275: a bulk operation is ONE undoable action, not N.**
 
@@ -149,7 +160,12 @@ either shipping bulk actions with no guard or redesigning them late.
 - **The undo window does not extend for bulk.** A longer window implies the
   operation is still pending, and it is not — the rows are already changed.
 
-This is a decision, not a design document; #275 owns the implementation.
+One thing the build added to this decision rather than merely obeying it:
+**`mark_read` carries no undo at all**, on any client. "Unread" is the absence of a
+read receipt, so there is no prior state to restore — and nobody asks to un-read
+three hundred threads. The RPC records no `previous` for it, so the undo builder
+returns nothing and the toast is a plain confirmation. An Undo button that did
+nothing would be worse than its absence.
 
 ---
 

@@ -301,3 +301,87 @@ struct OutboundMedia: Codable, Sendable {
     let content_type: String
     let base64: String
 }
+
+/// #275 — what POST /v1/conversations/bulk returns.
+///
+/// `previous` stays a raw `[String: JSONValue]` on purpose: the server decides
+/// which field an action records, the client hands it straight back to build the
+/// undo, and narrowing it here would mean this file changes every time an action is
+/// added. `applied.count` is the only number that describes reality — `matched` can
+/// be larger (the cap), and rows that could not be reached are in `failed`.
+///
+/// Decoded by hand rather than with the `@Default` wrappers: every field is
+/// optional-with-a-fallback, so a response shaped slightly differently by a newer
+/// Worker degrades to "nothing happened" instead of throwing inside an inbox.
+struct BulkAppliedRow: Decodable, Sendable, Equatable {
+    let id: String
+    let previous: [String: JSONValue]
+
+    init(id: String, previous: [String: JSONValue] = [:]) {
+        self.id = id
+        self.previous = previous
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, previous }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        previous =
+            try container.decodeIfPresent([String: JSONValue].self, forKey: .previous) ?? [:]
+    }
+}
+
+struct BulkFailedRow: Decodable, Sendable, Equatable {
+    let id: String
+    let reason: String
+
+    init(id: String, reason: String) {
+        self.id = id
+        self.reason = reason
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, reason }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        reason = try container.decodeIfPresent(String.self, forKey: .reason) ?? "not_found"
+    }
+}
+
+struct BulkConversationsResult: Decodable, Sendable {
+    let action: String
+    let matched: Int
+    let applied: [BulkAppliedRow]
+    let failed: [BulkFailedRow]
+    let capped: Bool
+
+    init(
+        action: String = "",
+        matched: Int = 0,
+        applied: [BulkAppliedRow] = [],
+        failed: [BulkFailedRow] = [],
+        capped: Bool = false
+    ) {
+        self.action = action
+        self.matched = matched
+        self.applied = applied
+        self.failed = failed
+        self.capped = capped
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case action, matched, applied, failed, capped
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        action = try container.decodeIfPresent(String.self, forKey: .action) ?? ""
+        matched = try container.decodeIfPresent(Int.self, forKey: .matched) ?? 0
+        applied =
+            try container.decodeIfPresent([BulkAppliedRow].self, forKey: .applied) ?? []
+        failed = try container.decodeIfPresent([BulkFailedRow].self, forKey: .failed) ?? []
+        capped = try container.decodeIfPresent(Bool.self, forKey: .capped) ?? false
+    }
+}

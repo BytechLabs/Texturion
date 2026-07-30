@@ -114,6 +114,48 @@ struct MessagingRepository: Sendable {
         )
     }
 
+    /// #275 — one action over many conversations.
+    ///
+    /// Pass `ids` for a pointed-at selection, or leave it nil and pass the filter so
+    /// the SERVER resolves the set. That distinction is the whole point: the client
+    /// never enumerates "everything matching", so it cannot include rows the #106
+    /// deny list would have excluded.
+    ///
+    /// There is deliberately no send action — bulk management only.
+    func bulkConversations(
+        companyId: String,
+        action: String,
+        ids: [String]? = nil,
+        filterStatus: String? = nil,
+        targetStatus: String? = nil,
+        targetSpam: Bool? = nil,
+        targetUserId: String? = nil,
+        /// True when the caller means "unassign", which the server needs as an
+        /// explicit null rather than an absent field.
+        unassign: Bool = false
+    ) async throws -> BulkConversationsResult {
+        var body: [String: JSONValue] = ["action": .string(action)]
+        if let ids {
+            body["ids"] = .array(ids.map { .string($0) })
+        } else {
+            var filter: [String: JSONValue] = [:]
+            if let filterStatus { filter["status"] = .string(filterStatus) }
+            body["filter"] = .object(filter)
+        }
+        if let targetStatus { body["target_status"] = .string(targetStatus) }
+        if let targetSpam { body["target_spam"] = .bool(targetSpam) }
+        if let targetUserId {
+            body["target_user_id"] = .string(targetUserId)
+        } else if unassign {
+            body["target_user_id"] = .null
+        }
+        return try await api.post(
+            "/v1/conversations/bulk",
+            body: JSONValue.object(body),
+            companyId: companyId
+        )
+    }
+
     func setStatus(
         companyId: String,
         conversationId: String,

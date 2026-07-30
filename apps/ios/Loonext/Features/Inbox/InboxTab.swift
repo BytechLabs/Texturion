@@ -462,6 +462,120 @@ private final class InboxController {
     /// row drops the caller's watermark (DELETE /read) so the dot survives
     /// revalidation and syncs everywhere. The local flip paints first; a failure
     /// reverts it and toasts. The Android InboxTab.toggleRead twin.
+    // MARK: - #275 multi-select
+    //
+    // `bulkSelection` is either the ids the user pointed at or the filter-wide mode
+    // the SERVER resolves — see BulkSelection.swift for why those are different
+    // things and why the bar never shows a number it was not told. Named
+    // `bulkSelection` rather than `selection` because the view already has a
+    // `selection` binding, and that one is the navigation selection.
+
+    private(set) var bulkSelection: BulkSelection = .empty
+    private(set) var bulkRunning = false
+
+    /// Whether another page exists. The escalation to "all matching this filter" is
+    /// only offered when it would reach MORE than what is on screen.
+    var hasMorePages: Bool { cursor != nil }
+
+    func toggleBulkSelected(_ conversationId: String) {
+        bulkSelection = bulkSelection.toggling(conversationId, loadedIds: rows.map(\.id))
+    }
+
+    func selectAllLoaded() {
+        bulkSelection = selectLoaded(rows.map(\.id))
+    }
+
+    func selectAllMatchingFilter() {
+        bulkSelection = .filter
+    }
+
+    func clearBulkSelection() {
+        bulkSelection = .empty
+    }
+
+    /// Run one bulk action over the current selection, then say what actually
+    /// happened.
+    ///
+    /// The message comes from the RESPONSE, never the selection: those two differ
+    /// whenever a row was on a denied number, already gone, or past the cap, and
+    /// #275 requires that difference be named rather than swallowed. The reversible
+    /// actions carry one Undo for the whole operation.
+    func runBulk(
+        action: String,
+        verb: String,
+        targetStatus: String? = nil,
+        targetSpam: Bool? = nil,
+        targetUserId: String? = nil,
+        unassign: Bool = false
+    ) {
+        let ids = bulkSelection.idsOrNil
+        // Filter mode sends the tab's own status, so "everything matching" means the
+        // set the user is looking at rather than every conversation in the company.
+        let filterStatus = ids == nil ? statusFilterForBulk() : nil
+        Task {
+            bulkRunning = true
+            do {
+                let result = try await repo.bulkConversations(
+                    companyId: companyId,
+                    action: action,
+                    ids: ids,
+                    filterStatus: filterStatus,
+                    targetStatus: targetStatus,
+                    targetSpam: targetSpam,
+                    targetUserId: targetUserId,
+                    unassign: unassign
+                )
+                clearBulkSelection()
+                await refreshFirstPage()
+                let message = bulkResultMessage(
+                    verb: verb,
+                    applied: result.applied.count,
+                    failed: result.failed.count,
+                    matched: result.matched,
+                    capped: result.capped
+                )
+                if let plan = bulkUndoPlan(result) {
+                    notify(message, actionLabel: "Undo") { [weak self] in
+                        self?.runBulkUndo(plan)
+                    }
+                } else {
+                    notify(message)
+                }
+            } catch {
+                notify(error.userMessage)
+            }
+            bulkRunning = false
+        }
+    }
+
+    /// Replay a plan's groups back, then re-read the page. An undo raises no toast:
+    /// a toast for the undo of a toast is noise.
+    private func runBulkUndo(_ plan: [BulkUndoGroup]) {
+        Task {
+            do {
+                for group in plan {
+                    _ = try await repo.bulkConversations(
+                        companyId: companyId,
+                        action: group.action,
+                        ids: group.ids,
+                        targetStatus: group.targetStatus,
+                        targetSpam: group.targetSpam,
+                        targetUserId: group.targetUserId,
+                        unassign: group.unassign
+                    )
+                }
+                await refreshFirstPage()
+            } catch {
+                notify(error.userMessage)
+            }
+        }
+    }
+
+    /// The status the current tab is showing, for filter-mode bulk calls.
+    private func statusFilterForBulk() -> String? {
+        tab == .closed ? ConversationStatus.closed : nil
+    }
+
     func toggleRead(_ row: ConversationListItem) {
         let wasUnread = row.unread
         setLocalUnread(row.id, unread: !wasUnread)
@@ -954,6 +1068,12 @@ private struct ConversationListPane: View {
             .background(BrandColor.canvas)
             .refreshable { await controller.refreshFirstPage() }
         } else {
+            VStack(spacing: 0) {
+            // #275: only while something is selected, and above the list so
+            // selecting a row does not shove the list under the thumb.
+            if !controller.bulkSelection.isEmpty {
+                BulkSelectionBar(controller: controller)
+            }
             List(selection: $selection) {
                 if !controller.pinnedRows.isEmpty {
                     Section {
@@ -993,6 +1113,7 @@ private struct ConversationListPane: View {
             .background(BrandColor.canvas)
             // The reconnect path's first-page refetch, on demand.
             .refreshable { await controller.refreshFirstPage() }
+            }
         }
     }
 
@@ -1012,12 +1133,29 @@ private struct ConversationListPane: View {
     /// separate control); Assign opens the thread's assignee picker.
     private func rowCell(_ row: ConversationListItem, pinned: Bool = false) -> some View {
         let closed = row.status == ConversationStatus.closed
+        // #275: in selection mode a tap toggles rather than opens. That is the
+        // convention and also the only workable one — long-pressing every row would
+        // be worse than the tedium this replaces.
+        let selecting = !controller.bulkSelection.isEmpty
+        let picked = controller.bulkSelection.isRowSelected(row.id)
         return ConversationRow(row: row, assigneeName: assigneeName(row)) {
-            onOpen(row.id)
+            if selecting {
+                controller.toggleBulkSelected(row.id)
+            } else {
+                onOpen(row.id)
+            }
         }
             .tag(row.id)
-            // Pinned rows sit on the warm cream well (design-system grammar).
-            .listRowBackground(pinned ? BrandColor.cream : BrandColor.paper)
+            // #275: long-press starts selection mode.
+            .onLongPressGesture { controller.toggleBulkSelected(row.id) }
+            // Selected rows take the olive-tinted well rather than a checkbox
+            // column: on a phone a column of controls costs a row's worth of width
+            // for something long-press already communicates.
+            .listRowBackground(
+                picked
+                    ? BrandColor.olive.opacity(0.12)
+                    : (pinned ? BrandColor.cream : BrandColor.paper)
+            )
             .listRowSeparatorTint(BrandColor.inset)
             // Leading read/unread toggle (#185/#186 parity): mark read when
             // unread, mark unread when read. A shortcut only — the row tap and
@@ -1662,4 +1800,147 @@ private func previewListItem(
         )
     }
     .listStyle(.plain)
+}
+
+/// #275 — the selection bar, shown only while something is selected.
+///
+/// Matches the web and Android bars in reasoning rather than in pixels.
+///
+/// *The count is never invented.* In filter mode the label reads "All matching this
+/// filter" with no number in it, because the client does not know the number — the
+/// server counts the set when it runs the action. `BulkSelection.label` owns that
+/// rule for all three clients.
+///
+/// *Progressive disclosure.* Long-press one row, then "Select all N loaded", then —
+/// only if more pages exist — "Select all matching this filter". Each step says what
+/// it will do.
+///
+/// *Three actions, then a menu.* Mark read, Close and Spam are the ones #275's own
+/// scenarios name (back from a week off; a robotext blast). Assign lives behind the
+/// overflow, because a row of six controls on a phone is a menu that forgot to
+/// collapse.
+///
+/// There is no send action and nothing to add one to: bulk management only.
+@MainActor
+private struct BulkSelectionBar: View {
+    let controller: InboxController
+
+    private var loadedIds: [String] { controller.rows.map(\.id) }
+
+    private var showSelectLoaded: Bool {
+        guard case let .ids(ids) = controller.bulkSelection else { return false }
+        return !loadedIds.isEmpty && !loadedIds.allSatisfy { ids.contains($0) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Button {
+                    controller.clearBulkSelection()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .disabled(controller.bulkRunning)
+                .accessibilityLabel("Clear selection")
+
+                Text(controller.bulkSelection.label)
+                    .font(.golos(13, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
+
+                Spacer()
+
+                if controller.bulkRunning { ProgressView() }
+
+                Menu {
+                    ForEach(controller.members.filter { $0.deactivated_at == nil }, id: \.user_id) {
+                        member in
+                        Button("Assign to \(member.display_name.isBlank ? "Teammate" : member.display_name)") {
+                            controller.runBulk(
+                                action: "assign",
+                                verb: "Assigned",
+                                targetUserId: member.user_id
+                            )
+                        }
+                    }
+                    Button("Unassign") {
+                        controller.runBulk(action: "assign", verb: "Unassigned", unassign: true)
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .disabled(controller.bulkRunning)
+                .accessibilityLabel("More bulk actions")
+            }
+
+            // The escalation ladder: the page first, then the filter. Never one
+            // "select all" that quietly means whichever of the two it feels like.
+            if showSelectLoaded {
+                Button("Select all \(loadedIds.count) loaded") {
+                    controller.selectAllLoaded()
+                }
+                .font(.golos(12.5, weight: .semibold))
+                .foregroundStyle(BrandColor.olive)
+                .buttonStyle(.plain)
+                .disabled(controller.bulkRunning)
+            }
+            if controller.bulkSelection.canEscalate(
+                loadedIds: loadedIds,
+                hasMore: controller.hasMorePages
+            ) {
+                Button("Select all matching this filter") {
+                    controller.selectAllMatchingFilter()
+                }
+                .font(.golos(12.5, weight: .semibold))
+                .foregroundStyle(BrandColor.olive)
+                .buttonStyle(.plain)
+                .disabled(controller.bulkRunning)
+            }
+
+            HStack(spacing: 8) {
+                BulkActionButton(title: "Mark read", disabled: controller.bulkRunning) {
+                    controller.runBulk(action: "mark_read", verb: "Marked read")
+                }
+                BulkActionButton(title: "Close", disabled: controller.bulkRunning) {
+                    controller.runBulk(
+                        action: "set_status",
+                        verb: "Closed",
+                        targetStatus: ConversationStatus.closed
+                    )
+                }
+                BulkActionButton(title: "Spam", disabled: controller.bulkRunning) {
+                    controller.runBulk(action: "set_spam", verb: "Marked as spam", targetSpam: true)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BrandColor.cream)
+    }
+}
+
+/// One pill in the bulk bar. Extracted because three inline button styles in a
+/// stack is where swiftc's type checker starts giving up on this file (see
+/// FilterChipRow's note).
+@MainActor
+private struct BulkActionButton: View {
+    let title: String
+    let disabled: Bool
+    let action: @MainActor () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.golos(12.5, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(BrandColor.paper, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+    }
 }
