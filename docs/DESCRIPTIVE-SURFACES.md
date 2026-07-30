@@ -17,6 +17,10 @@ needs writing down is that the gap has already cost real accuracy four times:
 Every one of those was found by somebody re-reading, not by a process. The point
 of this file is that the answer is **decided rather than remembered**.
 
+**The step that fires is one question** (D63): *does anything outside the app need
+to know about this?* If no, that is a complete answer. This file is what "outside the
+app" means when the answer is yes.
+
 ---
 
 ## The checklist

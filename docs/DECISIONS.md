@@ -3983,3 +3983,72 @@ again and re-attach them", so a hardcoded line threw away the only actionable pa
 Web had always shown the server message; the two mobile clients now do too. **A
 client that overwrites a server's error copy is making a bet that the server will
 never have anything more specific to say.**
+
+---
+
+## D63 — a feature is done when the things that describe it know about it (#438, 2026-07-29)
+
+**Decision.** For any customer-visible change, the definition of done includes ONE
+more question, and it is one question on purpose:
+
+> **Does anything outside the app need to know about this?**
+
+If the answer is no, that is a complete answer and it is done. If the answer is yes,
+`docs/DESCRIPTIVE-SURFACES.md` has the nine-row list of what "outside the app"
+means, and most features touch two or three rows.
+
+**Why one question and not a form.** #438 argues its own case against itself, and
+the objection is right: a checklist that adds friction to every release gets skipped
+and becomes theatre. A single question survives a busy Friday. A form does not, and a
+skipped form is worse than no form because it manufactures the belief that the step
+happened.
+
+**Why it is a class and not a ticket.** Over roughly twenty audit iterations the
+implementation was right almost every time — number access on push, the outbound-leg
+gate, insert-before-call durability, Sentry PII scrubbing, quiet hours through one
+resolver. **Almost every real defect found in that stretch was in an artifact that
+describes the product, not in the product:**
+
+| | The drift |
+|---|---|
+| #389 | the subprocessors page said Cloudflare receives "no message content" after Workers AI shipped |
+| #434 | `llms.txt` said the AI features were off by default; all four ship on |
+| #436 | a blog post advised opt-out handling, in one of two posts carrying the same claim |
+| #437 | "live in minutes" in sixteen places, one of them under a post warning against same-day promises |
+| #403 | a comparison test pinned to a literal date, freezing the claim it should expire |
+
+Six surfaces, one cause: **"done" meant the code works on all three clients**, and
+the artifacts were maintained by whoever happened to remember. That is why the drift
+clusters *after* big shipments — calling shipped and `llms.txt` was updated; AI
+shipped three weeks later and it was not. Nobody was careless. No step fired.
+
+**The expensive part is who finds it.** A code defect is found by a test, a customer,
+or an error. A description defect is found by a prospect who quietly buys something
+else, by a regulator, or by a lawyer reading our own blog back to us. And it worsens
+as the product improves: every feature that ships without touching these surfaces
+widens the gap between what we built and what anyone can discover we built.
+
+**Two mechanisms, because a question alone is not enough.**
+
+- **Where a claim is a number, read it from the source that enforces it.**
+  `llms-txt.test.ts` reads the AI monthly caps out of the API constants; it caught
+  two of three wrong while being written. `activation.ts` holds the activation claim
+  with a test that sweeps the marketing tree for the retired phrasing.
+- **Where two documents state the same fact to different audiences, bind them with a
+  test.** `subprocessors/inventory-agreement.test.ts` fails if a third party is named
+  on one of `DATA-INVENTORY.md` / the public subprocessors page and not the other, or
+  if either stops disclosing Workers AI. That is the #389 divergence made
+  unrepeatable, rather than fixed once.
+
+**Prefer a default that is true everywhere over per-surface overrides.** #437's CTA
+and #385's price both drifted because the qualified version lived in one place and
+the unqualified one travelled. A default that is true everywhere needs no
+maintenance; a default that is wrong somewhere plus overrides wherever anybody
+noticed is the mechanism of drift, not a fix for it.
+
+**And when a description is wrong, which direction matters.** `llms.txt` understated
+what the product does with message text. Overstating a limit is a documentation
+error; understating what you do with customer data is a different thing. When in
+doubt, describe the product as doing more with the data and less for the customer
+than you think, and let the correction be the flattering one.
+
