@@ -5164,3 +5164,61 @@ maintain and the guard fails on it.
 it is code we execute on every deploy, authored by someone we never signed
 anything with. #424's point was that foreign state changes had no artifact to
 review — this is the same gap in a place the schema does not reach.
+
+---
+
+## D94 — a defensive module is priced against the alternative, never as a fraction of our own plan (#397, ratifies D78's rule, 2026-07-30)
+
+**Decision.** When a module exists because a customer would otherwise buy
+something else, its price is anchored to **what that something else costs**, not
+to what our plan costs. The instinct to size a $29 product's add-on at $10
+because $49 "feels like a lot next to $29" is anchoring on the wrong number, and
+it is now a stated error rather than a matter of taste.
+
+**This is the durable half of #397's ask 3**, separated from the part that is
+not yet live. The $49–79 figure D78 recommends is the price of the **realtime**
+receptionist, and D89 declined to build that, deliberately. So there is nothing
+to sell and nothing to confirm today: the number stays parked in D78 with its
+arithmetic intact, ready for the day that decision is revisited. The
+**principle** does not wait, because it applies to every module under D12 and to
+the next one nobody has thought of yet.
+
+**The arithmetic is what makes it a rule instead of an opinion.** D78 measured a
+receptionist minute at 6.8¢ from published Telnyx rates, which gives break-even
+in minutes at each candidate price:
+
+| Monthly revenue | Break-even minutes |
+|---|---|
+| **$10** | **148** |
+| $29 | 426 |
+| $49 | 720 |
+| $79 | 1,161 |
+
+The reference contractor — 100 calls, two minutes each — uses 200. **The $10
+instinct loses money on the very customer it was sized for**, before any
+margin. That is not a judgement call about positioning; it is a subtraction.
+
+**Why anchoring low is the tempting mistake and not the safe one.** It reads as
+caution: charge less, lose fewer customers. But the alternative in the
+customer's mind is a $199–499 category, not our own $29 line, and a defensive
+module priced below its own cost defends nothing — it converts a competitive
+loss into a per-customer loss and calls it a win. #397 names this trap directly
+and it is worth quoting, because the pressure is real: *"Pricing it at $10
+because it feels like a lot next to $29 would be the expensive mistake."*
+
+**The general form, for the next module.** Before pricing anything under D12:
+
+1. **Name what the customer buys instead.** If the answer is "nothing", this
+   rule does not apply and D12's restraint reasoning governs.
+2. **Compute break-even from measured unit cost**, not estimated. D78 exists
+   because the figure originally asserted in #397 ($16–30/mo) was wrong in the
+   safe direction — the real number was $13.60 — and the conclusion it supported
+   happened to survive. It might not next time.
+3. **Anchor to the alternative.** Undercutting a category by 2× is a strong
+   offer; undercutting our own cost is not an offer at all.
+
+**What this does not decide.** Whether to build the realtime receptionist. D89
+declined it for now, and this rule tells us what to charge *if* that is ever
+revisited — it does not argue for revisiting it. The cheap half of the category's
+pitch shipped at depth (1) for effectively nothing (0.02¢ per voicemail), and
+that was the point of separating them.
