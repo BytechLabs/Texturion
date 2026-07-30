@@ -199,6 +199,71 @@ describe.each([
   });
 });
 
+// #362 Phase 5 — the UNAUTHENTICATED routes, which had no contrast coverage at
+// all. ~21 routes never mount .app-scope: the five auth pages, eleven
+// onboarding steps, /dashboard, /join and the three error pages. That is the
+// signup funnel — the first thing a customer ever sees — and it was the one
+// surface where a theme bug could not be caught by a test.
+//
+// Assertable now only because these moved from oklch to hex in the same commit;
+// `token()` requires a 6-digit hex by design.
+describe.each([
+  ["light", ":root"],
+  ["dark", ".dark"],
+] as const)("unauthenticated routes, %s theme", (label, selector) => {
+  const theme = block(selector);
+  const surfaces = () => ({
+    "--background": token(theme, "--background"),
+    "--card": token(theme, "--card"),
+    "--muted": token(theme, "--muted"),
+  });
+
+  it("#362 — body text clears AA on every surface it lands on", () => {
+    const fg = token(theme, "--foreground");
+    for (const [name, bg] of Object.entries(surfaces())) {
+      expect
+        .soft(contrast(fg, bg), `--foreground ${fg} on ${name} ${bg}`)
+        .toBeGreaterThanOrEqual(AA);
+    }
+  });
+
+  it("#362 — secondary label text clears AA on every surface", () => {
+    const fg = token(theme, "--muted-foreground");
+    for (const [name, bg] of Object.entries(surfaces())) {
+      expect
+        .soft(contrast(fg, bg), `--muted-foreground ${fg} on ${name} ${bg}`)
+        .toBeGreaterThanOrEqual(AA);
+    }
+  });
+
+  it("#362 — the primary fill carries its own label (the signup CTA)", () => {
+    const fill = token(theme, "--primary");
+    const fg = token(theme, "--primary-foreground");
+    expect(
+      contrast(fg, fill),
+      `--primary-foreground ${fg} on --primary ${fill}`,
+    ).toBeGreaterThanOrEqual(AA);
+  });
+
+  it("#362 — the accent reads as an accent, not as body text", () => {
+    // --primary is also read as text on these routes (links in the auth
+    // footer, the onboarding step markers). Same bar as the app scope.
+    const accent = token(theme, "--primary");
+    for (const [name, bg] of Object.entries(surfaces())) {
+      expect
+        .soft(contrast(accent, bg), `--primary-as-text ${accent} on ${name} ${bg}`)
+        .toBeGreaterThanOrEqual(AA);
+    }
+  });
+
+  it("#362 — the focus ring clears 3:1 on the page ground", () => {
+    expect(
+      contrast(token(theme, "--ring"), token(theme, "--background")),
+      "--ring on --background",
+    ).toBeGreaterThanOrEqual(UI);
+  });
+});
+
 describe("app-scope guardrails in globals.css", () => {
   // #362 — moved here from the marketing suite (fr-tokens.test.ts), where an
   // app-scope assertion made the two surfaces impossible to sequence apart.

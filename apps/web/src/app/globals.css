@@ -39,21 +39,21 @@
 
   /* Neutrals: stone. Background stone-50, surfaces white, text stone-900,
      secondary text stone-500, borders stone-200. */
-  --background: oklch(0.985 0.001 106.423); /* stone-50 #FAFAF9 */
-  --foreground: oklch(0.216 0.006 56.043); /* stone-900 */
-  --card: oklch(1 0 0); /* white */
-  --card-foreground: oklch(0.216 0.006 56.043);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.216 0.006 56.043);
+  --background: #f3f3ee; /* stone-50 #FAFAF9 */
+  --foreground: #191b14; /* stone-900 */
+  --card: #fdfdf9; /* white */
+  --card-foreground: #191b14;
+  --popover: #fdfdf9;
+  --popover-foreground: #191b14;
 
   /* Petrol accent: teal-700 primary, teal-800 hover (via primary/90 or
      explicit classes), teal-50 tinted backgrounds. */
-  --primary: oklch(0.511 0.096 186.391); /* teal-700 #0F766E */
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.97 0.001 106.424); /* stone-100 */
-  --secondary-foreground: oklch(0.216 0.006 56.043);
-  --muted: oklch(0.97 0.001 106.424); /* stone-100 */
-  --muted-foreground: oklch(0.553 0.013 58.071); /* stone-500 — secondary labels, snippets */
+  --primary: #3a430f; /* teal-700 #0F766E */
+  --primary-foreground: #fdfdf9;
+  --secondary: #f0f0e8; /* stone-100 */
+  --secondary-foreground: #191b14;
+  --muted: #f0f0e8; /* stone-100 */
+  --muted-foreground: #5c5f4e; /* stone-500 — secondary labels, snippets */
   /* APP ELEVATION §2.1 — tertiary text: one step quieter than muted, for
      timestamps, assignee names, system/timeline lines, in-cluster delivery
      state, dividers-with-text. stone-400 (2.5:1 on white) is BELOW the AA 4.5:1
@@ -61,16 +61,16 @@
      carrying essential meaning must use --muted-foreground (stone-500, 4.6:1+)
      instead — the <Tertiary essential> helper and the §6 guardrail enforce
      this. Marketing does not consume this token. */
-  --foreground-tertiary: oklch(0.709 0.01 56.259); /* stone-400 */
+  --foreground-tertiary: #a6a996; /* stone-400 */
   /* Interior hairlines (row separators, in-card splits) almost disappear;
      surface edges keep the crisper --border (stone-200). §2.1/§2.4. */
-  --border-subtle: oklch(0.97 0.001 106.424); /* stone-100 */
-  --accent: oklch(0.97 0.001 106.424); /* stone-100 */
-  --accent-foreground: oklch(0.216 0.006 56.043);
+  --border-subtle: #f0f0e8; /* stone-100 */
+  --accent: #e3efa3; /* stone-100 */
+  --accent-foreground: #3a430f;
   --destructive: oklch(0.577 0.245 27.325); /* red-600 */
-  --border: oklch(0.923 0.003 48.717); /* stone-200 */
-  --input: oklch(0.923 0.003 48.717);
-  --ring: oklch(0.511 0.096 186.391); /* petrol focus rings (G11) */
+  --border: #e7e9dc; /* stone-200 */
+  --input: #e7e9dc;
+  --ring: #3a430f; /* petrol focus rings (G11) */
 
   /* Semantic (muted, used sparingly — G2). */
   --success: oklch(0.596 0.145 163.225); /* emerald-600 */
@@ -78,69 +78,69 @@
   --info: oklch(0.588 0.158 241.966); /* sky-600 */
 
   /* Charts: petrol scale + supporting hues (usage history bars etc.). */
-  --chart-1: oklch(0.511 0.096 186.391); /* teal-700 */
-  --chart-2: oklch(0.704 0.14 182.503); /* teal-500 */
-  --chart-3: oklch(0.855 0.138 181.071); /* teal-300 */
+  --chart-1: #3a430f; /* teal-700 */
+  --chart-2: #66801f; /* teal-500 */
+  --chart-3: #d6e77e; /* teal-300 */
   --chart-4: oklch(0.666 0.179 58.318); /* amber-600 */
-  --chart-5: oklch(0.709 0.01 56.259); /* stone-400 */
+  --chart-5: #a6a996; /* stone-400 */
 
   /* Shell sidebar (G3): stone-100 background, active item = white pill +
      petrol text. */
-  --sidebar: oklch(0.97 0.001 106.424); /* stone-100 */
-  --sidebar-foreground: oklch(0.216 0.006 56.043);
-  --sidebar-primary: oklch(0.511 0.096 186.391);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(1 0 0); /* white pill */
-  --sidebar-accent-foreground: oklch(0.511 0.096 186.391); /* petrol text */
-  --sidebar-border: oklch(0.923 0.003 48.717);
-  --sidebar-ring: oklch(0.511 0.096 186.391);
+  --sidebar: #f0f0e8; /* stone-100 */
+  --sidebar-foreground: #191b14;
+  --sidebar-primary: #3a430f;
+  --sidebar-primary-foreground: #fdfdf9;
+  --sidebar-accent: #fdfdf9; /* white pill */
+  --sidebar-accent-foreground: #3a430f; /* petrol text */
+  --sidebar-border: #e7e9dc;
+  --sidebar-ring: #3a430f;
 }
 
 /* Dark (G2): background stone-950, surfaces stone-900, borders stone-800,
    accent teal-500. Ships in MVP — system-follow + manual toggle. */
 .dark {
-  --background: oklch(0.147 0.004 49.25); /* stone-950 */
-  --foreground: oklch(0.985 0.001 106.423); /* stone-50 */
-  --card: oklch(0.216 0.006 56.043); /* stone-900 */
-  --card-foreground: oklch(0.985 0.001 106.423);
-  --popover: oklch(0.216 0.006 56.043);
-  --popover-foreground: oklch(0.985 0.001 106.423);
+  --background: #141610; /* stone-950 */
+  --foreground: #f0f1e5; /* stone-50 */
+  --card: #1f2218; /* stone-900 */
+  --card-foreground: #f0f1e5;
+  --popover: #23261a;
+  --popover-foreground: #f0f1e5;
 
-  --primary: oklch(0.704 0.14 182.503); /* teal-500 */
-  --primary-foreground: oklch(0.277 0.046 192.524); /* teal-950 — 4.5:1 on teal-500 */
-  --secondary: oklch(0.268 0.007 34.298); /* stone-800 */
-  --secondary-foreground: oklch(0.985 0.001 106.423);
-  --muted: oklch(0.268 0.007 34.298);
-  --muted-foreground: oklch(0.709 0.01 56.259); /* stone-400 */
+  --primary: #d6e77e; /* teal-500 */
+  --primary-foreground: #191b14; /* teal-950 — 4.5:1 on teal-500 */
+  --secondary: #23261a; /* stone-800 */
+  --secondary-foreground: #f0f1e5;
+  --muted: #23261a;
+  --muted-foreground: #8f927e; /* stone-400 */
   /* Dark tertiary drops to stone-500 to cut glare on the dark field while
      staying above AA for non-essential meta (§2.1). */
-  --foreground-tertiary: oklch(0.553 0.013 58.071); /* stone-500 */
-  --border-subtle: oklch(0.268 0.007 34.298); /* stone-800 — interior rules on dark */
-  --accent: oklch(0.268 0.007 34.298);
-  --accent-foreground: oklch(0.985 0.001 106.423);
+  --foreground-tertiary: #6f7260; /* stone-500 */
+  --border-subtle: #23261a; /* stone-800 — interior rules on dark */
+  --accent: #39421a;
+  --accent-foreground: #d6e77e;
   --destructive: oklch(0.637 0.237 25.331); /* red-500 */
-  --border: oklch(0.268 0.007 34.298); /* stone-800 */
-  --input: oklch(0.268 0.007 34.298);
-  --ring: oklch(0.704 0.14 182.503);
+  --border: #2c2f22; /* stone-800 */
+  --input: #2c2f22;
+  --ring: #d6e77e;
 
   --success: oklch(0.696 0.17 162.48); /* emerald-500 */
   --warning: oklch(0.769 0.188 70.08); /* amber-500 */
   --info: oklch(0.685 0.169 237.323); /* sky-500 */
 
-  --chart-1: oklch(0.704 0.14 182.503); /* teal-500 */
-  --chart-2: oklch(0.6 0.118 184.704); /* teal-600 */
-  --chart-3: oklch(0.437 0.078 188.216); /* teal-800 */
+  --chart-1: #d6e77e; /* teal-500 */
+  --chart-2: #b9cf57; /* teal-600 */
+  --chart-3: #66801f; /* teal-800 */
   --chart-4: oklch(0.769 0.188 70.08); /* amber-500 */
-  --chart-5: oklch(0.553 0.013 58.071); /* stone-500 */
+  --chart-5: #6f7260; /* stone-500 */
 
-  --sidebar: oklch(0.216 0.006 56.043); /* stone-900 */
-  --sidebar-foreground: oklch(0.985 0.001 106.423);
-  --sidebar-primary: oklch(0.704 0.14 182.503);
-  --sidebar-primary-foreground: oklch(0.277 0.046 192.524);
-  --sidebar-accent: oklch(0.268 0.007 34.298); /* stone-800 pill */
-  --sidebar-accent-foreground: oklch(0.777 0.152 181.912); /* teal-400 text */
-  --sidebar-border: oklch(0.268 0.007 34.298);
-  --sidebar-ring: oklch(0.704 0.14 182.503);
+  --sidebar: #141610; /* stone-900 */
+  --sidebar-foreground: #f0f1e5;
+  --sidebar-primary: #d6e77e;
+  --sidebar-primary-foreground: #191b14;
+  --sidebar-accent: #1f2218; /* stone-800 pill */
+  --sidebar-accent-foreground: #d6e77e; /* teal-400 text */
+  --sidebar-border: #2c2f22;
+  --sidebar-ring: #d6e77e;
 }
 
 /*
