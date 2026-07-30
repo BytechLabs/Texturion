@@ -30,16 +30,16 @@ jobs:
     name: SQL tests (Supabase)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # pnpm is only needed to run the root db:test:ci script (docker/psql, no install).
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       # Pinned, not "latest": resolving "latest" costs an unauthenticated
       # GitHub API call, and when that rate-limits the whole job dies before it
       # runs anything (it took a deploy down on 2026-07-24). A pinned version
       # downloads straight from the release asset. Bump it deliberately.
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v3
         with:
           version: 2.109.1
 
@@ -66,11 +66,11 @@ jobs:
     name: Launch-pass E2E (hermetic golden paths)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -79,7 +79,7 @@ jobs:
       # GitHub API call, and when that rate-limits the whole job dies before it
       # runs anything (it took a deploy down on 2026-07-24). A pinned version
       # downloads straight from the release asset. Bump it deliberately.
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v3
         with:
           version: 2.109.1
 
@@ -117,7 +117,7 @@ jobs:
     name: Typecheck, lint, test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The commit-message check reads the commits in the push. The default
           # depth-1 checkout has neither the base ref nor HEAD~1, so the range
@@ -125,9 +125,9 @@ jobs:
           # that never runs. 50 covers any realistic push without a full clone.
           fetch-depth: 50
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -235,7 +235,7 @@ jobs:
       # the api package has no incremental build, so only web has a file). A
       # source change busts the key; restore-keys give partial reuse.
       - name: Cache TypeScript build info
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/web/tsconfig.tsbuildinfo
           key: tsbuildinfo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/src/**/*.ts', 'apps/web/src/**/*.tsx') }}
@@ -266,11 +266,11 @@ jobs:
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
       NEXT_PUBLIC_API_URL: https://api.loonext.com
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -283,7 +283,7 @@ jobs:
       # work instead of compiling the whole app every run. Keyed on the lockfile
       # + all source so a real change busts it; restore-keys give partial reuse.
       - name: Cache Next.js build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/web/.next/cache
           key: nextjs-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/src/**/*.ts', 'apps/web/src/**/*.tsx', 'apps/web/src/**/*.css') }}
@@ -320,21 +320,21 @@ jobs:
       run:
         working-directory: apps/android
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       # compileSdk 37 — newer than the image's preinstalled set. NOTE the repo
       # package id is the minor-versioned "android-37.0" (run 2: plain
       # "android-37" does not exist); build-tools top out at 36.x, which AGP 9.3
       # is happy with.
       - name: Install SDK 37
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
           packages: "platforms;android-37.0 build-tools;36.0.0 platform-tools"
           log-accepted-android-sdk-licenses: false
@@ -350,7 +350,7 @@ jobs:
         run: ./gradlew :app:assembleDebug -PloonextVersionCode="$(git rev-list --count HEAD)"
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: loonext-debug-apk
           path: apps/android/app/build/outputs/apk/debug/*.apk
@@ -363,7 +363,7 @@ jobs:
       run:
         working-directory: apps/ios
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The app targets iOS 26 (Liquid Glass) — Xcode 26+ is required. Runner
       # images ship several Xcodes; pick the newest 26.x and fail with the
