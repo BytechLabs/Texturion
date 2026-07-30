@@ -40,7 +40,14 @@ export type ConversationEventType =
   | "note_attachment_added"
   | "note_attachment_removed"
   | "task_attachment_added"
-  | "task_attachment_removed";
+  | "task_attachment_removed"
+  // #317 — an inbound attachment we declined to store, written by
+  // messaging/inbound.ts. There is no attachment row to carry a status, because
+  // the whole point is that we did not create one; this is the record. Always
+  // carries `reason` (a MediaRefusalReason) so the clients can say WHICH way it
+  // failed, and never a null conversation_id (a refused file belongs to a
+  // threaded message), so the conv-required CHECK holds as-is.
+  | "media_refused";
 
 export interface ConversationEventRow {
   company_id: string;

@@ -114,6 +114,32 @@ export function eventSentence(
     case "task_attachment_added":
     case "task_attachment_removed":
       return taskEventSentence(event, by, memberName) ?? `${by} updated a task`;
+    // #317 — a file this customer sent that we would not store. There is no
+    // attachment row to render, which is the whole point, so this line stands in
+    // its place: without it the crew sees a text with no picture and concludes
+    // the customer forgot to attach one.
+    //
+    // Every arm ends in what to DO about it, because that is the only part the
+    // crew can act on between jobs. The reasons the customer can fix say so; the
+    // one they cannot does not send them back to try the same file again.
+    case "media_refused": {
+      const reason = event.payload.reason;
+      if (reason === "too_large")
+        return "A file this customer sent was too big to save — ask them to send a smaller one";
+      if (reason === "empty")
+        return "A file this customer sent arrived empty — ask them to send it again";
+      if (reason === "type_mismatch")
+        return "A file this customer sent wasn't the kind of file it claimed to be, so it wasn't saved";
+      if (reason === "too_many_items") {
+        const kept = Number(event.payload.index ?? 0);
+        return kept > 0
+          ? `This message came with more files than we can save — the first ${kept} were kept`
+          : "This message came with more files than we can save";
+      }
+      // unsupported_type, and anything a later server adds: the honest general
+      // case, still ending in the thing that works.
+      return "A file this customer sent can't be shown here — ask them to send a photo or a PDF";
+    }
     // D19 note-attachment audit — a quiet line matching the task attachment copy.
     case "note_attachment_added":
       return `${by} attached a file to a note`;

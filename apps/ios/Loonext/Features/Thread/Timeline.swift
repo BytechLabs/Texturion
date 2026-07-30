@@ -306,6 +306,11 @@ func eventLine(
     case "task_assigned": return "\(actor) assigned a task"
     case "task_due_set": return "\(actor) set a task due date"
     case "task_deleted": return "\(actor) deleted a task"
+    // #317 — a file this customer sent that we would not store. Same copy as
+    // web (system-line.tsx) and Android (Timeline.kt), word for word: a crew
+    // comparing the phone and the laptop must not read two different histories
+    // for one conversation.
+    case "media_refused": return mediaRefusedLine(event)
     case "note_attachment_added": return "\(actor) attached a file to a note"
     case "note_attachment_removed": return "\(actor) removed a file from a note"
     case "task_attachment_added": return "\(actor) attached a file to a task"
@@ -322,6 +327,36 @@ func eventLine(
     default:
         let plain = event.type.replacingOccurrences(of: "_", with: " ")
         return plain.prefix(1).uppercased() + plain.dropFirst()
+    }
+}
+
+/**
+ The #317 refused-attachment line.
+
+ There is no attachment row to render — that is the point — so this stands in its
+ place. Without it the crew sees a text with no picture and concludes the customer
+ forgot to attach one. Every arm ends in what to DO about it, which is the only
+ part they can act on between jobs. Word-for-word identical to web
+ (system-line.tsx) and Android (Timeline.kt).
+ */
+func mediaRefusedLine(_ event: ConversationEvent) -> String {
+    switch event.payload["reason"]?.stringValue {
+    case "too_large":
+        return "A file this customer sent was too big to save — ask them to send a smaller one"
+    case "empty":
+        return "A file this customer sent arrived empty — ask them to send it again"
+    case "type_mismatch":
+        return "A file this customer sent wasn't the kind of file it claimed to be, so it wasn't saved"
+    case "too_many_items":
+        // #270: this is a JSON NUMBER — read through intValue, never stringValue.
+        let kept = event.payload["index"]?.intValue ?? 0
+        return kept > 0
+            ? "This message came with more files than we can save — the first \(kept) were kept"
+            : "This message came with more files than we can save"
+    default:
+        // unsupported_type, and anything a later server adds: the honest general
+        // case, still ending in the thing that works.
+        return "A file this customer sent can't be shown here — ask them to send a photo or a PDF"
     }
 }
 

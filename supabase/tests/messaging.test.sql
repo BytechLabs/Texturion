@@ -1050,4 +1050,71 @@ begin
   raise notice 'R8 PASSED: claimed_at present; retry/sweep functions service-role-only';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- R9 (#317) — a refused inbound attachment can be recorded.
+--
+-- The refusal event is the ONLY record that a customer's file ever arrived: we
+-- deliberately create no message_attachments row, because the whole point is
+-- that we declined to store the object. So if this enum value or this insert
+-- does not work, the failure is silent in the worst way — the crew sees a text
+-- with no picture and concludes the customer forgot to attach one, which is
+-- exactly the behaviour #317 exists to end.
+--
+-- The API writes this event best-effort and swallows a failure (a message must
+-- never be lost over a note about its attachment), so nothing in the
+-- application would ever surface a broken enum. This assertion is the only
+-- thing that would.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_ok boolean;
+  v_id uuid;
+  v_reason text;
+begin
+  -- The value exists on the shipped enum.
+  select exists (
+    select 1
+    from pg_enum e
+    join pg_type t on t.oid = e.enumtypid
+    where t.typname = 'conversation_event_type'
+      and e.enumlabel = 'media_refused'
+  ) into v_ok;
+  if not v_ok then
+    raise exception 'R9 FAILED: conversation_event_type is missing media_refused';
+  end if;
+
+  -- And an actual refusal row inserts, with a NULL actor: nobody on the crew
+  -- did this and the sender is not a user. The conversation_events_conv_required
+  -- CHECK only permits a null conversation_id for the three consent types, so a
+  -- non-null conversation_id here is also what keeps that constraint satisfied
+  -- without editing it (D7/D14 forbid editing a shipped constraint).
+  insert into public.conversation_events
+    (company_id, conversation_id, actor_user_id, type, payload)
+  values
+    ('20000000-0000-4000-8000-000000000001',
+     '50000000-0000-4000-8000-000000000001',
+     null,
+     'media_refused',
+     jsonb_build_object(
+       'reason', 'type_mismatch',
+       'message_id', '60000000-0000-4000-8000-000000000001',
+       'index', 0,
+       'content_type', 'image/jpeg',
+       'size_bytes', 6))
+  returning id into v_id;
+  if v_id is null then
+    raise exception 'R9 FAILED: media_refused event did not insert';
+  end if;
+
+  -- The reason survives the round trip, because all three clients switch on it
+  -- to choose which sentence the crew reads.
+  select payload->>'reason' into v_reason
+  from public.conversation_events where id = v_id;
+  if v_reason <> 'type_mismatch' then
+    raise exception 'R9 FAILED: reason round-tripped as % (want type_mismatch)', v_reason;
+  end if;
+
+  raise notice 'R9 PASSED: media_refused exists and records a refusal with a null actor';
+end $$;
+
 rollback;

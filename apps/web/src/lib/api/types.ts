@@ -98,7 +98,17 @@ export type ConversationEventType =
   // conversation (api_thread_call; actor NULL). payload:
   // { call_session_id, outcome: 'answered'|'voicemail'|'missed',
   //   forward_seconds, caller, direction: 'inbound'|'outbound' }.
-  | "call_completed";
+  | "call_completed"
+  // #317 — an inbound attachment the server declined to store (actor NULL).
+  // There is NO attachment row for it, which is the point: this event is the
+  // only record, and without the line the crew sees a text with no picture and
+  // assumes the customer forgot to attach one. payload:
+  // { reason: 'unsupported_type'|'too_large'|'empty'|'type_mismatch'
+  //           |'too_many_items',
+  //   message_id, index, content_type, size_bytes }. Deliberately carries
+  // neither the file name nor the source URL — the name is attacker-controlled
+  // text we would render, and the URL is a live handle to bytes we refused.
+  | "media_refused";
 
 /** SPEC §7 list envelope — cursor-based only, opaque cursor. */
 export interface Page<T> {

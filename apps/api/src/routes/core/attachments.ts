@@ -151,6 +151,27 @@ function isExecutableSignature(startsWith: (sig: number[], offset?: number) => b
 }
 
 /**
+ * The four AMR storage-format headers, verbatim from RFC 4867 §5 (#317).
+ *
+ * Kept as an exact set rather than a `#!AMR` prefix so the exception cannot be
+ * used as a way past the shebang check — see the call site.
+ */
+const AMR_HEADERS: readonly string[] = [
+  "#!AMR\n",
+  "#!AMR-WB\n",
+  "#!AMR_MC1.0\n",
+  "#!AMR-WB_MC1.0\n",
+];
+
+function isAmrHeader(
+  startsWith: (sig: number[], offset?: number) => boolean,
+): boolean {
+  return AMR_HEADERS.some((header) =>
+    startsWith([...header].map((char) => char.charCodeAt(0))),
+  );
+}
+
+/**
  * Sniff the content-type from the leading bytes (D19 §2.3: "Server re-validates
  * content-type from the bytes, never trusting the client-declared type").
  *
@@ -168,6 +189,19 @@ export function sniffContentType(bytes: Uint8Array): string | null {
   const startsWith = (sig: number[], offset = 0): boolean =>
     bytes.length >= offset + sig.length &&
     sig.every((byte, i) => bytes[offset + i] === byte);
+
+  // AMR audio BEFORE the executable branch, because an AMR file's magic number
+  // IS a shebang: RFC 4867 §5 gives it `#!AMR\n`, with `-WB` and `_MC1.0`
+  // variants. Read as a script signature it makes every voice note a customer
+  // texts in look like an executable.
+  //
+  // The four headers are matched EXACTLY, not by a `#!AMR` prefix. RFC 4867
+  // defines exactly these, so nothing legitimate is excluded by being strict —
+  // and a prefix rule would have let `#!AMRrm -rf /` through the branch whose
+  // entire job is to catch that. Safe ahead of the shebang check because none of
+  // these names an interpreter: there is no path in them, so no kernel would
+  // honour one as a shebang, and we never execute stored bytes.
+  if (isAmrHeader(startsWith)) return "audio/amr";
 
   // Executables / scripts FIRST — a renamed binary declared as any allowed type
   // must be caught, never fall through to the null-sniff "trust the declaration"
@@ -225,6 +259,14 @@ export function bytesMatchDeclaredType(
   const type = declared.trim().toLowerCase();
 
   if (sniffed.startsWith("image/")) return type === sniffed;
+  // AMR bytes satisfy ANY declared audio type, not just audio/amr. What this
+  // check is for is a binary wearing a media label, and a file that opens with
+  // the AMR header is definitively not one. Beyond that, carriers disagree about
+  // spelling — #189 exists because of audio/x-wav and audio/amr-nb — and
+  // `audio/3gpp` is a legitimately allowed declaration for AMR-in-3GP content.
+  // Refusing a customer's voice note over a subtype disagreement would be the
+  // silent-drop failure, not a defence.
+  if (sniffed === "audio/amr") return type.startsWith("audio/");
   if (sniffed === "application/pdf") return type === "application/pdf";
   if (sniffed === "application/zip") {
     // Any ZIP-container type: raw zip or an OpenXML/ODF office doc.

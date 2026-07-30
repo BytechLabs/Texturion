@@ -4598,3 +4598,47 @@ document allow-list is the other suggestion in the issue and has no evidence beh
 it yet: production holds four attachment rows, one `image/jpeg` and one
 `application/pdf`, so any narrowing today would be a guess about which formats
 customers send.
+
+### The inbound path checked nothing, and dropped files in silence
+
+Found while shipping the above. Two things were true of inbound MMS media, which
+is the surface #317 calls uncontrolled — anyone who knows the number can reach it,
+no signup and no relationship required.
+
+**It stored whatever type the carrier declared.** The uploaded-attachment route has
+re-derived the type from the leading bytes since D19 ("never trusting the
+client-declared type"); this path took the content-type header from a carrier CDN
+relaying whatever the sender's phone claimed. A renamed `.exe` arriving as
+`image/jpeg` was stored as an image, and the gallery serves images inline. It now
+runs the same `bytesMatchDeclaredType` gate. That gate deliberately accepts bytes
+with no distinctive magic — most audio and video — because refusing a customer's
+voice note for want of a signature is the silent-drop failure, not a defence.
+
+**Wiring that gate in exposed a bug in the sniffer.** An AMR file's magic number is
+`#!AMR\n` (RFC 4867 §5), and the shebang branch read that as a script. Latent while
+it lasted — nothing called the sniffer on inbound media — and live the moment the
+check was wired in, at which point every voice note a customer sent would have been
+refused as an executable. The four RFC headers are now matched exactly, ahead of
+the executable branch and narrow enough that the exception cannot itself become the
+way past it.
+
+**And every refusal was a `console.warn`.** Four paths (unsupported type, too
+large, empty, too many items) dropped a customer's file with no record a person
+could see, so the crew saw a text with no picture and concluded the customer forgot
+to attach one. All four, plus the new one, now write a `media_refused` conversation
+event, and the thread renders a line in the attachment's place on all three
+clients. A conversation event rather than a status column because there is no row to
+put a status on — the point is that we declined to create one.
+
+The line ends in what to DO about it, which is the only part a crew between jobs can
+act on: the reasons a customer can fix say so, and the one they cannot does not send
+them back to try the same file again. The copy is hand-ported into three languages,
+so `apps/web/src/components/thread/media-refused-parity.test.ts` reads all three
+sources and fails if a sentence is reworded in one place — the #273 failure, where
+web and mobile showed two different histories for one conversation, found by nobody
+until a customer noticed.
+
+Writing the event is best-effort and swallows its own failure: a message must never
+be lost over a note about its attachment. That makes the SQL assertion
+(`supabase/tests/messaging.test.sql` R9) the only thing that would ever notice a
+broken enum, which is why it exists.

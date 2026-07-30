@@ -1,0 +1,34 @@
+-- #317 — one conversation_event_type addition: 'media_refused'.
+--
+-- WHY. Inbound MMS media has four refusal paths (a type we cannot serve, over
+-- the 5 MB bucket limit, zero bytes, and — new with #317 — bytes that are not
+-- what the carrier declared them to be). All four were a `console.warn` and
+-- nothing else: the customer's file vanished, and the only record was in a log
+-- nobody on the crew can read. #317 asks for the opposite posture in as many
+-- words: "not silently delivered and not silently dropped. Silently dropping a
+-- customer's photo of a broken furnace is its own failure."
+--
+-- A conversation event is the right home rather than a new table or a status
+-- column on message_attachments: there is no row to put a status ON — the whole
+-- point is that we declined to create one — and the events timeline is already
+-- rendered in the thread on all three clients, so the crew sees the line where
+-- the file would have been.
+--
+-- In its OWN migration because a new enum value cannot be USED in the
+-- transaction that adds it (Postgres restriction). Each migration file runs in
+-- its own transaction, so the value is first used by application code
+-- (apps/api/src/messaging/inbound.ts) and by supabase/tests/messaging.test.sql,
+-- never inside this file. Same shape as
+-- 20260702050000_appv2_event_types.sql.
+--
+-- The conversation_events_conv_required CHECK (20260701000200_tables.sql) is
+-- NOT altered and does not need to be: a refused inbound attachment always
+-- belongs to a threaded message, so conversation_id is never null here, and the
+-- shipped constraint only PERMITS a null for the three consent types. Editing a
+-- shipped constraint is forbidden (D7/D14).
+--
+-- IF NOT EXISTS makes the ADD VALUE idempotent (re-runnable on a partially
+-- applied enum without error).
+
+alter type public.conversation_event_type
+  add value if not exists 'media_refused';

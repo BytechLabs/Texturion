@@ -27,6 +27,8 @@ import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { notifyInboundMessage } from "../notifications/inbound";
+import { bytesMatchDeclaredType } from "../routes/core/attachments";
+import { insertConversationEvents } from "../routes/core/events";
 import { maybeSendAwayReply } from "./away-reply";
 import { sendEmergencyAcknowledgment } from "./emergency-ack";
 import {
@@ -454,6 +456,7 @@ export async function handleInboundMessage(
   if (media.length > 0) {
     await downloadInboundMedia(db, {
       companyId: number.company_id,
+      conversationId: threaded.conversation_id,
       messageId: threaded.message_id,
       media,
     });
@@ -610,10 +613,92 @@ async function handleOptOutKeywords(
  */
 
 
+/**
+ * Why a customer's file did not make it into the thread (#317).
+ *
+ * Every one of these was a `console.warn` and nothing else, so the file simply
+ * vanished and the crew had no way to know it had ever existed — they see a
+ * message with no picture and assume the customer forgot to attach it. #317 asks
+ * for the opposite posture in as many words: "not silently delivered and not
+ * silently dropped".
+ */
+export type MediaRefusalReason =
+  /** A type carriers relay but we cannot serve (the bucket would reject it). */
+  | "unsupported_type"
+  /** Over MAX_INBOUND_MEDIA_BYTES — the bucket's own ceiling. */
+  | "too_large"
+  /** Zero bytes arrived. Nothing to store and nothing to show. */
+  | "empty"
+  /**
+   * The bytes are not what the carrier declared them to be — a renamed
+   * executable arriving as image/jpeg is the case that matters. The uploaded-
+   * attachment route has checked this since D19; this path, the one #317 calls
+   * "uncontrolled", trusted the declaration.
+   */
+  | "type_mismatch"
+  /** Past the D30 per-message item cap. The message came with too many files. */
+  | "too_many_items";
+
+/**
+ * Record a refusal where the crew will actually see it.
+ *
+ * Best-effort by construction. This runs inside the inbound pipeline, and a
+ * failure to write the EXPLANATION must never fail delivery of the message the
+ * explanation is about — the customer's text matters more than our note about
+ * their attachment. The console line stays for the same reason the event was
+ * added: two records of a refusal are cheap, and one of them survives a database
+ * that has not been migrated yet.
+ */
+async function recordMediaRefusal(
+  db: SupabaseClient,
+  args: {
+    companyId: string;
+    conversationId: string | null;
+    messageId: string;
+    index: number;
+    reason: MediaRefusalReason;
+    contentType?: string | null;
+    sizeBytes?: number | null;
+  },
+): Promise<void> {
+  console.warn(
+    `inbound media ${args.index} for message ${args.messageId} refused (${args.reason})`,
+  );
+  if (!args.conversationId) return;
+  try {
+    await insertConversationEvents(db, [
+      {
+        company_id: args.companyId,
+        conversation_id: args.conversationId,
+        // Nobody on the crew did this, and the sender is not a user. A null
+        // actor is what the timeline already uses for events the system
+        // originates.
+        actor_user_id: null,
+        type: "media_refused",
+        payload: {
+          reason: args.reason,
+          message_id: args.messageId,
+          index: args.index,
+          // Deliberately NOT the file name or the source URL: the name is
+          // attacker-controlled text that would render in the thread, and the
+          // URL is a live handle to bytes we just declined to store.
+          content_type: args.contentType ?? null,
+          size_bytes: args.sizeBytes ?? null,
+        },
+      },
+    ]);
+  } catch (cause) {
+    console.warn(
+      `media_refused event write failed for message ${args.messageId}: ${String(cause)}`,
+    );
+  }
+}
+
 async function downloadInboundMedia(
   db: SupabaseClient,
   args: {
     companyId: string;
+    conversationId: string | null;
     messageId: string;
     media: { url: string; content_type?: string; size?: number }[];
   },
@@ -626,9 +711,13 @@ async function downloadInboundMedia(
   // (not throwing) keeps the ledger row processable — retrying would never
   // change how many items the sender attached.
   if (args.media.length > MAX_INBOUND_MEDIA_ITEMS) {
-    console.warn(
-      `inbound message ${args.messageId} carries ${args.media.length} media items — processing the first ${MAX_INBOUND_MEDIA_ITEMS}, skipping the rest (D30)`,
-    );
+    await recordMediaRefusal(db, {
+      companyId: args.companyId,
+      conversationId: args.conversationId,
+      messageId: args.messageId,
+      index: MAX_INBOUND_MEDIA_ITEMS,
+      reason: "too_many_items",
+    });
   }
   const items = args.media.slice(0, MAX_INBOUND_MEDIA_ITEMS);
 
@@ -669,9 +758,14 @@ async function downloadInboundMedia(
     if (!(INBOUND_MEDIA_TYPES as readonly string[]).includes(contentType)) {
       // Permanent condition (a type carriers relayed but we can't serve):
       // skipping is the §7 validation outcome — retrying would never change it.
-      console.warn(
-        `inbound media ${index} for message ${args.messageId} has unsupported type — skipped`,
-      );
+      await recordMediaRefusal(db, {
+        companyId: args.companyId,
+        conversationId: args.conversationId,
+        messageId: args.messageId,
+        index,
+        reason: "unsupported_type",
+        contentType,
+      });
       continue;
     }
     // Reject obviously-oversized media BEFORE reading it into Worker memory: a
@@ -683,16 +777,56 @@ async function downloadInboundMedia(
       Number.isFinite(declaredLength) &&
       declaredLength > MAX_INBOUND_MEDIA_BYTES
     ) {
-      console.warn(
-        `inbound media ${index} for message ${args.messageId} declares ${declaredLength} bytes (over ${MAX_INBOUND_MEDIA_BYTES}) — skipped without buffering`,
-      );
+      await recordMediaRefusal(db, {
+        companyId: args.companyId,
+        conversationId: args.conversationId,
+        messageId: args.messageId,
+        index,
+        reason: "too_large",
+        contentType,
+        sizeBytes: declaredLength,
+      });
       continue;
     }
     const bytes = await response.arrayBuffer();
     if (bytes.byteLength === 0 || bytes.byteLength > MAX_INBOUND_MEDIA_BYTES) {
-      console.warn(
-        `inbound media ${index} for message ${args.messageId} is empty or over ${MAX_INBOUND_MEDIA_BYTES} bytes — skipped`,
-      );
+      await recordMediaRefusal(db, {
+        companyId: args.companyId,
+        conversationId: args.conversationId,
+        messageId: args.messageId,
+        index,
+        reason: bytes.byteLength === 0 ? "empty" : "too_large",
+        contentType,
+        sizeBytes: bytes.byteLength,
+      });
+      continue;
+    }
+
+    // #317 — the bytes have to BE what the carrier said they are.
+    //
+    // The uploaded-attachment route has re-derived the type from the leading
+    // bytes since D19 ("never trusting the client-declared type"). This path did
+    // not, and it is the one the issue calls uncontrolled: anyone who knows the
+    // number can send us a file, no signup and no relationship required, and the
+    // declaration comes from a carrier CDN relaying whatever the sender's phone
+    // claimed.
+    //
+    // `bytesMatchDeclaredType` refuses a KNOWN executable signature whatever it
+    // claims to be, and refuses bytes that sniff to a different concrete media
+    // class than the declaration. It deliberately ACCEPTS bytes with no
+    // distinctive magic, which is most audio and video — dropping a customer's
+    // voice note because we have no signature for AMR would be the silent-drop
+    // failure this whole change is about.
+    if (!bytesMatchDeclaredType(new Uint8Array(bytes), contentType)) {
+      await recordMediaRefusal(db, {
+        companyId: args.companyId,
+        conversationId: args.conversationId,
+        messageId: args.messageId,
+        index,
+        reason: "type_mismatch",
+        contentType,
+        sizeBytes: bytes.byteLength,
+      });
       continue;
     }
 

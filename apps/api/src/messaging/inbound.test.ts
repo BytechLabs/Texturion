@@ -485,3 +485,263 @@ describe("handleInboundMessage — #39 notification budget", () => {
     expect(resend.calls).toHaveLength(0);
   });
 });
+
+/**
+ * #317 — a customer's file that does not make it in leaves a record.
+ *
+ * Two things were true of this path before. It stored whatever type the carrier
+ * CDN declared, without ever looking at the bytes — the uploaded-attachment route
+ * has re-derived the type from the leading bytes since D19, and this is the path
+ * the issue calls uncontrolled, because anyone who knows the number can reach it
+ * with no signup and no relationship. And every refusal was a \`console.warn\`, so
+ * the crew saw a message with no picture and concluded the customer forgot to
+ * attach one.
+ */
+describe("handleInboundMessage — #317 inbound media is checked, and refusals are visible", () => {
+  /** The events insert the refusal record lands in. */
+  function eventsStub(): Stub {
+    return stubRoute(restMatch(env, "POST", "conversation_events"), () =>
+      Response.json([], { status: 201 }),
+    );
+  }
+
+  function mediaServing(bytes: Uint8Array, contentType: string): Stub {
+    return stubRoute(
+      (url, request) => request.method === "GET" && url.href.startsWith(MEDIA_URL),
+      () => new Response(bytes, { headers: { "content-type": contentType } }),
+    );
+  }
+
+  function refusal(events: Stub): Record<string, unknown> {
+    expect(events.calls).toHaveLength(1);
+    const rows = events.calls[0].body as Record<string, unknown>[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].type).toBe("media_refused");
+    return rows[0].payload as Record<string, unknown>;
+  }
+
+  it("refuses an executable wearing an image content type, and says so in the thread", async () => {
+    // \`MZ\` — a Windows .exe. The carrier says image/jpeg because the sender's
+    // phone said image/jpeg. Nothing downstream would have questioned it: the
+    // bucket accepts image/jpeg, the gallery renders it inline (D87), and the
+    // file lands on a tech's phone with our name on the delivery.
+    const media = mediaServing(
+      new Uint8Array([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00]),
+      "image/jpeg",
+    );
+    const attachmentLookup = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    const upload = stubRoute(storageUploadMatch(env), () => ({ Key: "x" }));
+    const attachmentInsert = stubRoute(
+      restMatch(env, "POST", "message_attachments"),
+      () => Response.json([], { status: 201 }),
+    );
+    const events = eventsStub();
+    serve(
+      numberStub(),
+      threadStub({}),
+      awayDisabledStub(),
+      attachmentLookup,
+      media,
+      upload,
+      attachmentInsert,
+      events,
+    );
+
+    await handleInboundMessage(
+      env,
+      inboundEvent({
+        media: [{ url: MEDIA_URL, content_type: "image/jpeg", size: 6 }],
+      }),
+    );
+
+    // Fetched (we cannot judge bytes we have not read) and then refused: nothing
+    // stored, no row minted, so no signed URL can ever be issued for it.
+    expect(media.calls).toHaveLength(1);
+    expect(upload.calls).toHaveLength(0);
+    expect(attachmentInsert.calls).toHaveLength(0);
+    expect(refusal(events)).toMatchObject({
+      reason: "type_mismatch",
+      content_type: "image/jpeg",
+      index: 0,
+    });
+  });
+
+  it("records the reason a type carriers relay but we cannot serve was dropped", async () => {
+    const media = mediaServing(
+      new TextEncoder().encode("whatever"),
+      "application/x-shockwave-flash",
+    );
+    const attachmentLookup = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    const upload = stubRoute(storageUploadMatch(env), () => ({ Key: "x" }));
+    const events = eventsStub();
+    serve(
+      numberStub(),
+      threadStub({}),
+      awayDisabledStub(),
+      attachmentLookup,
+      media,
+      upload,
+      events,
+    );
+
+    await handleInboundMessage(
+      env,
+      inboundEvent({
+        media: [
+          { url: MEDIA_URL, content_type: "application/x-shockwave-flash", size: 8 },
+        ],
+      }),
+    );
+
+    expect(upload.calls).toHaveLength(0);
+    expect(refusal(events)).toMatchObject({ reason: "unsupported_type" });
+  });
+
+  it("records a refusal for an empty file rather than dropping it silently", async () => {
+    const media = mediaServing(new Uint8Array([]), "image/jpeg");
+    const attachmentLookup = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    const upload = stubRoute(storageUploadMatch(env), () => ({ Key: "x" }));
+    const events = eventsStub();
+    serve(
+      numberStub(),
+      threadStub({}),
+      awayDisabledStub(),
+      attachmentLookup,
+      media,
+      upload,
+      events,
+    );
+
+    await handleInboundMessage(
+      env,
+      inboundEvent({
+        media: [{ url: MEDIA_URL, content_type: "image/jpeg", size: 0 }],
+      }),
+    );
+
+    expect(upload.calls).toHaveLength(0);
+    expect(refusal(events)).toMatchObject({ reason: "empty", size_bytes: 0 });
+  });
+
+  it("puts no attacker-controlled text and no live media URL in the record", async () => {
+    // The payload renders in the thread on three clients, and the only fields a
+    // stranger controls are the file name and the source URL. The name would be
+    // text we display; the URL is a live handle to bytes we just declined to
+    // store, which is the last thing to hand to anyone reading the timeline.
+    const media = mediaServing(new Uint8Array([0x4d, 0x5a]), "image/png");
+    const attachmentLookup = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    const events = eventsStub();
+    serve(
+      numberStub(),
+      threadStub({}),
+      awayDisabledStub(),
+      attachmentLookup,
+      media,
+      events,
+    );
+
+    await handleInboundMessage(
+      env,
+      inboundEvent({
+        media: [{ url: MEDIA_URL, content_type: "image/png", size: 2 }],
+      }),
+    );
+
+    const payload = refusal(events);
+    expect(Object.keys(payload).sort()).toEqual([
+      "content_type",
+      "index",
+      "message_id",
+      "reason",
+      "size_bytes",
+    ]);
+    expect(JSON.stringify(payload)).not.toContain(MEDIA_URL);
+  });
+
+  it("still delivers the message when the refusal record itself cannot be written", async () => {
+    // The customer's text matters more than our note about their attachment. A
+    // database that has not taken the enum migration yet must not turn an
+    // inbound message into a failed webhook and an endlessly retried ledger row.
+    const media = mediaServing(new Uint8Array([0x4d, 0x5a]), "image/jpeg");
+    const attachmentLookup = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    const events = stubRoute(restMatch(env, "POST", "conversation_events"), () =>
+      Response.json({ message: "invalid input value for enum" }, { status: 400 }),
+    );
+    serve(
+      numberStub(),
+      threadStub({}),
+      awayDisabledStub(),
+      attachmentLookup,
+      media,
+      events,
+    );
+
+    await expect(
+      handleInboundMessage(
+        env,
+        inboundEvent({
+          media: [{ url: MEDIA_URL, content_type: "image/jpeg", size: 2 }],
+        }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(events.calls).toHaveLength(1);
+  });
+
+  it("leaves a genuine photo and a signature-less voice note alone", async () => {
+    // The other half of the guarantee. A real JPEG passes, and so does audio
+    // with no distinctive magic — refusing a customer's voice note because we
+    // have no AMR signature would be the silent drop this change exists to end.
+    for (const [bytes, type] of [
+      [new Uint8Array([0xff, 0xd8, 0xff, 0xe0]), "image/jpeg"],
+      [new TextEncoder().encode("#!AMR\n frames"), "audio/amr"],
+    ] as [Uint8Array, string][]) {
+      const media = mediaServing(bytes, type);
+      const attachmentLookup = stubRoute(
+        restMatch(env, "GET", "message_attachments"),
+        () => [],
+      );
+      const upload = stubRoute(storageUploadMatch(env), () => ({ Key: "x" }));
+      const attachmentInsert = stubRoute(
+        restMatch(env, "POST", "message_attachments"),
+        () => Response.json([], { status: 201 }),
+      );
+      const events = eventsStub();
+      serve(
+        numberStub(),
+        threadStub({}),
+        awayDisabledStub(),
+        attachmentLookup,
+        media,
+        upload,
+        attachmentInsert,
+        events,
+      );
+
+      await handleInboundMessage(
+        env,
+        inboundEvent({
+          media: [{ url: MEDIA_URL, content_type: type, size: bytes.byteLength }],
+        }),
+      );
+
+      expect(upload.calls, type).toHaveLength(1);
+      expect(events.calls, type).toHaveLength(0);
+      vi.unstubAllGlobals();
+    }
+  });
+});

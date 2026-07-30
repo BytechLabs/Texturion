@@ -128,6 +128,55 @@ describe("bytesMatchDeclaredType (D19 §2.3)", () => {
     const shebang = new TextEncoder().encode("#!/usr/bin/env python\n");
     expect(bytesMatchDeclaredType(shebang, "text/plain")).toBe(false);
   });
+
+  /**
+   * #317 — an AMR voice note is not a shell script, even though it starts `#!`.
+   *
+   * RFC 4867 §5 gives AMR the magic number `#!AMR\n`, and the shebang branch read
+   * that as a script signature. It was latent while it lasted: nothing called the
+   * sniffer on inbound MMS, so no voice note was ever actually dropped. It went
+   * live the moment #317 wired this check into the inbound path — a customer
+   * recording a voice note about a burst pipe would have had it refused, and the
+   * crew would have seen a text with a missing attachment.
+   */
+  it("accepts AMR audio, whose magic number is a shebang (#317)", () => {
+    const variants: [string, string][] = [
+      ["#!AMR\n", "narrowband"],
+      ["#!AMR-WB\n", "wideband"],
+      ["#!AMR_MC1.0\n", "multi-channel narrowband"],
+      ["#!AMR-WB_MC1.0\n", "multi-channel wideband"],
+    ];
+    for (const [header, label] of variants) {
+      const bytes = new TextEncoder().encode(`${header}frames`);
+      expect(sniffContentType(bytes), label).toBe("audio/amr");
+      expect(bytesMatchDeclaredType(bytes, "audio/amr"), label).toBe(true);
+      // Any audio declaration passes: carriers disagree about spelling (#189),
+      // and audio/3gpp is a legitimate label for AMR-in-3GP content. What the
+      // check is defending against is a BINARY wearing a media label, and these
+      // bytes are not one.
+      expect(bytesMatchDeclaredType(bytes, "audio/3gpp"), label).toBe(true);
+      expect(bytesMatchDeclaredType(bytes, "audio/amr-nb"), label).toBe(true);
+      // Still not a free pass across media classes.
+      expect(bytesMatchDeclaredType(bytes, "image/jpeg"), label).toBe(false);
+      expect(bytesMatchDeclaredType(bytes, "application/pdf"), label).toBe(false);
+    }
+  });
+
+  it("still refuses a script that only LOOKS like it starts with the AMR header", () => {
+    // The exception is the four exact RFC headers, so it cannot itself become
+    // the way past the branch whose job is to catch scripts. `#!AMRrm -rf /` is
+    // not AMR, and a real shebang naming an interpreter path is still a script.
+    for (const text of [
+      "#!AMRrm -rf /\n",
+      "#!AMR-XX\nrm -rf /\n",
+      "#!/bin/AMR\n",
+      "#! AMR\n",
+    ]) {
+      const bytes = new TextEncoder().encode(text);
+      expect(sniffContentType(bytes), text).toBe(EXECUTABLE_SNIFF);
+      expect(bytesMatchDeclaredType(bytes, "audio/amr"), text).toBe(false);
+    }
+  });
 });
 
 describe("safeFilename + attachmentStoragePath", () => {

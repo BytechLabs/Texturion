@@ -263,6 +263,11 @@ fun eventLine(
         "task_assigned" -> "$actor assigned a task"
         "task_due_set" -> "$actor set a task due date"
         "task_deleted" -> "$actor deleted a task"
+        // #317 — a file this customer sent that we would not store. Same copy
+        // as web (system-line.tsx) and iOS (Timeline.swift), word for word: a
+        // crew comparing the phone and the laptop must not read two different
+        // histories for one conversation.
+        "media_refused" -> mediaRefusedLine(event)
         "note_attachment_added" -> "$actor attached a file to a note"
         "note_attachment_removed" -> "$actor removed a file from a note"
         "task_attachment_added" -> "$actor attached a file to a task"
@@ -283,6 +288,39 @@ fun eventLine(
         else -> event.type.replace('_', ' ').replaceFirstChar { it.uppercase() }
     }
 }
+
+/**
+ * The #317 refused-attachment line.
+ *
+ * There is no attachment row to render — that is the point — so this stands in
+ * its place. Without it the crew sees a text with no picture and concludes the
+ * customer forgot to attach one. Every arm ends in what to DO about it, which is
+ * the only part they can act on between jobs.
+ */
+private fun mediaRefusedLine(event: ConversationEvent): String =
+    when (event.payloadString("reason")) {
+        "too_large" ->
+            "A file this customer sent was too big to save — ask them to send a smaller one"
+
+        "empty" ->
+            "A file this customer sent arrived empty — ask them to send it again"
+
+        "type_mismatch" ->
+            "A file this customer sent wasn't the kind of file it claimed to be, so it wasn't saved"
+
+        "too_many_items" -> {
+            val kept = event.payloadString("index")?.toIntOrNull() ?: 0
+            if (kept > 0) {
+                "This message came with more files than we can save — the first $kept were kept"
+            } else {
+                "This message came with more files than we can save"
+            }
+        }
+        // unsupported_type, and anything a later server adds: the honest general
+        // case, still ending in the thing that works.
+        else ->
+            "A file this customer sent can't be shown here — ask them to send a photo or a PDF"
+    }
 
 fun statusLabel(status: String): String = when (status) {
     "new" -> "New"
