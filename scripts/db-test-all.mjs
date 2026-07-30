@@ -105,6 +105,7 @@ const SUITES = [
   "member_number_level",
   "number_scoped_topics",
   "owner_emergency_config",
+  "voicemail_intake",
 ];
 
 const args = process.argv.slice(2);

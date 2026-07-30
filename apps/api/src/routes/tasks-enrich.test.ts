@@ -351,7 +351,7 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
     );
   }
 
-  it("GET defaults to all-ON when never set", async () => {
+  it("GET defaults to all-ON when never set, except the one that speaks to callers", async () => {
     stubFetch(jwksRoute(auth), membersRoute("member"), settingsRoute(null).route);
     const res = await req("GET", "/v1/company/ai-settings");
     expect(res.status).toBe(200);
@@ -361,6 +361,12 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
       suggest_replies: true,
       business_description: null,
       transcribe_voicemail: true,
+      // #367/D89. Every toggle above produces something a MEMBER reads before
+      // a customer sees it, which is what makes default-on defensible for them.
+      // This one changes what a stranger hears when they ring, in the
+      // business's own name — so a workspace that has never opened the settings
+      // screen must not have it.
+      voicemail_intake: false,
     });
   });
 

@@ -4841,3 +4841,99 @@ Two events stay company-wide because scoping them would scope the wrong object:
 `registration.updated` (unique per `(company_id, kind)`, and it authorizes every
 number the company has) and `read.notifications` (one watermark per person across
 all numbers).
+
+## D89 — the receptionist asks; it does not converse (#367/#397, extends D46, 2026-07-30)
+
+**Decision.** We answer with AI at **depth (1) only**: the voicemail greeting asks
+the caller what the problem is and where, discloses that a machine writes the
+answer down, and the transcript is then broken out into four fields the crew can
+scan. Opt-in, off by default. **Depths (2) and (3) — qualify-and-route, and book
+the job — are declined for now**, deliberately rather than by omission, and D78's
+$49–79 price stands as the price *if* that bet is ever placed.
+
+#367 asked for a decision and not a build, and said which depth was reachable:
+*"Only (1) is buildable on what exists today."* That was true, and it is what
+shipped.
+
+**Why (1) is not a consolation prize.** The category's pitch is that 27% of calls
+go unanswered and the business never learns what they were about. Depth (1)
+answers the second half of that completely, and it does it without a dialogue
+tree, without a promise, and without a per-minute meter. A voicemail that opens
+with the problem and the address is a better voicemail whether or not anything
+reads it afterwards — which means **most of the value here is in the greeting,
+and the greeting is copy**. No model, no cost, no failure mode. The extraction is
+the smaller half riding on top.
+
+**The arithmetic is why the halves are split that way.** D78 measured a realtime
+receptionist at 6.8¢/minute: one two-minute call costs 13.6¢. Depth (1) costs
+0.02¢ per voicemail, on a transcript we had already bought — **about 700× less
+per call**, and less for a whole tenant for a whole month than a single realtime
+call. That is the entire reason this needs no metered module, no new price, and
+no founder decision about a bet. `AI_UNIT_COST_CENTS.voicemail_intake` and the
+500/month cap put it inside the existing envelope; the whole AI surface now
+maxes out at $2.05 per tenant per month, asserted by a test.
+
+**Extraction, never judgement, and the schema is the enforcement.** #367's
+strongest objection is the one to beat: *"An AI that mishandles an emergency is
+worse than voicemail."* So the model is never asked whether a call is urgent.
+There is no urgency field, no severity field, no recommendation field — not
+suppressed in a prompt, **absent from the schema**, so a model that volunteers
+one has it dropped by the parser (a test pins exactly that). Every stored value
+is a phrase the caller said out loud. The model cannot be wrong about a field
+without also being wrong about what words were in the recording, and nothing
+downstream acts on any of them.
+
+**The disclosure is in the first breath, and it does not lie.** #367's acceptance
+is that every caller is told. Note what the greeting does NOT say: not "you are
+speaking to an assistant", because they are not — they are leaving a recording,
+and a machine reads it afterwards. Claiming a conversation that is not happening,
+to a stranger, to make the feature sound better, is the one thing this greeting
+cannot do. It says an automated assistant writes the message down, which is
+true. A test asserts the sentence survives composition behind a 500-character
+owner-authored greeting, because the disclosure is the part that must never be
+the bit that gets truncated.
+
+**Failing to voicemail is not a path here, it is the resting state.** Everything
+downstream of the greeting runs AFTER the recording is stored, threaded and
+playable. There is no failure of this feature that costs a customer a message:
+the worst case is the product as it was yesterday, behind a better question.
+The greeting itself is resolved once, at initiation, and a settings read that
+fails answers false — a stranger is holding the line, and a bad moment in a
+settings table must not stop the phone ringing or promise a reading nobody
+agreed to.
+
+**Off by default, and it is the only AI feature in the product that is.** D46
+made AI help default-on, and that is defensible for every other feature because
+each produces a suggestion a MEMBER reviews before a customer sees anything.
+This one changes the words a STRANGER hears, spoken in the business's name.
+Turning that on for somebody without asking would be deciding how their company
+answers the phone. The default is therefore a decision, recorded here, and
+carried identically by the column, `DEFAULT_AI_SETTINGS`, the public disclosure
+row, and iOS's `@Default<DefaultFalse>` — which is the inverse of every other
+field on that struct, on purpose.
+
+**Provenance, because PORTAL-UX §3.1 applies to this more than to anything.**
+The block carries the Lou mark and the words "From the voicemail", and it sits
+directly above the transcript it was read out of. That ordering is the design:
+the transcript is the record, this is the shortcut, and a shortcut printed after
+the thing it shortens is not one. It also makes the claim checkable — a person
+can read four fields and the source they came from in one glance, which is the
+opposite of the black box #367 warned an AI conversation would be.
+
+**What this does NOT decide.** #397's asks 1, 3 and 4 remain the founder's:
+whether to treat the realtime receptionist as a decision with a deadline, what
+to price it at, and whether to make that bet at all. #397's devil's advocate is
+still the argument to beat — *"a solo founder building a voice AI product to
+defend a texting product is how focus dies"* — and depth (1) is specifically the
+answer that does not require beating it. The insurance was already bought
+either way: port-out notices alert on `pending` (#398) and `job:call-silence`
+catches one workspace going quiet against its own history (41ebba6).
+
+**Found on the way, and worth recording because it is the same failure twice.**
+The public sub-processors page said suggested replies were **off** by default
+while the column has defaulted to **on** since 20260724090000, and said "two of
+those models are published by OpenAI and one by Meta" after a second Meta model
+had shipped. Both are #389 happening again: a fact about the data, kept in step
+with the data by memory. Both are now derived — `defaultOn` is asserted against
+the settings the gate actually reads, and the vendor sentence and feature count
+are computed from the disclosure list rather than written beside it.

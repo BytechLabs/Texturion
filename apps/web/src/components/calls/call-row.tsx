@@ -15,6 +15,7 @@ import {
   screeningLabel,
   VoicemailPlayer,
 } from "@/components/calls/voicemail-player";
+import { VoicemailIntakeSummary } from "@/components/calls/voicemail-intake-summary";
 import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
 import type { Call } from "@/lib/api/types";
 import { callOutcomeLabel } from "@/lib/format/call";
@@ -116,11 +117,24 @@ export function CallRow({ call }: { call: Call }) {
               // transcript would appear twice.
               showTranscript={!call.voicemail_transcript}
             />
+            {/* #367: the two lines that answer "do I need to call back", above
+                the transcript they were read out of. */}
+            <VoicemailIntakeSummary
+              intake={call.voicemail_intake}
+              className="mt-1.5"
+            />
             {/* What it says, for the times playing it is not an option: on a
                 roof, in a truck, next to a running compressor. The player
                 stays: the recording is the record, this is the shortcut. */}
             {call.voicemail_transcript && (
-              <span className="mt-1.5 block text-[12.5px] leading-[1.45] text-app-muted">
+              <span
+                className={cn(
+                  "block text-[12.5px] leading-[1.45] text-app-muted",
+                  // Tight to the summary above when there is one — they are the
+                  // same fact twice, and the gap should say so.
+                  call.voicemail_intake ? "mt-1" : "mt-1.5",
+                )}
+              >
                 {call.voicemail_transcript}
               </span>
             )}

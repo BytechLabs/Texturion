@@ -13,6 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { composeIntakeGreeting } from "./voicemail-intake";
 import {
   buildBrowserAnsweredState,
   buildMemberRingState,
@@ -74,6 +75,9 @@ export interface AdoptionRow {
   direction: string | null;
   companyName: string;
   greeting: string | null;
+  /** #367/D89: read here too — an adopted session can still be `ringing`, so
+   *  its greeting has not been spoken and the ask must survive the cutover. */
+  intake: boolean;
   businessNumberE164: string | null;
   ledgerLegs: { ccid: string; userId: string; state: string }[];
 }
@@ -544,11 +548,14 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         company.call_screening === "divert" &&
         screeningFlagged(payload.call_screening_result);
 
-      const { dialTargets, pushAudience } = await computeRingContext(
-        db,
-        number.company_id,
-        number.id,
-      );
+      const [{ dialTargets, pushAudience }, intake] = await Promise.all([
+        computeRingContext(db, number.company_id, number.id),
+        // #367/D89: resolved here, at initiation, so the greeting this caller
+        // hears is fixed for the whole session. Read alongside the ring context
+        // rather than after it — this is the inbound hot path, and a caller is
+        // listening to silence for every millisecond of it.
+        loadIntakeEnabled(db, number.company_id),
+      ]);
 
       return {
         callSessionId: payload.call_session_id,
@@ -557,6 +564,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         phoneNumberId: number.id,
         companyName: company.name,
         greeting: company.voicemail_greeting,
+        intake,
         callerE164,
         businessNumberE164: payload.to,
         lineBusy,
@@ -773,7 +781,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         | undefined;
       if (!row) return null;
 
-      const [companyResult, legsResult, numberResult] = await Promise.all([
+      const [companyResult, legsResult, numberResult, intake] = await Promise.all([
         db
           .from("companies")
           .select("name,voicemail_greeting")
@@ -791,6 +799,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
               .eq("id", row.phone_number_id)
               .limit(1)
           : Promise.resolve({ data: [], error: null }),
+        loadIntakeEnabled(db, row.company_id),
       ]);
       if (companyResult.error) {
         throw new Error(`adoption company read failed: ${companyResult.error.message}`);
@@ -815,6 +824,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         direction: row.direction,
         companyName: company?.name ?? "this business",
         greeting: company?.voicemail_greeting ?? null,
+        intake,
         businessNumberE164:
           ((numberResult.data ?? [])[0] as { number_e164?: string } | undefined)
             ?.number_e164 ?? null,
@@ -1018,9 +1028,48 @@ export function createSessionRuntime(env: Env): SessionRuntime {
     },
 
     greetingText(machine) {
-      return sanitizeGreeting(machine.greeting, machine.companyName);
+      // #367/D89: the ask is appended AFTER the owner's greeting is bounded and
+      // cleaned, so a 500-character greeting cannot truncate the automation
+      // disclosure off the end — the one part of this string that is not
+      // optional.
+      return composeIntakeGreeting(
+        sanitizeGreeting(machine.greeting, machine.companyName),
+        machine.intake,
+      );
     },
   };
+}
+
+/**
+ * #367/D89: is the intake ask on for this company?
+ *
+ * Deliberately NOT `loadAiSettings`, and the difference is the failure mode.
+ * That helper throws when the settings read fails, and this one is called on the
+ * inbound hot path with a stranger holding the line — a settings table having a
+ * bad moment must not stop the phone ringing.
+ *
+ * So every failure answers FALSE, which is the safe direction and not merely the
+ * convenient one: false means the caller hears the greeting they heard
+ * yesterday. Answering true on a failed read would have us ask a stranger for an
+ * address while promising it gets written down, when we do not know that the
+ * business ever agreed to that.
+ */
+async function loadIntakeEnabled(
+  db: SupabaseClient,
+  companyId: string,
+): Promise<boolean> {
+  try {
+    const { data, error } = await db
+      .from("company_ai_settings")
+      .select("voicemail_intake")
+      .eq("company_id", companyId)
+      .limit(1);
+    if (error) return false;
+    return (data?.[0] as { voicemail_intake?: boolean } | undefined)
+      ?.voicemail_intake === true;
+  } catch {
+    return false;
+  }
 }
 
 /**

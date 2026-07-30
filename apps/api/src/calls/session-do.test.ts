@@ -219,6 +219,7 @@ function ctx(overrides: Partial<InitiatedContext> = {}): InitiatedContext {
     phoneNumberId: "pn1",
     companyName: "Acme",
     greeting: null,
+    intake: false,
     callerE164: "+15551000",
     businessNumberE164: "+19995000",
     lineBusy: false,
@@ -381,6 +382,7 @@ function outboundRow(overrides: Partial<AdoptionRow> = {}): AdoptionRow {
     direction: "outbound",
     companyName: "Acme",
     greeting: null,
+    intake: false,
     businessNumberE164: "+19995000",
     ledgerLegs: [],
     ...overrides,
@@ -540,6 +542,7 @@ describe("CallSessionDO — adoption (§7.5)", () => {
       direction: "inbound",
       companyName: "Acme",
       greeting: null,
+      intake: false,
       businessNumberE164: "+19995000",
       ledgerLegs: [],
     };

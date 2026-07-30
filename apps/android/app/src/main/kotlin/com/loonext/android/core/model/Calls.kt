@@ -36,6 +36,12 @@ data class Call(
      * audio.
      */
     val voicemail_transcript: String? = null,
+    /**
+     * #367: what the caller said, pulled out of the transcript — the problem,
+     * the address, a callback number, a name. Extraction only, never a
+     * judgement about urgency, and null whenever there is nothing to show.
+     */
+    val voicemail_intake: VoicemailIntake? = null,
     val answered_by_user_id: String? = null,
     /** #191: the acting member's resolved display name — the PLACER of an
      *  outbound call, the ANSWERER of an inbound one (both land in
@@ -49,6 +55,60 @@ data class Call(
     /** Display resolution order: contact > CNAM dip > raw number. */
     val displayName: String?
         get() = contact_name ?: caller_name ?: caller_e164
+}
+
+/**
+ * #367 depth (1) — what the caller said, from `calls.voicemail_intake`.
+ *
+ * Hand-port of `packages/shared/src/voicemail-intake.ts`. Every field is
+ * something the caller SAID: nothing here is a classification, and there is
+ * deliberately no urgency field to render — an AI that mishandles an emergency
+ * is worse than voicemail, so it is never asked.
+ */
+@Serializable
+data class VoicemailIntake(
+    val problem: String? = null,
+    val address: String? = null,
+    val callback: String? = null,
+    val name: String? = null,
+)
+
+/** One rendered row: a stable key, the label, and the caller's words. */
+data class VoicemailIntakeLine(
+    val key: String,
+    val label: String,
+    val value: String,
+)
+
+/**
+ * The provenance label, per PORTAL-UX §3.1. The Lou mark beside it already says
+ * a machine did this; these words say WHERE it read it, which is the half a
+ * person can check against the transcript underneath.
+ */
+const val VOICEMAIL_INTAKE_SOURCE_LABEL = "From the voicemail"
+
+/**
+ * The rows worth drawing: present fields, in a fixed order, empties dropped.
+ *
+ * Dropping rather than blanking is the part with consequences. A labelled empty
+ * row reports an absence as a finding — "Address" with nothing after it reads as
+ * though we looked and the caller gave none, when most voicemails simply do not
+ * contain most of these.
+ *
+ * Order matches web and iOS: whether to go, then where, then how to reach them.
+ */
+fun VoicemailIntake?.lines(): List<VoicemailIntakeLine> {
+    val intake = this ?: return emptyList()
+    val fields = listOf(
+        Triple("problem", "Problem", intake.problem),
+        Triple("address", "Address", intake.address),
+        Triple("callback", "Call back", intake.callback),
+        Triple("name", "Name", intake.name),
+    )
+    return fields.mapNotNull { (key, label, raw) ->
+        val value = raw?.trim().orEmpty()
+        if (value.isEmpty()) null else VoicemailIntakeLine(key, label, value)
+    }
 }
 
 /** POST /v1/webrtc/token — Telnyx credential login token (≤24h). */

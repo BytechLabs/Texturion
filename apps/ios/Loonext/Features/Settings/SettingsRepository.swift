@@ -49,6 +49,7 @@ struct SettingsRepository: Sendable {
         enrichDue: Bool,
         suggestReplies: Bool,
         transcribeVoicemail: Bool,
+        voicemailIntake: Bool,
         businessDescription: String? = nil
     ) async throws -> CompanyAiSettings {
         var body: [String: JSONValue] = [
@@ -56,6 +57,10 @@ struct SettingsRepository: Sendable {
             "enrich_task_due": .bool(enrichDue),
             "suggest_replies": .bool(suggestReplies),
             "transcribe_voicemail": .bool(transcribeVoicemail),
+            // #367: always on the wire. The server reads an ABSENT field as
+            // "leave it alone", so a client that dropped this could turn the
+            // greeting on and never be able to turn it back off.
+            "voicemail_intake": .bool(voicemailIntake),
         ]
         // Omitted leaves whatever is stored; an empty string clears it. A
         // toggle save must never wipe the description as a side effect.

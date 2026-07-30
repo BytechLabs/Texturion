@@ -177,6 +177,23 @@ export const AI_UNIT_COST_CENTS = {
    * cap the whole line is $1.25 either way.
    */
   voicemail_transcript: 0.25,
+  /**
+   * Voicemail intake (#367 depth 1) on `@cf/meta/llama-3.1-8b-instruct-fast`
+   * ($0.045/M in, $0.384/M out) — the same model reply drafting uses, on a much
+   * smaller input.
+   *
+   * Input is the stored transcript, bounded by
+   * VOICEMAIL_INTAKE_MAX_TRANSCRIPT_CHARS (4,000) plus a ~400-char system
+   * prompt ⇒ ~1,100 tokens at the ceiling. Output is capped at 256
+   * (VOICEMAIL_INTAKE_MAX_OUTPUT_TOKENS) and is in practice four short strings.
+   * 1100x0.045/1e6 + 256x0.384/1e6 = $0.000148 ⇒ 0.015c, carried at 0.02c.
+   *
+   * Worth stating next to D78, which priced the OTHER version of this feature:
+   * a realtime receptionist costs 6.8c per MINUTE, so a two-minute call is
+   * 13.6c — roughly 700x this. That gap is the whole reason depth (1) needs no
+   * paid module and the realtime version necessarily does.
+   */
+  voicemail_intake: 0.02,
 } as const;
 
 /** The `company_ai_usage.feature` keys the cost model knows how to price. */

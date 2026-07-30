@@ -63,6 +63,7 @@ function changedSettings(after: Record<string, unknown>): string {
     enrich_task_due: "Lou's due-date pre-fill",
     suggest_replies: "Lou's reply drafts",
     transcribe_voicemail: "voicemail transcripts",
+    voicemail_intake: "asking callers what the job is",
   };
   const named = Object.keys(after)
     .map((key) => NAMES[key] ?? key.replace(/_/g, " "))

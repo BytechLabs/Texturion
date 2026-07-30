@@ -229,6 +229,15 @@ data class CompanyAiSettings(
      * this only decides whether the words appear beside it.
      */
     val transcribe_voicemail: Boolean = true,
+    /**
+     * #367/D89: ask callers for the problem and the address in the voicemail
+     * greeting, and break the transcript out into those fields.
+     *
+     * The one Lou setting that defaults to FALSE — every other one produces
+     * something a member reads before a customer sees it, and this one changes
+     * what a stranger hears when they ring, in the business's own name.
+     */
+    val voicemail_intake: Boolean = false,
 )
 
 /** Matches the column's CHECK constraint (migration 20260724120000). */

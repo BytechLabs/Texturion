@@ -367,6 +367,10 @@ const aiSettingsSchema = z
     // Absent means "leave it alone", so a client that predates the toggle
     // cannot turn transcription off just by saving the other switches.
     transcribe_voicemail: z.boolean().optional(),
+    // #367: same "absent leaves it alone" rule, and it matters more here than
+    // anywhere else on this object — an older client saving the other switches
+    // must not be able to change what callers hear as a side effect.
+    voicemail_intake: z.boolean().optional(),
   })
   .strict();
 
@@ -383,6 +387,9 @@ companiesRoutes.patch(
       p_suggest_replies: body.suggest_replies,
       p_business_description: body.business_description ?? null,
       p_transcribe_voicemail: body.transcribe_voicemail ?? true,
+      // Null, not false: the RPC reads null as "leave it alone". Defaulting to
+      // false would let any older client turn the greeting back off.
+      p_voicemail_intake: body.voicemail_intake ?? null,
     });
     if (error) {
       throw new Error(`upsert_company_ai_settings failed: ${error.message}`);
@@ -400,6 +407,10 @@ companiesRoutes.patch(
         enrich_task_due: row.enrich_task_due,
         suggest_replies: row.suggest_replies,
         transcribe_voicemail: row.transcribe_voicemail,
+        // #367: the one switch on this object that changes what a CUSTOMER
+        // hears, which makes "who turned this on, and when" a question support
+        // will actually be asked.
+        voicemail_intake: row.voicemail_intake,
       },
     });
     return c.json({
@@ -408,6 +419,7 @@ companiesRoutes.patch(
       suggest_replies: row.suggest_replies,
       business_description: row.business_description ?? null,
       transcribe_voicemail: row.transcribe_voicemail,
+      voicemail_intake: row.voicemail_intake,
     });
   },
 );

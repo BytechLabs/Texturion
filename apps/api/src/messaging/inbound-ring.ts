@@ -42,6 +42,15 @@ import {
   VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
   VOICEMAIL_TRANSCRIPT_MODEL,
 } from "../calls/voicemail-transcript";
+import {
+  buildIntakeMessages,
+  intakeFromRaw,
+  shouldExtractIntake,
+  VOICEMAIL_INTAKE_FEATURE_SPEC,
+  VOICEMAIL_INTAKE_MAX_OUTPUT_TOKENS,
+  VOICEMAIL_INTAKE_MODEL,
+  type VoicemailIntake,
+} from "../calls/voicemail-intake";
 
 /** client_state tag on each member ring leg:
  *  `brm|<session>|<user_id>|<caller-or-empty>|<inbound_ccid>` (ccid LAST —
@@ -312,11 +321,27 @@ export async function storeVoicemailRecording(
   });
   const transcript = attempt.text;
 
+  // #367 depth (1): the greeting asked what the problem is and where. Break the
+  // answer out into fields the crew can scan. Runs on the WORDS, not the audio,
+  // so it costs a fraction of a cent on a transcript we already bought — and it
+  // is strictly downstream of everything that makes the voicemail a voicemail.
+  const intake = await extractVoicemailIntake(env, db, {
+    companyId: resolved.companyId,
+    transcript,
+  });
+
   const { error: stampError } = await db
     .from("calls")
     .update({
       voicemail_path: path,
       voicemail_seconds: seconds,
+      // Stamped whenever a model was reached, even when it found nothing, for
+      // the same reason the transcript attempt is: otherwise the same reading
+      // is bought again the next time anyone opens the call.
+      ...(intake.reached
+        ? { voicemail_intake_at: new Date().toISOString() }
+        : {}),
+      ...(intake.intake === null ? {} : { voicemail_intake: intake.intake }),
       // Record the attempt here too, or a recording that answered with nothing
       // is bought a second time the first time anyone plays it: the playback
       // backfill reads this column to decide, and would otherwise see a
@@ -412,6 +437,57 @@ async function transcribeVoicemail(
   // or one that ran away, is not worth paying per audio minute for.
   if (!shouldTranscribe(args.seconds)) return { reached: false, text: null };
   return await runTranscription(env, db, args.companyId, args.audio);
+}
+
+export interface IntakeOutcome {
+  /**
+   * Whether a model was actually reached. A refusal about the COMPANY (opted
+   * out, over cap, no binding) says nothing about THIS voicemail, so a caller
+   * must not record it as an attempt — the same distinction transcription draws.
+   */
+  reached: boolean;
+  /** The fields, or null when there were none worth keeping. */
+  intake: VoicemailIntake | null;
+}
+
+/**
+ * #367 depth (1): pull what the caller said out of the transcript.
+ *
+ * Never throws. By the time this runs the voicemail is stored, threaded and
+ * playable, and the transcript — if there is one — is about to be written. There
+ * is no outcome here that costs a customer a message; the worst case is the
+ * product as it was before this feature, behind a greeting that asked better
+ * questions.
+ *
+ * Order is the cost posture, same as transcription's: the free checks run before
+ * the reservation, and the reservation before the model. No transcript, or one
+ * too short to contain an answer, spends nothing.
+ */
+export async function extractVoicemailIntake(
+  env: Env,
+  db: SupabaseClient,
+  args: {
+    companyId: string;
+    transcript: string | null;
+    /** Already-loaded settings, so the gate does not read them a second time. */
+    settings?: CompanyAiSettings;
+  },
+): Promise<IntakeOutcome> {
+  if (!shouldExtractIntake(args.transcript)) return { reached: false, intake: null };
+  const result = await runAiFeature(env, db, {
+    companyId: args.companyId,
+    spec: VOICEMAIL_INTAKE_FEATURE_SPEC,
+    model: VOICEMAIL_INTAKE_MODEL,
+    input: {
+      messages: buildIntakeMessages(args.transcript as string),
+      max_tokens: VOICEMAIL_INTAKE_MAX_OUTPUT_TOKENS,
+    },
+    settings: args.settings,
+  });
+  if (!result.ok) {
+    return { reached: result.reason === "model_error", intake: null };
+  }
+  return { reached: true, intake: intakeFromRaw(result.raw) };
 }
 
 /** Replay recovery: a voicemail already stored in OUR bucket (voicemail_path

@@ -1,6 +1,4 @@
-import { ENRICHMENT_FEATURE_SPEC } from "../tasks/enrichment";
-import { SUGGEST_REPLY_FEATURE_SPEC } from "../messaging/reply-suggestions";
-import { VOICEMAIL_TRANSCRIPT_FEATURE_SPEC } from "../calls/voicemail-transcript";
+import { AI_USAGE_FEATURES } from "../ai/usage";
 import { describe, expect, it, vi } from "vitest";
 
 import { MODULE_CATALOG } from "./modules";
@@ -115,12 +113,11 @@ describe("#380 — every AI cost centre is priced, and says so where it is decla
     // The duplication is deliberate: a cost centre states its own price beside
     // its own cap, so the two are read together. This is what stops the copy
     // drifting from the table the projection actually sums.
-    const specs = [
-      ENRICHMENT_FEATURE_SPEC,
-      SUGGEST_REPLY_FEATURE_SPEC,
-      VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
-    ];
-    for (const spec of specs) {
+    // Sourced from AI_USAGE_FEATURES rather than listed here, so a new cost
+    // centre is covered the moment it exists. The hand-written list this
+    // replaced would have gone on passing while ignoring the fourth feature
+    // entirely — a binding test that silently stops binding is worse than none.
+    for (const spec of AI_USAGE_FEATURES) {
       expect(AI_UNIT_COST_CENTS[spec.key]).toBeDefined();
       expect(spec.unitCostCents).toBe(AI_UNIT_COST_CENTS[spec.key]);
     }
@@ -129,24 +126,26 @@ describe("#380 — every AI cost centre is priced, and says so where it is decla
   it("has no priced feature without a live cost centre declaring it", () => {
     // The other direction: a price left behind after a feature is retired is a
     // phantom line in the profitability model.
-    const declared = new Set([
-      ENRICHMENT_FEATURE_SPEC.key,
-      SUGGEST_REPLY_FEATURE_SPEC.key,
-      VOICEMAIL_TRANSCRIPT_FEATURE_SPEC.key,
-    ]);
+    const declared = new Set(AI_USAGE_FEATURES.map((spec) => spec.key));
     for (const key of Object.keys(AI_UNIT_COST_CENTS)) {
       expect(declared.has(key as never)).toBe(true);
     }
   });
 
   it("bounds what AI can cost one tenant in a month", () => {
-    // All three at their caps. Recorded so the "can AI flip a tenant" question
-    // (#380 ask 3) has a number rather than an intuition.
-    const atCap =
-      ENRICHMENT_FEATURE_SPEC.cap * ENRICHMENT_FEATURE_SPEC.unitCostCents +
-      SUGGEST_REPLY_FEATURE_SPEC.cap * SUGGEST_REPLY_FEATURE_SPEC.unitCostCents +
-      VOICEMAIL_TRANSCRIPT_FEATURE_SPEC.cap *
-        VOICEMAIL_TRANSCRIPT_FEATURE_SPEC.unitCostCents;
-    expect(atCap).toBeCloseTo(195, 6); // $1.95
+    // Every cost centre at its cap. Recorded so the "can AI flip a tenant"
+    // question (#380 ask 3) has a number rather than an intuition, and summed
+    // over the registry so a new feature raises the number here instead of
+    // going uncounted.
+    //
+    // 205¢ = $2.05: the previous 195¢ plus voicemail intake's 500 x 0.02¢.
+    // Worth seeing next to D78's realtime receptionist, which costs 13.6¢ for a
+    // single two-minute call — more than every AI feature in the product can
+    // spend for a whole tenant in a whole month, ten times over.
+    const atCap = AI_USAGE_FEATURES.reduce(
+      (total, spec) => total + spec.cap * spec.unitCostCents,
+      0,
+    );
+    expect(atCap).toBeCloseTo(205, 6); // $2.05
   });
 });

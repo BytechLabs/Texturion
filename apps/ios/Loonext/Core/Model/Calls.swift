@@ -32,6 +32,11 @@ struct Call: Codable, Sendable {
     /// cap, too long, or the model failed) and is never a reason to hide the
     /// audio.
     var voicemail_transcript: String? = nil
+    /// #367: what the caller said, pulled out of the transcript. Extraction
+    /// only, never a judgement about urgency, and nil whenever there is nothing
+    /// to show. A plain Optional for the same reason `state` is one — a cached
+    /// payload written before this column decodes to nil rather than throwing.
+    var voicemail_intake: VoicemailIntake? = nil
     let answered_by_user_id: String?
     /// #191: server-resolved display name of the acting member — the PLACER of
     /// an outbound call, the ANSWERER of an inbound one (both land in
@@ -55,6 +60,58 @@ struct Call: Codable, Sendable {
     /// Display resolution order: contact > CNAM dip > raw number.
     var displayName: String? {
         contact_name ?? caller_name ?? caller_e164
+    }
+}
+
+/// #367 depth (1) — what the caller said, from `calls.voicemail_intake`.
+///
+/// Hand-port of `packages/shared/src/voicemail-intake.ts`. Every field is
+/// something the caller SAID: nothing here is a classification, and there is
+/// deliberately no urgency field to render — an AI that mishandles an emergency
+/// is worse than voicemail, so it is never asked.
+struct VoicemailIntake: Codable, Sendable, Equatable {
+    var problem: String? = nil
+    var address: String? = nil
+    var callback: String? = nil
+    var name: String? = nil
+}
+
+/// One rendered row: a stable key, the label, and the caller's words.
+struct VoicemailIntakeLine: Identifiable, Equatable {
+    let key: String
+    let label: String
+    let value: String
+
+    var id: String { key }
+}
+
+/// The provenance label, per PORTAL-UX §3.1. The Lou mark beside it already says
+/// a machine did this; these words say WHERE it read it, which is the half a
+/// person can check against the transcript underneath.
+let voicemailIntakeSourceLabel = "From the voicemail"
+
+extension VoicemailIntake {
+    /// The rows worth drawing: present fields, in a fixed order, empties dropped.
+    ///
+    /// Dropping rather than blanking is the part with consequences. A labelled
+    /// empty row reports an absence as a finding — "Address" with nothing after
+    /// it reads as though we looked and the caller gave none, when most
+    /// voicemails simply do not contain most of these.
+    ///
+    /// Order matches web and Android: whether to go, then where, then how to
+    /// reach them.
+    var lines: [VoicemailIntakeLine] {
+        let fields: [(String, String, String?)] = [
+            ("problem", "Problem", problem),
+            ("address", "Address", address),
+            ("callback", "Call back", callback),
+            ("name", "Name", name),
+        ]
+        return fields.compactMap { (key, label, raw) -> VoicemailIntakeLine? in
+            let value = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !value.isEmpty else { return nil }
+            return VoicemailIntakeLine(key: key, label: label, value: value)
+        }
     }
 }
 

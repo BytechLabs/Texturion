@@ -542,6 +542,13 @@ private struct CallRow: View {
         return text
     }
 
+    /// #367: the rows worth drawing — present fields only, in the shared order.
+    /// Empty means the block is not rendered at all, rather than a titled box
+    /// with nothing in it.
+    private var intakeLines: [VoicemailIntakeLine] {
+        call.voicemail_intake?.lines ?? []
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 11) {
@@ -589,7 +596,16 @@ private struct CallRow: View {
                 )
                 .padding(.leading, 64)
                 .padding(.trailing, 15)
-                .padding(.bottom, transcript == nil ? 12 : 6)
+                .padding(.bottom, transcript == nil && intakeLines.isEmpty ? 12 : 6)
+                // #367: the two lines that answer "do I need to call back",
+                // ABOVE the transcript they were read out of. A shortcut
+                // printed after the thing it shortens is not one.
+                if !intakeLines.isEmpty {
+                    VoicemailIntakeSummary(lines: intakeLines)
+                        .padding(.leading, 64)
+                        .padding(.trailing, 15)
+                        .padding(.bottom, transcript == nil ? 12 : 4)
+                }
                 // What it says, for the times playing it is not an option: on
                 // a roof, in a truck, next to a running compressor. The player
                 // stays above it: the recording is the record, this is the

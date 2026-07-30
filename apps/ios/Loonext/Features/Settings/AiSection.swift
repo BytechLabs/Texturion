@@ -65,7 +65,8 @@ struct AiSectionView: View {
                                 address: $0,
                                 due: settings.enrich_task_due,
                                 replies: settings.suggest_replies,
-                                transcribe: settings.transcribe_voicemail
+                                transcribe: settings.transcribe_voicemail,
+                                intake: settings.voicemail_intake
                             )
                         }
                     )
@@ -82,7 +83,8 @@ struct AiSectionView: View {
                                 address: settings.enrich_task_address,
                                 due: $0,
                                 replies: settings.suggest_replies,
-                                transcribe: settings.transcribe_voicemail
+                                transcribe: settings.transcribe_voicemail,
+                                intake: settings.voicemail_intake
                             )
                         }
                     )
@@ -145,7 +147,8 @@ struct AiSectionView: View {
                             address: settings.enrich_task_address,
                             due: settings.enrich_task_due,
                             replies: $0,
-                            transcribe: settings.transcribe_voicemail
+                            transcribe: settings.transcribe_voicemail,
+                            intake: settings.voicemail_intake
                         )
                     }
                 )
@@ -164,7 +167,34 @@ struct AiSectionView: View {
                             address: settings.enrich_task_address,
                             due: settings.enrich_task_due,
                             replies: settings.suggest_replies,
-                            transcribe: $0
+                            transcribe: $0,
+                            intake: settings.voicemail_intake
+                        )
+                    }
+                )
+                // #367/D89. Grouped with transcription rather than given a card
+                // of its own — same moment, and one is the other's input.
+                // Divided, because this is the switch that changes what a
+                // STRANGER hears, and the copy has to be read before it is
+                // flipped.
+                RowDivider()
+                LabeledToggleRow(
+                    label: "Ask callers what the job is",
+                    supporting: "Your greeting adds one line asking for the problem "
+                        + "and the address, and says a machine writes the answer "
+                        + "down. Lou then shows what they said above the recording. "
+                        + "Nothing books anything and nobody is put through a menu "
+                        + "\u{2014} it is still a voicemail, with a better question "
+                        + "in front of it.",
+                    isOn: settings.voicemail_intake,
+                    enabled: canEdit && !saving,
+                    onChange: {
+                        save(
+                            address: settings.enrich_task_address,
+                            due: settings.enrich_task_due,
+                            replies: settings.suggest_replies,
+                            transcribe: settings.transcribe_voicemail,
+                            intake: $0
                         )
                     }
                 )
@@ -210,6 +240,7 @@ struct AiSectionView: View {
                     enrichDue: previous.enrich_task_due,
                     suggestReplies: previous.suggest_replies,
                     transcribeVoicemail: previous.transcribe_voicemail,
+                    voicemailIntake: previous.voicemail_intake,
                     businessDescription: next
                 )
                 state = .ready(saved)
@@ -222,7 +253,13 @@ struct AiSectionView: View {
         }
     }
 
-    private func save(address: Bool, due: Bool, replies: Bool, transcribe: Bool) {
+    private func save(
+        address: Bool,
+        due: Bool,
+        replies: Bool,
+        transcribe: Bool,
+        intake: Bool
+    ) {
         guard case .ready(let previous) = state else { return }
         state = .ready(
             CompanyAiSettings(
@@ -230,7 +267,8 @@ struct AiSectionView: View {
                 enrich_task_due: due,
                 suggest_replies: replies,
                 business_description: previous.business_description,
-                transcribe_voicemail: transcribe
+                transcribe_voicemail: transcribe,
+                voicemail_intake: intake
             )
         )
         saving = true
@@ -241,7 +279,8 @@ struct AiSectionView: View {
                     enrichAddress: address,
                     enrichDue: due,
                     suggestReplies: replies,
-                    transcribeVoicemail: transcribe
+                    transcribeVoicemail: transcribe,
+                    voicemailIntake: intake
                 )
                 state = .ready(saved)
             } catch {

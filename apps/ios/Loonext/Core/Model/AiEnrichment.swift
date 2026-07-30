@@ -74,19 +74,30 @@ struct CompanyAiSettings: Codable, Sendable {
     /// Transcribe new voicemails. Off leaves the recording exactly as it was:
     /// this only decides whether the words appear beside it.
     @Default<DefaultTrue> var transcribe_voicemail: Bool
+    /// #367/D89: ask callers for the problem and the address in the voicemail
+    /// greeting, and break the transcript out into those fields.
+    ///
+    /// The one Lou setting that defaults to FALSE, here and on the server. Every
+    /// other one produces something a member reads before a customer sees it;
+    /// this one changes what a stranger hears when they ring, in the business's
+    /// own name. So an absent or lagging field must decode to OFF — the opposite
+    /// of the rule the rest of this struct follows, and deliberately.
+    @Default<DefaultFalse> var voicemail_intake: Bool
 
     init(
         enrich_task_address: Bool,
         enrich_task_due: Bool,
         suggest_replies: Bool = true,
         business_description: String? = nil,
-        transcribe_voicemail: Bool = true
+        transcribe_voicemail: Bool = true,
+        voicemail_intake: Bool = false
     ) {
         self.enrich_task_address = enrich_task_address
         self.enrich_task_due = enrich_task_due
         self.suggest_replies = suggest_replies
         self.business_description = business_description
         self.transcribe_voicemail = transcribe_voicemail
+        self.voicemail_intake = voicemail_intake
     }
 
     /// Any enrichment on → the make-task sheet should call /tasks/enrich.

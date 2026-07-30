@@ -143,6 +143,7 @@ class AiRepositoryTest {
                 enrich_task_due = true,
                 suggest_replies = true,
                 transcribe_voicemail = false,
+                voicemail_intake = true,
             ),
         )
         val recorded = server.takeRequest()
@@ -150,9 +151,14 @@ class AiRepositoryTest {
         assertEquals("/v1/company/ai-settings", recorded.url.encodedPath)
         // Every toggle rides the PATCH: this client sends the whole object, so
         // an omitted field would silently re-enable whatever it left out.
+        //
+        // #367: voicemail_intake is on the wire for the same reason, and it is
+        // the one where the omission would be worst — the server reads an absent
+        // field as "leave it alone", so a client that dropped it could never
+        // turn the greeting back off.
         assertEquals(
             """{"enrich_task_address":true,"enrich_task_due":true,"suggest_replies":true,""" +
-                """"transcribe_voicemail":false}""",
+                """"transcribe_voicemail":false,"voicemail_intake":true}""",
             recorded.body?.utf8(),
         )
     }

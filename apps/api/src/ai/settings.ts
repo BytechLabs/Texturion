@@ -32,6 +32,15 @@ export interface CompanyAiSettings {
   business_description: string | null;
   /** Whether new voicemails are transcribed. Off leaves the audio untouched. */
   transcribe_voicemail: boolean;
+  /**
+   * #367 depth (1): whether the voicemail greeting asks callers for the problem
+   * and the address, and the transcript is then broken out into those fields.
+   *
+   * The one toggle here that is OFF by default. The others produce a suggestion
+   * a member reads; this one changes what a stranger hears when they ring, in
+   * the business's own name — not a default anybody else gets to pick (D89).
+   */
+  voicemail_intake: boolean;
 }
 
 /**
@@ -46,12 +55,14 @@ export const DEFAULT_AI_SETTINGS: CompanyAiSettings = {
   suggest_replies: true,
   business_description: null,
   transcribe_voicemail: true,
+  // The exception, and deliberately so — see the field comment and D89.
+  voicemail_intake: false,
 };
 
 /** The columns that make up the settings row, for a `select`. */
 export const AI_SETTINGS_COLUMNS =
   "enrich_task_address,enrich_task_due,suggest_replies,business_description," +
-  "transcribe_voicemail";
+  "transcribe_voicemail,voicemail_intake";
 
 /** Company AI toggles, falling back to the defaults when the row is absent. */
 export async function loadAiSettings(

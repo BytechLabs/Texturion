@@ -20,6 +20,7 @@ import com.loonext.android.core.model.CompanyAiSettings
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.CancellationException
@@ -199,6 +200,24 @@ fun AiSection(scope: SettingsScope) {
                         enabled = canEdit,
                         onCheckedChange = { checked ->
                             toggle(settings, settings.copy(transcribe_voicemail = checked))
+                        },
+                    )
+                    // #367/D89. Grouped with transcription rather than given a
+                    // card of its own — same moment, and one is the other's
+                    // input. Divided, because this is the switch that changes
+                    // what a STRANGER hears and the copy has to be read first.
+                    RowDivider()
+                    LabeledSwitchRow(
+                        label = "Ask callers what the job is",
+                        supporting = "Your greeting adds one line asking for the problem " +
+                            "and the address, and says a machine writes the answer down. " +
+                            "Lou then shows what they said above the recording. Nothing " +
+                            "books anything and nobody is put through a menu — it is " +
+                            "still a voicemail, with a better question in front of it.",
+                        checked = settings.voicemail_intake,
+                        enabled = canEdit,
+                        onCheckedChange = { checked ->
+                            toggle(settings, settings.copy(voicemail_intake = checked))
                         },
                     )
                 }

@@ -91,16 +91,24 @@ describe("#431 — every AI feature says what its own outcomes mean", () => {
     // would report an unobservable outcome as a measured absence.
     //
     // Enumerated rather than checked loosely so that a new null anywhere fails
-    // here and has to justify itself. Both of the current ones are the voicemail
-    // transcript: there is no editing a transcript, and "read the words and
-    // moved on" is a person NOT doing something, which no client can see without
-    // inferring it from scroll and unmount timing.
+    // here and has to justify itself. All four of the current ones are voicemail
+    // features, and they are null for the same two reasons: there is nothing to
+    // EDIT in a transcript or an intake, and the positive case — read it and got
+    // on with the job — is a person NOT doing something, which no client can see
+    // without inferring it from scroll and unmount timing.
+    //
+    // #367 added the second pair rather than a third feature with no signal at
+    // all: both voicemail features declare the one thing that IS observable,
+    // somebody playing the audio anyway, each recorded only when that feature
+    // actually produced something to ignore.
     const missing = AI_USAGE_FEATURES.flatMap((spec) =>
       (["used", "edited", "discarded"] as const)
         .filter((kind) => spec.outcomes[kind] === null)
         .map((kind) => `${spec.key}.${kind}`),
     );
     expect(missing.sort()).toEqual([
+      "voicemail_intake.edited",
+      "voicemail_intake.used",
       "voicemail_transcript.edited",
       "voicemail_transcript.used",
     ]);

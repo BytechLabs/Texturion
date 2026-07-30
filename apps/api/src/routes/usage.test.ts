@@ -203,6 +203,18 @@ describe("GET /v1/usage", () => {
           outcomes: [],
           outcomesRecorded: 0,
         },
+        {
+          key: "voicemail_intake",
+          label: "voicemail intake",
+          used: 0,
+          cap: 500,
+          // #367/D89: the line still appears for a workspace that has not
+          // turned it on — a feature with no row looks like a feature that does
+          // not exist, and `enabled: false` is what tells the screen to say so.
+          enabled: false,
+          outcomes: [],
+          outcomesRecorded: 0,
+        },
       ],
       voice: {
         used_minutes: 61,

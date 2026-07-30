@@ -4,7 +4,11 @@ import { PLAN_SEATS } from "@loonext/shared";
  * API resource shapes, derived by reading apps/api/src/routes/*.ts (never
  * guessed — SPEC §7 is the contract, the route files are the truth).
  */
-import type { HoursException, MmsMediaKind } from "@loonext/shared";
+import type {
+  HoursException,
+  MmsMediaKind,
+  VoicemailIntake,
+} from "@loonext/shared";
 
 export type SubscriptionStatus =
   | "incomplete"
@@ -682,6 +686,15 @@ export interface CompanyAiSettings {
    * this only decides whether the words appear beside it.
    */
   transcribe_voicemail: boolean;
+  /**
+   * #367/D89: ask callers for the problem and the address in the voicemail
+   * greeting, and break the transcript out into those fields.
+   *
+   * The one Lou setting that is OFF until somebody turns it on, because it is
+   * the only one that changes what a CALLER hears rather than what a member
+   * reads.
+   */
+  voicemail_intake: boolean;
 }
 
 /** POST /v1/conversations/:id/reply-suggestions — up to three reviewed drafts. */
@@ -1314,6 +1327,12 @@ export interface Call {
    * audio.
    */
   voicemail_transcript: string | null;
+  /**
+   * #367: what the caller said, pulled out of the transcript — the problem,
+   * the address, a callback number, a name. Extraction only, never a judgement
+   * about urgency, and null whenever there is nothing to show.
+   */
+  voicemail_intake: VoicemailIntake | null;
   answered_by_user_id: string | null;
   /** #191: the acting member's display name — the PLACER of an outbound call, the
    *  ANSWERER of an inbound one. Null when the actor is unknown (pre-#211 outbound,

@@ -5,13 +5,50 @@ import {
   LegalPage,
   LegalSectionBlock,
 } from "@/components/marketing/legal/legal-page";
-import { AI_DISCLOSURES, AI_TRAINING_STATEMENT } from "@loonext/shared";
+import {
+  AI_DISCLOSURES,
+  AI_TRAINING_STATEMENT,
+  AI_VENDOR_NAMES,
+  aiModelsByVendor,
+} from "@loonext/shared";
 
 import { PRIVACY_EMAIL } from "@/lib/marketing/business";
 import { buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/legal/subprocessors";
-const LAST_UPDATED = "July 28, 2026";
+const LAST_UPDATED = "July 30, 2026";
+
+/**
+ * "Two of those models are published by OpenAI and two by Meta." — assembled
+ * from the table above rather than written beside it.
+ *
+ * The hand-written version outlived the list it described: it still said "one
+ * by Meta" after a second Meta model shipped. On a page customers rely on to
+ * meet their own obligations, a sentence that can drift is a sentence that
+ * eventually misstates who processes their customers' voices.
+ */
+/**
+ * How many AI features there are, in words — counted, for the same reason the
+ * vendor sentence is. The summary said "Three features" while the table listed
+ * three; the fourth would have made it silently wrong.
+ */
+function featureCountWord(): string {
+  const words = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
+  return words[AI_DISCLOSURES.length] ?? String(AI_DISCLOSURES.length);
+}
+
+function modelVendorSentence(): string {
+  const counted = aiModelsByVendor().map(({ vendor, count }) => {
+    const name = AI_VENDOR_NAMES[vendor] ?? vendor;
+    return `${count === 1 ? "one" : count === 2 ? "two" : String(count)} by ${name}`;
+  });
+  if (counted.length === 0) return "";
+  const list =
+    counted.length === 1
+      ? counted[0]
+      : `${counted.slice(0, -1).join(", ")} and ${counted[counted.length - 1]}`;
+  return `Of those models, ${list}.`;
+}
 
 export const metadata: Metadata = buildMetadata({
   title: "Sub-processors",
@@ -104,7 +141,7 @@ export default function SubprocessorsPage() {
   return (
     <LegalPage
       title="Sub-processors"
-      summary="Eight vendors process data on our behalf so Loonext can run, from the SMS carrier to payments, hosting, email, and analytics. Each is limited to what its job requires, and message content stays out of our error and analytics tools. Three features send message content or voicemail audio to an AI model, and they are named in full below. Data lives primarily in the United States. When this list changes, this page and the date above change with it."
+      summary={`Eight vendors process data on our behalf so Loonext can run, from the SMS carrier to payments, hosting, email, and analytics. Each is limited to what its job requires, and message content stays out of our error and analytics tools. ${featureCountWord()} features send message content or voicemail audio to an AI model, and they are named in full below. Data lives primarily in the United States. When this list changes, this page and the date above change with it.`}
       lastUpdated={LAST_UPDATED}
       breadcrumbLabel="Sub-processors"
       path={PATH}
@@ -237,11 +274,14 @@ export default function SubprocessorsPage() {
           </table>
         </div>
         <p>
-          Two of those models are published by OpenAI and one by Meta. They run
-          on Cloudflare&rsquo;s infrastructure under Cloudflare&rsquo;s terms;
-          we do not send your data to OpenAI or Meta directly. We name them
-          because who wrote the model is something you would reasonably want to
-          know before a customer&rsquo;s voicemail is transcribed by it.
+          {/* Counted from the table above rather than written beside it: the
+              sentence that used to live here said "two by OpenAI and one by
+              Meta" and had quietly stopped being true. */}
+          {modelVendorSentence()} They run on Cloudflare&rsquo;s infrastructure
+          under Cloudflare&rsquo;s terms; we do not send your data to those
+          companies directly. We name them because who wrote the model is
+          something you would reasonably want to know before a
+          customer&rsquo;s voicemail is transcribed by it.
         </p>
         <p>
           On training, Cloudflare&rsquo;s published Workers AI policy states:{" "}

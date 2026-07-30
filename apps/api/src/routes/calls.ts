@@ -29,7 +29,14 @@ import {
   loadAiSettings,
   type CompanyAiSettings,
 } from "../ai/settings";
-import { runTranscription } from "../messaging/inbound-ring";
+import {
+  VOICEMAIL_INTAKE_FEATURE_SPEC,
+  type VoicemailIntake,
+} from "../calls/voicemail-intake";
+import {
+  extractVoicemailIntake,
+  runTranscription,
+} from "../messaging/inbound-ring";
 import { z } from "zod";
 
 import { requireRole } from "../auth/company";
@@ -93,6 +100,9 @@ export interface CallRow {
   /** Speech-to-text of the recording; null = not transcribed, never a reason
    *  to hide the audio. */
   voicemail_transcript: string | null;
+  /** #367: what the caller said, pulled out of the transcript. Extraction only
+   *  — never a judgement — and null whenever there is nothing to show. */
+  voicemail_intake: VoicemailIntake | null;
   answered_by_user_id: string | null;
   /** #191 attribution: the display name of the acting member — the PLACER for an
    *  outbound call ("{name} called"), the ANSWERER for an inbound one ("Answered
@@ -243,13 +253,15 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) 
       voicemail_seconds: number | null;
       voicemail_transcript: string | null;
       voicemail_transcript_attempted_at: string | null;
+      voicemail_intake: VoicemailIntake | null;
+      voicemail_intake_at: string | null;
     }[]
   >(
     await db
       .from("calls")
       .select(
         "phone_number_id,voicemail_path,voicemail_seconds,voicemail_transcript," +
-          "voicemail_transcript_attempted_at",
+          "voicemail_transcript_attempted_at,voicemail_intake,voicemail_intake_at",
       )
       .eq("company_id", c.get("companyId"))
       .eq("call_session_id", sessionId)
@@ -336,11 +348,21 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) 
   //
   // Fire-and-forget: losing an outcome costs a data point, failing this request
   // costs somebody the voicemail they are trying to hear.
-  if (call.voicemail_transcript !== null) {
+  //
+  // #367: the intake records the same click SEPARATELY, and only when it
+  // actually produced something. Two features, two claims — "you did not need
+  // to listen" and "you did not need to read" — and this one event is evidence
+  // against whichever of them was on the screen. A call with a transcript and
+  // no intake moves one counter, not two.
+  for (const [produced, feature] of [
+    [call.voicemail_transcript !== null, VOICEMAIL_TRANSCRIPT_FEATURE_SPEC.key],
+    [call.voicemail_intake !== null, VOICEMAIL_INTAKE_FEATURE_SPEC.key],
+  ] as const) {
+    if (!produced) continue;
     void Promise.resolve(
       db.rpc("ai_outcome_record", {
         p_company_id: c.get("companyId"),
-        p_feature: VOICEMAIL_TRANSCRIPT_FEATURE_SPEC.key,
+        p_feature: feature,
         p_outcome: "discarded",
       }),
     ).catch(() => undefined);
@@ -385,10 +407,32 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) 
         })
       : null);
 
+  // #367: and the fields, if this recording never got them — every voicemail
+  // from before intake was switched on, and any whose extraction failed at the
+  // time. Turning the setting on is the case that makes this worth having: a
+  // crew that enables it and sees nothing on yesterday's calls would reasonably
+  // conclude it does not work.
+  //
+  // Costs no egress at all, unlike the transcript backfill above: it reads the
+  // WORDS, which are already in hand by this line either way. So there is no
+  // allowance to claim and nothing to decide before the download — the only
+  // gates are the company's opt-in and the monthly cap, both inside the gate.
+  const intake =
+    call.voicemail_intake ??
+    (transcript !== null && call.voicemail_intake_at === null
+      ? await backfillVoicemailIntake(env, db, {
+          companyId: c.get("companyId"),
+          sessionId,
+          transcript,
+          settings,
+        })
+      : null);
+
   return c.json({
     url: signed.data.signedUrl,
     seconds: call.voicemail_seconds ?? 0,
     transcript,
+    intake,
   });
 });
 
@@ -466,6 +510,53 @@ async function backfillVoicemailTranscript(
   } catch (cause) {
     console.error(
       `voicemail transcript backfill failed for ${args.sessionId}:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+    return null;
+  }
+}
+
+/**
+ * #367: break an already-transcribed voicemail out into what the caller said,
+ * on the open that first needs it.
+ *
+ * Same once-per-recording discipline as the transcript backfill, and for the
+ * same reason: the stamp records that a model ANSWERED, not that it found
+ * something. A voicemail with no address in it must not be re-read on every tap
+ * forever — and the clients mint a fresh URL per play, so "every tap" is
+ * literal. A refusal that never reached a model (opted out, over cap, no
+ * binding) leaves the stamp unspent, so switching the feature on later still
+ * works on the calls that came before it.
+ */
+async function backfillVoicemailIntake(
+  env: Env,
+  db: ReturnType<typeof getDb>,
+  args: {
+    companyId: string;
+    sessionId: string;
+    transcript: string;
+    settings: CompanyAiSettings;
+  },
+): Promise<VoicemailIntake | null> {
+  try {
+    const outcome = await extractVoicemailIntake(env, db, {
+      companyId: args.companyId,
+      transcript: args.transcript,
+      settings: args.settings,
+    });
+    if (!outcome.reached) return null;
+    await db
+      .from("calls")
+      .update({
+        voicemail_intake_at: new Date().toISOString(),
+        ...(outcome.intake === null ? {} : { voicemail_intake: outcome.intake }),
+      })
+      .eq("company_id", args.companyId)
+      .eq("call_session_id", args.sessionId);
+    return outcome.intake;
+  } catch (cause) {
+    console.error(
+      `voicemail intake backfill failed for ${args.sessionId}:`,
       cause instanceof Error ? cause.message : String(cause),
     );
     return null;

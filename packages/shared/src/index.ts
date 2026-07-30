@@ -152,8 +152,18 @@ export {
 export {
   AI_DISCLOSURES,
   AI_TRAINING_STATEMENT,
+  AI_VENDOR_NAMES,
+  aiModelsByVendor,
   type AiDisclosure,
 } from "./ai-disclosure";
+
+export {
+  hasVoicemailIntake,
+  voicemailIntakeLines,
+  VOICEMAIL_INTAKE_SOURCE_LABEL,
+  type VoicemailIntake,
+  type VoicemailIntakeLine,
+} from "./voicemail-intake";
 
 /**
  * #312: the legal entity and mailing address, read by BOTH the marketing site's

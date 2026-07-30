@@ -74,6 +74,9 @@ import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.PhoneNumberSummary
+import com.loonext.android.core.model.VOICEMAIL_INTAKE_SOURCE_LABEL
+import com.loonext.android.core.model.VoicemailIntake
+import com.loonext.android.core.model.lines
 import com.loonext.android.features.contacts.ContactMutations
 import com.loonext.android.features.contacts.CreateContactSheet
 import com.loonext.android.features.contacts.device.ContentResolverDeviceContacts
@@ -85,6 +88,8 @@ import com.loonext.android.BuildConfig
 import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.telephony.SoftphoneStatus
+import com.loonext.android.ui.common.AiOrb
+import com.loonext.android.ui.common.AiOrbState
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.InitialsAvatar
@@ -998,6 +1003,10 @@ private fun CallRow(
                 seconds = call.voicemail_seconds ?: 0,
                 transcriptShown = !call.voicemail_transcript.isNullOrBlank(),
             )
+            // #367: the two lines that answer "do I need to call back", ABOVE
+            // the transcript they were read out of. A shortcut printed after the
+            // thing it shortens is not one.
+            VoicemailIntakeSummary(call.voicemail_intake)
             // What it says, for the times playing it is not an option: on a
             // roof, in a truck, next to a running compressor. The player stays
             // above it: the recording is the record, this is the shortcut.
@@ -1014,6 +1023,66 @@ private fun CallRow(
                         end = 15.dp,
                         bottom = 10.dp,
                     ),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * #367 depth (1) — what the caller said, above the transcript it came from.
+ *
+ * Rows for present fields only, never a labelled blank: `lines()` enforces that
+ * for all three clients, because a blank "Address" reads as "we looked and the
+ * caller gave none", which is a claim we cannot make.
+ *
+ * The Lou mark plus "From the voicemail" is PORTAL-UX §3.1 — the card names the
+ * signal that placed it. The mark says a machine did this, the label says where
+ * it read it, and the transcript directly below is what makes both checkable.
+ *
+ * Indented to the same 64.dp text column the transcript uses, so the whole
+ * voicemail block reads as one thing rather than three stacked ones.
+ */
+@Composable
+private fun VoicemailIntakeSummary(intake: VoicemailIntake?) {
+    val lines = intake.lines()
+    if (lines.isEmpty()) return
+    Column(
+        modifier = Modifier.padding(start = 64.dp, end = 15.dp, bottom = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(1.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            modifier = Modifier.padding(bottom = 3.dp),
+        ) {
+            AiOrb(state = AiOrbState.Idle, size = 11.dp)
+            Text(
+                VOICEMAIL_INTAKE_SOURCE_LABEL,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        lines.forEach { line ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Fixed label column so the values share one left edge: four
+                // ragged ones is four things to read instead of one.
+                Text(
+                    line.label,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 12.5.sp,
+                        lineHeight = 18.sp,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(66.dp),
+                )
+                Text(
+                    line.value,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 12.5.sp,
+                        lineHeight = 18.sp,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }

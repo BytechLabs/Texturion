@@ -12,6 +12,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { VOICEMAIL_INTAKE_FEATURE_SPEC } from "../calls/voicemail-intake";
 import {
   VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
 } from "../calls/voicemail-transcript";
@@ -66,6 +67,8 @@ export const AI_USAGE_FEATURES = [
   SUGGEST_REPLY_FEATURE_SPEC,
   ENRICHMENT_FEATURE_SPEC,
   VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
+  // Beneath the transcript it reads, which is also the order the two happen in.
+  VOICEMAIL_INTAKE_FEATURE_SPEC,
 ] as const;
 
 /** The ledger's month bucket: 'YYYY-MM' in UTC, matching ai_usage_reserve. */

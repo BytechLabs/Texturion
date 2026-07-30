@@ -946,7 +946,12 @@ const aiOutcomeSchema = z.object({
   // spend does, so a mismatch here would open a second row and separate cost
   // from value permanently. A test asserts this list is exactly
   // AI_USAGE_FEATURES, so adding a cost centre cannot leave it behind.
-  feature: z.enum(["suggest_reply", "enrich", "voicemail_transcript"]),
+  feature: z.enum([
+    "suggest_reply",
+    "enrich",
+    "voicemail_transcript",
+    "voicemail_intake",
+  ]),
   // Three outcomes, never a rate. #431's own devil's advocate is right that
   // acceptance is noisy: a discard can mean "the draft was wrong" or "I wanted to
   // say something more personal", and an edit can mean 80% right or 20% right.

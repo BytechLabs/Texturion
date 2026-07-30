@@ -219,6 +219,31 @@ export default function AiSettingsPage() {
                 }
               />
             </div>
+            {/* #367/D89. Grouped with transcription rather than given a card of
+                its own — they are the same moment, and one of them is the other
+                one's input. Separated by a rule because this one is the switch
+                that changes what a STRANGER hears, and the copy has to be read
+                before it is flipped. */}
+            <div className="mt-4 flex items-start justify-between gap-4 border-t border-border pt-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="ai-intake" className="text-sm font-medium">
+                  Ask callers what the job is
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Your greeting adds one line asking for the problem and the
+                  address, and says a machine writes the answer down. Lou then
+                  shows what they said above the recording. Nothing books
+                  anything and nobody is put through a menu &mdash; it is still a
+                  voicemail, with a better question in front of it.
+                </p>
+              </div>
+              <Switch
+                id="ai-intake"
+                checked={settings.data.voicemail_intake}
+                disabled={!canEdit || update.isPending}
+                onCheckedChange={(checked) => toggle("voicemail_intake", checked)}
+              />
+            </div>
           </SettingsCard>
           {!canEdit && (
             <p className="text-sm text-muted-foreground">

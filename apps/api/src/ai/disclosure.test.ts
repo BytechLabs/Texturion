@@ -21,7 +21,10 @@ import { describe, expect, it } from "vitest";
 import { AI_DISCLOSURES } from "@loonext/shared";
 
 import { AI_UNIT_COST_CENTS } from "../billing/costs";
+import { VOICEMAIL_INTAKE_MODEL } from "../calls/voicemail-intake";
 import { VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL, VOICEMAIL_TRANSCRIPT_MODEL } from "../calls/voicemail-transcript";
+import { DEFAULT_AI_SETTINGS } from "./settings";
+import { AI_USAGE_FEATURES } from "./usage";
 import { SUGGEST_REPLY_MODEL } from "../messaging/reply-suggestions";
 import { ENRICHMENT_MODEL } from "../tasks/enrichment";
 
@@ -47,6 +50,7 @@ describe("every AI feature is publicly disclosed", () => {
       VOICEMAIL_TRANSCRIPT_MODEL,
       VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL,
     ]);
+    expect(models.get("voicemail_intake")).toEqual([VOICEMAIL_INTAKE_MODEL]);
   });
 
   it("says what each feature sends, in words a customer can act on", () => {
@@ -71,6 +75,27 @@ describe("every AI feature is publicly disclosed", () => {
     const byKey = new Map(AI_DISCLOSURES.map((row) => [row.key, row]));
     expect(byKey.get("enrich")?.defaultOn).toBe(true);
     expect(byKey.get("voicemail_transcript")?.defaultOn).toBe(true);
-    expect(byKey.get("suggest_reply")?.defaultOn).toBe(false);
+    // Corrected with the disclosure itself (#367): `suggest_replies` has
+    // defaulted to true since 20260724090000, and this line asserted the
+    // opposite — the hand-written half of this file agreeing with the
+    // hand-written page, which is how #389 went unnoticed the first time.
+    expect(byKey.get("suggest_reply")?.defaultOn).toBe(true);
+    // #367/D89: the only one that is off until a business asks for it, because
+    // it is the only one that changes what a stranger hears.
+    expect(byKey.get("voicemail_intake")?.defaultOn).toBe(false);
+  });
+
+  it("derives default-on from the settings the gate actually reads", () => {
+    // The assertions above name each feature by hand, which is how the #389
+    // drift happened in the first place. This one cannot drift: it asks each
+    // spec's own `enabled` predicate what DEFAULT_AI_SETTINGS answers, so a
+    // default flipped in the code makes the public page's claim fail here
+    // rather than quietly become untrue.
+    const byKey = new Map(AI_DISCLOSURES.map((row) => [row.key, row]));
+    for (const spec of AI_USAGE_FEATURES) {
+      expect(byKey.get(spec.key)?.defaultOn, `${spec.key} defaultOn`).toBe(
+        spec.enabled(DEFAULT_AI_SETTINGS),
+      );
+    }
   });
 });

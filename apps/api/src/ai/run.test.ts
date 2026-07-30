@@ -27,6 +27,7 @@ const SETTINGS = {
   suggest_replies: true,
   business_description: null,
   transcribe_voicemail: true,
+  voicemail_intake: true,
 };
 
 /** A Supabase double: only the reservation RPC and the settings read matter. */
