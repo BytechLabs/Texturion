@@ -15,6 +15,7 @@
  */
 import { Hono } from "hono";
 
+import { alarmOnBulkContactAccess } from "../audit/bulk-contact-alarm";
 import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
@@ -69,6 +70,21 @@ exportsRoutes.post("/exports", requireCapability("contacts.bulk"), async (c) => 
     targetType: "data_export",
     targetId: result.export_id,
     after: { scope: "workspace" },
+  });
+
+  // #497: the LOUDER of the two export paths had only the quiet half. A member
+  // downloading a filtered contact CSV emails the owner within the hour (#345);
+  // an admin requesting everything the business holds — every contact, message
+  // and call — wrote a log row and nothing else. That is the departing-employee
+  // signature #231 named, on the path that carries more.
+  //
+  // No count: this is built asynchronously and "everything" is not a quantity
+  // the owner needs told. Never fires for the owner's own export.
+  alarmOnBulkContactAccess(c, getEnv(c.env), db, {
+    companyId,
+    actorUserId: c.get("userId"),
+    event: "workspace_exported",
+    count: 0,
   });
 
   return c.json({ export_id: result.export_id, already_building: false }, 202);

@@ -146,6 +146,52 @@ describe("who gets told", () => {
     expect(w.emails).toHaveLength(1);
   });
 
+  it("#497: a full workspace export always tells the owner, count or not", async () => {
+    // The louder of the two export paths had only the quiet half: a member
+    // downloading a filtered CSV emailed the owner, while an admin requesting
+    // EVERYTHING the business holds wrote a log row and nothing else.
+    //
+    // count: 0 on purpose — the export is built asynchronously and has no row
+    // count at request time. The threshold is about telling a lookup from a
+    // theft, and a workspace export is never a lookup.
+    const w = world();
+    stubFetch(...w.routes);
+    const c = ctx();
+
+    alarmOnBulkContactAccess(c, env, getDb(env), {
+      companyId: COMPANY_ID,
+      actorUserId: MEMBER_ID,
+      event: "workspace_exported",
+      count: 0,
+    });
+    await c.settled();
+
+    expect(w.emails).toHaveLength(1);
+    const mail = w.emails[0] as { subject: string; text: string };
+    expect(mail.subject).toContain("full export");
+    // Says what happened, never how much or which customers.
+    expect(mail.text).toContain("full export of this workspace");
+    expect(mail.text).not.toContain("0 contacts");
+  });
+
+  it("#497: still says nothing when the owner exports the workspace themselves", async () => {
+    // The discipline that keeps the alarm worth reading: an alert that mostly
+    // reports the owner to themselves is one they filter.
+    const w = world();
+    stubFetch(...w.routes);
+    const c = ctx();
+
+    alarmOnBulkContactAccess(c, env, getDb(env), {
+      companyId: COMPANY_ID,
+      actorUserId: OWNER_ID,
+      event: "workspace_exported",
+      count: 0,
+    });
+    await c.settled();
+
+    expect(w.emails).toHaveLength(0);
+  });
+
   it("names a bulk delete as a delete", async () => {
     // Deleting the list and downloading it are different events with the same
     // signature, and an owner reading the subject line needs to know which.

@@ -1,5 +1,5 @@
 /**
- * #345 / #231 — tell the owner when somebody takes the contact list.
+ * #345 / #231 / #497 — tell the owner when somebody takes the customer data.
  *
  * #231 named the reason plainly: *"A contact export or mass delete is the
  * departing-employee signature. Log it, and notify the owner when it happens."*
@@ -36,14 +36,19 @@ import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 
 /** What happened to the contacts, in the words the email uses. */
-export type BulkContactEvent = "exported" | "bulk_deleted";
+export type BulkContactEvent = "exported" | "bulk_deleted" | "workspace_exported";
 
 export interface BulkContactAlarm {
   companyId: string;
   /** Who did it. Compared against the owner, and named in the email. */
   actorUserId: string;
   event: BulkContactEvent;
-  /** How many contact rows were involved. */
+  /**
+   * How many contact rows were involved. Ignored for `workspace_exported`,
+   * which is built asynchronously and has no count at request time — and does
+   * not need one, because "everything the business holds" is not a quantity
+   * anybody needs told.
+   */
   count: number;
 }
 
@@ -90,7 +95,16 @@ async function deliver(
   alarm: BulkContactAlarm,
 ): Promise<void> {
   try {
-    if (alarm.count < BULK_CONTACT_ALARM_MIN_ROWS) return;
+    // #497: the threshold is about telling a lookup from a theft, and a
+    // WORKSPACE export is never a lookup — it is every contact, message and
+    // call the business holds, by definition. Gating it on a contact count it
+    // does not have would silence the loudest signal in the product.
+    if (
+      alarm.event !== "workspace_exported" &&
+      alarm.count < BULK_CONTACT_ALARM_MIN_ROWS
+    ) {
+      return;
+    }
 
     const { data: companyRows, error: companyError } = await db
       .from("companies")
@@ -119,9 +133,11 @@ async function deliver(
     const actor = actorResult.data?.user?.email ?? alarm.actorUserId;
 
     const what =
-      alarm.event === "exported"
-        ? `downloaded ${alarm.count} contacts`
-        : `deleted ${alarm.count} contacts`;
+      alarm.event === "workspace_exported"
+        ? "requested a full export of this workspace"
+        : alarm.event === "exported"
+          ? `downloaded ${alarm.count} contacts`
+          : `deleted ${alarm.count} contacts`;
     const text =
       `${actor} just ${what} in ${company.name}.\n\n` +
       `If that was expected, nothing needs doing. If it was not, the full ` +
@@ -132,7 +148,10 @@ async function deliver(
 
     await sendEmail(env, {
       to: [ownerEmail],
-      subject: `${actor} ${alarm.event === "exported" ? "exported" : "deleted"} ${alarm.count} contacts`,
+      subject:
+        alarm.event === "workspace_exported"
+          ? `${actor} requested a full export of ${company.name}`
+          : `${actor} ${alarm.event === "exported" ? "exported" : "deleted"} ${alarm.count} contacts`,
       text,
       html: renderEmailHtml(text),
     });
