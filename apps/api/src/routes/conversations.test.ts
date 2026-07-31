@@ -115,6 +115,10 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       p_pinned: null,
       // #106: unrestricted callers pass null (no deny filter).
       p_hidden_number_ids: null,
+      // #293: the ordinary inbox does not show what this member deferred, and
+      // it says so on EVERY call rather than relying on the RPC's default —
+      // one explicit value beats two places that have to agree.
+      p_snoozed: "exclude",
     });
   });
 
@@ -164,6 +168,54 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       env,
       await auth.token(),
       "/v1/conversations?pinned=sometimes",
+      { companyId: COMPANY_ID },
+    );
+    expect(bad.status).toBe(422);
+  });
+
+  it("#293: the list defaults to hiding deferrals; ?snoozed= opts in or out", async () => {
+    const sb = memberStub();
+    sb.on("POST", "/rest/v1/rpc/api_list_conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    // A client that asks for nothing gets the ordinary inbox — minus what it
+    // deferred. This is the assertion that "snooze" means something to a
+    // caller written before #293 existed.
+    const plain = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/conversations",
+      { companyId: COMPANY_ID },
+    );
+    expect(plain.status).toBe(200);
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0].body,
+    ).toMatchObject({ p_snoozed: "exclude" });
+
+    for (const [value, expected] of [
+      ["only", "only"], // the "what did I defer" view
+      ["all", "all"], // deliberately opting out of the filter
+    ] as const) {
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        `/v1/conversations?snoozed=${value}`,
+        { companyId: COMPANY_ID },
+      );
+      expect(res.status).toBe(200);
+      const calls = sb.find("POST", "/rest/v1/rpc/api_list_conversations");
+      expect(calls[calls.length - 1].body).toMatchObject({
+        p_snoozed: expected,
+      });
+    }
+
+    const bad = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/conversations?snoozed=later",
       { companyId: COMPANY_ID },
     );
     expect(bad.status).toBe(422);
@@ -1448,5 +1500,153 @@ describe("POST /v1/conversations/bulk (#275)", () => {
     // function as the literal characters 5, 0, \, % — matching a contact called
     // "50%" rather than every contact starting with "50".
     expect(calls[0].p_q).toBe("50\\%");
+  });
+});
+
+describe("#293 snooze routes", () => {
+  // `found: false` is the other-company case. It has to be decided here rather
+  // than overridden per-test: responders run in registration order, so a later
+  // `on()` for the same path never wins.
+  function snoozeStub(found = true) {
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/conversations", () =>
+      found ? [conversationRow()] : [],
+    );
+    const writes: { method: string; body: unknown }[] = [];
+    sb.on("POST", "/rest/v1/conversation_snoozes", (req) => {
+      writes.push({ method: "POST", body: req.body });
+      return new Response(null, { status: 201 });
+    });
+    sb.on("DELETE", "/rest/v1/conversation_snoozes", (req) => {
+      writes.push({ method: "DELETE", body: req.url });
+      return new Response(null, { status: 204 });
+    });
+    return { sb, writes };
+  }
+
+  const soon = () => new Date(Date.now() + 86_400_000).toISOString();
+
+  it("defers the thread for the caller, with the note they left", async () => {
+    const { sb, writes } = snoozeStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const until = soon();
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/snooze`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { until, note: "waiting on the supplier" },
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(writes).toHaveLength(1);
+    expect(writes[0].body).toMatchObject({
+      company_id: COMPANY_ID,
+      conversation_id: CONV_ID,
+      // The deferral is keyed to the PERSON, never the workspace — a colleague
+      // must still see the thread.
+      user_id: auth.subject,
+      until: new Date(until).toISOString(),
+      note: "waiting on the supplier",
+    });
+  });
+
+  it("refuses a return time in the past rather than accepting a no-op", async () => {
+    // Accepting it would hide the thread for zero seconds and then simply not.
+    // That is indistinguishable from a broken feature, so it is a 422.
+    const { sb, writes } = snoozeStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/snooze`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { until: new Date(Date.now() - 60_000).toISOString() },
+      },
+    );
+    expect(res.status).toBe(422);
+    expect(writes).toHaveLength(0);
+  });
+
+  it("refuses a return time past the cap, and a note past the column check", async () => {
+    const { sb, writes } = snoozeStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const tooFar = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/snooze`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: {
+          until: new Date(Date.now() + 400 * 86_400_000).toISOString(),
+        },
+      },
+    );
+    expect(tooFar.status).toBe(422);
+
+    // 120 chars is the CHECK on the column. Catching it here turns a 500 from
+    // Postgres into the ordinary validation envelope every client handles.
+    const tooLong = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/snooze`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { until: soon(), note: "x".repeat(121) },
+      },
+    );
+    expect(tooLong.status).toBe(422);
+    expect(writes).toHaveLength(0);
+  });
+
+  it("brings it back in one tap, idempotently", async () => {
+    const { sb, writes } = snoozeStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/snooze`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(204);
+    expect(writes[0].method).toBe("DELETE");
+    // Scoped to the caller: un-snoozing must not clear a colleague's deferral.
+    expect(String(writes[0].body)).toContain(`user_id=eq.${auth.subject}`);
+  });
+
+  it("404s on another company's conversation before writing anything", async () => {
+    const { sb, writes } = snoozeStub(false);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    for (const method of ["POST", "DELETE"] as const) {
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        `/v1/conversations/${CONV_ID}/snooze`,
+        {
+          method,
+          companyId: COMPANY_ID,
+          ...(method === "POST" ? { body: { until: soon() } } : {}),
+        },
+      );
+      expect(res.status).toBe(404);
+    }
+    expect(writes).toHaveLength(0);
   });
 });

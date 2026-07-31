@@ -270,6 +270,95 @@ begin
 end $$;
 
 -- ===========================================================================
+-- SN-9. THE DEFAULT LIST HIDES WHAT I DEFERRED — AND ONLY FROM ME.
+--
+-- The schema is only half the feature. If `api_list_conversations` did not
+-- default to excluding deferrals, every existing caller would keep showing
+-- them and the snooze would be a row in a table that changes nothing. This is
+-- the assertion that the DEFAULT — not an opt-in parameter — is exclusion.
+--
+-- State on arrival here: one deferral, member `a` on conversation `e1`,
+-- returning in three days (set in SN-4, survived SN-5 and SN-6).
+-- ===========================================================================
+do $$
+declare
+  mine   int;
+  theirs int;
+  deferred jsonb;
+begin
+  select count(*) into mine from public.api_list_conversations(
+    'da000000-0000-4000-8000-0000000000c1'::uuid,
+    'da000000-0000-4000-8000-00000000000a'::uuid, 50);
+  if mine <> 0 then
+    raise exception
+      'SN-9 FAILED: the default list still shows the % thread(s) I deferred. '
+      'An opt-in exclusion is not a snooze.', mine;
+  end if;
+
+  select count(*) into theirs from public.api_list_conversations(
+    'da000000-0000-4000-8000-0000000000c1'::uuid,
+    'da000000-0000-4000-8000-00000000000b'::uuid, 50);
+  if theirs <> 1 then
+    raise exception
+      'SN-9 FAILED: my deferral hid the thread from a colleague (% rows). The '
+      'conversation is still the crew''s.', theirs;
+  end if;
+
+  -- …and 'only' is the "what did I defer" view, carrying the return time and
+  -- the reason, so the list can say WHEN it comes back without a second read.
+  select * into deferred from public.api_list_conversations(
+    'da000000-0000-4000-8000-0000000000c1'::uuid,
+    'da000000-0000-4000-8000-00000000000a'::uuid, 50,
+    p_snoozed => 'only');
+  if deferred is null
+     or (deferred->>'id') <> 'da000000-0000-4000-8000-0000000000e1' then
+    raise exception 'SN-9 FAILED: the snoozed view does not list the deferral';
+  end if;
+  if (deferred->>'snoozed_until') is null then
+    raise exception
+      'SN-9 FAILED: the snoozed view has no return time. "Hidden with no way '
+      'to see what you deferred is worse than the problem."';
+  end if;
+
+  -- 'all' opts out of the filter entirely — the pre-#293 behaviour, still
+  -- reachable for anything that genuinely wants every thread.
+  select count(*) into mine from public.api_list_conversations(
+    'da000000-0000-4000-8000-0000000000c1'::uuid,
+    'da000000-0000-4000-8000-00000000000a'::uuid, 50,
+    p_snoozed => 'all');
+  if mine <> 1 then
+    raise exception 'SN-9 FAILED: p_snoozed => ''all'' dropped a thread anyway';
+  end if;
+
+  raise notice 'SN-9 PASSED: hidden from me by default, never from the crew';
+end $$;
+
+-- ===========================================================================
+-- SN-10. An ELAPSED deferral is back in the default list on its own.
+--
+-- Same claim as SN-2, made where it is actually observed. Nothing runs to put
+-- the thread back: the join simply stops matching, so there is no sweep to be
+-- late and no window in which a returned thread is still invisible.
+-- ===========================================================================
+do $$
+declare n int;
+begin
+  update public.conversation_snoozes
+    set until = now() - interval '1 second'
+    where user_id = 'da000000-0000-4000-8000-00000000000a'::uuid;
+
+  select count(*) into n from public.api_list_conversations(
+    'da000000-0000-4000-8000-0000000000c1'::uuid,
+    'da000000-0000-4000-8000-00000000000a'::uuid, 50);
+  if n <> 1 then
+    raise exception
+      'SN-10 FAILED: a thread whose snooze has elapsed is still hidden. It '
+      'comes back by itself or the feature loses jobs.';
+  end if;
+  raise notice 'SN-10 PASSED: it returns on its own, with nothing to run late';
+end $$;
+
+-- ===========================================================================
 -- SN-8. The read functions are service-role only, like every other api_*.
 -- ===========================================================================
 do $$

@@ -22,6 +22,11 @@
  *   POST   /v1/conversations/:id/read        upsert conversation_reads.
  *   DELETE /v1/conversations/:id/read        drop the caller's watermark row
  *          (mark unread — the conversation counts as unread again everywhere).
+ *   POST   /v1/conversations/:id/snooze      { until, note? } — defer the
+ *          thread out of THIS member's default list until `until` (#293). The
+ *          list hides deferred threads unless asked (`?snoozed=only|all`), and
+ *          an inbound message clears every member's deferral in the database.
+ *   DELETE /v1/conversations/:id/snooze      bring it back now, idempotent.
  *   GET    /v1/conversations/:id/events      audit timeline, cursor list.
  *   POST   /v1/conversations/:id/tags        { tag_id } | { name }
  *          (create-on-attach).
@@ -127,6 +132,11 @@ const listQuerySchema = z.object({
   // #13 pinned-first: 'only' fetches just pinned threads (pinned_at desc, no
   // cursor); 'exclude' is the main keyset list minus pins; absent = all.
   pinned: z.enum(["only", "exclude"]).optional(),
+  // #293 deferral. Absent means 'exclude' — the ordinary inbox does not show
+  // what the caller deferred. That default is the whole point of the feature,
+  // so it lives in the RPC rather than here; this parameter only exists so a
+  // client can ASK for the snoozed view ('only') or opt out entirely ('all').
+  snoozed: z.enum(["only", "exclude", "all"]).optional(),
 });
 
 const patchSchema = z
@@ -216,6 +226,7 @@ conversationsRoutes.get("/conversations", requireRole("member"), async (c) => {
     unread: c.req.query("unread"),
     q: c.req.query("q"),
     pinned: c.req.query("pinned"),
+    snoozed: c.req.query("snoozed"),
   });
   const limit = parseLimit(c, 25, 100);
   const cursor = parseCursor(c);
@@ -243,6 +254,7 @@ conversationsRoutes.get("/conversations", requireRole("member"), async (c) => {
       p_cursor_id: cursor?.id ?? null,
       p_pinned: query.pinned ?? null,
       p_hidden_number_ids: access.hiddenNumberIds,
+      p_snoozed: query.snoozed ?? "exclude",
     }),
     "conversations list",
   );
@@ -1268,6 +1280,123 @@ conversationsRoutes.delete(
         .eq("conversation_id", id)
         .eq("user_id", c.get("userId")),
       "conversation_reads delete",
+    );
+    return c.body(null, 204);
+  },
+);
+
+/**
+ * #293 — deferral. "Needs attention, but on Thursday."
+ *
+ * `until` arrives as an absolute instant, not a preset name, and that is
+ * deliberate: #292 says "tomorrow morning" means the USER'S morning, and the
+ * device already knows what that is. Resolving presets on the client (from the
+ * shared table every client compiles) and sending the instant means the server
+ * never has to guess a timezone it was not told — and a crew member travelling
+ * gets the morning they are actually in.
+ *
+ * No conversation_event is written. The events timeline is the crew's shared
+ * audit of what happened TO the thread; a deferral is one member's decision
+ * about their own queue, and the thread is unchanged for everyone else. Writing
+ * it there would both contradict "the deferral is mine" and fill a shared
+ * timeline with somebody else's calendar.
+ */
+const SNOOZE_MAX_DAYS = 365;
+
+const snoozeSchema = z.object({
+  until: z.iso.datetime({ offset: true }),
+  /** Why it was deferred, for the list that shows what you deferred. */
+  note: z.string().trim().min(1).max(120).optional(),
+});
+
+conversationsRoutes.post(
+  "/conversations/:id/snooze",
+  requireRole("member"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const companyId = c.get("companyId");
+    const body = await parseJsonBody(c, snoozeSchema);
+
+    const until = new Date(body.until);
+    const now = Date.now();
+    if (until.getTime() <= now) {
+      // A snooze into the past is invisible for zero seconds and then simply
+      // gone — silently accepting it would look exactly like a broken feature.
+      throw new ApiError(
+        "validation_failed",
+        "Pick a time in the future to bring this back.",
+      );
+    }
+    if (until.getTime() - now > SNOOZE_MAX_DAYS * 86_400_000) {
+      // Not a safety rail so much as an honesty one: a thread deferred past a
+      // year is one nobody is coming back to, and saying so beats pretending.
+      throw new ApiError(
+        "validation_failed",
+        `Snoozing is limited to ${SNOOZE_MAX_DAYS} days out.`,
+      );
+    }
+
+    const db = getDb(getEnv(c.env));
+    const conversation = await findConversation(db, companyId, id);
+    if (!conversation) {
+      return errorResponse(c, "not_found", "No such conversation.");
+    }
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: conversation.phone_number_id as string | null,
+      need: "read",
+    });
+
+    const row = {
+      company_id: companyId,
+      conversation_id: id,
+      user_id: c.get("userId"),
+      until: until.toISOString(),
+      note: body.note ?? null,
+    };
+    // Upsert, because "actually, make it Friday" is the same act as snoozing —
+    // a second POST re-times the deferral rather than failing on the key.
+    expectOk(
+      await db
+        .from("conversation_snoozes")
+        .upsert(row, { onConflict: "conversation_id,user_id" }),
+      "conversation snooze upsert",
+    );
+    return c.json(row);
+  },
+);
+
+conversationsRoutes.delete(
+  "/conversations/:id/snooze",
+  requireRole("member"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+
+    const conversation = await findConversation(db, companyId, id);
+    if (!conversation) {
+      return errorResponse(c, "not_found", "No such conversation.");
+    }
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: conversation.phone_number_id as string | null,
+      need: "read",
+    });
+
+    // Idempotent: un-snoozing something already back is a no-op, which is what
+    // "one tap to bring it back" needs from a client that may have stale state.
+    expectOk(
+      await db
+        .from("conversation_snoozes")
+        .delete()
+        .eq("conversation_id", id)
+        .eq("user_id", c.get("userId")),
+      "conversation snooze delete",
     );
     return c.body(null, 204);
   },
