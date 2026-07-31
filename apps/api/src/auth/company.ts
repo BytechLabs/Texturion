@@ -37,6 +37,14 @@ const authorizeSchema = z.object({
       required: z.boolean(),
       grace_until: z.string().nullable(),
       enforcing: z.boolean(),
+      /**
+       * #496: whether THIS USER holds a verified factor. Defaulted rather than
+       * required for the same expand/contract reason as the object around it —
+       * a Worker that deploys ahead of the migration reads "not enrolled" and
+       * behaves exactly as it did before, instead of 500ing authorization for
+       * every request in the window.
+       */
+      enrolled: z.boolean().catch(false),
     })
     .nullable()
     .catch(null),
@@ -199,6 +207,37 @@ export function companyContext() {
         c,
         "mfa_required",
         "This workspace requires two-factor authentication. Set it up to carry on.",
+      );
+    }
+
+    // #496 — "I am able to login without any 2fa codes even though 2fa is
+    // enabled." Correct, and the gap was this: enrolment happens against
+    // GoTrue, which signs a password login in at aal1 and leaves demanding the
+    // second factor to the application. #314 only demanded it when a WORKSPACE
+    // policy said so, so a person who turned 2FA on for themselves got a factor
+    // and no consequence — the control was real and the switch that armed it
+    // belonged to somebody else.
+    //
+    // Enrolling IS the demand. No policy, no grace window, no owner involved:
+    // that is what everyone means by "two-factor is on", and it is the only
+    // reading under which the toggle is not decorative.
+    //
+    // Its own code because the remedy differs and all three clients route on
+    // it. `mfa_required` means "you have no factor, go and enrol"; this means
+    // "you have one, enter a code" — sending somebody already enrolled to the
+    // enrolment screen is a dead end that invites them to add a SECOND factor
+    // to fix being asked for the first.
+    //
+    // Same placement as the workspace gate, and for the same two reasons: after
+    // membership, so a non-member cannot mine whether an account has MFA; and
+    // after the company-exempt early return, so every route that gets somebody
+    // OUT of this state (recovery, the factor list, signing a lost device out)
+    // stays reachable at aal1.
+    if (authorized.mfa?.enrolled && c.get("aal") !== "aal2") {
+      return errorResponse(
+        c,
+        "mfa_challenge_required",
+        "Enter the code from your authenticator app to continue.",
       );
     }
 

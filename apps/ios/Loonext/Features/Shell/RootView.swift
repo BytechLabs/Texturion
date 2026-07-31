@@ -26,6 +26,17 @@ struct RootView: View {
             case .signedOut:
                 AuthFlow(authManager: graph.authManager)
 
+            // #496/#314: the two-factor wall. The whole screen rather than an
+            // overlay on the shell — there is no shell yet, because every
+            // company-scoped read behind it is being refused.
+            case .needsMfa(let enrolmentRequired):
+                MfaGateView(
+                    graph: graph,
+                    enrolmentRequired: enrolmentRequired,
+                    onSatisfied: model.retry,
+                    onSignOut: model.signOut
+                )
+
             case .needsWorkspace:
                 ExternalStepView(
                     headline: "Let's set up your workspace",

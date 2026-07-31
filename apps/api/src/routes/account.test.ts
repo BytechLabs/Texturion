@@ -52,6 +52,8 @@ function world(
     deleteResult?: Record<string, unknown>;
     /** #371: what the auth identity's address is when the receipt is built. */
     email?: string;
+    /** #496: whether this user holds a verified second factor. */
+    enrolled?: boolean;
   } = {},
 ): SupabaseStub {
   const sb = supabaseStub(env);
@@ -66,6 +68,10 @@ function world(
   sb.on("GET", "/rest/v1/company_members", () => [
     { id: MEMBER_ROW, company_id: COMPANY_ID },
   ]);
+  // #496: the step-up check. Not enrolled by default — the overwhelming
+  // majority of accounts — so every existing vector still exercises the path
+  // it was written for.
+  sb.on("POST", "/rest/v1/rpc/user_has_verified_mfa", () => options.enrolled ?? false);
   sb.on("POST", "/rest/v1/rpc/offboard_member", () => ({
     outcome: "deactivated",
     user_id: auth.subject,
@@ -163,6 +169,41 @@ describe("GET /v1/account/deletion-preview", () => {
 });
 
 describe("DELETE /v1/account", () => {
+  // #496 — "Audit all auth endpoints, destructive actions, etc."
+  //
+  // This is the one company-EXEMPT route that is both irreversible and not an
+  // exit from an MFA state, so the company middleware's gate never sees it and
+  // it has to ask for itself.
+  it("refuses an enrolled user who has not presented their code", async () => {
+    const sb = world({ enrolled: true });
+    stubFetch(jwksRoute(auth), sb.route, mailbox(sb).route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/account", {
+      method: "DELETE",
+    });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: { code: "mfa_challenge_required", message: expect.any(String) },
+    });
+    // And nothing happened. A destructive route that refuses AFTER acting is
+    // not a gate, and offboarding is not undoable.
+    expect(sb.find("POST", "/rest/v1/rpc/offboard_member")).toHaveLength(0);
+  });
+
+  it("lets an enrolled user through once they have presented it", async () => {
+    const sb = world({ enrolled: true });
+    stubFetch(jwksRoute(auth), sb.route, mailbox(sb).route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token({ aal: "aal2" }),
+      "/v1/account",
+      { method: "DELETE" },
+    );
+    expect(res.status).toBe(200);
+  });
+
   it("offboards every workspace, then severs the identity", async () => {
     const sb = world();
     stubFetch(jwksRoute(auth), sb.route, mailbox(sb).route);

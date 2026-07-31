@@ -26,6 +26,7 @@ import { Hono } from "hono";
 import { recordAudit } from "../audit/log";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
+import { requireStepUpForEnrolled } from "../auth/step-up";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
 import {
@@ -69,6 +70,11 @@ accountRoutes.get("/account/deletion-preview", async (c) => {
 });
 
 accountRoutes.delete("/account", async (c) => {
+  // #496: the one company-exempt route that is both irreversible and NOT an
+  // exit from an MFA state, so it asks for the factor itself. See step-up.ts.
+  const stepUp = await requireStepUpForEnrolled(c);
+  if (stepUp) return stepUp;
+
   const userId = c.get("userId");
   const env = getEnv(c.env);
   const db = getDb(env);

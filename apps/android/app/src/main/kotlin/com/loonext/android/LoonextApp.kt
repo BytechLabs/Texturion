@@ -17,6 +17,8 @@ import com.loonext.android.core.diag.CrashDiagnostics
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.realtime.RealtimeClient
 import com.loonext.android.core.update.UpdateRepository
+import com.loonext.android.features.settings.SettingsRepository
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +27,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
-import java.util.concurrent.TimeUnit
 
 /**
  * Hand-rolled object graph — the app is one process with one composition
@@ -104,6 +105,9 @@ class AppGraph(private val app: Application) {
         com.loonext.android.features.notifications.NotificationsReadState()
 
     val meRepo = MeRepository(api)
+    // #496: the boot path asks whether this session has satisfied two-factor,
+    // so the repository that answers cannot live only inside the settings tree.
+    val settingsRepo = SettingsRepository(api)
     val forYouRepo = ForYouRepository(api)
     val inboxRepo = InboxRepository(api)
     val tasksRepo = TasksRepository(api)

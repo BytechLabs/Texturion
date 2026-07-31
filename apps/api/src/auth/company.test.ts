@@ -160,6 +160,101 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
     expect(res.status).toBe(200);
   });
 
+  // #496 — "I am able to login without any 2fa codes even though 2fa is
+  // enabled." Enrolling is itself the demand: no workspace policy, no grace
+  // window, no owner involved.
+  it("403s a user who HOLDS a factor but presents an aal1 token", async () => {
+    stubFetch(
+      authorizeRoute(env, { id: MEMBER_ID, role: "member" }, {
+        // The workspace has NO policy at all — this is the case that was open.
+        mfa: {
+          required: false,
+          grace_until: null,
+          enforcing: false,
+          enrolled: true,
+        },
+      }),
+    );
+    const res = await request({ "X-Company-Id": COMPANY_ID });
+    expect(res.status).toBe(403);
+    // Not `mfa_required`: that code sends somebody to ENROL, and this person
+    // already has a factor. Offering them a second one is a dead end.
+    expect(await res.json()).toEqual({
+      error: { code: "mfa_challenge_required", message: expect.any(String) },
+    });
+  });
+
+  it("lets an enrolled user through once they have presented the code", async () => {
+    stubFetch(
+      authorizeRoute(env, { id: MEMBER_ID, role: "member" }, {
+        mfa: {
+          required: false,
+          grace_until: null,
+          enforcing: false,
+          enrolled: true,
+        },
+      }),
+    );
+    const res = await aal2App.request(
+      "/v1/probe",
+      { headers: { "X-Company-Id": COMPANY_ID } },
+      env,
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("does not demand a code from somebody who never finished enrolling", async () => {
+    // An abandoned enrolment leaves an `unverified` factor row. The SQL side
+    // filters those out; this pins that the middleware never invents a demand
+    // the database did not report.
+    stubFetch(
+      authorizeRoute(env, { id: MEMBER_ID, role: "member" }, {
+        mfa: {
+          required: false,
+          grace_until: null,
+          enforcing: false,
+          enrolled: false,
+        },
+      }),
+    );
+    const res = await request({ "X-Company-Id": COMPANY_ID });
+    expect(res.status).toBe(200);
+  });
+
+  it("lets an enrolled user reach the routes that get them OUT of it", async () => {
+    // The lockout risk, and the reason the gate sits after the company-exempt
+    // early return: somebody whose authenticator is on a phone at the bottom of
+    // a lake needs /v1/mfa/recover, and it must not itself require the code
+    // they cannot produce.
+    stubFetch(
+      authorizeRoute(env, null, {
+        mfa: {
+          required: false,
+          grace_until: null,
+          enforcing: false,
+          enrolled: true,
+        },
+      }),
+    );
+    for (const route of ["/v1/me", "/v1/mfa", "/v1/sessions"]) {
+      const res = await app.request(route, {}, env);
+      expect(res.status, route).not.toBe(403);
+    }
+  });
+
+  it("reads a missing enrolled field as not enrolled, for the deploy window", async () => {
+    // Expand/contract again: a Worker carrying this gate can be live before the
+    // migration that reports the field. Reading absence as "enrolled" would
+    // lock every user out of the product for the length of that window.
+    stubFetch(
+      authorizeRoute(env, { id: MEMBER_ID, role: "member" }, {
+        mfa: { required: false, grace_until: null, enforcing: false },
+      }),
+    );
+    const res = await request({ "X-Company-Id": COMPANY_ID });
+    expect(res.status).toBe(200);
+  });
+
   it("reads a missing mfa field as no policy, so a Worker ahead of the migration still serves", async () => {
     // Expand/contract: the Worker can deploy before the migration lands. For
     // an auth middleware, 500ing every request in that window is the product

@@ -11,6 +11,7 @@ import {
   LastUsedBadge,
   useLastUsedMethod,
 } from "@/components/auth/last-used-badge";
+import { MfaChallenge } from "@/components/auth/mfa-challenge";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { rememberSignInMethod } from "@/lib/auth/last-used";
 import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
@@ -27,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { publicEnv } from "@/env";
 import { authErrorMessage } from "@/lib/auth/messages";
+import { needsStepUp } from "@/lib/auth/mfa-step-up";
 import { safeNextPath } from "@/lib/auth/redirects";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
@@ -41,6 +43,9 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [serverError, setServerError] = useState<string | null>(null);
+  // #496: the password was right and the account has a factor, so the screen
+  // becomes the code entry rather than navigating.
+  const [challenge, setChallenge] = useState(false);
 
   // Supabase's captcha setting gates signInWithPassword too, so login carries
   // the same optional Turnstile token as signup (SPEC §10 front door).
@@ -64,9 +69,18 @@ function LoginForm() {
     defaultValues: { email: "", password: "" },
   });
 
+  function landAfterSignIn() {
+    // Remembered only on success, so the hint always names something that
+    // actually worked on this device.
+    rememberSignInMethod("password");
+    router.replace(safeNextPath(searchParams.get("next")));
+    router.refresh();
+  }
+
   async function onSubmit(values: FormValues) {
     setServerError(null);
-    const { error } = await getSupabaseBrowser().auth.signInWithPassword({
+    const supabase = getSupabaseBrowser();
+    const { error } = await supabase.auth.signInWithPassword({
       email: values.email,
       password: values.password,
       options: { captchaToken: captchaToken ?? undefined },
@@ -78,11 +92,44 @@ function LoginForm() {
       setServerError(authErrorMessage(error));
       return;
     }
-    // Remembered only on success, so the hint always names something that
-    // actually worked on this device.
-    rememberSignInMethod("password");
-    router.replace(safeNextPath(searchParams.get("next")));
-    router.refresh();
+
+    // #496 — "I am able to login without any 2fa codes even though 2fa is
+    // enabled." This is where that was true. `signInWithPassword` succeeds at
+    // `aal1` for an enrolled account too; GoTrue leaves demanding the factor to
+    // us, and nothing here demanded it. `nextLevel` is GoTrue's own answer to
+    // "should this session be aal2?", so it is read rather than re-derived.
+    //
+    // Failing OPEN on an error here is deliberate and safe: the API refuses
+    // every company-scoped route for an aal1 session that holds a factor, so
+    // the worst case is the gate inside the shell asking instead of this
+    // screen. Failing closed would strand somebody on the login page over a
+    // network blip.
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (needsStepUp(aal)) {
+      setChallenge(true);
+      return;
+    }
+    landAfterSignIn();
+  }
+
+  if (challenge) {
+    return (
+      <MfaChallenge
+        onVerified={landAfterSignIn}
+        footer={
+          <button
+            type="button"
+            className="text-muted-foreground underline-offset-4 hover:underline"
+            onClick={() => {
+              void getSupabaseBrowser().auth.signOut();
+              setChallenge(false);
+            }}
+          >
+            Use a different account
+          </button>
+        }
+      />
+    );
   }
 
   return (

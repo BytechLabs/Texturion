@@ -793,6 +793,7 @@ create trigger on_auth_user_created after insert or update on auth.users
 | `not_found` | 404 | — |
 | `conflict` | 409 | Uniqueness/state conflict |
 | `mfa_required` | 403 | #314 — the workspace requires a second factor, the grace window has passed, and this token has none. Its own code, not a `forbidden` with prose, because all three clients ROUTE on it to the enrolment screen |
+| `mfa_challenge_required` | 403 | #496 — this USER holds a verified factor and this token is `aal1`. Enrolling is itself the demand: no workspace policy, no grace window. Distinct from `mfa_required` because the remedy is the opposite — that one says "go and enrol", this says "enter a code" |
 | `rate_limited` | 429 | Per-company or per-IP limit |
 
 - **`POST /v1/messages/send` and `POST /v1/conversations` require an `Idempotency-Key` header** (client UUID). The message row is inserted **before** the Telnyx call; a concurrent/duplicate request returns the existing row (and, on `POST /v1/conversations`, the existing conversation) with `200`.
@@ -888,6 +889,22 @@ shell.
 | `POST /v1/mfa/recovery-codes` | any | #314 — issue ten single-use codes. Plaintext is returned **once** and is never retrievable again. 409 `conflict` before a factor is verified. Bearer-only |
 | `POST /v1/mfa/recover` | any | #314 — `{ code }` burns a code and **removes the factor**; it never elevates the session. 10 wrong tries → 429 `rate_limited` for an hour. Bearer-only |
 | `PUT /v1/company/mfa` | **O** | #314 — `{ required, grace_days? }`. The grace deadline is fixed when it is set and a later save cannot move it. Enforcement answers `mfa_required` (403) on every company-scoped route once it passes |
+
+**#496 — enrolling IS the demand.** A user holding a verified factor must
+present it: `api_authorize_request` reports `mfa.enrolled` and the company
+middleware answers `mfa_challenge_required` (403) on every company-scoped route
+for an `aal1` token. No workspace policy is involved, and there is no grace
+window — a person who turned two-factor on for themselves gets it enforced for
+themselves. The workspace policy above keeps its separate meaning: it makes
+enrolment *mandatory* for a crew, with a window to do it in.
+
+The check sits after membership (so a non-member cannot mine whether an account
+has MFA) and after the company-exempt early return, so every route that gets
+somebody OUT of an MFA state stays reachable at `aal1`. The one exception is
+`DELETE /v1/account`, which is company-exempt but is not an exit and is
+irreversible — it asks for the factor itself. A person who lost their
+authenticator burns a recovery code first, which removes the factor and is the
+loud, audited path.
 | `GET /v1/invites` · `POST /v1/invites` | O/A | Create: `{ email, role }`; seat limit enforced **here and at acceptance** — seat count = active members (`deactivated_at IS NULL`) + pending invites (`accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()`) ≤ plan seats; sends Supabase `inviteUserByEmail` (Resend SMTP) |
 | `DELETE /v1/invites/:id` | O/A | Revoke |
 | `POST /v1/invites/accept` | any | `{ invite_id }` (the id is embedded in the invite email link). Verifies the JWT's verified email equals `invites.email` and the invite is pending/unexpired → creates the `company_members` row **and a `notification_prefs` row (defaults true/true)**; re-checks the seat limit with the same formula (409 `conflict` if full) |

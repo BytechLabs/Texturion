@@ -25,12 +25,24 @@ describe("error codes (SPEC §7)", () => {
       conflict: 409,
       quiet_hours_confirmation_required: 409,
       mfa_required: 403,
+      mfa_challenge_required: 403,
       rate_limited: 429,
       // #283: a subsystem switched off at the runtime kill switch. 503 rather
       // than 403 because it is temporary and nobody's fault — the client says
       // "paused, try shortly", not "you cannot do this".
       service_unavailable: 503,
     });
+  });
+
+  it("keeps the two MFA codes apart, because the remedies are opposite (#496)", () => {
+    // `mfa_required` sends somebody to ENROL; `mfa_challenge_required` asks
+    // somebody already enrolled for a CODE. A client that collapsed them would
+    // offer a second factor to a person who cannot get past their first.
+    expect(ERROR_CODES).toContain("mfa_challenge_required");
+    expect(ERROR_CODE_STATUS.mfa_challenge_required).toBe(
+      ERROR_CODE_STATUS.forbidden,
+    );
+    expect("mfa_challenge_required").not.toBe("mfa_required");
   });
 
   it("gives MFA its own code rather than a 403 with prose (#314)", () => {

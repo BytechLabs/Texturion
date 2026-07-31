@@ -14,6 +14,12 @@ enum RootState {
     /// Owner/admin with subscription_status incomplete — finish checkout on web.
     case needsCheckout(Me, companyId: String)
 
+    /// #496/#314: this session has not satisfied two-factor.
+    /// `enrolmentRequired` tells the gate which question to ask — a code from
+    /// somebody who has a factor, or enrolment first for somebody the WORKSPACE
+    /// is insisting on and who has none.
+    case needsMfa(enrolmentRequired: Bool)
+
     case ready(Me, companyId: String)
 
     case failed(String)
@@ -229,6 +235,22 @@ final class RootViewModel {
                     userId: me.user_id
                 )
             }
+            // #496 — "I am able to login without any 2fa codes even though 2fa
+            // is enabled." Asked POSITIVELY as well as caught below, because
+            // there is a window where the server is not refusing yet: a Worker
+            // deployed ahead of the migration reports no enrolment, and the app
+            // should still ask. GET /v1/mfa is company-exempt, so it answers
+            // even for a session every other route is refusing — which is
+            // exactly the session that needs the answer.
+            let mfa = try? await SettingsRepository(
+                api: graph.api,
+                sessionStore: graph.sessionStore
+            ).mfa()
+            if let mfa, mfa.enrolled, mfa.aal != "aal2" {
+                state = .needsMfa(enrolmentRequired: false)
+                return
+            }
+
             state = .ready(me, companyId: membership.company_id)
 
             // #483: one transient failure of that GET must not cost a whole session
@@ -252,7 +274,20 @@ final class RootViewModel {
                 }
             }
         } catch let error as ApiError {
-            state = error.code == ApiErrorCode.unauthorized ? .signedOut : .failed(error.message)
+            // #314/#496: both are walls with a route out, not failures.
+            // Rendering them as "Couldn't load your workspace." — which is what
+            // happened before, on both phones — is a lockout with no
+            // explanation attached.
+            switch error.code {
+            case ApiErrorCode.unauthorized:
+                state = .signedOut
+            case ApiErrorCode.mfaChallengeRequired:
+                state = .needsMfa(enrolmentRequired: false)
+            case ApiErrorCode.mfaRequired:
+                state = .needsMfa(enrolmentRequired: true)
+            default:
+                state = .failed(error.message)
+            }
         } catch {
             state = .failed("Couldn't load your workspace.")
         }

@@ -79,6 +79,7 @@ import com.loonext.android.features.settings.SettingsHome
 import com.loonext.android.features.settings.SettingsSection
 import com.loonext.android.features.shell.AccountSheet
 import com.loonext.android.features.shell.MainShell
+import com.loonext.android.features.auth.MfaGate
 import com.loonext.android.features.shell.RootState
 import com.loonext.android.features.shell.RootViewModel
 import com.loonext.android.features.shell.ShellContent
@@ -355,6 +356,18 @@ private fun Root(graph: AppGraph, deepLinks: MutableStateFlow<DeepLink?>) {
                 cta = "Finish checkout",
                 url = "https://app.loonext.com/onboarding/plan",
                 onRefresh = root::retry,
+                onSignOut = root::signOut,
+            )
+        }
+
+        // #496/#314: the two-factor wall. Rendered as the whole screen rather
+        // than over the shell — there is no shell yet, because every
+        // company-scoped read behind it is being refused.
+        is RootState.NeedsMfa -> PreShellHost {
+            MfaGate(
+                graph = graph,
+                enrolmentRequired = current.enrolmentRequired,
+                onSatisfied = root::retry,
                 onSignOut = root::signOut,
             )
         }

@@ -76,6 +76,12 @@ export interface TokenOptions {
    * before GoTrue emitted the claim), which the middleware must still admit.
    */
   sessionId?: string | null;
+  /**
+   * #314/#496: the assurance level GoTrue put in the token. Absent mints the
+   * `aal1` shape, which is what a password login actually produces — the
+   * default a step-up test has to be able to express.
+   */
+  aal?: "aal1" | "aal2";
 }
 
 export interface TestAuth {
@@ -123,7 +129,10 @@ export async function createTestAuth(
       const expiresIn = options.expiresIn ?? 300;
       const session =
         options.sessionId === undefined ? sessionId : options.sessionId;
-      return new SignJWT(session === null ? {} : { session_id: session })
+      const claims: Record<string, unknown> =
+        session === null ? {} : { session_id: session };
+      if (options.aal) claims.aal = options.aal;
+      return new SignJWT(claims)
         .setProtectedHeader({ alg: "ES256", kid: options.kid ?? kid })
         .setIssuer(options.issuer ?? issuer)
         .setAudience(options.audience ?? "authenticated")
@@ -239,7 +248,15 @@ export function authorizeRoute(
      * also what a Worker deployed ahead of the migration sees — so the default
      * exercises the tolerant path rather than papering over it.
      */
-    mfa?: { required: boolean; grace_until: string | null; enforcing: boolean };
+    mfa?: {
+      required: boolean;
+      grace_until: string | null;
+      enforcing: boolean;
+      /** #496: whether the USER holds a verified factor, independent of any
+       *  workspace policy. Omitted reads as false, which is what a Worker
+       *  ahead of the migration sees. */
+      enrolled?: boolean;
+    };
   } = {},
 ): FetchRoute {
   const href = `${env.SUPABASE_URL}/rest/v1/rpc/api_authorize_request`;

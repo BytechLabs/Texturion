@@ -247,6 +247,80 @@ begin
 end $$;
 
 -- ===========================================================================
+-- 4b. [#496] Enrolling IS the demand.
+--
+--     "When 2fa is enabled it should be used everywhere??? I am able to login
+--     without any 2fa codes even though 2fa is enabled."
+--
+--     The gap: enrolment happens against GoTrue, which signs a password login
+--     in at aal1 and leaves demanding the factor to the application — and
+--     #314 only demanded it when a WORKSPACE policy said so. Somebody who
+--     turned 2FA on for themselves therefore got a factor and no consequence.
+--
+--     What follows pins the fact the middleware gates on. The MFA Co company
+--     above has a policy; this user's is reported independently of it, which
+--     is the whole point.
+-- ===========================================================================
+do $$
+declare v jsonb;
+begin
+  -- No factor at all.
+  if public.user_has_verified_mfa('af000000-0000-4000-8000-00000000000b') then
+    raise exception 'a user with no factor was reported as enrolled';
+  end if;
+
+  -- Started and abandoned. An `unverified` row must NOT be read as a demand:
+  -- locking somebody out on the strength of a screen they backed out of is a
+  -- lockout with no remedy, because they never got a code or a recovery set.
+  insert into auth.mfa_factors (id, user_id, factor_type, status, created_at, updated_at)
+  values ('af000000-0000-4000-8000-0000000000f1',
+          'af000000-0000-4000-8000-00000000000b', 'totp', 'unverified', now(), now());
+  if public.user_has_verified_mfa('af000000-0000-4000-8000-00000000000b') then
+    raise exception 'an abandoned enrolment was read as a second factor';
+  end if;
+
+  -- Verified: now it counts.
+  update auth.mfa_factors set status = 'verified'
+   where id = 'af000000-0000-4000-8000-0000000000f1';
+  if not public.user_has_verified_mfa('af000000-0000-4000-8000-00000000000b') then
+    raise exception 'a verified factor was not reported';
+  end if;
+
+  -- And it reaches the middleware through the one round trip a request makes.
+  v := public.api_authorize_request(
+    p_user_id    => 'af000000-0000-4000-8000-00000000000b',
+    p_session_id => null,
+    p_company_id => 'af000000-0000-4000-8000-000000000001');
+  if (v #>> '{mfa,enrolled}')::boolean is not true then
+    raise exception 'the authorization call did not carry the enrolment: %', v;
+  end if;
+
+  -- The OTHER user in this fixture has no factor, and the same workspace
+  -- policy. Enrolment is per-person, and reporting it per-workspace would
+  -- demand a code from somebody who has nothing to produce one with.
+  v := public.api_authorize_request(
+    p_user_id    => 'af000000-0000-4000-8000-00000000000a',
+    p_session_id => null,
+    p_company_id => 'af000000-0000-4000-8000-000000000001');
+  if (v #>> '{mfa,enrolled}')::boolean is not false then
+    raise exception 'enrolment leaked from one member to another: %', v;
+  end if;
+
+  -- No company named: the whole posture stays null, so the routes that get
+  -- somebody OUT of an MFA state are reachable without a code. This is the
+  -- anti-lockout property that makes the gate safe to arm at all.
+  v := public.api_authorize_request(
+    p_user_id    => 'af000000-0000-4000-8000-00000000000b',
+    p_session_id => null,
+    p_company_id => null);
+  if v -> 'mfa' <> 'null'::jsonb then
+    raise exception 'a company-exempt call carried an MFA demand: %', v;
+  end if;
+
+  delete from auth.mfa_factors where id = 'af000000-0000-4000-8000-0000000000f1';
+end $$;
+
+-- ===========================================================================
 -- 5. Grants: recovery codes are the bypass path, so nothing here may be
 --    reachable from a browser's anon/authenticated key.
 -- ===========================================================================
@@ -255,7 +329,10 @@ declare fn text;
 begin
   foreach fn in array array[
     'api_mfa_set_recovery_codes', 'api_mfa_consume_recovery_code',
-    'api_mfa_recovery_remaining', 'api_set_company_mfa', 'company_mfa_posture'
+    'api_mfa_recovery_remaining', 'api_set_company_mfa', 'company_mfa_posture',
+    -- #496: it reads auth.mfa_factors, so a browser key that could call it
+    -- would enumerate who in the world has 2FA switched on.
+    'user_has_verified_mfa'
   ] loop
     if exists (
       select 1
@@ -270,6 +347,6 @@ begin
   end loop;
 end $$;
 
-\echo 'mfa.test.sql: recovery codes, lockout, grace window, posture PASSED'
+\echo 'mfa.test.sql: recovery codes, lockout, grace window, posture, personal enrolment PASSED'
 
 rollback;

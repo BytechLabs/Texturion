@@ -23,6 +23,14 @@ export const ERROR_CODES = [
   // enrolment screen, not to an error toast. Shares the 403 status with
   // `forbidden`.
   "mfa_required",
+  // #496: this user HOLDS a verified factor and this token is aal1 — enrolling
+  // is itself the demand, with no workspace policy and no grace window
+  // involved. Distinct from `mfa_required` because the remedy is the opposite
+  // one: that code says "you have no factor, go and enrol", this says "you have
+  // one, enter a code". Sending somebody already enrolled to the enrolment
+  // screen is a dead end that invites them to add a SECOND factor to fix being
+  // asked for the first. Shares the 403 status with `forbidden`.
+  "mfa_challenge_required",
   "rate_limited",
   // #283: a subsystem is switched off at the runtime kill switch — an
   // operator's deliberate act during an incident, not the customer's fault and
@@ -48,6 +56,7 @@ export const ERROR_CODE_STATUS = {
   conflict: 409,
   quiet_hours_confirmation_required: 409,
   mfa_required: 403,
+  mfa_challenge_required: 403,
   rate_limited: 429,
   service_unavailable: 503,
 } as const satisfies Record<ErrorCode, number>;

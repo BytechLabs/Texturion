@@ -29,6 +29,14 @@ sealed interface RootState {
     /** Owner/admin with subscription_status incomplete — finish checkout on web. */
     data class NeedsCheckout(val me: Me, val companyId: String) : RootState
 
+    /**
+     * #496/#314: this session has not satisfied two-factor. `enrolmentRequired`
+     * tells the gate which question to ask — a code from somebody who has a
+     * factor, or enrolment first for somebody the WORKSPACE is insisting on and
+     * who has none.
+     */
+    data class NeedsMfa(val enrolmentRequired: Boolean) : RootState
+
     data class Ready(val me: Me, val companyId: String) : RootState
 
     data class Failed(val message: String) : RootState
@@ -230,7 +238,14 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
             // length of D88's dual-publish transition still carries every event.
             // Kept as a nullable rather than folded into `view`, because whether
             // it failed is what decides the #483 retry at the bottom.
-            val hydrated = runCatching { graph.meRepo.me(membership.company_id) }.getOrNull()
+            //
+            // #314/#496: WHY the failure code is kept and not just the null. A
+            // refused hydration and a failed one look identical from a null, and
+            // one of them is a wall this app is supposed to render a way through
+            // rather than shrug at.
+            val hydration = runCatching { graph.meRepo.me(membership.company_id) }
+            val hydrated = hydration.getOrNull()
+            val refusal = (hydration.exceptionOrNull() as? ApiException)?.code
             val view = hydrated ?: me
 
             // Connect realtime for the active workspace.
@@ -258,6 +273,29 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
                     userId = view.user_id, // #302: the presence key
                 )
             }
+            // #496/#314: two-factor, which the server has just answered about
+            // in the only two ways it can.
+            //
+            // The CHALLENGE case is asked positively rather than read off the
+            // refusal, because there is a window where the server is not
+            // refusing yet — a Worker deployed ahead of the migration reports no
+            // enrolment — and the app should still ask. /v1/mfa is
+            // company-exempt, so it answers even for a session every other route
+            // is refusing, which is exactly the session that needs the answer.
+            if (refusal == ApiErrorCode.MFA_CHALLENGE_REQUIRED) {
+                _state.value = RootState.NeedsMfa(enrolmentRequired = false)
+                return
+            }
+            if (refusal == ApiErrorCode.MFA_REQUIRED) {
+                _state.value = RootState.NeedsMfa(enrolmentRequired = true)
+                return
+            }
+            val mfa = runCatching { graph.settingsRepo.mfa() }.getOrNull()
+            if (mfa != null && mfa.enrolled && mfa.aal != "aal2") {
+                _state.value = RootState.NeedsMfa(enrolmentRequired = false)
+                return
+            }
+
             _state.value = RootState.Ready(view, membership.company_id)
 
             // #483: one transient 5xx on the hydrated read must not cost a whole
