@@ -30,7 +30,14 @@ export interface ResponseTimeReport {
   p90_seconds: number | null;
   business_hours: ResponseTimeSide;
   after_hours: ResponseTimeSide;
+  /**
+   * #482: per-number medians, slowest first, ALREADY labelled and already
+   * filtered — the server returns an empty list when the leads arrived on one
+   * number, because that row would repeat the headline. Nothing here decides
+   * whether to show it; the length does.
+   */
   by_number: {
+    number_e164: string;
     phone_number_id: string;
     leads: number;
     answered: number;

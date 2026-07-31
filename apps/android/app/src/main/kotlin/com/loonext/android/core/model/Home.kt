@@ -146,6 +146,24 @@ data class ResponseTimeMember(
     val median_seconds: Double? = null,
 )
 
+/**
+ * #482: one line's response time.
+ *
+ * ALREADY labelled and already filtered by the server — an empty list means the
+ * leads arrived on one number, where this row would repeat the headline. There
+ * is no condition here to get wrong, which is the point: the same rule written
+ * in three clients is three chances to disagree about it.
+ */
+@Serializable
+data class ResponseTimeNumber(
+    val phone_number_id: String,
+    /** The number a person would recognise, e.g. "+14165551234". */
+    val number_e164: String,
+    val leads: Int = 0,
+    val answered: Int = 0,
+    val median_seconds: Double? = null,
+)
+
 @Serializable
 data class ResponseTimeBaseline(
     val leads: Int = 0,
@@ -169,6 +187,8 @@ data class ResponseTimeReport(
     val after_hours: ResponseTimeSide = ResponseTimeSide(),
     /** NULL means the owner has not opted in — not that the crew answered nothing. */
     val by_member: List<ResponseTimeMember>? = null,
+    /** #482: slowest line first. Empty for a one-number workspace. */
+    val by_number: List<ResponseTimeNumber> = emptyList(),
     val per_member_enabled: Boolean = false,
     val baseline: ResponseTimeBaseline? = null,
     /** 'too_new' | 'no_answered_leads' | null — why there is no arc. */

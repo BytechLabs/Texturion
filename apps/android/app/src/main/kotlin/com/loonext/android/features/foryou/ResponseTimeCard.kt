@@ -29,8 +29,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.loonext.android.core.format.ResponseTimeFormat
-import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.core.model.ResponseTimeReport
+import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.formatPhone
 
 /**
  * #239 — the response-time panel, Paper & Olive.
@@ -282,6 +283,15 @@ private fun ResponseTimeBody(
                 "After hours (${report.after_hours.leads})",
                 ResponseTimeFormat.format(report.after_hours.median_seconds),
             )
+            // #482: which line is letting people down. Slowest first, and
+            // present only when there is more than one to compare.
+            report.by_number.forEach { number ->
+                DetailRow(
+                    "${formatPhone(number.number_e164)} · " +
+                        "${number.leads - number.answered} unanswered",
+                    ResponseTimeFormat.format(number.median_seconds),
+                )
+            }
             report.by_member?.forEach { member ->
                 DetailRow(
                     "Member · ${member.answered} answered",

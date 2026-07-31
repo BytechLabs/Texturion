@@ -190,6 +190,15 @@ struct ResponseTimeCard: View {
                     "After hours (\(report.after_hours.leads))",
                     ResponseTimeFormat.format(report.after_hours.median_seconds)
                 )
+                // #482: which line is letting people down. Slowest first, and
+                // present only when there is more than one to compare.
+                ForEach(report.by_number ?? []) { number in
+                    detailRow(
+                        "\(formatPhone(number.number_e164)) · "
+                            + "\(number.leads - number.answered) unanswered",
+                        ResponseTimeFormat.format(number.median_seconds)
+                    )
+                }
                 if let members = report.by_member {
                     ForEach(members) { member in
                         detailRow(

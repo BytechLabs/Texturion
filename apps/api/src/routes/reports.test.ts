@@ -106,6 +106,8 @@ function stub(options: {
   exceptions?: unknown[];
   current: Record<string, unknown>;
   baseline?: Record<string, unknown>;
+  /** #482: the company's numbers, for the by_number labels. */
+  numbers?: { id: string; number_e164: string | null }[];
 }): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
@@ -123,6 +125,8 @@ function stub(options: {
       response_stats_per_member: options.perMember ?? false,
     },
   ]);
+  // #482: the numbers the by_number rows are labelled from.
+  sb.on("GET", "/rest/v1/phone_numbers", () => options.numbers ?? []);
   // The route calls the same RPC twice — current window, then baseline. The
   // stub answers in that order.
   const answers = [options.current, options.baseline ?? statsPayload([])];
@@ -147,6 +151,98 @@ async function get(sb: SupabaseStub, query = ""): Promise<Response> {
 }
 
 describe("GET /v1/reports/response-time", () => {
+  // #482 — the per-number breakdown was computed and returned and nothing
+  // rendered it, because the payload named a UUID rather than a number.
+  describe("by_number", () => {
+    const twoNumbers = [
+      { id: "n1", number_e164: "+14165550111" },
+      { id: "n2", number_e164: "+14165550222" },
+    ];
+    const breakdown = [
+      { phone_number_id: "n1", leads: 10, answered: 9, median_seconds: 120 },
+      { phone_number_id: "n2", leads: 6, answered: 2, median_seconds: 900 },
+    ];
+
+    it("labels each row with the number a person would recognise", async () => {
+      const sb = stub({
+        numbers: twoNumbers,
+        current: statsPayload([], { by_number: breakdown }),
+      });
+      const body = (await (await get(sb)).json()) as {
+        by_number: { number_e164: string; median_seconds: number | null }[];
+      };
+      expect(body.by_number.map((r) => r.number_e164)).toEqual([
+        "+14165550222",
+        "+14165550111",
+      ]);
+    });
+
+    it("puts the slowest line first", async () => {
+      // The reader's question is "which line is letting people down". A list
+      // ordered by anything else makes them scan for the answer.
+      const sb = stub({
+        numbers: twoNumbers,
+        current: statsPayload([], { by_number: breakdown }),
+      });
+      const body = (await (await get(sb)).json()) as {
+        by_number: { median_seconds: number | null }[];
+      };
+      expect(body.by_number[0].median_seconds).toBe(900);
+    });
+
+    it("sorts a number nobody answered to the very top", async () => {
+      // No median is the worst answer there is, not a missing one.
+      const sb = stub({
+        numbers: twoNumbers,
+        current: statsPayload([], {
+          by_number: [
+            { phone_number_id: "n1", leads: 10, answered: 9, median_seconds: 120 },
+            { phone_number_id: "n2", leads: 4, answered: 0, median_seconds: null },
+          ],
+        }),
+      });
+      const body = (await (await get(sb)).json()) as {
+        by_number: { number_e164: string }[];
+      };
+      expect(body.by_number[0].number_e164).toBe("+14165550222");
+    });
+
+    it("says nothing at all when the leads arrived on ONE number", async () => {
+      // Most workspaces. The row would be the headline again, and a panel that
+      // repeats itself teaches people to stop reading it. Decided here so no
+      // client has to remember the rule.
+      const sb = stub({
+        numbers: twoNumbers,
+        current: statsPayload([], { by_number: [breakdown[0]] }),
+      });
+      const body = (await (await get(sb)).json()) as { by_number: unknown[] };
+      expect(body.by_number).toEqual([]);
+    });
+
+    it("drops a row it cannot label rather than showing a UUID", async () => {
+      // A number deleted between the leads arriving and this read. Naming it as
+      // an id would be a report somebody has to decode before acting on it.
+      const sb = stub({
+        numbers: [twoNumbers[0]],
+        current: statsPayload([], { by_number: breakdown }),
+      });
+      const body = (await (await get(sb)).json()) as { by_number: unknown[] };
+      // And with only one left it is the headline again, so: nothing.
+      expect(body.by_number).toEqual([]);
+    });
+
+    it("does not ask for labels it will not use", async () => {
+      // The single-number case is the common one, and this read is on the home
+      // panel of every workspace.
+      const sb = stub({
+        numbers: twoNumbers,
+        current: statsPayload([], { by_number: [] }),
+      });
+      await get(sb);
+      expect(sb.find("GET", "/rest/v1/phone_numbers")).toHaveLength(0);
+    });
+  });
+
   it("reports the median, p90 and the unanswered leak", async () => {
     const sb = stub({
       current: statsPayload([

@@ -156,6 +156,23 @@ struct ResponseTimeMember: Codable, Sendable, Identifiable {
     var id: String { user_id }
 }
 
+/// #482: one line's response time.
+///
+/// ALREADY labelled and already filtered by the server — an empty list means
+/// the leads arrived on one number, where this row would repeat the headline.
+/// There is no condition here to get wrong, which is the point: the same rule
+/// written in three clients is three chances to disagree about it.
+struct ResponseTimeNumber: Codable, Sendable, Identifiable {
+    var phone_number_id: String = ""
+    /// The number a person would recognise, e.g. "+14165551234".
+    var number_e164: String = ""
+    var leads: Int = 0
+    var answered: Int = 0
+    var median_seconds: Double? = nil
+
+    var id: String { phone_number_id }
+}
+
 struct ResponseTimeBaseline: Codable, Sendable {
     var leads: Int = 0
     var answered: Int = 0
@@ -178,6 +195,8 @@ struct ResponseTimeReport: Codable, Sendable {
     var after_hours: ResponseTimeSide = ResponseTimeSide()
     /// nil means the owner has not opted in — NOT that the crew answered nothing.
     var by_member: [ResponseTimeMember]? = nil
+    /// #482: slowest line first. Empty for a one-number workspace.
+    var by_number: [ResponseTimeNumber]? = nil
     var per_member_enabled: Bool = false
     var baseline: ResponseTimeBaseline? = nil
     /// "too_new" | "no_answered_leads" | nil — why there is no arc.

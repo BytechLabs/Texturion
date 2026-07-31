@@ -43,6 +43,12 @@ const FRAGMENTS: readonly string[] = [
   "Slowest 10% of answers",
   "Details",
   "Hide details",
+  // #482: the per-number breakdown. The suffix rather than the whole label,
+  // because the number itself is interpolated and the arithmetic in front of it
+  // is written in three languages — what has to match is the WORD a reader sees
+  // next to it, which is the part that could drift into "missed" on one client
+  // and "unanswered" on another.
+  " unanswered",
 ];
 
 describe("#239 response-time copy is the same on every client", () => {

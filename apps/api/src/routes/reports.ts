@@ -90,6 +90,70 @@ interface StatsPayload {
   truncated: boolean;
 }
 
+/**
+ * #482: attach the number a person would recognise, and suppress the breakdown
+ * when it would say nothing.
+ *
+ * Returns `[]` for a workspace whose leads all arrived on ONE number — which
+ * is most of them. The row would be the headline again, and a panel that
+ * repeats itself teaches people to stop reading it. More than one number is the
+ * honest test of "does this tell you something the headline does not", and it
+ * is stricter than "the workspace HAS more than one number": a shop with a
+ * spare line nobody rings still only has one number worth comparing.
+ *
+ * A number whose row we cannot label is dropped, not shown with its id. A
+ * report that names a number as a UUID is a report somebody has to decode
+ * before they can act on it, and the id is meaningless to the reader either
+ * way. That can only happen for a number deleted between the leads arriving and
+ * this read, which is exactly when the label is least recoverable.
+ */
+async function labelledByNumber(
+  db: ReturnType<typeof getDb>,
+  companyId: string,
+  rows: StatsPayload["by_number"],
+): Promise<LabelledNumberRow[]> {
+  if (rows.length < 2) return [];
+
+  const { data, error } = await db
+    .from("phone_numbers")
+    .select("id,number_e164")
+    .eq("company_id", companyId);
+  if (error) throw new Error(`by_number labels failed: ${error.message}`);
+
+  const labels = new Map(
+    (data ?? [])
+      .filter((row): row is { id: string; number_e164: string } =>
+        typeof row.number_e164 === "string" && row.number_e164.length > 0,
+      )
+      .map((row) => [row.id, row.number_e164]),
+  );
+
+  const labelled = rows.flatMap((row) => {
+    const number = labels.get(row.phone_number_id);
+    return number ? [{ ...row, number_e164: number }] : [];
+  });
+  // Re-checked AFTER dropping the unlabelled: if only one survives, we are back
+  // to a row that repeats the headline.
+  if (labelled.length < 2) return [];
+
+  // Slowest first. The reader's question is "which line is letting people
+  // down", and a list ordered by anything else makes them scan for it. A number
+  // with no median at all (nobody answered) sorts to the top, because that is
+  // the worst answer there is.
+  return labelled.sort(
+    (a, b) => (b.median_seconds ?? Infinity) - (a.median_seconds ?? Infinity),
+  );
+}
+
+interface LabelledNumberRow {
+  phone_number_id: string;
+  /** The number a person would recognise, e.g. "+14165551234". */
+  number_e164: string;
+  leads: number;
+  answered: number;
+  median_seconds: number | null;
+}
+
 interface CompanyRow {
   created_at: string;
   timezone: string;
@@ -238,7 +302,19 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
     p90_seconds: current.p90_seconds,
     business_hours: sideOf(inHours),
     after_hours: sideOf(afterHours),
-    by_number: current.by_number,
+    // #482: labelled here rather than in three clients.
+    //
+    // The RPC returns `phone_number_id`, which is not a thing a person
+    // recognises, and resolving it client-side would be the same join written
+    // three times — three chances to disagree about which number is which on a
+    // screen whose entire job is to be trusted.
+    //
+    // The single-number rule is decided here too, and that is the more
+    // important half: a workspace with one number would see a row that repeats
+    // the headline exactly, so the answer is an EMPTY list from the server
+    // rather than a condition each client remembers to write. A client cannot
+    // get a rule wrong that it was never given.
+    by_number: await labelledByNumber(db, companyId, current.by_number),
     // Null, not an empty list: "the owner has not opted in" and "nobody has
     // answered anything" are different facts and the clients say different
     // things about them.

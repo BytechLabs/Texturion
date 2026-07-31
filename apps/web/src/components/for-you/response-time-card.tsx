@@ -33,6 +33,7 @@
  * there.
  */
 import { ArrowRight, Clock, TrendingDown, TrendingUp } from "lucide-react";
+import { formatPhone } from "@/lib/format/phone";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -265,6 +266,19 @@ export function ResponseTimeCard() {
                       report.data.after_hours.median_seconds,
                     )}
                   />
+                  {/* #482: only present when the leads arrived on more than
+                      one number — the server decides that, so there is no
+                      condition here to get wrong. Slowest first, because the
+                      question is "which line is letting people down". */}
+                  {report.data.by_number.map((number) => (
+                    <Row
+                      key={number.phone_number_id}
+                      label={`${formatPhone(number.number_e164)} · ${
+                        number.leads - number.answered
+                      } unanswered`}
+                      value={formatResponseTime(number.median_seconds)}
+                    />
+                  ))}
                   {report.data.by_member?.map((member) => (
                     <Row
                       key={member.user_id}
