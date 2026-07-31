@@ -49,6 +49,9 @@ export const LIVE_ROUTES = {
   // #491: calling has been included on every plan since D36-D43 and the site
   // never said so. The omission made the product look like a texting tool.
   featuresCalls: "/features/calls",
+  // #491: five AI features had shipped with no page. The assistant is the part
+  // a buyer compares against everybody else's "AI receptionist".
+  featuresAssistant: "/features/assistant",
   featuresBusinessNumber: "/features/business-number",
   featuresCompliance: "/features/compliance",
   featuresTemplatesAndTags: "/features/templates-and-tags",

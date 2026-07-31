@@ -63,6 +63,8 @@ const PAGE_NOTES: Record<keyof typeof LIVE_ROUTES, string | null> = {
   featuresSharedInbox: "every customer text in one inbox the whole crew can see",
   featuresCalls:
     "calls on the same number: the crew answers in the app, voicemail is written down, and missed callers get a text back",
+  featuresAssistant:
+    "Lou drafts replies, writes voicemails down, and fills in a job's address and due date; a person always sends",
   featuresBusinessNumber:
     "a local number that belongs to the business, new or ported in free",
   featuresCompliance: "registration, opt-outs, and consent, handled by the product",
@@ -97,6 +99,7 @@ const PAGE_LABELS: Partial<Record<keyof typeof LIVE_ROUTES, string>> = {
   pricing: "Pricing",
   featuresSharedInbox: "Shared inbox",
   featuresCalls: "Calls and voicemail",
+  featuresAssistant: "Lou, your assistant",
   featuresBusinessNumber: "Your business number",
   featuresCompliance: "Compliance built in",
   featuresTemplatesAndTags: "Templates and tags",
@@ -209,11 +212,12 @@ Website: https://loonext.com
 - Calling is included on every plan, nothing to turn on: incoming calls to your business number ring your crew in the Loonext app (whoever answers first takes the call), callers reach voicemail when nobody can pick up, you call customers back from the app on your business number (they always see the business number), and callers you miss automatically get a text back (your own message) so the job doesn't go elsewhere. Call screening, hold, transfer between teammates, and caller ID name both directions are built in. One pool of generous calling minutes under fair use covers both directions; concrete minute figures live at https://loonext.com/legal/fair-use.
 
 ## AI features (on by default, switchable off per feature)
-- Lou is the assistant inside Loonext. Every AI feature arrives ON, and an owner can switch each one off individually in the workspace's AI settings. Saying otherwise would understate what the product does with message text, which is the wrong direction to be wrong in.
+- Lou is the assistant inside Loonext. Every AI feature that produces a SUGGESTION A MEMBER READS arrives ON, and an owner can switch each one off individually in the workspace's AI settings. Saying otherwise would understate what the product does with message text, which is the wrong direction to be wrong in. Exactly one feature is off by default, and it is the one that changes what a stranger hears: voicemail intake (below).
 - The caps are per company per calendar month, and they are hard: suggested replies 1,500, voicemail transcripts 500, task details 1,000. Past a cap the feature stops for the rest of that month rather than billing more, and the crew is told which cap it was.
 - Suggested replies: Lou drafts a reply to a customer text. A person always reads, edits and sends it. Nothing is ever sent automatically.
 - Voicemail transcripts: a voicemail is written down so the crew can read it instead of listening, and search it later.
-- Task details: turning a customer text into a task fills in the address and due date from what the customer wrote.
+- Task details: turning a customer text into a task fills in the address and due date from what the customer wrote. These are two switches, not one: the address and the due date can be turned off separately.
+- Voicemail intake, OFF by default: the greeting adds one line asking for the problem and the address, says plainly that a machine writes the answer down, and Lou then breaks the transcript out into those fields above the recording. It is off by default because it is the only AI feature that changes what a stranger hears in the business's own name, and that is not a default anybody else gets to pick. Nothing books anything and nobody is put through a menu; it is still a voicemail, with a better question in front of it.
 - The models run on Cloudflare Workers AI, in the same account that hosts the app. Message content and voicemail audio are not used to train models, by Cloudflare's published policy and by ours. What comes back is stored in the workspace like any other message and deleted with it. Details at https://loonext.com/legal/privacy and https://loonext.com/legal/subprocessors.
 
 ## Optional add-on modules

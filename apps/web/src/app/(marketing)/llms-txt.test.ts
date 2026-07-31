@@ -123,27 +123,59 @@ describe("llms.txt keeps up with what shipped", () => {
     }
   });
 
-  it("does NOT claim the AI features are off by default, because they are not", () => {
-    // The defect found while closing #434, and worse than the omission it
-    // reported: the file said "opt-in, off by default" and "every AI feature is
-    // off until an owner turns it on". All four settings default to TRUE
-    // server-side — 20260723020000_ai_settings_default_on.sql flipped enrichment
-    // deliberately. So the file understated what the product does with message
-    // text, which is the one direction a privacy claim must never be wrong in.
-    // Scoped to the AI section: "off by default" is a legitimate and accurate
-    // claim elsewhere in the file (the optional temporary number offered during a
-     // port really is off by default), so a whole-file match would forbid a true
-    // sentence to catch a false one.
+  it("states each AI default the way the Worker actually ships it", () => {
+    // The defect found while closing #434: the file said "opt-in, off by
+    // default" and "every AI feature is off until an owner turns it on" when
+    // every setting defaulted TRUE server-side. It understated what the product
+    // does with message text, which is the one direction a privacy claim must
+    // never be wrong in.
+    //
+    // #491 FOUND THE OTHER HALF OF THAT BUG. The original guard forbade the
+    // string "off by default" anywhere in the AI section — correct while all
+    // the settings were true, and wrong the moment `voicemail_intake` shipped
+    // OFF (#367/D89). A test written to stop the file understating what we do
+    // ended up forbidding it from stating a true, privacy-relevant fact.
+    //
+    // So the defaults are READ from the source that enforces them, exactly as
+    // the caps assertion below reads the caps. Flip a default in the Worker and
+    // this fails until the file says so, in either direction.
+    const settingsSrc = readFileSync(
+      join(process.cwd(), "..", "api", "src", "ai", "settings.ts"),
+      "utf8",
+    );
+    const block = settingsSrc.slice(
+      settingsSrc.indexOf("export const DEFAULT_AI_SETTINGS"),
+    );
+    const defaults = [
+      ...block.slice(0, block.indexOf("};")).matchAll(
+        /^\s*(\w+):\s*(true|false),/gm,
+      ),
+    ].map(([, key, value]) => ({ key, on: value === "true" }));
+
+    // The parse itself has to be load-bearing: an empty match set would make
+    // every assertion below vacuously pass.
+    expect(defaults.length).toBeGreaterThanOrEqual(4);
+
     const aiSection = LLMS.slice(
       LLMS.indexOf("## AI features"),
       LLMS.indexOf("## Optional add-on modules"),
     );
     expect(aiSection.length).toBeGreaterThan(100);
-    expect(aiSection).not.toMatch(/off by default/i);
+    // Never the #434 claim, whatever the defaults are.
     expect(aiSection).not.toMatch(/every AI feature is off/i);
-    // And it says the true thing, including that each one can be switched off.
-    expect(aiSection).toMatch(/on by default/i);
     expect(aiSection).toMatch(/switch/i);
+
+    if (defaults.some((d) => d.on)) {
+      expect(aiSection).toMatch(/on by default/i);
+    }
+    // Every feature that genuinely ships OFF has to be named as off, so a
+    // fifth toggle cannot arrive undocumented the way this one did.
+    for (const off of defaults.filter((d) => !d.on)) {
+      expect(
+        aiSection,
+        `${off.key} defaults OFF and llms.txt does not say so`,
+      ).toMatch(/off by default/i);
+    }
   });
 
   it("states the AI caps that the API actually enforces", () => {

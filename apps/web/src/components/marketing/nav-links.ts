@@ -8,6 +8,7 @@ import {
   type LucideIcon,
   Mail,
   PhoneCall,
+  Sparkle,
   Scale,
   Scissors,
   ShieldCheck,
@@ -52,7 +53,9 @@ export interface NavMenu {
  * which is most of why the site read as a texting tool. */
 export const productMenu: NavMenu = {
   label: "Product",
-  columns: 1,
+  // Two columns since #491 took this past four items: three rows a column
+  // reads as a group, six in one column reads as a list to work through.
+  columns: 2,
   items: [
     {
       label: "Shared inbox",
@@ -71,6 +74,12 @@ export const productMenu: NavMenu = {
       href: LIVE_ROUTES.featuresBusinessNumber,
       description: "A local number that belongs to the business, not a phone.",
       icon: Hash,
+    },
+    {
+      label: "Lou, your assistant",
+      href: LIVE_ROUTES.featuresAssistant,
+      description: "Drafts replies and writes voicemails down. Never sends.",
+      icon: Sparkle,
     },
     {
       label: "Compliance built in",

@@ -43,6 +43,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly",
     },
     {
+      path: LIVE_ROUTES.featuresAssistant,
+      priority: 0.8,
+      changeFrequency: "monthly",
+    },
+    {
       path: LIVE_ROUTES.featuresBusinessNumber,
       priority: 0.8,
       changeFrequency: "monthly",
