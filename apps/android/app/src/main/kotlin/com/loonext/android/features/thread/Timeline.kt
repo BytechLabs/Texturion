@@ -308,6 +308,16 @@ private fun mediaRefusedLine(event: ConversationEvent): String =
         "type_mismatch" ->
             "A file this customer sent wasn't the kind of file it claimed to be, so it wasn't saved"
 
+        // #317: the file WAS the type it claimed and the type is allowed —
+        // what is inside it is the problem. One line, one action: which of a
+        // macro project, a packed program or an auto-running script it turned
+        // out to be changes nothing the crew can do about it.
+        "unsafe_content" ->
+            "A file this customer sent had something unsafe inside it, so it wasn't saved — ask them for a photo or a plain PDF"
+
+        "unreadable" ->
+            "A file this customer sent couldn't be checked, so it wasn't saved — ask them to send it again"
+
         "too_many_items" -> {
             val kept = event.payloadString("index")?.toIntOrNull() ?: 0
             if (kept > 0) {

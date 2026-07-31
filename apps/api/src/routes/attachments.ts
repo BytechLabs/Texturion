@@ -45,6 +45,7 @@ import {
   assertEgressWithinAllowance,
   assertMintRateWithinLimit,
 } from "../attachments/egress";
+import { scanAttachment } from "../attachments/scan";
 import { requireRole } from "../auth/company";
 import {
   requireConversationAccess,
@@ -245,6 +246,22 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
       "validation_failed",
       "file: content does not match its declared type.",
     );
+  }
+
+  // #317 — the check above proves the file IS what it says. This one looks at
+  // what is INSIDE it, which is a different question and the one the allow-list
+  // cannot answer: PDF and the OpenXML/ODF family are on it precisely because
+  // people need them, and they are also the formats that carry payloads.
+  //
+  // Outbound matters as much as inbound here. A compromised member account
+  // (#314) can send files to every customer in the workspace from a number
+  // those customers trust, and refusing at upload means the object never exists
+  // to be sent. The uploader is a person who is right here, so they get the
+  // reason and can act on it — unlike the inbound path, where the sender is a
+  // stranger and the crew gets a timeline line instead.
+  const scan = scanAttachment(bytes, declaredType);
+  if (scan.verdict !== "clean") {
+    throw new ApiError("validation_failed", `file: ${scan.message}`);
   }
 
   const objectPath = attachmentStoragePath({

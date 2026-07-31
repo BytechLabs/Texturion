@@ -27,6 +27,7 @@ import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { notifyInboundMessage } from "../notifications/inbound";
+import { scanAttachment } from "../attachments/scan";
 import { bytesMatchDeclaredType } from "../routes/core/attachments";
 import { insertConversationEvents } from "../routes/core/events";
 import { maybeSendAwayReply } from "./away-reply";
@@ -645,7 +646,25 @@ export type MediaRefusalReason =
    */
   | "type_mismatch"
   /** Past the D30 per-message item cap. The message came with too many files. */
-  | "too_many_items";
+  | "too_many_items"
+  /**
+   * #317: the file IS the type it claims, and that type is allowed, and what is
+   * inside it is dangerous — a macro project, an embedded program, a PDF that
+   * launches something when opened. The type checks above cannot see any of
+   * that, because none of it is the wrong type.
+   *
+   * The specific finding rides in the payload as `scan_reason` for metrics and
+   * for whoever is reading logs; the crew gets one line and one action, because
+   * the difference between a VBA project and a /Launch action changes nothing
+   * they can do about it.
+   */
+  | "unsafe_content"
+  /**
+   * #317: we could not read inside the file to check it — a corrupt container,
+   * a Zip64 archive, something past the scan ceiling. Held rather than passed
+   * on, because "we did not look" is not a reason to hand somebody a file.
+   */
+  | "unreadable";
 
 /**
  * Record a refusal where the crew will actually see it.
@@ -667,6 +686,8 @@ async function recordMediaRefusal(
     reason: MediaRefusalReason;
     contentType?: string | null;
     sizeBytes?: number | null;
+    /** #317: the structural finding, for operators. Never shown to the crew. */
+    scanReason?: string | null;
   },
 ): Promise<void> {
   console.warn(
@@ -692,6 +713,9 @@ async function recordMediaRefusal(
           // URL is a live handle to bytes we just declined to store.
           content_type: args.contentType ?? null,
           size_bytes: args.sizeBytes ?? null,
+          // #317: `zip_macro`, `pdf_launch`, … — our own finding, not anything
+          // the sender chose, so it is safe to render and useful to search on.
+          scan_reason: args.scanReason ?? null,
         },
       },
     ]);
@@ -834,6 +858,33 @@ async function downloadInboundMedia(
         reason: "type_mismatch",
         contentType,
         sizeBytes: bytes.byteLength,
+      });
+      continue;
+    }
+
+    // #317 — the bytes are the type they claim, the type is allowed, and NOW
+    // we look at what is inside.
+    //
+    // Everything above stops the wrong file TYPE. It cannot stop a malicious
+    // file of an allowed one, and the allow-list includes the two formats that
+    // carry payloads: PDF, and the OpenXML/ODF family, which are ZIP
+    // containers. This is the path the issue calls uncontrolled — anyone who
+    // knows a number printed on a truck can send it a file — and we are the
+    // ones who store it, sign a URL for it, and put it on a tech's phone.
+    //
+    // Refused BEFORE the upload, so a blocked file never becomes an object at
+    // all. The event below is what stops that being a silent drop.
+    const scan = scanAttachment(new Uint8Array(bytes), contentType);
+    if (scan.verdict !== "clean") {
+      await recordMediaRefusal(db, {
+        companyId: args.companyId,
+        conversationId: args.conversationId,
+        messageId: args.messageId,
+        index,
+        reason: scan.verdict === "blocked" ? "unsafe_content" : "unreadable",
+        contentType,
+        sizeBytes: bytes.byteLength,
+        scanReason: scan.reason,
       });
       continue;
     }

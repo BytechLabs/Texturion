@@ -118,6 +118,7 @@ export type ConversationEventType =
   // only record, and without the line the crew sees a text with no picture and
   // assumes the customer forgot to attach one. payload:
   // { reason: 'unsupported_type'|'too_large'|'empty'|'type_mismatch'
+  //           |'unsafe_content'|'unreadable'   (#317, with scan_reason)
   //           |'too_many_items',
   //   message_id, index, content_type, size_bytes }. Deliberately carries
   // neither the file name nor the source URL — the name is attacker-controlled

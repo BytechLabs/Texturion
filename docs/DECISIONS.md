@@ -5683,3 +5683,66 @@ white-literal sweep, and an assertion that `--fr-ink` never appears in a
 background position. Every one of those was verified by breaking it. What no test
 can say is whether the site looks right — that was 42 pages of screenshots at
 both schemes.
+
+---
+
+## D101 — we scan what is inside a file, not just what it claims to be (#317, 2026-07-31)
+
+**Decision.** Every attachment is examined structurally on ingest, in both
+directions, before it can be stored or retrieved. The scanner is ours and runs
+in the Worker: no bytes leave, no subprocessor is added, no per-object fee.
+
+**What already existed was good and this does not replace it.** A D19 MIME
+allow-list at the boundary, the bucket as a hard ceiling, and
+`bytesMatchDeclaredType`, which refuses a script or native executable uploaded
+under an allowed content type. Between them, an `.exe` named `invoice.pdf`
+never lands.
+
+**They stop the wrong file TYPE. They cannot stop a malicious file of an ALLOWED
+type**, and the allow-list deliberately includes the two formats that carry
+payloads: PDF, and the OpenXML/ODF family, which are ZIP containers. That gap
+matters more here than in most products because of what this one is: anyone who
+knows a number printed on a truck can send it a file, we store it, we sign a URL
+for it, and a tech opens it on a phone between jobs. If it is malicious we are
+the delivery mechanism, and the customer's antivirus names us.
+
+**Structural, not antivirus, and the difference is stated rather than blurred.**
+#317 notes that an external scanner is a subprocessor decision with disclosure
+consequences (#285) and a per-object price the cost mandate must answer for.
+Both are the owner's calls, and neither is a reason to leave files unexamined
+meanwhile. The attacks the issue names have structure readable without sending
+anybody's file anywhere: a PDF that runs something on open or launches an
+external program; an Office/ODF container carrying a macro project, a packed
+executable, or a path that escapes extraction; a decompression bomb. Those are
+caught deterministically. A novel payload inside a well-formed document is not,
+and the module says so in its own header.
+
+**False positives are the real risk, not missed detections.** Blocking a
+customer's legitimate invoice is a failure the crew feels immediately, so every
+rule was chosen to have essentially no honest use. The deliberate concession:
+a PDF carrying form-validation JavaScript with **no** auto-run is allowed,
+because fillable PDFs in the trades rely on it and a guard people route around
+protects nobody. Both signals together (`/JS` **and** `/OpenAction`), or
+neither.
+
+**Unscannable is held, never waved through.** "Too big to check", a corrupt
+container, a Zip64 archive — all resolve to refused-with-a-reason. Resolving
+them to delivered would wave through exactly the files nobody looked at.
+
+**Refused at ingest rather than quarantined after.** For an upload the person is
+right there and gets the reason in the error. For inbound the sender is a
+stranger, so the crew gets a `media_refused` timeline event — the mechanism that
+already existed for type mismatches — carrying `unsafe_content` or `unreadable`
+plus a `scan_reason` for operators. Nothing is stored, so no signed URL can ever
+point at it. That is stronger than a quarantine state and needed no new column.
+
+**Two things the work established that were assumed otherwise.** Inbound MMS
+cannot carry OpenXML or ODF at all — the deliverable set is images, audio,
+video, vCard, calendar, PDF and text — so the ZIP half of this applies only to
+the upload route, and a test pins that so widening the MMS list cannot happen
+quietly. And the cheap hardening #317 asked for (attachment disposition,
+non-inheriting types, short-lived URLs) had already shipped.
+
+**Still the owner's call:** an AV service as a second layer. `scan.ts` carries
+the seam for it (`EXTERNAL_SCAN_UNAVAILABLE`) so adding one is a new branch
+there rather than a new shape everywhere downstream.

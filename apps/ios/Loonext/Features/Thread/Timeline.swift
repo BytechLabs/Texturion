@@ -347,6 +347,14 @@ func mediaRefusedLine(_ event: ConversationEvent) -> String {
         return "A file this customer sent arrived empty — ask them to send it again"
     case "type_mismatch":
         return "A file this customer sent wasn't the kind of file it claimed to be, so it wasn't saved"
+    // #317: the file WAS the type it claimed and the type is allowed — what is
+    // inside it is the problem. One line, one action: which of a macro project,
+    // a packed program or an auto-running script it turned out to be changes
+    // nothing the crew can do about it.
+    case "unsafe_content":
+        return "A file this customer sent had something unsafe inside it, so it wasn't saved — ask them for a photo or a plain PDF"
+    case "unreadable":
+        return "A file this customer sent couldn't be checked, so it wasn't saved — ask them to send it again"
     case "too_many_items":
         // #270: this is a JSON NUMBER — read through intValue, never stringValue.
         let kept = event.payload["index"]?.intValue ?? 0

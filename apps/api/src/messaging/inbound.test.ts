@@ -553,6 +553,96 @@ describe("handleInboundMessage — #317 inbound media is checked, and refusals a
     return rows[0].payload as Record<string, unknown>;
   }
 
+  it("refuses a PDF that runs a script when it opens — the right type, the wrong insides", async () => {
+    // The gap the type checks structurally cannot close. This file IS a PDF,
+    // `application/pdf` IS on the allow-list, and `bytesMatchDeclaredType`
+    // passes it, because none of that is the wrong type. What is wrong is what
+    // it does when a tech taps it on a phone between jobs.
+    const weaponised = new TextEncoder().encode(
+      "%PDF-1.7\n1 0 obj << /OpenAction << /S /JavaScript /JS (x) >> >> endobj\n%%EOF",
+    );
+    const media = mediaServing(weaponised, "application/pdf");
+    const attachmentLookup = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    const events = eventsStub();
+    const upload = stubRoute(
+      (url, request) => request.method === "POST" && url.pathname.includes("mms-media"),
+      () => Response.json({}, { status: 200 }),
+    );
+    serve(
+      numberStub(),
+      threadStub({}),
+      awayDisabledStub(),
+      attachmentLookup,
+      media,
+      events,
+      upload,
+    );
+
+    await handleInboundMessage(
+      env,
+      inboundEvent({
+        media: [{ url: MEDIA_URL, content_type: "application/pdf", size: 60 }],
+      }),
+    );
+
+    const payload = refusal(events);
+    expect(payload.reason).toBe("unsafe_content");
+    expect(payload.scan_reason).toBe("pdf_auto_javascript");
+    // Refused BEFORE the object exists: nothing was uploaded, so there is no
+    // stored file for a signed URL to ever point at.
+    expect(upload.calls).toHaveLength(0);
+  });
+
+  it("never receives an Office document this way — the carrier path cannot carry one", async () => {
+    // Worth pinning rather than assuming. The ZIP-container half of #317 — macro
+    // projects, packed executables, decompression bombs — applies to the UPLOAD
+    // route, where OpenXML and ODF are on the allow-list. It cannot apply here:
+    // the deliverable MMS set is images, audio, video, vCard, calendar, PDF and
+    // text, so an .xlsx is refused as an unsupported type long before anything
+    // reads inside it.
+    //
+    // So the inbound scan's real surface is PDF. This test exists so that
+    // widening the MMS allow-list to documents cannot happen quietly — it would
+    // change this line, and whoever changes it has to notice why.
+    const unreadable = new TextEncoder().encode("PK not really a zip");
+    const media = mediaServing(
+      unreadable,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    const attachmentLookup = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    const events = eventsStub();
+    serve(
+      numberStub(),
+      threadStub({}),
+      awayDisabledStub(),
+      attachmentLookup,
+      media,
+      events,
+    );
+
+    await handleInboundMessage(
+      env,
+      inboundEvent({
+        media: [
+          {
+            url: MEDIA_URL,
+            content_type:
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            size: 24,
+          },
+        ],
+      }),
+    );
+
+    expect(refusal(events).reason).toBe("unsupported_type");
+  });
+
   it("refuses an executable wearing an image content type, and says so in the thread", async () => {
     // \`MZ\` — a Windows .exe. The carrier says image/jpeg because the sender's
     // phone said image/jpeg. Nothing downstream would have questioned it: the
@@ -698,9 +788,19 @@ describe("handleInboundMessage — #317 inbound media is checked, and refusals a
       "index",
       "message_id",
       "reason",
+      // #317: the structural finding. It is in the pinned set deliberately —
+      // this assertion is the thing standing between the timeline and
+      // attacker-controlled text, so a NEW key has to be a decision somebody
+      // made rather than a field that appeared.
+      "scan_reason",
       "size_bytes",
     ]);
     expect(JSON.stringify(payload)).not.toContain(MEDIA_URL);
+    // …and scan_reason may only ever carry OUR vocabulary. The sender picks
+    // the file name and the bytes; they do not get to pick this.
+    expect(payload.scan_reason === null || /^[a-z_]+$/.test(String(payload.scan_reason))).toBe(
+      true,
+    );
   });
 
   it("still delivers the message when the refusal record itself cannot be written", async () => {

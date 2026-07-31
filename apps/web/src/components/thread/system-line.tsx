@@ -130,6 +130,14 @@ export function eventSentence(
         return "A file this customer sent arrived empty — ask them to send it again";
       if (reason === "type_mismatch")
         return "A file this customer sent wasn't the kind of file it claimed to be, so it wasn't saved";
+      // #317: the file WAS the type it claimed and the type is allowed — what
+      // is inside it is the problem. The crew gets one line and one action:
+      // which of a macro project, a packed program or an auto-running script
+      // it turned out to be changes nothing they can do about it.
+      if (reason === "unsafe_content")
+        return "A file this customer sent had something unsafe inside it, so it wasn't saved — ask them for a photo or a plain PDF";
+      if (reason === "unreadable")
+        return "A file this customer sent couldn't be checked, so it wasn't saved — ask them to send it again";
       if (reason === "too_many_items") {
         const kept = Number(event.payload.index ?? 0);
         return kept > 0

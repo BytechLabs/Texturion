@@ -12,6 +12,7 @@ import {
 } from "@loonext/shared";
 
 import { ApiError } from "../http/errors";
+import { scanAttachment } from "../attachments/scan";
 import { EXECUTABLE_SNIFF, sniffContentType } from "../routes/core/attachments";
 import type { AttachmentSummary } from "./types";
 
@@ -252,6 +253,18 @@ export function decodeOutboundMedia(
         "validation_failed",
         `media[${index}] bytes do not match the declared ${contentType}.`,
       );
+    }
+    // #317 — and now what is INSIDE it. `application/pdf` is on this list
+    // because crews send quotes, and a PDF is also the one deliverable format
+    // that can run something when it opens.
+    //
+    // This direction is the one a compromised member account (#314) abuses:
+    // files to every customer in the workspace, from a number those customers
+    // trust. Refused here, so nothing reaches Storage or gets a signed URL
+    // minted for the carrier.
+    const scan = scanAttachment(bytes, contentType);
+    if (scan.verdict !== "clean") {
+      throw new ApiError("validation_failed", `media[${index}]: ${scan.message}`);
     }
     return { contentType, bytes };
   });
