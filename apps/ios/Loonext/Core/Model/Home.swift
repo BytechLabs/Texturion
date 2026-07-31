@@ -190,7 +190,14 @@ struct ResponseTimeReport: Codable, Sendable {
 struct ForYou: Codable, Sendable {
     /// #293. Empty from an older Worker, which is "no reminders" — the state
     /// every client written before this shipped was already rendering.
-    @Default<DefaultEmptyList<ForYouFollowUp>> var follow_ups: [ForYouFollowUp]
+    ///
+    /// `= []`, and that is not decoration. A wrapped property with NO default
+    /// becomes a REQUIRED parameter of the synthesized memberwise initializer,
+    /// so adding this one broke every preview that builds a `ForYou` — the same
+    /// trap the `totals` comment below records, arriving from the other side.
+    /// The default makes the parameter optional, so the NEXT field added here
+    /// costs nobody a compile error.
+    @Default<DefaultEmptyList<ForYouFollowUp>> var follow_ups: [ForYouFollowUp] = []
     @Default<DefaultEmptyList<ForYouWaiting>> var waiting_on_you: [ForYouWaiting]
     @Default<DefaultEmptyList<ForYouTask>> var my_tasks: [ForYouTask]
     @Default<DefaultEmptyList<ForYouUnread>> var unread: [ForYouUnread]
