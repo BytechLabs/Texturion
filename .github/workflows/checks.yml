@@ -334,6 +334,94 @@ jobs:
         run: node scripts/theme-audit.mjs --public
 
   # ---------------------------------------------------------------------------
+  # #320: the AUTHENTICATED half of the theme audit.
+  #
+  # The `build` job already audits the public surfaces — marketing, /login,
+  # /signup — because those need nothing but the built app. Everything a crew
+  # actually uses all day is behind a login, and so are the two portals, which
+  # are the only surfaces where a subtree renders OUTSIDE `.app-scope` and can
+  # therefore lose the token scope (#116).
+  #
+  # Auditing those needs the whole stack: the database, the seed, the Worker and
+  # the web app. Every piece already existed — this job composes them. Nothing
+  # here touches Cloudflare: the Worker's only bindings are `unsafe.bindings`
+  # rate limiters, which wrangler emulates locally, and `ci-dev-vars.mjs` writes
+  # a `.dev.vars` of local URLs and visibly fake vendor keys (it refuses to run
+  # against anything that is not localhost).
+  # ---------------------------------------------------------------------------
+  theme:
+    name: Theme audit (authenticated surfaces, both schemes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Pinned for the same reason the other jobs pin it: resolving "latest"
+      # costs an unauthenticated GitHub API call, and a rate limit there kills
+      # the job before it runs anything.
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+
+      - name: Start local Supabase stack
+        run: sh scripts/start-supabase-ci.sh
+
+      - name: Apply migrations from zero (db reset)
+        run: supabase db reset
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Seed a workspace to look at
+        run: node scripts/dev-seed.mjs
+
+      - name: Write local-only Worker vars
+        run: node scripts/ci-dev-vars.mjs
+
+      - name: Build web against the local stack
+        run: pnpm --filter @loonext/web build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          # The Supabase CLI's published default local publishable key. Public
+          # by design and identical on every machine running the local stack.
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:8787
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start the Worker and the web app
+        run: |
+          pnpm --filter @loonext/api exec wrangler dev --port 8787 --ip 127.0.0.1 &
+          pnpm --filter @loonext/web exec next start -p 3100 &
+          for i in $(seq 1 90); do
+            curl -fsS -o /dev/null http://127.0.0.1:8787/ 2>/dev/null && break
+            sleep 2
+          done
+          for i in $(seq 1 60); do
+            curl -fsS -o /dev/null http://localhost:3100/ && break
+            sleep 2
+          done
+
+      # The audit fails LOUDLY when a surface never rendered — an unmatched
+      # overlay trigger, or a route still showing "Loading your workspace…"
+      # because the Worker did not come up. Both were real: an earlier version
+      # of this audit reported green over a loading screen, which is the exact
+      # failure mode #320 exists to prevent.
+      - name: Audit the authenticated surfaces
+        run: node scripts/theme-audit.mjs --authed
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --no-backup
+
+  # ---------------------------------------------------------------------------
   # The phone apps, folded in from what used to be a separate Mobile workflow.
   #
   # Separate was the wrong shape: it meant a change could be green in one place

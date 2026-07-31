@@ -35,6 +35,7 @@
  * Usage:
  *   node scripts/theme-audit.mjs                  # every surface
  *   node scripts/theme-audit.mjs --public         # only the ones needing no login
+ *   node scripts/theme-audit.mjs --authed         # only the ones that do
  *   node scripts/theme-audit.mjs --base http://localhost:3100
  */
 import { existsSync, mkdirSync } from "node:fs";
@@ -48,6 +49,9 @@ const STATE_FILE = join(STATE_DIR, "state.json");
 
 const args = process.argv.slice(2);
 const publicOnly = args.includes("--public");
+// The public surfaces already run in the `build` job, which needs no database.
+// `--authed` is the other half, so the heavier job does not repeat cheap work.
+const authedOnly = args.includes("--authed");
 const baseIndex = args.indexOf("--base");
 const base = baseIndex >= 0 ? args[baseIndex + 1] : "http://localhost:3100";
 
@@ -309,7 +313,11 @@ async function login(context) {
   await page.close();
 }
 
-const wanted = SURFACES.filter((s) => !publicOnly || !s.auth);
+const wanted = SURFACES.filter((s) => (publicOnly ? !s.auth : authedOnly ? s.auth : true));
+if (!wanted.length) {
+  console.error("theme-audit: no surfaces selected — check the flags.");
+  process.exit(1);
+}
 const needsAuth = wanted.some((s) => s.auth);
 
 for (const theme of ["light", "dark"]) {
