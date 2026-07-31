@@ -76,6 +76,10 @@ export function ComposerBannerCard({
     // one sentence each". No action button, deliberately: the remedy is a
     // conversation with a person, and a control that only navigates somewhere
     // they also cannot change would be a second dead end.
+    case "read_only":
+      sentence =
+        "You have view-only access to this workspace, so you can read the conversation but not reply or leave notes. An owner or admin can change your access.";
+      break;
     case "number_access":
       sentence =
         "You can add internal notes here, but not text this customer from this number. Calls to it won't ring you either. Ask an owner or admin for access.";

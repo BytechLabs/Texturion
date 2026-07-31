@@ -228,6 +228,13 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
   });
 });
 
+/**
+ * #315: only these three have a RANK. `read_only` is deliberately absent — it
+ * is a capability SET, not a rung — and the tests below pin that every rank
+ * gate refuses it while the capability gates answer it precisely.
+ */
+const HIERARCHY = ["owner", "admin", "member"] as const;
+
 describe("requireRole (SPEC §10 role matrix: owner ⊃ admin ⊃ member)", () => {
   function gateApp(actual: MemberRole | undefined, minimum: MemberRole) {
     const gated = new Hono<AppEnv>();
@@ -240,10 +247,14 @@ describe("requireRole (SPEC §10 role matrix: owner ⊃ admin ⊃ member)", () =
     return gated;
   }
 
-  const RANK: Record<MemberRole, number> = { member: 1, admin: 2, owner: 3 };
+  const RANK: Record<(typeof HIERARCHY)[number], number> = {
+    member: 1,
+    admin: 2,
+    owner: 3,
+  };
 
-  for (const minimum of MEMBER_ROLES) {
-    for (const actual of MEMBER_ROLES) {
+  for (const minimum of HIERARCHY) {
+    for (const actual of HIERARCHY) {
       const allowed = RANK[actual] >= RANK[minimum];
       it(`${actual} ${allowed ? "passes" : "is refused by"} requireRole('${minimum}')`, async () => {
         const res = await gateApp(actual, minimum).request("/action", {}, env);
@@ -271,9 +282,8 @@ describe("requireRole (SPEC §10 role matrix: owner ⊃ admin ⊃ member)", () =
     // gate that has not yet been moved to its axis. That is what makes the
     // conversion safe to do a few routes at a time: an unconverted route can
     // never leak access to a role it was not written for.
-    const offLine = "bookkeeper" as unknown as MemberRole;
-    for (const minimum of MEMBER_ROLES) {
-      const res = await gateApp(offLine, minimum).request("/action", {}, env);
+    for (const minimum of HIERARCHY) {
+      const res = await gateApp("read_only", minimum).request("/action", {}, env);
       expect(res.status, `requireRole('${minimum}')`).toBe(403);
     }
   });
@@ -311,11 +321,20 @@ describe("requireCapability (#315: the axis, not the rung)", () => {
     expect(await allows("member", "workspace.own")).toBe(false);
   });
 
-  it("lets every member work the inbox", async () => {
+  it("lets every role see the inbox", async () => {
     for (const role of MEMBER_ROLES) {
       expect(await allows(role, "conversations.read"), role).toBe(true);
+    }
+  });
+
+  it("lets everyone but the observer text a customer", async () => {
+    // #315: the read-only observer is exactly the gap between reading and
+    // sending, and this is the route-level proof that the gap is real.
+    for (const role of HIERARCHY) {
       expect(await allows(role, "conversations.send"), role).toBe(true);
     }
+    expect(await allows("read_only", "conversations.send")).toBe(false);
+    expect(await allows("read_only", "conversations.note")).toBe(false);
   });
 
   it("refuses when no role is attached at all", async () => {

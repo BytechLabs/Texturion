@@ -1,0 +1,33 @@
+-- #315 — the read-only role, enum value only.
+--
+-- In its OWN migration because a new enum value cannot be USED in the same
+-- transaction that adds it (Postgres restriction; each migration file is one
+-- transaction). It is first USED by apps/api's capability table and by the
+-- role picker — never inside this file.
+--
+-- WHY THIS ROLE FIRST. `member_role` is a strict hierarchy (owner ⊃ admin ⊃
+-- member) and #315's finding is that a real crew is not arranged on a line.
+-- Of the people it cannot describe, the read-only observer is the one with no
+-- approximation at all today: an owner's partner, an accountant, a consultant
+-- who should SEE the work and never text a customer as the business. The
+-- nearest thing available is 'member', which can send. So the honest options
+-- today are "give them the ability to text your customers" or "give them
+-- nothing", and the third one people actually pick is sharing a login — which
+-- defeats #191 attribution, #231 audit and #314 MFA at once.
+--
+-- WHAT IT IS NOT. Not a rung below 'member'. It carries `workspace.access` and
+-- `conversations.read` and nothing else, which is a SET, not a position: the
+-- rank check in apps/api refuses any role that is not on the line, so every
+-- gate that has not been moved to its axis keeps refusing this role rather
+-- than quietly admitting it. All 137 gates were moved to axes first, in
+-- 410a9c2c and 733b8770, for exactly that reason.
+--
+-- EXISTING WORKSPACES ARE UNTOUCHED. Adding a value to an enum changes no row.
+-- Nobody holds this role until an owner picks it, and the three existing roles
+-- keep the capabilities their rank always granted.
+--
+-- The `role <> 'owner'` CHECK on company_members (D8: ownership is transferred,
+-- never assigned) is unaffected and still applies — 'read_only' is assignable
+-- exactly like 'admin' and 'member'.
+
+alter type public.member_role add value if not exists 'read_only';

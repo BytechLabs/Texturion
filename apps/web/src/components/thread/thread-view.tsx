@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompany } from "@/lib/api/companies";
+import { useActiveCompany } from "@/lib/company/provider";
 import { useMe } from "@/lib/api/me";
 import { useCompanyId } from "@/lib/company/provider";
 import { useConversationPresence } from "@/lib/realtime/presence";
@@ -266,6 +267,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
     markReadMutate(conversationId);
   }, [conversationId, newestMessageId, markReadMutate]);
 
+  const { role } = useActiveCompany();
   const banner =
     company.data && contact.data
       ? selectComposerBanner({
@@ -273,6 +275,10 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           // because it is the only fact here about them rather than about the
           // conversation.
           viewerLevel: conversation.viewer_level === "note" ? "note" : "text",
+          // #315: the role and the per-number rule COMPOSE — whichever is more
+          // restrictive wins. An observer is read-only on every number; a
+          // note-level member is note-only on this one.
+          viewerReadOnly: role === "read_only",
           contactOptedOut: contact.data.opted_out,
           contactOptOutSource: contact.data.opt_out_source,
           subscriptionStatus: company.data.subscription_status,

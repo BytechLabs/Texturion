@@ -69,6 +69,17 @@ export type ComposerBanner =
    * worse version is a tech who believes they replied and did not.
    */
   | { kind: "number_access" }
+  /**
+   * #315: this person may READ the workspace and change nothing in it — the
+   * read-only observer (an owner's partner, an accountant, a consultant).
+   *
+   * Its own kind rather than reusing `number_access`, because the two are
+   * different facts with different remedies: number access is about ONE
+   * number and an owner can widen it; this is about the role and only a role
+   * change fixes it. Telling an accountant to "ask for access to this number"
+   * would send them to the wrong conversation.
+   */
+  | { kind: "read_only" }
   | null;
 
 export interface ComposerGateInput {
@@ -95,6 +106,13 @@ export interface ComposerGateInput {
    * read and annotate but not text; 'text' is unrestricted.
    */
   viewerLevel: "text" | "note";
+  /**
+   * #315: the viewer holds `conversations.read` and nothing else. Checked
+   * before every other gate for the same reason `number_access` is — it is a
+   * fact about the READER, true in every conversation, and no amount of
+   * resolving a customer-specific problem changes it.
+   */
+  viewerReadOnly: boolean;
 }
 
 export function selectComposerBanner(input: ComposerGateInput): ComposerBanner {
@@ -108,6 +126,9 @@ export function selectComposerBanner(input: ComposerGateInput): ComposerBanner {
   // It is also the only one that stays true in every other conversation on
   // this number, so learning it once is worth more than learning it after
   // resolving a customer-specific problem and hitting a second wall.
+  if (input.viewerReadOnly) {
+    return { kind: "read_only" };
+  }
   if (input.viewerLevel === "note") {
     return { kind: "number_access" };
   }

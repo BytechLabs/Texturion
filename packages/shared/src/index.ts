@@ -10,7 +10,7 @@ export {
 
 export {
   canSeeSettingsSection,
-  settingsSectionMinimumRole,
+  settingsSectionCapability,
   visibleSettingsSections,
   type SettingsSectionId,
 } from "./settings-visibility";

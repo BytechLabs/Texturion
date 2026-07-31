@@ -7,9 +7,11 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { CAPABILITIES } from "./capabilities";
+
 import {
   canSeeSettingsSection,
-  settingsSectionMinimumRole,
+  settingsSectionCapability,
   visibleSettingsSections,
   type MemberRole,
   type SettingsSectionId,
@@ -82,18 +84,29 @@ describe("canSeeSettingsSection", () => {
   });
 
   it("treats templates as the business's words, like the away message", () => {
-    // The away message, the text-back and the voicemail greeting are all
-    // admin-gated already. A template is the same class of thing: words the
+    // The away message, the text-back and the voicemail greeting are all on
+    // settings.manage already. A template is the same class of thing: words the
     // whole crew sends in the business's name. Using them is untouched — the
     // composer's picker is not this surface.
-    expect(settingsSectionMinimumRole("templates")).toBe("admin");
+    expect(settingsSectionCapability("templates")).toBe("settings.manage");
   });
 
-  it("every known section has a rule", () => {
+  it("every known section names a real capability", () => {
     for (const section of ALL) {
-      expect(["owner", "admin", "member"]).toContain(
-        settingsSectionMinimumRole(section),
-      );
+      expect(CAPABILITIES).toContain(settingsSectionCapability(section));
+    }
+  });
+
+  it("a read-only observer sees what a member sees, and no more", () => {
+    // #315: the observer is not a rung below a member — they hold a different
+    // SET. For the settings index the answer happens to be the same, because
+    // both hold only the baseline, and the index is keyed on capabilities
+    // rather than on a position.
+    for (const section of ALL) {
+      expect(
+        canSeeSettingsSection(section, "read_only"),
+        section,
+      ).toBe(canSeeSettingsSection(section, "member"));
     }
   });
 });

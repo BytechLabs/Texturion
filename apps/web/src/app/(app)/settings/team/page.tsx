@@ -75,6 +75,18 @@ const ROLE_LABELS: Record<Member["role"], string> = {
   owner: "Owner",
   admin: "Admin",
   member: "Member",
+  read_only: "View only",
+};
+
+/**
+ * #315: what each role is FOR, in the words an owner picking one would use.
+ * A checkbox grid is a correct model and a bad product for a crew of four, so
+ * the roles ship as named presets and the picker says what each is for.
+ */
+const ROLE_BLURBS: Record<"admin" | "member" | "read_only", string> = {
+  admin: "Everything except transferring ownership and closing the workspace",
+  member: "Read and answer customers; no billing, team or settings",
+  read_only: "Can see conversations, cannot reply or change anything",
 };
 
 function MemberRow({
@@ -168,6 +180,7 @@ function MemberRow({
           <SelectContent>
             <SelectItem value="admin">Admin</SelectItem>
             <SelectItem value="member">Member</SelectItem>
+            <SelectItem value="read_only">View only</SelectItem>
           </SelectContent>
         </Select>
       ) : (
@@ -562,13 +575,24 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
                   disabled={seats.full}
                 >
                   <FormControl>
-                    <SelectTrigger className="w-full sm:w-32">
+                    <SelectTrigger className="w-full sm:w-36">
                       <SelectValue />
                     </SelectTrigger>
                   </FormControl>
-                  <SelectContent>
-                    <SelectItem value="member">Member</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
+                  <SelectContent className="max-w-[min(22rem,calc(100vw-2rem))]">
+                    {/* #315: named presets, and each says what it is FOR. An
+                        owner picking a role for their accountant should not
+                        have to infer it from the word "member". */}
+                    {(["member", "admin", "read_only"] as const).map((value) => (
+                      <SelectItem key={value} value={value}>
+                        <span className="flex flex-col gap-0.5 py-0.5">
+                          <span>{ROLE_LABELS[value]}</span>
+                          <span className="text-xs text-muted-foreground whitespace-normal">
+                            {ROLE_BLURBS[value]}
+                          </span>
+                        </span>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FormMessage />

@@ -28,7 +28,14 @@ export type SubscriptionStatus =
   | "past_due"
   | "unpaid"
   | "canceled";
-export type MemberRole = "owner" | "admin" | "member";
+/**
+ * #315: one definition, in @loonext/shared, beside the capability table. The
+ * web app used to keep its own copy, which is how it came to disagree with the
+ * server about which roles exist the moment a preset was added.
+ */
+import type { MemberRole } from "@loonext/shared";
+
+export type { MemberRole };
 export type PlanId = "starter" | "pro";
 export type Country = "US" | "CA";
 export type ConversationStatus = "new" | "open" | "waiting" | "closed";

@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompany } from "@/lib/api/companies";
+import { useActiveCompany } from "@/lib/company/provider";
 import {
   clearDraft,
   loadDraft,
@@ -269,6 +270,7 @@ export function NewConversation() {
   useEffect(() => {
     if (recipient?.kind !== "contact") setContactOptedOut(false);
   }, [recipient]);
+  const { role } = useActiveCompany();
   const banner =
     company.data && destinationE164
       ? selectComposerBanner({
@@ -277,6 +279,11 @@ export function NewConversation() {
           // per-number level to read. The API refuses a send this member may
           // not make, and the thread composer is where the explanation lands.
           viewerLevel: "text",
+          // #315: composing a NEW conversation IS a send, so an observer
+          // cannot start one at all. The banner names the role rather than the
+          // number, because no number is chosen yet and the role is the fact
+          // that would still be true once one was.
+          viewerReadOnly: role === "read_only",
           // This screen never learns WHICH opt-out it is (it holds a boolean
           // the API set on a recipient_opted_out refusal), so it takes the
           // carrier-block wording: that is the case a customer-sent STOP

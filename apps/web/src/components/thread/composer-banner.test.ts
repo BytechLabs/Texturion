@@ -18,6 +18,7 @@ const clear: ComposerGateInput = {
   usage: { used_segments: 100, cap_segments: 1500 },
   optOutHint: false,
   viewerLevel: "text",
+  viewerReadOnly: false,
 };
 
 describe("selectComposerBanner precedence", () => {

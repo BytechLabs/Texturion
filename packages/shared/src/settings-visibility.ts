@@ -26,7 +26,11 @@
  * agreeing on the rows and disagreeing about nothing at all.
  */
 
-import type { MemberRole } from "./capabilities";
+import {
+  roleHasCapability,
+  type Capability,
+  type MemberRole,
+} from "./capabilities";
 
 export type { MemberRole };
 
@@ -52,45 +56,36 @@ export type SettingsSectionId =
   | "help"
   | "diagnostics";
 
-const ROLE_RANK: Record<MemberRole, number> = {
-  member: 1,
-  admin: 2,
-  owner: 3,
-};
-
 /**
- * The minimum role a section is shown to.
+ * The capability a section needs to be worth showing.
  *
- * `member` means "this is yours". Everything else is the business's, and the
- * people who answer for the business are owner and admin.
+ * #315: this was a second rank table, which stopped being expressible the
+ * moment a role existed that is not on the line — a read-only observer is
+ * neither above nor below a member. Keyed on capabilities instead, so the
+ * settings index and the API gates answer from the same model.
  */
-const MINIMUM_ROLE: Record<SettingsSectionId, MemberRole> = {
-  // Yours.
-  profile: "member",
-  account: "member",
-  notifications: "member",
-  devices: "member",
-  help: "member",
-  diagnostics: "member",
+const SECTION_CAPABILITY: Record<SettingsSectionId, Capability> = {
+  // Yours: you have these by being in the workspace at all.
+  profile: "workspace.access",
+  account: "workspace.access",
+  notifications: "workspace.access",
+  devices: "workspace.access",
+  help: "workspace.access",
+  diagnostics: "workspace.access",
 
-  // The business's: what it is, what it sends, what it spends.
-  workspace: "admin",
-  team: "admin",
-  numbers: "admin",
-  hours: "admin",
-  calling: "admin",
-  ai: "admin",
-  usage: "admin",
-  billing: "admin",
-  // #231's log answers "who changed what, months later". That is a question
-  // the people accountable for the workspace ask, and it names other people's
-  // actions — so it is not a member's to browse.
-  history: "admin",
-  // Templates are the words the whole crew sends in the business's name, which
-  // is the same class of thing as the away message and the voicemail greeting —
-  // both already admin. A member USES them constantly (the composer's "/"
-  // picker is untouched); curating the shared set is the business's call.
-  templates: "admin",
+  // The business's, each behind the axis that actually governs it.
+  workspace: "settings.manage",
+  hours: "settings.manage",
+  calling: "settings.manage",
+  ai: "settings.manage",
+  // Words the whole crew sends in the business's name — same axis as the away
+  // message and the voicemail greeting (#461).
+  templates: "settings.manage",
+  team: "team.manage",
+  numbers: "numbers.manage",
+  billing: "billing.manage",
+  usage: "billing.manage",
+  history: "history.read",
 };
 
 /** Is this settings section shown to someone holding `role`? */
@@ -98,15 +93,15 @@ export function canSeeSettingsSection(
   section: SettingsSectionId,
   role: MemberRole,
 ): boolean {
-  return ROLE_RANK[role] >= ROLE_RANK[MINIMUM_ROLE[section]];
+  return roleHasCapability(role, SECTION_CAPABILITY[section]);
 }
 
-/** The minimum role for a section — exported for tests and for copy that has
- *  to name the role ("Only owners and admins can…"). */
-export function settingsSectionMinimumRole(
+/** The capability a section needs — exported for tests and for copy that has
+ *  to name what is missing ("Only owners and admins can…"). */
+export function settingsSectionCapability(
   section: SettingsSectionId,
-): MemberRole {
-  return MINIMUM_ROLE[section];
+): Capability {
+  return SECTION_CAPABILITY[section];
 }
 
 /** The sections a role sees, in the caller's given order. */

@@ -35,21 +35,40 @@ describe("the model reproduces today's rank exactly", () => {
   });
 
   it("every rank gate resolves the same way under both models", () => {
-    // The exhaustive cross-product: for each (role, minimum) pair, the rank
-    // answer and the capability answer must agree. This is the check that lets
-    // a gate conversion be mechanical.
-    const gateCapability: Record<MemberRole, Capability> = {
+    // The exhaustive cross-product over the THREE ORIGINAL roles: for each
+    // (role, minimum) pair, the rank answer and the capability answer must
+    // agree. This is what let the gate conversion be mechanical.
+    //
+    // Scoped to those three on purpose. A preset that is not on the line is
+    // precisely a role the two models DISAGREE about — read_only carries
+    // conversations.read and satisfies no rank at all — and that divergence is
+    // the feature, not a regression. The rank's remaining job is to refuse
+    // such a role at any gate that still asks for one; `rankRefusesOffLine`
+    // below is what pins that.
+    const HIERARCHY = ["owner", "admin", "member"] as const;
+    const gateCapability: Record<(typeof HIERARCHY)[number], Capability> = {
       member: "conversations.read",
       admin: "settings.manage",
       owner: "workspace.own",
     };
-    for (const role of MEMBER_ROLES) {
-      for (const minimum of MEMBER_ROLES) {
+    for (const role of HIERARCHY) {
+      for (const minimum of HIERARCHY) {
         expect(
           roleHasCapability(role, gateCapability[minimum]),
           `${role} vs requireRole("${minimum}")`,
         ).toBe(roleSatisfiesRank(role, minimum));
       }
+    }
+  });
+
+  it("the rank refuses every role that is not on the line", () => {
+    // The safety property the incremental conversion rested on, now with a
+    // real role to test it with rather than a cast.
+    for (const minimum of ["owner", "admin", "member"] as MemberRole[]) {
+      expect(
+        roleSatisfiesRank("read_only", minimum),
+        `read_only vs requireRole("${minimum}")`,
+      ).toBe(false);
     }
   });
 
@@ -133,18 +152,32 @@ describe("the model is well-formed", () => {
     expect(capabilitiesOf("member")).not.toContain("billing.manage");
   });
 
-  it("splits read from send — the read-only gap #315 exists to close", () => {
-    // Today no role has read without send, which is exactly why a read-only
-    // observer has no representation. The MODEL can express it; the preset
-    // that uses it comes next.
-    expect(CAPABILITIES).toContain("conversations.read");
-    expect(CAPABILITIES).toContain("conversations.send");
-    const noRoleIsReadOnly = MEMBER_ROLES.every(
-      (r) =>
-        roleHasCapability(r, "conversations.read") ===
-        roleHasCapability(r, "conversations.send"),
+  it("read without send now has a role — the #315 gap is closed", () => {
+    // This test used to assert the GAP: no role had read without send, which
+    // is exactly why an observer had no representation and why owners shared
+    // logins instead. It now asserts the opposite, which is the whole point of
+    // the preset.
+    expect(roleHasCapability("read_only", "conversations.read")).toBe(true);
+    expect(roleHasCapability("read_only", "conversations.send")).toBe(false);
+    expect(roleHasCapability("read_only", "conversations.note")).toBe(false);
+  });
+
+  it("a read-only observer can see the work and change nothing", () => {
+    // The exact set, because widening an observer must happen on purpose.
+    expect(capabilitiesOf("read_only").sort()).toEqual(
+      ["conversations.read", "workspace.access"].sort(),
     );
-    expect(noRoleIsReadOnly).toBe(true);
+    // And nothing of the business, which is the other half of "observer".
+    for (const cap of [
+      "billing.manage",
+      "settings.manage",
+      "team.manage",
+      "numbers.manage",
+      "contacts.bulk",
+      "workspace.own",
+    ] as Capability[]) {
+      expect(roleHasCapability("read_only", cap), cap).toBe(false);
+    }
   });
 
   it("splits billing from settings — the bookkeeper gap", () => {

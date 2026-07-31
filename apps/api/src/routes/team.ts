@@ -56,10 +56,21 @@ const MEMBER_COLUMNS = "id,user_id,role,deactivated_at,created_at";
 const INVITE_COLUMNS =
   "id,company_id,email,role,invited_by,expires_at,accepted_at,revoked_at,created_at";
 
+/**
+ * #315: the roles an owner or admin may hand out.
+ *
+ * Owner is never assignable (SPEC §6 CHECK, §10 — ownership is transferred,
+ * never granted). `read_only` joins the list as a named preset: an owner's
+ * partner, an accountant, a consultant who should see the work and never text
+ * a customer as the business. Before it, the honest options were "let them
+ * text your customers" or "give them nothing", and the third one people picked
+ * was sharing a login.
+ */
+const ASSIGNABLE_ROLES = ["admin", "member", "read_only"] as const;
+
 const inviteSchema = z.object({
   email: z.email(),
-  // Owner is never assignable via invite (SPEC §6 CHECK, §10).
-  role: z.enum(["admin", "member"]),
+  role: z.enum(ASSIGNABLE_ROLES),
 });
 
 const acceptSchema = z.object({
@@ -67,7 +78,7 @@ const acceptSchema = z.object({
 });
 
 const roleSchema = z.object({
-  role: z.enum(["admin", "member"]),
+  role: z.enum(ASSIGNABLE_ROLES),
 });
 
 type Db = ReturnType<typeof getDb>;

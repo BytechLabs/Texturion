@@ -1,5 +1,7 @@
 "use client";
 
+import type { MemberRole } from "@loonext/shared";
+
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -38,7 +40,8 @@ export interface OnboardingState {
   companyId: string | null;
   company: CompanyView | null;
   registration: RegistrationState | null;
-  role: "owner" | "admin" | "member" | null;
+  /** #315: the shared union, so a new preset does not silently narrow here. */
+  role: MemberRole | null;
   draft: OnboardingDraft;
   snapshot: OnboardingSnapshot | null;
   /** Re-read the local draft after a step writes it (same-mount navigation). */

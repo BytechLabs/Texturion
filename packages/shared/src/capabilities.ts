@@ -84,7 +84,12 @@ export type Capability = (typeof CAPABILITIES)[number];
 
 /** The roles that exist today. New presets are added here, not invented at a
  *  call site. */
-export const MEMBER_ROLES = ["owner", "admin", "member"] as const;
+export const MEMBER_ROLES = [
+  "owner",
+  "admin",
+  "member",
+  "read_only",
+] as const;
 export type MemberRole = (typeof MEMBER_ROLES)[number];
 
 /**
@@ -94,6 +99,17 @@ export type MemberRole = (typeof MEMBER_ROLES)[number];
  * which is what lets a later preset break the line without breaking these.
  */
 const ROLE_CAPABILITIES: Record<MemberRole, readonly Capability[]> = {
+  /**
+   * #315: the observer with no approximation before this — an owner's partner,
+   * an accountant, a consultant who should SEE the work and never text a
+   * customer as the business.
+   *
+   * A SET, not a rung. It is deliberately NOT on the owner ⊃ admin ⊃ member
+   * line, so `roleSatisfiesRank` refuses it everywhere: any gate that still
+   * asked for a rank would keep saying no rather than quietly admitting it.
+   * That is only safe because all 137 gates moved to axes first.
+   */
+  read_only: ["workspace.access", "conversations.read"],
   member: [
     "workspace.access",
     "conversations.read",
@@ -139,7 +155,11 @@ export function capabilitiesOf(role: MemberRole): Capability[] {
  * the two models directly. New presets that are not on the line must NOT be
  * given a rank — that is the point of moving off it.
  */
-const RANK: Record<MemberRole, number> = { member: 1, admin: 2, owner: 3 };
+const RANK: Partial<Record<MemberRole, number>> = {
+  member: 1,
+  admin: 2,
+  owner: 3,
+};
 
 /** Today's gate, expressed exactly: does `role` satisfy `requireRole(minimum)`? */
 export function roleSatisfiesRank(
@@ -149,5 +169,6 @@ export function roleSatisfiesRank(
   // Same fail-closed rule: a role with no rank satisfies no rank gate, which
   // is exactly what an off-the-line preset should do at an unconverted route.
   const rank = RANK[role];
-  return rank !== undefined && rank >= RANK[minimum];
+  const floor = RANK[minimum];
+  return rank !== undefined && floor !== undefined && rank >= floor;
 }
