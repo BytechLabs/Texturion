@@ -12,7 +12,20 @@ name: Checks
 # It deploys NOTHING. Passing here means "this is safe to merge"; what reaches
 # customers is decided in main.yml, and only when the release PR merges (D50).
 on:
+  # #493: NOT on the release-please branch. Those pull requests are opened by a
+  # bot, so GitHub parks their runs at `action_required` until somebody clicks
+  # approve — which meant every release PR carried two permanently yellow checks
+  # that had never executed and never would. A check that cannot run is worse
+  # than no check: it looks like a gate and gates nothing.
+  #
+  # Nothing is lost by skipping it. The PR contains version numbers and
+  # changelog text, this exact gate already ran on the push that produced it,
+  # and it runs AGAIN on the push that merges it — before `Version & changelog`
+  # and before `Ship to production`, which is the run that decides whether
+  # anything reaches customers (D50). A broken release PR fails there and ships
+  # nothing, which is the behaviour either way.
   pull_request:
+    branches-ignore: [release-please--**]
   workflow_call:
 
 # #122: cancel superseded runs on a pull request. Pushing a new commit

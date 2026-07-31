@@ -55,6 +55,31 @@ of work reaches production at once, so a bad release has a wider blast radius
 than a bad commit did — `wrangler rollback` is still seconds, `supabase db push`
 still is not.
 
+## Reading the Actions tab (#493)
+
+Three checks run on every push to `main`, and only the last one reaches
+customers. The names say which is which:
+
+| Check | What a green tick means | Did it ship? |
+|---|---|---|
+| **Gate** | Everything passed: SQL suites from zero, e2e, typecheck, lint, unit tests, both Workers built, both phone apps compiled. | No |
+| **Version & changelog** | `release-please` rewrote the open release pull request. On the one push that IS that PR merging, it also cut the versions, tags and GitHub Releases. | Almost always no |
+| **Ship to production** | Migrations applied, both Workers deployed, phone builds attached. | **Yes** |
+
+**Version & changelog** used to be called just "Release", which read as "this
+went live" on every push when it almost never means that. It now writes a
+one-line summary on each run saying which of its two jobs it just did — so "did
+this ship?" is answered on the run itself rather than inferred from a name.
+
+**Ship to production** is SKIPPED on an ordinary push. That is the design, not a
+failure: merging the release PR is what deploys (D50).
+
+Release pull requests deliberately carry no PR checks. They are opened by a bot,
+so GitHub parks those runs at "action required" until somebody clicks approve —
+a check that never runs looks like a gate and gates nothing. The same gate runs
+on the push that produced the PR and again on the push that merges it, before
+anything ships.
+
 **If nothing releasable has landed and you need to ship anyway** — a stretch of
 `chore`/`ci`/`docs` work produces no release PR at all — run **Main** manually
 from the Actions tab. It requires a written reason and records it on the run.

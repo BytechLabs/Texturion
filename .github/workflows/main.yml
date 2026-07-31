@@ -3,14 +3,23 @@ name: Main
 # THE ONLY PIPELINE FOR `main`. Three jobs, in order, and each one's name says
 # what it is for:
 #
-#   gate     — does this commit pass everything? (calls checks.yml, the same gate
-#              a pull request runs, so a PR and a merge cannot be checked
-#              differently)
-#   release  — release-please keeps ONE pull request open and rewrites it on
-#              every push. Merging that PR is what cuts the versions and tags.
-#   ship     — production. Runs ONLY when the release PR was the thing that
-#              merged, so merging to main and shipping to customers are
-#              different events (D50).
+#   Gate              — does this commit pass everything? (calls checks.yml, the
+#                       same gate a pull request runs, so a PR and a merge
+#                       cannot be checked differently)
+#   Version &         — release-please. On almost every push this only REWRITES
+#   changelog           the open release pull request and ships nothing. On the
+#                       push that IS that PR merging, it cuts the versions,
+#                       changelogs, tags and GitHub Releases.
+#   Ship to           — production. Runs ONLY when the release PR was the thing
+#   production          that merged, so merging to main and shipping to
+#                       customers are different events (D50).
+#
+# #493: the middle job used to be called just "Release", and the owner could
+# not tell from the checks list whether a green tick meant "this went to
+# customers" or "release-please refreshed a PR". It almost always means the
+# second. A name that is right one time in twenty is worse than no name, so it
+# now says what it maintains, and the job writes a one-line summary on every run
+# saying which of the two things actually happened.
 #
 # `needs:` is what orders them, and that is the whole point of this file. The
 # previous shape had four workflows chained by `workflow_run`, which is a
@@ -68,7 +77,7 @@ jobs:
   # way to ask.
   # ---------------------------------------------------------------------------
   release:
-    name: Release
+    name: Version & changelog
     needs: gate
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -80,6 +89,27 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      # #493: answer "did this ship?" on the run itself, so nobody has to infer
+      # it from a job name or go opening other runs. Two outcomes, said plainly.
+      - name: Say what just happened
+        run: |
+          if [ "${{ steps.please.outputs.releases_created }}" = "true" ]; then
+            {
+              echo "## Released ${{ steps.please.outputs.tag_name }}"
+              echo
+              echo "The release pull request merged, so versions, changelogs and"
+              echo "tags are cut. **Ship to production** runs next — that is the"
+              echo "job that reaches customers."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## Nothing shipped"
+              echo
+              echo "This push updated the open release pull request and stopped"
+              echo "there. Merging that PR is what releases (D50)."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   # ---------------------------------------------------------------------------
   # Production. api and web deploy themselves; the phone apps are built as
