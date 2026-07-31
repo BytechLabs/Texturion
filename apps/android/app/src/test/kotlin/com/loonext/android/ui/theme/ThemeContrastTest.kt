@@ -159,6 +159,35 @@ class ThemeContrastTest {
         assertReadable("dark", BrandColor.DarkCoral, "coral", BrandColor.DarkCanvas, "canvas", nonText)
     }
 
+    /**
+     * #462: "Some buttons dont look like they are clickable in the settings
+     * even though they are."
+     *
+     * Material draws a TextButton's label in `primary`, and this theme maps
+     * primary to Ink — the same colour as body text — so every text button
+     * rendered as a line of prose. `LinkButton` uses `secondary` instead
+     * (MOBILE-DESIGN.md: olive is "counts, LINKS, emphasis"). This holds the
+     * two apart: a tappable label must not be the colour of the paragraph
+     * beside it.
+     */
+    @Test
+    fun `a text button is not the colour of body text`() {
+        for ((theme, s) in listOf("light" to LightColors, "dark" to DarkColors)) {
+            assertTrue(
+                "[$theme] primary equals onSurface, so a stock TextButton is " +
+                    "indistinguishable from prose — LinkButton must not use it",
+                s.primary == s.onSurface,
+            )
+            assertTrue(
+                "[$theme] secondary must differ from body text, or LinkButton " +
+                    "changes nothing",
+                s.secondary != s.onSurface,
+            )
+            // And it still has to be readable on the card it sits on.
+            assertReadable(theme, s.secondary, "secondary", s.surface, "surface", 4.5)
+        }
+    }
+
     @Test
     fun `the two schemes are genuinely different tables`() {
         // A test that read the same scheme twice would pass forever while

@@ -27,7 +27,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -290,12 +289,12 @@ private fun NumberCard(
         if (!released && number.status == NumberStatus.ACTIVE) {
             Row(modifier = Modifier.padding(top = 6.dp)) {
                 if (canManage) {
-                    TextButton(onClick = { managingAccess = true }) {
+                    LinkButton(onClick = { managingAccess = true }) {
                         Text("Who can use this number")
                     }
                 }
                 if (canRelease && number.number_e164 != null) {
-                    TextButton(onClick = { releasing = true }) {
+                    LinkButton(onClick = { releasing = true }) {
                         Text(
                             "Release",
                             color = MaterialTheme.colorScheme.error,
@@ -609,7 +608,7 @@ private fun NumberAccessDialog(
             ) { Text(if (pending) "Saving…" else "Save") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !pending) { Text("Cancel") }
+            LinkButton(onClick = onDismiss, enabled = !pending) { Text("Cancel") }
         },
     )
 }

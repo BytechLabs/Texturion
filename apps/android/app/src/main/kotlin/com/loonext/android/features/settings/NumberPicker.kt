@@ -22,7 +22,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -170,7 +169,7 @@ fun NumberPickerDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !pending) { Text("Cancel") }
+            LinkButton(onClick = onDismiss, enabled = !pending) { Text("Cancel") }
         },
     )
 }
@@ -292,6 +291,6 @@ private fun PickerResults(
                 }
             }
         }
-        TextButton(onClick = onRefresh, enabled = !pending) { Text("Refresh the list") }
+        LinkButton(onClick = onRefresh, enabled = !pending) { Text("Refresh the list") }
     }
 }

@@ -20,7 +20,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -322,7 +321,7 @@ private fun PendingHandoverNotice(
                             Spacer(Modifier.width(8.dp))
                         }
                         if (canCancel) {
-                            TextButton(onClick = onCancel, enabled = !busy) {
+                            LinkButton(onClick = onCancel, enabled = !busy) {
                                 // The owner's veto and the recipient's decline
                                 // are the same button: this is not going ahead.
                                 Text(handoverCancelLabel(isOwner, pending.mine))

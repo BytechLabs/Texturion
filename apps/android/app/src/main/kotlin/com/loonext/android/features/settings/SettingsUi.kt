@@ -5,11 +5,11 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,16 +29,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.core.net.toUri
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import com.loonext.android.ui.common.assertAboveIme
 import com.loonext.android.ui.theme.BrandColor
 
 /**
- * Shared settings primitives: hairline-bordered cards (never shadows), calm
- * status pills, confirm dialogs, and the external-browser opener the billing
- * surfaces require (store rules: hosted Stripe pages open in the REAL browser
- * via ACTION_VIEW, never a webview or custom tab).
+ * Shared settings primitives: paper cards (never shadows, never a hairline
+ * outline — MOBILE-DESIGN.md "Grammar": paper, radius 22), calm status pills,
+ * confirm dialogs, and the external-browser opener the billing surfaces
+ * require (store rules: hosted Stripe pages open in the REAL browser via
+ * ACTION_VIEW, never a webview or custom tab).
  */
 
 /** #178: every fair-use mention (Usage, Billing) links to the same policy. */
@@ -55,10 +56,23 @@ fun SettingsCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant,
-                shape = RoundedCornerShape(12.dp),
+            // #462: "In light mode, some sections are very hard to determine,
+            // like in dark mode the borders are legible, not in light mode."
+            //
+            // This card was TRANSPARENT with a 1dp `outlineVariant` border at
+            // radius 12, and that is three departures from MOBILE-DESIGN.md,
+            // which says cards are "paper, radius 22 … rows inside with 1px
+            // #F0F0E8 dividers (outlineVariant)". `outlineVariant` is the
+            // token for dividers INSIDE a card, not for its edge.
+            //
+            // The measurements say the rest: that border was ΔL* 1.1 against
+            // the light canvas (#F0F0E8 on #F3F3EE) and ΔL* 7.6 against the
+            // dark one. One bug, visible in exactly one theme — which is why
+            // it read as a light-mode problem. The paper fill is the
+            // separation, in both themes, and it is what iOS has always drawn.
+            .background(
+                color = MaterialTheme.colorScheme.surface,
+                shape = MaterialTheme.shapes.large,
             )
             .padding(16.dp),
     ) {
@@ -74,6 +88,39 @@ fun SettingsCard(
         Spacer(Modifier.height(12.dp))
         content()
     }
+}
+
+/**
+ * A text button that LOOKS like one.
+ *
+ * #462: "Some buttons dont look like they are clickable in the settings even
+ * though they are." Material's `TextButton` draws its label in
+ * `colorScheme.primary`, and this theme maps primary to Ink — the same colour
+ * as body text (`onSurface`). So every text button in settings rendered as a
+ * line of ordinary prose: same colour, no fill, no border, nothing to say it
+ * could be tapped. True in both themes; 17.05:1 on paper either way, which is
+ * exactly the contrast of the paragraph next to it.
+ *
+ * Olive is what MOBILE-DESIGN.md reserves for "counts, LINKS, emphasis", and
+ * it is what iOS has always tinted these with (`.tint(BrandColor.olive)`).
+ * 4.41:1 light, 9.33:1 dark — legible on its own, and unmistakably not prose.
+ */
+@Composable
+fun LinkButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable RowScope.() -> Unit,
+) {
+    TextButton(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+        colors = ButtonDefaults.textButtonColors(
+            contentColor = MaterialTheme.colorScheme.secondary,
+        ),
+        content = content,
+    )
 }
 
 /** Honest read-only line for members ("Only owners and admins can…"). */
@@ -218,7 +265,7 @@ fun ConfirmDialog(
             ) { Text(if (pending) "Working…" else confirmLabel) }
         },
         dismissButton = dismissLabel?.let { label ->
-            { TextButton(onClick = onDismiss, enabled = !pending) { Text(label) } }
+            { LinkButton(onClick = onDismiss, enabled = !pending) { Text(label) } }
         },
     )
 }

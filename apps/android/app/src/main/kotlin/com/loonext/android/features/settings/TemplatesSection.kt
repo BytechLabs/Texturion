@@ -17,7 +17,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -212,8 +211,8 @@ private fun TemplateListRow(
             )
         }
         Spacer(Modifier.width(4.dp))
-        TextButton(onClick = onEdit) { Text("Edit") }
-        TextButton(onClick = onDelete) {
+        LinkButton(onClick = onEdit) { Text("Edit") }
+        LinkButton(onClick = onDelete) {
             Text("Delete", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -386,7 +385,7 @@ private fun TemplateEditorDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !saving) { Text("Cancel") }
+            LinkButton(onClick = onDismiss, enabled = !saving) { Text("Cancel") }
         },
     )
 }

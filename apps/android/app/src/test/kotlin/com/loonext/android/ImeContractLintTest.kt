@@ -79,6 +79,30 @@ class ImeContractLintTest {
         )
     }
 
+    /**
+     * #462: "some stuff is shown sooooo at the bottom, that the native OS
+     * gesture bar shows above it." imeHost used to be plain imePadding, which
+     * is ZERO with the keyboard closed, so every pushed route drew its last row
+     * under the gesture bar. The shell pager had the union math from #172; the
+     * hosts that use this helper never got it.
+     */
+    @Test
+    fun `imeHost clears the gesture bar, not only the keyboard`() {
+        val contract = readMainSource(contractFile)
+        assertTrue(
+            "imeHost must pad for navigationBars - a host that only pads the " +
+                "ime draws its last row under the gesture bar whenever the " +
+                "keyboard is closed, which is nearly always (#462)",
+            contract.contains("WindowInsets.navigationBars"),
+        )
+        assertTrue(
+            "imeHost must UNION the gesture bar with the ime, never add them - " +
+                "the gesture bar sits inside an open keyboard, so adding leaves " +
+                "a dead strip above it",
+            contract.contains("WindowInsets.navigationBars.union(WindowInsets.ime)"),
+        )
+    }
+
     @Test
     fun `every host is wired - route host, pre-shell, shell pager, call activity`() {
         val main = readMainSource("MainActivity.kt")

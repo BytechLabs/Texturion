@@ -17,7 +17,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -148,7 +147,7 @@ private fun MyDevicesCard(
                     // and reversible (they sign back in). The pause is spent
                     // on the two actions that are not.
                     if (!session.current) {
-                        TextButton(
+                        LinkButton(
                             onClick = {
                                 busy = true
                                 coroutines.launch {
@@ -261,7 +260,7 @@ private fun CrewDevicesCard(
                 action = {
                     val memberId = session.member_id
                     if (memberId != null) {
-                        TextButton(
+                        LinkButton(
                             onClick = { target = memberId to name },
                             enabled = !busy,
                         ) {

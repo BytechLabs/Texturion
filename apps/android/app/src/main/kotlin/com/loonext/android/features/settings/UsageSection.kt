@@ -23,7 +23,6 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -168,7 +167,7 @@ private fun QuietCard() {
             style = MaterialTheme.typography.bodyMedium,
         )
         Spacer(Modifier.height(4.dp))
-        TextButton(onClick = { openExternal(context, FAIR_USE_URL) }) {
+        LinkButton(onClick = { openExternal(context, FAIR_USE_URL) }) {
             Text("See the fair use policy")
         }
     }
@@ -331,7 +330,7 @@ private fun CapCard(
                             },
                             enabled = !saving,
                         ) { Text(if (saving) "Saving…" else "Save cap") }
-                        TextButton(
+                        LinkButton(
                             onClick = { pending = current },
                             enabled = !saving,
                         ) { Text("Cancel") }

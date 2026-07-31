@@ -19,7 +19,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -294,7 +293,7 @@ private fun PortCard(scope: SettingsScope, port: PortRequest, onChanged: () -> U
                 port.status != PortStatus.PORTED &&
                 port.status != PortStatus.CANCEL_PENDING
             ) {
-                TextButton(onClick = { cancelling = true }, enabled = !busy) {
+                LinkButton(onClick = { cancelling = true }, enabled = !busy) {
                     Text("Cancel transfer", color = MaterialTheme.colorScheme.error)
                 }
             }
@@ -584,7 +583,7 @@ private fun StartPortDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !pending) { Text("Cancel") }
+            LinkButton(onClick = onDismiss, enabled = !pending) { Text("Cancel") }
         },
     )
 }
@@ -674,7 +673,7 @@ private fun FixPortDialog(
             ) { Text(if (pending) "Resubmitting…" else "Resubmit") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !pending) { Text("Cancel") }
+            LinkButton(onClick = onDismiss, enabled = !pending) { Text("Cancel") }
         },
     )
 }

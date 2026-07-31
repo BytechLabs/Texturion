@@ -13,7 +13,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -482,7 +481,7 @@ private fun CallerIdCard(
                 )
             }
             if (canEdit && !editing) {
-                TextButton(
+                LinkButton(
                     onClick = {
                         draft = company.cnam_display_name.orEmpty()
                         error = null
@@ -526,7 +525,7 @@ private fun CallerIdCard(
                 },
             )
             if (!usingCompanyName) {
-                TextButton(
+                LinkButton(
                     onClick = { confirming = CallerIdChange(null) },
                     enabled = !saving,
                 ) { Text("Use company name instead") }
@@ -548,7 +547,7 @@ private fun CallerIdCard(
                     enabled = !saving,
                 ) { Text("Review change") }
                 Spacer(Modifier.width(8.dp))
-                TextButton(
+                LinkButton(
                     onClick = { editing = false },
                     enabled = !saving,
                 ) { Text("Cancel") }
@@ -579,7 +578,7 @@ private fun CallerIdCard(
                         enabled = !saving,
                     ) { Text(if (saving) "Submitting…" else "Update caller ID") }
                     Spacer(Modifier.width(8.dp))
-                    TextButton(
+                    LinkButton(
                         onClick = { confirming = null },
                         enabled = !saving,
                     ) { Text("Go back") }

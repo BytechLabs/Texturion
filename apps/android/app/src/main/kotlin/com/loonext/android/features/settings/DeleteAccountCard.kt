@@ -12,7 +12,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -175,7 +174,7 @@ fun DeleteAccountCard(scope: SettingsScope, onDeleted: () -> Unit) {
                 }
             },
             confirmButton = {
-                TextButton(
+                LinkButton(
                     enabled = !deleting && typed.trim().equals(CONFIRM_WORD, ignoreCase = true),
                     onClick = {
                         deleting = true
@@ -199,7 +198,7 @@ fun DeleteAccountCard(scope: SettingsScope, onDeleted: () -> Unit) {
                 ) { Text(if (deleting) "Deleting…" else "Delete my account") }
             },
             dismissButton = {
-                TextButton(
+                LinkButton(
                     enabled = !deleting,
                     onClick = { confirming = false; typed = "" },
                 ) { Text("Keep my account") }

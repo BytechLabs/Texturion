@@ -13,7 +13,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -152,7 +151,7 @@ private fun TextEnableCard(
                 Spacer(Modifier.width(8.dp))
             }
             if (canCancel && open) {
-                TextButton(onClick = { cancelling = true }, enabled = !busy) {
+                LinkButton(onClick = { cancelling = true }, enabled = !busy) {
                     Text("Cancel order", color = MaterialTheme.colorScheme.error)
                 }
             }

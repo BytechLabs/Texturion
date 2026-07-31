@@ -9,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
@@ -96,13 +95,13 @@ fun RejectionNotice(
                     modifier = Modifier.padding(top = 2.dp),
                 ) {
                     if (field != null) {
-                        TextButton(onClick = { onGoToField(field) }) { Text("Take me to it") }
+                        LinkButton(onClick = { onGoToField(field) }) { Text("Take me to it") }
                     }
                     if (stuck) {
                         // Offered ALONGSIDE the form, not instead of it —
                         // somebody who now knows what to change should not wait
                         // for a reply before changing it.
-                        TextButton(
+                        LinkButton(
                             onClick = {
                                 uriHandler.openUri(
                                     "mailto:support@loonext.com?subject=" +

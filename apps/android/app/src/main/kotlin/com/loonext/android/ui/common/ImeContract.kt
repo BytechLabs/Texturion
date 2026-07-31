@@ -4,9 +4,11 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.onFocusedBoundsChanged
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ModalBottomSheet
@@ -110,7 +112,25 @@ fun imeCoverageViolation(
  * cannot use plain imePadding (the shell pager's union math) attach
  * [assertAboveIme] alone.
  */
-fun Modifier.imeHost(host: String): Modifier = imePadding().assertAboveIme(host)
+/**
+ * Host padding for a full-screen host: the OS gesture bar at the bottom, and
+ * the keyboard when it is up — whichever is taller, never both stacked.
+ *
+ * #462: "Margins/layout is a little weird like some stuff is shown sooooo at
+ * the bottom, that the native OS gesture bar shows above it." This used to be
+ * plain `imePadding()`, which is zero when the keyboard is closed — so every
+ * pushed route (Settings, a thread, a task, a contact) drew its last row
+ * underneath the gesture bar. The shell's tab pager had the union math from
+ * the start (#172); the hosts that use this helper never got it.
+ *
+ * `union` and not `add`: the gesture bar sits inside the keyboard when the
+ * keyboard is open, so adding them would leave a visible dead strip above an
+ * open keyboard.
+ */
+@Composable
+fun Modifier.imeHost(host: String): Modifier =
+    windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
+        .assertAboveIme(host)
 
 /**
  * #199's debug guard: after the keyboard finishes animating in, the focused

@@ -14,7 +14,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -137,7 +136,7 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
                     Text("New recovery codes")
                 }
                 Spacer(Modifier.width(8.dp))
-                TextButton(onClick = { confirmingOff = true }, enabled = !busy) {
+                LinkButton(onClick = { confirmingOff = true }, enabled = !busy) {
                     Text("Turn off", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -247,7 +246,7 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
                 Spacer(Modifier.height(2.dp))
                 Text(current.secret, style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(4.dp))
-                TextButton(onClick = {
+                LinkButton(onClick = {
                     copyToClipboard(context, "Setup key", current.secret)
                 }) {
                     Text("Copy key")

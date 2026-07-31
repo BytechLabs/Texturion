@@ -14,7 +14,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -263,7 +262,7 @@ private fun PlanCard(
             )
         }
         Spacer(Modifier.height(6.dp))
-        TextButton(onClick = { openExternal(context, FAIR_USE_URL) }) {
+        LinkButton(onClick = { openExternal(context, FAIR_USE_URL) }) {
             Text("Allowances reflect fair use. See the policy")
         }
         fullDate(company.current_period_end)?.let { date ->

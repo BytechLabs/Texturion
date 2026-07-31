@@ -16,7 +16,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -210,14 +209,14 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
         // #348: the access model was complete and entirely invisible. Quiet and
         // text-only, because it answers a question rather than being an action.
         if (member.deactivated_at == null) {
-            TextButton(onClick = { showingAccess = true }) { Text("Numbers") }
+            LinkButton(onClick = { showingAccess = true }) { Text("Numbers") }
         }
         when {
             member.role == MemberRole.OWNER ->
                 StatusPill("Owner", PillTone.Positive)
 
             canChangeRole -> Column {
-                TextButton(onClick = { roleMenuOpen = true }, enabled = !busy) {
+                LinkButton(onClick = { roleMenuOpen = true }, enabled = !busy) {
                     Text(if (busy) "Saving…" else roleLabel(member.role))
                 }
                 DropdownMenu(
@@ -262,7 +261,7 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
         }
         if (canDeactivate) {
             Spacer(Modifier.width(4.dp))
-            TextButton(onClick = { confirmingDeactivate = true }, enabled = !busy) {
+            LinkButton(onClick = { confirmingDeactivate = true }, enabled = !busy) {
                 Text("Deactivate", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -427,13 +426,13 @@ private fun InvitesCard(
                         )
                     }
                     if (!expired) {
-                        TextButton(onClick = {
+                        LinkButton(onClick = {
                             haptics.tap()
                             copyToClipboard(context, "Invite link", inviteLink(invite.id))
                             scope.showMessage("Invite link copied.")
                         }) { Text("Copy link") }
                     }
-                    TextButton(
+                    LinkButton(
                         onClick = {
                             haptics.reject()
                             revoking = true
@@ -499,7 +498,7 @@ private fun MemberAccessDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+        confirmButton = { LinkButton(onClick = onDismiss) { Text("Done") } },
         title = { Text("Numbers $name can reach") },
         text = {
             Column {
