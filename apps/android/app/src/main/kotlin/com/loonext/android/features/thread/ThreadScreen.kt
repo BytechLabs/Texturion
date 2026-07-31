@@ -17,6 +17,18 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.loonext.android.core.realtime.PRESENCE_HEARTBEAT_MS
+import com.loonext.android.core.realtime.RealtimeState
+import com.loonext.android.core.realtime.TYPING_THROTTLE_MS
+import com.loonext.android.core.realtime.TYPING_TTL_MS
+import com.loonext.android.core.realtime.presenceEntries
+import com.loonext.android.core.realtime.presenceLabel
+import com.loonext.android.core.realtime.viewersOf
+import kotlinx.coroutines.delay
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -693,6 +705,99 @@ private fun ThreadLoaded(
             }
         }
 
+        // #302 — who else is on this thread.
+        //
+        // The socket already holds this number's presence topic (it rides the
+        // same lifecycle as the number topic), so opening a thread only has to
+        // announce this viewer and keep announcing inside the TTL. A screen that
+        // stops running stops speaking, and the viewer disappears for everybody
+        // else on their next evaluation — no server, no cleanup job.
+        val presenceByTopic by graph.realtime.presence.collectAsStateWithLifecycle()
+        var presenceNow by remember(controller.conversationId) { mutableLongStateOf(System.currentTimeMillis()) }
+        var typingUntil by remember(controller.conversationId) { mutableLongStateOf(0L) }
+        val numberId = detail.phone_number_id
+
+        LaunchedEffect(controller.conversationId, numberId, me.user_id) {
+            fun announce(typing: Boolean) {
+                graph.realtime.trackPresence(
+                    numberId,
+                    buildJsonObject {
+                        put("user_id", me.user_id)
+                        put("display_name", me.display_name)
+                        put("conversation_id", controller.conversationId)
+                        put("typing", typing)
+                        put("at", System.currentTimeMillis())
+                    },
+                )
+            }
+            // The topic is joined for as long as this thread is open, and left
+            // in the `finally` below — presence is per-thread, not per-number.
+            graph.realtime.joinPresence(numberId)
+            announce(false)
+            try {
+                while (true) {
+                    delay(PRESENCE_HEARTBEAT_MS)
+                    announce(System.currentTimeMillis() < typingUntil)
+                    // Re-evaluate staleness even when no frame arrives: a viewer
+                    // who simply stops speaking must leave the screen, and on a
+                    // quiet thread nothing else would trigger that.
+                    presenceNow = System.currentTimeMillis()
+                }
+            } finally {
+                // Leaving the thread stops the announcement immediately rather
+                // than letting the TTL expire — "promptly" is the acceptance
+                // criterion, and 45 seconds of a ghost is not prompt.
+                graph.realtime.untrackPresence(numberId)
+                graph.realtime.leavePresence(numberId)
+            }
+        }
+
+        // A second, faster tick purely for staleness. Cheap, and it fetches
+        // nothing.
+        LaunchedEffect(controller.conversationId) {
+            while (true) {
+                delay(5_000)
+                presenceNow = System.currentTimeMillis()
+            }
+        }
+
+        val viewers = viewersOf(
+            entries = presenceEntries(
+                presenceByTopic["realtime:company:$companyId:number:$numberId:presence"]
+                    ?: emptyMap(),
+            ),
+            conversationId = controller.conversationId,
+            selfUserId = me.user_id,
+            now = presenceNow,
+            // Presence we are no longer being told about is presence we must not
+            // show. The realtime state IS the health signal.
+            healthy = graph.realtime.state.value is RealtimeState.Joined,
+        )
+        presenceLabel(viewers)?.let { line ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (viewers.any { it.typing }) MaterialTheme.colorScheme.secondary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    line,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
         // Composer (or gate banner + notes-only).
         val drafts = remember { ComposerDrafts(context.applicationContext) }
         val composer = rememberComposerState(controller.conversationId, drafts)
@@ -717,6 +822,26 @@ private fun ThreadLoaded(
         ThreadComposer(
             state = composer,
             noteOnly = detail.viewer_level == "note",
+            onTyping = {
+                // #302: throttled, because the keystroke rate is not the
+                // broadcast rate. The window is extended on every keystroke; the
+                // heartbeat above carries it while it lasts.
+                val now = System.currentTimeMillis()
+                val wasQuiet = now >= typingUntil - TYPING_TTL_MS + TYPING_THROTTLE_MS
+                typingUntil = now + TYPING_TTL_MS
+                if (wasQuiet) {
+                    graph.realtime.trackPresence(
+                        numberId,
+                        buildJsonObject {
+                            put("user_id", me.user_id)
+                            put("display_name", me.display_name)
+                            put("conversation_id", controller.conversationId)
+                            put("typing", true)
+                            put("at", now)
+                        },
+                    )
+                }
+            },
             banner = banner,
             contactName = detail.contact.name,
             businessName = controller.company?.name,

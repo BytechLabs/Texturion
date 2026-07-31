@@ -181,6 +181,9 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
             ready.companyId,
             session.accessToken,
             refreshed.company?.numbers?.map { it.id }.orEmpty(),
+            // #302: the presence key. Nothing else on this socket says anything
+            // about who the viewer is.
+            userId = refreshed.user_id,
         )
         // The screens read the number list off this same `me` (the dial-from
         // picker, the composer's From), so a member who just lost a number stops
@@ -252,6 +255,7 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
                     // them. It is a failure when it came from the unhydrated `me`,
                     // whose `company` is always null — hence the retry below.
                     view.company?.numbers?.map { it.id }.orEmpty(),
+                    userId = view.user_id, // #302: the presence key
                 )
             }
             _state.value = RootState.Ready(view, membership.company_id)

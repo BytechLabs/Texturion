@@ -159,6 +159,24 @@ class RealtimeClient(
     private val joinedTopics = mutableSetOf<String>()
 
     /**
+     * #302: who we are, for the presence key. Presence is the only thing on this
+     * socket that says anything ABOUT the viewer, so this is the only reason the
+     * client needs to know.
+     */
+    private var userId: String? = null
+
+    /**
+     * #302: presence per topic, as the server last described it.
+     *
+     * A StateFlow rather than an event stream: presence is a picture of RIGHT
+     * NOW, and a subscriber that arrives mid-thread needs the current answer,
+     * not the diffs it missed. The map is keyed by topic so one number's
+     * presence cannot be read as another's.
+     */
+    private val _presence = MutableStateFlow<Map<String, PresenceMap>>(emptyMap())
+    val presence: StateFlow<Map<String, PresenceMap>> = _presence
+
+    /**
      * True once [companyId]'s COMPANY topic has been joined — the gate on
      * [reconnected]. Scoped to the COMPANY, not to a socket: a socket that
      * dropped is precisely the case a backfill exists for, so it is reset only
@@ -171,7 +189,14 @@ class RealtimeClient(
      * also how a changed number list is applied: pass the new one.
      */
     @Synchronized
-    fun connect(companyId: String, accessToken: String, numberIds: List<String>) {
+    fun connect(
+        companyId: String,
+        accessToken: String,
+        numberIds: List<String>,
+        userId: String? = null,
+    ) {
+        // #302: only presence reads this, and only as its key.
+        if (userId != null) this.userId = userId
         val sameCompany = this.companyId == companyId
         this.companyId = companyId
         this.accessToken = accessToken
@@ -345,6 +370,11 @@ class RealtimeClient(
         val keep = numberIds.mapTo(mutableSetOf(companyTopic(company))) {
             numberTopic(company, it)
         }
+        // #302: presence topics are joined per OPEN THREAD, not per number, so
+        // they are never in the always-on set this reconciles. They leave when
+        // the thread closes — see [joinPresence] for why that is the right
+        // lifecycle rather than this one.
+        keep += joinedTopics.filter { it.endsWith(":presence") }
         var refused = 0
         for (topic in joinedTopics - keep) {
             if (ws.send(message(topic, "phx_leave", buildJsonObject {}))) {
@@ -430,6 +460,35 @@ class RealtimeClient(
         val isCompanyTopic = topic != null && topic == companyTopic
         val isNumberTopic = topic != null && companyTopic != null &&
             topic.startsWith("$companyTopic:number:")
+
+        // #302: presence frames are their own events on their own topics, and
+        // they never touch the connection state. A presence topic dying is not
+        // realtime dying — the crew loses a courtesy, not their messages — so
+        // these are handled and returned before the branches that can close the
+        // socket or forget a number.
+        if (topic != null && topic.endsWith(":presence") && payload != null) {
+            when (event) {
+                "presence_state" -> {
+                    _presence.value = _presence.value + (topic to applyPresenceState(payload))
+                    return
+                }
+                "presence_diff" -> {
+                    val current = _presence.value[topic] ?: emptyMap()
+                    _presence.value =
+                        _presence.value + (topic to applyPresenceDiff(current, payload))
+                    return
+                }
+                "phx_close", "phx_error" -> {
+                    // Drop what we know rather than let it age on screen: stale
+                    // presence says a colleague has this thread when they may
+                    // have closed the app, which is the failure this feature
+                    // exists to prevent, in the other direction.
+                    _presence.value = _presence.value - topic
+                    forgetTopic(topic)
+                    return
+                }
+            }
+        }
 
         when (event) {
             "phx_reply" -> {
@@ -539,8 +598,20 @@ class RealtimeClient(
     private fun numberTopic(company: String, numberId: String) =
         "realtime:company:$company:number:$numberId"
 
+    /**
+     * #302: the presence sibling of a number topic.
+     *
+     * Deliberately derived from [numberTopic] rather than built separately, so
+     * the two can never disagree about which number they are for — which is the
+     * whole basis of the authorization: `is_company_topic_member` resolves the
+     * same uuid out of both and runs the same access test.
+     */
+    private fun presenceTopic(company: String, numberId: String) =
+        numberTopic(company, numberId) + ":presence"
+
     private fun joinMessage(topic: String): String {
         val token = accessToken.orEmpty()
+        val isPresence = topic.endsWith(":presence")
         return message(
             topic = topic,
             event = "phx_join",
@@ -550,11 +621,106 @@ class RealtimeClient(
                         put("self", false)
                         put("ack", false)
                     }
-                    putJsonObject("presence") { put("key", "") }
+                    putJsonObject("presence") {
+                        // #302: `enabled` is REQUIRED for presence to flow, and
+                        // its absence is silent — the server accepts the join
+                        // and then sends nothing. Captured off the working web
+                        // client's socket rather than assumed; see
+                        // PresenceLogic.kt for the full frame shapes.
+                        put("key", if (isPresence) userId.orEmpty() else "")
+                        put("enabled", isPresence)
+                    }
                     put("private", true)
                 }
                 put("access_token", token)
             },
+        )
+    }
+
+    /**
+     * #302: join a number's presence topic, for as long as a thread on it is
+     * open.
+     *
+     * PER OPEN THREAD, NOT PER NUMBER, which is the same shape the web client
+     * uses. Joining every number's presence topic for the whole session would
+     * have meant receiving every teammate's movements all day to show them on
+     * one screen — the fan-out #251 says has never been measured — and it would
+     * have folded presence into the number-topic lifecycle, where a dozen
+     * assertions about which channels exist would suddenly have to reason about
+     * presence too.
+     *
+     * The authorization window is the one D88 already documents: the server
+     * checks on join and on a pushed token, so a member whose access is revoked
+     * mid-thread keeps this channel until they leave the thread or their token
+     * refreshes. Bounded by a screen being open, and it carries no message
+     * content — only who is looking at what.
+     */
+    @Synchronized
+    fun joinPresence(numberId: String) {
+        val company = companyId ?: return
+        val ws = socket ?: return
+        val topic = presenceTopic(company, numberId)
+        if (joinedTopics.add(topic)) ws.send(joinMessage(topic))
+    }
+
+    /** #302: leave it, and forget what it told us. */
+    @Synchronized
+    fun leavePresence(numberId: String) {
+        val company = companyId ?: return
+        val topic = presenceTopic(company, numberId)
+        // Dropped even if the leave frame cannot be sent: stale presence on
+        // screen is the failure this feature exists to prevent, and a socket
+        // that cannot take the frame is exactly when it would linger.
+        _presence.value = _presence.value - topic
+        val ws = socket
+        if (ws != null && ws.send(message(topic, "phx_leave", buildJsonObject {}))) {
+            joinedTopics.remove(topic)
+        }
+    }
+
+    /**
+     * #302: announce this viewer on a number's presence topic.
+     *
+     * Best-effort by construction. A failed send means a teammate does not see
+     * that somebody is here, which is the state the whole product was in before
+     * this feature — never a reason to fail anything the user asked for.
+     */
+    @Synchronized
+    fun trackPresence(numberId: String, entry: JsonObject) {
+        val company = companyId ?: return
+        val ws = socket ?: return
+        val topic = presenceTopic(company, numberId)
+        if (topic !in joinedTopics) return
+        ws.send(
+            message(
+                topic = topic,
+                event = "presence",
+                payload = buildJsonObject {
+                    put("type", "presence")
+                    put("event", "track")
+                    put("payload", entry)
+                },
+            ),
+        )
+    }
+
+    /** #302: stop announcing — the viewer left the thread. */
+    @Synchronized
+    fun untrackPresence(numberId: String) {
+        val company = companyId ?: return
+        val ws = socket ?: return
+        val topic = presenceTopic(company, numberId)
+        if (topic !in joinedTopics) return
+        ws.send(
+            message(
+                topic = topic,
+                event = "presence",
+                payload = buildJsonObject {
+                    put("type", "presence")
+                    put("event", "untrack")
+                    put("payload", buildJsonObject {})
+                },
+            ),
         )
     }
 

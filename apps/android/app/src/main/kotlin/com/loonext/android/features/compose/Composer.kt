@@ -288,6 +288,13 @@ fun rememberComposerState(
 fun ThreadComposer(
     state: ComposerState,
     noteOnly: Boolean,
+    /**
+     * #302: called on each keystroke of a REPLY so teammates on this thread can
+     * see somebody is answering. Throttled by the caller — the keystroke rate is
+     * not the broadcast rate. Notes deliberately do not signal: a note goes to
+     * the crew, and nobody is racing to answer the customer with it.
+     */
+    onTyping: (() -> Unit)? = null,
     banner: ComposerBanner?,
     contactName: String?,
     businessName: String?,
@@ -757,6 +764,7 @@ fun ThreadComposer(
                         templatePickerOpen = true
                     } else {
                         state.onTextChange(value)
+                        if (!isNote && value.isNotEmpty()) onTyping?.invoke()
                         // "@" at the start of a note or after a space names a
                         // teammate. Mid-word it belongs to an email address or
                         // a rate like "2 hrs @ $95", so the picker stays shut
