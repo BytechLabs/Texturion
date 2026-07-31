@@ -182,7 +182,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
       {/* Teach the calendar rather than leave it reading as broken: when no
           task in the visible window has a due date, explain how they appear. */}
       {!query.isPending && !query.isError && tasks.length === 0 && (
-        <div className="rounded-app-card border border-app-line bg-app-stone-1 px-4 py-3 text-center">
+        <div className="rounded-app-card border border-app-line bg-app-inset px-4 py-3 text-center">
           <p className="text-[13px] leading-relaxed text-muted-foreground">
             No tasks are scheduled in this range. A task appears here once it has
             a <span className="font-medium text-foreground">due date</span>.

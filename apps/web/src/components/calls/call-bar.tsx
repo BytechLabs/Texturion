@@ -71,7 +71,7 @@ function TransferMenu({
     "Teammate";
 
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-2 rounded-app-card border border-app-line bg-app-white p-2 shadow-lg">
+    <div className="absolute bottom-full left-0 right-0 mb-2 rounded-app-card border border-app-line bg-app-paper p-2 shadow-lg">
       <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
         Transfer to
       </p>
@@ -137,7 +137,7 @@ function CallChip({ call }: { call: CallInfo }) {
     return (
       <div
         role="alert"
-        className="flex items-center gap-2 rounded-full border border-primary/40 bg-app-white px-3 py-1.5 shadow-lg"
+        className="flex items-center gap-2 rounded-full border border-primary/40 bg-app-paper px-3 py-1.5 shadow-lg"
       >
         <span aria-hidden className="size-2 rounded-full bg-primary animate-pulse" />
         <span className="max-w-[140px] truncate text-[12.5px] font-medium">
@@ -174,7 +174,7 @@ function CallChip({ call }: { call: CallInfo }) {
   }
   if (call.phase === "held") {
     return (
-      <div className="flex items-center gap-2 rounded-full border border-app-line bg-app-white px-3 py-1.5 shadow-lg">
+      <div className="flex items-center gap-2 rounded-full border border-app-line bg-app-paper px-3 py-1.5 shadow-lg">
         <Pause className="size-3 text-app-muted-2" strokeWidth={1.75} aria-hidden />
         <span className="max-w-[140px] truncate text-[12.5px] text-app-muted">
           {label} · on hold
@@ -202,7 +202,7 @@ function CallChip({ call }: { call: CallInfo }) {
   }
   if (call.phase === "ended") {
     return (
-      <div className="flex items-center gap-2 rounded-full border border-app-line bg-app-white px-3 py-1.5 text-app-muted-2 shadow-lg">
+      <div className="flex items-center gap-2 rounded-full border border-app-line bg-app-paper px-3 py-1.5 text-app-muted-2 shadow-lg">
         <span className="max-w-[140px] truncate text-[12.5px]">
           {label} · ended
         </span>
@@ -220,7 +220,7 @@ function CallChip({ call }: { call: CallInfo }) {
   }
   // 'connecting' chips only exist while another call is active (rare).
   return (
-    <div className="flex items-center gap-2 rounded-full border border-app-line bg-app-white px-3 py-1.5 shadow-lg">
+    <div className="flex items-center gap-2 rounded-full border border-app-line bg-app-paper px-3 py-1.5 shadow-lg">
       <span aria-hidden className="size-2 rounded-full bg-warning animate-pulse" />
       <span className="max-w-[140px] truncate text-[12.5px]">{label}…</span>
     </div>
@@ -253,7 +253,7 @@ function DtmfKeypad({
 }) {
   const softphone = useSoftphone()!;
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-2 rounded-app-card border border-app-line bg-app-white p-3 shadow-lg">
+    <div className="absolute bottom-full left-0 right-0 mb-2 rounded-app-card border border-app-line bg-app-paper p-3 shadow-lg">
       <div className="mb-2 flex items-center justify-between px-1">
         <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
           Keypad
@@ -300,7 +300,7 @@ function ActiveCard({ call }: { call: CallInfo }) {
 
   return (
     <div
-      className="relative flex w-full max-w-lg items-center gap-2.5 rounded-app-card border border-primary/20 bg-app-white px-4 py-2.5 shadow-lg"
+      className="relative flex w-full max-w-lg items-center gap-2.5 rounded-app-card border border-primary/20 bg-app-paper px-4 py-2.5 shadow-lg"
       onKeyDown={(e) => {
         // Escape closes whichever popover is open (they have no backdrop) —
         // focus lives inside the card, so the keydown bubbles here.

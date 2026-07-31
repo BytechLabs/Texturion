@@ -196,7 +196,7 @@ export default function PricingPage() {
               {PLAN_FAIR_USE_NOTE}{" "}
               <Link
                 href={LIVE_ROUTES.fairUse}
-                className="font-medium text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+                className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
               >
                 See our fair use policy.
               </Link>
@@ -332,7 +332,7 @@ export default function PricingPage() {
             cites its source on our{" "}
             <Link
               href={LIVE_ROUTES.compareIndex}
-              className="font-medium text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline"
+              className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
             >
               comparison pages
             </Link>
@@ -401,7 +401,7 @@ export default function PricingPage() {
               <p className="mt-4">
                 <Link
                   href={LIVE_ROUTES.refunds}
-                  className="text-[0.9375rem] font-semibold text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline"
+                  className="text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
                 >
                   Read the whole policy. It&apos;s three paragraphs.
                 </Link>
@@ -454,7 +454,7 @@ export default function PricingPage() {
                 <p className="mt-4">
                   <Link
                     href={LIVE_ROUTES.terms}
-                    className="text-[0.9375rem] font-semibold text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline"
+                    className="text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
                   >
                     The cancellation terms, in full.
                   </Link>
@@ -479,7 +479,7 @@ export default function PricingPage() {
                 key={item.q}
                 className="group rounded-xl bg-[color:var(--fr-frost)]"
               >
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl px-5 py-4 text-left text-[1.0625rem] font-medium text-[color:var(--fr-ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)] [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl px-5 py-4 text-left text-[1.0625rem] font-medium text-[color:var(--fr-ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)] [&::-webkit-details-marker]:hidden">
                   {item.q}
                   <span
                     className="shrink-0 text-[color:var(--fr-ink-55)] transition-transform duration-200 group-open:rotate-45"
@@ -501,7 +501,7 @@ export default function PricingPage() {
       <FrSection ground="frost" className="relative overflow-hidden">
         <ConvergedField
           variant="backdrop"
-          className="pointer-events-none absolute inset-0 h-full w-full text-[color:var(--fr-cobalt)] opacity-[0.08]"
+          className="pointer-events-none absolute inset-0 h-full w-full text-[color:var(--fr-olive)] opacity-[0.08]"
         />
         <div className="relative mx-auto max-w-3xl text-center">
           <h2 className="fr-h2 text-[color:var(--fr-ink)]">

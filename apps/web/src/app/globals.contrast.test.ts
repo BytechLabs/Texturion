@@ -64,9 +64,9 @@ const dark = block(".dark .app-scope,\n.app-scope.dark,\n.app-scope .dark");
 /** The grounds quiet text actually sits on: paper, card, hover/chip fill. */
 function grounds(theme: string): Record<string, string> {
   return {
-    "app-stone-0 (paper)": token(theme, "--app-stone-0"),
-    "app-white (card)": token(theme, "--app-white"),
-    "app-stone-1 (hover/chip)": token(theme, "--app-stone-1"),
+    "app-stone-0 (paper)": token(theme, "--app-ground"),
+    "app-white (card)": token(theme, "--app-paper"),
+    "app-stone-1 (hover/chip)": token(theme, "--app-inset"),
   };
 }
 
@@ -115,10 +115,10 @@ describe.each([
   it("#26/#362 — every fill AAs against the foreground it actually paints with", () => {
     const pairs: [string, string, string][] = [
       // [label, fill token, its paired foreground token]
-      ["--app-petrol", "--app-petrol", "--app-petrol-foreground"],
+      ["--app-olive-accent", "--app-olive-accent", "--app-olive-foreground"],
       ["--primary", "--primary", "--primary-foreground"],
-      // The composer Send hover fill (hover:bg-app-petrol-deep).
-      ["--app-petrol-deep", "--app-petrol-deep", "--app-petrol-foreground"],
+      // The composer Send hover fill (hover:bg-app-olive-deep).
+      ["--app-olive-deep", "--app-olive-deep", "--app-olive-foreground"],
     ];
     for (const [label, fillToken, fgToken] of pairs) {
       const bg = token(theme, fillToken);
@@ -141,7 +141,7 @@ describe.each([
   // When that happens the answer is a darker palette member for text, NOT
   // lowering this bar.
   it("#362 — the accent clears AA as TEXT, not merely as a fill", () => {
-    const fg = token(theme, "--app-petrol");
+    const fg = token(theme, "--app-olive-accent");
     for (const [name, bg] of Object.entries(grounds(theme))) {
       expect
         .soft(contrast(fg, bg), `accent-as-text ${fg} on ${name} ${bg}`)
@@ -153,10 +153,10 @@ describe.each([
   // rather than 4.5:1. Asserted against the paper ground it is drawn on.
   it("#362 — the focus ring clears 3:1 against the ground it is drawn on", () => {
     const ring = token(theme, "--ring");
-    const paper = token(theme, "--app-stone-0");
+    const paper = token(theme, "--app-ground");
     expect(
       contrast(ring, paper),
-      `--ring ${ring} on --app-stone-0 ${paper}`,
+      `--ring ${ring} on --app-ground ${paper}`,
     ).toBeGreaterThanOrEqual(UI);
   });
 
@@ -194,7 +194,7 @@ describe.each([
 
   it("#26 — --primary-foreground matches the on-petrol pair (shadcn fills)", () => {
     expect(token(theme, "--primary-foreground")).toBe(
-      token(theme, "--app-petrol-foreground"),
+      token(theme, "--app-olive-foreground"),
     );
   });
 });
@@ -277,7 +277,7 @@ describe("app-scope guardrails in globals.css", () => {
     // needed no call-site edits — every `bg-primary` and `text-primary` kept
     // its class and landed on a compliant pair.
     expect(css).toMatch(/\.app-scope[\s\S]*?--primary:\s*#3a430f/i);
-    expect(css).toMatch(/--app-petrol:\s*#3a430f/i);
+    expect(css).toMatch(/--app-olive-accent:\s*#3a430f/i);
   });
 
   it("#362 — no petrol or cobalt survives inside the app scope", () => {
@@ -294,14 +294,14 @@ describe("app-scope guardrails in globals.css", () => {
 
   it("#26 — petrol fills enforce the paired foreground at the token level", () => {
     // The unlayered override that keeps a stray `text-white` on bg-primary /
-    // bg-app-petrol from shipping a 2.6:1 dark-mode pair (composer Send,
+    // bg-app-olive from shipping a 2.6:1 dark-mode pair (composer Send,
     // count badges).
     expect(css).toMatch(
-      /\.app-scope \.bg-primary,\s*\.app-scope \.bg-app-petrol \{\s*color: var\(--app-petrol-foreground\);/,
+      /\.app-scope \.bg-primary,\s*\.app-scope \.bg-app-olive \{\s*color: var\(--app-olive-foreground\);/,
     );
     // The outbound bubble utility carries its own text pair.
     expect(css).toMatch(
-      /@utility app-bubble-out \{[^}]*color: var\(--app-petrol-foreground\);/,
+      /@utility app-bubble-out \{[^}]*color: var\(--app-olive-foreground\);/,
     );
   });
 

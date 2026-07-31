@@ -77,8 +77,8 @@ export function DeepDiveCaption({
       <span
         className={
           state === "rest"
-            ? "font-mono-mkt mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-frost)] text-[12px] font-medium tabular-nums text-[color:var(--fr-cobalt)] transition-colors duration-200"
-            : "font-mono-mkt mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-cobalt)] text-[12px] font-medium tabular-nums text-white transition-colors duration-200"
+            ? "font-mono-mkt mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-frost)] text-[12px] font-medium tabular-nums text-[color:var(--fr-olive)] transition-colors duration-200"
+            : "font-mono-mkt mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-olive)] text-[12px] font-medium tabular-nums text-white transition-colors duration-200"
         }
         aria-hidden
       >
@@ -102,7 +102,7 @@ export function DeepDiveInlineCta() {
   return (
     <Link
       href={SIGNUP_HREF}
-      className="font-body-mkt text-sm font-medium text-[color:var(--fr-cobalt)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+      className="font-body-mkt text-sm font-medium text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
     >
       {PRIMARY_CTA_LABEL}
     </Link>

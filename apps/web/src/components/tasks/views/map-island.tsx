@@ -45,7 +45,7 @@ const taskIcon = L.divIcon({
   className: "",
   html:
     '<span style="display:block;width:18px;height:18px;border-radius:50% 50% 50% 0;' +
-    "background:var(--app-petrol);transform:rotate(-45deg);border:2px solid #fff;" +
+    "background:var(--app-olive-accent);transform:rotate(-45deg);border:2px solid #fff;" +
     'box-shadow:0 1px 3px rgba(41,37,36,.35)"></span>',
   iconSize: [18, 18],
   iconAnchor: [9, 18],
@@ -69,7 +69,7 @@ function clusterIcon(count: number): L.DivIcon {
     className: "",
     html:
       `<span style="display:flex;align-items:center;justify-content:center;` +
-      `width:${size}px;height:${size}px;border-radius:50%;background:color-mix(in srgb, var(--app-petrol) 90%, transparent);` +
+      `width:${size}px;height:${size}px;border-radius:50%;background:color-mix(in srgb, var(--app-olive-accent) 90%, transparent);` +
       `color:#fff;font:600 12px/1 Inter,system-ui,sans-serif;border:2px solid #fff;` +
       `box-shadow:0 1px 4px rgba(41,37,36,.35)">${count}</span>`,
     iconSize: [size, size],

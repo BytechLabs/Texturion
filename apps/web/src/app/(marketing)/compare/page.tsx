@@ -125,7 +125,7 @@ export default function CompareIndexPage() {
                 <FrCard className="h-full p-0">
                   <Link
                     href={card.href}
-                    className="flex h-full flex-col rounded-[12px] p-6 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+                    className="flex h-full flex-col rounded-[12px] p-6 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
                   >
                     <span className="fr-eyebrow inline-flex w-fit items-center rounded-[6px] bg-[color:var(--fr-frost)] px-2.5 py-1.5 text-[color:var(--fr-ink)]">
                       {card.fact}
@@ -136,7 +136,7 @@ export default function CompareIndexPage() {
                     <span className="mt-2 block flex-1 text-[0.9375rem] leading-relaxed text-[color:var(--fr-ink-70)]">
                       {card.angle}
                     </span>
-                    <span className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-cobalt)]">
+                    <span className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-olive)]">
                       See the comparison
                       <span aria-hidden>→</span>
                     </span>

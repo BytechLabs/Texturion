@@ -74,7 +74,7 @@ export function CallRow({ call }: { call: Call }) {
       <span
         aria-hidden
         className={cn(
-          "grid size-[38px] shrink-0 place-items-center rounded-xl text-[13px] font-semibold text-app-petrol-deep",
+          "grid size-[38px] shrink-0 place-items-center rounded-xl text-[13px] font-semibold text-app-olive-deep",
           avatarColorClass(call.contact_id || name),
         )}
       >
@@ -95,7 +95,7 @@ export function CallRow({ call }: { call: Call }) {
           {/* D43: honest carrier-screening label — quiet, never a color
               scream; the verdict itself came from the network. */}
           {screeningLabel(call.screening_result) && (
-            <span className="inline-flex items-center rounded-full bg-app-stone-1 px-2 py-0.5 text-[11px] font-medium text-app-muted dark:bg-white/5">
+            <span className="inline-flex items-center rounded-full bg-app-inset px-2 py-0.5 text-[11px] font-medium text-app-muted dark:bg-white/5">
               {screeningLabel(call.screening_result)}
             </span>
           )}

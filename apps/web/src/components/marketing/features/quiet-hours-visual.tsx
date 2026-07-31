@@ -26,7 +26,7 @@ export function QuietHoursVisual({ className }: { className?: string }) {
         </p>
 
         <div className="mt-5 flex justify-end gap-2">
-          <span className="rounded-app-ctrl border border-app-line bg-app-white px-4 py-2 text-center text-[13.5px] font-medium text-app-ink">
+          <span className="rounded-app-ctrl border border-app-line bg-app-paper px-4 py-2 text-center text-[13.5px] font-medium text-app-ink">
             Wait
           </span>
           <span className="rounded-app-ctrl bg-primary px-4 py-2 text-center text-[13.5px] font-medium text-primary-foreground">

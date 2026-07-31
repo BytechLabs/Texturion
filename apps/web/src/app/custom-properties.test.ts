@@ -26,7 +26,7 @@ import { describe, expect, it } from "vitest";
  * WHY IT LANDS NOW, BEFORE THE RENAME.
  *
  * #362's phase 9 renames ~10 token families across hundreds of references
- * (`--app-petrol*` → `--app-olive*`, `--fr-cobalt` → `--fr-olive`, and so on).
+ * (`--app-olive-accent*` → `--app-olive*`, `--fr-olive` → `--fr-olive`, and so on).
  * A rename is exactly the operation that produces this failure: miss one read
  * and it does not break, it just stops painting. Doing that at scale without
  * this check would reproduce a known-invisible bug hundreds of times.
@@ -129,7 +129,7 @@ describe("#362 — every custom property that is read is also defined", () => {
     expect(files.length).toBeGreaterThan(100);
     expect(declared.size).toBeGreaterThan(50);
     // The tokens the whole product is painted with must be among them.
-    for (const anchor of ["--app-petrol", "--fr-ink", "--background"]) {
+    for (const anchor of ["--app-olive-accent", "--fr-ink", "--background"]) {
       expect(declared.has(anchor), `${anchor} should be declared`).toBe(true);
     }
   });

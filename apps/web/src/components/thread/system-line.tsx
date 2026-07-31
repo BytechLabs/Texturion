@@ -20,7 +20,7 @@ export function DayDivider({ label }: { label: string }) {
       role="separator"
       aria-label={label}
     >
-      <span className="rounded-full border border-app-line bg-app-stone-0 px-3 py-[3px] text-[11px] font-semibold text-app-muted-2">
+      <span className="rounded-full border border-app-line bg-app-ground px-3 py-[3px] text-[11px] font-semibold text-app-muted-2">
         {label}
       </span>
     </div>
@@ -228,7 +228,7 @@ export function SystemLine({
           onClick={() => openTask(taskId)}
           className={cn(
             "tap-target rounded-full px-1 underline-offset-2 transition-colors",
-            "hover:text-app-petrol hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+            "hover:text-app-olive hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
           )}
         >
           {sentence}

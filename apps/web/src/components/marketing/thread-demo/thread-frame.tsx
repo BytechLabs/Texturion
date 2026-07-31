@@ -96,7 +96,7 @@ export function ThreadFrame({
   return (
     <AppSurface className={cn("relative", className)}>
       {framing === "phone" && pushBanner && (
-        <div className="app-shadow-float absolute inset-x-2 top-2 z-10 rounded-app-card border border-app-line bg-app-white/95 px-3 py-2 backdrop-blur">
+        <div className="app-shadow-float absolute inset-x-2 top-2 z-10 rounded-app-card border border-app-line bg-app-paper/95 px-3 py-2 backdrop-blur">
           <div className="flex items-center gap-2">
             {/* The app's own launcher icon: the double-o brand tile (#206),
                 identical in both themes. */}

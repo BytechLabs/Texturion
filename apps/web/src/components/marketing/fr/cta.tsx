@@ -46,14 +46,14 @@ export function CtaButton({
   );
   const variants = {
     primary: cn(
-      "bg-[color:var(--fr-cobalt)] text-white",
-      "hover:bg-[color:var(--fr-cobalt-deep)]",
-      "focus-visible:outline-[color:var(--fr-cobalt)]",
+      "bg-[color:var(--fr-olive)] text-white",
+      "hover:bg-[color:var(--fr-olive-deep)]",
+      "focus-visible:outline-[color:var(--fr-olive)]",
     ),
     secondary: cn(
       "border-[1.5px] border-[color:var(--fr-ink)] bg-transparent text-[color:var(--fr-ink)]",
       "hover:bg-[color:var(--fr-frost)]",
-      "focus-visible:outline-[color:var(--fr-cobalt)]",
+      "focus-visible:outline-[color:var(--fr-olive)]",
     ),
     "on-cobalt": cn(
       "bg-white text-[color:var(--fr-ink)]",

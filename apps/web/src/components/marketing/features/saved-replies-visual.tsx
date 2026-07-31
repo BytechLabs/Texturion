@@ -66,7 +66,7 @@ export function SavedRepliesVisual({ className }: { className?: string }) {
                 <span
                   className={cn(
                     "truncate text-[13.5px] font-medium",
-                    i === 0 ? "text-app-petrol-deep" : "text-app-ink",
+                    i === 0 ? "text-app-olive-deep" : "text-app-ink",
                   )}
                 >
                   {template.name}
@@ -80,7 +80,7 @@ export function SavedRepliesVisual({ className }: { className?: string }) {
         </div>
         {/* The merge-variable preview: the saved body stores the raw {token};
             this line shows what actually ships at send time. */}
-        <div className="border-t border-app-line-soft bg-app-stone-0 px-3 py-2">
+        <div className="border-t border-app-line-soft bg-app-ground px-3 py-2">
           <p className="text-[11px] font-semibold text-app-muted-2">Preview</p>
           <p className="mt-0.5 text-[12.5px] leading-snug text-app-ink">
             Hi Karen, it&apos;s Reyes Plumbing. On my way, should be with you
@@ -90,7 +90,7 @@ export function SavedRepliesVisual({ className }: { className?: string }) {
       </div>
 
       {/* Composer with the "/" that opened the picker. */}
-      <div className="mt-2.5 flex items-center gap-2 rounded-app-card border border-app-line bg-app-white px-3 py-2.5">
+      <div className="mt-2.5 flex items-center gap-2 rounded-app-card border border-app-line bg-app-paper px-3 py-2.5">
         <span className="flex-1 text-[15px] text-app-ink">
           /
           {/* Static insertion bar: a staged moment, not a pulsing "typing

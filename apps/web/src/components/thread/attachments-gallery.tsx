@@ -418,7 +418,7 @@ export function AttachmentsClump({
       type="button"
       onClick={onOpenGallery}
       aria-label={`View all attachments (${countLabel})`}
-      className="block w-full rounded-app-card border border-app-line bg-app-white p-3.5 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      className="block w-full rounded-app-card border border-app-line bg-app-paper p-3.5 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
       <div className="mb-2.5 flex items-center justify-between">
         <h3 className="flex items-center gap-1.5 text-[13px] font-bold text-app-ink">

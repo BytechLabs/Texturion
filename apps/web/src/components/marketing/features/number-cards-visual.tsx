@@ -47,9 +47,9 @@ export function NumberCardsVisual({ className }: { className?: string }) {
         {CARDS.map((card) => (
           <div
             key={card.number}
-            className="flex items-center gap-3 rounded-app-card border border-app-line bg-app-white p-3.5"
+            className="flex items-center gap-3 rounded-app-card border border-app-line bg-app-paper p-3.5"
           >
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-app-ctrl bg-app-tint text-app-petrol-deep">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-app-ctrl bg-app-tint text-app-olive-deep">
               <Phone className="size-4" strokeWidth={1.75} aria-hidden />
             </span>
             <div className="min-w-0 flex-1">
@@ -61,11 +61,11 @@ export function NumberCardsVisual({ className }: { className?: string }) {
               </p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-app-petrol-deep">
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-app-olive-deep">
                 <CheckCircle2 className="size-3.5" strokeWidth={2} aria-hidden />
                 Active
               </span>
-              <span className="rounded-full border border-app-tint-line bg-app-tint px-2 py-[2.5px] text-[11px] font-semibold leading-none tabular-nums text-app-petrol-deep">
+              <span className="rounded-full border border-app-tint-line bg-app-tint px-2 py-[2.5px] text-[11px] font-semibold leading-none tabular-nums text-app-olive-deep">
                 {card.unread} new
               </span>
             </div>

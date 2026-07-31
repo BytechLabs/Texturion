@@ -67,7 +67,7 @@ function PanelSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-app-card border border-app-line bg-app-white p-3.5">
+    <section className="rounded-app-card border border-app-line bg-app-paper p-3.5">
       <h3 className="mb-2.5 text-[13px] font-bold text-app-ink">{label}</h3>
       {children}
     </section>
@@ -192,7 +192,7 @@ export function ContactPanel({
     <span
       aria-hidden
       className={cn(
-        "grid size-11 shrink-0 place-items-center rounded-[14px] text-[15px] font-bold text-app-petrol-deep",
+        "grid size-11 shrink-0 place-items-center rounded-[14px] text-[15px] font-bold text-app-olive-deep",
         avatarColorClass(contact.id),
       )}
     >
@@ -279,7 +279,7 @@ export function ContactPanel({
           /* IDENTITY — the panel's one anchor of personality (#6): a colored
              app-ava avatar + the editable name and number up top, then address
              and notes under a hairline. Who this is, in one card. */
-          <section className="relative rounded-app-card border border-app-line bg-app-white p-3.5">
+          <section className="relative rounded-app-card border border-app-line bg-app-paper p-3.5">
             {/* #82: jump from the conversation to the full contact page.
                 Overlaid on the card corner (not a flex cell) so the narrow
                 drawer's text column keeps its width — the number must never
@@ -307,7 +307,7 @@ export function ContactPanel({
           /* #119 (sheet): identity moved into the header above, so address +
              notes get their own unlabeled card — mirroring the account
              sheet's first card. */
-          <section className="space-y-1 rounded-app-card border border-app-line bg-app-white p-3.5">
+          <section className="space-y-1 rounded-app-card border border-app-line bg-app-paper p-3.5">
             {addressAndNotes}
           </section>
         )}

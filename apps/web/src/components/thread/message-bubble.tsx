@@ -210,7 +210,7 @@ function NoteTaskChip({ task }: { task: { id: string; title: string } }) {
     <button
       type="button"
       onClick={() => openTask(task.id)}
-      className="tap-target mb-1 inline-flex max-w-full items-center gap-1 rounded-full border border-app-amber-line bg-app-white/60 px-2 py-0.5 text-[11px] font-medium text-app-amber-ink transition-colors hover:bg-app-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      className="tap-target mb-1 inline-flex max-w-full items-center gap-1 rounded-full border border-app-amber-line bg-app-paper/60 px-2 py-0.5 text-[11px] font-medium text-app-amber-ink transition-colors hover:bg-app-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
       <ListChecks className="size-3 shrink-0" strokeWidth={2} aria-hidden />
       <span className="truncate">on: {task.title}</span>
@@ -351,7 +351,7 @@ export const MessageBubble = memo(function MessageBubble({
                     // text color (#26): white on petrol in light, near-black on
                     // the lifted petrol in dark — AA in both.
                     "app-bubble-out [border-top-right-radius:5px]"
-                  : "border border-app-line bg-app-white text-app-ink [border-top-left-radius:5px]",
+                  : "border border-app-line bg-app-paper text-app-ink [border-top-left-radius:5px]",
             )}
           >
             {/* Amber internal-note label on the amber-tint card — with the

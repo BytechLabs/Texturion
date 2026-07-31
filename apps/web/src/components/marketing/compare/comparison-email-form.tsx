@@ -67,7 +67,7 @@ export function ComparisonEmailForm({
   const done = status === "sent" || status === "recorded";
 
   const fieldClass =
-    "w-full rounded-[10px] bg-[color:var(--fr-frost)] px-3.5 py-2.5 text-[0.9375rem] text-[color:var(--fr-ink)] placeholder:text-[color:var(--fr-ink-55)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)] disabled:opacity-60";
+    "w-full rounded-[10px] bg-[color:var(--fr-frost)] px-3.5 py-2.5 text-[0.9375rem] text-[color:var(--fr-ink)] placeholder:text-[color:var(--fr-ink-55)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)] disabled:opacity-60";
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -126,7 +126,7 @@ export function ComparisonEmailForm({
       <p
         ref={confirmationRef}
         tabIndex={-1}
-        className="fr-body max-w-xl text-[color:var(--fr-ink-70)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[color:var(--fr-cobalt)]"
+        className="fr-body max-w-xl text-[color:var(--fr-ink-70)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[color:var(--fr-olive)]"
       >
         {status === "sent"
           ? "Sent. It should be in your inbox in a moment, and every message we send has a one-click unsubscribe."
@@ -167,7 +167,7 @@ export function ComparisonEmailForm({
           <button
             type="submit"
             disabled={submitting}
-            className="inline-flex shrink-0 items-center justify-center rounded-full border border-[color:var(--fr-ink-55)]/40 px-5 py-2.5 text-[0.9375rem] font-semibold whitespace-nowrap text-[color:var(--fr-ink)] transition-colors duration-200 ease-out hover:border-[color:var(--fr-ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)] disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex shrink-0 items-center justify-center rounded-full border border-[color:var(--fr-ink-55)]/40 px-5 py-2.5 text-[0.9375rem] font-semibold whitespace-nowrap text-[color:var(--fr-ink)] transition-colors duration-200 ease-out hover:border-[color:var(--fr-ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)] disabled:cursor-not-allowed disabled:opacity-70"
           >
             {submitting ? "Sending..." : "Email it to me"}
           </button>
@@ -183,7 +183,7 @@ export function ComparisonEmailForm({
             if (error) setError(null);
           }}
           disabled={submitting}
-          className="mt-0.5 size-4 shrink-0 accent-[color:var(--fr-cobalt)]"
+          className="mt-0.5 size-4 shrink-0 accent-[color:var(--fr-olive)]"
         />
         <span>{CONSENT_LABEL}</span>
       </label>

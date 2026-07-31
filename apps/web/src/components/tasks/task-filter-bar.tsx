@@ -110,7 +110,7 @@ export function TaskFilterBar({
                   // T6.1: active segment is a QUIET stone pill, never petrol —
                   // petrol is reserved for the page's primary action.
                   selected
-                    ? "bg-app-white text-app-ink"
+                    ? "bg-app-paper text-app-ink"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >

@@ -174,7 +174,7 @@ export function UseCaseSteps({
         {steps.map((step, i) => (
           <FrCard as="li" key={step.title} className="p-6">
             <span
-              className="fr-mono-data flex size-8 items-center justify-center rounded-full bg-[color:var(--fr-cobalt)] text-white"
+              className="fr-mono-data flex size-8 items-center justify-center rounded-full bg-[color:var(--fr-olive)] text-white"
               aria-hidden
             >
               {i + 1}
@@ -214,7 +214,7 @@ export function TruthStrip({
   return (
     <div
       className={cn(
-        "rounded-r-xl border-l-[3px] border-[color:var(--fr-cobalt)] bg-[color:var(--fr-frost)] px-5 py-4",
+        "rounded-r-xl border-l-[3px] border-[color:var(--fr-olive)] bg-[color:var(--fr-frost)] px-5 py-4",
         className,
       )}
     >
@@ -375,7 +375,7 @@ export function RelatedLinks({
             <li key={link.href + link.label}>
               <Link
                 href={link.href}
-                className="group flex h-full items-start justify-between gap-4 rounded-xl bg-[color:var(--fr-frost)] p-5 transition-colors duration-200 ease-out hover:bg-[color:var(--fr-card)] hover:shadow-[var(--fr-shadow-card)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+                className="group flex h-full items-start justify-between gap-4 rounded-xl bg-[color:var(--fr-frost)] p-5 transition-colors duration-200 ease-out hover:bg-[color:var(--fr-card)] hover:shadow-[var(--fr-shadow-card)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
               >
                 <span>
                   <span className="font-body-mkt text-[15px] font-semibold text-[color:var(--fr-ink)]">
@@ -386,7 +386,7 @@ export function RelatedLinks({
                   </span>
                 </span>
                 <ArrowRight
-                  className="mt-0.5 size-4 shrink-0 text-[color:var(--fr-cobalt)] opacity-0 transition-all duration-200 ease-out group-hover:translate-x-0.5 group-hover:opacity-100"
+                  className="mt-0.5 size-4 shrink-0 text-[color:var(--fr-olive)] opacity-0 transition-all duration-200 ease-out group-hover:translate-x-0.5 group-hover:opacity-100"
                   strokeWidth={1.75}
                   aria-hidden
                 />

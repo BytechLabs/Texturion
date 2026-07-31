@@ -43,11 +43,11 @@ const CSS = `
   background-color: rgba(58, 67, 15, 0.08);
 }
 .frcp-btn:focus-visible {
-  outline: 2px solid var(--fr-cobalt);
+  outline: 2px solid var(--fr-olive);
   outline-offset: 2px;
 }
 .frcp-btn[aria-pressed="true"] {
-  background-color: var(--fr-cobalt);
+  background-color: var(--fr-olive);
   color: #ffffff;
 }
 @media (prefers-reduced-motion: no-preference) {

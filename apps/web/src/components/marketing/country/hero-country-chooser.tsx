@@ -48,7 +48,7 @@ export function HeroCountryChooser({ className }: { className?: string }) {
             onClick={() => setCountry(option.id)}
             className={cn(
               "frn-focus font-body-mkt rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-[color:var(--fr-ink)] transition-colors duration-200 ease-out",
-              "hover:bg-[color:var(--fr-cobalt)] hover:text-white",
+              "hover:bg-[color:var(--fr-olive)] hover:text-white",
             )}
           >
             {option.label}

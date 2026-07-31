@@ -130,11 +130,11 @@ const CSS = `
 .frq-item summary:hover::after,
 .frq-item summary:focus-visible::before,
 .frq-item summary:focus-visible::after {
-  background: var(--fr-cobalt);
+  background: var(--fr-olive);
 }
 /* Light-ground focus: 2px cobalt outline, 2px offset (§7). */
 .frq-item summary:focus-visible {
-  outline: 2px solid var(--fr-cobalt);
+  outline: 2px solid var(--fr-olive);
   outline-offset: 2px;
   border-radius: 12px;
 }

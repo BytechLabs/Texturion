@@ -25,7 +25,7 @@ export function LastUsedBadge({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full bg-app-tint px-2 py-0.5 text-[11px] font-medium leading-none text-app-petrol-deep",
+        "inline-flex items-center rounded-full bg-app-tint px-2 py-0.5 text-[11px] font-medium leading-none text-app-olive-deep",
         className,
       )}
     >

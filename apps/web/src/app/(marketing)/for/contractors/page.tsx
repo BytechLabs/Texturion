@@ -138,7 +138,7 @@ const CONTENT: TradeContent = {
           Loonext is texting, not project management. The{" "}
           <Link
             href="/compare"
-            className="text-[color:var(--fr-cobalt)] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+            className="text-[color:var(--fr-olive)] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
           >
             compare pages
           </Link>{" "}

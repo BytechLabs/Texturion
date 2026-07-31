@@ -71,7 +71,7 @@ function Field({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-2 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[color:var(--fr-frost)] accent-[color:var(--fr-cobalt)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+        className="mt-2 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[color:var(--fr-frost)] accent-[color:var(--fr-olive)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
       />
       <input
         type="number"
@@ -84,7 +84,7 @@ function Field({
           if (!Number.isNaN(n)) onChange(Math.min(max, Math.max(min, n)));
         }}
         aria-label={`${label} (exact value)`}
-        className="fr-mono-data mt-2 w-full rounded-[10px] border border-[color:var(--fr-frost)] bg-white px-3 py-1.5 text-[color:var(--fr-ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+        className="fr-mono-data mt-2 w-full rounded-[10px] border border-[color:var(--fr-frost)] bg-white px-3 py-1.5 text-[color:var(--fr-ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
       />
     </div>
   );

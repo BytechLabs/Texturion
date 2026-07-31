@@ -160,7 +160,7 @@ export function HonestFit({
         <div className="mt-10 grid gap-6 md:grid-cols-2">
           <Reveal className="h-full">
             <FrCard className="h-full p-6 sm:p-8">
-              <h3 className="fr-h3 text-[color:var(--fr-cobalt)]">
+              <h3 className="fr-h3 text-[color:var(--fr-olive)]">
                 {loonextTitle}
               </h3>
               <div className="mt-3 space-y-3 text-[0.9375rem] leading-relaxed text-[color:var(--fr-ink)]">

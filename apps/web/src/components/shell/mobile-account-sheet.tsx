@@ -127,7 +127,7 @@ export function MobileAccountSheetBody({
     "flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2";
   // The grouped elevated card (flat, hairline border) with quiet row dividers.
   const cardClass =
-    "overflow-hidden rounded-app-card border border-app-line bg-app-white divide-y divide-app-line-soft";
+    "overflow-hidden rounded-app-card border border-app-line bg-app-paper divide-y divide-app-line-soft";
 
   return (
     <>
@@ -135,7 +135,7 @@ export function MobileAccountSheetBody({
         <div className="flex items-center gap-3">
           <span
             aria-hidden
-            className="grid size-10 shrink-0 place-items-center rounded-full bg-app-tint text-[13px] font-semibold text-app-petrol-deep"
+            className="grid size-10 shrink-0 place-items-center rounded-full bg-app-tint text-[13px] font-semibold text-app-olive-deep"
           >
             {avatarInitials(displayName || membership.name)}
           </span>
@@ -168,7 +168,7 @@ export function MobileAccountSheetBody({
                 >
                   <span
                     aria-hidden
-                    className="grid size-7 shrink-0 place-items-center rounded-[8px] bg-app-tint text-[11px] font-semibold text-app-petrol-deep"
+                    className="grid size-7 shrink-0 place-items-center rounded-[8px] bg-app-tint text-[11px] font-semibold text-app-olive-deep"
                   >
                     {companyInitials(m.name)}
                   </span>
@@ -281,7 +281,7 @@ export function MobileAccountSheetBody({
                   className={cn(
                     "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] transition-[color,background] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                     selected
-                      ? "bg-app-white font-semibold text-app-ink"
+                      ? "bg-app-paper font-semibold text-app-ink"
                       : "font-medium text-app-muted hover:text-app-ink",
                   )}
                 >
@@ -350,7 +350,7 @@ export function MobileAccountSheet({
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent
         side="bottom"
-        className="max-h-[85svh] overflow-y-auto rounded-t-2xl border-app-line bg-app-white p-0 pb-[env(safe-area-inset-bottom)]"
+        className="max-h-[85svh] overflow-y-auto rounded-t-2xl border-app-line bg-app-paper p-0 pb-[env(safe-area-inset-bottom)]"
       >
         {/* The visible header lives in the body; these give the Radix dialog
             its accessible name without duplicating the visual row. */}

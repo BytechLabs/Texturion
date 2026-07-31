@@ -72,7 +72,7 @@ export function LedgerTable({
                     className={cn(
                       "font-body-mkt block text-[0.9375rem] font-semibold",
                       col.highlight
-                        ? "text-[color:var(--fr-cobalt)]"
+                        ? "text-[color:var(--fr-olive)]"
                         : "text-[color:var(--fr-ink)]",
                     )}
                   >

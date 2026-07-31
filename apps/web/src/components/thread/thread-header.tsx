@@ -244,7 +244,7 @@ export function ThreadHeader({
         if (target.closest("button, a")) return;
         onToggleContactPanel();
       }}
-      className="flex items-center gap-2 border-b border-app-line bg-app-white px-2 py-1.5 md:gap-3 md:px-4 md:py-2.5"
+      className="flex items-center gap-2 border-b border-app-line bg-app-paper px-2 py-1.5 md:gap-3 md:px-4 md:py-2.5"
     >
       <Button
         asChild
@@ -262,7 +262,7 @@ export function ThreadHeader({
       <span
         aria-hidden
         className={cn(
-          "hidden size-[42px] shrink-0 place-items-center rounded-[13px] text-[14px] font-bold text-app-petrol-deep sm:grid",
+          "hidden size-[42px] shrink-0 place-items-center rounded-[13px] text-[14px] font-bold text-app-olive-deep sm:grid",
           avatarColorClass(conversation.contact_id || name),
         )}
       >

@@ -66,7 +66,7 @@ function Avatar({ name }: { name: string }) {
   return (
     <span
       aria-hidden
-      className="grid size-9 shrink-0 place-items-center rounded-full bg-app-tint text-[12px] font-semibold text-app-petrol-deep"
+      className="grid size-9 shrink-0 place-items-center rounded-full bg-app-tint text-[12px] font-semibold text-app-olive-deep"
     >
       {avatarInitials(name)}
     </span>
@@ -93,7 +93,7 @@ function Section({
           <span className="tabular-nums">{count}</span>
         )}
       </h2>
-      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-white">
+      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
         {children}
       </div>
     </section>
@@ -135,7 +135,7 @@ function WaitingRow({ item }: { item: ForYouWaiting }) {
   return (
     <Card href={`/inbox/${item.conversation_id}`}>
       {item.unread && (
-        <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-app-petrol" />
+        <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-app-olive" />
       )}
       <Avatar name={name} />
       <span className="min-w-0 flex-1">
@@ -210,7 +210,7 @@ function TaskRow({ task }: { task: ForYouTask }) {
         onClick={onComplete}
         disabled={complete.isPending}
         aria-label={`Complete task: ${task.title}`}
-        className="tap-target grid size-[18px] shrink-0 place-items-center rounded-[6px] border-[1.6px] border-app-muted-2 transition-colors hover:border-app-petrol focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        className="tap-target grid size-[18px] shrink-0 place-items-center rounded-[6px] border-[1.6px] border-app-muted-2 transition-colors hover:border-app-olive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
       />
       {/* #113: the task title opens the TASK itself (the drawer) — this is the
           task queue, so the task is the point. The arrow is the secondary jump
@@ -244,7 +244,7 @@ function UnreadRow({ item }: { item: ForYouUnread }) {
   const name = contactDisplayName(item.contact);
   return (
     <Card href={`/inbox/${item.conversation_id}`}>
-      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-app-petrol" />
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-app-olive" />
       <Avatar name={name} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13.5px] font-semibold text-app-ink">
@@ -265,7 +265,7 @@ function TriageConvRow({ item }: { item: ForYouTriageConversation }) {
   return (
     <Card href={`/inbox/${item.conversation_id}`}>
       {item.unread && (
-        <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-app-petrol" />
+        <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-app-olive" />
       )}
       <Avatar name={name} />
       <span className="min-w-0 flex-1">
@@ -273,7 +273,7 @@ function TriageConvRow({ item }: { item: ForYouTriageConversation }) {
           <span className="min-w-0 truncate text-[13.5px] font-semibold text-app-ink">
             {name}
           </span>
-          <span className="shrink-0 rounded-full bg-app-tint px-2 py-[2px] text-[10.5px] font-semibold text-app-petrol-deep">
+          <span className="shrink-0 rounded-full bg-app-tint px-2 py-[2px] text-[10.5px] font-semibold text-app-olive-deep">
             New lead
           </span>
         </span>
@@ -386,7 +386,7 @@ function SectionSkeleton() {
   return (
     <div>
       <Skeleton className="ml-1 mb-2 h-3 w-24" />
-      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-white">
+      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
         {Array.from({ length: 3 }, (_, i) => (
           <div
             key={i}
@@ -417,8 +417,8 @@ function SummaryTile({ label, count }: { label: string; count: number }) {
       className={cn(
         "rounded-app-card border px-3 py-2.5",
         active
-          ? "border-app-line bg-app-white"
-          : "border-transparent bg-app-stone-1",
+          ? "border-app-line bg-app-paper"
+          : "border-transparent bg-app-inset",
       )}
     >
       <p
@@ -547,7 +547,7 @@ export function ForYouView() {
             onClick={openCommand}
             aria-label="Search"
             aria-keyshortcuts="Meta+K Control+K"
-            className="grid size-8 place-items-center rounded-[9px] border border-app-line bg-app-white text-app-muted transition-colors hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="grid size-8 place-items-center rounded-[9px] border border-app-line bg-app-paper text-app-muted transition-colors hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Search className="size-[15px]" strokeWidth={1.9} aria-hidden />
           </button>
@@ -592,7 +592,7 @@ export function ForYouView() {
       )}
 
       {forYou.isError ? (
-        <div className="flex flex-col items-center gap-3 rounded-app-card border border-app-line bg-app-white px-6 py-12 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-app-card border border-app-line bg-app-paper px-6 py-12 text-center">
           <p className="text-sm text-app-muted">
             We couldn&apos;t load your queue. Check your connection and try
             again.
@@ -744,9 +744,9 @@ function ForYouSections({ data }: { data: ForYou }) {
         {/* #342: before the caught-up card, because "you're all caught up" is
             not true if somebody has been texting a thread nobody can see. */}
         <SpamReviewSection />
-        <div className="flex flex-col items-center gap-4 rounded-app-card border border-app-line bg-app-white px-6 py-16 text-center">
+        <div className="flex flex-col items-center gap-4 rounded-app-card border border-app-line bg-app-paper px-6 py-16 text-center">
           <span className="grid size-12 place-items-center rounded-full bg-app-tint">
-            <Check className="size-6 text-app-petrol-deep" strokeWidth={2} aria-hidden />
+            <Check className="size-6 text-app-olive-deep" strokeWidth={2} aria-hidden />
           </span>
           <div className="space-y-1">
             <p className="text-[15px] font-semibold text-app-ink">

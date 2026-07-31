@@ -904,7 +904,7 @@ export function Composer({
                 mode === m
                   ? m === "note"
                     ? "bg-app-amber-bg text-app-amber-ink"
-                    : "bg-app-tint text-app-petrol-deep"
+                    : "bg-app-tint text-app-olive-deep"
                   : "text-app-muted hover:text-app-ink",
               )}
             >
@@ -953,10 +953,10 @@ export function Composer({
       <div
         className={cn(
           "mx-auto flex max-w-[42rem] items-end gap-1 rounded-app-card border px-2 py-1.5 transition-[border-color,box-shadow]",
-          "focus-within:border-app-petrol focus-within:ring-[3px] focus-within:ring-app-tint",
+          "focus-within:border-app-olive focus-within:ring-[3px] focus-within:ring-app-tint",
           isNote
             ? "border-app-amber-line bg-app-amber-bg"
-            : "border-app-line bg-app-white",
+            : "border-app-line bg-app-paper",
         )}
       >
         {/* Far-left `+` overflow (§3.1) — texts get Attach + Template
@@ -1172,7 +1172,7 @@ export function Composer({
               "inline-flex h-9 items-center gap-1.5 rounded-app-ctrl px-3 text-[13px] font-semibold text-white transition-[background,transform] duration-150 ease-out active:translate-y-px disabled:opacity-45",
               isNote
                 ? "bg-app-amber hover:brightness-105"
-                : "bg-primary hover:bg-app-petrol-deep",
+                : "bg-primary hover:bg-app-olive-deep",
             )}
           >
             <span className="hidden sm:inline">

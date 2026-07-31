@@ -72,7 +72,7 @@ export default function CompareQuoPage() {
             workload comfortably; the concrete numbers live in our{" "}
             <Link
               href={LIVE_ROUTES.fairUse}
-              className="font-medium text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline"
+              className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
             >
               fair use policy
             </Link>

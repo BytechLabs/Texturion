@@ -111,7 +111,7 @@ function TagChip({ tag, emphasis }: { tag: Tag; emphasis: boolean }) {
       className={cn(
         "inline-flex items-center rounded-full border px-2 py-[2.5px] text-[11px] font-semibold leading-none",
         emphasis
-          ? "border-app-tint-line bg-app-tint text-app-petrol-deep"
+          ? "border-app-tint-line bg-app-tint text-app-olive-deep"
           : "border-transparent bg-app-line-soft text-app-muted",
       )}
     >
@@ -188,7 +188,7 @@ export const ConversationRow = memo(function ConversationRow({
       className={cn(
         "relative flex items-start gap-[11px] rounded-app-card border p-[11px] transition-[background,box-shadow,border-color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         active
-          ? "border-app-line bg-app-white"
+          ? "border-app-line bg-app-paper"
           : "border-transparent hover:border-app-line-soft hover:bg-app-hover",
       )}
     >
@@ -196,7 +196,7 @@ export const ConversationRow = memo(function ConversationRow({
       <span
         aria-hidden
         className={cn(
-          "grid size-[38px] shrink-0 place-items-center rounded-xl text-[13px] font-semibold text-app-petrol-deep",
+          "grid size-[38px] shrink-0 place-items-center rounded-xl text-[13px] font-semibold text-app-olive-deep",
           avatarColorClass(conversation.contact_id || name),
         )}
       >
@@ -285,7 +285,7 @@ export const ConversationRow = memo(function ConversationRow({
             {assigneeName && (
               <span
                 title={`Assigned to ${assigneeName}`}
-                className="inline-flex items-center gap-1 rounded-full border border-app-line bg-app-stone-0 px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted dark:text-app-muted"
+                className="inline-flex items-center gap-1 rounded-full border border-app-line bg-app-ground px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted dark:text-app-muted"
               >
                 {/* The chip shows only initials (title tooltip for pointer
                     users); the full name is announced to AT via the row's

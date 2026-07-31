@@ -164,7 +164,7 @@ const FINAL_MICROCOPY = "$29/mo flat · Month to month · 30-day money-back";
 
 function TruthStrip({ line }: { line: TradeTruthLine }) {
   return (
-    <div className="flex items-start gap-2.5 rounded-r-[6px] border-l-[3px] border-[color:var(--fr-cobalt)] bg-[color:var(--fr-frost)] px-4 py-3">
+    <div className="flex items-start gap-2.5 rounded-r-[6px] border-l-[3px] border-[color:var(--fr-olive)] bg-[color:var(--fr-frost)] px-4 py-3">
       {line.good ? (
         <Check
           className="mt-px size-4 shrink-0 text-[color:var(--fr-green)]"
@@ -258,7 +258,7 @@ export function TradePage({ content }: { content: TradeContent }) {
           {content.useCases.map((uc, i) => (
             <FrCard key={uc.title} className="p-6 sm:p-7">
               <span
-                className="fr-mono-data flex size-8 items-center justify-center rounded-full bg-[color:var(--fr-cobalt)] text-white"
+                className="fr-mono-data flex size-8 items-center justify-center rounded-full bg-[color:var(--fr-olive)] text-white"
                 aria-hidden
               >
                 {i + 1}
@@ -369,7 +369,7 @@ export function TradePage({ content }: { content: TradeContent }) {
             numbers live in our{" "}
             <Link
               href="/legal/fair-use"
-              className="font-semibold text-[color:var(--fr-cobalt)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+              className="font-semibold text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
             >
               fair use policy
             </Link>
@@ -377,7 +377,7 @@ export function TradePage({ content }: { content: TradeContent }) {
           </p>
           <Link
             href="/pricing"
-            className="font-body-mkt mt-6 inline-block font-semibold text-[color:var(--fr-cobalt)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+            className="font-body-mkt mt-6 inline-block font-semibold text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
           >
             See full pricing. Every cost is on that page.
           </Link>

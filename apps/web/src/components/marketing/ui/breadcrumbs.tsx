@@ -37,7 +37,7 @@ export function Breadcrumbs({
                 <>
                   <Link
                     href={crumb.path}
-                    className="transition-colors duration-200 ease-out hover:text-[color:var(--fr-cobalt)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+                    className="transition-colors duration-200 ease-out hover:text-[color:var(--fr-olive)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
                   >
                     {crumb.name}
                   </Link>

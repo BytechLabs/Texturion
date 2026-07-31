@@ -142,7 +142,7 @@ function Section({
         History
         {showJump ? <JumpToDate /> : null}
       </h2>
-      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-white">
+      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
         {children}
       </div>
     </section>
@@ -171,7 +171,7 @@ function JumpToDate() {
           );
           target?.scrollIntoView({ behavior: "smooth", block: "start" });
         }}
-        className="rounded-md border border-app-line bg-app-white px-1.5 py-0.5 text-[11px]"
+        className="rounded-md border border-app-line bg-app-paper px-1.5 py-0.5 text-[11px]"
       />
     </label>
   );

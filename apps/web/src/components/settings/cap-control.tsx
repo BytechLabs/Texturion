@@ -97,7 +97,7 @@ export function CapControl({
     100;
 
   return (
-    <div className="rounded-app-card border border-app-line bg-app-white p-4">
+    <div className="rounded-app-card border border-app-line bg-app-paper p-4">
       {/* The consequence, at the top and in the largest type on the card: the
           multiplier is the mechanism, the pause point is the decision. */}
       <div className="flex items-end justify-between gap-4">
@@ -115,7 +115,7 @@ export function CapControl({
             messages this period
           </span>
         </label>
-        <span className="shrink-0 rounded-full bg-app-tint px-2.5 py-1 text-[12px] font-semibold tabular-nums text-app-petrol-deep">
+        <span className="shrink-0 rounded-full bg-app-tint px-2.5 py-1 text-[12px] font-semibold tabular-nums text-app-olive-deep">
           {capLabel(proposed)}
         </span>
       </div>
@@ -149,7 +149,7 @@ export function CapControl({
           exists once the value actually differs, so the card stays quiet in the
           state it spends almost all its time in. */}
       {dirty && (
-        <div className="mt-4 space-y-2.5 rounded-app-ctrl bg-app-stone-1 p-3">
+        <div className="mt-4 space-y-2.5 rounded-app-ctrl bg-app-inset p-3">
           <p className="text-[13px] leading-[1.5] text-app-ink">
             {change.summary}
           </p>

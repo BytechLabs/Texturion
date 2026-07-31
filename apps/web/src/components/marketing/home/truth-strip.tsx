@@ -28,7 +28,7 @@ export function TruthStrip({
   return (
     <div
       className={cn(
-        "rounded-r-[10px] border-l-[3px] border-[color:var(--fr-cobalt)] bg-[color:var(--fr-frost)] px-4 py-3.5 sm:px-5",
+        "rounded-r-[10px] border-l-[3px] border-[color:var(--fr-olive)] bg-[color:var(--fr-frost)] px-4 py-3.5 sm:px-5",
         className,
       )}
     >

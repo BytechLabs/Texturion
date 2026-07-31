@@ -134,7 +134,7 @@ export function CallsView() {
                 className={cn(
                   "rounded-full px-3 py-1 text-[12.5px] font-medium transition-colors duration-150",
                   selected
-                    ? "bg-app-white text-app-ink"
+                    ? "bg-app-paper text-app-ink"
                     : "text-app-muted hover:text-app-ink",
                 )}
               >
@@ -152,7 +152,7 @@ export function CallsView() {
         <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
           Recent calls
         </h2>
-        <div className="overflow-hidden rounded-app-card border border-app-line bg-app-white">
+        <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
           {calls.isPending ? (
             <div className="space-y-0">
               {Array.from({ length: 4 }, (_, i) => (

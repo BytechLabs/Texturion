@@ -95,7 +95,7 @@ function Switch({ on }: { on: boolean }) {
       aria-hidden
       className={cn(
         "relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors duration-200 ease-out",
-        on ? "bg-[color:var(--fr-cobalt)]" : "bg-[color:var(--fr-ink-55)]/25",
+        on ? "bg-[color:var(--fr-olive)]" : "bg-[color:var(--fr-ink-55)]/25",
       )}
     >
       <span
@@ -172,9 +172,9 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
                 onKeyDown={onPlanKeyDown}
                 className={cn(
                   "fr-card flex h-full flex-col p-5 text-left transition-shadow duration-200 ease-out sm:p-6",
-                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]",
                   selected
-                    ? "shadow-[inset_0_0_0_2px_var(--fr-cobalt),var(--fr-shadow-card)]"
+                    ? "shadow-[inset_0_0_0_2px_var(--fr-olive),var(--fr-shadow-card)]"
                     : "hover:shadow-[inset_0_0_0_2px_var(--fr-frost),var(--fr-shadow-card)]",
                 )}
               >
@@ -187,7 +187,7 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
                     className={cn(
                       "flex size-5 shrink-0 items-center justify-center rounded-full transition-colors duration-200",
                       selected
-                        ? "bg-[color:var(--fr-cobalt)]"
+                        ? "bg-[color:var(--fr-olive)]"
                         : "bg-[color:var(--fr-frost)]",
                     )}
                   >
@@ -261,9 +261,9 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
                     onClick={() => toggleAddon(card.id)}
                     className={cn(
                       "fr-card flex w-full items-start gap-4 p-5 text-left transition-shadow duration-200 ease-out",
-                      "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]",
+                      "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]",
                       on
-                        ? "shadow-[inset_0_0_0_2px_var(--fr-cobalt),var(--fr-shadow-card)]"
+                        ? "shadow-[inset_0_0_0_2px_var(--fr-olive),var(--fr-shadow-card)]"
                         : "hover:shadow-[inset_0_0_0_2px_var(--fr-frost),var(--fr-shadow-card)]",
                     )}
                   >

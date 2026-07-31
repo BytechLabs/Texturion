@@ -47,7 +47,7 @@ export function ConsentVisual({ className }: { className?: string }) {
         return (
           <div
             key={record.name}
-            className="rounded-app-card border border-app-line bg-app-white p-4"
+            className="rounded-app-card border border-app-line bg-app-paper p-4"
           >
             <div className="flex items-baseline justify-between gap-2">
               <p className="text-[14px] font-semibold text-app-ink">
@@ -59,7 +59,7 @@ export function ConsentVisual({ className }: { className?: string }) {
             </div>
             <div className="mt-2.5 flex items-start gap-2.5">
               <span
-                className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-app-tint text-app-petrol-deep"
+                className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-app-tint text-app-olive-deep"
                 aria-hidden
               >
                 <Icon className="size-3.5" strokeWidth={1.75} />

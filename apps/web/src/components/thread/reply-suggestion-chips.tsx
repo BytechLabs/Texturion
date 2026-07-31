@@ -57,7 +57,7 @@ export function ReplySuggestionChips({
             [0, 1, 2].map((row) => (
               <div
                 key={row}
-                className="h-[38px] animate-pulse rounded-app-card border border-app-line bg-app-stone-1"
+                className="h-[38px] animate-pulse rounded-app-card border border-app-line bg-app-inset"
                 aria-hidden
               />
             ))
@@ -66,7 +66,7 @@ export function ReplySuggestionChips({
                 key={index}
                 type="button"
                 onClick={() => onUse(suggestion)}
-                className="rounded-app-card border border-app-line bg-app-white px-3 py-2 text-left text-[13px] leading-[1.45] text-app-ink transition-colors duration-150 ease-out hover:border-app-petrol hover:bg-app-tint/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                className="rounded-app-card border border-app-line bg-app-paper px-3 py-2 text-left text-[13px] leading-[1.45] text-app-ink transition-colors duration-150 ease-out hover:border-app-olive hover:bg-app-tint/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 {suggestion}
               </button>
@@ -81,7 +81,7 @@ export function ReplySuggestionChips({
           Lou doesn&rsquo;t know what you do yet.{" "}
           <Link
             href="/settings/ai"
-            className="font-medium text-app-petrol underline-offset-4 hover:underline"
+            className="font-medium text-app-olive underline-offset-4 hover:underline"
           >
             Tell it, and drafts get specific
           </Link>

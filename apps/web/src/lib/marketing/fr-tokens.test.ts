@@ -34,8 +34,8 @@ describe("globals.css — the --fr-* system (direction §2)", () => {
       "--fr-ink": "#191b14",
       "--fr-ink-70": "#4a4d3c",
       "--fr-ink-55": "#5c5f4e",
-      "--fr-cobalt": "#3a430f",
-      "--fr-cobalt-deep": "#191b14",
+      "--fr-olive": "#3a430f",
+      "--fr-olive-deep": "#191b14",
       // Semantic, not identity — deliberately still green so "handled" and
       // "brand" are not the same colour.
       "--fr-green": "#0b7a50",

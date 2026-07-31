@@ -79,7 +79,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           hidden shell so the link is visible when focused. */}
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-app-white focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-app-ink focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-app-paper focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-app-ink focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring"
         >
           Skip to content
         </a>

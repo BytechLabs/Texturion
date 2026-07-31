@@ -128,7 +128,7 @@ export function ArrivalStatic({ className }: { className?: string }) {
           <path
             key={i}
             d={s.d}
-            stroke={s.green ? "var(--fr-green)" : "var(--fr-cobalt)"}
+            stroke={s.green ? "var(--fr-green)" : "var(--fr-olive)"}
             strokeOpacity={s.opacity}
             strokeWidth={s.weight}
           />

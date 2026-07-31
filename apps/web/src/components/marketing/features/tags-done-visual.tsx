@@ -23,7 +23,7 @@ export function TagsDoneVisual({ className }: { className?: string }) {
   return (
     <div className={cn("space-y-4 p-4 sm:p-5", className)}>
       {/* Pipeline tag chips, the real TagChip anatomy. */}
-      <div className="rounded-app-card border border-app-line bg-app-white p-4">
+      <div className="rounded-app-card border border-app-line bg-app-paper p-4">
         <p className="text-[13px] font-medium text-app-muted">
           Tags on this conversation
         </p>
@@ -34,7 +34,7 @@ export function TagsDoneVisual({ className }: { className?: string }) {
               className={cn(
                 "inline-flex items-center rounded-full border px-2 py-[2.5px] text-[11px] font-semibold leading-none",
                 i === 1
-                  ? "border-app-tint-line bg-app-tint text-app-petrol-deep"
+                  ? "border-app-tint-line bg-app-tint text-app-olive-deep"
                   : "border-transparent bg-app-line-soft text-app-muted",
               )}
             >
@@ -48,7 +48,7 @@ export function TagsDoneVisual({ className }: { className?: string }) {
       </div>
 
       {/* Done-mark on a message: strikethrough + the petrol check badge. */}
-      <div className="rounded-app-card border border-app-line bg-app-white p-4">
+      <div className="rounded-app-card border border-app-line bg-app-paper p-4">
         <p className="text-[13px] font-medium text-app-muted">
           Mark a text done
         </p>
@@ -60,7 +60,7 @@ export function TagsDoneVisual({ className }: { className?: string }) {
             >
               <Check className="size-2.5" strokeWidth={3} />
             </span>
-            <div className="max-w-[85%] rounded-app-bub border border-app-line bg-app-white px-3.5 py-2.5 [border-top-left-radius:5px]">
+            <div className="max-w-[85%] rounded-app-bub border border-app-line bg-app-paper px-3.5 py-2.5 [border-top-left-radius:5px]">
               <p className="text-[14px] leading-normal text-app-ink line-through opacity-55">
                 Can you send someone to look at the water heater this week?
               </p>

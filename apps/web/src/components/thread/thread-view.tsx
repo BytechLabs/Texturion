@@ -276,7 +276,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   return (
     <div className="flex h-full min-h-0">
       {/* The thread column: calm paper, structure by hairlines not wash. */}
-      <div className="flex h-full min-w-0 flex-1 flex-col bg-app-stone-0">
+      <div className="flex h-full min-w-0 flex-1 flex-col bg-app-ground">
         <ThreadHeader
           conversation={conversation}
           contact={contact.data}
@@ -341,7 +341,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
         <aside
           aria-label={`Conversation info for ${contactDisplayName(conversation.contact)}`}
           style={{ width: panelWidth }}
-          className="relative hidden shrink-0 border-l border-app-line bg-app-white xl:block"
+          className="relative hidden shrink-0 border-l border-app-line bg-app-paper xl:block"
         >
           {/* Left-edge resize handle. Drag to resize (persisted); double-click
               resets to the default; ←/→ nudge by 16px for keyboard users. */}
@@ -372,7 +372,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
                 return next;
               });
             }}
-            className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none select-none transition-colors hover:bg-app-tint-line focus-visible:bg-app-petrol/40 focus-visible:outline-none"
+            className="absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none select-none transition-colors hover:bg-app-tint-line focus-visible:bg-app-olive/40 focus-visible:outline-none"
           />
           <ContactPanel
             conversation={conversation}
@@ -390,7 +390,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           side="bottom"
           // #119: the account sheet's anatomy — curved top corners, app card
           // surface; the contact header inside provides the visible title row.
-          className="max-h-[85svh] overflow-y-auto rounded-t-2xl border-app-line bg-app-white p-0 pb-[env(safe-area-inset-bottom)]"
+          className="max-h-[85svh] overflow-y-auto rounded-t-2xl border-app-line bg-app-paper p-0 pb-[env(safe-area-inset-bottom)]"
           // #116: without this, Radix focuses the first tabbable on open — the
           // contact-name inline field — stamping a bright focus ring across
           // the identity card before the user has touched anything.

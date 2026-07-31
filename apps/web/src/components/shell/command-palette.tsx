@@ -117,7 +117,7 @@ export function ConversationActions({
   return (
     <>
       <div className="flex items-center gap-2 px-3 pb-1 pt-2">
-        <CircleDot className="size-3 text-app-petrol" strokeWidth={2} aria-hidden />
+        <CircleDot className="size-3 text-app-olive" strokeWidth={2} aria-hidden />
         <span className="truncate text-[11px] font-medium text-app-muted">
           {name} · actions apply to this conversation
         </span>

@@ -210,7 +210,7 @@ export function TheDeal() {
         fair-use policy, and almost every crew stays well inside it.{" "}
         <Link
           href={LIVE_ROUTES.fairUse}
-          className="font-semibold text-[color:var(--fr-cobalt)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+          className="font-semibold text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
         >
           The concrete numbers live in our fair use policy.
         </Link>
@@ -222,7 +222,7 @@ export function TheDeal() {
         More than 15 on the crew?{" "}
         <Link
           href={LIVE_ROUTES.contact}
-          className="font-semibold text-[color:var(--fr-cobalt)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+          className="font-semibold text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
         >
           Talk to us about Enterprise
         </Link>
@@ -273,7 +273,7 @@ export function TheDeal() {
       <p className="mt-12 text-center">
         <Link
           href={LIVE_ROUTES.pricing}
-          className="font-body-mkt text-[0.9375rem] font-semibold text-[color:var(--fr-cobalt)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+          className="font-body-mkt text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
         >
           See full pricing. Every cost is on that page.
         </Link>

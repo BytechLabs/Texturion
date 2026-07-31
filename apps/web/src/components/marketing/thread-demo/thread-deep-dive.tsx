@@ -58,7 +58,7 @@ function Beat({ beat, animate }: { beat: ThreadBeat; animate: boolean }) {
 }
 
 const STEP_BUTTON =
-  "font-body-mkt inline-flex shrink-0 items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-sm font-semibold transition-colors duration-200 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]";
+  "font-body-mkt inline-flex shrink-0 items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-sm font-semibold transition-colors duration-200 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]";
 
 export function ThreadDeepDive({ script }: { script: ThreadScript }) {
   const reduced = useReducedMotion();
@@ -149,8 +149,8 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
                 className={cn(
                   STEP_BUTTON,
                   engaged
-                    ? "text-[color:var(--fr-cobalt)] hover:bg-[color:var(--fr-frost)]"
-                    : "bg-[color:var(--fr-cobalt)] text-white hover:bg-[color:var(--fr-cobalt-deep)]",
+                    ? "text-[color:var(--fr-olive)] hover:bg-[color:var(--fr-frost)]"
+                    : "bg-[color:var(--fr-olive)] text-white hover:bg-[color:var(--fr-olive-deep)]",
                 )}
               >
                 {engaged ? (
@@ -175,7 +175,7 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
                 onClick={advance}
                 className={cn(
                   STEP_BUTTON,
-                  "bg-[color:var(--fr-cobalt)] text-white hover:bg-[color:var(--fr-cobalt-deep)]",
+                  "bg-[color:var(--fr-olive)] text-white hover:bg-[color:var(--fr-olive-deep)]",
                 )}
               >
                 Next

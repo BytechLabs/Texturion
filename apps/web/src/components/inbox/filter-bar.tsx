@@ -105,7 +105,7 @@ export function FilterBar({
                 // min-h-11 below md: the ≥44px mobile hit-target bar (§7).
                 "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] transition-[color,background] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 md:min-h-[28px]",
                 selected
-                  ? "bg-app-white font-semibold text-app-ink"
+                  ? "bg-app-paper font-semibold text-app-ink"
                   : "font-medium text-app-muted hover:text-app-ink",
               )}
             >

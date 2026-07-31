@@ -103,7 +103,7 @@ function PhotoThumb({ label, outbound }: { label: string; outbound?: boolean }) 
     <div
       className={cn(
         "flex size-28 flex-col items-center justify-center gap-1 rounded-app-ctrl border text-center",
-        "border-app-line bg-app-stone-1 text-app-muted",
+        "border-app-line bg-app-inset text-app-muted",
         outbound && "self-end",
       )}
       role="img"
@@ -143,7 +143,7 @@ export function InboundBubble({ beat }: { beat: InboundBeat }) {
   return (
     <div className="flex w-full flex-col items-start gap-1">
       {beat.photo && <PhotoThumb label={beat.photo.label} />}
-      <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-app-bub border border-app-line bg-app-white px-3.5 py-2.5 text-[14px] leading-[1.5] text-app-ink [border-top-left-radius:5px] md:max-w-[80%]">
+      <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-app-bub border border-app-line bg-app-paper px-3.5 py-2.5 text-[14px] leading-[1.5] text-app-ink [border-top-left-radius:5px] md:max-w-[80%]">
         {beat.body}
       </div>
       <span className="text-[12px] tabular-nums text-app-muted-2">

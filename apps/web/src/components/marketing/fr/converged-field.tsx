@@ -41,7 +41,7 @@ export function ConvergedField({
     return (
       <svg
         viewBox="0 0 220 56"
-        className={cn("text-[color:var(--fr-cobalt)]", className)}
+        className={cn("text-[color:var(--fr-olive)]", className)}
         aria-hidden="true"
         focusable="false"
       >
@@ -103,17 +103,17 @@ export function ConvergedField({
       <g fill="none" strokeWidth="2" strokeLinecap="round">
         <path
           d="M0 64 C 180 40, 320 150, 500 264"
-          stroke="var(--fr-cobalt)"
+          stroke="var(--fr-olive)"
           strokeOpacity="0.12"
         />
         <path
           d="M0 200 C 160 210, 320 240, 500 280"
-          stroke="var(--fr-cobalt)"
+          stroke="var(--fr-olive)"
           strokeOpacity="0.12"
         />
         <path
           d="M0 430 C 180 448, 330 360, 500 296"
-          stroke="var(--fr-cobalt)"
+          stroke="var(--fr-olive)"
           strokeOpacity="0.12"
         />
       </g>

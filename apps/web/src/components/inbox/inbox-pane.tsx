@@ -62,7 +62,7 @@ export function InboxPane() {
       : null;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-app-stone-0">
+    <div className="flex h-full min-h-0 flex-col bg-app-ground">
       {/* Mobile-only list header (title + New). On desktop the sidebar's
           "New message" button owns compose; below lg the floating FAB does. The
           segment + search below carry the filtering. */}

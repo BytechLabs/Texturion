@@ -65,7 +65,7 @@ function StepDot({ state }: { state: StepState }) {
   }
   return (
     <span
-      className="flex size-7 shrink-0 items-center justify-center rounded-full border border-app-line bg-app-stone-1 text-app-muted-2"
+      className="flex size-7 shrink-0 items-center justify-center rounded-full border border-app-line bg-app-inset text-app-muted-2"
       aria-hidden
     >
       <span className="size-1.5 rounded-full bg-current" />
@@ -80,7 +80,7 @@ export function RegistrationStepperVisual({
 }) {
   return (
     <div className={cn("p-4 sm:p-5", className)}>
-      <div className="rounded-app-card border border-app-line bg-app-white p-4 sm:p-5">
+      <div className="rounded-app-card border border-app-line bg-app-paper p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-[14px] font-semibold text-app-ink">
             US texting registration
@@ -125,7 +125,7 @@ export function RegistrationStepperVisual({
           ))}
         </ol>
 
-        <p className="mt-2 rounded-app-ctrl bg-app-stone-1 px-3 py-2 text-[13px] leading-relaxed text-app-muted">
+        <p className="mt-2 rounded-app-ctrl bg-app-inset px-3 py-2 text-[13px] leading-relaxed text-app-muted">
           Receiving texts already works while you wait. Approval gates only
           your outbound texting.
         </p>

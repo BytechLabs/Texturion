@@ -68,7 +68,7 @@ export function AiUsage({ features }: { features: AiFeatureUsage[] }) {
                 className={
                   nearCap
                     ? "h-full rounded-full bg-app-amber"
-                    : "h-full rounded-full bg-app-petrol"
+                    : "h-full rounded-full bg-app-olive"
                 }
                 style={{ width: `${feature.enabled ? pct : 0}%` }}
               />

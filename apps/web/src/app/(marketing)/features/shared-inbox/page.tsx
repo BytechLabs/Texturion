@@ -156,7 +156,7 @@ export default function SharedInboxPage() {
           always free and unlimited. The concrete numbers live in our{" "}
           <Link
             href="/legal/fair-use"
-            className="font-medium text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline"
+            className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
           >
             fair use policy
           </Link>

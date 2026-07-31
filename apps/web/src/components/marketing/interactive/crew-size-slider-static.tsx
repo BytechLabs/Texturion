@@ -70,7 +70,7 @@ export function CrewSizeSliderStatic() {
           </div>
           <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-[color:var(--fr-frost)]">
             <div
-              className="h-full rounded-full bg-[color:var(--fr-cobalt)]"
+              className="h-full rounded-full bg-[color:var(--fr-olive)]"
               style={{ width: `${loonextWidth}%` }}
             />
           </div>
@@ -111,7 +111,7 @@ export function CrewSizeSliderStatic() {
 
       <a
         href={APP_LINKS.signup}
-        className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+        className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
       >
         Start for {usd(LOONEXT_PRICE)} flat →
       </a>
@@ -123,7 +123,7 @@ export function CrewSizeSliderStatic() {
         math on{" "}
         <a
           href={LIVE_ROUTES.compareQuo}
-          className="font-medium text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline"
+          className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
         >
           our comparison pages
         </a>

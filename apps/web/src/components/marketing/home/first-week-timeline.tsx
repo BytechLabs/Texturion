@@ -63,10 +63,10 @@ function Node({ kind }: { kind: "green" | "track" }) {
   }
   return (
     <span
-      className="flex size-6 shrink-0 items-center justify-center rounded-full border-2 border-[color:var(--fr-cobalt)] bg-white"
+      className="flex size-6 shrink-0 items-center justify-center rounded-full border-2 border-[color:var(--fr-olive)] bg-white"
       aria-hidden
     >
-      <span className="size-2 rounded-full bg-[color:var(--fr-cobalt)]" />
+      <span className="size-2 rounded-full bg-[color:var(--fr-olive)]" />
     </span>
   );
 }
@@ -78,7 +78,7 @@ function UsTimeline() {
           (green). Decorative; the stages below carry the meaning. */}
       <div className="mb-8 hidden items-center gap-1.5 md:flex" aria-hidden>
         <span className="h-1.5 flex-1 rounded-full bg-[color:var(--fr-green)]" />
-        <span className="h-1.5 flex-[3] rounded-full bg-[color:var(--fr-cobalt)]" />
+        <span className="h-1.5 flex-[3] rounded-full bg-[color:var(--fr-olive)]" />
         <span className="h-1.5 flex-1 rounded-full bg-[color:var(--fr-green)]" />
       </div>
 

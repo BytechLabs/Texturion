@@ -41,7 +41,7 @@ export function CopyableNumberRow({ e164 }: { e164: string }) {
     <div className="flex items-center gap-1.5 text-[12px]">
       <span
         aria-hidden
-        className="size-1.5 shrink-0 rounded-full bg-app-petrol"
+        className="size-1.5 shrink-0 rounded-full bg-app-olive"
       />
       <span className="min-w-0 flex-1 truncate tabular-nums text-app-ink">
         {label}

@@ -130,7 +130,7 @@ export function ResponseTimeCard() {
               className={cn(
                 "rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums transition-colors duration-150 ease-out",
                 days === w.days
-                  ? "bg-app-ink text-app-white"
+                  ? "bg-app-ink text-app-paper"
                   : "text-app-muted-2 hover:bg-app-hover",
               )}
             >
@@ -140,7 +140,7 @@ export function ResponseTimeCard() {
         </span>
       </h2>
 
-      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-white">
+      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
         {report.isPending ? (
           // A skeleton rather than a spinner: the shape of the answer is known,
           // so the panel does not reflow when it arrives.
@@ -210,7 +210,7 @@ export function ResponseTimeCard() {
                     className={cn(
                       "flex items-center gap-1.5 pt-1 text-[13px] font-medium",
                       direction === "faster"
-                        ? "text-app-petrol-deep"
+                        ? "text-app-olive-deep"
                         : "text-app-amber-ink",
                     )}
                   >

@@ -315,7 +315,7 @@ describe("country branching: a Canadian sees only the Canada story (owner ruling
 describe("product embeds keep APP tokens (Law 2)", () => {
   for (const [name, html] of Object.entries(EMBEDS)) {
     it(`${name}: no marketing tokens inside the product surface`, () => {
-      expect(html).not.toContain("--fr-cobalt");
+      expect(html).not.toContain("--fr-olive");
       expect(html).not.toContain("--fr-ink");
       expect(html).not.toContain("--fr-frost");
       expect(html).not.toContain("--petrol"); // dead v3 alias (cobalt now)
@@ -349,7 +349,7 @@ describe("the FEATURE-template blocks", () => {
       />,
     );
     expect(html).toContain("border-l-[3px]");
-    expect(html).toContain("--fr-cobalt");
+    expect(html).toContain("--fr-olive");
     expect(html).toContain("--fr-frost");
     expect((html.match(/--fr-green/g) ?? []).length).toBe(1);
     expect(html).toContain("fr-mono-data");
@@ -367,7 +367,7 @@ describe("the FEATURE-template blocks", () => {
       />,
     );
     expect(html).toContain("fr-mono-data");
-    expect((html.match(/rounded-full bg-\[color:var\(--fr-cobalt\)\]/g) ?? []).length).toBe(3);
+    expect((html.match(/rounded-full bg-\[color:var\(--fr-olive\)\]/g) ?? []).length).toBe(3);
   });
 
   it("PricingSnippet: price as art plus the deck's guarantee microcopy", () => {
@@ -390,7 +390,7 @@ describe("the FEATURE-template blocks", () => {
       <FeatureCta heading="Close." sub="One promise, one button." />,
     );
     expect(html).toContain("--fr-frost");
-    expect(html).not.toMatch(/bg-\[color:var\(--fr-cobalt\)\] text-white"?[^>]*<h2/);
+    expect(html).not.toMatch(/bg-\[color:var\(--fr-olive\)\] text-white"?[^>]*<h2/);
     expect(html).toContain("$29/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK");
   });
 });
@@ -424,7 +424,7 @@ describe("v4 frame chrome", () => {
     expect(html).toContain("#FDFDF9"); // paper tile
     expect(html).toContain("#66801F"); // the olive second ring
     expect(html).not.toContain("#0F766E");
-    expect(html).not.toContain("--fr-cobalt");
+    expect(html).not.toContain("--fr-olive");
   });
 });
 

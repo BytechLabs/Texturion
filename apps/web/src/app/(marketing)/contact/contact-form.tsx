@@ -96,7 +96,7 @@ export function ContactForm() {
   }
 
   const fieldClass =
-    "w-full rounded-[10px] bg-[color:var(--fr-frost)] px-3.5 py-2.5 text-[0.9375rem] text-[color:var(--fr-ink)] placeholder:text-[color:var(--fr-ink-55)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)] disabled:opacity-60";
+    "w-full rounded-[10px] bg-[color:var(--fr-frost)] px-3.5 py-2.5 text-[0.9375rem] text-[color:var(--fr-ink)] placeholder:text-[color:var(--fr-ink-55)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)] disabled:opacity-60";
   const labelClass = "block text-sm font-semibold text-[color:var(--fr-ink)]";
   // The FR palette has no error red (§2: nine colors are the law; flare is
   // whitelist-only, never body text). Errors read through weight, the alert
@@ -110,7 +110,7 @@ export function ContactForm() {
         ref={confirmationRef}
         tabIndex={-1}
         role="status"
-        className="rounded-xl bg-[color:var(--fr-frost)] p-6 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)] sm:p-8"
+        className="rounded-xl bg-[color:var(--fr-frost)] p-6 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)] sm:p-8"
       >
         <h2 className="fr-h3 text-[color:var(--fr-ink)]">
           Thanks, your message was sent.
@@ -120,7 +120,7 @@ export function ContactForm() {
           urgent, you can also email us at{" "}
           <a
             href={`mailto:${SUPPORT_EMAIL}`}
-            className="font-medium text-[color:var(--fr-cobalt)] underline decoration-[color:var(--fr-cobalt)]/35 underline-offset-4 hover:decoration-[color:var(--fr-cobalt)]"
+            className="font-medium text-[color:var(--fr-olive)] underline decoration-[color:var(--fr-olive)]/35 underline-offset-4 hover:decoration-[color:var(--fr-olive)]"
           >
             {SUPPORT_EMAIL}
           </a>
@@ -139,7 +139,7 @@ export function ContactForm() {
           ref={errorRef}
           tabIndex={-1}
           role="alert"
-          className="rounded-[10px] bg-[color:var(--fr-frost)] px-4 py-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+          className="rounded-[10px] bg-[color:var(--fr-frost)] px-4 py-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
         >
           <p className={errorTextClass}>
             {formError ?? "Please fix the highlighted fields and try again."}
@@ -269,7 +269,7 @@ export function ContactForm() {
       <button
         type="submit"
         disabled={submitting}
-        className="inline-flex w-full items-center justify-center rounded-full bg-[color:var(--fr-cobalt)] px-7 py-3.5 text-[0.9375rem] font-semibold whitespace-nowrap text-white transition-colors duration-200 ease-out hover:bg-[color:var(--fr-cobalt-deep)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+        className="inline-flex w-full items-center justify-center rounded-full bg-[color:var(--fr-olive)] px-7 py-3.5 text-[0.9375rem] font-semibold whitespace-nowrap text-white transition-colors duration-200 ease-out hover:bg-[color:var(--fr-olive-deep)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
       >
         {submitting ? "Sending..." : "Send message"}
       </button>
@@ -278,7 +278,7 @@ export function ContactForm() {
         Prefer your own email app?{" "}
         <a
           href={buildMailto(values.name, values.company, values.message)}
-          className="font-medium text-[color:var(--fr-cobalt)] underline decoration-[color:var(--fr-cobalt)]/35 underline-offset-4 hover:decoration-[color:var(--fr-cobalt)]"
+          className="font-medium text-[color:var(--fr-olive)] underline decoration-[color:var(--fr-olive)]/35 underline-offset-4 hover:decoration-[color:var(--fr-olive)]"
         >
           Write to {SUPPORT_EMAIL}
         </a>{" "}

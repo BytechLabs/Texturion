@@ -86,7 +86,7 @@ export function CrewSizeSlider() {
         value={seats}
         onChange={(e) => setSeats(Number(e.target.value))}
         aria-valuetext={`${seats} ${seats === 1 ? "person" : "people"}`}
-        className="mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[color:var(--fr-frost)] accent-[color:var(--fr-cobalt)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+        className="mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[color:var(--fr-frost)] accent-[color:var(--fr-olive)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
       />
       <div className="fr-mono-data mt-1 flex justify-between text-[0.6875rem] text-[color:var(--fr-ink-55)]">
         <span>1</span>
@@ -109,7 +109,7 @@ export function CrewSizeSlider() {
           </div>
           <div className="mt-1.5 h-3 w-full overflow-hidden rounded-full bg-[color:var(--fr-frost)]">
             <div
-              className="h-full rounded-full bg-[color:var(--fr-cobalt)] transition-[width] duration-200 ease-out"
+              className="h-full rounded-full bg-[color:var(--fr-olive)] transition-[width] duration-200 ease-out"
               style={{ width: `${loonextWidth}%` }}
             />
           </div>
@@ -152,7 +152,7 @@ export function CrewSizeSlider() {
 
       <a
         href={APP_LINKS.signup}
-        className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+        className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
       >
         Start for {usd(loonext.price)} flat →
       </a>
@@ -164,7 +164,7 @@ export function CrewSizeSlider() {
         math on{" "}
         <a
           href={LIVE_ROUTES.compareQuo}
-          className="font-medium text-[color:var(--fr-cobalt)] underline-offset-2 hover:underline"
+          className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
         >
           our comparison pages
         </a>

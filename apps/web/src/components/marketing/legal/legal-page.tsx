@@ -80,10 +80,10 @@ export function LegalPage({
                 <li key={s.id}>
                   <Link
                     href={`#${s.id}`}
-                    className="group inline-flex items-baseline gap-2.5 text-[0.9375rem] text-[color:var(--fr-ink-70)] transition-colors duration-200 ease-out hover:text-[color:var(--fr-cobalt)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+                    className="group inline-flex items-baseline gap-2.5 text-[0.9375rem] text-[color:var(--fr-ink-70)] transition-colors duration-200 ease-out hover:text-[color:var(--fr-olive)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
                   >
                     <span
-                      className="fr-mono-data w-6 shrink-0 text-right text-[0.75rem] text-[color:var(--fr-ink-55)] group-hover:text-[color:var(--fr-cobalt)]"
+                      className="fr-mono-data w-6 shrink-0 text-right text-[0.75rem] text-[color:var(--fr-ink-55)] group-hover:text-[color:var(--fr-olive)]"
                       aria-hidden="true"
                     >
                       {s.number ?? "·"}
@@ -111,7 +111,7 @@ export function LegalLink({
   children: React.ReactNode;
 }) {
   const className =
-    "font-medium text-[color:var(--fr-cobalt)] underline decoration-[color:var(--fr-cobalt)]/35 underline-offset-4 transition-colors duration-200 ease-out hover:decoration-[color:var(--fr-cobalt)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]";
+    "font-medium text-[color:var(--fr-olive)] underline decoration-[color:var(--fr-olive)]/35 underline-offset-4 transition-colors duration-200 ease-out hover:decoration-[color:var(--fr-olive)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]";
   // Internal path → client-side navigation (no full page reload / re-download).
   // Hash anchors, mailto:, and external http(s) links stay a plain <a>.
   if (href.startsWith("/") && !href.startsWith("//")) {

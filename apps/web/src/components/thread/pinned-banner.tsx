@@ -64,7 +64,7 @@ export function PinnedBanner({
   return (
     <section
       aria-label="Pinned messages"
-      className="overflow-hidden rounded-app-card border border-app-line bg-app-white"
+      className="overflow-hidden rounded-app-card border border-app-line bg-app-paper"
     >
       <h3 className="flex items-center gap-1.5 px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
         <Pin className="size-3" strokeWidth={2} aria-hidden />
@@ -112,7 +112,7 @@ export function MobilePinnedDisclosure({
   return (
     <section
       aria-label="Pinned messages"
-      className="overflow-hidden rounded-app-card border border-app-line bg-app-white"
+      className="overflow-hidden rounded-app-card border border-app-line bg-app-paper"
     >
       <button
         type="button"

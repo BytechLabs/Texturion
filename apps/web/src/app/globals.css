@@ -225,7 +225,7 @@
   --color-sidebar-ring: var(--sidebar-ring);
 
   /* APP-SHELL-REDESIGN mockup colors, exposed as utilities (bg-app-tint,
-     text-app-petrol-deep, border-app-tint-line, bg-app-amber-bg, …). Resolve to
+     text-app-olive-deep, border-app-tint-line, bg-app-amber-bg, …). Resolve to
      the .app-scope tokens; inert (unset) outside the app scope, so marketing is
      untouched. Additive — no existing utility changes. */
   --color-app-ink: var(--app-ink);
@@ -233,15 +233,15 @@
      text-app-ink-soft emitted no rule and the sidebar nav items it styles
      rendered with an inherited colour. Found by utility-classes.test.ts. */
   --color-app-ink-soft: var(--app-ink-soft);
-  --color-app-petrol: var(--app-petrol);
-  --color-app-petrol-deep: var(--app-petrol-deep);
-  /* #26: the paired ON-PETROL text color (text-app-petrol-foreground). Flips
+  --color-app-olive: var(--app-olive-accent);
+  --color-app-olive-deep: var(--app-olive-deep);
+  /* #26: the paired ON-PETROL text color (text-app-olive-foreground). Flips
      with the theme so text on a petrol fill holds AA in BOTH modes — never
      hardcode text-white on a petrol surface. */
-  --color-app-petrol-foreground: var(--app-petrol-foreground);
-  --color-app-stone-0: var(--app-stone-0);
-  --color-app-stone-1: var(--app-stone-1);
-  --color-app-white: var(--app-white);
+  --color-app-olive-foreground: var(--app-olive-foreground);
+  --color-app-ground: var(--app-ground);
+  --color-app-inset: var(--app-inset);
+  --color-app-paper: var(--app-paper);
   --color-app-line: var(--app-line);
   --color-app-line-soft: var(--app-line-soft);
   --color-app-muted: var(--app-muted);
@@ -563,12 +563,12 @@
   /* --- Additive --app-* tokens (read by components), repointed to calm --- */
   --app-ink: #191b14;
   --app-ink-soft: #4a4d3c;
-  --app-petrol: #3a430f;
+  --app-olive-accent: #3a430f;
   /* #26: the paired foreground for ANY petrol fill (bubbles, Send, count
      pills). White measures 5.47:1 on #3a430f and 9.42:1 on the #191b14 hover
      deep — AA. The dark block flips this to near-black (see below). */
-  --app-petrol-foreground: #fdfdf9;
-  --app-petrol-deep: #191b14;
+  --app-olive-foreground: #fdfdf9;
+  --app-olive-deep: #191b14;
 
   /* --- #362 Paper & Olive, added but not yet adopted (Phase 2) ------------
      Nothing reads these yet, so this block is a zero visual diff. They exist
@@ -595,9 +595,9 @@
      reason one shared fill-foreground had to be split. */
   --app-lime-foreground: #191b14;
 
-  --app-stone-0: #f3f3ee; /* == --paper (kept name; components read it) */
-  --app-stone-1: #f0f0e8; /* == --line-soft (hover fill) */
-  --app-white: #fdfdf9;
+  --app-ground: #f3f3ee; /* == --paper (kept name; components read it) */
+  --app-inset: #f0f0e8; /* == --line-soft (hover fill) */
+  --app-paper: #fdfdf9;
   --app-line: #e7e9dc;
   --app-line-soft: #f0f0e8;
   /* #61: essential quiet text (snippets, chip labels). Was #79837d (3.78:1 on
@@ -645,7 +645,7 @@
   --app-avatar-self: var(--app-tint);
 
   /* Outbound message bubble: flat petrol (no gradient). */
-  --app-bubble-out: var(--app-petrol);
+  --app-bubble-out: var(--app-olive-accent);
 
   background-color: var(--background);
   color: var(--foreground);
@@ -713,11 +713,11 @@
 
   --app-ink: #f0f1e5;
   --app-ink-soft: #c9ccba;
-  --app-petrol: #d6e77e;
+  --app-olive-accent: #d6e77e;
   /* #26: white on lifted petrol #d6e77e is 2.59:1 — the dark pair is
      near-black: 7.43:1 on #d6e77e and 13.25:1 on the #f0f1e5 hover deep. */
-  --app-petrol-foreground: #191b14;
-  --app-petrol-deep: #f0f1e5;
+  --app-olive-foreground: #191b14;
+  --app-olive-deep: #f0f1e5;
 
   /* #362 Paper & Olive (Phase 2), dark. The accent is LIME here, not olive:
      #66801F is a light-mode value and BrandColor.swift:50 / Theme.kt:56 ship
@@ -727,9 +727,9 @@
   --app-lime: #b9cf57;
   --app-lime-foreground: #191b14;
 
-  --app-stone-0: #141610;
-  --app-stone-1: #23261a;
-  --app-white: #1f2218; /* the "white" card equivalent on dark */
+  --app-ground: #141610;
+  --app-inset: #23261a;
+  --app-paper: #1f2218; /* the "white" card equivalent on dark */
   --app-line: #2c2f22;
   --app-line-soft: #23261a;
   --app-muted: #c9ccba; /* 7.01:1 ground / 6.50:1 card / 6.33:1 hover — AA */
@@ -760,7 +760,7 @@
   --app-ava-clay: var(--app-tint);
   --app-ava-slate: var(--app-tint);
   --app-avatar-self: var(--app-tint);
-  --app-bubble-out: var(--app-petrol);
+  --app-bubble-out: var(--app-olive-accent);
 
   color-scheme: dark;
 }
@@ -789,7 +789,7 @@
 }
 @utility app-ground {
   /* The (app) frame ground: flat calm paper (no wash). */
-  background-color: var(--app-stone-0);
+  background-color: var(--app-ground);
   background-image: var(--app-ground-wash);
 }
 
@@ -800,34 +800,34 @@
    churn — flat avatars everywhere the utility is applied. */
 @utility app-ava-amber {
   background: var(--app-ava-amber);
-  color: var(--app-petrol-deep) !important;
+  color: var(--app-olive-deep) !important;
 }
 @utility app-ava-petrol {
   background: var(--app-ava-petrol);
-  color: var(--app-petrol-deep) !important;
+  color: var(--app-olive-deep) !important;
 }
 @utility app-ava-clay {
   background: var(--app-ava-clay);
-  color: var(--app-petrol-deep) !important;
+  color: var(--app-olive-deep) !important;
 }
 @utility app-ava-slate {
   background: var(--app-ava-slate);
-  color: var(--app-petrol-deep) !important;
+  color: var(--app-olive-deep) !important;
 }
 @utility app-ava-self {
   background: var(--app-avatar-self);
-  color: var(--app-petrol-deep) !important;
+  color: var(--app-olive-deep) !important;
 }
 @utility app-bubble-out {
   background: var(--app-bubble-out);
   /* #26: the bubble carries its own AA text pair (white in light, near-black
      in dark) so callers never hardcode text-white on the accent fill. */
-  color: var(--app-petrol-foreground);
+  color: var(--app-olive-foreground);
 }
 
 /* #26/#362 — token-level enforcement of the on-accent text pair. Any element
    inside the app scope that paints the accent fill (`bg-primary` /
-   `bg-app-petrol`) gets the theme-paired foreground: paper #fdfdf9 in light
+   `bg-app-olive`) gets the theme-paired foreground: paper #fdfdf9 in light
    (10.35:1 on the #3a430f fill), ink #191b14 in dark (12.90:1 on #d6e77e).
    Unlayered on purpose: it outranks the @layer utilities text-* classes, so a
    stray `text-white` on the accent fill (composer.tsx's Send, filter-bar's
@@ -842,8 +842,8 @@
    keep saying "petrol"; renaming them is phase 9 and deliberately separate, so
    this commit stays a value change. */
 .app-scope .bg-primary,
-.app-scope .bg-app-petrol {
-  color: var(--app-petrol-foreground);
+.app-scope .bg-app-olive {
+  color: var(--app-olive-foreground);
 }
 
 /* #65 — APP-UI-ELEVATION §2.2 weight ceiling: 400 body / 500 emphasis /
@@ -878,10 +878,10 @@
   --fr-ink: #191b14; /* ink — headlines and body, 15.61:1 on the ground */
   --fr-ink-70: #4a4d3c; /* secondary text, 7.80:1 */
   --fr-ink-55: #5c5f4e; /* captions, timestamps, table labels, 5.89:1 */
-  --fr-cobalt: #3a430f; /* the accent — CTAs, links, focus rings. 9.48:1 as
+  --fr-olive: #3a430f; /* the accent — CTAs, links, focus rings. 9.48:1 as
                            text AND takes a paper label as a fill (10.35:1),
                            which is why nothing downstream had to move. */
-  --fr-cobalt-deep: #191b14; /* primary CTA hover — ink, paper label 17.05:1 */
+  --fr-olive-deep: #191b14; /* primary CTA hover — ink, paper label 17.05:1 */
   --fr-green: #0b7a50; /* Answered Green — semantic, NOT the identity. Left
                           alone deliberately: "handled" and "brand" must not
                           be the same colour. Same reasoning as destructive. */
@@ -908,7 +908,7 @@
   --ink-midnight: var(--fr-ink);
   --cab-panel: #2c2f22; /* raised step on ink */
   --signal-aqua: #d6e77e; /* readable link tint on ink grounds, 13.53:1 */
-  --porch-amber: var(--fr-cobalt);
+  --porch-amber: var(--fr-olive);
   --amber-core: var(--fr-frost);
   --moonlight: #f0f1e5; /* paper on dark grounds */
   --dusk: rgba(255, 255, 255, 0.7);
@@ -916,7 +916,7 @@
   --day-ink: var(--fr-ink);
   --copper: var(--fr-ink);
   --copper-lift: var(--fr-ink);
-  --petrol: var(--fr-cobalt); /* #362: one accent across the whole product */
+  --petrol: var(--fr-olive); /* #362: one accent across the whole product */
   --rule-dark: rgba(255, 255, 255, 0.12);
   --rule-light: rgba(25, 27, 20, 0.1);
   --amber-strip: var(--fr-frost);
@@ -924,7 +924,7 @@
   --deep: var(--fr-ink);
   --ink: var(--fr-ink);
   --paper: var(--fr-ground);
-  --marker: var(--fr-cobalt);
+  --marker: var(--fr-olive);
   --graphite: var(--fr-ink-70);
   --paper-2: var(--fr-card);
   --paper-edge: #e7e9dc;
@@ -1205,7 +1205,7 @@
 
 @utility dsp-accent {
   /* The single accent word in a composed headline: cobalt in v4. */
-  color: var(--fr-cobalt);
+  color: var(--fr-olive);
 }
 
 @utility dsp-marker {
@@ -1322,7 +1322,7 @@
 .ai-orb-dot {
   position: absolute;
   border-radius: 9999px;
-  background: var(--app-petrol, currentColor);
+  background: var(--app-olive-accent, currentColor);
   opacity: 0.3;
 }
 
@@ -1425,8 +1425,8 @@
   border-radius: 9999px;
   background: linear-gradient(
     to right,
-    var(--app-petrol) 0%,
-    var(--app-petrol) var(--cap-fill, 0%),
+    var(--app-olive-accent) 0%,
+    var(--app-olive-accent) var(--cap-fill, 0%),
     var(--app-line-soft) var(--cap-fill, 0%),
     var(--app-line-soft) 100%
   );
@@ -1439,7 +1439,7 @@
 .cap-slider::-moz-range-progress {
   height: 8px;
   border-radius: 9999px;
-  background: var(--app-petrol);
+  background: var(--app-olive-accent);
 }
 
 /* Thumb — a white disc on a petrol ring, lifted just off the rail. */
@@ -1451,7 +1451,7 @@
   margin-top: -7px; /* centers the 22px thumb on the 8px track */
   border-radius: 9999px;
   background: #fff;
-  border: 2px solid var(--app-petrol);
+  border: 2px solid var(--app-olive-accent);
   box-shadow:
     0 1px 2px rgb(15 23 20 / 0.16),
     0 4px 10px rgb(15 23 20 / 0.1);
@@ -1464,7 +1464,7 @@
   width: 22px;
   border-radius: 9999px;
   background: #fff;
-  border: 2px solid var(--app-petrol);
+  border: 2px solid var(--app-olive-accent);
   box-shadow:
     0 1px 2px rgb(15 23 20 / 0.16),
     0 4px 10px rgb(15 23 20 / 0.1);

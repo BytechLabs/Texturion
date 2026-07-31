@@ -60,9 +60,9 @@ export function CountryToggle({ className }: { className?: string }) {
               onKeyDown={onKeyDown}
               className={cn(
                 "rounded-full px-4 py-2 text-[0.875rem] font-semibold transition-colors duration-200 ease-out",
-                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]",
+                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]",
                 selected
-                  ? "bg-[color:var(--fr-cobalt)] text-white"
+                  ? "bg-[color:var(--fr-olive)] text-white"
                   : "text-[color:var(--fr-ink-70)] hover:text-[color:var(--fr-ink)]",
               )}
             >

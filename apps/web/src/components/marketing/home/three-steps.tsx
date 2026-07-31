@@ -35,7 +35,7 @@ export function ThreeSteps() {
         {STEPS.map((step, i) => (
           <li key={step.title} className="flex gap-4">
             <span
-              className="font-mono-mkt mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-cobalt)] text-[0.9375rem] font-medium tabular-nums text-white"
+              className="font-mono-mkt mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-olive)] text-[0.9375rem] font-medium tabular-nums text-white"
               aria-hidden
             >
               {i + 1}

@@ -44,7 +44,7 @@ export function MonoFigure({
   const isFlare = tone === "flare";
   const tones = {
     ink: "text-[color:var(--fr-ink)]",
-    cobalt: "text-[color:var(--fr-cobalt)]",
+    cobalt: "text-[color:var(--fr-olive)]",
     green: "text-[color:var(--fr-green)]",
     flare: "text-[color:var(--fr-flare)]",
   } as const;

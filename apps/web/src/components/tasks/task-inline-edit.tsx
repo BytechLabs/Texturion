@@ -153,7 +153,7 @@ export function InlineDue({ task }: { task: Task }) {
                 { onError: () => toast.error("Couldn't change the due date.") },
               );
             }}
-            className="rounded-app-ctrl border border-app-line bg-app-white px-2 py-1.5 text-[13px] text-app-ink outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="rounded-app-ctrl border border-app-line bg-app-paper px-2 py-1.5 text-[13px] text-app-ink outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           />
           {task.due_at !== null && (
             <button

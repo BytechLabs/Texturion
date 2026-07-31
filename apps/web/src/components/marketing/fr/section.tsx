@@ -43,7 +43,7 @@ export function FrSection({
     white: "bg-[color:var(--fr-ground)] text-[color:var(--fr-ink)]",
     frost: "bg-[color:var(--fr-frost)] text-[color:var(--fr-ink)]",
     ink: "bg-[color:var(--fr-ink)] text-white",
-    cobalt: "bg-[color:var(--fr-cobalt)] text-white",
+    cobalt: "bg-[color:var(--fr-olive)] text-white",
   };
   return (
     <Tag id={id} className={cn(grounds[ground], "py-16 md:py-24", className)}>

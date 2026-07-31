@@ -81,7 +81,7 @@ export function SavedRepliesPicker({
       </div>
 
       {/* The composer card with "/" typed: exactly how the picker opens. */}
-      <div className="mt-2 flex items-end gap-1 rounded-app-card border border-app-petrol bg-app-white px-2 py-1.5 ring-[3px] ring-app-tint">
+      <div className="mt-2 flex items-end gap-1 rounded-app-card border border-app-olive bg-app-paper px-2 py-1.5 ring-[3px] ring-app-tint">
         <span className="min-h-9 flex-1 px-2 py-2 text-[15px] leading-6 text-app-ink">
           /
           <span

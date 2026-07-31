@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
  * prerender with the page, cost nothing at runtime, and never become the LCP
  * (inline SVG geometry is not an LCP candidate; the H1 stays the story).
  *
- * Color mapping lives here: trail/tick/dock roles ride --fr-cobalt, the one
+ * Color mapping lives here: trail/tick/dock roles ride --fr-olive, the one
  * waiting mark is --fr-flare (§3.4.1 static-derivative), the one docked mark
  * is --fr-green (answered = handled). Card plates carry no accent marks at
  * all — see blog-art.ts.
@@ -49,7 +49,7 @@ export function BlogPlate({
         {tickPath ? (
           <path
             d={tickPath}
-            stroke="var(--fr-cobalt)"
+            stroke="var(--fr-olive)"
             strokeOpacity="0.12"
             strokeWidth="1"
             fill="none"
@@ -61,7 +61,7 @@ export function BlogPlate({
             key={trail.d}
             d={trail.d}
             fill="none"
-            stroke="var(--fr-cobalt)"
+            stroke="var(--fr-olive)"
             strokeOpacity={
               trail.role === "lead" ? 0.85 : trail.role === "mid" ? 0.3 : 0.14
             }
@@ -77,7 +77,7 @@ export function BlogPlate({
           cy={spec.dock.y}
           r="14"
           fill="none"
-          stroke="var(--fr-cobalt)"
+          stroke="var(--fr-olive)"
           strokeOpacity="0.18"
           strokeWidth="1.5"
         />
@@ -86,7 +86,7 @@ export function BlogPlate({
           cy={spec.dock.y}
           r="7"
           fill="none"
-          stroke="var(--fr-cobalt)"
+          stroke="var(--fr-olive)"
           strokeOpacity="0.45"
           strokeWidth="1.5"
         />
@@ -103,7 +103,7 @@ export function BlogPlate({
             cx={spec.dock.x}
             cy={spec.dock.y}
             r="2.5"
-            fill="var(--fr-cobalt)"
+            fill="var(--fr-olive)"
           />
         )}
 

@@ -51,7 +51,7 @@ export function WhileYouWait() {
 
   return (
     <section
-      className="rounded-app-card border border-app-line bg-app-white p-4 md:p-5"
+      className="rounded-app-card border border-app-line bg-app-paper p-4 md:p-5"
       aria-labelledby="while-you-wait-heading"
     >
       <h2 id="while-you-wait-heading" className="text-sm font-semibold">
@@ -70,7 +70,7 @@ export function WhileYouWait() {
         aria-label="Texting registration progress"
       >
         <div
-          className="h-full rounded-full bg-app-petrol-deep transition-[width] duration-500"
+          className="h-full rounded-full bg-app-olive-deep transition-[width] duration-500"
           style={{ width: `${progress.percent}%` }}
         />
       </div>
@@ -81,7 +81,7 @@ export function WhileYouWait() {
       {/* What already works. FIRST, not as a footnote — this is the habit worth
           forming during the wait, and it is available today. */}
       <div className="mt-5 flex items-start gap-3 rounded-lg bg-app-tint/60 p-3">
-        <Phone className="mt-0.5 size-4 shrink-0 text-app-petrol-deep" aria-hidden />
+        <Phone className="mt-0.5 size-4 shrink-0 text-app-olive-deep" aria-hidden />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">Calls already work</p>
           <p className="mt-0.5 text-sm text-muted-foreground">

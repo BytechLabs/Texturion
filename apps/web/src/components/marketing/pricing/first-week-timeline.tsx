@@ -70,7 +70,7 @@ function Node({ kind }: { kind: "green" | "cobalt" }) {
     <GreenNode />
   ) : (
     <span
-      className="fr-eyebrow flex h-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-cobalt)] px-2 text-[10px] text-white"
+      className="fr-eyebrow flex h-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-olive)] px-2 text-[10px] text-white"
       aria-hidden
     >
       1-7
@@ -86,7 +86,7 @@ function UsTimeline() {
       <div className="flex items-center gap-2" aria-hidden>
         <span className="size-2.5 shrink-0 rounded-full bg-[color:var(--fr-green)]" />
         <span className="h-1.5 flex-1 rounded-full bg-[color:var(--fr-frost)]">
-          <span className="block h-full w-1/6 rounded-full bg-[color:var(--fr-cobalt)]" />
+          <span className="block h-full w-1/6 rounded-full bg-[color:var(--fr-olive)]" />
         </span>
         <span className="size-2.5 shrink-0 rounded-full bg-[color:var(--fr-green)]" />
       </div>

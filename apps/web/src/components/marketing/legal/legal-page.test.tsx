@@ -70,7 +70,7 @@ describe("LegalPage — the v4 quiet register", () => {
 
   it("prose links are cobalt (the marketing voice), never petrol", () => {
     const html = renderFixture();
-    expect(html).toContain("--fr-cobalt");
+    expect(html).toContain("--fr-olive");
     expect(html).not.toContain("--petrol");
   });
 

@@ -84,7 +84,7 @@ function Segments() {
           className={cn(
             "flex flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12.5px]",
             i === 0
-              ? "bg-app-white font-semibold text-app-ink"
+              ? "bg-app-paper font-semibold text-app-ink"
               : "font-medium text-app-muted",
           )}
         >
@@ -105,13 +105,13 @@ function InboxRow({ row, active }: { row: Row; active?: boolean }) {
     <div
       className={cn(
         "relative flex items-start gap-[11px] rounded-app-card border p-[11px]",
-        active ? "border-app-line bg-app-white" : "border-transparent",
+        active ? "border-app-line bg-app-paper" : "border-transparent",
       )}
     >
       {/* Tinted-initial avatar (ConversationRow anatomy). */}
       <span
         aria-hidden
-        className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-app-tint text-[13px] font-semibold text-app-petrol-deep"
+        className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-app-tint text-[13px] font-semibold text-app-olive-deep"
       >
         {row.initials}
       </span>
@@ -145,12 +145,12 @@ function InboxRow({ row, active }: { row: Row; active?: boolean }) {
         {(row.tag || row.assignee) && (
           <span className="mt-[7px] flex flex-wrap items-center gap-[5px]">
             {row.tag && (
-              <span className="inline-flex items-center rounded-full border border-app-tint-line bg-app-tint px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-petrol-deep">
+              <span className="inline-flex items-center rounded-full border border-app-tint-line bg-app-tint px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-olive-deep">
                 {row.tag}
               </span>
             )}
             {row.assignee && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-app-line bg-app-stone-0 px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted">
+              <span className="inline-flex items-center gap-1 rounded-full border border-app-line bg-app-ground px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted">
                 {row.assignee}
               </span>
             )}
@@ -186,7 +186,7 @@ function AssignMenu() {
           className={cn(
             "flex items-center justify-between rounded-app-ctrl px-2 py-1.5 text-[13px]",
             member === "Dale K"
-              ? "bg-app-tint font-medium text-app-petrol-deep"
+              ? "bg-app-tint font-medium text-app-olive-deep"
               : "text-app-ink",
           )}
         >

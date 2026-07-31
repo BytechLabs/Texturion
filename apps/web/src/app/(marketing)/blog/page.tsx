@@ -70,7 +70,7 @@ export default function BlogIndexPage() {
             </div>
             <a
               href="/blog/rss.xml"
-              className="fr-mono-data text-[0.8125rem] text-[color:var(--fr-ink-55)] transition-colors duration-200 ease-out hover:text-[color:var(--fr-cobalt)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+              className="fr-mono-data text-[0.8125rem] text-[color:var(--fr-ink-55)] transition-colors duration-200 ease-out hover:text-[color:var(--fr-olive)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
             >
               RSS feed
             </a>
@@ -83,7 +83,7 @@ export default function BlogIndexPage() {
                 <Link
                   href={blogPostPath(featured.slug)}
                   aria-label={`Read: ${featured.title}`}
-                  className="group flex h-full flex-col overflow-hidden rounded-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)] md:flex-row"
+                  className="group flex h-full flex-col overflow-hidden rounded-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)] md:flex-row"
                 >
                   <BlogPlate
                     slug={featured.slug}
@@ -95,7 +95,7 @@ export default function BlogIndexPage() {
                     <p className="fr-eyebrow text-[color:var(--fr-ink-55)]">
                       {featured.dateline}
                     </p>
-                    <h2 className="font-display mt-3 text-[1.5rem] font-extrabold leading-[1.15] tracking-[-0.01em] text-[color:var(--fr-ink)] transition-colors duration-200 ease-out group-hover:text-[color:var(--fr-cobalt)] md:text-[1.75rem] text-balance">
+                    <h2 className="font-display mt-3 text-[1.5rem] font-extrabold leading-[1.15] tracking-[-0.01em] text-[color:var(--fr-ink)] transition-colors duration-200 ease-out group-hover:text-[color:var(--fr-olive)] md:text-[1.75rem] text-balance">
                       {featured.title}
                     </h2>
                     <p className="fr-body mt-3 text-[color:var(--fr-ink-70)]">
@@ -123,7 +123,7 @@ export default function BlogIndexPage() {
                   <Link
                     href={blogPostPath(post.slug)}
                     aria-label={`Read: ${post.title}`}
-                    className="group flex h-full flex-col overflow-hidden rounded-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+                    className="group flex h-full flex-col overflow-hidden rounded-[12px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
                   >
                     <BlogPlate
                       slug={post.slug}
@@ -135,7 +135,7 @@ export default function BlogIndexPage() {
                       <p className="fr-eyebrow text-[color:var(--fr-ink-55)]">
                         {post.dateline}
                       </p>
-                      <h2 className="fr-h3 mt-3 text-[color:var(--fr-ink)] transition-colors duration-200 ease-out group-hover:text-[color:var(--fr-cobalt)]">
+                      <h2 className="fr-h3 mt-3 text-[color:var(--fr-ink)] transition-colors duration-200 ease-out group-hover:text-[color:var(--fr-olive)]">
                         {post.title}
                       </h2>
                       <p className="mt-2 text-[0.9375rem] leading-relaxed text-[color:var(--fr-ink-70)]">

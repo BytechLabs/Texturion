@@ -57,11 +57,11 @@ const CSS = `
   display: inline-block;
   padding: 0.375rem 0.75rem;
   border-radius: 999px;
-  background-color: var(--fr-cobalt);
+  background-color: var(--fr-olive);
   color: #ffffff;
   font-size: 0.875rem;
   font-weight: 600;
-  outline: 2px solid var(--fr-cobalt);
+  outline: 2px solid var(--fr-olive);
   outline-offset: 2px;
 }
 
@@ -85,7 +85,7 @@ const CSS = `
   outline: none;
 }
 .frn-focus:focus-visible {
-  outline: 2px solid var(--fr-cobalt);
+  outline: 2px solid var(--fr-olive);
   outline-offset: 2px;
   box-shadow: none;
 }
@@ -99,7 +99,7 @@ const CSS = `
   height: 2.25rem;
   padding: 0 1.125rem;
   border-radius: 999px;
-  background-color: var(--fr-cobalt);
+  background-color: var(--fr-olive);
   color: #ffffff;
   font-size: 0.875rem;
   font-weight: 600;
@@ -107,7 +107,7 @@ const CSS = `
   text-decoration: none;
 }
 .frn-cta:hover {
-  background-color: var(--fr-cobalt-deep);
+  background-color: var(--fr-olive-deep);
 }
 /* The mobile sheet's pinned CTA: same pill, 48px tap height. */
 .frn-cta-lg {
@@ -127,7 +127,7 @@ const CSS = `
 /* The sheet's built-in close button (ui/sheet.tsx, not ours): give its
    keyboard focus the same cobalt outline as the rest of the chrome. */
 .mkt-scope.frn-sheet button:focus-visible {
-  outline: 2px solid var(--fr-cobalt);
+  outline: 2px solid var(--fr-olive);
   outline-offset: 2px;
   box-shadow: none;
 }

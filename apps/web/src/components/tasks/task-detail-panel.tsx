@@ -295,7 +295,7 @@ function TaskDetailLoaded({
             maxLength={500}
             className={cn(
               "w-full rounded-app-ctrl bg-transparent px-1 py-0.5 text-lg font-semibold text-app-ink outline-none",
-              "focus-visible:bg-app-stone-1 focus-visible:ring-2 focus-visible:ring-ring/50",
+              "focus-visible:bg-app-inset focus-visible:ring-2 focus-visible:ring-ring/50",
               task.done && "text-app-muted line-through opacity-70",
             )}
           />
@@ -344,7 +344,7 @@ function TaskDetailLoaded({
         {noAccess && (
           <section
             aria-label="Access notice"
-            className="rounded-app-card border border-app-line bg-app-stone-1 p-3"
+            className="rounded-app-card border border-app-line bg-app-inset p-3"
           >
             <p className="text-[13px] text-app-muted">
               This task is linked to a number you don&apos;t have access to. You
@@ -360,7 +360,7 @@ function TaskDetailLoaded({
             <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
               From this message
             </p>
-            <div className="rounded-app-card border border-app-line bg-app-stone-1 p-3">
+            <div className="rounded-app-card border border-app-line bg-app-inset p-3">
               <p className="whitespace-pre-wrap break-words text-[13px] text-app-ink">
                 {task.source_message.body.trim() === ""
                   ? "A photo"
@@ -368,7 +368,7 @@ function TaskDetailLoaded({
               </p>
               <Link
                 href={`/inbox/${conversationId}?message=${task.message_id}`}
-                className="mt-2 inline-flex items-center gap-1 text-[12px] font-medium text-app-petrol hover:text-app-petrol-deep"
+                className="mt-2 inline-flex items-center gap-1 text-[12px] font-medium text-app-olive hover:text-app-olive-deep"
               >
                 View in conversation
                 <ArrowUpRight className="size-3" strokeWidth={1.75} aria-hidden />
@@ -644,7 +644,7 @@ function TaskNoteComposer({
 
   return (
     <div
-      className="relative shrink-0 border-t border-app-line bg-app-white p-4"
+      className="relative shrink-0 border-t border-app-line bg-app-paper p-4"
       {...drop.handlers}
     >
       <DropOverlay active={drop.active} />
@@ -877,7 +877,7 @@ function TaskAddressSection({
           <MapPin className="size-4 text-app-muted-2" strokeWidth={1.75} />
           Address
           {provLabel && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-app-stone-1 px-2 py-0.5 text-[11px] font-normal text-app-muted">
+            <span className="inline-flex items-center gap-1 rounded-full bg-app-inset px-2 py-0.5 text-[11px] font-normal text-app-muted">
               <AiOrb state="idle" size={12} />
               {provLabel}
             </span>

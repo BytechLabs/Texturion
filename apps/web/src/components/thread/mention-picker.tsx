@@ -108,7 +108,7 @@ export function MentionPicker({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="bottom"
-          className="max-h-[70svh] gap-0 rounded-t-2xl border-app-line bg-app-white p-0 pb-[env(safe-area-inset-bottom)]"
+          className="max-h-[70svh] gap-0 rounded-t-2xl border-app-line bg-app-paper p-0 pb-[env(safe-area-inset-bottom)]"
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <SheetHeader className="border-b border-app-line-soft px-4 py-3">

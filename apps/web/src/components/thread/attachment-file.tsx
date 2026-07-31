@@ -89,7 +89,7 @@ export function AttachmentFileChip({
   );
 
   const className =
-    "flex max-w-64 items-center gap-2.5 rounded-lg border border-border bg-app-white px-3 py-2 transition-colors duration-150 ease-out";
+    "flex max-w-64 items-center gap-2.5 rounded-lg border border-border bg-app-paper px-3 py-2 transition-colors duration-150 ease-out";
 
   if (!href) {
     return (

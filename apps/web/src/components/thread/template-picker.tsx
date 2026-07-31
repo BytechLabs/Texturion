@@ -116,7 +116,7 @@ export function TemplatePicker({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="bottom"
-          className="max-h-[70svh] gap-0 rounded-t-2xl border-app-line bg-app-white p-0 pb-[env(safe-area-inset-bottom)]"
+          className="max-h-[70svh] gap-0 rounded-t-2xl border-app-line bg-app-paper p-0 pb-[env(safe-area-inset-bottom)]"
           // Do not steal focus to the search on open — that is what raised the
           // keyboard over the list. The user taps a reply directly, or taps
           // Search deliberately.

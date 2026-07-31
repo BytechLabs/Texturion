@@ -43,7 +43,7 @@ export function ThreadFilterBar({
               // tap-target keeps the ≥44px mobile hit area (globals.css).
               "tap-target rounded-full px-3 py-1 text-[13px] font-medium transition-colors duration-150 ease-out " +
               (on
-                ? "bg-app-white text-app-ink"
+                ? "bg-app-paper text-app-ink"
                 : "text-app-muted hover:text-app-ink")
             }
           >

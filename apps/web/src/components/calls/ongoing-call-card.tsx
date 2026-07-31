@@ -113,7 +113,7 @@ function OngoingCallRow({
       <span
         aria-hidden
         className={cn(
-          "grid size-[38px] shrink-0 place-items-center rounded-xl text-[13px] font-semibold text-app-petrol-deep",
+          "grid size-[38px] shrink-0 place-items-center rounded-xl text-[13px] font-semibold text-app-olive-deep",
           avatarColorClass(call.contact_id || name),
         )}
       >
@@ -191,7 +191,7 @@ export function OngoingCalls({ calls }: { calls: Call[] }) {
       <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
         Ongoing
       </h2>
-      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-white">
+      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
         {calls.map((call) => (
           <OngoingCallRow
             key={call.id}

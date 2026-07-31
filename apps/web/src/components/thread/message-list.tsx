@@ -385,7 +385,7 @@ export function MessageList({
               type="button"
               onClick={() => onFilterChange(ALL_CATEGORIES_ON)}
               aria-label={`Showing ${shownCategoriesLabel} only. Show everything.`}
-              className="tap-target inline-flex items-center gap-1 rounded-full bg-app-tint px-3 py-1 text-[13px] font-medium text-app-petrol-deep"
+              className="tap-target inline-flex items-center gap-1 rounded-full bg-app-tint px-3 py-1 text-[13px] font-medium text-app-olive-deep"
             >
               Showing {shownCategoriesLabel}
               <X className="size-3.5" strokeWidth={1.75} aria-hidden />

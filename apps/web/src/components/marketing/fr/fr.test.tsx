@@ -36,7 +36,7 @@ describe("fr primitives — the FIRST RESPONSE component kit", () => {
     const primary = renderToStaticMarkup(
       <CtaButton href="/signup">Get your number</CtaButton>,
     );
-    expect(primary).toContain("--fr-cobalt");
+    expect(primary).toContain("--fr-olive");
     expect(primary).toContain("rounded-full");
     expect(primary).toContain('href="/signup"');
     expect(primary).toContain("Get your number");
@@ -70,7 +70,7 @@ describe("fr primitives — the FIRST RESPONSE component kit", () => {
     const cobalt = renderToStaticMarkup(
       <FrSection ground="cobalt">x</FrSection>,
     );
-    expect(cobalt).toContain("--fr-cobalt");
+    expect(cobalt).toContain("--fr-olive");
     expect(cobalt).toContain("text-white");
   });
 
@@ -118,7 +118,7 @@ describe("fr primitives — the FIRST RESPONSE component kit", () => {
     // Marketing never paints cobalt INSIDE the frame: the embed region adds
     // no marketing color, only the scope class.
     const embedRegion = html.slice(html.indexOf("app-scope"));
-    expect(embedRegion.slice(0, 200)).not.toContain("--fr-cobalt");
+    expect(embedRegion.slice(0, 200)).not.toContain("--fr-olive");
   });
 
   it("PanelFrame phone variant can stage the app's own dark mode via a local .dark region", () => {

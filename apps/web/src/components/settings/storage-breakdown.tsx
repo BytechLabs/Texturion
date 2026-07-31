@@ -54,7 +54,7 @@ export function StorageBreakdown({ storage }: { storage: UsageStorage }) {
       key: "received",
       label: "Attachments received",
       bytes: storage.received_media_bytes,
-      className: "bg-app-petrol",
+      className: "bg-app-olive",
     },
     {
       key: "sent",
@@ -64,7 +64,7 @@ export function StorageBreakdown({ storage }: { storage: UsageStorage }) {
       // attachments, told apart by direction. It replaces an olive that the
       // palette never defined, so Tailwind emitted no rule at all and this
       // slice was invisible in both the bar and its legend swatch.
-      className: "bg-app-petrol-deep",
+      className: "bg-app-olive-deep",
     },
     {
       key: "notes",

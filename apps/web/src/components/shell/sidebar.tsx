@@ -105,14 +105,14 @@ function NavItem({
             className={cn(
               "relative flex h-9 items-center justify-center rounded-[9px] transition-colors duration-150 ease-out",
               active
-                ? "bg-app-tint text-app-petrol-deep before:absolute before:-left-2 before:top-[7px] before:bottom-[7px] before:w-[3px] before:rounded-r-[3px] before:bg-app-petrol before:content-['']"
+                ? "bg-app-tint text-app-olive-deep before:absolute before:-left-2 before:top-[7px] before:bottom-[7px] before:w-[3px] before:rounded-r-[3px] before:bg-app-olive before:content-['']"
                 : "text-app-ink-soft hover:bg-app-line-soft",
             )}
           >
             <Icon
               className={cn(
                 "size-[18px] shrink-0",
-                active ? "text-app-petrol-deep" : "text-app-muted",
+                active ? "text-app-olive-deep" : "text-app-muted",
               )}
               strokeWidth={1.8}
               aria-hidden
@@ -120,7 +120,7 @@ function NavItem({
             {showCount && (
               <span
                 aria-hidden
-                className="absolute right-1.5 top-1.5 size-2 rounded-full bg-app-muted-2 ring-2 ring-app-white"
+                className="absolute right-1.5 top-1.5 size-2 rounded-full bg-app-muted-2 ring-2 ring-app-paper"
               />
             )}
           </Link>
@@ -140,14 +140,14 @@ function NavItem({
       className={cn(
         "relative flex h-9 items-center gap-[11px] rounded-[9px] px-[11px] text-[13.5px] font-medium transition-colors duration-150 ease-out",
         active
-          ? "bg-app-tint font-semibold text-app-petrol-deep before:absolute before:-left-3 before:top-[7px] before:bottom-[7px] before:w-[3px] before:rounded-r-[3px] before:bg-app-petrol before:content-['']"
+          ? "bg-app-tint font-semibold text-app-olive-deep before:absolute before:-left-3 before:top-[7px] before:bottom-[7px] before:w-[3px] before:rounded-r-[3px] before:bg-app-olive before:content-['']"
           : "text-app-ink-soft hover:bg-app-line-soft",
       )}
     >
       <Icon
         className={cn(
           "size-[17px] shrink-0",
-          active ? "text-app-petrol-deep" : "text-app-muted",
+          active ? "text-app-olive-deep" : "text-app-muted",
         )}
         strokeWidth={1.8}
         aria-hidden
@@ -157,7 +157,7 @@ function NavItem({
         <span
           className={cn(
             "text-[11.5px] font-medium tabular-nums",
-            active ? "text-app-petrol-deep" : "text-app-muted",
+            active ? "text-app-olive-deep" : "text-app-muted",
           )}
         >
           {cap(count)}
@@ -202,7 +202,7 @@ export function Sidebar({
   const logo = (
     <span
       aria-hidden
-      className="grid size-[34px] shrink-0 place-items-center rounded-[10px] bg-app-tint text-[14px] font-semibold text-app-petrol-deep"
+      className="grid size-[34px] shrink-0 place-items-center rounded-[10px] bg-app-tint text-[14px] font-semibold text-app-olive-deep"
     >
       {companyInitials(membership.name)}
     </span>
@@ -273,7 +273,7 @@ export function Sidebar({
       >
         <span
           aria-hidden
-          className="grid size-7 shrink-0 place-items-center rounded-full bg-app-tint text-[11px] font-semibold text-app-petrol-deep"
+          className="grid size-7 shrink-0 place-items-center rounded-full bg-app-tint text-[11px] font-semibold text-app-olive-deep"
         >
           {avatarInitials(displayName || membership.name)}
         </span>
@@ -295,7 +295,7 @@ export function Sidebar({
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          "hidden h-full shrink-0 flex-col border-r border-app-line bg-app-white lg:flex",
+          "hidden h-full shrink-0 flex-col border-r border-app-line bg-app-paper lg:flex",
           collapsed ? "w-[64px]" : "w-[232px]",
         )}
       >
@@ -369,7 +369,7 @@ export function Sidebar({
             >
               <Search className="size-[17px] shrink-0" strokeWidth={1.8} aria-hidden />
               <span className="min-w-0 flex-1 truncate text-left">Search</span>
-              <kbd className="shrink-0 rounded border border-app-line bg-app-stone-1 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-app-muted-2">
+              <kbd className="shrink-0 rounded border border-app-line bg-app-inset px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-app-muted-2">
                 ⌘K
               </kbd>
             </button>

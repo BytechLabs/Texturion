@@ -344,13 +344,13 @@ export function NotificationBell({
             aria-label={
               count > 0 ? `Notifications, ${count} unread` : "Notifications"
             }
-            className="relative grid size-[38px] place-items-center rounded-app-ctrl border border-app-line bg-app-white text-app-ink shadow-[0_1px_1px_rgba(20,32,30,0.03)] transition-[border-color,background,box-shadow] duration-150 ease-out hover:border-app-tint-line hover:bg-app-hover hover:app-shadow-row focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="relative grid size-[38px] place-items-center rounded-app-ctrl border border-app-line bg-app-paper text-app-ink shadow-[0_1px_1px_rgba(20,32,30,0.03)] transition-[border-color,background,box-shadow] duration-150 ease-out hover:border-app-tint-line hover:bg-app-hover hover:app-shadow-row focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Bell className="size-[18px]" strokeWidth={1.7} aria-hidden />
             {count > 0 && (
               <span
                 aria-hidden
-                className="absolute right-[9px] top-2 size-[7px] rounded-full border-2 border-app-white bg-primary"
+                className="absolute right-[9px] top-2 size-[7px] rounded-full border-2 border-app-paper bg-primary"
               />
             )}
           </button>

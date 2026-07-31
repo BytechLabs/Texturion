@@ -225,7 +225,7 @@ describe("the Arrival Field contract (P5-SPEC v1)", () => {
     // The static CONFLUENCE still: cobalt streamlines warming to a green
     // resolve at the dock. No Flare in the hero (this piece is resolution, not
     // the waiting beat), so the still ships cobalt + green alone.
-    expect(hero).toContain("var(--fr-cobalt)");
+    expect(hero).toContain("var(--fr-olive)");
     expect(hero).toContain("var(--fr-green)");
     expect(hero).not.toContain("var(--fr-flare)");
     // The real inbox rows, finished state, app tokens.
@@ -243,7 +243,7 @@ describe("the Arrival Field contract (P5-SPEC v1)", () => {
 describe("product embeds keep APP tokens (Law 2)", () => {
   for (const [name, html] of Object.entries(EMBEDS)) {
     it(`${name}: no marketing tokens inside the product surface`, () => {
-      expect(html).not.toContain("--fr-cobalt");
+      expect(html).not.toContain("--fr-olive");
       expect(html).not.toContain("--fr-ink");
       expect(html).not.toContain("--fr-frost");
       expect(html).not.toContain("--fr-flare");

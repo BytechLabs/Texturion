@@ -47,7 +47,7 @@ function initials(name: string): string {
 function Avatar({ name }: { name: string }) {
   return (
     <span
-      className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-app-tint text-[11px] font-medium text-app-petrol-deep"
+      className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-app-tint text-[11px] font-medium text-app-olive-deep"
       aria-hidden
     >
       {initials(name)}
@@ -59,7 +59,7 @@ function Avatar({ name }: { name: string }) {
  *  real StatusPill, the assignee avatar. */
 function Header({ script }: { script: TradeScript }) {
   return (
-    <div className="flex items-center gap-3 border-b border-app-line bg-app-white px-4 py-3">
+    <div className="flex items-center gap-3 border-b border-app-line bg-app-paper px-4 py-3">
       <div className="min-w-0 flex-1">
         <p className="truncate text-[14px] font-semibold leading-tight text-app-ink">
           {script.contact.name}
@@ -120,7 +120,7 @@ function InboundBeat({
       )}
       <div
         className={cn(
-          "max-w-[85%] whitespace-pre-wrap break-words rounded-app-bub border border-app-line bg-app-white px-3.5 py-2.5 text-[14px] leading-[1.5] text-app-ink [border-top-left-radius:5px] md:max-w-[80%]",
+          "max-w-[85%] whitespace-pre-wrap break-words rounded-app-bub border border-app-line bg-app-paper px-3.5 py-2.5 text-[14px] leading-[1.5] text-app-ink [border-top-left-radius:5px] md:max-w-[80%]",
           done && "opacity-55",
         )}
       >
@@ -235,8 +235,8 @@ function renderBeat(
  *  draft, Send inactive). Pure depiction: spans only, zero tab stops. */
 function ComposerAtRest() {
   return (
-    <div className="border-t border-app-line bg-app-white px-3 pb-3 pt-2">
-      <div className="flex items-end gap-1 rounded-app-card border border-app-line bg-app-white px-2 py-1.5">
+    <div className="border-t border-app-line bg-app-paper px-3 pb-3 pt-2">
+      <div className="flex items-end gap-1 rounded-app-card border border-app-line bg-app-paper px-2 py-1.5">
         <span className="min-h-9 flex-1 px-2 py-2 text-[14px] leading-6 text-muted-foreground">
           Text message
         </span>

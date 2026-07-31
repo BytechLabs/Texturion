@@ -2,7 +2,7 @@
  * Opt-out enforcement embed (features crew), /features/compliance.
  *
  * Two real app behaviors in sequence (SPEC §5, components/thread): a
- * customer's STOP arriving as a normal inbound bubble (border + app-white
+ * customer's STOP arriving as a normal inbound bubble (border + app-paper
  * fill, the real bubble anatomy), the system opt-out event line, and the
  * banner that REPLACES the composer (composer-banners.tsx, verbatim: "This
  * customer opted out of texting. Sends are blocked." on the destructive
@@ -26,7 +26,7 @@ export function OptOutVisual({ className }: { className?: string }) {
 
       {/* The customer's STOP: the real inbound bubble anatomy. */}
       <div className="mt-4 flex flex-col gap-1">
-        <div className="max-w-[80%] self-start rounded-app-bub border border-app-line bg-app-white px-3.5 py-2.5 [border-top-left-radius:5px]">
+        <div className="max-w-[80%] self-start rounded-app-bub border border-app-line bg-app-paper px-3.5 py-2.5 [border-top-left-radius:5px]">
           <p className="text-[15px] leading-normal text-app-ink">STOP</p>
         </div>
         {/* The centered system event line the thread draws. */}

@@ -25,7 +25,7 @@ export function MenuIconChip({
     <span
       aria-hidden
       className={cn(
-        "flex size-9 shrink-0 items-center justify-center rounded-lg bg-[color:var(--fr-frost)] text-[color:var(--fr-cobalt)]",
+        "flex size-9 shrink-0 items-center justify-center rounded-lg bg-[color:var(--fr-frost)] text-[color:var(--fr-olive)]",
         className,
       )}
     >

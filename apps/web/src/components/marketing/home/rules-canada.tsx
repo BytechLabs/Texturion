@@ -159,7 +159,7 @@ function ReassuranceCard({
         <p className="mt-6">
           <Link
             href={linkHref}
-            className="font-body-mkt text-[0.9375rem] font-semibold text-[color:var(--fr-cobalt)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-cobalt)]"
+            className="font-body-mkt text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
           >
             {linkLabel}
           </Link>

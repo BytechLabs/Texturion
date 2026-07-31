@@ -6,8 +6,8 @@ import { describe, expect, it } from "vitest";
 /**
  * [#362] A Tailwind colour utility with no `@theme` entry emits NOTHING.
  *
- * `bg-app-petrol` is not a real class — it exists only because `globals.css`
- * declares `--color-app-petrol` inside `@theme`, and Tailwind generates the
+ * `bg-app-olive` is not a real class — it exists only because `globals.css`
+ * declares `--color-app-olive` inside `@theme`, and Tailwind generates the
  * utility from that. Write `bg-app-petrl`, or rename the token without renaming
  * the class, and Tailwind simply does not generate a rule. No error, no warning:
  * the element renders with no background and every gate stays green.
@@ -20,8 +20,8 @@ import { describe, expect, it } from "vitest";
  * ---------------------------------------------------------------------------
  * WHY IT LANDS BEFORE THE RENAME.
  *
- * #362's last step renames `--app-petrol*` → `--app-olive*` and
- * `--fr-cobalt` → `--fr-olive`. Measured, that is ~470 occurrences across ~60
+ * #362's last step renames `--app-olive-accent*` → `--app-olive*` and
+ * `--fr-olive` → `--fr-olive`. Measured, that is ~470 occurrences across ~60
  * files, and roughly 200 of them are utility classes rather than `var()` reads.
  * A rename is precisely the operation that produces this failure, and a missed
  * utility does not break the build — it just stops painting.
@@ -60,7 +60,7 @@ for (const match of css.matchAll(/--color-([a-zA-Z0-9-]+)\s*:/g)) {
  */
 const OWNED = /^(app|fr)-/;
 
-/** `bg-app-petrol`, `text-fr-ink/70`, `hover:bg-app-hover`, `border-app-line`. */
+/** `bg-app-olive`, `text-fr-ink/70`, `hover:bg-app-hover`, `border-app-line`. */
 const UTILITY =
   /(?:^|[\s"'`{[])(?:[a-z-]+:)*(?:bg|text|border|ring|fill|stroke|from|via|to|decoration|outline|shadow|accent|caret|divide|placeholder)-((?:app|fr)-[a-z0-9-]+)/g;
 
@@ -91,7 +91,7 @@ describe("#362 — every app/fr colour utility has a @theme entry", () => {
   it("is actually looking at the tree, not passing over an empty set", () => {
     // A walk that matches nothing passes forever.
     expect(themed.size).toBeGreaterThan(20);
-    for (const anchor of ["app-petrol", "app-ink", "app-line"]) {
+    for (const anchor of ["app-olive", "app-ink", "app-line"]) {
       expect(themed.has(anchor), `--color-${anchor} should be themed`).toBe(true);
     }
     // And the corpus really contains utilities of the shape being checked.

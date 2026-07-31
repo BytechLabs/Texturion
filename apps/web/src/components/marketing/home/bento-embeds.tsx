@@ -87,7 +87,7 @@ export function NotesEmbed() {
 export function SavedRepliesEmbed() {
   return (
     <div className="p-3">
-      <div className="rounded-app-card border border-app-line bg-app-white p-1.5">
+      <div className="rounded-app-card border border-app-line bg-app-paper p-1.5">
         <div className="flex flex-col gap-0.5">
           <div className="rounded-app-ctrl bg-app-tint px-2.5 py-1.5">
             <span className="block text-[12.5px] font-semibold text-app-ink">
@@ -116,7 +116,7 @@ export function SavedRepliesEmbed() {
           </div>
         </div>
       </div>
-      <div className="mt-2 flex items-center gap-2 rounded-app-ctrl border border-app-line bg-app-white px-3 py-2">
+      <div className="mt-2 flex items-center gap-2 rounded-app-ctrl border border-app-line bg-app-paper px-3 py-2">
         <Slash className="size-3.5 shrink-0 text-app-muted-2" strokeWidth={1.75} aria-hidden />
         <span className="text-[13px] text-app-muted-2">
           Type / for saved replies

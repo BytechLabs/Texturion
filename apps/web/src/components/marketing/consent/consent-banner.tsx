@@ -51,15 +51,15 @@ const CSS = `
 }
 .frcc-btn:focus-visible,
 .frcc-link:focus-visible {
-  outline: 2px solid var(--fr-cobalt);
+  outline: 2px solid var(--fr-olive);
   outline-offset: 2px;
 }
 .frcc-btn-yes {
-  background-color: var(--fr-cobalt);
+  background-color: var(--fr-olive);
   color: #ffffff;
 }
 .frcc-btn-yes:hover {
-  background-color: var(--fr-cobalt-deep);
+  background-color: var(--fr-olive-deep);
 }
 .frcc-btn-no {
   background-color: var(--fr-frost);
@@ -69,7 +69,7 @@ const CSS = `
   background-color: rgba(58, 67, 15, 0.12);
 }
 .frcc-link {
-  color: var(--fr-cobalt);
+  color: var(--fr-olive);
   text-decoration: underline;
   text-underline-offset: 2px;
   border-radius: 2px;

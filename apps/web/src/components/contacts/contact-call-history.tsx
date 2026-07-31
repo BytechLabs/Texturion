@@ -58,7 +58,7 @@ export function ContactCallHistory({ contactId }: { contactId: string }) {
       <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
         Call history
       </h2>
-      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-white">
+      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
         {calls.isPending ? (
           <div className="space-y-0" aria-label="Loading call history">
             {Array.from({ length: 3 }, (_, i) => (
