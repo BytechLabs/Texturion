@@ -426,7 +426,7 @@ export default function PricingPage() {
                   particular says the uncomfortable thing rather than the
                   comfortable one, because "the differentiator is honesty about
                   the exit, not a painless exit." */}
-              <div className="mt-8 border-t border-[color:var(--fr-ink-10)] pt-6">
+              <div className="mt-8 border-t border-[color:var(--fr-frost)] pt-6">
                 <h3 className="fr-h4 text-[color:var(--fr-ink)]">
                   And if you leave later
                 </h3>
