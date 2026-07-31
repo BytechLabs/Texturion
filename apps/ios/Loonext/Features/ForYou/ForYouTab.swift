@@ -187,6 +187,7 @@ private struct ForYouList: View {
     private var total: Int { forYouHeadlineWork(forYou) }
 
     private var waitingTotal: Int { forYou.totals?.waiting_on_you ?? forYou.waiting_on_you.count }
+    private var followUpTotal: Int { forYou.totals?.follow_ups ?? forYou.follow_ups.count }
     private var tasksTotal: Int { forYou.totals?.my_tasks ?? forYou.my_tasks.count }
     private var unreadTotal: Int { forYou.totals?.unread ?? forYou.unread.count }
     private var triageConvTotal: Int {
@@ -229,6 +230,11 @@ private struct ForYouList: View {
                 // true if somebody has been texting a thread nobody can see.
                 spamReviewSection
                 triageSection
+                // #293: ABOVE "Waiting on you". A quote nobody answered is the
+                // most valuable thing in the business to be reminded about, and
+                // unlike every section below it this one only appears because
+                // the member asked for it — so it has earned the top.
+                followUpsSection
                 waitingSection
                 tasksSection
                 unreadSection
@@ -320,6 +326,36 @@ private struct ForYouList: View {
                             title: row.title,
                             overdue: row.overdue,
                             dueAt: row.due_at
+                        ) { onOpenConversation(row.conversation_id) }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var followUpsSection: some View {
+        if !forYou.follow_ups.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                SectionHeader(label: "Chase these", count: followUpTotal)
+                PaperCard {
+                    ForEach(
+                        Array(forYou.follow_ups.enumerated()),
+                        id: \.element.conversation_id
+                    ) { index, row in
+                        if index > 0 { RowDivider() }
+                        PersonRow(
+                            name: row.contact?.name
+                                ?? formatPhone(row.contact?.phone_e164),
+                            // The REASON, not the last-message time: it is what
+                            // the member wrote down, and the only thing that
+                            // makes the card actionable three days later.
+                            // "Chase the quote" is a job; "Chase this" is a
+                            // chore.
+                            meta: (row.note?.isBlank == false)
+                                ? row.note!
+                                : "No reply since \(relativeTime(row.last_message_at))",
+                            unread: row.unread
                         ) { onOpenConversation(row.conversation_id) }
                     }
                 }

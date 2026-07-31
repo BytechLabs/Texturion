@@ -959,8 +959,9 @@ private struct ConversationSheet: View {
     let onDismiss: @MainActor () -> Void
 
     /// #293: the custom-date sheet, owned here rather than inside the row, so
-    /// dismissing the actions sheet cannot take the picker with it.
-    @State private var snoozePickerOpen = false
+    /// dismissing the actions sheet cannot take the picker with it. The value
+    /// is WHICH ladder it is completing; nil is closed.
+    @State private var snoozePickerKind: DeferralKind?
 
     private let statuses = [
         ConversationStatus.new,
@@ -1106,11 +1107,17 @@ private struct ConversationSheet: View {
     /// is exactly one thing a person wants from it.
     @ViewBuilder
     private var snoozeCard: some View {
+        let isFollowUp = detail.snooze_kind == DeferralKind.followUp.rawValue
         VStack(spacing: 0) {
             if let until = detail.snoozed_until, isSnoozed(until) {
-                sheetNote(snoozeReturnLabel(until))
+                let back = snoozeReturnLabel(until)
+                sheetNote(
+                    isFollowUp
+                        ? back.replacingOccurrences(of: "Back", with: "Chase")
+                        : back
+                )
                 RowDivider()
-                sheetRow("Bring back now") {
+                sheetRow(isFollowUp ? "Cancel the reminder" : "Bring back now") {
                     controller.unsnooze()
                     onDismiss()
                 }
@@ -1124,14 +1131,37 @@ private struct ConversationSheet: View {
                     }
                 }
                 RowDivider()
-                sheetRow("Pick a date…") { snoozePickerOpen = true }
+                sheetRow("Pick a date…") { snoozePickerKind = .snooze }
+
+                // #293: a SECOND ladder, not a second label on the first.
+                // "This afternoon" is a sensible time to pick a thread back up
+                // and a meaningless time to chase a quote — one ladder for both
+                // would put three useless options in front of whichever job you
+                // were actually doing.
+                sheetNote("Remind me to chase")
+                ForEach(followUpPresets()) { preset in
+                    RowDivider()
+                    sheetRow(preset.label, trailing: presetClock(preset.at)) {
+                        controller.snooze(
+                            untilISO: snoozeInstantISO(preset.at),
+                            kind: .followUp
+                        )
+                        onDismiss()
+                    }
+                }
+                RowDivider()
+                sheetRow("Pick a date…") { snoozePickerKind = .followUp }
             }
         }
         .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .sheet(isPresented: $snoozePickerOpen) {
-            SnoozeDatePicker { picked, note in
-                snoozePickerOpen = false
-                controller.snooze(untilISO: snoozeInstantISO(picked), note: note)
+        .sheet(item: $snoozePickerKind) { kind in
+            SnoozeDatePicker(kind: kind) { picked, note in
+                snoozePickerKind = nil
+                controller.snooze(
+                    untilISO: snoozeInstantISO(picked),
+                    note: note,
+                    kind: kind
+                )
                 onDismiss()
             }
         }

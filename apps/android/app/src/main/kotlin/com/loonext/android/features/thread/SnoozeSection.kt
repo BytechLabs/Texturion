@@ -26,7 +26,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.core.model.ConversationDetail
+import com.loonext.android.core.snooze.DeferralKind
 import com.loonext.android.core.snooze.SnoozeTiming
+import com.loonext.android.core.snooze.followUpPresets
 import com.loonext.android.core.snooze.isSnoozed
 import com.loonext.android.core.snooze.snoozePresets
 import com.loonext.android.core.snooze.snoozeReturnLabel
@@ -69,9 +71,11 @@ fun SnoozeSection(
     zone: ZoneId = ZoneId.systemDefault(),
 ) {
     val haptics = rememberHaptics()
-    var pickerOpen by remember { mutableStateOf(false) }
+    // Which ladder the picker is completing. Null = closed.
+    var pickerKind by remember { mutableStateOf<String?>(null) }
     var note by remember { mutableStateOf("") }
     val snoozedUntil = detail.snoozed_until?.takeIf { isSnoozed(it) }
+    val isFollowUp = detail.snooze_kind == DeferralKind.FOLLOW_UP
 
     Surface(
         shape = MaterialTheme.shapes.large,
@@ -81,9 +85,12 @@ fun SnoozeSection(
             if (snoozedUntil != null) {
                 // Already deferred: the header line says when it comes back so
                 // the one action below is unambiguous.
-                SnoozeNote(snoozeReturnLabel(snoozedUntil, zone = zone))
+                val back = snoozeReturnLabel(snoozedUntil, zone = zone)
+                SnoozeNote(if (isFollowUp) back.replace("Back", "Chase") else back)
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                SnoozeRow("Bring back now") {
+                SnoozeRow(
+                    if (isFollowUp) "Cancel the reminder" else "Bring back now",
+                ) {
                     haptics.tap()
                     controller.unsnooze()
                     onDismiss()
@@ -92,14 +99,7 @@ fun SnoozeSection(
                 SnoozeNote("Snooze until")
                 snoozePresets(zone = zone).forEach { preset ->
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    SnoozeRow(
-                        preset.label,
-                        trailing = Instant.ofEpochMilli(preset.at)
-                            .atZone(zone)
-                            .format(
-                                DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT),
-                            ),
-                    ) {
+                    SnoozeRow(preset.label, trailing = clockOf(preset.at, zone)) {
                         haptics.tap()
                         controller.snooze(Instant.ofEpochMilli(preset.at).toString())
                         onDismiss()
@@ -108,18 +108,45 @@ fun SnoozeSection(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 SnoozeRow("Pick a date…") {
                     note = ""
-                    pickerOpen = true
+                    pickerKind = DeferralKind.SNOOZE
+                }
+
+                // #293: a SECOND ladder, not a second label on the first.
+                // "This afternoon" is a sensible time to pick a thread back up
+                // and a meaningless time to chase a quote — one ladder for both
+                // would put three useless options in front of whichever job you
+                // were actually doing.
+                SnoozeNote("Remind me to chase")
+                followUpPresets(zone = zone).forEach { preset ->
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SnoozeRow(preset.label, trailing = clockOf(preset.at, zone)) {
+                        haptics.tap()
+                        controller.snooze(
+                            Instant.ofEpochMilli(preset.at).toString(),
+                            kind = DeferralKind.FOLLOW_UP,
+                        )
+                        onDismiss()
+                    }
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                SnoozeRow("Pick a date…") {
+                    note = ""
+                    pickerKind = DeferralKind.FOLLOW_UP
                 }
             }
         }
     }
 
-    if (pickerOpen) {
+    val kind = pickerKind
+    if (kind != null) {
         // Smart Defaults: opens on the next preset's DAY rather than an empty
         // calendar. The picker works in UTC-midnight millis, so the seed is
         // converted through the device zone and back.
-        val seedMs = snoozePresets(zone = zone).firstOrNull()?.at
-            ?: (System.currentTimeMillis() + 3_600_000L)
+        val seedMs = if (kind == DeferralKind.FOLLOW_UP) {
+            followUpPresets(zone = zone).firstOrNull()?.at
+        } else {
+            snoozePresets(zone = zone).firstOrNull()?.at
+        } ?: (System.currentTimeMillis() + 3_600_000L)
         val seedDate = Instant.ofEpochMilli(seedMs).atZone(zone).toLocalDate()
         val pickerState = rememberDatePickerState(
             initialSelectedDateMillis = seedDate
@@ -128,7 +155,7 @@ fun SnoozeSection(
                 .toEpochMilli(),
         )
         DatePickerDialog(
-            onDismissRequest = { pickerOpen = false },
+            onDismissRequest = { pickerKind = null },
             confirmButton = {
                 TextButton(onClick = {
                     val millis = pickerState.selectedDateMillis
@@ -150,15 +177,20 @@ fun SnoozeSection(
                             controller.snooze(
                                 instant.toString(),
                                 note.trim().ifBlank { null },
+                                kind,
                             )
                             onDismiss()
                         }
                     }
-                    pickerOpen = false
-                }) { Text("Snooze") }
+                    pickerKind = null
+                }) {
+                    Text(
+                        if (kind == DeferralKind.FOLLOW_UP) "Remind me" else "Snooze",
+                    )
+                }
             },
             dismissButton = {
-                TextButton(onClick = { pickerOpen = false }) { Text("Cancel") }
+                TextButton(onClick = { pickerKind = null }) { Text("Cancel") }
             },
         ) {
             DatePicker(state = pickerState)
@@ -176,6 +208,12 @@ fun SnoozeSection(
         }
     }
 }
+
+/** The wall-clock time a rung lands on, in the device's locale. */
+private fun clockOf(atMillis: Long, zone: ZoneId): String =
+    Instant.ofEpochMilli(atMillis)
+        .atZone(zone)
+        .format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
 
 /** A section heading inside the sheet — says something, does nothing. */
 @Composable

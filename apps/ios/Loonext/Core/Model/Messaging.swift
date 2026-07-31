@@ -216,6 +216,11 @@ struct ConversationDetail: Codable, Sendable {
     /// memberwise-init parameter at every existing construction site.
     var snoozed_until: String? = nil
     var snooze_note: String? = nil
+    /// #293: how it comes back — "snooze" quietly, "follow_up" as something to
+    /// chase. Detail only: the list cannot tell "back Thursday" from "chase
+    /// them Thursday", and in the thread that is the difference between a
+    /// reminder and a nap.
+    var snooze_kind: String? = nil
     let messages: Page<Message>
     /// #106: 'note' = read + internal notes only (composer hides SMS mode).
     @Default<DefaultViewerText> var viewer_level: String

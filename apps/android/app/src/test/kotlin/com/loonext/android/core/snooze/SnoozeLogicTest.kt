@@ -108,6 +108,46 @@ class SnoozeLogicTest {
     }
 
     @Test
+    fun `the chase ladder is a DIFFERENT ladder, every rung a morning`() {
+        // Deferring your own next action and waiting on somebody else's answer
+        // run on different clocks. One ladder for both would put three useless
+        // options in front of whichever job you were doing.
+        val presets = followUpPresets(instant(9), zone)
+        assertEquals(
+            listOf(
+                FollowUpPresetId.THREE_DAYS,
+                FollowUpPresetId.NEXT_WEEK,
+                FollowUpPresetId.TWO_WEEKS,
+            ),
+            presets.map { it.id },
+        )
+        assertEquals(
+            listOf("In 3 days", "Next week", "In 2 weeks"),
+            presets.map { it.label },
+        )
+        // Wednesday the 5th → the 8th, Monday the 10th, the 19th, all at 08:00.
+        assertEquals(
+            listOf(millis(8, day = 8), millis(8, day = 10), millis(8, day = 19)),
+            presets.map { it.at },
+        )
+    }
+
+    @Test
+    fun `the chase ladder never offers a rung in the past`() {
+        for (day in 1..14) {
+            for (hour in 0..23) {
+                val now = instant(hour, 30, day)
+                for (preset in followUpPresets(now, zone)) {
+                    assertTrue(
+                        "day=$day hour=$hour offered ${preset.id} in the past",
+                        preset.at > now.toEpochMilli(),
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
     fun `next Monday is next week's, never today`() {
         assertEquals(7L, daysUntilNextMonday(at(9, day = 3))) // Monday
         assertEquals(5L, daysUntilNextMonday(at(9, day = 5))) // Wednesday

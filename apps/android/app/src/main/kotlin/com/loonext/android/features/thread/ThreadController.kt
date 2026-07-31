@@ -10,6 +10,7 @@ import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.MeRepository
 import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.Attachment
+import com.loonext.android.core.snooze.DeferralKind
 import com.loonext.android.core.snooze.snoozeReturnLabel
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Contact
@@ -946,16 +947,30 @@ class ThreadController(
      * comes back, because "Snoozed" alone leaves the crew guessing what they
      * just agreed to.
      */
-    fun snooze(untilIso: String, note: String? = null) {
+    fun snooze(
+        untilIso: String,
+        note: String? = null,
+        kind: String = DeferralKind.SNOOZE,
+    ) {
         scope.launch {
             try {
-                repo.snooze(companyId, conversationId, untilIso, note)
+                repo.snooze(companyId, conversationId, untilIso, note, kind)
                 conversation = conversation?.copy(
                     snoozed_until = untilIso,
                     snooze_note = note,
+                    snooze_kind = kind,
                 )
                 persistSnapshot()
-                notify(snoozeReturnLabel(untilIso).replace("Back", "Snoozed — back"))
+                notify(
+                    snoozeReturnLabel(untilIso).replace(
+                        "Back",
+                        if (kind == DeferralKind.FOLLOW_UP) {
+                            "I'll remind you — back"
+                        } else {
+                            "Snoozed — back"
+                        },
+                    ),
+                )
             } catch (cause: Exception) {
                 notify(cause.userMessage())
             }
@@ -967,9 +982,17 @@ class ThreadController(
         scope.launch {
             try {
                 repo.unsnooze(companyId, conversationId)
-                conversation = conversation?.copy(snoozed_until = null, snooze_note = null)
+                val wasFollowUp =
+                    conversation?.snooze_kind == DeferralKind.FOLLOW_UP
+                conversation = conversation?.copy(
+                    snoozed_until = null,
+                    snooze_note = null,
+                    snooze_kind = null,
+                )
                 persistSnapshot()
-                notify("Back in your inbox.")
+                notify(
+                    if (wasFollowUp) "Reminder cancelled." else "Back in your inbox.",
+                )
             } catch (cause: Exception) {
                 notify(cause.userMessage())
             }

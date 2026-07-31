@@ -107,6 +107,68 @@ fun snoozePresets(
         }
 }
 
+// ---------------------------------------------------------------------------
+// #293 — the other ladder.
+// ---------------------------------------------------------------------------
+
+/** How a deferral comes back: quietly, or as something to chase. */
+object DeferralKind {
+    const val SNOOZE = "snooze"
+    const val FOLLOW_UP = "follow_up"
+}
+
+enum class FollowUpPresetId { THREE_DAYS, NEXT_WEEK, TWO_WEEKS }
+
+val FOLLOW_UP_PRESET_LABELS: Map<FollowUpPresetId, String> = mapOf(
+    FollowUpPresetId.THREE_DAYS to "In 3 days",
+    FollowUpPresetId.NEXT_WEEK to "Next week",
+    FollowUpPresetId.TWO_WEEKS to "In 2 weeks",
+)
+
+data class FollowUpPreset(
+    val id: FollowUpPresetId,
+    val label: String,
+    val at: Long,
+)
+
+/**
+ * When to chase.
+ *
+ * A SEPARATE ladder from [snoozePresets], and that is the point rather than
+ * duplication: "this afternoon" is a meaningful time to pick a thread back up
+ * and a meaningless time to chase a quote. Deferring your own next action and
+ * waiting on somebody else's answer run on different clocks, so one ladder for
+ * both would put three useless options in front of whichever job you were
+ * actually doing.
+ *
+ * All three land on the morning hour, in the user's own clock: a reminder that
+ * fires at 11pm is read the next day anyway.
+ */
+fun followUpPresets(
+    now: Instant = Instant.now(),
+    zone: ZoneId = ZoneId.systemDefault(),
+): List<FollowUpPreset> {
+    val local = LocalDateTime.ofInstant(now, zone)
+    val floor = now.toEpochMilli() + SnoozeTiming.MIN_LEAD_MS
+
+    fun at(addDays: Long): Long =
+        local.toLocalDate().plusDays(addDays).atTime(SnoozeTiming.MORNING_HOUR, 0)
+            .atZone(zone).toInstant().toEpochMilli()
+
+    return listOf(
+        FollowUpPresetId.THREE_DAYS to at(3),
+        FollowUpPresetId.NEXT_WEEK to at(daysUntilNextMonday(local)),
+        FollowUpPresetId.TWO_WEEKS to at(14),
+    )
+        // Every rung here is days out, so the floor cannot bite — but it stays,
+        // because the day this gains a "this evening" is the day somebody
+        // discovers it silently could.
+        .filter { (_, millis) -> millis > floor }
+        .map { (id, millis) ->
+            FollowUpPreset(id, FOLLOW_UP_PRESET_LABELS.getValue(id), millis)
+        }
+}
+
 /**
  * Is a custom instant one the API will accept?
  *

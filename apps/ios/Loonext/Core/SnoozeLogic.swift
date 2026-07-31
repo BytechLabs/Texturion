@@ -111,6 +111,79 @@ func snoozePresets(now: Date = Date(), calendar: Calendar = .current) -> [Snooze
     }
 }
 
+/// How a deferral comes back: quietly, or as something to chase.
+/// Identifiable so a SwiftUI `.sheet(item:)` can carry WHICH ladder opened it —
+/// one optional instead of a bool plus a second piece of state that can drift
+/// out of step with it.
+enum DeferralKind: String, Sendable, Identifiable {
+    case snooze
+    case followUp = "follow_up"
+
+    var id: String { rawValue }
+}
+
+enum FollowUpPresetID: String, Sendable, CaseIterable {
+    case threeDays
+    case nextWeek
+    case twoWeeks
+
+    var label: String {
+        switch self {
+        case .threeDays: return "In 3 days"
+        case .nextWeek: return "Next week"
+        case .twoWeeks: return "In 2 weeks"
+        }
+    }
+}
+
+struct FollowUpPreset: Sendable, Identifiable {
+    let id: FollowUpPresetID
+    let label: String
+    let at: Date
+}
+
+/// When to chase.
+///
+/// A SEPARATE ladder from `snoozePresets`, and that is the point rather than
+/// duplication: "this afternoon" is a meaningful time to pick a thread back up
+/// and a meaningless time to chase a quote. Deferring your own next action and
+/// waiting on somebody else's answer run on different clocks, so one ladder for
+/// both would put three useless options in front of whichever job you were
+/// actually doing.
+///
+/// All three land on the morning hour, in the user's own clock: a reminder that
+/// fires at 11pm is read the next day anyway.
+func followUpPresets(
+    now: Date = Date(),
+    calendar: Calendar = .current
+) -> [FollowUpPreset] {
+    let floor = now.addingTimeInterval(SnoozeTiming.minLead)
+
+    func at(addDays: Int) -> Date? {
+        guard let day = calendar.date(byAdding: .day, value: addDays, to: now) else {
+            return nil
+        }
+        return calendar.date(
+            bySettingHour: SnoozeTiming.morningHour, minute: 0, second: 0,
+            of: day, matchingPolicy: .nextTime
+        )
+    }
+
+    let candidates: [(FollowUpPresetID, Date?)] = [
+        (.threeDays, at(addDays: 3)),
+        (.nextWeek, at(addDays: daysUntilNextMonday(now, calendar: calendar))),
+        (.twoWeeks, at(addDays: 14)),
+    ]
+
+    // Every rung here is days out, so the floor cannot bite — but it stays,
+    // because the day this gains a "this evening" is the day somebody discovers
+    // it silently could.
+    return candidates.compactMap { id, date in
+        guard let date, date > floor else { return nil }
+        return FollowUpPreset(id: id, label: id.label, at: date)
+    }
+}
+
 /// Is a custom instant one the API will accept?
 ///
 /// Mirrors the route's two gates so the picker can say so before the round trip

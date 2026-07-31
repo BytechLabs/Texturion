@@ -294,6 +294,7 @@ private fun ForYouList(
     val triageConvTotal = t?.triage_conversations ?: forYou.triage?.conversations?.size ?: 0
     val triageTaskTotal = t?.triage_tasks ?: forYou.triage?.tasks?.size ?: 0
     val triageCount = triageConvTotal + triageTaskTotal
+    val followUpTotal = t?.follow_ups ?: forYou.follow_ups.size
     val total = forYouHeadlineWork(forYou)
 
     LazyColumn(
@@ -421,6 +422,37 @@ private fun ForYouList(
                     }
                 }
             }
+
+        // #293: ABOVE "Waiting on you". A quote nobody answered is the most
+        // valuable thing in the business to be reminded about, and unlike
+        // every section below it, this one only appears because the member
+        // asked for it — so it has earned the top of the queue.
+        if (forYou.follow_ups.isNotEmpty()) {
+            item(key = "follow-ups") {
+                QueueSection(
+                    "Chase these",
+                    count = followUpTotal,
+                    modifier = Modifier.animateItem(),
+                ) {
+                    forYou.follow_ups.forEachIndexed { index, row ->
+                        if (index > 0) RowDivider()
+                        PersonRow(
+                            name = row.contact?.name
+                                ?: formatPhone(row.contact?.phone_e164),
+                            // The REASON, not the last-message time: it is what
+                            // the member wrote down, and the only thing that
+                            // makes the card actionable three days later.
+                            // "Chase the quote" is a job; "Chase this" is a
+                            // chore.
+                            why = row.note?.takeIf { it.isNotBlank() }
+                                ?: "No reply since ${relativeTime(row.last_message_at)}",
+                            unread = row.unread,
+                            onClick = { onOpenConversation(row.conversation_id) },
+                        )
+                    }
+                }
+            }
+        }
 
         if (forYou.waiting_on_you.isNotEmpty()) {
             item(key = "waiting") {

@@ -215,9 +215,13 @@ struct MessagingRepository: Sendable {
         companyId: String,
         conversationId: String,
         untilISO: String,
-        note: String? = nil
+        note: String? = nil,
+        kind: DeferralKind = .snooze
     ) async throws {
-        var body: [String: JSONValue] = ["until": .string(untilISO)]
+        var body: [String: JSONValue] = [
+            "until": .string(untilISO),
+            "kind": .string(kind.rawValue),
+        ]
         if let note { body["note"] = .string(note) }
         let _: JSONValue = try await api.post(
             "/v1/conversations/\(conversationId)/snooze",

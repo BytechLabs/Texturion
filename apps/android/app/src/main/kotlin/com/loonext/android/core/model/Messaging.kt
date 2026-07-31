@@ -219,6 +219,13 @@ data class ConversationDetail(
      */
     val snoozed_until: String? = null,
     val snooze_note: String? = null,
+    /**
+     * #293: how it comes back — "snooze" quietly, "follow_up" as something to
+     * chase. Detail only: the list cannot tell "back Thursday" from "chase
+     * them Thursday", and in the thread that is the difference between a
+     * reminder and a nap.
+     */
+    val snooze_kind: String? = null,
     /** #106: 'note' = read + internal notes only (composer hides SMS mode). */
     val viewer_level: String = "text",
     /**

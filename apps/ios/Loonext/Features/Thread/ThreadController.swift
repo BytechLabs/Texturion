@@ -888,20 +888,30 @@ final class ThreadController {
     /// toast confirms rather than offering an undo — and it says WHEN it comes
     /// back, because "Snoozed" alone leaves the crew guessing what they just
     /// agreed to.
-    func snooze(untilISO: String, note: String? = nil) {
+    func snooze(
+        untilISO: String,
+        note: String? = nil,
+        kind: DeferralKind = .snooze
+    ) {
         Task {
             do {
                 try await repo.snooze(
                     companyId: companyId,
                     conversationId: conversationId,
                     untilISO: untilISO,
-                    note: note
+                    note: note,
+                    kind: kind
                 )
                 conversation?.snoozed_until = untilISO
                 conversation?.snooze_note = note
+                conversation?.snooze_kind = kind.rawValue
                 notify(
                     snoozeReturnLabel(untilISO)
-                        .replacingOccurrences(of: "Back", with: "Snoozed — back")
+                        .replacingOccurrences(
+                            of: "Back",
+                            with: kind == .followUp
+                                ? "I'll remind you — back" : "Snoozed — back"
+                        )
                 )
             } catch {
                 notify(error.userMessage)
@@ -917,9 +927,12 @@ final class ThreadController {
                     companyId: companyId,
                     conversationId: conversationId
                 )
+                let wasFollowUp =
+                    conversation?.snooze_kind == DeferralKind.followUp.rawValue
                 conversation?.snoozed_until = nil
                 conversation?.snooze_note = nil
-                notify("Back in your inbox.")
+                conversation?.snooze_kind = nil
+                notify(wasFollowUp ? "Reminder cancelled." : "Back in your inbox.")
             } catch {
                 notify(error.userMessage)
             }
@@ -1166,6 +1179,7 @@ extension ConversationDetail {
             // banner vanish while the server still had it deferred.
             snoozed_until: snoozed_until,
             snooze_note: snooze_note,
+            snooze_kind: snooze_kind,
             messages: messages,
             viewer_level: viewer_level
         )

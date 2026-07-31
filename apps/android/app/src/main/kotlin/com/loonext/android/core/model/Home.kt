@@ -95,6 +95,27 @@ data class ForYouTriageTask(
     val overdue: Boolean = false,
 )
 
+/**
+ * #293 — one follow-up reminder that has come DUE.
+ *
+ * Its own section rather than folded into "waiting on you": that one means
+ * "you have not answered them". This means "they have not answered YOU, and
+ * you asked to be told" — a different job, and the highest-value one in the
+ * business to be reminded about.
+ */
+@Serializable
+data class ForYouFollowUp(
+    val conversation_id: String,
+    val status: String,
+    val contact: ContactSummary? = null,
+    val last_message_at: String,
+    val unread: Boolean = false,
+    /** When you asked to be reminded. Always past by the time it is here. */
+    val due_at: String,
+    /** The reason you gave, if you gave one. */
+    val note: String? = null,
+)
+
 /** Owner/admin-only strip; the whole field is null for a member. */
 @Serializable
 data class ForYouTriage(
@@ -177,11 +198,18 @@ data class ForYouTotals(
     val unread: Int = 0,
     val triage_conversations: Int = 0,
     val triage_tasks: Int = 0,
+    /** #293: follow-up reminders that have come due. */
+    val follow_ups: Int = 0,
     val distinct_work: Int = 0,
 )
 
 @Serializable
 data class ForYou(
+    /**
+     * #293. Empty from an older Worker, which is "no reminders" — the state
+     * every client written before this shipped was already rendering.
+     */
+    val follow_ups: List<ForYouFollowUp> = emptyList(),
     val waiting_on_you: List<ForYouWaiting> = emptyList(),
     val my_tasks: List<ForYouTask> = emptyList(),
     val unread: List<ForYouUnread> = emptyList(),
@@ -204,6 +232,11 @@ fun forYouHeadlineWork(forYou: ForYou): Int {
         forYou.waiting_on_you.forEach { add(it.conversation_id) }
         forYou.unread.forEach { add(it.conversation_id) }
         forYou.triage?.conversations?.forEach { add(it.conversation_id) }
+        // #293: a due reminder is work. Leaving it out made the header say
+        // "all caught up" while a section below listed a quote to chase — the
+        // count lying in exactly the direction #293 is about. The Set keeps it
+        // honest when the same thread is also unread.
+        forYou.follow_ups.forEach { add(it.conversation_id) }
     }
     val tasks = buildSet {
         forYou.my_tasks.forEach { add(it.task_id) }

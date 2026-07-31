@@ -99,6 +99,35 @@ final class SnoozeLogicTests: XCTestCase {
         }
     }
 
+    func testTheChaseLadderIsADifferentLadderEveryRungAMorning() {
+        // Deferring your own next action and waiting on somebody else's answer
+        // run on different clocks. One ladder for both would put three useless
+        // options in front of whichever job you were doing.
+        let presets = followUpPresets(now: at(9), calendar: calendar)
+        XCTAssertEqual(presets.map(\.id), [.threeDays, .nextWeek, .twoWeeks])
+        XCTAssertEqual(
+            presets.map(\.label), ["In 3 days", "Next week", "In 2 weeks"])
+        // Wednesday the 5th → the 8th, Monday the 10th, the 19th, all at 08:00.
+        XCTAssertEqual(
+            presets.map(\.at),
+            [at(8, day: 8), at(8, day: 10), at(8, day: 19)]
+        )
+    }
+
+    func testTheChaseLadderNeverOffersARungInThePast() {
+        for day in 1...14 {
+            for hour in 0..<24 {
+                let now = at(hour, 30, day: day)
+                for preset in followUpPresets(now: now, calendar: calendar) {
+                    XCTAssertGreaterThan(
+                        preset.at, now,
+                        "day=\(day) hour=\(hour) offered \(preset.id) in the past"
+                    )
+                }
+            }
+        }
+    }
+
     func testNextMondayIsNextWeeksNeverToday() {
         // Calendar's weekday numbering is 1 = Sunday, which is NOT java.time's
         // or JavaScript's — this is the assertion that the conversion is right

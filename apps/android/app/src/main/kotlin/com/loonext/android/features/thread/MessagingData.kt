@@ -134,12 +134,15 @@ class MessagingRepository(private val api: ApiClient) {
         conversationId: String,
         untilIso: String,
         note: String? = null,
+        /** "snooze" returns it quietly; "follow_up" returns it to be chased. */
+        kind: String = "snooze",
     ) {
         api.post<JsonObject, JsonObject>(
             "/v1/conversations/$conversationId/snooze",
             buildJsonObject {
                 put("until", untilIso)
                 if (note != null) put("note", note)
+                put("kind", kind)
             },
             companyId = companyId,
         )

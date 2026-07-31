@@ -53,6 +53,24 @@ struct ForYouTriageTask: Codable, Sendable {
     @Default<DefaultFalse> var overdue: Bool
 }
 
+/// #293 — one follow-up reminder that has come DUE.
+///
+/// Its own section rather than folded into "waiting on you": that one means
+/// "you have not answered them". This means "they have not answered YOU, and
+/// you asked to be told" — a different job, and the highest-value one in the
+/// business to be reminded about.
+struct ForYouFollowUp: Codable, Sendable {
+    let conversation_id: String
+    let status: String
+    let contact: ContactSummary?
+    let last_message_at: String
+    @Default<DefaultFalse> var unread: Bool
+    /// When you asked to be reminded. Always past by the time it is here.
+    let due_at: String
+    /// The reason you gave, if you gave one.
+    let note: String?
+}
+
 /// Owner/admin-only strip; the whole field is nil for a member.
 struct ForYouTriage: Codable, Sendable {
     @Default<DefaultEmptyList<ForYouTriageConversation>> var conversations: [ForYouTriageConversation]
@@ -107,6 +125,8 @@ struct ForYouTotals: Codable, Sendable {
     @Default<DefaultZero> var unread: Int
     @Default<DefaultZero> var triage_conversations: Int
     @Default<DefaultZero> var triage_tasks: Int
+    /// #293: follow-up reminders that have come due.
+    @Default<DefaultZero> var follow_ups: Int
     @Default<DefaultZero> var distinct_work: Int
 }
 
@@ -168,6 +188,9 @@ struct ResponseTimeReport: Codable, Sendable {
 }
 
 struct ForYou: Codable, Sendable {
+    /// #293. Empty from an older Worker, which is "no reminders" — the state
+    /// every client written before this shipped was already rendering.
+    @Default<DefaultEmptyList<ForYouFollowUp>> var follow_ups: [ForYouFollowUp]
     @Default<DefaultEmptyList<ForYouWaiting>> var waiting_on_you: [ForYouWaiting]
     @Default<DefaultEmptyList<ForYouTask>> var my_tasks: [ForYouTask]
     @Default<DefaultEmptyList<ForYouUnread>> var unread: [ForYouUnread]
@@ -192,6 +215,11 @@ func forYouHeadlineWork(_ forYou: ForYou) -> Int {
     var conversations = Set<String>()
     for row in forYou.waiting_on_you { conversations.insert(row.conversation_id) }
     for row in forYou.unread { conversations.insert(row.conversation_id) }
+    // #293: a due reminder is work. Leaving it out made the header say "all
+    // caught up" while a section below listed a quote to chase — the count
+    // lying in exactly the direction #293 is about. The Set keeps it honest
+    // when the same thread is also unread.
+    for row in forYou.follow_ups { conversations.insert(row.conversation_id) }
     for row in forYou.triage?.conversations ?? [] {
         conversations.insert(row.conversation_id)
     }
