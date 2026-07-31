@@ -145,6 +145,15 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 10080,
     graceMinutes: 1440,
   },
+  "cron:35 14 1 * *": {
+    what: "The monthly response-time recap has not run (#482).",
+    // A month at its longest, so February never reads as an outage. The grace
+    // is two days rather than the usual hours: this fires once a month, so a
+    // false alarm here costs more attention than a real one saves — nothing is
+    // broken for a customer if a courtesy email is a day late.
+    everyMinutes: 44_640,
+    graceMinutes: 2880,
+  },
   // ---------------------------------------------------------------------
   // Per-JOB expectations (#333).
   //
@@ -335,6 +344,13 @@ export const LIVENESS_EXPECTATIONS = {
     what: "The weekly founder cost digest has stopped.",
     everyMinutes: 10080,
     graceMinutes: 1440,
+  },
+  "job:response-time-recap": {
+    what:
+      "The monthly response-time recap has stopped — owners are no longer " +
+      "being told how fast they answered, or whether it moved (#482).",
+    everyMinutes: 44_640,
+    graceMinutes: 2880,
   },
   "job:prune-webhook-events": {
     what: "The webhook ledger is no longer pruned and grows without bound.",

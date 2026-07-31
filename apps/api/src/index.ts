@@ -12,6 +12,9 @@ import { runGraceJob } from "./billing/grace";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
 import {
   runOverageDigestJob,
+} from "./billing/overage-warning";
+import { runResponseTimeRecapJob } from "./reports/monthly-recap";
+import {
   runOverageWarningJob,
 } from "./billing/overage-warning";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
@@ -460,6 +463,10 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // warning; this is the only place the PATTERN shows up, which is the
   // question #446 asks. Monday morning, off the hour.
   "50 13 * * 1": [job("job:overage-digest", runOverageDigestJob)],
+  // #482/#239: the monthly response-time recap. Monthly because the arc it
+  // reports moves on that scale — a weekly one would mostly report noise, and
+  // an email that mostly says nothing is one people stop opening.
+  "35 14 1 * *": [job("job:response-time-recap", runResponseTimeRecapJob)],
   // #457: the carrier's own daily ceiling, warned about hourly. Hourly rather
   // than daily because the only useful advice ("spread the rest over
   // tomorrow") expires the moment the ceiling is hit, and a nightly sweep
