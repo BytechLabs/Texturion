@@ -94,6 +94,47 @@ class ColorLiteralLintTest {
         }
     }
 
+    /**
+     * #320 — the Android twin of `PortalScope` on web.
+     *
+     * `MaterialTheme.colorScheme` is a CompositionLocal, so a composition that
+     * does not sit under [LoonextTheme] gets Material's DEFAULTS — the purple
+     * baseline — rather than this app's palette. That is the same class of
+     * fault as #116, where web portals rendered outside `.app-scope` and lost
+     * their tokens: every colour correct, the wrong scope, and nothing in the
+     * build with an opinion about it.
+     *
+     * Compose's Dialog and Popup inherit the parent composition, so the risk is
+     * concentrated at the `setContent` boundaries — where a NEW composition
+     * starts. There are two, and both are correct today.
+     */
+    @Test
+    fun `every composition root renders inside LoonextTheme`() {
+        val root = mainRoot()
+        // `setContentType` / `setContentTitle` are Android media and
+        // notification APIs that merely share a prefix, so the brace matters.
+        val setContent = Regex("""\bsetContent\s*\{""")
+        val roots = root.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filter { setContent.containsMatchIn(it.readText()) }
+            .toList()
+
+        val offenders = roots
+            .filterNot { it.readText().contains("LoonextTheme(") }
+            .map { it.relativeTo(root).path.replace('\\', '/') }
+
+        assertTrue(
+            "\n\nComposition root(s) that never enter LoonextTheme:\n  " +
+                offenders.joinToString("\n  ") +
+                "\n\nMaterialTheme.colorScheme is a CompositionLocal. A composition " +
+                "outside LoonextTheme gets Material's default palette — purple — in " +
+                "both themes, and nothing else in the build will say so.\n",
+            offenders.isEmpty(),
+        )
+        // And the walk really found the roots rather than passing over none.
+        assertTrue("expected the app's composition roots, found ${roots.size}", roots.size >= 2)
+    }
+
     @Test
     fun `the lint is actually reading the tree`() {
         // A walk that matches nothing passes forever.

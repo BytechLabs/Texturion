@@ -119,6 +119,59 @@ final class ColorLiteralLintTests: XCTestCase {
         }
     }
 
+    /// #320 — the iOS twin of `PortalScope` on web and the `LoonextTheme` lint
+    /// on Android.
+    ///
+    /// `BrandColor` resolves per `UITraitCollection`, so a view that PINS the
+    /// colour scheme freezes every token under it into one theme regardless of
+    /// what the person chose. It is the same class of fault as a portal
+    /// escaping its token scope: every colour correct, the wrong resolution
+    /// context, and nothing in the build with an opinion about it.
+    ///
+    /// Two placements are legitimate and no others:
+    ///   - `LoonextApp.swift`, which pins the scheme the USER selected — that
+    ///     is the setting doing its job;
+    ///   - `#Preview` blocks, which pin light AND dark deliberately so a
+    ///     regression shows on the canvas.
+    func testNoViewPinsTheColourSchemeForTheUser() throws {
+        let root = try sourceRoot()
+        var offenders: [String] = []
+
+        for file in swiftFiles(root) {
+            let relative = file.path
+                .replacingOccurrences(of: root.path + "/", with: "")
+                .replacingOccurrences(of: "\\", with: "/")
+            // The app root is where the user's choice is applied.
+            if relative == "LoonextApp.swift" { continue }
+            guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+            var inPreview = false
+            var depth = 0
+            for (index, raw) in lines.enumerated() {
+                let line = String(raw)
+                if line.contains("#Preview") { inPreview = true; depth = 0 }
+                if inPreview {
+                    depth += line.filter { $0 == "{" }.count
+                    depth -= line.filter { $0 == "}" }.count
+                    if depth <= 0 && !line.contains("#Preview") { inPreview = false }
+                }
+                if line.contains(".preferredColorScheme(") && !inPreview {
+                    offenders.append("\(relative):\(index + 1)")
+                }
+            }
+        }
+
+        XCTAssertEqual(
+            offenders, [String](),
+            "\n\nView(s) pinning the colour scheme:\n  \(offenders.joined(separator: "\n  "))\n\n"
+                + "BrandColor resolves per trait collection, so pinning the scheme "
+                + "freezes every token under this view into one theme whatever the "
+                + "person chose. Only LoonextApp (applying their setting) and #Preview "
+                + "blocks (pinning both, on purpose) may do this."
+        )
+    }
+
     func testTheLintIsActuallyReadingTheTree() throws {
         // A walk that matches nothing passes forever.
         let count = swiftFiles(try sourceRoot()).count
