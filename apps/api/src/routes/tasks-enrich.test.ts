@@ -370,6 +370,99 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
     });
   });
 
+  // #461: "Audits show change of entire sections even if a single field is
+  // modified." This route was the clearest instance: it wrote all five
+  // switches on every save, with an empty `before`, so a reader could not tell
+  // which one the person actually touched or what it had been.
+  it("audits ONLY the switch that moved, with both sides", async () => {
+    const upsert = stubRoute(rpcMatch(baseEnv, "upsert_company_ai_settings"), () => ({
+      company_id: COMPANY_ID,
+      enrich_task_address: true,
+      enrich_task_due: true,
+      suggest_replies: false,
+      transcribe_voicemail: true,
+      voicemail_intake: false,
+      business_description: "",
+      updated_at: "2026-07-31T00:00:00.000Z",
+    }));
+    const audit = stubRoute(restMatch(baseEnv, "POST", "audit_log"), () => []);
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute("admin"),
+      // Everything already on except suggest_replies, which this save turns off.
+      stubRoute(restMatch(baseEnv, "GET", "company_ai_settings"), () => [
+        {
+          enrich_task_address: true,
+          enrich_task_due: true,
+          suggest_replies: true,
+          transcribe_voicemail: true,
+          voicemail_intake: false,
+        },
+      ]).route,
+      upsert.route,
+      audit.route,
+    );
+
+    // The client MUST send all three switches (they are required), which is
+    // exactly why the log used to name all of them on every save.
+    const res = await req("PATCH", "/v1/company/ai-settings", {
+      enrich_task_address: true,
+      enrich_task_due: true,
+      suggest_replies: false,
+    });
+    expect(res.status).toBe(200);
+
+    expect(audit.calls.length).toBe(1);
+    const row = audit.calls[0].body as {
+      before: Record<string, unknown>;
+      after: Record<string, unknown>;
+    };
+    expect(row.before).toEqual({ suggest_replies: true });
+    expect(row.after).toEqual({ suggest_replies: false });
+    // The four switches that did not move must NOT be in the row — that was
+    // the complaint.
+    expect(Object.keys(row.after)).toEqual(["suggest_replies"]);
+  });
+
+  it("writes no audit row at all when a save changed nothing", async () => {
+    // A client that reads the settings and posts them back is doing the
+    // obvious thing; a log full of non-events teaches people to skim it.
+    const upsert = stubRoute(rpcMatch(baseEnv, "upsert_company_ai_settings"), () => ({
+      company_id: COMPANY_ID,
+      enrich_task_address: true,
+      enrich_task_due: true,
+      suggest_replies: true,
+      transcribe_voicemail: true,
+      voicemail_intake: false,
+      business_description: "",
+      updated_at: "2026-07-31T00:00:00.000Z",
+    }));
+    const audit = stubRoute(restMatch(baseEnv, "POST", "audit_log"), () => []);
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute("admin"),
+      stubRoute(restMatch(baseEnv, "GET", "company_ai_settings"), () => [
+        {
+          enrich_task_address: true,
+          enrich_task_due: true,
+          suggest_replies: true,
+          transcribe_voicemail: true,
+          voicemail_intake: false,
+        },
+      ]).route,
+      upsert.route,
+      audit.route,
+    );
+
+    const res = await req("PATCH", "/v1/company/ai-settings", {
+      enrich_task_address: true,
+      enrich_task_due: true,
+      suggest_replies: true,
+    });
+    expect(res.status).toBe(200);
+    expect(audit.calls.length).toBe(0);
+  });
+
   it("PATCH (admin) upserts the toggles and echoes them back", async () => {
     const upsert = stubRoute(
       rpcMatch(baseEnv, "upsert_company_ai_settings"),
@@ -382,7 +475,15 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
         updated_at: "2026-07-23T00:00:00.000Z",
       }),
     );
-    stubFetch(jwksRoute(auth), membersRoute("admin"), upsert.route);
+    // #461: the route now reads the switches BEFORE the upsert so the audit
+    // row can name the ONE that moved. No prior row = every switch reads as a
+    // change, which is what a first save actually is.
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute("admin"),
+      settingsRoute(null).route,
+      upsert.route,
+    );
     const res = await req("PATCH", "/v1/company/ai-settings", {
       enrich_task_address: true,
       enrich_task_due: false,
@@ -417,7 +518,15 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
         updated_at: "2026-07-28T00:00:00.000Z",
       }),
     );
-    stubFetch(jwksRoute(auth), membersRoute("admin"), upsert.route);
+    // #461: the route now reads the switches BEFORE the upsert so the audit
+    // row can name the ONE that moved. No prior row = every switch reads as a
+    // change, which is what a first save actually is.
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute("admin"),
+      settingsRoute(null).route,
+      upsert.route,
+    );
     const res = await req("PATCH", "/v1/company/ai-settings", {
       enrich_task_address: false,
       enrich_task_due: true,
@@ -450,7 +559,15 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
         updated_at: "2026-07-28T00:00:00.000Z",
       }),
     );
-    stubFetch(jwksRoute(auth), membersRoute("admin"), upsert.route);
+    // #461: the route now reads the switches BEFORE the upsert so the audit
+    // row can name the ONE that moved. No prior row = every switch reads as a
+    // change, which is what a first save actually is.
+    stubFetch(
+      jwksRoute(auth),
+      membersRoute("admin"),
+      settingsRoute(null).route,
+      upsert.route,
+    );
     const res = await req("PATCH", "/v1/company/ai-settings", {
       enrich_task_address: false,
       enrich_task_due: true,

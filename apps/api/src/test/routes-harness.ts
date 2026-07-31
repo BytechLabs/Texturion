@@ -138,6 +138,36 @@ export function supabaseStub(env: Env): SupabaseStub {
           : undefined,
     },
     {
+      // #461: PATCH /v1/company reads the prior values of the auditable
+      // settings first, so its audit row can say what MOVED rather than
+      // restating the request. The ambient answer is "no prior row", which
+      // yields an audit diff against nothing — the state every test written
+      // before #461 was asserting against (they assert on the PATCH, not the
+      // log). A suite that wants to assert on the diff registers this and wins.
+      method: "GET",
+      matcher: "/rest/v1/companies",
+      // Narrowed to THIS select, per the #430 handler above: a blanket company
+      // ambient would answer every unstubbed company read with an empty list,
+      // turning a loud "you forgot to stub this" into a quiet 404.
+      respond: (call: SbCall) =>
+        call.url.searchParams.get("select")?.startsWith("name,timezone,country")
+          ? []
+          : undefined,
+    },
+    {
+      // #461: the same, for the AI switches. PATCH /v1/company/ai-settings
+      // reads them before the upsert so the log can name the ONE switch that
+      // moved instead of all five.
+      method: "GET",
+      matcher: "/rest/v1/company_ai_settings",
+      respond: (call: SbCall) =>
+        call.url.searchParams
+          .get("select")
+          ?.startsWith("enrich_task_address,enrich_task_due")
+          ? []
+          : undefined,
+    },
+    {
       method: "POST",
       matcher: "/rest/v1/rpc/record_heartbeat",
       respond: () => ({ recovered: false }),

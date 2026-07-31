@@ -26,6 +26,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { type CompanyAiSettings, loadAiSettings } from "../ai/settings";
+import { auditDiff } from "../audit/diff";
 import { recordAuditFromRequest } from "../audit/log";
 import { requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
@@ -374,12 +375,62 @@ const aiSettingsSchema = z
   })
   .strict();
 
+/**
+ * #461: the company settings a workspace audit is expected to answer for —
+ * "who turned the text-back off", "when did the away hours change". Fixed on
+ * purpose: it is the list of what is auditable, and it keeps the prior-value
+ * read's `select` constant so a test double can recognise it.
+ *
+ * Deliberately absent: anything carrying customer-facing WORDS is here only so
+ * the diff can report set/cleared/edited (see `textKeys` at the call site) —
+ * the words themselves never enter the log.
+ */
+const AUDITED_COMPANY_SETTINGS = [
+  "name",
+  "timezone",
+  "country",
+  "requested_area_code",
+  "us_texting_enabled",
+  "aup_accepted",
+  "away_enabled",
+  "away_message",
+  "business_hours",
+  "mctb_enabled",
+  "mctb_message",
+  "emergency_message",
+  "voicemail_greeting",
+  "voicemail_enabled",
+  "caller_id_name",
+  "caller_id_lookup",
+  "cnam_submitted_at",
+  "overage_cap_multiplier",
+  "billing_alerts_enabled",
+  "response_time_per_member",
+  "quiet_hours_confirm",
+  "chosen_number_e164",
+].join(",");
+
 companiesRoutes.patch(
   "/company/ai-settings",
   requireRole("admin"),
   async (c) => {
     const body = await parseJsonBody(c, aiSettingsSchema);
     const db = getDb(getEnv(c.env));
+    // #461: read the switches BEFORE the write so the audit row can say what
+    // moved. Without this the log recorded all five on every save, and a
+    // reader could not tell which one the person actually touched. One extra
+    // SELECT on a settings PATCH is a fair price for a log that answers the
+    // question it exists for; a failed read degrades to "no before" rather
+    // than failing the save.
+    const priorAi = await db
+      .from("company_ai_settings")
+      .select(
+        "enrich_task_address,enrich_task_due,suggest_replies," +
+          "transcribe_voicemail,voicemail_intake",
+      )
+      .eq("company_id", c.get("companyId"))
+      .maybeSingle();
+    const before = (priorAi.data ?? {}) as Record<string, unknown>;
     const { data, error } = await db.rpc("upsert_company_ai_settings", {
       p_company_id: c.get("companyId"),
       p_enrich_task_address: body.enrich_task_address,
@@ -398,21 +449,28 @@ companiesRoutes.patch(
     // #231: settings changes are the "why did we stop getting jobs three weeks
     // ago" class. The switches, never the business description — that is the
     // owner's words, and the log records shape, not content.
-    await recordAuditFromRequest(db, c, {
-      companyId: c.get("companyId"),
-      action: "settings.changed",
-      targetType: "ai_settings",
-      after: {
-        enrich_task_address: row.enrich_task_address,
-        enrich_task_due: row.enrich_task_due,
-        suggest_replies: row.suggest_replies,
-        transcribe_voicemail: row.transcribe_voicemail,
-        // #367: the one switch on this object that changes what a CUSTOMER
-        // hears, which makes "who turned this on, and when" a question support
-        // will actually be asked.
-        voicemail_intake: row.voicemail_intake,
-      },
+    const aiDelta = auditDiff(before, {
+      enrich_task_address: row.enrich_task_address,
+      enrich_task_due: row.enrich_task_due,
+      suggest_replies: row.suggest_replies,
+      transcribe_voicemail: row.transcribe_voicemail,
+      // #367: the one switch on this object that changes what a CUSTOMER
+      // hears, which makes "who turned this on, and when" a question support
+      // will actually be asked.
+      voicemail_intake: row.voicemail_intake,
     });
+    // The business description is deliberately absent from the diff: it is the
+    // owner's own words about their business, and the log records shape, not
+    // content (#231).
+    if (aiDelta) {
+      await recordAuditFromRequest(db, c, {
+        companyId: c.get("companyId"),
+        action: "settings.changed",
+        targetType: "ai_settings",
+        before: aiDelta.before,
+        after: aiDelta.after,
+      });
+    }
     return c.json({
       enrich_task_address: row.enrich_task_address,
       enrich_task_due: row.enrich_task_due,
@@ -689,6 +747,26 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
     }
   }
 
+  // #461: the prior values of the auditable settings, so the audit row below
+  // can say what MOVED rather than restating the request. A failed read
+  // degrades to "no before" rather than failing the save.
+  //
+  // The column list is FIXED rather than derived from the patch keys, for two
+  // reasons: it makes "which settings are auditable" a decision written down
+  // in one place, and it keeps this read's `select` constant, which is what
+  // lets a test double recognise it (routes-harness.ts narrows its ambient
+  // company handlers by select for exactly this reason).
+  const patchedColumns = Object.keys(patch);
+  const priorSettings = patchedColumns.length
+    ? (
+        await db
+          .from("companies")
+          .select(AUDITED_COMPANY_SETTINGS)
+          .eq("id", c.get("companyId"))
+          .maybeSingle()
+      ).data
+    : null;
+
   const rows = unwrap<Record<string, unknown>[]>(
     await db
       .from("companies")
@@ -703,30 +781,41 @@ companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
     return errorResponse(c, "not_found", "No such company.");
   }
 
-  // #231: the settings an owner asks about after the fact — the caller ID, the
-  // missed-call text-back, the away reply. Record WHICH ones moved, not the
-  // message text: the words are the owner's, and a log that copies them
-  // becomes a second place for customer-facing content to leak from. An
-  // authored message is reported as present/absent instead.
-  await recordAuditFromRequest(db, c, {
-    companyId: c.get("companyId"),
-    action: "settings.changed",
-    targetType: "company",
-    targetId: c.get("companyId"),
-    after: Object.fromEntries(
-      Object.entries(patch).map(([key, value]) => [
-        key,
-        key === "away_message" ||
-        key === "mctb_message" ||
-        key === "emergency_message" ||
-        key === "voicemail_greeting"
-          ? value === null
-            ? "cleared"
-            : "set"
-          : value,
-      ]),
-    ),
-  });
+  // #231/#461: the settings an owner asks about after the fact — the caller ID,
+  // the missed-call text-back, the away reply. Record only the fields that
+  // actually MOVED, with both sides, and nothing at all when a save changed
+  // nothing. This used to log the whole requested patch with an empty `before`,
+  // so a row said "this is now false" without saying what it was, and a field
+  // re-saved at its current value looked like a change.
+  //
+  // The message text never enters the log — the words are the owner's, and a
+  // log that copies them is a second place for customer-facing content to leak
+  // from. `textKeys` reports set/cleared/edited instead.
+  const settingsDelta = auditDiff(
+    (priorSettings ?? {}) as Record<string, unknown>,
+    patch,
+    {
+      // Only the keys this request actually sent, intersected with what we
+      // consider auditable at all.
+      only: patchedColumns,
+      textKeys: [
+        "away_message",
+        "mctb_message",
+        "emergency_message",
+        "voicemail_greeting",
+      ],
+    },
+  );
+  if (settingsDelta) {
+    await recordAuditFromRequest(db, c, {
+      companyId: c.get("companyId"),
+      action: "settings.changed",
+      targetType: "company",
+      targetId: c.get("companyId"),
+      before: settingsDelta.before,
+      after: settingsDelta.after,
+    });
+  }
 
   // When the missed-call text-back is turned ON, or a forward cell is set, the
   // company's number(s) must be able to RECEIVE CALLS. Enable voice idempotently
