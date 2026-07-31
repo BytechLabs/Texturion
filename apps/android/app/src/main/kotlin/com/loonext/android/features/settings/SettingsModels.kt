@@ -313,6 +313,22 @@ object HandoverKind {
     const val CLAIM = "claim"
 }
 
+/**
+ * GET /v1/billing/missed-while-off (#490) — how many customers rang while the
+ * line could not take them, and when it last happened.
+ *
+ * The argument for reinstating, with evidence attached. Before #490 the
+ * business was never told those calls had happened at all.
+ */
+@Serializable
+data class MissedWhileOff(
+    val count: Int = 0,
+    /** The window's start — the count is bounded to the last 90 days. */
+    val since: String? = null,
+    /** The most recent one, or null. Says WHEN, not only how many. */
+    val last_at: String? = null,
+)
+
 // ---------------------------------------------------------------------------
 // Two-factor authentication (#314 — routes/mfa.ts)
 // ---------------------------------------------------------------------------

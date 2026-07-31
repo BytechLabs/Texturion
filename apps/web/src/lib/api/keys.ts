@@ -25,6 +25,9 @@ export const keys = {
   company: (companyId: string) => [companyId, "company"] as const,
   usage: (companyId: string) => [companyId, "usage"] as const,
   modules: (companyId: string) => [companyId, "modules"] as const,
+  /** #490: calls that reached a line which could not take them. */
+  missedWhileOff: (companyId: string) =>
+    [companyId, "missed-while-off"] as const,
   numbers: (companyId: string) => [companyId, "numbers"] as const,
   /** #106: one number's access shape (who can use it, at what level). */
   numberAccess: (companyId: string, numberId: string) =>

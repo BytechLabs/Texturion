@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { ChangePlanDialog } from "@/components/settings/change-plan-dialog";
+import { MissedWhileOff } from "@/components/settings/missed-while-off";
 import { PlanModulesCard } from "@/components/settings/plan-modules-card";
 import {
   LoadError,
@@ -171,6 +172,11 @@ export default function BillingSettingsPage() {
       ) : (
         <div className="space-y-6">
           <StatusNotices company={company.data} />
+
+          {/* #490: directly under the status notice that says the line is off,
+              because it is the consequence of that sentence rather than a
+              separate topic. Renders nothing when nobody called. */}
+          <MissedWhileOff show={company.data.subscription_status !== "active"} />
 
           {company.data.subscription_status === "canceled" ? (
             <SettingsCard title="Subscription">

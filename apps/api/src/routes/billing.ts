@@ -684,6 +684,65 @@ billingRoutes.get("/modules", async (c) => {
 });
 
 /**
+ * GET /v1/billing/missed-while-off (#490) — how many calls reached this number
+ * while it could not take them, and when.
+ *
+ * The argument for reinstating, with evidence attached. Every one of these is a
+ * customer who rang and got nothing; before this the business was never told
+ * they had called at all, so the case for coming back was a feeling rather than
+ * a number.
+ *
+ * Its OWN route rather than a field on the company read. The count is an
+ * aggregate over the busiest table in the product and the company read is on
+ * every screen — paying for this query on every request, for every workspace,
+ * to answer a question only a suspended one asks, is the wrong trade. This is
+ * fetched by the billing screen when the subscription is not active.
+ *
+ * Behind this router's `billing.manage` gate like everything else here, so it
+ * lands with the person who can act on it — which since #315 includes a
+ * bookkeeper, whose whole role is this screen.
+ */
+billingRoutes.get("/missed-while-off", async (c) => {
+  const db = getDb(getEnv(c.env));
+  const companyId = c.get("companyId");
+
+  // Bounded deliberately. A number left suspended for months would otherwise
+  // grow an unbounded count, and "1,400 calls" is not a more persuasive
+  // number than "the last 90 days" — it is just an older one, most of which
+  // belongs to customers who have long since gone elsewhere.
+  const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { count, error } = await db
+    .from("calls")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", companyId)
+    .eq("unattended", true)
+    .gte("started_at", since);
+  if (error) throw new Error(`missed-while-off count failed: ${error.message}`);
+
+  // The most recent one, so the copy can say WHEN rather than only how many.
+  // "Someone rang yesterday" is a different sentence from "someone rang in
+  // April", and only one of them is worth acting on today.
+  const { data: latest, error: latestError } = await db
+    .from("calls")
+    .select("started_at")
+    .eq("company_id", companyId)
+    .eq("unattended", true)
+    .gte("started_at", since)
+    .order("started_at", { ascending: false })
+    .limit(1);
+  if (latestError) {
+    throw new Error(`missed-while-off latest failed: ${latestError.message}`);
+  }
+
+  return c.json({
+  count: count ?? 0,
+  since,
+  last_at: latest?.[0]?.started_at ?? null,
+  });
+});
+
+/**
  * POST /v1/billing/modules (#12 plan builder) — turn a module on/off on an
  * existing subscription. Enabling adds the module's flat line item (prorated
  * now); disabling removes it AND clears any capability it gated (voice →

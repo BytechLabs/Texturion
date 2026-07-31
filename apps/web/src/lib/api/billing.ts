@@ -51,6 +51,33 @@ export function useModules() {
   });
 }
 
+export interface MissedWhileOff {
+  count: number;
+  /** The window's start — the count is bounded to the last 90 days. */
+  since: string;
+  /** The most recent one, or null. Says WHEN, not only how many. */
+  last_at: string | null;
+}
+
+/**
+ * GET /v1/billing/missed-while-off (#490) — how many customers rang while the
+ * line could not take them.
+ *
+ * `enabled` is the caller's, deliberately: this is only asked on a workspace
+ * whose subscription is not active. It is an aggregate over the busiest table
+ * in the product, and a healthy workspace must never pay for a question it is
+ * not asking.
+ */
+export function useMissedWhileOff(enabled: boolean) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: keys.missedWhileOff(companyId),
+    queryFn: () =>
+      apiFetch<MissedWhileOff>("/v1/billing/missed-while-off", { companyId }),
+    enabled,
+  });
+}
+
 /** POST /v1/billing/modules — turn an add-on on/off on the live subscription. */
 export function useSetModule() {
   const companyId = useCompanyId();

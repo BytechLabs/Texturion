@@ -2,6 +2,23 @@ import SwiftUI
 
 private let fairUseUrl = "https://loonext.com/legal/fair-use"
 
+/// #490: "today" / "yesterday" / "on 12 July".
+///
+/// A relative day rather than a timestamp: the reader's question is "is this
+/// still happening?", and "yesterday" answers it where an ISO string makes them
+/// work it out. Past a couple of days the date is the more useful answer,
+/// because by then the question has become "how long has this been going on".
+private func relativeDay(_ iso: String?) -> String? {
+    guard let iso, let when = parseWireTimestamp(iso) else { return nil }
+    let cal = Calendar.current
+    if cal.isDateInToday(when) { return "today" }
+    if cal.isDateInYesterday(when) { return "yesterday" }
+    let fmt = DateFormatter()
+    fmt.locale = Locale(identifier: "en_US_POSIX")
+    fmt.dateFormat = "d MMMM"
+    return "on " + fmt.string(from: when)
+}
+
 private func fullDate(_ iso: String?) -> String? {
     guard let iso, let date = parseWireTimestamp(iso) else { return nil }
     let formatter = DateFormatter()
@@ -29,6 +46,9 @@ struct BillingSectionView: View {
 
     var body: some View {
         StatusNotices(scope: scope, company: company, canManage: canManage)
+        // #490: directly under the notice that says the line is off, because it
+        // is the consequence of that sentence rather than a separate topic.
+        MissedWhileOffNote(scope: scope, company: company)
         PlanCard(scope: scope, company: company, canManage: canManage, onRefreshCompany: onRefreshCompany)
         if canManage && company.billing_writes_enabled
             && company.plan != nil && company.subscriptionActive {
@@ -455,6 +475,67 @@ private struct ModulesCard: View {
                 dialogError = error.userMessage
             }
             pending = false
+        }
+    }
+}
+
+/// #490 — how many customers rang while the line could not take them.
+///
+/// Shown only on a workspace whose subscription is not active, and only when
+/// the number is greater than zero. It is the argument for coming back with
+/// evidence attached: before this the business was never told those calls had
+/// happened at all.
+///
+/// WHAT THIS IS NOT: a scare banner. It does not use the word "lost". The
+/// reader has almost certainly stopped paying because money is tight, and a
+/// product that shouts about what their lapse cost them is kicking somebody
+/// already down. The bare number is more persuasive than any sentence we could
+/// write about it.
+///
+/// Zero renders NOTHING — an empty state here would be an argument AGAINST
+/// reinstating. A failed read renders nothing too: this is a supporting fact on
+/// somebody else's screen, and a billing page showing a broken box looks like
+/// the billing itself is broken.
+@MainActor
+private struct MissedWhileOffNote: View {
+    let scope: SettingsScope
+    let company: CompanyView
+
+    @State private var missed: MissedWhileOff?
+
+    private var show: Bool { !company.subscriptionActive }
+
+    var body: some View {
+        Group {
+            if let missed, missed.total > 0 {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(
+                        missed.total == 1
+                            ? "1 customer called while your number was off"
+                            : "\(missed.total) customers called while your number was off"
+                    )
+                    .font(.golos(13, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
+                    Text(
+                        "They heard that the number isn't taking calls."
+                            + (relativeDay(missed.last_at).map { " The most recent was \($0)." } ?? "")
+                    )
+                    .font(.golos(11.5))
+                    .foregroundStyle(BrandColor.muted600)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(
+                    BrandColor.inset,
+                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                )
+            }
+        }
+        .task(id: show) {
+            guard show else { return }
+            missed = try? await scope.repo.missedWhileOff()
         }
     }
 }

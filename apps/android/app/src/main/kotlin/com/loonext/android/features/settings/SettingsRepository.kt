@@ -99,6 +99,14 @@ class SettingsRepository(
     // Enrolment itself is SupabaseAuth's (GoTrue directly, the D8 boundary).
     // These are the parts Supabase does not give us.
 
+    /**
+     * #490: the calls that reached a line which could not take them. Asked only
+     * when the subscription is not active — it is an aggregate over the busiest
+     * table in the product, and a paying workspace must never pay for a
+     * question it is not asking.
+     */
+    suspend fun missedWhileOff(): MissedWhileOff = api.get("/v1/billing/missed-while-off")
+
     suspend fun mfa(): MfaState = api.get("/v1/mfa")
 
     /** Issue a fresh set. The plaintext comes back once and never again. */

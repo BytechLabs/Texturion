@@ -1002,6 +1002,67 @@ describe("plan-builder modules (#12)", () => {
     expect(body.modules.find((m) => m.id === "voice")).toBeUndefined();
   });
 
+  // #490 — the argument for reinstating, with evidence attached.
+  describe("GET /missed-while-off", () => {
+    // PostgREST answers a `head: true` count in the Content-Range header and
+    // sends no body, which is why this returns a real Response rather than a
+    // value: the count never travels as JSON.
+    const countResponse = (count: number) =>
+      new Response(null, {
+        status: 200,
+        headers: { "content-range": `*/${count}` },
+      });
+
+    it("counts the calls that reached a line which could not take them", async () => {
+      const harness = makeHarness([
+        endpoint("HEAD", /\/rest\/v1\/calls/, () => countResponse(7)),
+        endpoint("GET", /\/rest\/v1\/calls/, () => [
+          { started_at: "2026-07-30T18:00:00.000Z" },
+        ]),
+        companyEndpoint(activeStarter()),
+      ]);
+      const response = await get("/v1/billing/missed-while-off", harness);
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as {
+        count: number;
+        since: string;
+        last_at: string | null;
+      };
+      expect(body.count).toBe(7);
+      // Says WHEN, not only how many: "someone rang yesterday" is a different
+      // sentence from "someone rang in April", and only one is worth acting on.
+      expect(body.last_at).toBe("2026-07-30T18:00:00.000Z");
+      // Bounded, so a number left off for months does not grow an unbounded
+      // count of customers who have long since gone elsewhere.
+      const days = (Date.now() - Date.parse(body.since)) / 86_400_000;
+      expect(days).toBeGreaterThan(89);
+      expect(days).toBeLessThan(91);
+    });
+
+    it("asks only for calls that were actually unattended", async () => {
+      // The guard that matters: this must never report a company's ordinary
+      // missed calls as evidence that suspension cost them business.
+      const seen: URL[] = [];
+      const harness = makeHarness([
+        endpoint("HEAD", /\/rest\/v1\/calls/, (call) => {
+          seen.push(call.url);
+          return countResponse(0);
+        }),
+        endpoint("GET", /\/rest\/v1\/calls/, (call) => {
+          seen.push(call.url);
+          return [];
+        }),
+        companyEndpoint(activeStarter()),
+      ]);
+      await get("/v1/billing/missed-while-off", harness);
+      expect(seen.length).toBeGreaterThan(0);
+      for (const url of seen) {
+        expect(url.searchParams.get("unattended")).toBe("eq.true");
+        expect(url.searchParams.get("company_id")).toContain("eq.");
+      }
+    });
+  });
+
   it("POST /modules 409 without a subscription", async () => {
     const harness = makeHarness([companyEndpoint(companyRow())]);
     const response = await post(

@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +25,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.BillingModule
@@ -34,16 +36,41 @@ import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
-import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.launch
 
 private val FULL_DATE = DateTimeFormatter.ofPattern("MMMM d, yyyy")
 
 private fun fullDate(iso: String?): String? = iso?.let {
     runCatching { Instant.parse(it).atZone(ZoneId.systemDefault()).format(FULL_DATE) }
         .getOrNull()
+}
+
+/**
+ * #490: "today" / "yesterday" / "on 12 July".
+ *
+ * A relative day rather than a timestamp: the reader's question is "is this
+ * still happening?", and "yesterday" answers it where an ISO string makes them
+ * work it out. Past a couple of days the date is the more useful answer,
+ * because by then the question has become "how long has this been going on".
+ */
+private val DAY_MONTH = DateTimeFormatter.ofPattern("d MMMM")
+
+private fun relativeDay(iso: String?): String? = iso?.let {
+    runCatching {
+        val zone = ZoneId.systemDefault()
+        val then = Instant.parse(it).atZone(zone).toLocalDate()
+        when (val days = java.time.temporal.ChronoUnit.DAYS.between(then, java.time.LocalDate.now(zone))) {
+            in Long.MIN_VALUE..0L -> "today"
+            1L -> "yesterday"
+            else -> {
+                @Suppress("UNUSED_EXPRESSION") days
+                "on " + then.format(DAY_MONTH)
+            }
+        }
+    }.getOrNull()
 }
 
 /**
@@ -61,6 +88,9 @@ fun BillingSection(
     val canManage = SettingsRoleGate.canManageBilling(scope.role)
 
     StatusNotices(scope, company, canManage)
+    // #490: directly under the notice that says the line is off, because it is
+    // the consequence of that sentence rather than a separate topic.
+    MissedWhileOffNote(scope, company)
     PlanCard(scope, company, canManage, onRefreshCompany)
     if (canManage && company.plan != null && company.subscriptionActive) {
         ModulesCard(scope)
@@ -128,6 +158,61 @@ private fun PortalButton(
             }
         }
         InlineError(error)
+    }
+}
+
+/**
+ * #490 — how many customers rang while the line could not take them.
+ *
+ * Shown only on a workspace whose subscription is not active, and only when the
+ * number is greater than zero. It is the argument for coming back with evidence
+ * attached: before this the business was never told those calls had happened.
+ *
+ * WHAT THIS IS NOT: a scare banner. It does not use the word "lost". The reader
+ * has almost certainly stopped paying because money is tight, and a product
+ * that shouts about what their lapse cost them is kicking somebody already
+ * down. The bare number is more persuasive than any sentence we could write
+ * about it.
+ *
+ * Zero renders NOTHING. An empty state here would be an argument AGAINST
+ * reinstating, which is a screen nobody needed us to build. A failed read
+ * renders nothing too — this is a supporting fact on somebody else's screen,
+ * and a billing page showing a broken box looks like the billing is broken.
+ */
+@Composable
+private fun MissedWhileOffNote(scope: SettingsScope, company: CompanyView) {
+    val show = !company.subscriptionActive
+    var missed by remember(show) { mutableStateOf<MissedWhileOff?>(null) }
+    LaunchedEffect(show) {
+        if (show) missed = runCatching { scope.repo.missedWhileOff() }.getOrNull()
+    }
+    val data = missed ?: return
+    if (data.count <= 0) return
+
+    Spacer(Modifier.height(10.dp))
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Text(
+                if (data.count == 1) {
+                    "1 customer called while your number was off"
+                } else {
+                    "${data.count} customers called while your number was off"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                "They heard that the number isn't taking calls." +
+                    (relativeDay(data.last_at)?.let { " The most recent was $it." } ?: ""),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
