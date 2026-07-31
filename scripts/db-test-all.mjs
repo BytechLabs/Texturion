@@ -108,6 +108,7 @@ const SUITES = [
   "voicemail_intake",
   "retention_cohorts",
   "contact_timeline",
+  "attachment_quarantine",
 ];
 
 const args = process.argv.slice(2);

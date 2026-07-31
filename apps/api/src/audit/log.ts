@@ -125,7 +125,16 @@ export type AuditAction =
   // The departing-employee signature (#231: "bulk-export alarm")
   | "contacts.imported"
   | "contacts.exported"
-  | "contacts.bulk_deleted";
+  | "contacts.bulk_deleted"
+  /**
+   * #317: a member pulled a file back for the whole workspace, or an owner let
+   * it go again. Recorded because it is one member's judgement overriding
+   * everybody else's access — the same reason `member.sessions_revoked` is
+   * here — and because "who stopped this, and when" is the first question
+   * asked afterwards, whichever way the call turns out to have been.
+   */
+  | "attachment.quarantined"
+  | "attachment.released";
 
 export interface AuditEntry {
   companyId: string;

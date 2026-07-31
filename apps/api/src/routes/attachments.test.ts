@@ -1315,3 +1315,180 @@ describe("#106 number access — attachments never leak a hidden number", () => 
     expect(sb.find("POST", "/rest/v1/rpc/member_number_levels")).toHaveLength(0);
   });
 });
+
+/**
+ * #317 — the reporting path.
+ *
+ * The scan (D101) stops what it can recognise and is explicitly not antivirus.
+ * When something gets past it the person who notices is a tech holding a phone,
+ * and the only useful thing they can do has to reach the whole workspace: by
+ * then the file is in the office manager's inbox too.
+ */
+describe("POST /v1/attachments/:id/report — a member pulls a file back for everyone", () => {
+  it("quarantines an uploaded file and records who did it", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/attachments", () => [
+      { conversation_id: CONV_ID, quarantined_at: null },
+    ]);
+    sb.on("PATCH", "/rest/v1/attachments", () => [{ id: ATTACHMENT_ID }]);
+    sb.on("POST", "/rest/v1/audit_log", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}/report`,
+      { companyId: COMPANY_ID, method: "POST", body: { note: "looks wrong" } },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ quarantined: true });
+
+    const patch = sb.find("PATCH", "/rest/v1/attachments")[0];
+    // Company-scoped, and guarded on still-unquarantined so two techs racing
+    // produce one stamp rather than overwriting each other's.
+    expect(patch.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(patch.url.searchParams.get("quarantined_at")).toBe("is.null");
+    expect(patch.body).toMatchObject({
+      // The reporter is recorded, because "who stopped this" is the first
+      // question afterwards whichever way the call turns out to have been.
+      quarantined_by_user_id: auth.subject,
+      quarantine_note: "looks wrong",
+    });
+
+    // One member's judgement overriding everybody else's access is exactly the
+    // kind of thing "who did this, and when" gets asked about afterwards.
+    const audit = sb.find("POST", "/rest/v1/audit_log")[0];
+    expect((audit.body as { action: string }).action).toBe("attachment.quarantined");
+  });
+
+  it("reports a customer's texted-in file too, not just uploads", async () => {
+    // The inbound half is the one #317 calls uncontrolled — anyone who knows a
+    // number printed on a truck can send a file. A reporter has an id and no
+    // idea which table it came from, and should not have to.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/attachments", () => []);
+    sb.on("GET", "/rest/v1/message_attachments", () => [
+      { message_id: NOTE_ID, quarantined_at: null },
+    ]);
+    sb.on("PATCH", "/rest/v1/message_attachments", () => [{ id: ATTACHMENT_ID }]);
+    sb.on("POST", "/rest/v1/audit_log", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}/report`,
+      { companyId: COMPANY_ID, method: "POST", body: {} },
+    );
+    expect(res.status).toBe(200);
+    expect(sb.find("PATCH", "/rest/v1/message_attachments")).toHaveLength(1);
+  });
+
+  it("is idempotent — the second person to flag it is doing the right thing", async () => {
+    // Two techs flagging the same file within a minute of each other is the
+    // NORMAL case. An error there teaches people not to bother.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/attachments", () => [
+      { conversation_id: CONV_ID, quarantined_at: "2026-07-31T00:00:00+00:00" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}/report`,
+      { companyId: COMPANY_ID, method: "POST", body: {} },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ quarantined: true });
+    // Nothing written a second time.
+    expect(sb.find("PATCH", "/rest/v1/attachments")).toHaveLength(0);
+  });
+
+  it("stops the download for EVERYONE, with a reason rather than a 404", async () => {
+    // A 404 would read as "we lost your photo" and send somebody looking for a
+    // bug. The file plainly exists; it is on hold.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/attachments", () => [
+      {
+        storage_path: `${COMPANY_ID}/note/${NOTE_ID}/uuid-invoice.pdf`,
+        size_bytes: 2048,
+        conversation_id: CONV_ID,
+        content_type: "application/pdf",
+        quarantined_at: "2026-07-31T00:00:00+00:00",
+      },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}/url`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(403);
+    expect((await res.json()).error.message).toContain("on hold");
+    // Refused BEFORE signing: no URL was ever minted for a held file.
+    expect(sb.find("POST", /^\/storage\/v1\/object\/sign\//)).toHaveLength(0);
+  });
+
+  it("refuses a note longer than the timeline can carry", async () => {
+    const sb = stubWithRole("member");
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}/report`,
+      { companyId: COMPANY_ID, method: "POST", body: { note: "x".repeat(281) } },
+    );
+    expect(res.status).toBe(422);
+  });
+});
+
+describe("POST /v1/attachments/:id/release — standing it down is a different call", () => {
+  it("lets an admin release, and records it", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/attachments", () => [
+      { conversation_id: CONV_ID, quarantined_at: "2026-07-31T00:00:00+00:00" },
+    ]);
+    sb.on("PATCH", "/rest/v1/attachments", () => [{ id: ATTACHMENT_ID }]);
+    sb.on("POST", "/rest/v1/audit_log", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}/release`,
+      { companyId: COMPANY_ID, method: "POST" },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ quarantined: false });
+    expect(sb.find("PATCH", "/rest/v1/attachments")[0].body).toMatchObject({
+      quarantined_at: null,
+    });
+    expect(
+      (sb.find("POST", "/rest/v1/audit_log")[0].body as { action: string }).action,
+    ).toBe("attachment.released");
+  });
+
+  it("does NOT let an ordinary member release what they or a teammate flagged", async () => {
+    // The asymmetry is the point: raising the alarm belongs to whoever is
+    // holding the phone, standing it down belongs to whoever answers for it.
+    const sb = stubWithRole("member");
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/attachments/${ATTACHMENT_ID}/release`,
+      { companyId: COMPANY_ID, method: "POST" },
+    );
+    expect(res.status).toBe(403);
+  });
+});

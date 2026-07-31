@@ -54,6 +54,7 @@ import {
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
+import { recordAuditFromRequest } from "../audit/log";
 import { ApiError, errorResponse } from "../http/errors";
 import { dispositionOptions } from "../storage/disposition";
 import {
@@ -143,7 +144,220 @@ function parseStorageClaim(data: unknown): z.infer<typeof storageClaimSchema> {
   return result.data;
 }
 
+/**
+ * #317: the response when a reported file is asked for.
+ *
+ * `forbidden`, not `not_found`. The file plainly exists — the crew can see it
+ * in the gallery — and a 404 would read as "we lost your photo", sending
+ * somebody to look for a bug instead of telling them what happened. SPEC §7
+ * fixes the code set at ten, so this is the honest member of it.
+ */
+function quarantined(c: Context) {
+  return errorResponse(
+    c,
+    "forbidden",
+    "Someone on your team reported this file, so it's on hold. An owner or " +
+      "admin can release it.",
+  );
+}
+
+interface ResolvedAttachment {
+  table: "attachments" | "message_attachments";
+  quarantinedAt: string | null;
+  conversationId: string | null;
+  messageId: string | null;
+}
+
+/**
+ * Find one attachment by id across BOTH tables, the way the mint route does.
+ *
+ * The two arms exist because a file can arrive two ways — uploaded to a note,
+ * or texted in by a customer — and #317 is about the second at least as much
+ * as the first. Somebody reporting a file has an id and no idea which table it
+ * came from, and should not have to.
+ */
+async function resolveAttachment(
+  db: Db,
+  companyId: string,
+  id: string,
+): Promise<ResolvedAttachment | null> {
+  const generic = unwrap<
+    { conversation_id: string | null; quarantined_at: string | null }[]
+  >(
+    await db
+      .from("attachments")
+      .select("conversation_id,quarantined_at")
+      .eq("company_id", companyId)
+      .eq("id", id)
+      .is("deleted_at", null)
+      .limit(1),
+    "attachment quarantine lookup",
+  );
+  if (generic[0]) {
+    return {
+      table: "attachments",
+      quarantinedAt: generic[0].quarantined_at,
+      conversationId: generic[0].conversation_id,
+      messageId: null,
+    };
+  }
+  const mms = unwrap<{ message_id: string; quarantined_at: string | null }[]>(
+    await db
+      .from("message_attachments")
+      .select("message_id,quarantined_at")
+      .eq("company_id", companyId)
+      .eq("id", id)
+      .limit(1),
+    "mms quarantine lookup",
+  );
+  if (mms[0]) {
+    return {
+      table: "message_attachments",
+      quarantinedAt: mms[0].quarantined_at,
+      conversationId: null,
+      messageId: mms[0].message_id,
+    };
+  }
+  return null;
+}
+
+const reportSchema = z.object({
+  /**
+   * The reporter's own words, for whoever decides whether to release it.
+   * Optional because the report has to be one tap — a required field is how a
+   * safety control becomes something people do not bother with.
+   */
+  note: z.string().trim().max(280).optional(),
+});
+
 export const attachmentsRoutes = new Hono<AppEnv>();
+
+/**
+ * POST /v1/attachments/:id/report — a member pulls a file back for EVERYONE.
+ *
+ * The scan (D101) stops what it can recognise and is explicitly not antivirus.
+ * When something gets past it, the person who notices is a tech looking at a
+ * file that does not smell right, and the only useful thing they can do has to
+ * affect the whole workspace: by then it is in the office manager's inbox too.
+ *
+ * ANY MEMBER, deliberately. This is the fire alarm. Behind owner-only it would
+ * mean the person who spotted the problem cannot stop it, which is how you get
+ * somebody opening the file to "check" while they wait. It destroys nothing, an
+ * owner can reverse it, and both directions are audited.
+ */
+attachmentsRoutes.post(
+  "/attachments/:id/report",
+  requireRole("member"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+
+    const raw = await c.req.json().catch(() => ({}));
+    const parsed = reportSchema.safeParse(raw ?? {});
+    if (!parsed.success) {
+      throw new ApiError("validation_failed", "note: 280 characters at most.");
+    }
+
+    const found = await resolveAttachment(db, companyId, id);
+    if (!found) return errorResponse(c, "not_found", "No such attachment.");
+
+    // #106: this reads and mutates a file on a conversation, so the
+    // number-access gate applies exactly as it does to the mint. Without it a
+    // member with no access to a number could quarantine its files by id.
+    if (found.conversationId) {
+      await assertConversationVisible(db, c, found.conversationId);
+    } else if (found.messageId) {
+      await assertMmsVisible(db, c, found.messageId);
+    }
+
+    // Idempotent. Two techs flagging the same file within a minute of each
+    // other is the NORMAL case, and the second one must not get an error for
+    // doing the right thing.
+    if (!found.quarantinedAt) {
+      const stamped = unwrap<{ id: string }[]>(
+        await db
+          .from(found.table)
+          .update({
+            quarantined_at: new Date().toISOString(),
+            quarantined_by_user_id: c.get("userId"),
+            quarantine_note: parsed.data.note ?? null,
+          })
+          .eq("company_id", companyId)
+          .eq("id", id)
+          .is("quarantined_at", null)
+          .select("id"),
+        "attachment quarantine",
+      );
+      // Losing that race means somebody else quarantined it first, which is
+      // the outcome we wanted anyway.
+      if (stamped[0]) {
+        await recordAuditFromRequest(db, c, {
+          companyId,
+          action: "attachment.quarantined",
+          targetType: "attachment",
+          targetId: id,
+          after: { table: found.table, note: parsed.data.note ?? null },
+        });
+      }
+    }
+
+    return c.json({ id, quarantined: true });
+  },
+);
+
+/**
+ * POST /v1/attachments/:id/release — an owner or admin decides it was fine.
+ *
+ * Admin, unlike reporting, and the asymmetry is the point: raising the alarm
+ * has to be available to whoever is holding the phone; standing it down is a
+ * judgement about risk that belongs with whoever answers for it.
+ */
+attachmentsRoutes.post(
+  "/attachments/:id/release",
+  requireRole("admin"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+
+    const found = await resolveAttachment(db, companyId, id);
+    if (!found) return errorResponse(c, "not_found", "No such attachment.");
+    if (found.conversationId) {
+      await assertConversationVisible(db, c, found.conversationId);
+    } else if (found.messageId) {
+      await assertMmsVisible(db, c, found.messageId);
+    }
+
+    if (found.quarantinedAt) {
+      const cleared = unwrap<{ id: string }[]>(
+        await db
+          .from(found.table)
+          .update({
+            quarantined_at: null,
+            quarantined_by_user_id: null,
+            quarantine_note: null,
+          })
+          .eq("company_id", companyId)
+          .eq("id", id)
+          .not("quarantined_at", "is", null)
+          .select("id"),
+        "attachment release",
+      );
+      if (cleared[0]) {
+        await recordAuditFromRequest(db, c, {
+          companyId,
+          action: "attachment.released",
+          targetType: "attachment",
+          targetId: id,
+          before: { table: found.table, quarantined_at: found.quarantinedAt },
+        });
+      }
+    }
+
+    return c.json({ id, quarantined: false });
+  },
+);
 
 attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
   const companyId = c.get("companyId");
@@ -511,11 +725,12 @@ attachmentsRoutes.get(
         size_bytes: number | null;
         conversation_id: string | null;
         content_type: string | null;
+        quarantined_at: string | null;
       }[]
     >(
       await db
         .from("attachments")
-        .select("storage_path,size_bytes,conversation_id,content_type")
+        .select("storage_path,size_bytes,conversation_id,content_type,quarantined_at")
         .eq("company_id", companyId)
         .eq("id", id)
         .is("deleted_at", null)
@@ -523,6 +738,11 @@ attachmentsRoutes.get(
       "generic attachment lookup",
     );
     if (generic[0]) {
+      // #317: a reported file stops downloading for EVERYONE. The mint is the
+      // right place for that because every download in this product goes
+      // through one — there is no side door — and mints are short-lived (D19
+      // §2.5), so the window on any URL already in flight closes on its own.
+      if (generic[0].quarantined_at) return quarantined(c);
       // #106: gate the mint on access to the owning conversation's number —
       // a signed URL is the whole payload, so a hidden number must 404 here.
       await assertConversationVisible(db, c, generic[0].conversation_id);
@@ -559,17 +779,19 @@ attachmentsRoutes.get(
         size_bytes: number | null;
         message_id: string;
         content_type: string | null;
+        quarantined_at: string | null;
       }[]
     >(
       await db
         .from("message_attachments")
-        .select("storage_path,size_bytes,message_id,content_type")
+        .select("storage_path,size_bytes,message_id,content_type,quarantined_at")
         .eq("company_id", companyId)
         .eq("id", id)
         .limit(1),
       "mms attachment lookup",
     );
     if (mms[0]) {
+      if (mms[0].quarantined_at) return quarantined(c);
       // #106: an MMS image on a hidden number must not be signable. Resolve the
       // media's conversation (message → conversation) only when the caller is
       // actually restricted — unrestricted callers skip the extra lookup.
