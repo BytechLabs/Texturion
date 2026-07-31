@@ -270,14 +270,49 @@ describe("app-scope guardrails in globals.css", () => {
   // The VALUE changes when the app converges on olive; asserting it at all is
   // what stops the accent drifting silently, which is why it moved rather than
   // being deleted.
-  it("#26/#362 — the app scope anchors its accent and fill on one declared pair", () => {
-    // Olive, per the owner's decision on #362. ONE value serves both jobs:
-    // #3a430f clears AA as text on every ground (9.48 on ground, 10.35 on
-    // paper) AND takes a paper label as a fill (10.35). That is why the repaint
-    // needed no call-site edits — every `bg-primary` and `text-primary` kept
-    // its class and landed on a compliant pair.
-    expect(css).toMatch(/\.app-scope[\s\S]*?--primary:\s*#3a430f/i);
-    expect(css).toMatch(/--app-olive-accent:\s*#3a430f/i);
+  it("#494 — the accent is NEUTRAL, so nothing but lime carries a hue", () => {
+    // The owner's decision on #494: "Majority of the colors throughout the
+    // website and apps should be neutrals, blacks, white, grey etc. Only use
+    // lime as the brand/accent color."
+    //
+    // Pinned as a PROPERTY rather than a literal. #362's version of this test
+    // hardcoded #3a430f, which meant the guard had to be edited before the
+    // palette could move — a test that pins a value becomes a ceiling instead
+    // of a tripwire. What actually matters is that the accent has no hue: it is
+    // a shape and a weight, not a colour.
+    const theme = block(".app-scope");
+    for (const name of ["--primary", "--app-olive-accent", "--ring"]) {
+      const value = token(theme, name);
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(value.slice(i, i + 2), 16));
+      const spread = Math.max(r, g, b) - Math.min(r, g, b);
+      expect(
+        spread,
+        `${name} ${value} carries a hue (channel spread ${spread})`,
+      ).toBeLessThanOrEqual(6);
+    }
+  });
+
+  it("#494 — lime is the one hue, and it is a FILL", () => {
+    // The rule that survived from #362 (D100): a colour is a fill OR a label,
+    // never both. Lime is bright — it can only ever carry a dark label, and it
+    // can never BE a label on paper.
+    const theme = block(".app-scope");
+    const lime = token(theme, "--app-lime");
+    const onLime = token(theme, "--app-lime-foreground");
+    expect(
+      contrast(onLime, lime),
+      `on-lime ${onLime} on ${lime}`,
+    ).toBeGreaterThanOrEqual(AA);
+    // And it is unmistakably LIME rather than the yellow-green it replaced —
+    // green dominant by a clear margin, which is the difference the owner
+    // actually reported seeing ("more yellow than green/lime").
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(lime.slice(i, i + 2), 16));
+    expect(g, `lime ${lime} should be green-dominant over red`).toBeGreaterThan(
+      r + 20,
+    );
+    expect(g, `lime ${lime} should be green-dominant over blue`).toBeGreaterThan(
+      b + 20,
+    );
   });
 
   it("#362 — no petrol or cobalt survives inside the app scope", () => {

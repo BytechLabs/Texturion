@@ -26,16 +26,21 @@ function sourceFiles(dir: string): string[] {
 describe("globals.css — the --fr-* system (direction §2)", () => {
   it("defines every v4 token at the direction's exact value", () => {
     const expected: Record<string, string> = {
-      // #362 — Paper & Olive. The token NAMES still say "fr"/"cobalt";
-      // renaming them is phase 9 and deliberately separate, so the repaint
-      // stayed a value change these assertions could gate end to end.
-      "--fr-ground": "#f3f3ee",
-      "--fr-card": "#fdfdf9",
-      "--fr-ink": "#191b14",
-      "--fr-ink-70": "#4a4d3c",
-      "--fr-ink-55": "#5c5f4e",
-      "--fr-olive": "#3a430f",
-      "--fr-olive-deep": "#191b14",
+      // #494 — the neutral repaint. "Majority of the colors throughout the
+      // website and apps should be neutrals, blacks, white, grey etc. Only use
+      // lime as the brand/accent color."
+      //
+      // Each value is the GREY OF THE SAME WCAG LUMINANCE as the Paper & Olive
+      // value it replaces, which is why every contrast assertion in this repo
+      // held through the swap without being touched. The token NAMES still say
+      // "fr"/"olive"; renaming them is its own change.
+      "--fr-ground": "#f3f3f3",
+      "--fr-card": "#fdfdfd",
+      "--fr-ink": "#1a1a1a",
+      "--fr-ink-70": "#4b4b4b",
+      "--fr-ink-55": "#5d5d5d",
+      "--fr-olive": "#1a1a1a",
+      "--fr-olive-deep": "#1a1a1a",
       // Semantic, not identity — deliberately still green so "handled" and
       // "brand" are not the same colour.
       "--fr-green": "#0b7a50",
@@ -44,7 +49,7 @@ describe("globals.css — the --fr-* system (direction §2)", () => {
       // whitelist permits display figures (LARGE text, 3:1), and the rendered
       // audit caught the calculator's $1,353 at 2.96:1 on the Frost band.
       "--fr-flare": "#d5643d",
-      "--fr-frost": "#f0f0e8",
+      "--fr-frost": "#efefef",
     };
     for (const [token, hex] of Object.entries(expected)) {
       expect(css, `${token} must be ${hex}`).toMatch(

@@ -45,10 +45,14 @@ export function CtaButton({
     size === "lg" ? "px-8 py-4 text-base" : "px-7 py-3.5 text-[0.9375rem]",
   );
   const variants = {
+    // #494: the ONE lime moment on a marketing page. Everything around it is
+    // neutral, which is what lets a single fill carry the brand — an accent
+    // used on every surface stops being an accent and becomes a cast, which is
+    // what the olive palette had become.
     primary: cn(
-      "bg-[color:var(--fr-olive)] text-[color:var(--fr-on-olive)]",
-      "hover:bg-[color:var(--fr-olive-deep)]",
-      "focus-visible:outline-[color:var(--fr-olive)]",
+      "bg-[color:var(--fr-brand)] text-[color:var(--fr-on-brand)]",
+      "hover:bg-[color:var(--fr-brand-hover)]",
+      "focus-visible:outline-[color:var(--fr-brand)]",
     ),
     secondary: cn(
       "border-[1.5px] border-[color:var(--fr-ink)] bg-transparent text-[color:var(--fr-ink)]",
