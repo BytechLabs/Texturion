@@ -57,6 +57,11 @@ declare
     -- filter on a read leaks rows, and a missing filter here MODIFIES them —
     -- three hundred at a time, on numbers the actor was denied. NA-5 asserts it.
     'api_bulk_conversations',
+    -- #478: the second bulk WRITE surface, here for the same reason as the
+    -- first. It marks tasks done, assigns and deletes them in batches, and a
+    -- missing filter would do that to tasks on numbers the actor was denied.
+    -- NA-6 asserts it.
+    'api_bulk_tasks',
     -- The shared definition behind api_notifications + its badge (#359, the
     -- one-notification-definition refactor). It is not called directly by any
     -- route — both notification surfaces read THROUGH it — which is exactly
@@ -180,6 +185,17 @@ insert into public.messages
   (company_id, conversation_id, direction, body, status, created_at)
 values (:co, :vvis, 'inbound', 'visible line needs a quote', 'received', now()),
        (:co, :vhid, 'inbound', 'hidden line needs a quote', 'received', now());
+
+-- #478: a task on EACH line, so NA-6 has something to refuse. A task hangs off
+-- its source message, and completion is derived from that message's done_at
+-- (T2), so the pair has to exist for the bulk surface to have anything to flip.
+insert into public.tasks
+  (company_id, conversation_id, message_id, title, created_by_user_id)
+select :co, m.conversation_id, m.id,
+       'follow up on ' || m.conversation_id::text, :usr
+  from public.messages m
+ where m.company_id = :co
+   and m.conversation_id in (:vvis, :vhid);
 
 insert into public.call_records
   (company_id, phone_number_id, call_leg_id, leg, caller_e164, billable_seconds)
@@ -378,6 +394,65 @@ begin
   end if;
 
   raise notice 'NA-5 PASSED: the bulk write surface cannot reach a denied number';
+end $$;
+
+-- ===========================================================================
+-- NA-6 [#478] api_bulk_tasks — the same rule, for the other bulk write.
+--
+-- Tasks hang off a conversation, and a conversation has a number. So a task on
+-- a denied number is a task the actor cannot see, and a bulk action must not
+-- reach it — with the same consequence NA-5 names: a missing filter here does
+-- not leak a row, it MODIFIES one, five hundred at a time.
+--
+-- Named-id mode only, deliberately. Unlike the conversations function, this one
+-- takes no filters: the Worker resolves ids with the list's own query builder
+-- and hands them over, so the only way a denied task can arrive is by being
+-- named. That is exactly the case asserted here.
+-- ===========================================================================
+do $$
+declare
+  co     uuid := '36800000-0000-4000-8000-000000000001';
+  usr    uuid := '36800000-0000-4000-8000-000000000002';
+  hidden uuid[] := array['36800000-0000-4000-8000-000000000011']::uuid[];
+  denied_task uuid;
+  res    jsonb;
+begin
+  select t.id into denied_task
+    from public.tasks t
+    join public.conversations c on c.id = t.conversation_id
+   where t.company_id = co
+     and c.phone_number_id = '36800000-0000-4000-8000-000000000011'
+   limit 1;
+
+  -- Guard the guard: with no task on the denied number this assertion would
+  -- pass by having nothing to refuse, which is the vacuous-pass trap NA-3's
+  -- header warns about.
+  if denied_task is null then
+    raise exception 'NA-6 FAILED: no task exists on the denied number, so the '
+      'refusal below would prove nothing';
+  end if;
+
+  -- Unrestricted first, so the refusal is measured against a call that works.
+  res := public.api_bulk_tasks(co, usr, 'mark_done', array[denied_task], null, null);
+  if jsonb_array_length(res -> 'applied') <> 1 then
+    raise exception 'NA-6 FAILED: the unrestricted bulk call reached 0 tasks, so '
+      'the deny assertion proves nothing';
+  end if;
+
+  -- Undo it, so the deny run below is testing the filter and not idempotence.
+  res := public.api_bulk_tasks(co, usr, 'mark_undone', array[denied_task], null, null);
+
+  -- Denied: applied nothing, and SAID so rather than silently dropping it.
+  res := public.api_bulk_tasks(co, usr, 'mark_done', array[denied_task], null, hidden);
+  if jsonb_array_length(res -> 'applied') <> 0 then
+    raise exception 'NA-6 FAILED: a named task on a denied number was written';
+  end if;
+  if jsonb_array_length(res -> 'failed') <> 1 then
+    raise exception 'NA-6 FAILED: the denied task was dropped silently rather '
+      'than reported — the caller would render a count that never happened';
+  end if;
+
+  raise notice 'NA-6 PASSED: the task bulk write cannot reach a denied number';
 end $$;
 
 rollback;
