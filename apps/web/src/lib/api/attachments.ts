@@ -200,3 +200,42 @@ export function useDeleteAttachment() {
     },
   });
 }
+
+/**
+ * POST /v1/attachments/:id/report — #317: pull a file back for the WHOLE
+ * workspace, not just for the person who noticed.
+ *
+ * The scan (D101) stops what it can recognise and is explicitly not antivirus,
+ * so this is the path for what gets past it. It is available to any member on
+ * purpose: behind owner-only, the person holding the phone cannot stop the
+ * thing they just spotted, and waiting is how somebody ends up opening it to
+ * check.
+ *
+ * Every list that can show or sign the file is invalidated, because the point
+ * of reporting is that it disappears for everybody — a report that left the
+ * thumbnail sitting in a teammate's gallery would be theatre.
+ */
+export function useReportAttachment() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation<void, ApiError, { attachmentId: string; note?: string }>({
+    mutationFn: ({ attachmentId, note }) =>
+      apiFetch<void>(`/v1/attachments/${attachmentId}/report`, {
+        method: "POST",
+        companyId,
+        body: note ? { note } : {},
+      }),
+    onSuccess: (_data, { attachmentId }) => {
+      void queryClient.invalidateQueries({
+        queryKey: keys.attachmentUrl(companyId, attachmentId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [companyId, "attachments"],
+      });
+      void queryClient.invalidateQueries({ queryKey: [companyId, "tasks"] });
+      void queryClient.invalidateQueries({
+        queryKey: [companyId, "conversations", "attachments"],
+      });
+    },
+  });
+}

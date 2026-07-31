@@ -63,6 +63,9 @@ struct AttachmentsGalleryView: View {
     // thread's notice channel would be invisible beneath the cover.
     @State private var noticeText: String?
     @State private var noticeDismissTask: Task<Void, Never>?
+    /// #317: the file the crew member is about to report. Nil means no dialog.
+    @State private var reporting: GalleryItem?
+    @State private var reportInFlight = false
 
     @Environment(\.openURL) private var openURL
 
@@ -92,6 +95,31 @@ struct AttachmentsGalleryView: View {
             }
         }
         .background(BrandColor.canvas.ignoresSafeArea())
+        // #317 — reporting affects EVERYONE, so it asks first.
+        //
+        // One beat, not a form. An accidental long-press that pulls a
+        // customer's photo out of the whole crew's view is worth confirming;
+        // anything longer and the person hesitates, and hesitating is how
+        // somebody opens the file instead of flagging it.
+        .confirmationDialog(
+            "Report this file?",
+            isPresented: Binding(
+                get: { reporting != nil },
+                set: { if !$0 { reporting = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Report file", role: .destructive) { confirmReport() }
+            Button("Cancel", role: .cancel) { reporting = nil }
+        } message: {
+            if let reporting {
+                Text(
+                    "Nobody on your team will be able to open "
+                        + "\(galleryFileName(reporting)) until an owner or admin "
+                        + "releases it. Nothing is deleted."
+                )
+            }
+        }
         .task(id: "\(conversationId)|\(refreshKey)") {
             if case .ready = state {} else { state = .loading }
             do {
@@ -200,6 +228,7 @@ struct AttachmentsGalleryView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(item.file_name ?? "Photo")
+                    .contextMenu { reportButton(item) }
                 }
             }
             .padding(.horizontal, 12)
@@ -237,6 +266,7 @@ struct AttachmentsGalleryView: View {
                 }
                 .buttonStyle(.plain)
                 .listRowBackground(BrandColor.canvas)
+                .contextMenu { reportButton(item) }
             }
             if nextCursor != nil {
                 loadMoreRow
@@ -246,6 +276,21 @@ struct AttachmentsGalleryView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+    }
+
+    /// #317 — the one secondary action a gallery item has.
+    ///
+    /// `.contextMenu` on both arms rather than a trailing control on one: a
+    /// thumbnail has no room for a button, long-press is what a phone user
+    /// already reaches for, and using the same modifier in both places means
+    /// the photo and the file behave identically.
+    @ViewBuilder
+    private func reportButton(_ item: GalleryItem) -> some View {
+        Button(role: .destructive) {
+            reporting = item
+        } label: {
+            Label("Report this file", systemImage: "exclamationmark.shield")
+        }
     }
 
     private var loadMoreRow: some View {
@@ -261,6 +306,30 @@ struct AttachmentsGalleryView: View {
             Spacer()
         }
         .padding(.vertical, 8)
+    }
+
+    private func confirmReport() {
+        guard let target = reporting, !reportInFlight else { return }
+        reportInFlight = true
+        // Same shape as loadMore() right below: a bare Task, mutating state
+        // after the await. Matching it rather than inventing a variant keeps
+        // this view's concurrency story one story.
+        Task {
+            do {
+                _ = try await repo.reportAttachment(
+                    companyId: companyId,
+                    attachmentId: target.id
+                )
+                reporting = nil
+                // The point of reporting is that the file leaves everyone's
+                // view, so the gallery reloads rather than keeping the thumbnail.
+                refreshKey += 1
+            } catch {
+                reporting = nil
+                notify("Couldn't report that file. Try again.")
+            }
+            reportInFlight = false
+        }
     }
 
     private func loadMore() {

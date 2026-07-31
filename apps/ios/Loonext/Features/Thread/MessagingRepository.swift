@@ -557,6 +557,20 @@ struct MessagingRepository: Sendable {
         try await api.get("/v1/attachments/\(attachmentId)/url", companyId: companyId)
     }
 
+    /// #317 — pull a file back for the WHOLE workspace.
+    ///
+    /// The scan (D101) stops what it can recognise and is explicitly not
+    /// antivirus, so this is the path for whatever gets past it. Available to
+    /// any member on purpose: behind owner-only, the person holding the phone
+    /// cannot stop the thing they just spotted, and waiting is how somebody
+    /// ends up opening it to check.
+    func reportAttachment(
+        companyId: String,
+        attachmentId: String
+    ) async throws -> AttachmentReport {
+        try await api.post("/v1/attachments/\(attachmentId)/report", companyId: companyId)
+    }
+
     /// One note's live file attachments (renders the note bubble Files section).
     func noteAttachments(companyId: String, noteId: String) async throws -> Page<Attachment> {
         try await api.get(

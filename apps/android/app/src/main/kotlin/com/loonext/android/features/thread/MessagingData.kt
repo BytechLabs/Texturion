@@ -1,6 +1,7 @@
 package com.loonext.android.features.thread
 
 import com.loonext.android.core.model.Attachment
+import com.loonext.android.core.model.AttachmentReport
 import com.loonext.android.core.model.AttachmentUrl
 import com.loonext.android.core.model.ComposeResult
 import com.loonext.android.core.model.BulkConversationsResult
@@ -450,6 +451,21 @@ class MessagingRepository(private val api: ApiClient) {
     /** Mint a short-lived signed URL — call per view, NEVER cache the result. */
     suspend fun attachmentUrl(companyId: String, attachmentId: String): AttachmentUrl =
         api.get("/v1/attachments/$attachmentId/url", companyId = companyId)
+
+    /**
+     * #317 — pull a file back for the WHOLE workspace.
+     *
+     * The scan (D101) stops what it can recognise and is explicitly not
+     * antivirus, so this is the path for whatever gets past it. Available to
+     * any member on purpose: behind owner-only, the person holding the phone
+     * cannot stop the thing they just spotted, and waiting is how somebody ends
+     * up opening it to check.
+     */
+    suspend fun reportAttachment(
+        companyId: String,
+        attachmentId: String,
+    ): AttachmentReport =
+        api.post("/v1/attachments/$attachmentId/report", companyId = companyId)
 
     /** One note's live file attachments (renders the note bubble Files section). */
     suspend fun noteAttachments(companyId: String, noteId: String): Page<Attachment> =

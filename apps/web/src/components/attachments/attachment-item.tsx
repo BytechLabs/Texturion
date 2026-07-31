@@ -1,10 +1,28 @@
 "use client";
 
-import { Download, FileText, ImageOff, Loader2, Trash2 } from "lucide-react";
+import {
+  Download,
+  FileText,
+  ImageOff,
+  Loader2,
+  MoreHorizontal,
+  ShieldAlert,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { useAttachmentUrl } from "@/lib/api/attachments";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  useAttachmentUrl,
+  useReportAttachment,
+} from "@/lib/api/attachments";
+import { ApiError } from "@/lib/api/error";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
@@ -51,25 +69,152 @@ export function AttachmentItem({
     <FileAttachmentRow attachment={attachment} meta={meta} />
   );
 
-  if (!onRemove) return row;
-
+  // #317: the actions menu is on EVERY attachment now, not only the deletable
+  // ones. Reporting matters most for the files nobody here chose — a customer's
+  // texted-in photo, which is exactly the arm that has no delete.
   return (
     <div className="flex items-center gap-1">
       <div className="min-w-0 flex-1">{row}</div>
-      <button
-        type="button"
-        onClick={onRemove}
-        disabled={removing}
-        aria-label={`Delete ${attachmentLabel(attachment)}`}
-        className="tap-target flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-destructive disabled:opacity-50"
-      >
-        {removing ? (
-          <Loader2 className="size-4 animate-spin" strokeWidth={1.75} aria-hidden />
-        ) : (
-          <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
-        )}
-      </button>
+      <AttachmentActions
+        attachment={attachment}
+        onRemove={onRemove}
+        removing={removing}
+      />
     </div>
+  );
+}
+
+/**
+ * #317: is this failure "the file is held" rather than "the mint failed"?
+ *
+ * `forbidden` is unambiguous on this route. A file hidden by number access
+ * (#106) returns not_found on purpose — hiding its existence — so the only way
+ * to get a 403 from the URL mint is a reported file.
+ */
+function heldReason(error: unknown): string | null {
+  return error instanceof ApiError && error.code === "forbidden"
+    ? error.message
+    : null;
+}
+
+/**
+ * #317: the file was reported, so it is on hold for the whole workspace.
+ *
+ * This is NOT the generic error row. The distinction is the point: a failed
+ * mint is "try again", and a hold is "somebody stopped this on purpose".
+ * Offering Retry here would invite a crew member to keep tapping at a thing
+ * that is working exactly as intended, and — worse — read as a glitch rather
+ * than as a decision a teammate made.
+ */
+function HeldRow({ label, reason }: { label: string; reason: string }) {
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-app-amber-line bg-app-amber-bg px-3 py-2.5">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-app-amber-bg text-app-amber">
+        <ShieldAlert className="size-4" strokeWidth={1.75} aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm text-app-amber-ink">{label}</span>
+        <span className="block text-[11px] leading-[1.5] text-app-amber-ink/80">
+          {reason}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+/**
+ * The trailing controls, collapsed into one overflow menu.
+ *
+ * Report is on every attachment; Delete exists only where the API can actually
+ * delete (generic rows, never a customer's MMS). Two trailing icon buttons on a
+ * row this compact is clutter, and the second one arriving is exactly the
+ * moment to collapse them — so both live behind the triple dot and the row
+ * keeps one visual job.
+ *
+ * Reporting asks first. It affects everyone, and an accidental tap that pulls a
+ * customer's photo from the whole crew's view is worth one deliberate beat —
+ * but only one, because hesitation is how somebody ends up opening the file
+ * instead of flagging it.
+ */
+function AttachmentActions({
+  attachment,
+  onRemove,
+  removing,
+}: {
+  attachment: AttachmentLike;
+  onRemove?: () => void;
+  removing: boolean;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const report = useReportAttachment();
+  const label = attachmentLabel(attachment);
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={`Actions for ${label}`}
+            className="tap-target flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground"
+          >
+            {removing || report.isPending ? (
+              <Loader2 className="size-4 animate-spin" strokeWidth={1.75} aria-hidden />
+            ) : (
+              <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden />
+            )}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => setConfirming(true)}>
+            <ShieldAlert className="size-4" strokeWidth={1.75} aria-hidden />
+            Report this file
+          </DropdownMenuItem>
+          {onRemove && (
+            <DropdownMenuItem onSelect={onRemove} disabled={removing}>
+              <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
+              Delete
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={confirming} onOpenChange={setConfirming}>
+        <DialogContent className="max-w-md">
+          <DialogTitle>Report this file?</DialogTitle>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Nobody on your team will be able to open{" "}
+            <span className="text-foreground">{label}</span> until an owner or
+            admin releases it. Nothing is deleted.
+          </p>
+          {report.isError && (
+            <p className="text-sm text-destructive">{report.error.message}</p>
+          )}
+          <div className="mt-2 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={report.isPending}
+              onClick={() =>
+                report.mutate(
+                  { attachmentId: attachment.id },
+                  { onSuccess: () => setConfirming(false) },
+                )
+              }
+              className="rounded-md bg-destructive px-3 py-2 text-sm font-medium text-white transition-colors duration-150 ease-out hover:opacity-90 disabled:opacity-50"
+            >
+              {report.isPending ? "Reporting…" : "Report file"}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -90,6 +235,9 @@ function ImageAttachmentRow({
   const [open, setOpen] = useState(false);
   const label = attachmentLabel(attachment);
   const size = formatBytes(attachment.size_bytes);
+
+  const imageHeld = heldReason(url.error);
+  if (imageHeld) return <HeldRow label={label} reason={imageHeld} />;
 
   if (url.isError) {
     return (
@@ -178,6 +326,9 @@ function FileAttachmentRow({
   const size = formatBytes(attachment.size_bytes);
   const typeLabel =
     attachment.content_type?.split("/").pop()?.toUpperCase() ?? "File";
+
+  const fileHeld = heldReason(url.error);
+  if (fileHeld) return <HeldRow label={label} reason={fileHeld} />;
 
   if (url.isError) {
     return (

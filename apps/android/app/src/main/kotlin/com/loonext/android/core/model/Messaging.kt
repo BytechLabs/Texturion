@@ -274,6 +274,14 @@ data class Template(
 @Serializable
 data class AttachmentUrl(val url: String, val expires_at: String)
 
+/**
+ * POST /v1/attachments/:id/report — #317. The response is the resulting state
+ * rather than an ack, so a second report (which is a no-op, because two techs
+ * flagging the same file is the normal case) still answers with the truth.
+ */
+@Serializable
+data class AttachmentReport(val id: String, val quarantined: Boolean)
+
 /** A generic (note/task) attachment row (D19; upload door is notes-only). */
 @Serializable
 data class Attachment(

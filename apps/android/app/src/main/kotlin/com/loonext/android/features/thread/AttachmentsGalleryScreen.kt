@@ -1,8 +1,11 @@
 package com.loonext.android.features.thread
 
 import android.content.Intent
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,8 +26,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
@@ -39,6 +46,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -87,6 +95,10 @@ internal fun AttachmentsGalleryScreen(
     var view by remember { mutableStateOf(GalleryView.Images) }
     var loadingMore by remember(conversationId) { mutableStateOf(false) }
     var refreshKey by remember(conversationId) { mutableIntStateOf(0) }
+    // #317: the file the crew member is about to report, and whether the call
+    // is in flight. Null means no dialog.
+    var reporting by remember(conversationId) { mutableStateOf<GalleryItem?>(null) }
+    var reportInFlight by remember(conversationId) { mutableStateOf(false) }
 
     val cacheKey = CacheKeys.gallery(companyId, conversationId)
     val state = rememberCacheFirst(
@@ -217,6 +229,7 @@ internal fun AttachmentsGalleryScreen(
                         loadingMore = loadingMore,
                         onLoadMore = ::loadMore,
                         onOpen = ::openExternally,
+                        onReport = { reporting = it },
                     )
                 } else {
                     FilesList(
@@ -225,10 +238,59 @@ internal fun AttachmentsGalleryScreen(
                         loadingMore = loadingMore,
                         onLoadMore = ::loadMore,
                         onOpen = ::openExternally,
+                        onReport = { reporting = it },
                     )
                 }
             }
         }
+    }
+
+    // #317 — reporting affects EVERYONE, so it asks first.
+    //
+    // One beat, not a form. An accidental tap that pulls a customer's photo out
+    // of the whole crew's view is worth confirming; anything longer and the
+    // person hesitates, and hesitating is how somebody opens the file instead
+    // of flagging it.
+    reporting?.let { target ->
+        AlertDialog(
+            onDismissRequest = { reporting = null },
+            title = { Text("Report this file?") },
+            text = {
+                Text(
+                    "Nobody on your team will be able to open " +
+                        "${galleryFileName(target)} until an owner or admin " +
+                        "releases it. Nothing is deleted.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !reportInFlight,
+                    onClick = {
+                        reportInFlight = true
+                        scope.launch {
+                            runCatching { repo.reportAttachment(companyId, target.id) }
+                                .onSuccess {
+                                    reportInFlight = false
+                                    reporting = null
+                                    refreshKey++
+                                }
+                                .onFailure {
+                                    reportInFlight = false
+                                    reporting = null
+                                    Toast.makeText(
+                                        context,
+                                        "Couldn't report that file. Try again.",
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                        }
+                    },
+                ) { Text(if (reportInFlight) "Reporting…" else "Report file") }
+            },
+            dismissButton = {
+                TextButton(onClick = { reporting = null }) { Text("Cancel") }
+            },
+        )
     }
 }
 
@@ -238,6 +300,7 @@ private data class GallerySnapshot(
     val nextCursor: String?,
 )
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ImagesGrid(
     items: List<GalleryItem>,
@@ -245,6 +308,7 @@ private fun ImagesGrid(
     loadingMore: Boolean,
     onLoadMore: () -> Unit,
     onOpen: (GalleryItem) -> Unit,
+    onReport: (GalleryItem) -> Unit,
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
@@ -264,7 +328,13 @@ private fun ImagesGrid(
                 modifier = Modifier
                     .aspectRatio(1f)
                     .clip(RoundedCornerShape(8.dp))
-                    .clickable { onOpen(item) },
+                    // #317: a thumbnail has no room for a menu, and long-press
+                    // is what a phone user already reaches for on one.
+                    .combinedClickable(
+                        onClick = { onOpen(item) },
+                        onLongClick = { onReport(item) },
+                        onLongClickLabel = "Report this photo",
+                    ),
             )
         }
         if (nextCursor != null) {
@@ -282,6 +352,7 @@ private fun FilesList(
     loadingMore: Boolean,
     onLoadMore: () -> Unit,
     onOpen: (GalleryItem) -> Unit,
+    onReport: (GalleryItem) -> Unit,
 ) {
     LazyColumn(Modifier.fillMaxSize()) {
         items(items, key = { it.id }) { item ->
@@ -314,6 +385,27 @@ private fun FilesList(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                // #317: the one secondary action this row has, behind the
+                // triple dot so the row keeps a single visual job.
+                var menuOpen by rememberSaveable(item.id) { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(
+                            Icons.Default.MoreVert,
+                            contentDescription = "Actions for ${galleryFileName(item)}",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Report this file") },
+                            onClick = {
+                                menuOpen = false
+                                onReport(item)
+                            },
+                        )
+                    }
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

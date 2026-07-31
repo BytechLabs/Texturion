@@ -272,6 +272,14 @@ struct AttachmentUrl: Codable, Sendable {
     let expires_at: String
 }
 
+/// POST /v1/attachments/:id/report — #317. The response is the resulting state
+/// rather than an ack, so a second report (a no-op, because two techs flagging
+/// the same file is the normal case) still answers with the truth.
+struct AttachmentReport: Codable, Sendable {
+    let id: String
+    let quarantined: Bool
+}
+
 /// A generic (note/task) attachment row (D19; upload door is notes-only).
 struct Attachment: Codable, Sendable {
     let id: String
