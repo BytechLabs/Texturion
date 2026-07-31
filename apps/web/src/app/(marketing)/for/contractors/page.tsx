@@ -1,6 +1,6 @@
 /**
  * /for/contractors (trades crew), v4 "FIRST RESPONSE". COPY-DECK v2
- * §/for/contractors: dateline 8:02 AM · CHANGE ORDER, H1 "The text inbox for
+ * §/for/contractors: dateline 8:02 AM · CHANGE ORDER, H1 "One line for the whole
  * contracting crews.", pain H2 "The change order is in a text thread on your
  * estimator's phone.", the homeowner-change-request script (filed against
  * the job, assigned, confirmed in writing, with the request carrying the
@@ -28,7 +28,7 @@ const PATH = "/for/contractors";
 export const metadata: Metadata = buildMetadata({
   title: "Texting app for contractors and builders",
   description:
-    "A shared text inbox for contractors: change orders priced and approved in writing, subs coordinated on your business number, off your personal cell. Flat $29/mo.",
+    "One business line for contractors: change orders priced and approved in writing, subs coordinated on your business number, off your personal cell. Texts, calls and voicemail, flat $29/mo.",
   path: PATH,
 });
 

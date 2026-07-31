@@ -1,6 +1,6 @@
 /**
  * /for/salons (trades crew), v4 "FIRST RESPONSE". COPY-DECK v2 §/for/salons:
- * dateline 11:20 AM · RUNNING LATE, H1 "The text inbox for your front desk,
+ * dateline 11:20 AM · RUNNING LATE, H1 "A front desk,
  * even if you don't have one.", pain H2 about the empty chair and the
  * running-late text on a personal phone, the reschedule-between-stylists
  * script, and the v2 use cases (confirmations, waitlist fills, aftercare
@@ -25,7 +25,7 @@ const PATH = "/for/salons";
 export const metadata: Metadata = buildMetadata({
   title: "Text messaging for salons and barbershops",
   description:
-    "A shared text inbox for salons: confirm appointments to cut no-shows, fill cancellations from your waitlist, and follow up after the visit. Flat $29/mo.",
+    "One business line for salons: confirm appointments to cut no-shows, fill cancellations from your waitlist, and answer the booking calls as a floor. Texts, calls and voicemail, flat $29/mo.",
   path: PATH,
 });
 

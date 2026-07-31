@@ -1,6 +1,6 @@
 /**
  * /for/landscapers (trades crew), v4 "FIRST RESPONSE". COPY-DECK v2
- * §/for/landscapers: dateline 7:15 AM · GATE LOCKED, H1 "The text inbox for
+ * §/for/landscapers: dateline 7:15 AM · GATE LOCKED, H1 "One line for the whole
  * landscaping crews.", pain H2 "You can't answer the phone from the top of a
  * mower.", the gate-code script with the "add the back beds this week?"
  * upsell, and the v2 use cases (weather reschedules in two taps,
@@ -23,7 +23,7 @@ const PATH = "/for/landscapers";
 export const metadata: Metadata = buildMetadata({
   title: "Texting software for landscaping businesses",
   description:
-    "A shared text inbox for landscaping crews: quote from a yard photo, keep every gate code with the property, reschedule around the weather. Flat $29/mo.",
+    "One business line for landscaping crews: quote from a yard photo, keep every gate code with the property, reschedule around the weather. Texts, calls and voicemail, flat $29/mo.",
   path: PATH,
 });
 

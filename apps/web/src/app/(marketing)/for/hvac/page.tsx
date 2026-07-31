@@ -1,6 +1,6 @@
 /**
  * /for/hvac (trades crew), v4 "FIRST RESPONSE". COPY-DECK v2 §/for/hvac:
- * dateline 6:48 AM · NO HEAT, H1 "The text inbox for HVAC crews.", pain H2
+ * dateline 6:48 AM · NO HEAT, H1 "One line for the whole HVAC crew.", pain H2
  * "You can't quote a furnace swap from the top of a ladder.", the no-heat
  * morning script (thermostat error photo, "bring the capacitor" note), the
  * v2 saved-replies list (on my way / filter reminder / quote follow-up /
@@ -24,7 +24,7 @@ const PATH = "/for/hvac";
 export const metadata: Metadata = buildMetadata({
   title: "Customer texting for HVAC companies",
   description:
-    "A shared text inbox for HVAC contractors: triage no-heat mornings from one shared inbox, follow up on install quotes, send maintenance reminders. Flat $29/mo.",
+    "One business line for HVAC contractors: triage no-heat mornings from one shared inbox, answer the calls as a crew, follow up on install quotes. Texts, calls and voicemail, flat $29/mo.",
   path: PATH,
 });
 

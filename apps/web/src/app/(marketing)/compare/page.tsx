@@ -172,7 +172,7 @@ export default function CompareIndexPage() {
               },
               {
                 title: "No full dialer.",
-                body: "Loonext is texting-first, not a phone system. Calling is included on every plan: calls to your number ring your whole crew right in the app, unanswered calls take a voicemail, you can call customers back on your business number, and missed calls get an automatic text back. But a phone-first business belongs on Quo.",
+                body: "Loonext answers calls as well as texts, on every plan: they ring your whole crew right in the app, unanswered ones take a voicemail we write down, you call customers back on your business number, and the ones you miss get an automatic text back. What it is not is a call center, so a business that lives on phone menus, queues and all-day inbound volume belongs on Quo.",
               },
             ].map((point) => (
               <Reveal key={point.title} className="h-full">

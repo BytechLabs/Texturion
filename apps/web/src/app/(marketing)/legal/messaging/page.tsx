@@ -43,7 +43,7 @@ export default function MessagingPolicyPage() {
     >
       <LegalSectionBlock id="program" number="1" heading="What this program is">
         <p>
-          Loonext is a shared text inbox that local service businesses in the
+          Loonext is a shared business line that local service businesses in the
           United States and Canada use to text{" "}
           <strong>their own customers</strong>: appointment questions, quotes,
           photos of the job, on-my-way updates, and replies to messages those

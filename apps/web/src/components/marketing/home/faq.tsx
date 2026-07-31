@@ -42,6 +42,10 @@ export const HOME_FAQS: readonly HomeFaq[] = [
     a: "No. Loonext runs in the browser on any phone or computer. Add it to your home screen and it works like an app, push notifications included. Your crew is set up in the time it takes to open a link.",
   },
   {
+    q: "Does it do phone calls too, or only texts?",
+    a: "Both, on the same number, included on every plan with nothing to switch on. A customer calls and every teammate's Loonext rings at once, so whoever is free answers. Nobody free? They leave a voicemail we write down so you can read it between jobs, and they get an automatic text back in your own words. You call customers back from the app and they see your business number, never anyone's cell. What it is not is a call center: no phone menus, no queues, no desk phones.",
+  },
+  {
     q: "Is it really $29 for the whole team?",
     a: "Yes. $29 a month for up to 3 people on Starter, $79 for up to 15 on Pro. We don't charge per user. One thing to know up front: there's also a one-time $29 fee to register with the phone companies, so your first month is $58 and every month after is $29. A 6-person crew on a typical per-user tool runs $90 to $114 a month; on Loonext it's $79, flat.",
     aCa: "Yes. $29 a month for up to 3 people on Starter, $79 for up to 15 on Pro. We don't charge per user, and texting Canadian customers has no registration fee and no setup cost, so $29 is $29 from your first month on. A 6-person crew on a typical per-user tool runs $90 to $114 a month; on Loonext it's $79, flat.",

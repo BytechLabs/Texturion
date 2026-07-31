@@ -1,6 +1,6 @@
 /**
  * /for/cleaners (trades crew), v4 "FIRST RESPONSE". COPY-DECK v2
- * §/for/cleaners: dateline 5:56 PM · KEY UNDER MAT?, H1 "The text inbox for
+ * §/for/cleaners: dateline 5:56 PM · KEY UNDER MAT?, H1 "One line for the whole
  * cleaning crews.", pain H2 "Every key, code, and reschedule lives in
  * somebody's texts.", the access-instructions-plus-reschedule script, and
  * the v2 use cases (entry notes the customer never sees, recurring-visit
@@ -23,7 +23,7 @@ const PATH = "/for/cleaners";
 export const metadata: Metadata = buildMetadata({
   title: "Texting software for cleaning businesses",
   description:
-    "A shared text inbox for cleaning companies: confirm recurring visits, keep every access note with the client, handle reschedules as a team. Flat $29/mo.",
+    "One business line for cleaning companies: confirm recurring visits, keep every access note with the client, handle reschedules as a team. Texts, calls and voicemail, flat $29/mo.",
   path: PATH,
 });
 

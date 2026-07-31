@@ -1,7 +1,7 @@
 /**
  * /for/plumbers (trades crew), v4 "FIRST RESPONSE". COPY-DECK v2
  * §/for/plumbers (the master §P trade page): dateline 9:04 PM · BASEMENT
- * DRAIN, H1 "The text inbox for plumbing crews.", the deck's scripted thread
+ * DRAIN, H1 "One line for the whole plumbing crew.", the deck's scripted thread
  * with Dale's dash-free outbound, the saved-replies pack in the product's
  * template picker, and the deck's exact use-case 2 and 4 bodies. Every
  * sentence is plumbing-specific; nothing is shared with the other five trade
@@ -27,7 +27,7 @@ const PATH = "/for/plumbers";
 export const metadata: Metadata = buildMetadata({
   title: "Texting software for plumbers",
   description:
-    `A shared text inbox for your plumbing crew: customers text photos of the problem, anyone on the team replies, nothing gets missed. Local number, flat $29/mo, ${ACTIVATION_CLAIM_SHORT}.`,
+    `One business line for your plumbing crew: customers text photos or call, anyone on the team answers, nothing gets missed. Texts, calls and voicemail, flat $29/mo, ${ACTIVATION_CLAIM_SHORT}.`,
   path: PATH,
 });
 
