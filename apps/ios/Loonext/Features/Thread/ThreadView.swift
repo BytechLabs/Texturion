@@ -57,40 +57,6 @@ struct ThreadView: View {
                 created.start()
             }
         }
-        // #302: presence for as long as this thread is on screen.
-        .task(id: conversationId) {
-            guard let detail = controller.conversation else { return }
-            let numberId = detail.phone_number_id
-            await graph.realtime.joinPresence(numberId: numberId)
-            announcePresence(typing: false)
-            defer {
-                // Leaving stops the announcement immediately rather than waiting
-                // out the TTL — "promptly" is the acceptance criterion, and 45
-                // seconds of a ghost is not prompt.
-                Task { await graph.realtime.leavePresence(numberId: numberId) }
-            }
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(PresenceTiming.heartbeatMs))
-                if Task.isCancelled { break }
-                let nowMs = Int(Date().timeIntervalSince1970 * 1000)
-                announcePresence(typing: nowMs < typingUntilMs)
-            }
-        }
-        // A faster tick purely for staleness: a viewer who simply stops speaking
-        // must leave the screen, and on a quiet thread nothing else would
-        // trigger that. Cheap, and it fetches nothing.
-        .task(id: conversationId) {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(5))
-                presenceNow = Date().timeIntervalSince1970
-            }
-        }
-        .task(id: conversationId) {
-            for await snapshot in await graph.realtime.presence() {
-                presenceByTopic = snapshot
-                presenceNow = Date().timeIntervalSince1970
-            }
-        }
         .task(id: conversationId) {
             for await event in await graph.realtime.events() {
                 controller?.onRealtime(event)
@@ -260,6 +226,40 @@ private struct ThreadBody: View {
                 presenceStrip(detail: detail)
                 composerPane(detail: detail)
             }
+        // #302: presence for as long as this thread is on screen.
+        .task(id: controller.conversationId) {
+            guard let detail = controller.conversation else { return }
+            let numberId = detail.phone_number_id
+            await graph.realtime.joinPresence(numberId: numberId)
+            announcePresence(typing: false)
+            defer {
+                // Leaving stops the announcement immediately rather than waiting
+                // out the TTL — "promptly" is the acceptance criterion, and 45
+                // seconds of a ghost is not prompt.
+                Task { await graph.realtime.leavePresence(numberId: numberId) }
+            }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(PresenceTiming.heartbeatMs))
+                if Task.isCancelled { break }
+                let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+                announcePresence(typing: nowMs < typingUntilMs)
+            }
+        }
+        // A faster tick purely for staleness: a viewer who simply stops speaking
+        // must leave the screen, and on a quiet thread nothing else would
+        // trigger that. Cheap, and it fetches nothing.
+        .task(id: controller.conversationId) {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                presenceNow = Date().timeIntervalSince1970
+            }
+        }
+        .task(id: controller.conversationId) {
+            for await snapshot in await graph.realtime.presence() {
+                presenceByTopic = snapshot
+                presenceNow = Date().timeIntervalSince1970
+            }
+        }
             // One swappable sheet: the conversation card and the two surfaces it
             // opens one tap deeper (contact panel, assignee picker).
             .sheet(item: $detailSheet) { which in
@@ -702,7 +702,7 @@ private struct ThreadBody: View {
             "display_name": .string(me.display_name),
             "conversation_id": .string(detail.id),
             "typing": .bool(typing),
-            "at": .int(Int(Date().timeIntervalSince1970 * 1000)),
+            "at": .number(Date().timeIntervalSince1970 * 1000),
         ])
         Task {
             await graph.realtime.trackPresence(
@@ -778,14 +778,6 @@ private struct ThreadBody: View {
         return ThreadComposerView(
             state: composer,
             noteOnly: detail.viewer_level == "note",
-            onTyping: {
-                // #302: throttled — the keystroke rate is not the broadcast rate.
-                let now = Int(Date().timeIntervalSince1970 * 1000)
-                typingUntilMs = now + PresenceTiming.typingTtlMs
-                guard now - lastTypingSentMs >= PresenceTiming.typingThrottleMs else { return }
-                lastTypingSentMs = now
-                announcePresence(typing: true)
-            },
             banner: banner,
             contactName: detail.contact.name,
             businessName: controller.company?.name,
@@ -821,6 +813,14 @@ private struct ThreadBody: View {
                 controller.reportAiOutcome(feature: feature, outcome: outcome)
             },
             onCallInstead: onCallInstead,
+            onTyping: {
+                // #302: throttled — the keystroke rate is not the broadcast rate.
+                let now = Int(Date().timeIntervalSince1970 * 1000)
+                typingUntilMs = now + PresenceTiming.typingTtlMs
+                guard now - lastTypingSentMs >= PresenceTiming.typingThrottleMs else { return }
+                lastTypingSentMs = now
+                announcePresence(typing: true)
+            },
             // Reuse drafts already paid for until a message moves the thread.
             draftCacheKey: DraftSuggestionsCache.key(
                 conversationId: detail.id,
