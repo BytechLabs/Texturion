@@ -152,11 +152,11 @@ const CONTENT: TradeContent = {
   faqs: [
     {
       q: "Is this a project-management or “jobs” app?",
-      a: "No, and we're deliberate about that. Loonext is a shared texting inbox, not a jobs board or a scheduling suite. The one place it touches “tasks” is simple: any message can be marked done right in the thread, because on a job site a text like “paint the hall Hale Navy” is a task. It strikes through with a check when it's handled and syncs to the crew, but there's no separate screen, no board, no counts to maintain.",
+      a: "Half of one, on purpose. There are real tasks: turn any text or call into a job with an owner, a due date and an address, and work them from a list, a board, a calendar you can drag to reschedule, or a map of where they are. Every task stays linked to the message it came from, so “paint the hall Hale Navy” keeps the customer's exact words attached to it. What you will not find is the rest of a construction suite: no Gantt charts, no dependencies, no crew dispatch or time tracking, and no invoicing. It is the work that comes out of a conversation, not a replacement for your estimating software.",
     },
     {
       q: "So how does “mark done” actually work?",
-      a: "Tap any message, whether it's the builder's address, a change request, or a sub's question, and it's marked done: the text gets a line through it, a small check shows who did it and when, and everyone's phone updates. Tap again to un-mark it. That's the whole feature: the message is the task, and done is one tap in the conversation.",
+      a: "Two ways, and the light one is the one you will use most. Tap any message, whether it's the builder's address, a change request, or a sub's question, and it's marked done: the text gets a line through it, a small check shows who did it and when, and everyone's phone updates. Tap again to un-mark it. When something needs more than a check, promote that same message into a task with an owner and a due date and it appears on the crew's board. The message is still the source either way.",
     },
     {
       q: "Can I keep the client, the subs, and my personal life separate?",

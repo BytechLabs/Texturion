@@ -15,11 +15,16 @@ import {
  * ruling 2026-07-07: old S7 is merged in as cell 9). Conversion job: answer
  * "will it do X" for the checklist shopper without sending them off the page.
  *
- * Nine cells. Cells 1 to 3 are anchors carrying the real components in
- * miniature (app tokens inside PanelFrames, Law 2); cell 9 is the fourth
- * anchor: the product's own dark mode inside a phone Panel Frame. The rest
- * are typographic. id="day" keeps lib/marketing/site.ts HOME_ANCHORS.features
- * honest.
+ * Cells 1 to 3 are anchors carrying the real components in miniature (app
+ * tokens inside PanelFrames, Law 2); the dark-mode phone is the fourth anchor.
+ * The rest are typographic. id="day" keeps lib/marketing/site.ts
+ * HOME_ANCHORS.features honest.
+ *
+ * #491 GREW THIS SECTION, and it is the section that most deserved it. Its
+ * whole job is answering "will it do X" for the checklist shopper, and it
+ * answered only for texting: no calls, no jobs, no assistant, on a page whose
+ * heading promises "everything a crew needs". Three cells were added and the
+ * contacts cell was rewritten from an import feature into what it actually is.
  */
 
 const TYPOGRAPHIC_CELLS: readonly { title: string; body: React.ReactNode }[] = [
@@ -36,8 +41,20 @@ const TYPOGRAPHIC_CELLS: readonly { title: string; body: React.ReactNode }[] = [
     body: 'Every message and contact, searchable. "What did we quote the Nguyens in March?" takes five seconds, not a phone poll.',
   },
   {
-    title: "Contacts, imported.",
-    body: "Bring your customer list in with a CSV. We show you exactly what will import before anything does.",
+    title: "One history per customer.",
+    body: "Every text, call, voicemail and photo you have ever exchanged with somebody, on one timeline, with their address and your private notes. Bring your list in with a CSV; we show you exactly what will import before anything does.",
+  },
+  {
+    title: "Calls ring the whole crew.",
+    body: "A customer calls your business number and every teammate's app rings at once, so whoever is free answers. Nobody free? They leave a voicemail we write down for you to read, and they get a text back before they try the next business. Included on every plan.",
+  },
+  {
+    title: "Turn it into a job.",
+    body: "A text or a call becomes a task with an owner, an address and a due date, linked back to what the customer actually said. Book the Hendersons for Tuesday stops living in one person's head.",
+  },
+  {
+    title: "Lou drafts, you send.",
+    body: "Our assistant writes a reply for you to edit, puts voicemails in writing, and fills in a job's address and due date from the customer's own words. A person always reads it before it goes. Every part of it can be switched off.",
   },
   {
     title: "Mark it done.",

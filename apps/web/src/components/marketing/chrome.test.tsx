@@ -140,7 +140,12 @@ describe("footer (deck §F: the Dispatch Ink band)", () => {
   });
 
   it("brand line and sign-off are the deck's, verbatim", () => {
-    expect(html).toContain("The shared text inbox for your crew.");
+    // #491: was "The shared text inbox for your crew." — one of the tagline
+    // alternates in docs/marketing/BRAND-MESSAGING.md, and the one that named
+    // only half the line. Calls have been included on every plan since
+    // D36-D43. The PRIMARY tagline is untouched: it says number and inbox,
+    // which was right before the product caught up to it.
+    expect(html).toContain("The shared line for your crew.");
     expect(html).toContain("Month to month. No sales calls, ever.");
     expect(html).toMatch(/© \d{4} Loonext\. All rights reserved\./);
   });

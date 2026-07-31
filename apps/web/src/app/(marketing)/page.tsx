@@ -49,7 +49,7 @@ import { absoluteUrl } from "@/lib/marketing/site";
 
 const OG_TITLE = "Somebody texted your business at 9:04 last night.";
 const OG_DESCRIPTION =
-  "Loonext gives your business a local number and a shared text inbox the whole crew answers from. $29 a month flat for the team, not per user.";
+  "Loonext gives your business a local number and one shared inbox for the texts and calls that reach it, answered by whoever on the crew is free. $29 a month flat for the team, not per user.";
 
 export const metadata: Metadata = {
   ...buildMetadata({
@@ -57,9 +57,12 @@ export const metadata: Metadata = {
     // words buyers actually search, and no number-count claim (Pro carries
     // two numbers and crews can buy more, so "one number" oversells the
     // constraint). The share headline stays OG_TITLE below.
-    title: "Loonext: the shared text inbox for service crews",
+    // #491: was "the shared text inbox for service crews". Calling has been
+    // included on every plan since D36-D43, and the SERP title is the single
+    // line most buyers ever read about what this is.
+    title: "Loonext: the shared line for service crews",
     description:
-      "A local business number and a shared text inbox. The whole crew reads, replies, assigns, and closes from any phone. $29 a month flat for the team, not per user.",
+      "One business number for texts and calls, in an inbox the whole crew works from any phone. Reply, answer, assign, turn it into a job, close it. $29 a month flat for the team, not per user.",
     path: "/",
     absoluteTitle: true,
   }),

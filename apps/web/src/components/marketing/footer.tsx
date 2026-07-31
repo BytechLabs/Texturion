@@ -147,7 +147,7 @@ export function Footer() {
               Lo<span className="text-[#B9CF57]">o</span>next
             </Link>
             <p className="font-body-mkt mt-3 max-w-xs text-sm leading-relaxed text-[color:var(--fr-on-inverse-70)]">
-              The shared text inbox for your crew.
+              The shared line for your crew.
             </p>
           </div>
 

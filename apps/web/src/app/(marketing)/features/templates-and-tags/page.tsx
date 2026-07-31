@@ -171,7 +171,7 @@ export default function TemplatesAndTagsPage() {
             text: "A template never auto-sends. No drip sequences, no scheduled sends: you send every text.",
           },
           {
-            text: "Done-marks live on messages, not jobs. Loonext is a texting inbox, not project management.",
+            text: "A done-mark is the light version: one tap on a message, no due date, no owner. When something needs those, promote it to a task instead. Neither is a construction suite: no Gantt, no dependencies, no dispatch.",
           },
         ]}
       />

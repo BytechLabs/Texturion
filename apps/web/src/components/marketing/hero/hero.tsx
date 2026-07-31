@@ -83,11 +83,11 @@ export function Hero() {
             </h1>
 
             <p className="fr-body mt-6 max-w-[56ch] text-[color:var(--fr-ink-70)]">
-              Loonext gives your business a local number and a shared text
-              inbox. The whole crew reads, replies, assigns, and closes from
-              any phone, so the next 9 PM text gets answered by whoever is
-              free instead of dying on somebody&apos;s personal cell. $29 a
-              month for the whole team, flat.
+              Loonext gives your business a local number and one shared
+              inbox for everything that reaches it. Texts and calls both land
+              where the whole crew can see them, so the next 9 PM message gets
+              answered by whoever is free instead of dying on somebody&apos;s
+              personal cell. $29 a month for the whole team, flat.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
