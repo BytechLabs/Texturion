@@ -5797,3 +5797,55 @@ shape ported three times: web collapses the row's actions into a triple-dot
 (the second trailing icon being the moment to stop adding icons); Android does
 the same on file rows and long-press on thumbnails, which have no room for a
 menu; iOS uses `.contextMenu` on both arms so a photo and a file behave alike.
+
+---
+
+## D103 — presence is advisory, ambient, and never shown stale (#302, 2026-07-31)
+
+**Decision.** A conversation shows who else is viewing it and who is replying,
+on all three clients. It rides a `:presence` sibling of the number topic, joined
+for as long as a thread is open. Nothing is ever locked.
+
+**Why advisory.** #302 is right that a lock would be worse than the collision it
+prevents: the person holding it walks into a basement and the customer waits.
+A person who sees a colleague's name simply stops, and that is the whole
+mechanism — so the line is unclickable, unanimated, and sits at the composer
+rather than the header, because the header is read once when the thread opens
+and the decision this exists to change is made with a hand already on the keys.
+
+**Stale presence is worse than none**, and most of the rule is about that. It
+would say a colleague has this thread when they closed the laptop ten minutes
+ago — producing the nobody-replies failure the feature exists to fix, from the
+other direction. Hence a 45s TTL, a 6s typing window, a clock-skew refusal so a
+phone set wrong cannot pin a ghost to a thread, and a health flag: on a degraded
+connection the answer is "we do not know", and the honest render of that is
+nothing at all.
+
+**Per open thread, not per number.** The first Android attempt folded presence
+topics into the always-on set beside the number topics, to inherit their
+revocation handling. Twelve assertions in `RealtimeTopicsTest` went red — every
+one a test about number-topic lifecycle being asked to reason about presence.
+That churn was the design talking: presence-per-number also meant receiving
+every teammate's movements across every number all day to show them on one
+screen, the fan-out #251 has never measured. The authorization window is the one
+D88 already documents, bounded by a screen being open, and the payload carries no
+message content — only who is looking at what.
+
+**Two silent failures found by running it rather than reading it.**
+The `realtime.messages` policy was `for select` filtered on
+`extension = 'broadcast'` — right for everything before this, where broadcasts
+are server-generated and clients only read. Presence carries
+`extension = 'presence'` and clients WRITE it, so the policy admitted the join
+and dropped the payload: two browsers on one conversation, both `SUBSCRIBED`,
+both seeing nothing, no error anywhere. And the join config needs
+`presence.enabled = true`; without it the server accepts the join and sends
+nothing. Both were found with a live browser, and the wire format was then
+captured off that socket so the two hand-rolled Phoenix clients on the phones
+were written against observed traffic rather than a guess.
+
+**"Claim in one tap" is deliberately not built.** #302 lists it as a lightweight
+middle ground between nothing and formal assignment — "an ambient 'I've got
+this' that expires on its own". Typing presence *is* that signal, produced with
+zero effort and expiring by itself, which is strictly better than a tap. Adding
+a claim would put a third state between "nothing" and "assigned" that a person
+has to remember to use, for a signal they are already sending by typing.
