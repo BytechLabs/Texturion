@@ -40,8 +40,10 @@ describe("globals.css — the --fr-* system (direction §2)", () => {
       // "brand" are not the same colour.
       "--fr-green": "#0b7a50",
       // Paper & Olive's coral, whose stated meaning (attention, never error)
-      // is exactly what the flare carried.
-      "--fr-flare": "#d96c47",
+      // is exactly what the flare carried. #320 nudged it from #d96c47: the
+      // whitelist permits display figures (LARGE text, 3:1), and the rendered
+      // audit caught the calculator's $1,353 at 2.96:1 on the Frost band.
+      "--fr-flare": "#d5643d",
       "--fr-frost": "#f0f0e8",
     };
     for (const [token, hex] of Object.entries(expected)) {

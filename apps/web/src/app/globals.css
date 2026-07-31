@@ -522,7 +522,14 @@
   --accent: #e3efa3; /* --petrol-tint, petrol-tinted fill */
   --accent-foreground: #191b14; /* --petrol-deep on tint */
 
-  --destructive: #b4623f; /* warm clay, not a jarring red */
+  /* Warm clay, not a jarring red. #320: at #b4623f a white label on the filled
+     destructive button measured 4.41:1 — under AA on the one control whose
+     whole job is to make you read it before you press it. Found by rendering
+     Settings and asking the browser, not by reading the token: the pair is only
+     wrong where a white label lands on this fill, and the token file has no
+     opinion about where that happens. #a95937 is the same clay one step down:
+     5.03:1 with white, 4.52:1 as text on the ground. */
+  --destructive: #a95937;
   --border: #e7e9dc; /* --line hairline */
   --border-subtle: #f0f0e8; /* --line-soft, interior hairlines */
   --input: #e7e9dc;
@@ -600,7 +607,14 @@
   --app-muted-2: #5c5f4e;
   --app-tint: #e3efa3; /* --petrol-tint */
   --app-tint-line: #d6e77e;
-  --app-amber: #b79447; /* calm amber mark (note icon) */
+  /* The internal-note MARK (the lock/note icon), which indicates real state —
+     "this thread carries a note only the crew sees" — so WCAG 1.4.11 applies.
+     #320 measured it at 2.33–2.81:1 on the grounds it sits on: below the 3:1
+     bar everywhere, on every screen that shows it. #9e7d38 is the same warm
+     amber at the lightness that clears it (3.14:1 on the deepest ground,
+     3.78:1 on a card). Text on amber surfaces uses --app-amber-ink, which is
+     5.21:1 and always was — the mark and the text were never the same job. */
+  --app-amber: #9e7d38;
   --app-amber-bg: #fbf6ec; /* calm note card fill */
   --app-amber-line: #f0e6d2;
   --app-amber-ink: #7a6535;
@@ -903,10 +917,17 @@
                           be the same colour. Same reasoning as destructive.
                           4.82:1 as text on the ground — AA. */
   --fr-on-green: #fdfdf9; /* the label ON a green fill — 5.26:1 */
-  --fr-flare: #d96c47; /* coral. Paper & Olive's own attention mark, and its
-                          stated meaning — attention, NEVER error — is exactly
-                          what the flare was for. WHITELIST ONLY; never body
-                          text, never backgrounds. */
+  /* Coral. Paper & Olive's own attention mark, and its stated meaning —
+     attention, NEVER error — is exactly what the flare was for. WHITELIST
+     ONLY; never body text, never backgrounds. The whitelist does include
+     display figures at 24px bold or larger, i.e. LARGE TEXT, whose bar is 3:1.
+     #320's rendered audit measured the missed-text calculator's $1,353 at
+     72px/700 on the Frost band: 2.96:1, just under. The token file could not
+     have said that — the figure is legal against the ground the token was
+     reasoned about and illegal against the band it is actually placed on, and
+     only rendering it asks that question. #d5643d clears 3:1 on every light
+     ground (3.21 frost / 3.30 ground / 3.60 card). */
+  --fr-flare: #d5643d;
   --fr-frost: #f0f0e8; /* the inset wash — bands, chips, row striping, wells */
 
   /* The two sanctioned dark surfaces (§2: the dateline chip and the footer),
@@ -947,7 +968,7 @@
   --border-subtle: #f0f0e8;
   --accent: #e3efa3;
   --accent-foreground: #3a430f;
-  --destructive: #b4623f;
+  --destructive: #a95937; /* kept in lockstep with the app scope (#320) */
   --border: #e7e9dc;
   --input: #e7e9dc;
   --ring: #3a430f; /* one focus ring colour across the whole product (§7) */
@@ -999,10 +1020,11 @@
      Derived and measured the way --app-muted-2 was (#61), not eyeballed. */
   --fr-green: #1f9e6c;
   --fr-on-green: #191b14; /* 5.10:1 — white would be 3.41:1, below AA */
-  /* Constant across modes: 5.37:1 ground / 4.76:1 card / 4.54:1 frost on dark,
-     and it is whitelist-only (marks and borders, never body text) on light. One
-     coral in both modes is the point — it is a mark, not a surface. */
-  --fr-flare: #d96c47;
+  /* Constant across modes: 4.96:1 ground / 4.40:1 card / 4.19:1 frost on dark,
+     all well clear of the 3:1 its whitelist actually requires (marks, borders,
+     and display figures — never body text). One coral in both modes is the
+     point: it is a mark, not a surface. */
+  --fr-flare: #d5643d;
   --fr-frost: #23261a; /* --app-line-soft, the inset wash on dark */
 
   /* The deliberately-separate band. On dark it LIFTS instead of deepening —

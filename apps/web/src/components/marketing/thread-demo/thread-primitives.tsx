@@ -180,8 +180,15 @@ export function NoteBubble({ beat }: { beat: NoteBeat }) {
   return (
     <div className="flex w-full flex-col items-end gap-1">
       <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-app-bub border border-app-amber-line bg-app-amber-bg px-3.5 py-2.5 text-[14px] leading-[1.5] text-app-amber-ink [border-bottom-right-radius:5px] md:max-w-[80%]">
-        <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-app-amber">
-          <Lock className="size-3" strokeWidth={1.75} aria-hidden />
+        {/* #320: the label read `text-app-amber`, the MARK colour — 11px
+            semibold at 2.66:1 on this fill. The ink is the text colour, and
+            the parent was already using it. The Lock keeps the mark. */}
+        <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-app-amber-ink">
+          <Lock
+            className="size-3 text-app-amber"
+            strokeWidth={1.75}
+            aria-hidden
+          />
           Internal note · {beat.by}
         </span>
         {beat.body}

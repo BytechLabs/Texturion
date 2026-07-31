@@ -17,7 +17,9 @@ the problem.
 
 Two of them were not cosmetic. #116 was a functional break — app tokens died
 inside portals without `PortalScope` on `<body>` — and every illegible element
-is an accessibility failure (#238), not a polish item.
+is an accessibility failure (#238), not a polish item. (What #116 looks like
+*today* turns out to be different, and that is worth reading before trusting any
+check written against it: see "What proving it revealed about #116".)
 
 When #320 finally pointed a measurement at the phone palettes, they had never
 been checked by anything, and three things fell out immediately:
@@ -95,7 +97,38 @@ layout and copy; the chevron repeats that, and a divider could be whitespace wit
 nothing lost. Holding a hairline to 3:1 would make every list look ruled rather
 than spaced, which is the opposite of the design.
 
-### 4. Why not screenshots
+### 4. Text over a gradient derives its contrast from the WORST stop
+
+A gradient has no single background colour, so "the contrast of this label" is
+not a well-formed question until you say *against which part of it*. The answer
+this codebase uses: **the stop that gives the label its lowest ratio**, because
+that is the part a reader's eye actually lands on somewhere.
+
+Three concrete rules, from the places gradients exist today:
+
+- **Never put body copy on a gradient that crosses the contrast floor.** If the
+  label must span the whole ramp, the ramp's stops all have to clear the bar for
+  that text — which usually means the gradient is a *tint* of one token, not a
+  blend of two. `CallBackdrop.kt`'s radial and `Shell.kt`'s vertical fade both
+  do this: they ramp one colour toward the surface behind it, so the worst stop
+  is the surface, which is already measured.
+- **A shimmer or sweep is decoration and carries no text.** `Motion.kt`'s
+  `linearGradient` sweep is a loading affordance; nothing readable sits on it,
+  so 1.4.11 does not apply and a ratio would be measuring nothing.
+- **A mask is not a colour.** `arrival-field.tsx` uses `linear-gradient` as a
+  `mask-image` to fade edges. That paints no pixels of its own and needs no
+  contrast reasoning — but it does mean the audit's ancestor walk sees through
+  it to whatever is behind, which is correct.
+
+The rendered audit handles the general case without being told any of this: it
+walks up to the nearest ancestor that actually paints and composites every
+translucent layer on the way, so text over a translucent tint is measured
+against what is really behind it. What it cannot do is sample *across* a
+gradient's stops — so a label deliberately placed on a two-token ramp is the one
+case that still needs a person to check, and the rule above is written so that
+case does not get created.
+
+### 5. Why not screenshots
 
 #320's own devil's advocate is right: pixel-diff visual regression produces
 noisy diffs that get rubber-stamped, which converts a quality gate into a rubber
@@ -108,11 +141,13 @@ arithmetic rather than by looking.
 
 Screenshots still have one job no assertion can do: telling you whether a screen
 *looks* right once every ratio is legal. They are used that way — deliberately,
-by hand, at the point of change — via `scripts/dev-shot.mjs --dark` on web. What
-remains open is running that capture automatically over a small, deliberate set
-of primary surfaces on each client; see the "still open" section.
+by hand, at the point of change — via `scripts/dev-shot.mjs --dark` on web.
 
-### 5. A rung that carries text is a text rung
+What replaced automated capture is `scripts/theme-audit.mjs`, below: it renders
+the same surfaces in both schemes and measures them, which is the part of
+capture a machine can actually judge.
+
+### 6. A rung that carries text is a text rung
 
 Warm paper does not have room for seven legible greys. iOS shipped a seven-rung
 muted ladder from the design canvas and used the lower rungs for body copy;
@@ -168,10 +203,66 @@ read is not a value the canvas intended.
 
 ---
 
+## Rendered verification: `scripts/theme-audit.mjs`
+
+Everything above reasons about tokens. This renders the app in a real browser,
+in both schemes, and asks what colour things actually are. It found three faults
+in its first run that every token suite had passed:
+
+| Found | Measured |
+|---|---|
+| the missed-text calculator's `$1,353` at 72px/700 on the Frost band | 2.96:1 (large text needs 3:1) |
+| the "Internal note · Priya" label, using the amber MARK colour as text | 2.66:1 |
+| Settings' "Close this workspace" — a white label on the destructive fill | 4.41:1 |
+
+None of those is visible from the token file, because each is legal against the
+ground the token was reasoned about and wrong against the surface it was
+actually placed on.
+
+It reports five kinds of fault, and two of them exist because the audit lied
+before they were added:
+
+- `EMPTY` — the surface never rendered. With the API worker down every
+  authenticated route shows "Loading your workspace…", and the audit found no
+  contrast faults there and reported **green**. A check that silently examines
+  nothing is worse than no check, because it also tells you everything is fine.
+- `NOT-OPENED` — an overlay's trigger did not match, so the surface was never
+  shown. Same reasoning: a missed click is a failure, not a skip.
+- `ESCAPED-SCOPE` — a portal resolved its tokens outside `.app-scope` (#116).
+- `CONTRAST` — text below its threshold against the background really behind it.
+- `ERROR` / `AUTH` — the page threw, or the session bounced to `/login`.
+
+### What proving it revealed about #116
+
+Removing `PortalScope` and re-running was expected to reproduce the original bug.
+It did not: **the colour half of #116 can no longer happen.** Since #362
+converged the palettes, `:root` and `.app-scope` define the *same* values, so a
+portal that escapes the scope now inherits an identical palette. That is worth
+knowing — it means the fix is structural, not merely unbroken.
+
+The **font** half is still live. `--font-golos` is mounted by next/font on the
+layout element and exists nowhere in `:root`, so an escaped portal silently
+falls back to the default sans. That is what `ESCAPED-SCOPE` now tests, and
+removing `PortalScope` fails it on both portals in both themes.
+
+### What runs where
+
+- **CI** (`build` job): `--public` — marketing, `/login`, `/signup`. Needs only
+  the built app: no database, no API worker, no secrets. This is the #218
+  surface and the whole of marketing dark mode.
+- **Locally, full stack**: `node scripts/theme-audit.mjs` with Supabase running,
+  `dev-seed.mjs` applied, the API worker on 8787 and the web app on 3100. Adds
+  the authenticated shell and the two portals.
+
+---
+
 ## Still open
 
-- **Automated both-theme capture** of a small, deliberate set of primary
-  surfaces on each client, in CI. The instrument is chosen (`dev-shot.mjs` on
-  web; Compose/XCTest snapshots on the phones) and the argument for keeping the
-  set small is in §4 above. Not built.
+- **The authenticated half of the audit in CI.** The script covers it and is
+  proven; what is missing is a CI job that stands up Supabase + seed + the API
+  worker alongside the web app. The `e2e` job already does the first two, so
+  this is a composition problem rather than a new capability.
+- **Phone rendered verification.** Both phone guards read resolved values, which
+  is most of what rendering would add, but neither exercises a real layout.
+  Compose/XCTest snapshots are the instrument; the set must stay small.
 - **The phone accent split** into decorative and textual rungs, to match web.

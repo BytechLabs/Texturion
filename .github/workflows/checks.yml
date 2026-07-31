@@ -300,6 +300,39 @@ jobs:
       - name: Validate api Worker (wrangler deploy --dry-run)
         run: pnpm --filter @loonext/api exec wrangler deploy --dry-run --outdir=dist
 
+      # #320: contrast measured on RENDERED OUTPUT, in both themes.
+      #
+      # The token suites prove the palette is legal; they cannot prove it
+      # reached the screen. This renders the pages and asks the browser what
+      # colour things actually are — which is how the flare figure (2.96:1 on
+      # the Frost band), the internal-note label (2.66:1) and the destructive
+      # button's white label (4.41:1) were found, all of them legal in the
+      # token file and wrong on the page.
+      #
+      # NOT screenshots, on this issue's own argument: pixel diffs get
+      # rubber-stamped. There is no image here, only arithmetic, so a failure
+      # always names an element and a number.
+      #
+      # Runs on the PUBLIC surfaces — marketing (its own palette, newly dark)
+      # plus /login and /signup, which is exactly where #218 happened. Those
+      # need only the built app. The authenticated portal surfaces need the
+      # database, the seed and the API worker, and are run with the same script
+      # against a full local stack (`node scripts/theme-audit.mjs`); wiring that
+      # combination into CI is the remaining piece, recorded in docs/THEMING.md.
+      - name: Install Chromium for the theme audit
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start the built web app
+        run: |
+          pnpm --filter @loonext/web exec next start -p 3100 &
+          for i in $(seq 1 60); do
+            curl -fsS -o /dev/null http://localhost:3100/ && break
+            sleep 2
+          done
+
+      - name: Audit both themes on rendered output
+        run: node scripts/theme-audit.mjs --public
+
   # ---------------------------------------------------------------------------
   # The phone apps, folded in from what used to be a separate Mobile workflow.
   #

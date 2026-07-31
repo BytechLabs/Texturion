@@ -69,8 +69,11 @@ export function NotesEmbed() {
   return (
     <div className="p-3">
       <div className="rounded-app-bub border border-app-amber-line bg-app-amber-bg px-3.5 py-2.5 text-[13px] leading-[1.5] text-app-amber-ink [border-bottom-right-radius:5px]">
-        <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-app-amber">
-          <Lock className="size-3" strokeWidth={1.75} aria-hidden />
+        {/* #320: this label read `text-app-amber`, which is the MARK colour —
+            11px semibold at 2.66:1 on the note fill. The ink is the text
+            colour, and it was sitting right there on the parent. */}
+        <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-app-amber-ink">
+          <Lock className="size-3 text-app-amber" strokeWidth={1.75} aria-hidden />
           Internal note · Priya
         </span>
         Sounds like the Navien on Delaware Ave. Dale, you&apos;re two streets
