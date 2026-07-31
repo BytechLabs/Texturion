@@ -229,6 +229,10 @@
      the .app-scope tokens; inert (unset) outside the app scope, so marketing is
      untouched. Additive — no existing utility changes. */
   --color-app-ink: var(--app-ink);
+  /* #362: --app-ink-soft was declared in both themes but never themed, so
+     text-app-ink-soft emitted no rule and the sidebar nav items it styles
+     rendered with an inherited colour. Found by utility-classes.test.ts. */
+  --color-app-ink-soft: var(--app-ink-soft);
   --color-app-petrol: var(--app-petrol);
   --color-app-petrol-deep: var(--app-petrol-deep);
   /* #26: the paired ON-PETROL text color (text-app-petrol-foreground). Flips
