@@ -95,9 +95,14 @@ argument: one definition, one place to change it.
 
 **Cross-platform.** Three platforms, three token systems, and a fix in one is not a
 fix in the others — which is why #218 and #219 each had to name both iOS and Android.
-The marketing site has its own palette again (#362). This guard covers the web app
-only, deliberately: lumping four token systems together would leave it unable to say
-anything precise about any of them.
+The marketing site had its own palette when this was written; **#362 reversed
+that** — by owner decision, marketing, the web app, Android and iOS now all carry
+the mobile apps' Paper & Olive. This paragraph cited #362 as authority for the
+opposite conclusion, which is the hazard #323 names: a document confidently
+stating the state of the world it was true in. The guard still covers the web app
+only, deliberately: lumping four token systems together would leave it unable to
+say anything precise about any of them, and that argument is unaffected by which
+palette they hold.
 
 **Not yet mechanical, and #320 stays open for it:** contrast ratios against WCAG
 thresholds, and both-theme capture on the phone clients. Both need rendered output.

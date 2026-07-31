@@ -16,7 +16,7 @@
 > scheduled executing it, and that row is why #372 was filed.
 
 
-**Status: BINDING.** The build-ready spec for the home page's one signature moment. Same
+**Status: SUPERSEDED (see the banner above). Was BINDING;** the build-ready spec for the home page's one signature moment. Same
 authority as BLUEPRINT.md §3.1 and §0.1, which it supersedes on hero *mechanics* (the "two-phones
 autoplay thread" §3.1 described is replaced by the participatory dispatch desk below; the LCP
 strategy, copy voice, and honesty rules from §3.1 are preserved and made concrete). Identity

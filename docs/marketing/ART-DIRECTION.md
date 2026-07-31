@@ -16,7 +16,7 @@
 > scheduled executing it, and that row is why #372 was filed.
 
 
-**Status: BINDING.** Same authority as BLUEPRINT.md, VISUALS.md, and CONVERSION.md: implement,
+**Status: SUPERSEDED (see the banner above). Was BINDING;** same authority as BLUEPRINT.md, VISUALS.md, and CONVERSION.md: implement,
 don't re-litigate. This is the distinctive identity system iteration 5 builds the whole
 marketing site from. It sits ABOVE the section-by-section blueprint: BLUEPRINT.md §3 says *what*
 each section contains; this doc says *what the whole thing looks and feels like* so twelve

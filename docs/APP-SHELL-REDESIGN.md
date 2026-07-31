@@ -1,4 +1,22 @@
-# Loonext App Shell Redesign (BINDING)
+# Loonext App Shell Redesign (BINDING, except colour — see the palette note)
+
+> ## 🎨 PALETTE SUPERSEDED — 2026-07-30 (#362)
+>
+> **Every colour below is dead.** By owner decision on #362, the marketing site,
+> the web app, Android and iOS all carry the mobile apps' **Paper & Olive**:
+> ground `#F3F3EE`, paper `#FDFDF9`, ink `#191B14`, accent `#3A430F`, tint
+> `#E3EFA3`; dark ground `#141610`, ink `#F0F1E5`, accent `#D6E77E`. Two colours
+> are deliberately NOT olive — Answered Green `#0B7A50` still means *handled*,
+> and coral `#D96C47` means *attention, never error*.
+>
+> The live definition is `apps/web/src/app/globals.css`, gated by
+> `globals.contrast.test.ts`, `fr-tokens.test.ts` and `custom-properties.test.ts`.
+> Where this document and that file disagree, **the file is right**.
+>
+> **Everything that is not a colour still binds** — structure, type scale, motion,
+> spacing, the QA gates and the reasoning. This note supersedes the palette, not
+> the document.
+
 
 The app reads as bland and ugly, and the left text-sidebar is the worst of it. This resets the
 app's look toward modern and crafted, and replaces the sidebar. Supersedes the sidebar/shell parts

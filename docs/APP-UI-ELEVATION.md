@@ -1,11 +1,29 @@
 # Loonext App UI Elevation — "Wealthsimple-grade: beautiful, clean, easy"
 
-**Status: BINDING.** Same authority as `docs/DESIGN.md`. This spec elevates the **look and feel**
+**Status: BINDING FOR EVERYTHING EXCEPT COLOUR — see the palette note below (#362).** Same authority as `docs/DESIGN.md`. This spec elevates the **look and feel**
 of the authenticated web app (inbox list, conversation thread + composer, contacts, onboarding,
 auth, settings) to the interaction *quality* of Wealthsimple — calm, clean, effortless,
 friendly-premium, a complex domain made to feel simple — **while keeping Loonext's own identity:
 warm stone neutrals, petrol `#0F766E`, Inter, border-first, mobile-first.** We adopt
 Wealthsimple's *principles and craft, not its palette.*
+
+> ## 🎨 PALETTE SUPERSEDED — 2026-07-30 (#362)
+>
+> **Every colour below is dead.** By owner decision on #362, the marketing site,
+> the web app, Android and iOS all carry the mobile apps' **Paper & Olive**:
+> ground `#F3F3EE`, paper `#FDFDF9`, ink `#191B14`, accent `#3A430F`, tint
+> `#E3EFA3`; dark ground `#141610`, ink `#F0F1E5`, accent `#D6E77E`. Two colours
+> are deliberately NOT olive — Answered Green `#0B7A50` still means *handled*,
+> and coral `#D96C47` means *attention, never error*.
+>
+> The live definition is `apps/web/src/app/globals.css`, gated by
+> `globals.contrast.test.ts`, `fr-tokens.test.ts` and `custom-properties.test.ts`.
+> Where this document and that file disagree, **the file is right**.
+>
+> **Everything that is not a colour still binds** — structure, type scale, motion,
+> spacing, the QA gates and the reasoning. This note supersedes the palette, not
+> the document.
+
 
 **Precedence.** This doc keeps DESIGN.md's information architecture (G3), product behavior, and
 component inventory unchanged. Where it raises the bar on *look/feel* (spacing, hierarchy, color

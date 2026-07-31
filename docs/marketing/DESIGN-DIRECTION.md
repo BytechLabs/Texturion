@@ -1,5 +1,30 @@
 # DESIGN-DIRECTION v4 — FIRST RESPONSE
-**Status: BINDING. Supersedes v3 ("Quiet daylight") entirely. Besley, Public Sans, Martian Mono, the porcelain/cream grounds, and the copper/petrol marketing accents are dead. This document plus COPY-DECK v2 and P5-SPEC v1 are the complete build spec: ten different engineers reading this must produce the same site.**
+**Status: BINDING FOR EVERYTHING EXCEPT COLOUR — see the palette note below (#362).** Supersedes v3 ("Quiet daylight") entirely. Besley, Public Sans, Martian Mono, the porcelain/cream grounds, and the copper/petrol marketing accents are dead. This document plus COPY-DECK v2 and P5-SPEC v1 are the complete build spec: ten different engineers reading this must produce the same site.
+
+> ## 🎨 PALETTE SUPERSEDED — 2026-07-30 (#362)
+>
+> **Every colour below is dead.** By owner decision on #362, the marketing site,
+> the web app, Android and iOS all carry the mobile apps' **Paper & Olive**:
+> ground `#F3F3EE`, paper `#FDFDF9`, ink `#191B14`, accent `#3A430F`, tint
+> `#E3EFA3`; dark ground `#141610`, ink `#F0F1E5`, accent `#D6E77E`. Two colours
+> are deliberately NOT olive — Answered Green `#0B7A50` still means *handled*,
+> and coral `#D96C47` means *attention, never error*.
+>
+> The live definition is `apps/web/src/app/globals.css`, gated by
+> `globals.contrast.test.ts`, `fr-tokens.test.ts` and `custom-properties.test.ts`.
+> Where this document and that file disagree, **the file is right**.
+>
+> **Everything that is not a colour still binds** — structure, type scale, motion,
+> spacing, the QA gates and the reasoning. This note supersedes the palette, not
+> the document.
+
+> **Two rules here are now false and are called out because they governed future
+> work, not just appearance.** Law 2 ("Cobalt is the marketing voice OUTSIDE the
+> frame; petrol is the product's voice inside it") described a separation #362
+> removed: there is one voice now, so nothing needs framing off. And §8's QA gate
+> "no petrol in marketing chrome; no cobalt inside product frames" cannot be run,
+> because neither colour exists anywhere.
+
 
 ---
 
