@@ -437,8 +437,27 @@
     }
   }
 
+  /* #465 — the message you were sent to. A jump that lands silently leaves
+     you re-reading the thread to work out which one moved, so the target
+     says so once and then gets out of the way. A tint wash, not a ring: it
+     reads at a glance without redrawing the bubble's own edges. */
+  @keyframes app-message-found {
+    0%,
+    55% {
+      background-color: var(--app-tint);
+    }
+    to {
+      background-color: transparent;
+    }
+  }
+
   .app-motion-message-in {
     animation: app-message-in var(--motion-panel, 200ms) var(--ease-out) both;
+  }
+
+  .app-motion-message-found {
+    animation: app-message-found 1600ms var(--ease-out) both;
+    border-radius: var(--radius-app-card, 12px);
   }
 
   .app-motion-row-leave {

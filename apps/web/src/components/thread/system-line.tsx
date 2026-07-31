@@ -4,13 +4,14 @@ import type { ConversationEvent } from "@/lib/api/types";
 
 import { VoicemailPlayer } from "@/components/calls/voicemail-player";
 import { statusLabel } from "@/components/inbox/status-pill";
-import { isTaskEventType, taskEventSentence } from "@/components/tasks/task-activity";
+import { taskEventSentence } from "@/components/tasks/task-activity";
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 import { formatCallDuration } from "@/lib/format/call";
 import type { ConversationStatus } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 import { doneEventSentence } from "./done";
+import { eventTarget } from "./event-target";
 
 /** Day divider (mockup .daymark): a centered bordered stone chip, not a rule. */
 export function DayDivider({ label }: { label: string }) {
@@ -202,15 +203,59 @@ export function eventSentence(
   }
 }
 
+/**
+ * #465: an event line that goes somewhere.
+ *
+ * The timeline is deliberately quiet, so the affordance has to be too: a
+ * dotted underline in the line's own colour at rest, going solid and olive on
+ * hover. The dotted rest state is the part that matters — hover does not
+ * exist on the phone, and without it a touch user has no way to learn the
+ * line is live short of tapping every one of them.
+ */
+function ActionableLine({
+  onClick,
+  label,
+  children,
+}: {
+  onClick: () => void;
+  /** Says where this goes, for the people who cannot see the underline. */
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <p className="py-1 text-center text-xs text-muted-foreground">
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={label}
+        className={cn(
+          "tap-target rounded-full px-1 underline decoration-dotted underline-offset-[3px] transition-colors",
+          "decoration-app-line hover:text-app-olive hover:decoration-solid hover:decoration-current",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        )}
+      >
+        {children}
+      </button>
+    </p>
+  );
+}
+
 export function SystemLine({
   event,
   memberName,
   messageBody,
+  onJumpToMessage,
 }: {
   event: ConversationEvent;
   memberName: (userId: string | null) => string | null;
   /** Resolve a message id → its live body for §4.3 done/undone lines. */
   messageBody?: (messageId: string) => string | undefined;
+  /**
+   * #465: jump the thread to a message this line names. Optional because the
+   * line also renders outside the virtualized list (tests, the contact
+   * timeline), where there is nothing to scroll.
+   */
+  onJumpToMessage?: (messageId: string) => void;
 }) {
   const { openTask } = useTaskDrawer();
   const sentence = eventSentence(event, memberName, messageBody);
@@ -220,28 +265,34 @@ export function SystemLine({
   // or types added by a newer server) render nothing instead of a blank line.
   if (!sentence) return null;
 
-  // TASKS-V2 D-C: a task line links to open the task drawer (`?task=<id>`).
-  // Every task_* event carries payload.task_id. A task_deleted line stays plain
-  // text (the task no longer exists to open).
-  const taskId =
-    typeof event.payload.task_id === "string" ? event.payload.task_id : null;
-  const openable =
-    isTaskEventType(event.type) && event.type !== "task_deleted" && taskId;
+  // TASKS-V2 D-C + #465: a task line opens the task drawer (`?task=<id>`), and
+  // a done/undone line goes to the message it quotes. Both resolved by the
+  // shared pure selector, which the Kotlin and Swift ports mirror.
+  const target = eventTarget(event);
 
-  if (openable) {
+  if (target?.kind === "task") {
     return (
-      <p className="py-1 text-center text-xs text-muted-foreground">
-        <button
-          type="button"
-          onClick={() => openTask(taskId)}
-          className={cn(
-            "tap-target rounded-full px-1 underline-offset-2 transition-colors",
-            "hover:text-app-olive hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-          )}
-        >
-          {sentence}
-        </button>
-      </p>
+      <ActionableLine
+        onClick={() => openTask(target.id)}
+        label={`${sentence}. Open the task`}
+      >
+        {sentence}
+      </ActionableLine>
+    );
+  }
+
+  // A done line reads like a reference to a specific message and was not one.
+  // `onJumpToMessage` is absent wherever there is nothing to scroll, and then
+  // the line stays plain rather than offering a click that does nothing.
+  if (target?.kind === "message" && onJumpToMessage) {
+    const messageId = target.id;
+    return (
+      <ActionableLine
+        onClick={() => onJumpToMessage(messageId)}
+        label={`${sentence}. Go to that message`}
+      >
+        {sentence}
+      </ActionableLine>
     );
   }
 

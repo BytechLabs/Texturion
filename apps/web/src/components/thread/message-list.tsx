@@ -190,6 +190,22 @@ export function MessageList({
   // is in the full stream but filtered out, restore all categories and complete
   // the jump from the effect below once it's rendered.
   const pendingJump = useRef<string | null>(null);
+  // #465: the message a jump landed on says so for a moment. Without it the
+  // thread scrolls and nothing tells you which of the bubbles now on screen
+  // was the one you asked for.
+  const [foundMessageId, setFoundMessageId] = useState<string | null>(null);
+  const foundTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markFound = useCallback((messageId: string) => {
+    if (foundTimer.current) clearTimeout(foundTimer.current);
+    setFoundMessageId(messageId);
+    foundTimer.current = setTimeout(() => setFoundMessageId(null), 1600);
+  }, []);
+  useEffect(
+    () => () => {
+      if (foundTimer.current) clearTimeout(foundTimer.current);
+    },
+    [],
+  );
   const clusterHas = (item: ThreadItem, messageId: string) =>
     item.kind === "cluster" && item.messages.some((m) => m.id === messageId);
   const scrollToMessage = useCallback(
@@ -197,6 +213,7 @@ export function MessageList({
       const index = items.findIndex((item) => clusterHas(item, messageId));
       if (index >= 0) {
         virtualizer.scrollToIndex(index, { align: "center" });
+        markFound(messageId);
         return;
       }
       // Not on the current filtered page: the target is either filtered out
@@ -212,7 +229,7 @@ export function MessageList({
         onFilterChange(ALL_CATEGORIES_ON);
       }
     },
-    [items, allItems, virtualizer, onFilterChange, messagesQuery],
+    [items, allItems, virtualizer, onFilterChange, messagesQuery, markFound],
   );
 
   // Finish a pending jump: once the (restored, possibly older) stream includes
@@ -226,6 +243,7 @@ export function MessageList({
     if (index >= 0) {
       pendingJump.current = null;
       virtualizer.scrollToIndex(index, { align: "center" });
+      markFound(target);
       return;
     }
     if (messagesQuery.hasNextPage) {
@@ -233,7 +251,7 @@ export function MessageList({
     } else {
       pendingJump.current = null; // fully loaded, still absent — stop.
     }
-  }, [items, virtualizer, messagesQuery]);
+  }, [items, virtualizer, messagesQuery, markFound]);
 
   // Anchored prepend: remember total size + scrollTop before older pages
   // land, restore the visual position after (G5 "anchored scroll on
@@ -455,6 +473,11 @@ export function MessageList({
                       event={item.event}
                       memberName={memberName}
                       messageBody={messageBody}
+                      // #465: a done/undone line names a message, so it takes
+                      // you to it. The jump is the SAME one the pinned banner
+                      // uses, so a target that is filtered out or on an older
+                      // page still resolves instead of dead-ending.
+                      onJumpToMessage={scrollToMessage}
                     />
                   ) : (
                     <div className="flex flex-col gap-0.5 py-1.5">
@@ -468,6 +491,8 @@ export function MessageList({
                             // a parallel tailwindcss-animate vocabulary (#4).
                             message.id === recentArrivalId &&
                               "app-motion-message-in",
+                            message.id === foundMessageId &&
+                              "app-motion-message-found",
                           )}
                         >
                           <MessageBubble

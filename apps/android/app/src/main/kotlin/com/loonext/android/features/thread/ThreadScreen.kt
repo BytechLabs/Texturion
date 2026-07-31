@@ -650,12 +650,50 @@ private fun ThreadLoaded(
                                 onDelete = { confirmDiscardQueued = item.pending },
                             )
 
-                            is TimelineItem.EventItem -> EventLine(
-                                text = eventLine(item.event, names, contactName),
-                                timeIso = item.event.created_at,
-                                eventType = item.event.type,
-                                transcript = voicemailTranscriptOf(item.event),
-                            )
+                            is TimelineItem.EventItem -> {
+                                // #465: an event that names a task or a message
+                                // goes there. Resolved from the payload, so a
+                                // line whose target was deleted (or whose
+                                // message is not in this thread) stays inert
+                                // rather than offering a tap that dead-ends.
+                                val target = eventTargetOf(item.event)
+                                val jumpable = target is EventTarget.JumpToMessage &&
+                                    timeline.any { it.key == "m:${target.messageId}" }
+                                val openable = target is EventTarget.OpenTask &&
+                                    onOpenTask != null
+                                EventLine(
+                                    text = eventLine(item.event, names, contactName),
+                                    timeIso = item.event.created_at,
+                                    eventType = item.event.type,
+                                    transcript = voicemailTranscriptOf(item.event),
+                                    clickLabel = when {
+                                        openable -> "Open the task"
+                                        jumpable -> "Go to that message"
+                                        else -> null
+                                    },
+                                    onClick = when {
+                                        openable -> {
+                                            {
+                                                onOpenTask!!(
+                                                    (target as EventTarget.OpenTask).taskId,
+                                                )
+                                            }
+                                        }
+
+                                        jumpable -> {
+                                            {
+                                                val id =
+                                                    (target as EventTarget.JumpToMessage)
+                                                        .messageId
+                                                jumpToMessageId = id
+                                                flashMessageId = id
+                                            }
+                                        }
+
+                                        else -> null
+                                    },
+                                )
+                            }
 
                             is TimelineItem.DayDivider -> DayDividerLine(item.label)
                         }

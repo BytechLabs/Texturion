@@ -345,4 +345,84 @@ final class MessagingTimelineTests: XCTestCase {
         XCTAssertEqual(line, "Call answered")
         XCTAssertFalse(line.contains("ended"))
     }
+
+    // MARK: - #465: which timeline lines go somewhere when tapped
+    //
+    // Vectors ported 1:1 from TimelineTest.kt so the phone and the laptop
+    // cannot disagree about which lines are live.
+
+    private func targetEvent(
+        _ type: String,
+        _ key: String? = nil,
+        _ value: String? = nil
+    ) -> ConversationEvent {
+        var payload: [String: JSONValue] = [:]
+        if let key, let value { payload[key] = .string(value) }
+        return ConversationEvent(
+            id: "e-target",
+            conversation_id: "c1",
+            actor_user_id: "u1",
+            type: type,
+            payload: .object(payload),
+            created_at: "2026-07-15T00:00:00Z"
+        )
+    }
+
+    func testTaskLinesOpenTheirTask() {
+        for type in [
+            "task_created",
+            "task_assigned",
+            "task_due_set",
+            "task_attachment_added",
+            "task_attachment_removed",
+        ] {
+            XCTAssertEqual(
+                eventTarget(of: targetEvent(type, "task_id", "t1")),
+                .openTask("t1"),
+                "\(type) should open its task"
+            )
+        }
+    }
+
+    func testADeletedTaskOffersNothingToOpen() {
+        // The task it names no longer exists, so a tap would dead-end.
+        XCTAssertNil(eventTarget(of: targetEvent("task_deleted", "task_id", "t1")))
+    }
+
+    func testDoneAndUndoneLinesGoToTheMessageTheyQuote() {
+        XCTAssertEqual(
+            eventTarget(of: targetEvent("message_done", "message_id", "m1")),
+            .jumpToMessage("m1")
+        )
+        XCTAssertEqual(
+            eventTarget(of: targetEvent("message_undone", "message_id", "m1")),
+            .jumpToMessage("m1")
+        )
+    }
+
+    func testALineWhosePayloadNamesNoTargetStaysInert() {
+        // A truncated or older payload must not produce a tap that goes nowhere.
+        XCTAssertNil(eventTarget(of: targetEvent("task_created")))
+        XCTAssertNil(eventTarget(of: targetEvent("message_done")))
+    }
+
+    func testLinesThatNameNoDestinationAreNeverActionable() {
+        // Restraint is the point: an assignment or a tag change has nowhere to
+        // go, and a false affordance is worse than a quiet line.
+        for type in [
+            "assigned",
+            "tag_added",
+            "tag_removed",
+            "status_changed",
+            "call_completed",
+            "missed_call",
+            "opted_out",
+            "media_refused",
+        ] {
+            XCTAssertNil(
+                eventTarget(of: targetEvent(type, "task_id", "t1")),
+                "\(type) should not be tappable"
+            )
+        }
+    }
 }

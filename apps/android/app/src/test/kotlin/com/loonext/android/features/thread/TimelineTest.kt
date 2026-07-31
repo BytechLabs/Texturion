@@ -10,6 +10,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -333,5 +334,82 @@ class TimelineTest {
             },
         )
         assertEquals(line, eventLine(notAsked, mapOf("u1" to "Dana"), "Sam"))
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* #465: which timeline lines go somewhere when tapped.              */
+    /* ---------------------------------------------------------------- */
+
+    private fun payloadEvent(type: String, key: String?, value: String?) =
+        ConversationEvent(
+            id = "e-target",
+            conversation_id = "c1",
+            actor_user_id = "u1",
+            type = type,
+            payload = buildJsonObject { if (key != null && value != null) put(key, value) },
+            created_at = "2026-07-15T00:00:00Z",
+        )
+
+    @Test
+    fun `task lines open their task`() {
+        for (type in listOf(
+            "task_created",
+            "task_assigned",
+            "task_due_set",
+            "task_attachment_added",
+            "task_attachment_removed",
+        )) {
+            assertEquals(
+                "$type should open its task",
+                EventTarget.OpenTask("t1"),
+                eventTargetOf(payloadEvent(type, "task_id", "t1")),
+            )
+        }
+    }
+
+    @Test
+    fun `a deleted task offers nothing to open`() {
+        // The task it names no longer exists, so a tap would dead-end.
+        assertNull(eventTargetOf(payloadEvent("task_deleted", "task_id", "t1")))
+    }
+
+    @Test
+    fun `done and undone lines go to the message they quote`() {
+        assertEquals(
+            EventTarget.JumpToMessage("m1"),
+            eventTargetOf(payloadEvent("message_done", "message_id", "m1")),
+        )
+        assertEquals(
+            EventTarget.JumpToMessage("m1"),
+            eventTargetOf(payloadEvent("message_undone", "message_id", "m1")),
+        )
+    }
+
+    @Test
+    fun `a line whose payload names no target stays inert`() {
+        // A truncated or older payload must not produce a tap that goes nowhere.
+        assertNull(eventTargetOf(payloadEvent("task_created", null, null)))
+        assertNull(eventTargetOf(payloadEvent("message_done", null, null)))
+    }
+
+    @Test
+    fun `lines that name no destination are never actionable`() {
+        // Restraint is the point: an assignment or a tag change has nowhere to
+        // go, and a false affordance is worse than a quiet line.
+        for (type in listOf(
+            "assigned",
+            "tag_added",
+            "tag_removed",
+            "status_changed",
+            "call_completed",
+            "missed_call",
+            "opted_out",
+            "media_refused",
+        )) {
+            assertNull(
+                "$type should not be tappable",
+                eventTargetOf(payloadEvent(type, "task_id", "t1")),
+            )
+        }
     }
 }

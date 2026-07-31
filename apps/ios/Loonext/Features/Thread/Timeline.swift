@@ -259,6 +259,45 @@ func voicemailTranscript(of event: ConversationEvent) -> String? {
 
 // MARK: - System event lines
 
+/// #465: where a timeline line goes when it is tapped.
+///
+/// The complaint was that these lines are only ever text: "X created a task"
+/// names a task and could not open it, and a done line quotes a message and
+/// could not reach it. Only the two that genuinely name a destination are
+/// actionable — an assignment or a tag change names nothing to open, and a
+/// false affordance is worse than a quiet line.
+///
+/// `task_deleted` is deliberately absent: the task it names no longer exists.
+///
+/// Kept pure and here (not in the view) so it is unit-tested directly and
+/// stays the single answer web, Android and iOS all give.
+enum EventTarget: Equatable {
+    case openTask(String)
+    case jumpToMessage(String)
+}
+
+private let taskEventTypes: Set<String> = [
+    "task_created",
+    "task_assigned",
+    "task_due_set",
+    "task_attachment_added",
+    "task_attachment_removed",
+]
+
+func eventTarget(of event: ConversationEvent) -> EventTarget? {
+    if taskEventTypes.contains(event.type) {
+        guard let taskId = event.payload["task_id"]?.stringValue else { return nil }
+        return .openTask(taskId)
+    }
+    if event.type == "message_done" || event.type == "message_undone" {
+        guard let messageId = event.payload["message_id"]?.stringValue else {
+            return nil
+        }
+        return .jumpToMessage(messageId)
+    }
+    return nil
+}
+
 /// Human line for an audit event. Unknown types fall back to a plain reading
 /// of the type name so a lagging app build never renders raw snake_case.
 func eventLine(

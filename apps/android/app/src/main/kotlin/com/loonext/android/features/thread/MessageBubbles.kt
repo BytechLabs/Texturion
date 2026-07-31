@@ -507,6 +507,12 @@ private fun eventIcon(type: String?): ImageVector = when {
 /**
  * System/task micro-row ("Dana moved this to Closed"): a 22dp icon well and a
  * quiet 12sp line, indented off the bubble rail (spec 21).
+ *
+ * #465: a line that NAMES something the reader can go to (a task, the message
+ * a done line quotes) takes them there. The rest state has to say so on its
+ * own — there is no hover on a phone — so the icon well fills with the primary
+ * tint and the sentence is underlined. Ripple on press comes free with
+ * `clickable`. Lines that name nothing stay exactly as quiet as they were.
  */
 @Composable
 fun EventLine(
@@ -516,23 +522,49 @@ fun EventLine(
     eventType: String? = null,
     /** A transcribed voicemail's words, shown under the line. Null otherwise. */
     transcript: String? = null,
+    /** Where this line goes, if anywhere. Null leaves the row inert. */
+    onClick: (() -> Unit)? = null,
+    /** Read out in place of the bare sentence, so the target is spoken too. */
+    clickLabel: String? = null,
 ) {
+    val actionable = onClick != null
     Row(
         modifier
             .fillMaxWidth()
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        onClickLabel = clickLabel,
+                        onClick = onClick,
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .padding(horizontal = 30.dp, vertical = 5.dp),
         verticalAlignment = Alignment.Top,
     ) {
         Box(
             Modifier
                 .size(22.dp)
-                .background(MaterialTheme.colorScheme.surfaceContainer, CircleShape),
+                .background(
+                    if (actionable) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainer
+                    },
+                    CircleShape,
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 eventIcon(eventType),
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary,
+                tint = if (actionable) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.secondary
+                },
                 modifier = Modifier.size(11.dp),
             )
         }
@@ -543,6 +575,8 @@ fun EventLine(
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontSize = 12.sp,
                     lineHeight = 18.sp,
+                    textDecoration =
+                        if (actionable) TextDecoration.Underline else null,
                 ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -543,6 +543,47 @@ private struct ThreadBody: View {
         if index == 0 { isAtBottom = false }
     }
 
+    /// #465: what tapping this timeline line does, or nil to leave it inert.
+    ///
+    /// A task line opens that task above the thread (the shell's `openTaskId`
+    /// route, the same target every other task affordance uses). A done line
+    /// goes to the message it quotes, loading older pages first if the message
+    /// is behind the current window — a jump that silently does nothing reads
+    /// as a broken line, which is worse than one that was never tappable.
+    private func eventTapAction(
+        for event: ConversationEvent
+    ) -> (@MainActor () -> Void)? {
+        guard let target = eventTarget(of: event) else { return nil }
+        switch target {
+        case .openTask(let taskId):
+            return { AppRouter.shared.openTaskId = taskId }
+        case .jumpToMessage(let messageId):
+            return {
+                Task { @MainActor in
+                    if await controller.ensureMessageLoaded(messageId) {
+                        jumpToMessageId = messageId
+                        flashMessageId = messageId
+                    }
+                }
+            }
+        }
+    }
+
+    /// VoiceOver reads the sentence AND where it goes; the dotted underline
+    /// that carries that for sighted readers is invisible to it.
+    private func eventTapLabel(
+        for event: ConversationEvent,
+        sentence: String
+    ) -> String? {
+        guard let target = eventTarget(of: event) else { return nil }
+        switch target {
+        case .openTask:
+            return "\(sentence). Open the task"
+        case .jumpToMessage:
+            return "\(sentence). Go to that message"
+        }
+    }
+
     /// True when this timeline item is the search-highlight target currently
     /// flashing (#186 item 2).
     private func isFlashed(_ item: TimelineItem) -> Bool {
@@ -599,10 +640,18 @@ private struct ThreadBody: View {
                 onDelete: { confirmDiscardQueued = pending }
             )
         case .event(let event):
+            // #465: an event that names a task or a message goes there. A done
+            // line whose message is older than the loaded window still works:
+            // the jump goes through `ensureMessageLoaded`, the same path the
+            // search highlight uses, rather than a presence check that would
+            // silently do nothing.
+            let sentence = eventLine(event, memberNames: names, contactName: contactName)
             EventLine(
-                text: eventLine(event, memberNames: names, contactName: contactName),
+                text: sentence,
                 timeIso: event.created_at,
-                transcript: voicemailTranscript(of: event)
+                transcript: voicemailTranscript(of: event),
+                onTap: eventTapAction(for: event),
+                tapLabel: eventTapLabel(for: event, sentence: sentence)
             )
         case .dayDivider(let label, _):
             DayDividerLine(label: label)

@@ -212,6 +212,45 @@ fun voicemailTranscriptOf(event: ConversationEvent): String? {
 }
 
 /**
+ * #465: where a timeline line goes when it is tapped.
+ *
+ * The complaint was that these lines are only ever text: "X created a task"
+ * names a task and could not open it, and a done line quotes a message and
+ * could not reach it. Only the two that genuinely name a destination are
+ * actionable — an assignment or a tag change names nothing to open, and a
+ * false affordance is worse than a quiet line.
+ *
+ * `task_deleted` is deliberately absent: the task it names no longer exists.
+ *
+ * Kept pure and here (not in the composable) so it is unit-tested directly and
+ * stays the single answer web, Android and iOS all give.
+ */
+sealed interface EventTarget {
+    data class OpenTask(val taskId: String) : EventTarget
+    data class JumpToMessage(val messageId: String) : EventTarget
+}
+
+private val TASK_EVENT_TYPES = setOf(
+    "task_created",
+    "task_assigned",
+    "task_due_set",
+    "task_attachment_added",
+    "task_attachment_removed",
+)
+
+fun eventTargetOf(event: ConversationEvent): EventTarget? {
+    if (event.type in TASK_EVENT_TYPES) {
+        val taskId = event.payloadString("task_id")
+        return if (taskId != null) EventTarget.OpenTask(taskId) else null
+    }
+    if (event.type == "message_done" || event.type == "message_undone") {
+        val messageId = event.payloadString("message_id")
+        return if (messageId != null) EventTarget.JumpToMessage(messageId) else null
+    }
+    return null
+}
+
+/**
  * Human line for an audit event. Unknown types fall back to a plain reading of
  * the type name so a lagging app build never renders raw snake_case.
  */

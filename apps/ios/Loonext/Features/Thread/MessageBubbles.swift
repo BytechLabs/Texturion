@@ -390,17 +390,41 @@ struct PendingBubble: View {
 }
 
 /// Centered system event line ("Dana moved this to Closed").
+///
+/// #465: a line that NAMES something the reader can go to (a task, the message
+/// a done line quotes) takes them there. The rest state has to say so on its
+/// own — there is no hover on a phone — so the sentence carries a dotted
+/// underline. Lines that name nothing stay exactly as quiet as they were, and
+/// stay plain `Text` so VoiceOver does not announce a button that isn't one.
 struct EventLine: View {
     let text: String
     let timeIso: String
     /// A transcribed voicemail's words, shown under the line. Nil otherwise.
     var transcript: String?
+    /// Where this line goes, if anywhere. Nil leaves the line inert.
+    var onTap: (@MainActor () -> Void)?
+    /// Read out in place of the bare sentence, so the target is spoken too.
+    var tapLabel: String?
+
+    // `.underline` is a Text modifier and must be applied while this is still
+    // a Text — after `.foregroundStyle` it no longer is.
+    private var sentence: some View {
+        Text("\(text) · \(bubbleTime(timeIso))")
+            .underline(onTap != nil, pattern: .dot)
+            .font(.golos(11))
+            .foregroundStyle(BrandColor.muted400)
+    }
 
     var body: some View {
         VStack(spacing: 3) {
-            Text("\(text) · \(bubbleTime(timeIso))")
-                .font(.golos(11))
-                .foregroundStyle(BrandColor.muted400)
+            if let onTap {
+                Button(action: onTap) { sentence }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(tapLabel ?? text)
+                    .accessibilityAddTraits(.isButton)
+            } else {
+                sentence
+            }
             // The voicemail's words, right where the message is. Without them
             // this line only says a voicemail exists, which still leaves the
             // reader having to go and play it.
