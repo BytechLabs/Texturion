@@ -5746,3 +5746,54 @@ non-inheriting types, short-lived URLs) had already shipped.
 **Still the owner's call:** an AV service as a second layer. `scan.ts` carries
 the seam for it (`EXTERNAL_SCAN_UNAVAILABLE`) so adding one is a new branch
 there rather than a new shape everywhere downstream.
+
+---
+
+## D102 — reporting a file is a fire alarm, and releasing it is a judgement (#317, 2026-07-31)
+
+**Decision.** Any member can report an attachment; only an owner or admin can
+release it. Reporting quarantines the file for the entire workspace — the
+signed-URL mint refuses while the flag is set, and the gallery stops listing it.
+Nothing is deleted.
+
+**Why any member.** The scan (D101) is explicitly not antivirus, so the person
+who catches what it missed is a tech looking at a file that does not smell
+right. Behind owner-only they cannot stop the thing they just spotted, and
+waiting for somebody with the right role is how you get "I'll just open it to
+check". The asymmetry with release is the point: raising the alarm belongs to
+whoever is holding the phone, standing it down is a judgement about risk that
+belongs with whoever answers for it.
+
+**Why a flag rather than a delete.** Deleting destroys the evidence and cannot
+be undone by a member acting on a hunch. A flag is reversible, keeps the row for
+the audit trail, and — because every download here goes through a mint the
+Worker performs — is a hard stop rather than an advisory one. Both mint paths
+honour it: `/attachments/:id/url` **and** the conversation gallery, which signs
+the same objects and would otherwise be a side door. There is no in-flight URL
+to invalidate; mints are short-lived by construction (D19 §2.5), so the window
+closes on its own.
+
+**`forbidden`, not `not_found`.** The file plainly exists — the crew can see it —
+and a 404 would read as "we lost your photo", sending somebody to look for a bug
+instead of telling them what happened. It is unambiguous on that route: a file
+hidden by number access (#106) returns `not_found` deliberately, so a 403 from
+the mint means quarantined and nothing else.
+
+**Idempotent.** Two techs flagging the same file within a minute of each other is
+the normal case, and the second must not get an error for doing the right thing.
+
+**The reporter reference is `on delete set null`**, pinned in SQL with the
+reason: a departed tech's report is still a report, so the hold has to outlive
+their account. `restrict` would either block the deletion or invite somebody to
+clear the flag to unblock it.
+
+**One confirm, no form.** Every client asks before reporting, because it affects
+everyone — and asks exactly once, because anything longer is hesitation, and
+hesitating is how somebody opens the file instead of flagging it. The optional
+note exists in the API and deliberately not in the confirm.
+
+**Each client uses the affordance its users already reach for**, rather than one
+shape ported three times: web collapses the row's actions into a triple-dot
+(the second trailing icon being the moment to stop adding icons); Android does
+the same on file rows and long-press on thumbnails, which have no room for a
+menu; iOS uses `.contextMenu` on both arms so a photo and a file behave alike.
