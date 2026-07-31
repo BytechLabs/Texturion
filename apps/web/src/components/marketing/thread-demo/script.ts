@@ -68,9 +68,49 @@ export interface NoteBeat extends BaseBeat {
 export interface EventBeat extends BaseBeat {
   kind: "event";
   text: string;
+  /**
+   * This line is the assignment: the thread header's assignee avatar appears
+   * once it is revealed. Data-driven on purpose, the deep-dive used to test
+   * `step >= 3`, a literal that silently pointed at the wrong beat the moment
+   * a beat was inserted ahead of it.
+   */
+  revealsAssignee?: boolean;
 }
 
-export type ThreadBeat = InboundBeat | OutboundBeat | NoteBeat | EventBeat;
+/**
+ * A call in the thread (#129, D36 to D43). Calling has shipped on every plan
+ * since D43 and the product threads calls next to texts, so a demo built only
+ * from texts under-reports the conversation by half (#491).
+ *
+ * Every sentence this renders is the APP'S OWN, lifted from
+ * `components/thread/system-line.tsx` `eventSentence`. Nothing here invents a
+ * phrase the product would not print.
+ */
+export interface CallBeat extends BaseBeat {
+  kind: "call";
+  /** Inbound = the customer called us; outbound = the crew called them. */
+  direction: "inbound" | "outbound";
+  outcome: "answered" | "missed" | "voicemail";
+  /** Talk time, rendered as the app's "· 4m 12s" tail. Answered calls only. */
+  seconds?: number;
+  /**
+   * D43: the caller left a message. The line carries its length and the
+   * player renders beneath it, with the Whisper transcript under that.
+   */
+  voicemail?: { seconds: number; transcript: string };
+  /**
+   * The FEATURE-GAPS missed-call line: the automatic text-back fired, so the
+   * thread also says so. The reply itself is the outbound beat that follows.
+   */
+  textBack?: boolean;
+}
+
+export type ThreadBeat =
+  | InboundBeat
+  | OutboundBeat
+  | NoteBeat
+  | EventBeat
+  | CallBeat;
 
 export interface ThreadScript {
   /** Contact shown in the thread header. */
@@ -87,12 +127,41 @@ export interface ThreadScript {
  * §S4 canonical thread, the water-heater emergency, steppable and annotated
  * in the home "The fix, shown" section. Copy is verbatim from COPY-DECK v2
  * §S4.
+ *
+ * #491: the thread now opens the way the job actually starts, with a call
+ * nobody could take. Karen rings the business number while the crew is under
+ * a sink, leaves a voicemail, and the missed call texts her back on its own,
+ * all of it in the same conversation her photo lands in ninety seconds later.
+ * That is the single most load-bearing thing this page can show, because a
+ * demo made of texts is what made the whole product read as a texting tool.
  */
 export const WATER_HEATER_SCRIPT: ThreadScript = {
   contact: { name: "Karen M", number: "(416) 555-0187" },
   finalStatus: "waiting",
   assignee: "Dale",
   beats: [
+    {
+      id: "call-1",
+      kind: "call",
+      direction: "inbound",
+      outcome: "voicemail",
+      voicemail: {
+        seconds: 34,
+        transcript:
+          "Hi, this is Karen on Delaware Ave. I'm trying to reach someone about our water heater, there's water on the floor underneath it. I'll send you a picture. Thanks.",
+      },
+      textBack: true,
+      step: 1,
+    },
+    {
+      id: "out-0",
+      kind: "outbound",
+      by: "Reyes Plumbing",
+      body:
+        "Sorry we missed your call, this is Reyes Plumbing. Text us right here and someone will get back to you.",
+      time: "2:39 PM",
+      delivered: "delivered",
+    },
     {
       id: "in-1",
       kind: "inbound",
@@ -101,7 +170,7 @@ export const WATER_HEATER_SCRIPT: ThreadScript = {
         "Hi, do you service tankless water heaters? Ours is showing error E110 and there's water pooling underneath",
       photo: { label: "Leaking tankless heater" },
       time: "2:41 PM",
-      step: 1,
+      step: 2,
     },
     {
       id: "note-1",
@@ -110,13 +179,14 @@ export const WATER_HEATER_SCRIPT: ThreadScript = {
       body:
         "Sounds like the Navien on Delaware Ave. Dale, you're two streets over this afternoon",
       time: "2:43 PM",
-      step: 2,
+      step: 3,
     },
     {
       id: "event-1",
       kind: "event",
       text: "Priya assigned this conversation to Dale",
-      step: 3,
+      revealsAssignee: true,
+      step: 4,
     },
     {
       id: "out-1",
@@ -126,7 +196,7 @@ export const WATER_HEATER_SCRIPT: ThreadScript = {
         "Hi Karen, it's Dale from Reyes Plumbing. E110 with pooling water usually means a heat exchanger leak, so please don't run hot water for now. I can come by tomorrow between 9 and 11. Does that work?",
       time: "2:52 PM",
       delivered: "delivered",
-      step: 4,
+      step: 5,
     },
     {
       id: "in-2",
@@ -139,7 +209,7 @@ export const WATER_HEATER_SCRIPT: ThreadScript = {
       id: "event-2",
       kind: "event",
       text: "Dale added the tag Scheduled",
-      step: 5,
+      step: 6,
     },
   ],
 };
@@ -149,6 +219,10 @@ export const WATER_HEATER_SCRIPT: ThreadScript = {
  * early-morning exchange that reads well in the app's own dark mode inside
  * the phone Panel Frame. Trade-plausible one-liners (BLUEPRINT §10.1 permits
  * these for seed threads), attributed to the same Reyes crew.
+ *
+ * #491: Dale places the call from the same phone, in the same thread. The
+ * cell's claim is that the whole product fits in a pocket, and the softphone
+ * (D36 to D43) is the half of it that was never depicted.
  */
 export const DARK_BAND_SCRIPT: ThreadScript = {
   contact: { name: "Marcus T", number: "(647) 555-0121" },
@@ -169,6 +243,13 @@ export const DARK_BAND_SCRIPT: ThreadScript = {
       body: "On my way, should be with you in about 20 minutes.",
       time: "6:14 AM",
       delivered: "delivered",
+    },
+    {
+      id: "d-call-1",
+      kind: "call",
+      direction: "outbound",
+      outcome: "answered",
+      seconds: 42,
     },
     {
       id: "d-in-2",

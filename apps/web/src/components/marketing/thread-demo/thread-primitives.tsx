@@ -19,11 +19,13 @@
  * Nothing here is interactive: no tab stops, no false affordances (§7).
  */
 
-import { Check, CheckCheck, ImageIcon, Lock } from "lucide-react";
+import { Check, CheckCheck, ImageIcon, Lock, Play } from "lucide-react";
 
+import { formatCallDuration } from "@/lib/format/call";
 import { cn } from "@/lib/utils";
 
 import type {
+  CallBeat,
   DeliveryState,
   EventBeat,
   InboundBeat,
@@ -206,5 +208,92 @@ export function EventLine({ beat }: { beat: EventBeat }) {
     <p className="py-1 text-center text-xs text-muted-foreground">
       {beat.text}
     </p>
+  );
+}
+
+/**
+ * The sentence a call gets in the timeline. Every arm is lifted from the
+ * app's own `eventSentence` (components/thread/system-line.tsx) so the demo
+ * cannot drift into wording the product would never print, which is the exact
+ * failure #491 was filed for in the other direction.
+ */
+export function callSentence(beat: CallBeat): string {
+  if (beat.direction === "outbound") {
+    if (beat.outcome === "missed") return "Called, no answer";
+    return beat.seconds
+      ? `You called · ${formatCallDuration(beat.seconds)}`
+      : "You called";
+  }
+  if (beat.voicemail) {
+    return beat.voicemail.seconds
+      ? `Left a voicemail · ${formatCallDuration(beat.voicemail.seconds)}`
+      : "Left a voicemail";
+  }
+  if (beat.outcome === "voicemail") return "Call went to voicemail";
+  if (beat.outcome === "missed") return "Missed call";
+  return beat.seconds
+    ? `Call answered · ${formatCallDuration(beat.seconds)}`
+    : "Call answered";
+}
+
+/** The missed-call text-back line, verbatim from the app's `missed_call` arm. */
+export const MISSED_CALL_TEXT_BACK_LINE =
+  "This customer called and no one picked up, so we texted them back";
+
+/**
+ * The voicemail player AT REST, depicted. The app's real <VoicemailPlayer> is
+ * a button that fetches a signed URL; this is the same pill in the same
+ * tokens rendered as a span, because the demo adds zero tab stops (§7) and
+ * there is no recording behind it. Same rule the composer's Send follows.
+ */
+function VoicemailPill({ seconds }: { seconds: number }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-app-line bg-app-paper px-2.5 py-1 text-[12px] font-medium text-app-ink">
+      <Play className="size-3.5" strokeWidth={1.75} aria-hidden />
+      Play voicemail ({formatCallDuration(seconds)})
+    </span>
+  );
+}
+
+/**
+ * A call in the thread: the app's quiet centered line, plus the D43 voicemail
+ * block (player then transcript) when the caller left a message, plus the
+ * automatic text-back line when it fired. Structure and tokens match
+ * SystemLine's voicemail branch exactly.
+ */
+export function CallLine({ beat }: { beat: CallBeat }) {
+  const sentence = callSentence(beat);
+
+  if (!beat.voicemail) {
+    return (
+      <div className="py-1 text-center">
+        <p className="text-xs text-muted-foreground">{sentence}</p>
+        {beat.textBack && (
+          <p className="text-xs text-muted-foreground">
+            {MISSED_CALL_TEXT_BACK_LINE}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5 py-1 text-center">
+      <p className="text-xs text-muted-foreground">{sentence}</p>
+      <div className="flex justify-center">
+        <VoicemailPill seconds={beat.voicemail.seconds} />
+      </div>
+      {/* The words, right where the message is (#367 voicemail transcripts):
+          without them the line only says a voicemail exists, which still
+          leaves the reader having to stop and play it. */}
+      <p className="mx-auto max-w-[36rem] text-[12.5px] leading-[1.45] text-app-muted">
+        {beat.voicemail.transcript}
+      </p>
+      {beat.textBack && (
+        <p className="text-xs text-muted-foreground">
+          {MISSED_CALL_TEXT_BACK_LINE}
+        </p>
+      )}
+    </div>
   );
 }

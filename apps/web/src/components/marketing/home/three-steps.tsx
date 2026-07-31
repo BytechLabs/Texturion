@@ -3,7 +3,7 @@ import { FrSection } from "@/components/marketing/fr";
 import { FirstWeekTimeline } from "./first-week-timeline";
 
 /**
- * S5 · FROM SIGNUP TO TEXTING (COPY-DECK v2). Conversion job: collapse
+ * S5 · FROM SIGNUP TO ANSWERING CUSTOMERS (COPY-DECK v2). Conversion job: collapse
  * perceived setup effort to minutes, and turn the one-week US carrier wait
  * from a hidden gotcha into a trust signal.
  *
@@ -21,15 +21,17 @@ const STEPS: readonly { title: string; body: string }[] = [
     body: "Send your team a link. They open it on whatever phone they already have. Nothing to install, nothing to configure. Starter covers 3 people, Pro covers 15.",
   },
   {
-    title: "Text customers.",
-    body: 'Put "call or text" on your trucks, your site, and your invoices. Every reply lands in the shared inbox, where anyone can pick it up.',
+    title: "Answer customers.",
+    body: 'Put "call or text" on your trucks, your site, and your invoices. Every text and every call lands in the shared inbox, where anyone can pick it up.',
   },
 ];
 
 export function ThreeSteps() {
   return (
     <FrSection ground="white" id="steps">
-      <h2 className="fr-h2 max-w-2xl">From signup to texting, in three steps.</h2>
+      <h2 className="fr-h2 max-w-2xl">
+        From signup to answering customers, in three steps.
+      </h2>
 
       <ol className="mt-12 grid gap-8 md:grid-cols-3">
         {STEPS.map((step, i) => (

@@ -11,10 +11,22 @@
 export interface ArrivalScriptItem {
   /** Contact display name on the inbox row (fictional). */
   name: string;
-  /** The row's snippet (the customer's text). */
+  /** The row's snippet (the latest message in that conversation). */
   snippet: string;
   /** The mono timestamp, drawn on the field and shown on the row. */
   time: string;
+  /**
+   * Direction of the snippet, which the row prefixes exactly the way the
+   * app's own conversation-row does ("You: " on an outbound). Defaults to
+   * inbound.
+   *
+   * #491: one row is a CALL. The field draws the moment a customer reached
+   * the business; the row shows what the inbox holds afterwards, and when
+   * that moment was a call nobody could take, what it holds is the automatic
+   * text-back. Without it the first product surface on the site is five
+   * texts, which is the impression this issue exists to correct.
+   */
+  direction?: "inbound" | "outbound";
 }
 
 /** P5-SPEC order: 9:04 PM, 6:48 AM, 12:15 PM, 5:31 PM, 8:47 AM. */
@@ -36,8 +48,10 @@ export const ARRIVAL_SCRIPT: readonly ArrivalScriptItem[] = [
   },
   {
     name: "Morgan W",
-    snippet: "Running 15 late, still ok?",
+    snippet:
+      "Sorry we missed your call. Text us right here and someone will get back to you.",
     time: "5:31 PM",
+    direction: "outbound",
   },
   {
     name: "Theo B",

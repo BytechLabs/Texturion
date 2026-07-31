@@ -48,14 +48,14 @@ const CONTENT: TradeContent = {
     "Texting fixes half of that on its own. Customers would rather text than call anyway. Loonext fixes the other half: the texts stop belonging to one phone and start belonging to the business, so the tech in the crawlspace and the one at the supply house are looking at the same conversation.",
   ],
 
-  threadH2: "A Tuesday, in texts.",
+  threadH2: "A Tuesday night, from the missed call on.",
   threadLede:
-    "A backed-up floor drain at 9:04 on a Tuesday night. A photo, a note to bring the auger, an assignment, a price, a booking. The whole call-out handled in the shared inbox, and nobody's dinner got ruined.",
+    "A backed-up floor drain at 9 on a Tuesday night. The call nobody was there to take leaves a voicemail you can read, texts him back on its own, and the photo lands two minutes later. A note to bring the auger, an assignment, a price, a booking. The whole call-out handled in one conversation, and nobody's dinner got ruined.",
   script: PLUMBERS_SCRIPT,
   threadAriaLabel:
-    "A Reyes Plumbing conversation: a backed-up basement floor drain reported at 9:04 PM, assigned to Dale and booked for 8am",
+    "A Reyes Plumbing conversation: a 9 PM voicemail about a backed-up basement floor drain, texted back automatically, assigned to Dale and booked for 8am",
 
-  useCasesH2: "Where texting earns its keep in a plumbing business.",
+  useCasesH2: "Where a shared inbox earns its keep in a plumbing business.",
   useCases: [
     {
       title: "Photo triage before you roll a truck.",

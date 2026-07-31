@@ -49,12 +49,12 @@ const CONTENT: TradeContent = {
 
   threadH2: "A running-late text, rescued between stylists.",
   threadLede:
-    "A client texts at 11:20 that she's 30 minutes late for her 11:30 color. The desk sees Jess can't absorb it, hands the appointment to Maya, and the client walks in at noon to the same service at the same price, instead of a cancelled slot.",
+    "A client texts at 11:20 that she's 30 minutes late for her 11:30 color. The desk sees Jess can't absorb it, hands the appointment to Maya, and a short call from the salon's own number settles the shade. The client walks in at noon to the same service at the same price, instead of a cancelled slot.",
   script: SALONS_SCRIPT,
   threadAriaLabel:
-    "A salon conversation: a client running 30 minutes late at 11:20 AM, moved from Jess to Maya so the color still happens at noon",
+    "A salon conversation: a client running 30 minutes late at 11:20 AM, moved from Jess to Maya and confirmed by a call, so the color still happens at noon",
 
-  useCasesH2: "Where texting earns its keep in a salon.",
+  useCasesH2: "Where a shared inbox earns its keep in a salon.",
   useCases: [
     {
       title: "Confirm appointments to cut no-shows.",

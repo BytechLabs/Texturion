@@ -46,12 +46,12 @@ const CONTENT: TradeContent = {
 
   threadH2: "A locked gate, turned into next week's job.",
   threadLede:
-    "The crew's idling at a locked side gate at 7:15 AM. One text gets the code, the code gets saved to the contact, and the customer's “could you add the back beds?” becomes a priced cleanup folded into Thursday's route.",
+    "The crew's idling at a locked side gate at 7:15 AM. The call to the customer rings out, so one text gets the code instead. The code gets saved to the contact, and the customer's “could you add the back beds?” becomes a priced cleanup folded into Thursday's route.",
   script: LANDSCAPERS_SCRIPT,
   threadAriaLabel:
-    "A Greenline landscaping conversation: a locked side gate at 7:15 AM, the code saved to the contact, and a back-beds cleanup quoted for Thursday",
+    "A Greenline landscaping conversation: an unanswered call and a text from a locked side gate at 7:15 AM, the code saved to the contact, and a back-beds cleanup quoted for Thursday",
 
-  useCasesH2: "Where texting earns its keep in a landscaping business.",
+  useCasesH2: "Where a shared inbox earns its keep in a landscaping business.",
   useCases: [
     {
       title: "Weather reschedules, in two taps.",

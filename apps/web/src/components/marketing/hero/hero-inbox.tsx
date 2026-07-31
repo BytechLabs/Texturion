@@ -82,7 +82,11 @@ function InboxRow({ row }: { row: RowState }) {
             {item.time}
           </span>
         </span>
+        {/* The app's own snippet rule (inbox/conversation-row.tsx): an
+            outbound latest message is prefixed "You: ". Marketing does not
+            invent a second grammar for the same row. */}
         <span className="mt-[2px] block truncate text-[12.5px] leading-[1.45] text-app-muted">
+          {item.direction === "outbound" ? "You: " : ""}
           {item.snippet}
         </span>
       </span>

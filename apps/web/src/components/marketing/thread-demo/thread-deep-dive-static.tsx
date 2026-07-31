@@ -29,9 +29,17 @@ import { StaticThread } from "./static-thread";
  *  and the mounted island stay pixel-equal so the swap never moves layout. */
 export const DEEP_DIVE_BODY_CLASSES = "flex flex-col gap-3 px-3.5 py-4";
 
-/** COPY-DECK v2 §S4 step captions, verbatim. Shared with the island. */
+/**
+ * COPY-DECK v2 §S4 step captions, verbatim. Shared with the island.
+ *
+ * #491: caption 1 is the call. The section used to start at the customer's
+ * text, which is why the page's most-read demo read as a texting tool: the
+ * missed call, the voicemail and the automatic text-back all ship, and none
+ * of them were on the page.
+ */
 export const DEEP_DIVE_CAPTIONS = [
-  "A text to your business number becomes a conversation everyone can see.",
+  "A call you can't take texts them back on its own, and the voicemail lands in the thread, written out.",
+  "Their text joins the same conversation. One customer, one thread, calls and texts together.",
   "Leave a note for the team. Customers never see notes.",
   "Assign it to whoever's closest. One owner, no double replies.",
   "Reply from any phone. Delivery is confirmed, in writing.",
@@ -44,12 +52,13 @@ export function DeepDiveHeader() {
     <>
       <Eyebrow>See it work</Eyebrow>
       <h2 className="fr-h2 mt-4 text-[color:var(--fr-ink)]">
-        What actually happens when a text lands.
+        What actually happens when a customer reaches you.
       </h2>
       <p className="fr-body mt-4 max-w-md text-[color:var(--fr-ink-70)]">
-        Here&apos;s the same conversation, slowed down. A customer texts your
-        business number, and step by step, this is what your crew sees and
-        does: assign it, note it, reply, confirm, tag.
+        Here&apos;s one conversation, slowed down. A customer calls your
+        business number and then texts it, and step by step, this is what your
+        crew sees and does: read the voicemail, note it, assign it, reply,
+        confirm, tag.
       </p>
     </>
   );

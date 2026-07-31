@@ -368,12 +368,16 @@ the home page (§3.9); the generic missed-text calculator is demoted (§3.7).
   contrast with the demo that follows.
 - **Interactive:** none. Reveals stagger 60ms.
 
-### 3.4 The inbox, up close — "What actually happens when a text lands"
+### 3.4 The inbox, up close — "What actually happens when a customer reaches you"
 
 - **Purpose:** the hero (§3.1) *is* the signature demo; this section is now a **deeper feature
   walk-through**, not a redundant second demo. It slows the same story down and annotates the
   mechanics the hero shows in motion — assignment, notes, delivery confirmation, tags — so the
-  reader who wants detail gets it.
+  reader who wants detail gets it. **#491:** the walk-through opens on the CALL, not the text. A
+  missed call, its voicemail (player plus transcript) and the automatic text-back are all product,
+  all shipped since D36 to D43, and their absence from this section is most of why the site read as
+  a texting tool. The step captions are derived one-per-`step` from the script, so inserting a beat
+  without writing its caption fails a test rather than shipping an orphan.
 - **Layout:** two-column on desktop: left = sticky H2 + three-line explanation + step captions
   that highlight the mechanics; right = the annotated thread (the same primitives as the hero,
   paused/steppable rather than a fresh autoplay spectacle). Keep stone-50; save the washes

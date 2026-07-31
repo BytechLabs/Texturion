@@ -47,12 +47,12 @@ const CONTENT: TradeContent = {
 
   threadH2: "A no-heat morning, booked before the coffee.",
   threadLede:
-    "A customer texts a photo of the thermostat error at 6:48 AM. The office reads the code, drops a note to bring the capacitor, and assigns the tech whose van has the part, who texts back a window and a diagnostic price before the shop even opens.",
+    "A 6:46 AM call the shop was too early to answer, texted back on its own. Two minutes later the customer sends a photo of the thermostat error. The office reads the code, drops a note to bring the capacitor, and assigns the tech whose van has the part, who texts back a window and a diagnostic price before the shop even opens.",
   script: HVAC_SCRIPT,
   threadAriaLabel:
-    "A Northline Heating conversation: a no-heat text with a thermostat error photo at 6:48 AM, assigned to Tariq and booked for 9",
+    "A Northline Heating conversation: a 6:46 AM missed call answered by an automatic text back, then a no-heat text with a thermostat error photo at 6:48 AM, assigned to Tariq and booked for 9",
 
-  useCasesH2: "Where texting earns its keep in an HVAC business.",
+  useCasesH2: "Where a shared inbox earns its keep in an HVAC business.",
   useCases: [
     {
       title: "Triage the surge instead of drowning in it.",

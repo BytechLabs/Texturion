@@ -16,6 +16,7 @@
 
 import { ThreadFrame } from "./thread-frame";
 import {
+  CallLine,
   EventLine,
   InboundBubble,
   NoteBubble,
@@ -65,6 +66,8 @@ export function StaticThread({
               return <NoteBubble key={beat.id} beat={beat} />;
             case "event":
               return <EventLine key={beat.id} beat={beat} />;
+            case "call":
+              return <CallLine key={beat.id} beat={beat} />;
             default:
               return null;
           }

@@ -46,12 +46,12 @@ const CONTENT: TradeContent = {
 
   threadH2: "A key under the mat, and a Friday moved to Monday.",
   threadLede:
-    "At 5:56 PM a regular texts new entry instructions and asks to move her clean. The office saves the key note to her contact, the team's Friday opens up, and Monday's visit is confirmed with a window, all before dinner.",
+    "A regular calls just before six and the office picks up, then texts the entry instructions so they are in writing. The key note goes on her contact, the team's Friday opens up, and Monday's visit is confirmed with a window, all before dinner. The call and the text are one conversation.",
   script: CLEANERS_SCRIPT,
   threadAriaLabel:
-    "A cleaning company conversation: new key instructions at 5:56 PM and a Friday clean rescheduled to Monday between 10 and noon",
+    "A cleaning company conversation: an answered call just before 6 PM, new key instructions at 5:56 PM, and a Friday clean rescheduled to Monday between 10 and noon",
 
-  useCasesH2: "Where texting earns its keep in a cleaning business.",
+  useCasesH2: "Where a shared inbox earns its keep in a cleaning business.",
   useCases: [
     {
       title: "Entry notes the customer never sees.",

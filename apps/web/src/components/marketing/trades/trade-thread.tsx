@@ -21,13 +21,15 @@
  * outside, and no demo-labeling chip is attached (owner amendment 2026-07-08).
  */
 
-import { CheckCheck, CircleCheck, ImageIcon, Lock } from "lucide-react";
+import { CheckCheck, CircleCheck, ImageIcon, Lock, Play } from "lucide-react";
 
 import { StatusPill } from "@/components/inbox/status-pill";
+import { formatCallDuration } from "@/lib/format/call";
 import { cn } from "@/lib/utils";
 
 import type {
   TradeBeat,
+  TradeCallBeat,
   TradeInboundBeat,
   TradeNoteBeat,
   TradeOutboundBeat,
@@ -204,11 +206,81 @@ function NoteBeat({
   );
 }
 
+/**
+ * A call in the timeline. Every sentence is the app's own, from
+ * `components/thread/system-line.tsx` `eventSentence`, so the six trade pages
+ * cannot describe calling in words the product would never print.
+ */
+function callSentence(beat: TradeCallBeat): string {
+  if (beat.direction === "outbound") {
+    if (beat.outcome === "missed") return "Called, no answer";
+    return beat.seconds
+      ? `You called · ${formatCallDuration(beat.seconds)}`
+      : "You called";
+  }
+  if (beat.voicemail) {
+    return `Left a voicemail · ${formatCallDuration(beat.voicemail.seconds)}`;
+  }
+  if (beat.outcome === "voicemail") return "Call went to voicemail";
+  if (beat.outcome === "missed") return "Missed call";
+  return beat.seconds
+    ? `Call answered · ${formatCallDuration(beat.seconds)}`
+    : "Call answered";
+}
+
+/** The app's `missed_call` line, verbatim. */
+const MISSED_CALL_TEXT_BACK_LINE =
+  "This customer called and no one picked up, so we texted them back";
+
+/**
+ * The D43 voicemail player AT REST. The product's real player is a button
+ * that fetches a signed URL; here it is the same pill in the same tokens,
+ * rendered as a span, because the depiction adds zero tab stops (Law 11) and
+ * there is no recording behind it. Same rule <ComposerAtRest> follows.
+ */
+function VoicemailPill({ seconds }: { seconds: number }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-app-line bg-app-paper px-2.5 py-1 text-[12px] font-medium text-app-ink">
+      <Play className="size-3.5" strokeWidth={1.75} aria-hidden />
+      Play voicemail ({formatCallDuration(seconds)})
+    </span>
+  );
+}
+
+function CallBeat({ beat }: { beat: TradeCallBeat }) {
+  return (
+    <div className="space-y-1.5 py-1 text-center">
+      <p className="text-[12px] text-app-muted">{callSentence(beat)}</p>
+      {beat.voicemail && (
+        <>
+          <span className="flex justify-center">
+            <VoicemailPill seconds={beat.voicemail.seconds} />
+          </span>
+          {/* The words, right where the message is (#367): a line that only
+              says a voicemail exists still leaves the reader having to play
+              it, which on a marketing page means never. */}
+          <p className="mx-auto max-w-[30rem] text-[12.5px] leading-[1.45] text-app-muted">
+            {beat.voicemail.transcript}
+          </p>
+        </>
+      )}
+      {beat.textBack && (
+        <p className="text-[12px] text-app-muted">
+          {MISSED_CALL_TEXT_BACK_LINE}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function renderBeat(
   beat: TradeBeat,
   doneSet: ReadonlySet<string>,
   doneLabels: Readonly<Record<string, string>>,
 ) {
+  if (beat.kind === "call") {
+    return <CallBeat key={beat.id} beat={beat} />;
+  }
   if (beat.kind === "event") {
     return (
       <p key={beat.id} className="py-1 text-center text-[12px] text-app-muted">

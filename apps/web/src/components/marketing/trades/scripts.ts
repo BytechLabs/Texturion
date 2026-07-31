@@ -54,11 +54,37 @@ export interface TradeEventBeat {
   text: string;
 }
 
+/**
+ * A call in the thread (#129, D36 to D43), same model as the shared
+ * thread-demo <CallBeat>. #491: calling ships on every plan and every one of
+ * these six threads was made of texts, which is most of why the six highest
+ * intent pages on the site read as a texting tool.
+ *
+ * Each page stages a DIFFERENT half of the calling surface on purpose, so a
+ * reader who lands on two of them learns two true things rather than the same
+ * one twice: inbound voicemail with the text-back, an inbound call the office
+ * answered, an outbound call that went unanswered, and an outbound call that
+ * was picked up.
+ */
+export interface TradeCallBeat {
+  id: string;
+  kind: "call";
+  direction: "inbound" | "outbound";
+  outcome: "answered" | "missed" | "voicemail";
+  /** Talk time, rendered as the app's "· 4m 12s" tail. Answered calls only. */
+  seconds?: number;
+  /** D43: the caller left a message, so the player and its words render. */
+  voicemail?: { seconds: number; transcript: string };
+  /** The automatic text-back fired; the reply is the outbound beat after it. */
+  textBack?: boolean;
+}
+
 export type TradeBeat =
   | TradeInboundBeat
   | TradeNoteBeat
   | TradeOutboundBeat
-  | TradeEventBeat;
+  | TradeEventBeat
+  | TradeCallBeat;
 
 export interface TradeScript {
   contact: { name: string; number: string };
@@ -82,6 +108,25 @@ export const PLUMBERS_SCRIPT: TradeScript = {
   status: "waiting",
   assignee: "Dale",
   beats: [
+    {
+      id: "pl-call-1",
+      kind: "call",
+      direction: "inbound",
+      outcome: "voicemail",
+      voicemail: {
+        seconds: 27,
+        transcript:
+          "Yeah, hi, it's Marcus over on Wrenfield. Our basement drain is backing up every time the washer runs. Call me back tonight if you can.",
+      },
+      textBack: true,
+    },
+    {
+      id: "pl-out-0",
+      kind: "outbound",
+      body:
+        "Sorry we missed your call, this is Reyes Plumbing. Text us right here and someone will get back to you tonight.",
+      time: "9:02 PM",
+    },
     {
       id: "pl-in-1",
       kind: "inbound",
@@ -135,6 +180,20 @@ export const HVAC_SCRIPT: TradeScript = {
   assignee: "Tariq",
   beats: [
     {
+      id: "hv-call-1",
+      kind: "call",
+      direction: "inbound",
+      outcome: "missed",
+      textBack: true,
+    },
+    {
+      id: "hv-out-0",
+      kind: "outbound",
+      body:
+        "Sorry we missed your call, this is Northline Heating. The shop opens at 7. Text us right here and we'll get straight back to you.",
+      time: "6:46 AM",
+    },
+    {
       id: "hv-in-1",
       kind: "inbound",
       body:
@@ -186,6 +245,12 @@ export const LANDSCAPERS_SCRIPT: TradeScript = {
   status: "open",
   assignee: "Sofia",
   beats: [
+    {
+      id: "ls-call-1",
+      kind: "call",
+      direction: "outbound",
+      outcome: "missed",
+    },
     {
       id: "ls-out-1",
       kind: "outbound",
@@ -239,10 +304,17 @@ export const CLEANERS_SCRIPT: TradeScript = {
   assignee: "Rosa",
   beats: [
     {
+      id: "cl-call-1",
+      kind: "call",
+      direction: "inbound",
+      outcome: "answered",
+      seconds: 96,
+    },
+    {
       id: "cl-in-1",
       kind: "inbound",
       body:
-        "Hi! We're away Friday, so the key will be under the mat, the door code stopped working. And could we move Friday's clean to Monday instead?",
+        "Thanks for taking my call. Putting it in writing like you asked: we're away Friday, so the key will be under the mat, the door code stopped working. And could we move Friday's clean to Monday instead?",
       time: "5:56 PM",
     },
     {
@@ -323,6 +395,13 @@ export const SALONS_SCRIPT: TradeScript = {
       time: "11:26 AM",
     },
     {
+      id: "sa-call-1",
+      kind: "call",
+      direction: "outbound",
+      outcome: "answered",
+      seconds: 107,
+    },
+    {
       id: "sa-event-2",
       kind: "event",
       text: "Maya added the tag Scheduled",
@@ -341,6 +420,25 @@ export const CONTRACTORS_SCRIPT: TradeScript = {
   status: "open",
   assignee: "Omar",
   beats: [
+    {
+      id: "co-call-1",
+      kind: "call",
+      direction: "inbound",
+      outcome: "voicemail",
+      voicemail: {
+        seconds: 41,
+        transcript:
+          "Morning, it's Karen at the Fairview house. We've changed our minds about the island counter and I wanted to catch you before anything gets ordered. Call me back when you get a chance.",
+      },
+      textBack: true,
+    },
+    {
+      id: "co-out-0",
+      kind: "outbound",
+      body:
+        "Sorry we missed your call, the crew is on site until 8. Text us right here and we'll pick it up from the office.",
+      time: "7:59 AM",
+    },
     {
       id: "co-in-1",
       kind: "inbound",

@@ -70,7 +70,7 @@ in prose elsewhere, not dressed as a stat here):**
 
 ## §H3 The problem
 
-**H2:** Your business runs on texts. Your texts run on one phone.
+**H2:** Your business runs on a phone number. That number runs on one phone.
 
 **Lead:** Customers would rather text than call — so they text whoever's number they have.
 That works until it doesn't.
@@ -92,19 +92,21 @@ with them. The business should own its own number.
 ## §H4 The inbox, up close (deep-dive; the hero is the signature demo)
 
 **Eyebrow:** See it work
-**H2:** What actually happens when a text lands.
+**H2:** What actually happens when a customer reaches you.
 
-**Lead:** Here's the same conversation, slowed down. A customer texts your business number, and
-step by step, this is what your crew sees and does — assign it, note it, reply, confirm, tag.
+**Lead:** Here's one conversation, slowed down. A customer calls your business number and then
+texts it, and step by step, this is what your crew sees and does — read the voicemail, note it,
+assign it, reply, confirm, tag.
 
 **Inline CTA under the honesty label (secondary/quiet):** Get your number →
 
 **Step captions (highlight in sync with the demo):**
-1. A text to your business number becomes a conversation everyone can see.
-2. Leave a note for the team — customers never see notes.
-3. Assign it to whoever's closest. One owner, no double replies.
-4. Reply from any phone. Delivery is confirmed, in writing.
-5. Tag it the way you sell: quote sent, scheduled, won.
+1. A call you can't take texts them back on its own, and the voicemail lands in the thread, written out.
+2. Their text joins the same conversation. One customer, one thread, calls and texts together.
+3. Leave a note for the team — customers never see notes.
+4. Assign it to whoever's closest. One owner, no double replies.
+5. Reply from any phone. Delivery is confirmed, in writing.
+6. Tag it the way you sell: quote sent, scheduled, won.
 
 **Demo script (rendered in the real thread UI):**
 
@@ -127,7 +129,7 @@ step by step, this is what your crew sees and does — assign it, note it, reply
 
 ## §H5 How it works + the first week
 
-**H2:** From signup to texting, in three steps.
+**H2:** From signup to answering customers, in three steps.
 
 **Step 1 — Pick your number.**
 Type your city or area code and we'll find you a local number. It's usually live in a minute or
@@ -385,7 +387,7 @@ pay it at all.
 
 **H2:** One number for the whole crew. No strings attached.
 
-**Sub:** See the price, pay, and start texting today — with a full refund in your first 30 days
+**Sub:** See the price, pay, and start answering customers today — with a full refund in your first 30 days
 if it's not for you. Month to month, the whole time.
 
 **CTA:** Get your number

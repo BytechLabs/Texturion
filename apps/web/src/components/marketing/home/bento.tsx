@@ -120,8 +120,9 @@ export function Bento() {
           <CellHeader title="Built for the truck, not the desk.">
             Works on every phone your crew already carries. No download, no app
             store, no IT day. Open the link, add it to your home screen, and it
-            behaves like an app: push notifications when a customer texts,
-            one-handed replies from the job site, and a dark mode that
+            behaves like an app: push notifications when a customer texts or
+            calls, one-handed replies from the job site, calls you can take or
+            place straight from the conversation, and a dark mode that
             doesn&apos;t blind you at 6am.
           </CellHeader>
           <PanelFrame

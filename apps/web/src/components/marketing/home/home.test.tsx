@@ -223,6 +223,22 @@ describe("the Arrival Field contract (P5-SPEC v1)", () => {
     expect(INBOX_ROW_CAP).toBe(4);
   });
 
+  it("the hero inbox holds a call, not only texts (#491)", () => {
+    // The first product surface on the site used to be five customer texts,
+    // which is most of what made the whole product read as a texting tool.
+    // A call nobody could take leaves the automatic text-back as the
+    // conversation's latest message, so the row is outbound.
+    const calls = ARRIVAL_SCRIPT.filter((s) => s.direction === "outbound");
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+    // It has to be one of the rows SSR actually ships, not one past the cap.
+    const shipped = ARRIVAL_SCRIPT.slice(0, INBOX_ROW_CAP);
+    expect(shipped.some((s) => s.direction === "outbound")).toBe(true);
+    // And it renders with the app's own "You: " prefix, never a marketing one.
+    const hero = renderToStaticMarkup(<Hero />);
+    expect(hero).toContain("You: ");
+    expect(hero).toContain("Sorry we missed your call");
+  });
+
   it("SSR ships the finished inbox (no hole) and the composed static field", () => {
     const hero = renderToStaticMarkup(<Hero />);
     // The static CONFLUENCE still: cobalt streamlines warming to a green

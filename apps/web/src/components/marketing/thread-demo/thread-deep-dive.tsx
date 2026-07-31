@@ -32,6 +32,7 @@ import {
   DeepDiveInlineCta,
 } from "./thread-deep-dive-static";
 import {
+  CallLine,
   EventLine,
   InboundBubble,
   NoteBubble,
@@ -53,6 +54,7 @@ function Beat({ beat, animate }: { beat: ThreadBeat; animate: boolean }) {
       )}
       {beat.kind === "note" && <NoteBubble beat={beat} />}
       {beat.kind === "event" && <EventLine beat={beat} />}
+      {beat.kind === "call" && <CallLine beat={beat} />}
     </div>
   );
 }
@@ -78,8 +80,14 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
   }
 
   const status = done ? script.finalStatus : "new";
-  const assignee =
-    activeStep != null && activeStep >= 3 ? script.assignee : undefined;
+  // The header gains its assignee when the assignment line is revealed, read
+  // off the beat itself. This used to test `activeStep >= 3`, which pointed at
+  // the wrong beat the moment one was inserted ahead of it (#491).
+  const assignee = visible.some(
+    (beat) => beat.kind === "event" && beat.revealsAssignee,
+  )
+    ? script.assignee
+    : undefined;
 
   const start = () => {
     setEngaged(true);

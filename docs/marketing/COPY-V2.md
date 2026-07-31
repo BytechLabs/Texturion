@@ -29,26 +29,26 @@ Voice: sentence case, contractions, second person, plain trade-respecting words,
 
 ### S3 · THE PATTERN (pain cards, Frost band)
 **Conversion job:** name the reader's exact failure modes so signup feels like relief, not a purchase.
-- **H2:** Your business runs on texts. Your texts run on one phone.
-- **Lead:** Customers would rather text than call, so they text whatever number they have. That works until it doesn't.
+- **H2:** Your business runs on a phone number. That number runs on one phone.
+- **Lead:** Customers call the number on the truck, or they text it. Either way it reaches one pocket, and that works until it doesn't.
 - **Card 1** · header (mono artifact): `DELIVERED 9:04 PM · NO REPLY` · **Buried on one phone.** Quotes, bookings, and "is he coming today?" all land on the owner's personal cell, in between the family group chat. Whoever has the phone has the business.
 - **Card 2** · header: `2 REPLIES · 0 OWNERS` · **Nobody knows who answered.** Did anyone get back to the Hendersons about Thursday? You can't tell without asking around. Two people reply, or nobody does.
 - **Card 3** · header: `SIM REMOVED` · **The number leaves with the phone.** When a tech moves on, their conversations, their contacts, and sometimes their customers go with them. The business should own its own number.
 
 ### S4 · THE FIX, SHOWN
 **Conversion job:** prove the product is real and simple enough for the crew, the biggest unspoken objection.
-- Eyebrow: `SEE IT WORK` · **H2:** What actually happens when a text lands.
-- **Lead:** Here's the same conversation, slowed down. A customer texts your business number, and step by step, this is what your crew sees and does: assign it, note it, reply, confirm, tag.
-- **Step captions (sync-highlighted):** 1. A text to your business number becomes a conversation everyone can see. 2. Leave a note for the team. Customers never see notes. 3. Assign it to whoever's closest. One owner, no double replies. 4. Reply from any phone. Delivery is confirmed, in writing. 5. Tag it the way you sell: quote sent, scheduled, won.
-- **Demo script (real thread UI, app tokens):** Inbound (Karen M · (416) 555-0187): "Hi, do you service tankless water heaters? Ours is showing error E110 and there's water pooling underneath" + photo. Internal note (Priya): "Sounds like the Navien on Delaware Ave. Dale, you're two streets over this afternoon". Event: Priya assigned this conversation to Dale. Outbound (Dale): "Hi Karen, it's Dale from Reyes Plumbing. E110 with pooling water usually means a heat exchanger leak, so please don't run hot water for now. I can come by tomorrow between 9 and 11. Does that work?" · Delivered. Inbound (Karen M): "Tomorrow between 9 and 11 works. Thank you so much". Event: Dale added the tag Scheduled.
+- Eyebrow: `SEE IT WORK` · **H2:** What actually happens when a customer reaches you.
+- **Lead:** Here's one conversation, slowed down. A customer calls your business number and then texts it, and step by step, this is what your crew sees and does: read the voicemail, note it, assign it, reply, confirm, tag.
+- **Step captions (sync-highlighted):** 1. A call you can't take texts them back on its own, and the voicemail lands in the thread, written out. 2. Their text joins the same conversation. One customer, one thread, calls and texts together. 3. Leave a note for the team. Customers never see notes. 4. Assign it to whoever's closest. One owner, no double replies. 5. Reply from any phone. Delivery is confirmed, in writing. 6. Tag it the way you sell: quote sent, scheduled, won.
+- **Demo script (real thread UI, app tokens):** Call (Karen M, inbound, missed): "Left a voicemail · 34s" with the player and the transcript "Hi, this is Karen on Delaware Ave. I'm trying to reach someone about our water heater, there's water on the floor underneath it. I'll send you a picture. Thanks.", then "This customer called and no one picked up, so we texted them back". Outbound (automatic): "Sorry we missed your call, this is Reyes Plumbing. Text us right here and someone will get back to you." · Delivered. Inbound (Karen M · (416) 555-0187): "Hi, do you service tankless water heaters? Ours is showing error E110 and there's water pooling underneath" + photo. Internal note (Priya): "Sounds like the Navien on Delaware Ave. Dale, you're two streets over this afternoon". Event: Priya assigned this conversation to Dale. Outbound (Dale): "Hi Karen, it's Dale from Reyes Plumbing. E110 with pooling water usually means a heat exchanger leak, so please don't run hot water for now. I can come by tomorrow between 9 and 11. Does that work?" · Delivered. Inbound (Karen M): "Tomorrow between 9 and 11 works. Thank you so much". Event: Dale added the tag Scheduled.
 - Label: mono chip `SCRIPTED DEMO` (nothing else). Replay: `Play it again`. Inline CTA (quiet): `Get your number`
 
 ### S5 · FROM SIGNUP TO TEXTING
 **Conversion job:** collapse perceived setup effort to minutes, and turn the one-week US carrier wait from a hidden gotcha into a trust signal.
-- **H2:** From signup to texting, in three steps.
+- **H2:** From signup to answering customers, in three steps.
 - **Step 1 · Pick your number.** Type your city or area code and we'll find you a local number. It's usually live in a minute or two, and it belongs to your business, not to anyone's phone.
 - **Step 2 · Invite the crew.** Send your team a link. They open it on whatever phone they already have. Nothing to install, nothing to configure. Starter covers 3 people, Pro covers 10.
-- **Step 3 · Text customers.** Put "call or text" on your trucks, your site, and your invoices. Every reply lands in the shared inbox, where anyone can pick it up.
+- **Step 3 · Answer customers.** Put "call or text" on your trucks, your site, and your invoices. Every text and every call lands in the shared inbox, where anyone can pick it up.
 - **First-week timeline (Numbered Steps flagship, with the Flare YOU ARE HERE tab):**
   - `DAY 0` · **You're live, not waiting.** Your number is up. Receiving texts works. Texting Canadian customers works. You can invite the crew and start today.
   - `DAYS 1 TO 7` · **The phone companies review you.** US carriers require every business that texts to register. We filed yours the minute you paid. Approval typically takes 3 to 7 business days, about a week.
@@ -114,7 +114,7 @@ Merged into S6 cell 9. The home page has eleven sections; nothing else renumbers
 ### S12 · FINAL CTA (the one cobalt band)
 **Conversion job:** close. One promise, one button, reassurance only, nothing new.
 - **H2 (white):** One number for the whole crew. No strings attached.
-- **Sub:** See the price, pay, and start texting today, with a full refund in your first 30 days if it's not for you. Month to month, the whole time.
+- **Sub:** See the price, pay, and start answering customers today, with a full refund in your first 30 days if it's not for you. Month to month, the whole time.
 - **CTA:** Get your number (white pill, ink text) · **Microcopy (mono):** $29/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK
 - Backdrop: the static converged Arrival Field SVG (no live canvas).
 - **Founder line (ship nameless until ops supplies real names; never invent):** We built Loonext because we watched small shops run the whole business off one person's cell. No sales team, no investors leaning on us to upsell you. Email us anytime; we answer.

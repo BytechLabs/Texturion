@@ -2,6 +2,9 @@ import { FrCard, FrSection } from "@/components/marketing/fr";
 
 /**
  * S3 · THE PATTERN (COPY-DECK v2), the pain cards on the Frost band.
+ *
+ * #491: the H2 named texting alone, which made the pain (and so the product)
+ * sound like a texting problem. All three cards are equally true of a call.
  * Conversion job: name the reader's exact failure modes so signup feels like
  * relief, not a purchase.
  *
@@ -38,11 +41,11 @@ export function Pattern() {
     <FrSection ground="frost" id="after-dark">
       <div className="max-w-2xl">
         <h2 className="fr-h2">
-          Your business runs on texts. Your texts run on one phone.
+          Your business runs on a phone number. That number runs on one phone.
         </h2>
         <p className="fr-body mt-4 text-[color:var(--fr-ink-70)]">
-          Customers would rather text than call, so they text whatever number
-          they have. That works until it doesn&apos;t.
+          Customers call the number on the truck, or they text it. Either way
+          it reaches one pocket, and that works until it doesn&apos;t.
         </p>
       </div>
 

@@ -33,7 +33,7 @@ export function FinalCta() {
           One inbox for the whole crew. No strings attached.
         </h2>
         <p className="fr-body mt-5 text-[color:var(--fr-on-olive-70)]">
-          See the price, pay, and start texting today, with a full refund in
+          See the price, pay, and start answering customers today, with a full refund in
           your first 30 days if it&apos;s not for you. Month to month, the
           whole time.
         </p>

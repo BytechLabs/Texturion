@@ -51,12 +51,12 @@ const CONTENT: TradeContent = {
 
   threadH2: "A change order, approved in writing before the template.",
   threadLede:
-    "The homeowner texts a change of heart at 8:02 AM. The office files it against the job, checks the counter schedule, assigns it, and texts back a price. “Approved” lands in the thread thirteen minutes later, on the record, and the request is marked done.",
+    "The homeowner calls at 7:59 AM, before anyone is off the site, and her voicemail arrives written out. The thread texts her back on its own, and she puts the change of heart in writing at 8:02. The office files it against the job, checks the counter schedule, assigns it, and texts back a price. “Approved” lands thirteen minutes later, on the record, and the request is marked done.",
   script: CONTRACTORS_SCRIPT,
   threadAriaLabel:
-    "A contracting conversation: a homeowner's island change request at 8:02 AM, priced at $840 and approved in writing before Thursday's counter template",
+    "A contracting conversation: a 7:59 AM voicemail about a homeowner's island change, texted back automatically and confirmed at 8:02 AM, priced at $840 and approved in writing before Thursday's counter template",
 
-  useCasesH2: "Where texting earns its keep on a job site.",
+  useCasesH2: "Where a shared inbox earns its keep on a job site.",
   useCases: [
     {
       title: "Decisions in writing.",
