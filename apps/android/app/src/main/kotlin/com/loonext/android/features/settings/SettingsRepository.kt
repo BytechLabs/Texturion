@@ -52,6 +52,15 @@ class SettingsRepository(
     suspend fun company(companyId: String): CompanyView =
         api.get("/v1/company", companyId = companyId)
 
+    /**
+     * #490: the calls that reached a line which could not take them. Asked only
+     * when the subscription is not active — it is an aggregate over the busiest
+     * table in the product, and a paying workspace must never pay for a
+     * question it is not asking.
+     */
+    suspend fun missedWhileOff(companyId: String): MissedWhileOff =
+        api.get("/v1/billing/missed-while-off", companyId = companyId)
+
     /** PATCH /v1/company — returns the updated scalar columns as a view. */
     suspend fun updateCompany(companyId: String, patch: JsonObject): CompanyView =
         api.patch("/v1/company", patch, companyId = companyId)
@@ -98,14 +107,6 @@ class SettingsRepository(
     //
     // Enrolment itself is SupabaseAuth's (GoTrue directly, the D8 boundary).
     // These are the parts Supabase does not give us.
-
-    /**
-     * #490: the calls that reached a line which could not take them. Asked only
-     * when the subscription is not active — it is an aggregate over the busiest
-     * table in the product, and a paying workspace must never pay for a
-     * question it is not asking.
-     */
-    suspend fun missedWhileOff(): MissedWhileOff = api.get("/v1/billing/missed-while-off")
 
     suspend fun mfa(): MfaState = api.get("/v1/mfa")
 

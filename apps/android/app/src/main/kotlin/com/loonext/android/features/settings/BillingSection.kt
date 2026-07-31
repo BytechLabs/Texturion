@@ -184,7 +184,7 @@ private fun MissedWhileOffNote(scope: SettingsScope, company: CompanyView) {
     val show = !company.subscriptionActive
     var missed by remember(show) { mutableStateOf<MissedWhileOff?>(null) }
     LaunchedEffect(show) {
-        if (show) missed = runCatching { scope.repo.missedWhileOff() }.getOrNull()
+        if (show) missed = runCatching { scope.repo.missedWhileOff(scope.companyId) }.getOrNull()
     }
     val data = missed ?: return
     if (data.count <= 0) return

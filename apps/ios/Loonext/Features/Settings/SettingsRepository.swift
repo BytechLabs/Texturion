@@ -21,6 +21,14 @@ struct SettingsRepository: Sendable {
     }
 
     /// PATCH /v1/company — returns the updated scalar columns as a view.
+    /// #490: the calls that reached a line which could not take them. Asked
+    /// only when the subscription is not active — it is an aggregate over the
+    /// busiest table in the product, and a paying workspace must never pay for
+    /// a question it is not asking.
+    func missedWhileOff(_ companyId: String) async throws -> MissedWhileOff {
+        try await api.get("/v1/billing/missed-while-off", companyId: companyId)
+    }
+
     func updateCompany(_ companyId: String, patch: JSONValue) async throws -> CompanyView {
         try await api.patch("/v1/company", body: patch, companyId: companyId)
     }
@@ -113,14 +121,6 @@ struct SettingsRepository: Sendable {
     //
     // Enrolment itself is SettingsAuthClient's (GoTrue directly, the D8
     // boundary). These are the parts Supabase does not give us.
-
-    /// #490: the calls that reached a line which could not take them. Asked
-    /// only when the subscription is not active — it is an aggregate over the
-    /// busiest table in the product, and a paying workspace must never pay for
-    /// a question it is not asking.
-    func missedWhileOff() async throws -> MissedWhileOff {
-        try await api.get("/v1/billing/missed-while-off", companyId: companyId)
-    }
 
     func mfa() async throws -> MfaState {
         try await api.get("/v1/mfa")

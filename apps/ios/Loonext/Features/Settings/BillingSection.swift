@@ -535,7 +535,7 @@ private struct MissedWhileOffNote: View {
         }
         .task(id: show) {
             guard show else { return }
-            missed = try? await scope.repo.missedWhileOff()
+            missed = try? await scope.repo.missedWhileOff(scope.companyId)
         }
     }
 }
