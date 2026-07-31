@@ -1,4 +1,12 @@
 export {
+  canSeeSettingsSection,
+  settingsSectionMinimumRole,
+  visibleSettingsSections,
+  type MemberRole,
+  type SettingsSectionId,
+} from "./settings-visibility";
+
+export {
   extraNumberBlockedReason,
   canBuyExtraNumber,
   STARTER_MAX_TOTAL_NUMBERS,

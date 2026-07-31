@@ -22,9 +22,21 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import {
+  visibleSettingsSections,
+  type SettingsSectionId,
+} from "@loonext/shared";
+
+import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
 export interface SettingsSection {
+  /**
+   * #461: the canonical id the shared visibility rule keys on. Separate from
+   * `slug` because the slug is a URL this app owns ("missed-calls" is kept for
+   * old links) while the id is the contract the phones share.
+   */
+  id: SettingsSectionId;
   slug: string;
   label: string;
   description: string;
@@ -38,18 +50,21 @@ export interface SettingsSection {
 /** The G8 settings sections, in nav order. */
 export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
+    id: "workspace",
     slug: "workspace",
     label: "Workspace",
     description: "Company name, business identity, timezone",
     icon: Building2,
   },
   {
+    id: "team",
     slug: "team",
     label: "Team",
     description: "Members, roles, and invites",
     icon: Users,
   },
   {
+    id: "numbers",
     slug: "numbers",
     label: "Numbers",
     description: "Your business numbers and US registration",
@@ -57,6 +72,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   },
   {
     // FEATURE-GAPS Step 1 — after-hours away reply.
+    id: "hours",
     slug: "away-reply",
     label: "Business hours & away reply",
     description: "Auto-reply after hours in your own words",
@@ -66,12 +82,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     // D43 Calls v2 — the whole calling surface (text-back, voicemail,
     // screening, caller ID). The slug stays 'missed-calls' so old links keep
     // working.
+    id: "calling",
     slug: "missed-calls",
     label: "Calling",
     description: "Voicemail, screening, caller ID, text-back",
     icon: PhoneMissed,
   },
   {
+    id: "templates",
     slug: "templates",
     label: "Templates",
     description: "Saved replies your team can send in one tap",
@@ -79,6 +97,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   },
   {
     // #214 — opt-in AI enrichment (task address + due date from message text).
+    id: "ai",
     slug: "ai",
     label: "Lou",
     description: "Pre-fill task address and due date from messages",
@@ -87,24 +106,28 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     // #178: the hub never frames usage as a quota — fair use plus the
     // owner's protection, same words as marketing.
+    id: "usage",
     slug: "usage",
     label: "Usage",
     description: "Fair use and the spending cap you control",
     icon: Gauge,
   },
   {
+    id: "billing",
     slug: "billing",
     label: "Billing",
     description: "Plan, payment method, and invoices",
     icon: CreditCard,
   },
   {
+    id: "notifications",
     slug: "notifications",
     label: "Notifications",
     description: "Email and push, per person",
     icon: Bell,
   },
   {
+    id: "profile",
     slug: "profile",
     label: "Profile",
     description: "Your name, theme, and sign out",
@@ -112,6 +135,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   },
   {
     // D18 / APP-FEATURES-V2 §1.8 — email, password, and linked sign-in methods.
+    id: "account",
     slug: "account",
     label: "Account",
     description: "Email, password, and sign-in methods",
@@ -121,6 +145,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     // #236 — what is signed in right now, and how to kill it. Directly after
     // Account because they are one question in two halves: how you get in,
     // and what is currently in.
+    id: "devices",
     slug: "devices",
     label: "Devices",
     description: "What's signed in, and signing it out",
@@ -129,6 +154,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     // #231 — the workspace audit log. Last in the list on purpose: it is the
     // page you go looking for, not one you pass through.
+    id: "history",
     slug: "history",
     label: "History",
     description: "Who changed what, and when",
@@ -139,6 +165,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     // help, so a signed-in customer had to leave the product, find the
     // marketing site, and use the form built for strangers. Last in the list
     // because it is what you go looking for when something is wrong.
+    id: "help",
     slug: "help",
     label: "Help",
     description: "Get in touch when something isn't right",
@@ -152,11 +179,22 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
  */
 export function SettingsNav({ asList = false }: { asList?: boolean }) {
   const pathname = usePathname();
+  // #461: a member saw every section and could act on almost none of them —
+  // a plan they cannot change, a registration they cannot file, roles they
+  // cannot set. The nav now lists what is theirs. This is COURTESY, not
+  // authorization: the server's role gates are unchanged and still refuse the
+  // writes, so a typed URL gets an honest refusal rather than a hidden one.
+  const { role } = useActiveCompany();
+  const sections = visibleSettingsSections(
+    SETTINGS_SECTIONS,
+    (section) => section.id,
+    role,
+  );
 
   if (asList) {
     return (
       <nav aria-label="Settings sections" className="divide-y rounded-lg border bg-card">
-        {SETTINGS_SECTIONS.map((section) => {
+        {sections.map((section) => {
           const Icon = section.icon;
           return (
             <Link
@@ -190,7 +228,7 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
 
   return (
     <nav aria-label="Settings sections" className="flex flex-col gap-0.5">
-      {SETTINGS_SECTIONS.map((section) => {
+      {sections.map((section) => {
         const href = section.href ?? `/settings/${section.slug}`;
         const active = pathname === href || pathname.startsWith(`${href}/`);
         const Icon = section.icon;

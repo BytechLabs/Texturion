@@ -28,6 +28,23 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
 
     var id: String { rawValue }
 
+    /// #461: the minimum role this section is SHOWN to.
+    ///
+    /// Hand-ported from packages/shared/src/settings-visibility.ts and covered
+    /// by the same vectors. The split is by whose thing it is: your login,
+    /// your notifications and your devices are yours; what the business is,
+    /// what it sends and what it spends belong to the people who answer for it.
+    ///
+    /// Visibility, not authorization — the API's role gates are what protect
+    /// anything, and they are unchanged. Hiding a row is a courtesy.
+    var isPersonal: Bool {
+        switch self {
+        case .profile, .notifications, .devices, .help, .diagnostics: true
+        case .workspace, .hours, .calling, .templates, .ai, .team, .numbers,
+             .usage, .billing: false
+        }
+    }
+
     var title: String {
         switch self {
         case .workspace: "Workspace"
@@ -192,9 +209,19 @@ struct SettingsHome: View {
 
     // MARK: - Index
 
-    /// Every section, plus Diagnostics once it has been unlocked (#337).
+    /// Every section this role may see, plus Diagnostics once it has been
+    /// unlocked (#337).
+    ///
+    /// #461: a member used to see all of them and could act on almost none —
+    /// a plan they cannot change, a registration they cannot file, roles they
+    /// cannot set. An unknown or absent role is treated as a member, which is
+    /// the safe way for a missing membership to fail.
     private var visibleSections: [SettingsSection] {
-        SettingsSection.allCases.filter { $0 != .diagnostics || diagnosticsUnlocked }
+        let privileged = role == "owner" || role == "admin"
+        return SettingsSection.allCases.filter { section in
+            guard section != .diagnostics || diagnosticsUnlocked else { return false }
+            return privileged || section.isPersonal
+        }
     }
 
     /// The seven-tap gesture. Taps must be within `tapWindow` of each other, so

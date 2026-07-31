@@ -106,7 +106,24 @@ import java.time.Instant
 import kotlinx.coroutines.launch
 
 /** The stacked settings index (#157) — mirrors the web's mobile section list. */
-enum class SettingsSection(val title: String, val blurb: String) {
+/**
+ * #461: the minimum role a settings section is SHOWN to.
+ *
+ * Hand-ported from packages/shared/src/settings-visibility.ts and covered by
+ * the same vectors. The split is by whose thing it is: your login, your
+ * notifications and your devices are yours; what the business is, what it
+ * sends and what it spends belong to the people who answer for it.
+ *
+ * Visibility, not authorization — the API's role gates are what protect
+ * anything, and they are unchanged. Hiding a row is a courtesy.
+ */
+enum class SettingsAccess { Member, Admin }
+
+enum class SettingsSection(
+    val title: String,
+    val blurb: String,
+    val access: SettingsAccess = SettingsAccess.Admin,
+) {
     Workspace("Workspace", "Name, business identification, timezone"),
     Hours("Business hours & away reply", "When you're open, and what after-hours texters hear"),
     Calling("Calling", "Missed-call text-back, voicemail, screening, caller ID"),
@@ -115,22 +132,38 @@ enum class SettingsSection(val title: String, val blurb: String) {
     Numbers("Numbers", "Your numbers, ports, text-enablement, registration"),
     Usage("Usage", "Fair use, your spending cap, and the numbers"),
     Billing("Billing", "Plan, payment, and invoices"),
-    Notifications("Notifications", "Email and push for new conversations"),
+    Notifications(
+        "Notifications",
+        "Email and push for new conversations",
+        SettingsAccess.Member,
+    ),
     Ai("Lou", "Loonext's assistant: drafts replies and fills in task details"),
-    Profile("Profile & account", "Your name, theme, email, and password"),
+    Profile(
+        "Profile & account",
+        "Your name, theme, email, and password",
+        SettingsAccess.Member,
+    ),
 
     /**
      * #236: what is signed in right now. Directly after Profile & account
      * because they are one question in two halves — how you get in, and what
      * is currently in.
      */
-    Devices("Signed-in devices", "Every browser and phone with access right now"),
+    Devices(
+        "Signed-in devices",
+        "Every browser and phone with access right now",
+        SettingsAccess.Member,
+    ),
 
     /**
      * #382: the route to a human. Last because it is what you go looking for
      * when something is wrong, not a screen you pass through.
      */
-    Help("Help", "Get in touch when something isn't right"),
+    Help(
+        "Help",
+        "Get in touch when something isn't right",
+        SettingsAccess.Member,
+    ),
 }
 
 /** Everything a section needs, threaded once instead of eight parameters. */
@@ -366,7 +399,9 @@ private fun SettingsIndex(
         IdentityCard(company, me, role, onCopyNumber)
         usage?.let { UsageStatusCard(it, onOpen = { onOpen(SettingsSection.Usage) }) }
         PaperCard(Modifier.fillMaxWidth()) {
-            SettingsSection.entries.forEachIndexed { index, section ->
+            // #461: a member saw every section and could act on almost none
+            // of them. The list is now what is theirs.
+            visibleSettingsSections(role).forEachIndexed { index, section ->
                 if (index > 0) RowDivider()
                 SettingsIndexRow(section, onOpen)
             }
@@ -811,5 +846,17 @@ private fun SettingsIndexPreview() {
                 onVersionTap = {},
             )
         }
+    }
+}
+
+/**
+ * #461: the sections this role sees, in nav order. An unknown or absent role
+ * is treated as a member — the least privilege, which is the safe way for a
+ * missing membership to fail.
+ */
+internal fun visibleSettingsSections(role: String?): List<SettingsSection> {
+    val privileged = role == "owner" || role == "admin"
+    return SettingsSection.entries.filter {
+        privileged || it.access == SettingsAccess.Member
     }
 }
