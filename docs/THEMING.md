@@ -247,22 +247,46 @@ removing `PortalScope` fails it on both portals in both themes.
 
 ### What runs where
 
-- **CI** (`build` job): `--public` — marketing, `/login`, `/signup`. Needs only
-  the built app: no database, no API worker, no secrets. This is the #218
-  surface and the whole of marketing dark mode.
-- **Locally, full stack**: `node scripts/theme-audit.mjs` with Supabase running,
-  `dev-seed.mjs` applied, the API worker on 8787 and the web app on 3100. Adds
-  the authenticated shell and the two portals.
+Both halves run on every commit:
+
+- **`build` job** — `--public`: marketing, `/login`, `/signup`. Needs only the
+  built app; no database, no Worker, no secrets. 8 surface/theme combinations.
+- **`theme` job** — `--authed`: the app shell and both portals, against local
+  Supabase + `dev-seed` + the Worker + the web app. 12 combinations.
+
+`scripts/ci-dev-vars.mjs` makes the second possible without any Cloudflare
+credentials. It writes a `.dev.vars` of local URLs and visibly fake vendor keys
+(refusing outright if Supabase is not localhost, and never overwriting an
+existing file), and **derives** `wrangler.ci.jsonc` from the real config with
+the Workers AI binding removed — that binding has no local emulation, so its
+presence makes `wrangler dev` open a remote proxy session. Derived rather than
+copied, because a duplicated config is correct on the day it is written and
+wrong at the next binding change; the script exits non-zero if the line it
+removes ever moves.
+
+### Scope escapes, on all three clients
+
+A colour can be correct and still arrive wrong, because it resolved in the
+wrong place. Each client has one boundary where that can happen, and each now
+has a guard:
+
+| Client | The boundary | Guard |
+|---|---|---|
+| Web | Radix portals render into `<body>`, outside `.app-scope` | `PortalScope`, checked by `ESCAPED-SCOPE` in the audit |
+| Android | `MaterialTheme.colorScheme` is a CompositionLocal; a composition outside `LoonextTheme` gets Material's purple defaults | `ColorLiteralLintTest.every composition root renders inside LoonextTheme` |
+| iOS | `BrandColor` resolves per trait collection; a view pinning `.preferredColorScheme` freezes every token under it | `ColorLiteralLintTests.testNoViewPinsTheColourSchemeForTheUser` |
+
+Neither phone guard found a bug. That is the point: both were correct by luck
+rather than by rule, because nothing had ever asked.
 
 ---
 
 ## Still open
 
-- **The authenticated half of the audit in CI.** The script covers it and is
-  proven; what is missing is a CI job that stands up Supabase + seed + the API
-  worker alongside the web app. The `e2e` job already does the first two, so
-  this is a composition problem rather than a new capability.
-- **Phone rendered verification.** Both phone guards read resolved values, which
-  is most of what rendering would add, but neither exercises a real layout.
-  Compose/XCTest snapshots are the instrument; the set must stay small.
+- **Phone snapshot rendering.** Both phone guards read *resolved* values and
+  both scope boundaries are now guarded, which covers the failure modes
+  rendering would catch. What is still missing is exercising a real layout —
+  Compose/XCTest snapshots. Deliberately not built: adding a snapshot framework
+  to a Material3-alpha / Xcode-26 toolchain is a standing maintenance cost, and
+  #320's own devil's advocate is right that pixel diffs get rubber-stamped.
 - **The phone accent split** into decorative and textual rungs, to match web.
