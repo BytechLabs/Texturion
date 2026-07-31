@@ -1,7 +1,9 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { extname, join, relative } from "node:path";
+import { readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+import { sourceFiles as readSourceFiles } from "@/test/source-tree";
 
 /**
  * [#362] A custom property that does not exist paints NOTHING, silently.
@@ -37,13 +39,13 @@ import { describe, expect, it } from "vitest";
 const SRC = join(process.cwd(), "src");
 
 /** Every file that can either define or read a custom property. */
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((entry) => {
-    const path = join(dir, entry);
-    if (statSync(path).isDirectory()) return sourceFiles(path);
-    return [".ts", ".tsx", ".css"].includes(extname(path)) ? [path] : [];
-  });
-}
+/**
+ * #492: delegated to the one shared reader — `withFileTypes` instead of a
+ * `statSync` per entry, memoised, and an IO failure that says it is one.
+ * This suite reads CSS as well as code, hence the explicit extension list.
+ */
+const sourceFiles = (dir: string): string[] =>
+  readSourceFiles(dir, [".ts", ".tsx", ".css"]);
 
 // Test files name tokens in order to search for them — including this one,
 // which quotes `--fr-ink-10` in its own explanation. A guard that flags the

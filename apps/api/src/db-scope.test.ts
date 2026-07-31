@@ -29,11 +29,13 @@
  * stops that, and #347's remaining ask is a cross-boundary assertion per read
  * route (today there are four, all in routes/messages.test.ts).
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { readFileSync } from "node:fs";
+import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+
+import { productionSources as readProductionSources } from "./test/source-tree";
 
 const SRC = fileURLToPath(new URL(".", import.meta.url));
 
@@ -248,14 +250,13 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
   },
 };
 
-function sources(dir: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) sources(full, out);
-    else if (entry.endsWith(".ts") && !entry.endsWith(".test.ts")) out.push(full);
-  }
-  return out;
-}
+/**
+ * #492: delegated to the one shared reader — `withFileTypes` instead of a
+ * `statSync` per entry (5× fewer syscalls on this tree), memoised, one
+ * definition of "a production source file" instead of ten, and an IO failure
+ * that says it is one rather than surfacing as whatever this suite asserts.
+ */
+const sources = readProductionSources;
 
 /** The statement a `.from(` starts, up to the `;` that closes it at depth 0. */
 function statementAt(src: string, index: number): string {

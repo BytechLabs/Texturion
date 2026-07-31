@@ -1,7 +1,9 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { extname, join, relative } from "node:path";
+import { readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+import { sourceFiles as readSourceFiles } from "@/test/source-tree";
 
 /**
  * [#362] A Tailwind colour utility with no `@theme` entry emits NOTHING.
@@ -33,13 +35,13 @@ import { describe, expect, it } from "vitest";
 const SRC = join(process.cwd(), "src");
 const GLOBALS = join(SRC, "app", "globals.css");
 
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((entry) => {
-    const path = join(dir, entry);
-    if (statSync(path).isDirectory()) return sourceFiles(path);
-    return [".ts", ".tsx"].includes(extname(path)) ? [path] : [];
-  });
-}
+/**
+ * #492: delegated to the one shared reader — `withFileTypes` instead of a
+ * `statSync` per entry (5× fewer syscalls on this tree), memoised so a file
+ * with several `it()`s walks once, and an IO failure that says it is one
+ * rather than surfacing as whatever this suite asserts about.
+ */
+const sourceFiles = readSourceFiles;
 
 const css = readFileSync(GLOBALS, "utf8");
 

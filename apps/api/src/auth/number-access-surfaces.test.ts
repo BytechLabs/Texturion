@@ -17,11 +17,13 @@
  * uses for quiet hours: the list of filtered read surfaces lives in one place,
  * and any call site that reaches one without the deny list fails CI.
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+
+import { productionSources as readProductionSources } from "../test/source-tree";
 
 const SRC = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 
@@ -46,20 +48,14 @@ const FILTERED_RPCS = [
   "api_spam_review",
 ] as const;
 
+/**
+ * #492: delegated to the one shared reader — `withFileTypes` instead of a
+ * `statSync` per entry (5× fewer syscalls on this tree), memoised, one
+ * definition of "a production source file" instead of ten, and an IO failure
+ * that says it is one rather than surfacing as whatever this suite asserts.
+ */
 function productionSources(): string[] {
-  const found: string[] = [];
-  const walk = (dir: string) => {
-    for (const entry of readdirSync(dir)) {
-      const full = join(dir, entry);
-      if (statSync(full).isDirectory()) {
-        walk(full);
-        continue;
-      }
-      if (!entry.endsWith(".ts") || entry.endsWith(".test.ts")) continue;
-      found.push(full);
-    }
-  };
-  walk(SRC);
+  const found = readProductionSources(SRC);
   return found;
 }
 

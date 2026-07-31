@@ -1,7 +1,9 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+import { sourceFiles as readSourceFiles } from "@/test/source-tree";
 
 /**
  * The v4 "FIRST RESPONSE" token system (DESIGN-DIRECTION §2) is defined in
@@ -15,13 +17,11 @@ const css = readFileSync(
 );
 
 /** Every .ts/.tsx under a directory. */
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((entry) => {
-    const path = join(dir, entry);
-    if (statSync(path).isDirectory()) return sourceFiles(path);
-    return /\.(ts|tsx)$/.test(path) ? [path] : [];
-  });
-}
+/**
+ * #492: delegated to the one shared reader — `withFileTypes` instead of a
+ * `statSync` per entry, memoised, and an IO failure that says it is one.
+ */
+const sourceFiles = readSourceFiles;
 
 describe("globals.css — the --fr-* system (direction §2)", () => {
   it("defines every v4 token at the direction's exact value", () => {

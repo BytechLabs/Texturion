@@ -1,8 +1,10 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { extname, join, relative } from "node:path";
+import { readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+
+import { sourceFiles as readSourceFiles } from "@/test/source-tree";
 
 /**
  * [#362 phase 8] The marketing surface renders DARK as well as light.
@@ -228,13 +230,13 @@ const MARKETING_DIRS = [
   fileURLToPath(new URL("../components/marketing", import.meta.url)),
 ];
 
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((entry) => {
-    const path = join(dir, entry);
-    if (statSync(path).isDirectory()) return sourceFiles(path);
-    return [".ts", ".tsx"].includes(extname(path)) ? [path] : [];
-  });
-}
+/**
+ * #492: delegated to the one shared reader — `withFileTypes` instead of a
+ * `statSync` per entry (5× fewer syscalls on this tree), memoised so a file
+ * with several `it()`s walks once, and an IO failure that says it is one
+ * rather than surfacing as whatever this suite asserts about.
+ */
+const sourceFiles = readSourceFiles;
 
 /**
  * Files that legitimately paint a fixed colour because they are not a themed
@@ -288,7 +290,9 @@ describe("#362 phase 8 — no literal white on a surface that flips", () => {
 
   it("is actually reading the marketing tree", () => {
     // A walk that matches nothing passes forever.
-    const all = MARKETING_DIRS.flatMap(sourceFiles);
+    // Not `flatMap(sourceFiles)`: flatMap passes (value, index, array), and
+    // the index would land in the reader's optional extensions parameter.
+    const all = MARKETING_DIRS.flatMap((dir) => sourceFiles(dir));
     expect(all.length).toBeGreaterThan(60);
     expect(all.some((f) => f.endsWith("footer.tsx"))).toBe(true);
   });

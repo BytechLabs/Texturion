@@ -36,11 +36,13 @@
  * they are unbuildable until there is a send that needs them, and building
  * them now would be a mechanism guarding nothing.
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+
+import { productionSources as readProductionSources } from "../test/source-tree";
 
 const API_SRC = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 
@@ -92,18 +94,13 @@ const SEND_SITES: Record<string, { shape: string; why: string }> = {
 
 function productionSources(): string[] {
   const found: string[] = [];
-  const walk = (dir: string) => {
-    for (const entry of readdirSync(dir)) {
-      const full = join(dir, entry);
-      if (statSync(full).isDirectory()) {
-        walk(full);
-        continue;
-      }
-      if (!entry.endsWith(".ts") || entry.endsWith(".test.ts")) continue;
-      found.push(full);
-    }
-  };
-  walk(API_SRC);
+  /**
+   * #492: delegated to the one shared reader — `withFileTypes` instead of a
+   * `statSync` per entry, memoised, one definition of "a production source
+   * file" instead of ten, and an IO failure that says it is one rather than
+   * surfacing as whatever this suite asserts about.
+   */
+  found.push(...readProductionSources(API_SRC));
   return found;
 }
 
