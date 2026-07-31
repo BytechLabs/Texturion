@@ -30,6 +30,7 @@ struct DiagnosticsView: View {
     let snapshot: DiagnosticsSnapshot
 
     @State private var entries: [DiagnosticsEntry] = []
+    @State private var crashes: [CrashReport] = []
     @State private var confirmingClear = false
 
     var body: some View {
@@ -62,13 +63,47 @@ struct DiagnosticsView: View {
                     }
                 }
 
+                // #485. Below the events, because a crash is rarer and the
+                // events are what somebody scrolls for day to day.
+                SectionHeader(label: "Crashes", count: crashes.count)
+                PaperCard {
+                    if crashes.isEmpty {
+                        // Says WHY it might be empty. MetricKit hands crashes
+                        // over on Apple's schedule, not ours, so a list that
+                        // is empty right after a crash means "not delivered
+                        // yet" — and without this line it reads as "the
+                        // capture is broken", which is the wrong conclusion to
+                        // invite on a diagnostics screen.
+                        Text(
+                            "None captured. iOS hands crash reports over on its "
+                                + "own schedule, usually within a day, so a crash "
+                                + "from just now may not be here yet."
+                        )
+                        .font(.golos(12.5))
+                        .foregroundStyle(BrandColor.muted500)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 13)
+                    } else {
+                        ForEach(Array(crashes.enumerated()), id: \.element.id) { index, crash in
+                            if index > 0 { RowDivider() }
+                            crashRow(crash)
+                        }
+                    }
+                }
+
                 // The point of the screen is getting this OFF the device, so the
                 // share action is a full-width row rather than a toolbar button
                 // somebody has to find. ShareLink hands the same text
                 // #253's support reporting will send.
                 PaperCard {
                     ShareLink(
-                        item: DiagnosticsReport.text(snapshot: snapshot, entries: entries)
+                        item: DiagnosticsReport.text(
+                            snapshot: snapshot,
+                            entries: entries,
+                            crashes: crashes
+                        )
                     ) {
                         HStack(spacing: 12) {
                             Image(systemName: "square.and.arrow.up")
@@ -114,7 +149,10 @@ struct DiagnosticsView: View {
             .frame(maxWidth: .infinity)
         }
         .background(BrandColor.canvas)
-        .task { entries = DiagnosticsLog.entries() }
+        .task {
+            entries = DiagnosticsLog.entries()
+            crashes = CrashReportStore.all()
+        }
         // Ethical friction: clearing is the one destructive thing here, and the
         // events it destroys are the evidence somebody came to this screen for.
         .confirmationDialog(
@@ -122,9 +160,19 @@ struct DiagnosticsView: View {
             isPresented: $confirmingClear,
             titleVisibility: .visible
         ) {
-            Button("Clear", role: .destructive) {
+            Button("Clear events", role: .destructive) {
                 DiagnosticsLog.clear()
                 entries = []
+            }
+            // #485: crashes are cleared SEPARATELY and deliberately not by the
+            // events button. They are the rarer, more valuable artefact, and a
+            // person tidying a noisy event list should not lose the one stack
+            // somebody has been waiting for.
+            Button("Clear events and crashes", role: .destructive) {
+                DiagnosticsLog.clear()
+                CrashReportStore.clear()
+                entries = []
+                crashes = []
             }
             Button("Keep", role: .cancel) {}
         } message: {
@@ -149,6 +197,37 @@ struct DiagnosticsView: View {
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 11)
+    }
+
+    /// One crash: when it arrived, what the OS called it, and the top of the
+    /// stack. The full stack goes in the shared report rather than on screen —
+    /// a phone is the wrong place to read a hundred frames, and the person
+    /// looking at this needs to know a crash EXISTS and get it to us.
+    private func crashRow(_ crash: CrashReport) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 8) {
+                Text(crash.signal ?? "crash")
+                    .font(.golos(10.5, weight: .bold))
+                    .kerning(0.8)
+                    .foregroundStyle(BrandColor.destructive)
+                Text(shortTime(crash.receivedAt))
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundStyle(BrandColor.muted400)
+                if let version = crash.appVersion {
+                    Text("build \(version)")
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundStyle(BrandColor.muted400)
+                }
+            }
+            Text(crash.reason ?? "No reason reported")
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(BrandColor.ink)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 15)
+        .padding(.vertical, 10)
+        .textSelection(.enabled)
     }
 
     private func eventRow(_ entry: DiagnosticsEntry) -> some View {

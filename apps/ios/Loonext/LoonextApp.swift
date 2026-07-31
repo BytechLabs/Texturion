@@ -12,6 +12,10 @@ struct LoonextApp: App {
     init() {
         // Paper & Olive fonts (Golos + Bricolage) before the first frame.
         DesignFonts.register()
+        // #485: subscribe to MetricKit before anything else can crash. Apple
+        // delivers a pending crash payload shortly after launch, so a
+        // subscriber registered late is a payload nobody receives.
+        CrashDiagnostics.start()
         let graph = AppGraph()
         _graph = State(initialValue: graph)
         // Construct the softphone at launch (#161): the PushKit delegate must

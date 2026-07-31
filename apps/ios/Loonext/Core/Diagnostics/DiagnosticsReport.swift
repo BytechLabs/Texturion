@@ -51,6 +51,9 @@ enum DiagnosticsReport {
     static func text(
         snapshot: DiagnosticsSnapshot,
         entries: [DiagnosticsEntry],
+        /// #485: crashes, newest first. Defaulted empty so every existing
+        /// caller and test keeps working unchanged.
+        crashes: [CrashReport] = [],
         now: Date = Date()
     ) -> String {
         var out = "Loonext iOS diagnostics\n"
@@ -66,6 +69,28 @@ enum DiagnosticsReport {
                 out += line(entry) + "\n"
             }
         }
+        // #485 LAST, and in full. A crash stack is the longest thing in this
+        // bundle and the thing a support reply is most likely to need — so it
+        // goes after the short facts somebody skims, not before them.
+        out += "\n=== CRASHES (\(crashes.count)) ===\n"
+        if crashes.isEmpty {
+            out += "(none captured)\n"
+        } else {
+            for crash in crashes {
+                out += crashText(crash) + "\n"
+            }
+        }
+        return out
+    }
+
+    /// One crash: when we got it, what the OS said, and the frames.
+    static func crashText(_ crash: CrashReport) -> String {
+        var out = "--- received \(stamp(crash.receivedAt))"
+        if let version = crash.appVersion { out += "  build=\(version)" }
+        if let signal = crash.signal { out += "  \(signal)" }
+        out += "\n"
+        if let reason = crash.reason { out += "reason: \(reason)\n" }
+        out += crash.stack + "\n"
         return out
     }
 
