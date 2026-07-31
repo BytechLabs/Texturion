@@ -115,13 +115,31 @@ struct ShellView: View {
     }
 
     var body: some View {
-        NavigationStack(path: $path) {
-            tabShell
-                .navigationBarBackButtonHidden(true)
-                .toolbar(.hidden, for: .navigationBar)
-                .navigationDestination(for: ShellRoute.self) { route in
-                    routeView(route)
+        // #315: every one of the four tabs is a conversation surface, so a role
+        // without `conversations.read` — the bookkeeper preset, which holds
+        // billing and nothing else — would find a pager where each page answers
+        // 403. They get the one screen they can work instead, as the ROOT
+        // rather than a sheet: a sheet can be swiped away, and there is nothing
+        // underneath it for them.
+        //
+        // Replacing the whole NavigationStack, not its content: SettingsHome
+        // brings its own, and nesting two would break its back button. The
+        // router's push commands below are still consumed — they simply have
+        // nothing to push onto, which is correct, because every route they name
+        // is a conversation surface.
+        Group {
+            if hasInbox {
+                NavigationStack(path: $path) {
+                    tabShell
+                        .navigationBarBackButtonHidden(true)
+                        .toolbar(.hidden, for: .navigationBar)
+                        .navigationDestination(for: ShellRoute.self) { route in
+                            routeView(route)
+                        }
                 }
+            } else {
+                billingOnlyRoot
+            }
         }
         .tint(BrandColor.olive)
         .sheet(item: $activeSheet) { sheet in
@@ -199,6 +217,31 @@ struct ShellView: View {
         }
         .resyncOnForeground { countsKey &+= 1 }
         .task(id: companyId) { await wireSessionDevice() }
+    }
+
+    // MARK: - Roles with no inbox (#315)
+
+    /// Whether this viewer can open a conversation surface at all, read off the
+    /// membership the shell was hydrated with. Fails closed: an unknown role,
+    /// or a hydration that no longer contains this company, reads as NO.
+    private var hasInbox: Bool {
+        MemberRole.canReadConversations(
+            hydratedMe.memberships.first { $0.company_id == companyId }?.role
+        )
+    }
+
+    /// The whole app for a bookkeeper: billing, and the settings sections their
+    /// role can actually open (SettingsHome does that filtering itself, from
+    /// the same shared table the sidebar uses on web). No pill, no FAB, no
+    /// call chip — none of them lead anywhere they may go.
+    private var billingOnlyRoot: some View {
+        SettingsHome(
+            graph: graph,
+            companyId: companyId,
+            me: hydratedMe,
+            onSignOut: { root.signOut() },
+            initialSection: .billing
+        )
     }
 
     // MARK: - The tab shell (root of the navigation stack)

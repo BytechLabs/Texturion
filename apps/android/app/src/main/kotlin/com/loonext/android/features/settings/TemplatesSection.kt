@@ -54,8 +54,8 @@ import kotlinx.coroutines.launch
  * the voicemail greeting, both already admin. USING them is untouched: the
  * composer's "/" picker reads the same list and every member still has it.
  * This section no longer appears in a member's settings index at all
- * (SettingsAccess.Admin), and the API answers the three write routes with
- * `settings.manage`.
+ * (it needs `settings.manage`), and the API answers the three write routes
+ * with the same axis.
  */
 
 /** Mirrors the API schema (routes/templates.ts): trimmed 1..120 / 1..2000. */

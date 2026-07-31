@@ -32,6 +32,7 @@ private func roleLabel(_ role: String) -> String {
     case MemberRole.admin: "Admin"
     case MemberRole.member: "Member"
     case MemberRole.readOnly: "View only"
+    case MemberRole.bookkeeper: "Bookkeeper"
     default: role.replacingOccurrences(of: "_", with: " ").capitalized
     }
 }
@@ -43,6 +44,8 @@ private func roleBlurb(_ role: String) -> String {
         "Everything except transferring ownership and closing the workspace"
     case MemberRole.readOnly:
         "Can see conversations, cannot reply or change anything"
+    case MemberRole.bookkeeper:
+        "Billing and invoices only; no access to conversations"
     default: "Read and answer customers; no billing, team or settings"
     }
 }
@@ -198,7 +201,12 @@ private struct MemberRow: View {
             } else if canChangeRole {
                 Menu {
                     ForEach(
-                        [MemberRole.admin, MemberRole.member, MemberRole.readOnly],
+                        [
+                            MemberRole.admin,
+                            MemberRole.member,
+                            MemberRole.readOnly,
+                            MemberRole.bookkeeper,
+                        ],
                         id: \.self
                     ) { role in
                         Button(roleLabel(role)) { changeRole(role) }
@@ -316,7 +324,12 @@ private struct InvitesCard: View {
             HStack(spacing: 12) {
                 Menu {
                     ForEach(
-                        [MemberRole.member, MemberRole.admin, MemberRole.readOnly],
+                        [
+                            MemberRole.member,
+                            MemberRole.admin,
+                            MemberRole.readOnly,
+                            MemberRole.bookkeeper,
+                        ],
                         id: \.self
                     ) { option in
                         // #315: a named preset that does not say what it is for

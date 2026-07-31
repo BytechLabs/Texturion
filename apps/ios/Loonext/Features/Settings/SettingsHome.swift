@@ -28,20 +28,27 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
 
     var id: String { rawValue }
 
-    /// #461: the minimum role this section is SHOWN to.
+    /// #461/#315: the capability this section is SHOWN to.
     ///
     /// Hand-ported from packages/shared/src/settings-visibility.ts and covered
-    /// by the same vectors. The split is by whose thing it is: your login,
-    /// your notifications and your devices are yours; what the business is,
-    /// what it sends and what it spends belong to the people who answer for it.
+    /// by the same vectors. It began as a personal/business boolean, which
+    /// stopped being expressible the moment a role existed that is neither
+    /// above nor below a member: a bookkeeper holds billing and nothing else,
+    /// so "is this the business's?" no longer answers "may they see it?".
     ///
-    /// Visibility, not authorization — the API's role gates are what protect
+    /// Visibility, not authorization — the API's gates are what protect
     /// anything, and they are unchanged. Hiding a row is a courtesy.
-    var isPersonal: Bool {
+    var needs: String {
         switch self {
-        case .profile, .notifications, .devices, .help, .diagnostics: true
-        case .workspace, .hours, .calling, .templates, .ai, .team, .numbers,
-             .usage, .billing: false
+        // Yours by being in the workspace at all.
+        case .profile, .notifications, .devices, .help, .diagnostics:
+            Capability.workspaceAccess
+        // The business's, each behind the axis that actually governs it.
+        case .workspace, .hours, .calling, .templates, .ai:
+            Capability.settingsManage
+        case .team: Capability.teamManage
+        case .numbers: Capability.numbersManage
+        case .usage, .billing: Capability.billingManage
         }
     }
 
@@ -216,11 +223,17 @@ struct SettingsHome: View {
     /// a plan they cannot change, a registration they cannot file, roles they
     /// cannot set. An unknown or absent role is treated as a member, which is
     /// the safe way for a missing membership to fail.
+    /// #461/#315: a section that needs only `workspace.access` is shown to ANY
+    /// role, including one this build has never heard of — reaching this screen
+    /// means the server already authorized a session in this workspace, and
+    /// these rows are the reader's own. The alternative is an empty settings
+    /// index, which reads as a broken app. Every row that belongs to the
+    /// BUSINESS still asks the capability table.
     private var visibleSections: [SettingsSection] {
-        let privileged = role == "owner" || role == "admin"
-        return SettingsSection.allCases.filter { section in
+        SettingsSection.allCases.filter { section in
             guard section != .diagnostics || diagnosticsUnlocked else { return false }
-            return privileged || section.isPersonal
+            return section.needs == Capability.workspaceAccess
+                || MemberRole.has(role, section.needs)
         }
     }
 

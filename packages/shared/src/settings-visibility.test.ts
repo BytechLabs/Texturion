@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { CAPABILITIES } from "./capabilities";
+import { CAPABILITIES, MEMBER_ROLES } from "./capabilities";
 
 import {
   canSeeSettingsSection,
@@ -131,5 +131,41 @@ describe("visibleSettingsSections", () => {
     // has their own profile, notifications and devices.
     const visible = visibleSettingsSections(ALL, (s) => s, "member");
     expect(visible.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("shows a bookkeeper billing, and nothing else of the business", () => {
+    // #315: the two rows the preset exists for. Everything else the business
+    // owns stays hidden — including every conversation surface, which they
+    // have no access to at all.
+    const business = ALL.filter(
+      (s) => settingsSectionCapability(s) !== "workspace.access",
+    );
+    const seen = business.filter((s) => canSeeSettingsSection(s, "bookkeeper"));
+    expect(seen.sort()).toEqual(["billing", "usage"]);
+  });
+
+  it("never returns an empty list for ANY role, known or not", () => {
+    // The rule the whole file exists to protect, held across every preset that
+    // exists now or later — and for a role string this build has never heard
+    // of, which is what a client one release behind the server sees.
+    for (const role of [...MEMBER_ROLES, "superuser" as MemberRole]) {
+      expect(
+        visibleSettingsSections(ALL, (s) => s, role).length,
+        `${role} sees nothing`,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it("shows the reader's own rows to a role it does not recognize", () => {
+    // Reaching a settings screen at all means the server authorized a session
+    // in this workspace, so the baseline rows are theirs. Nothing the BUSINESS
+    // owns is shown, because this build cannot say what an unknown role may
+    // see — and the server refuses those routes regardless.
+    const unknown = "superuser" as MemberRole;
+    expect(canSeeSettingsSection("profile", unknown)).toBe(true);
+    expect(canSeeSettingsSection("notifications", unknown)).toBe(true);
+    expect(canSeeSettingsSection("billing", unknown)).toBe(false);
+    expect(canSeeSettingsSection("team", unknown)).toBe(false);
+    expect(canSeeSettingsSection("workspace", unknown)).toBe(false);
   });
 });

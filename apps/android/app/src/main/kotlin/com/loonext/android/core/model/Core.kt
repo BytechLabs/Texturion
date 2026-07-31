@@ -40,11 +40,94 @@ object MemberRole {
      */
     const val READ_ONLY = "read_only"
 
+    /**
+     * #315: the bookkeeper or the spouse doing the books. Billing, and NOT the
+     * inbox — the only role that never sees a customer conversation, which is
+     * why the shell renders it a screen of its own rather than four tabs that
+     * each answer 403. Also off the rank map, for the same reason [READ_ONLY]
+     * is.
+     */
+    const val BOOKKEEPER = "bookkeeper"
+
+    /**
+     * The role → capability table, hand-ported from
+     * packages/shared/src/capabilities.ts. Only the axes this app actually asks
+     * about are listed; adding one here means adding it there first.
+     *
+     * A SET per role, not a rank, because two of these five roles are not on
+     * the owner ⊃ admin ⊃ member line at all.
+     */
+    private val CAPABILITIES: Map<String, Set<String>> = mapOf(
+        READ_ONLY to setOf(Capability.WORKSPACE_ACCESS, Capability.CONVERSATIONS_READ),
+        BOOKKEEPER to setOf(Capability.WORKSPACE_ACCESS, Capability.BILLING_MANAGE),
+        MEMBER to setOf(
+            Capability.WORKSPACE_ACCESS,
+            Capability.CONVERSATIONS_READ,
+            Capability.CONVERSATIONS_SEND,
+        ),
+        ADMIN to setOf(
+            Capability.WORKSPACE_ACCESS,
+            Capability.CONVERSATIONS_READ,
+            Capability.CONVERSATIONS_SEND,
+            Capability.BILLING_MANAGE,
+            Capability.SETTINGS_MANAGE,
+            Capability.TEAM_MANAGE,
+            Capability.NUMBERS_MANAGE,
+            Capability.HISTORY_READ,
+        ),
+        OWNER to Capability.ALL,
+    )
+
+    /**
+     * Does [role] hold [capability]? An unknown role holds nothing — the same
+     * fail-closed answer [atLeast] and the server both give, so a build that
+     * has not heard of a newer preset refuses rather than guesses.
+     */
+    fun has(role: String?, capability: String): Boolean =
+        CAPABILITIES[role]?.contains(capability) == true
+
+    /**
+     * #315: can this role open the inbox at all? Every one of this app's four
+     * nav slots is a conversation surface, so this decides whether the shell is
+     * even the right thing to render.
+     */
+    fun canReadConversations(role: String?): Boolean =
+        has(role, Capability.CONVERSATIONS_READ)
+
     /** Hierarchical check: does [role] meet [required]? */
     fun atLeast(role: String?, required: String): Boolean {
         val rank = mapOf(OWNER to 3, ADMIN to 2, MEMBER to 1)
         return (rank[role] ?: 0) >= (rank[required] ?: Int.MAX_VALUE)
     }
+}
+
+/**
+ * #315: the authorization axes, hand-ported from packages/shared. A role is a
+ * set of these, so a permission question is always "which axis does this
+ * need?" rather than "how senior must they be?" — the second question has no
+ * answer for a role that is not on the line.
+ */
+object Capability {
+    const val WORKSPACE_ACCESS = "workspace.access"
+    const val CONVERSATIONS_READ = "conversations.read"
+    const val CONVERSATIONS_SEND = "conversations.send"
+    const val BILLING_MANAGE = "billing.manage"
+    const val SETTINGS_MANAGE = "settings.manage"
+    const val TEAM_MANAGE = "team.manage"
+    const val NUMBERS_MANAGE = "numbers.manage"
+    const val HISTORY_READ = "history.read"
+
+    /** Everything — the owner's set, and the list a test can iterate. */
+    val ALL = setOf(
+        WORKSPACE_ACCESS,
+        CONVERSATIONS_READ,
+        CONVERSATIONS_SEND,
+        BILLING_MANAGE,
+        SETTINGS_MANAGE,
+        TEAM_MANAGE,
+        NUMBERS_MANAGE,
+        HISTORY_READ,
+    )
 }
 
 @Serializable

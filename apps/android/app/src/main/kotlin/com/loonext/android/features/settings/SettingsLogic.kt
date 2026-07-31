@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Invite
 import com.loonext.android.core.model.Member
@@ -35,8 +36,15 @@ object SettingsRoleGate {
     /** #106 per-number access dialog — admin+. */
     fun canManageNumberAccess(role: String?): Boolean = MemberRole.atLeast(role, MemberRole.ADMIN)
 
-    /** Plan change, modules, portal/checkout — admin+. */
-    fun canManageBilling(role: String?): Boolean = MemberRole.atLeast(role, MemberRole.ADMIN)
+    /**
+     * Plan change, modules, portal/checkout — `billing.manage`, which is
+     * admin+ AND the bookkeeper preset (#315). Asked as an axis rather than a
+     * rank because the bookkeeper is not on the rank line: a rank check here
+     * would hand them the one screen their role exists for and then refuse
+     * every button on it.
+     */
+    fun canManageBilling(role: String?): Boolean =
+        MemberRole.has(role, Capability.BILLING_MANAGE)
 
     /** Overage cap — OWNER only. */
     fun canChangeOverageCap(role: String?): Boolean = role == MemberRole.OWNER

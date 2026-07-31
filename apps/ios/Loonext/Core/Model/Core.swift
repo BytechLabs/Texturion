@@ -34,6 +34,55 @@ enum MemberRole {
     /// the same fail-closed answer the server gives.
     static let readOnly = "read_only"
 
+    /// #315: the bookkeeper or the spouse doing the books. Billing, and NOT
+    /// the inbox — the only role that never sees a customer conversation,
+    /// which is why the shell gives it a screen of its own rather than four
+    /// tabs that each answer 403. Also off the rank map, for the same reason
+    /// `readOnly` is.
+    static let bookkeeper = "bookkeeper"
+
+    /// The role → capability table, hand-ported from
+    /// packages/shared/src/capabilities.ts. Only the axes this app actually
+    /// asks about are listed; adding one here means adding it there first.
+    ///
+    /// A SET per role, not a rank, because two of these five roles are not on
+    /// the owner ⊃ admin ⊃ member line at all.
+    private static let capabilities: [String: Set<String>] = [
+        readOnly: [Capability.workspaceAccess, Capability.conversationsRead],
+        bookkeeper: [Capability.workspaceAccess, Capability.billingManage],
+        member: [
+            Capability.workspaceAccess,
+            Capability.conversationsRead,
+            Capability.conversationsSend,
+        ],
+        admin: [
+            Capability.workspaceAccess,
+            Capability.conversationsRead,
+            Capability.conversationsSend,
+            Capability.billingManage,
+            Capability.settingsManage,
+            Capability.teamManage,
+            Capability.numbersManage,
+            Capability.historyRead,
+        ],
+        owner: Capability.all,
+    ]
+
+    /// Does `role` hold `capability`? An unknown role holds nothing — the same
+    /// fail-closed answer `atLeast` and the server both give, so a build that
+    /// has not heard of a newer preset refuses rather than guesses.
+    static func has(_ role: String?, _ capability: String) -> Bool {
+        guard let role else { return false }
+        return capabilities[role]?.contains(capability) ?? false
+    }
+
+    /// #315: can this role open the inbox at all? Every one of this app's four
+    /// tabs is a conversation surface, so this decides whether the tab shell is
+    /// even the right thing to render.
+    static func canReadConversations(_ role: String?) -> Bool {
+        has(role, Capability.conversationsRead)
+    }
+
     /// Hierarchical check: does `role` meet `required`?
     static func atLeast(_ role: String?, required: String) -> Bool {
         let rank = [owner: 3, admin: 2, member: 1]
@@ -41,6 +90,33 @@ enum MemberRole {
         let needed = rank[required] ?? Int.max
         return held >= needed
     }
+}
+
+/// #315: the authorization axes, hand-ported from packages/shared. A role is a
+/// set of these, so a permission question is always "which axis does this
+/// need?" rather than "how senior must they be?" — the second question has no
+/// answer for a role that is not on the line.
+enum Capability {
+    static let workspaceAccess = "workspace.access"
+    static let conversationsRead = "conversations.read"
+    static let conversationsSend = "conversations.send"
+    static let billingManage = "billing.manage"
+    static let settingsManage = "settings.manage"
+    static let teamManage = "team.manage"
+    static let numbersManage = "numbers.manage"
+    static let historyRead = "history.read"
+
+    /// Everything — the owner's set, and the list a test can iterate.
+    static let all: Set<String> = [
+        workspaceAccess,
+        conversationsRead,
+        conversationsSend,
+        billingManage,
+        settingsManage,
+        teamManage,
+        numbersManage,
+        historyRead,
+    ]
 }
 
 struct Membership: Codable, Sendable {

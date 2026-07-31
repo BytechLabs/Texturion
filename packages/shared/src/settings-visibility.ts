@@ -88,12 +88,26 @@ const SECTION_CAPABILITY: Record<SettingsSectionId, Capability> = {
   history: "history.read",
 };
 
-/** Is this settings section shown to someone holding `role`? */
+/**
+ * Is this settings section shown to someone holding `role`?
+ *
+ * A section that needs only `workspace.access` is shown to ANY role, including
+ * one this build has never heard of. That is not a hole: reaching this screen
+ * means the server already authorized a session in this workspace, and these
+ * rows are the reader's own — their login, their notifications, their devices.
+ * The alternative is an empty settings index, which reads as a broken app
+ * (#461). Every row that belongs to the BUSINESS still asks the table, so an
+ * unrecognized role sees nothing of the business.
+ *
+ * `roleHasCapability` itself stays fail-closed — this is visibility, and the
+ * server's gates are the control.
+ */
 export function canSeeSettingsSection(
   section: SettingsSectionId,
   role: MemberRole,
 ): boolean {
-  return roleHasCapability(role, SECTION_CAPABILITY[section]);
+  const needs = SECTION_CAPABILITY[section];
+  return needs === "workspace.access" || roleHasCapability(role, needs);
 }
 
 /** The capability a section needs — exported for tests and for copy that has

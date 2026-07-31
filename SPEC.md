@@ -802,6 +802,27 @@ create trigger on_auth_user_created after insert or update on auth.users
 
 Roles: **O**=owner, **A**=admin, **M**=member. "O/A" = owner or admin. All conversation/message/contact/tag/template routes = any active member.
 
+**#315 — roles are capability SETS, not ranks.** The table above reads as a
+hierarchy because the first three are one; two more are not. Gates ask for an
+axis (`billing.manage`, `team.manage`, `conversations.send`, …), and a role is
+the set of axes it holds — see `packages/shared/src/capabilities.ts`, which all
+three clients and the API read from (the phones hand-port it in
+`MemberRole.has`).
+
+| Role | Holds | Exists because |
+|---|---|---|
+| `read_only` | `workspace.access`, `conversations.read` | An owner's partner, an accountant, a consultant who should SEE the work and never text a customer as the business. Composer shows the view-only banner on all three clients. |
+| `bookkeeper` | `workspace.access`, `billing.manage` | The bookkeeper or spouse doing the books. Before it, handing somebody billing meant making them an admin — which also handed them every customer conversation — so owners shared their own login instead, defeating #191 attribution, #231 audit and #314 MFA at once. |
+
+Neither is on the owner ⊃ admin ⊃ member line, so `requireRole` refuses both at
+every rank gate — the fail-closed property that made converting the 137 gates
+incrementally safe. `bookkeeper` is the only role with no conversation access at
+all, and every primary surface in every client is a conversation surface, so
+each client gives it a landing of its own: web falls the sidebar back to
+Billing and redirects `/inbox`; Android renders the Billing overlay instead of
+the four-slot shell; iOS makes Settings the navigation root instead of the tab
+shell.
+
 | Method & path | Role | Purpose / shape |
 |---|---|---|
 | `GET /v1/me` | any | `{ user_id, display_name, memberships: [{company_id, name, role, subscription_status}] }` |

@@ -29,9 +29,13 @@ enum SettingsRoleGate {
         MemberRole.atLeast(role, required: MemberRole.admin)
     }
 
-    /// Plan change, modules, portal/checkout — admin+.
+    /// Plan change, modules, portal/checkout — `billing.manage`, which is
+    /// admin+ AND the bookkeeper preset (#315). Asked as an axis rather than a
+    /// rank because the bookkeeper is not on the rank line: a rank check here
+    /// would hand them the one screen their role exists for and then refuse
+    /// every button on it.
     static func canManageBilling(_ role: String?) -> Bool {
-        MemberRole.atLeast(role, required: MemberRole.admin)
+        MemberRole.has(role, Capability.billingManage)
     }
 
     /// #214 AI enrichment opt-in writes — admin+ (it spends money). Reads are

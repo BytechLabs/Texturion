@@ -83,6 +83,7 @@ private fun roleLabel(role: String): String = when (role) {
     MemberRole.ADMIN -> "Admin"
     MemberRole.MEMBER -> "Member"
     MemberRole.READ_ONLY -> "View only"
+    MemberRole.BOOKKEEPER -> "Bookkeeper"
     else -> role.replace('_', ' ').replaceFirstChar { it.uppercase() }
 }
 
@@ -91,6 +92,7 @@ private fun roleBlurb(role: String): String = when (role) {
     MemberRole.ADMIN ->
         "Everything except transferring ownership and closing the workspace"
     MemberRole.READ_ONLY -> "Can see conversations, cannot reply or change anything"
+    MemberRole.BOOKKEEPER -> "Billing and invoices only; no access to conversations"
     else -> "Read and answer customers; no billing, team or settings"
 }
 
@@ -239,7 +241,12 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
                     expanded = roleMenuOpen,
                     onDismissRequest = { roleMenuOpen = false },
                 ) {
-                    listOf(MemberRole.ADMIN, MemberRole.MEMBER, MemberRole.READ_ONLY)
+                    listOf(
+                        MemberRole.ADMIN,
+                        MemberRole.MEMBER,
+                        MemberRole.READ_ONLY,
+                        MemberRole.BOOKKEEPER,
+                    )
                         .forEach { role ->
                         DropdownMenuItem(
                             text = { Text(roleLabel(role)) },
@@ -366,7 +373,12 @@ private fun InvitesCard(
                     // #315: a named preset that does not say what it is for is
                     // just a word. An owner picking a role for their accountant
                     // should not have to infer it from "member".
-                    listOf(MemberRole.MEMBER, MemberRole.ADMIN, MemberRole.READ_ONLY)
+                    listOf(
+                        MemberRole.MEMBER,
+                        MemberRole.ADMIN,
+                        MemberRole.READ_ONLY,
+                        MemberRole.BOOKKEEPER,
+                    )
                         .forEach { option ->
                             DropdownMenuItem(
                                 text = {

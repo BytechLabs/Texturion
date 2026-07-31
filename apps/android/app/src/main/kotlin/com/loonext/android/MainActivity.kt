@@ -12,23 +12,21 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,24 +47,31 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.loonext.android.core.update.UpdatePrompt
-import com.loonext.android.core.update.UpdateState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.Me
+import com.loonext.android.core.model.MemberRole
+import com.loonext.android.core.update.UpdatePrompt
+import com.loonext.android.core.update.UpdateState
 import com.loonext.android.features.auth.AuthCallbacks
 import com.loonext.android.features.auth.AuthFlow
 import com.loonext.android.features.auth.AuthViewModel
 import com.loonext.android.features.auth.OAUTH_REDIRECT_SCHEME
 import com.loonext.android.features.calls.CallsOverlay
 import com.loonext.android.features.compose.NewConversationScreen
+import com.loonext.android.features.contacts.ContactDetailScreen
+import com.loonext.android.features.contacts.ContactMutations
+import com.loonext.android.features.contacts.sync.ContactsActionKind
+import com.loonext.android.features.contacts.sync.contactsActionKind
 import com.loonext.android.features.diagnostics.DiagnosticsScreen
 import com.loonext.android.features.inbox.InboundMessageToastHost
 import com.loonext.android.features.notifications.NotificationsScreen
@@ -81,10 +86,6 @@ import com.loonext.android.features.shell.ShellCounts
 import com.loonext.android.features.shell.ShellTab
 import com.loonext.android.features.tasks.TaskDetailScreen
 import com.loonext.android.features.tasks.TaskMutations
-import com.loonext.android.features.contacts.ContactDetailScreen
-import com.loonext.android.features.contacts.ContactMutations
-import com.loonext.android.features.contacts.sync.ContactsActionKind
-import com.loonext.android.features.contacts.sync.contactsActionKind
 import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.CenteredError
@@ -576,86 +577,104 @@ private fun ReadyShell(
     // event-driven; only the badge counter needs the resync.)
     ResyncOnResume(companyId) { countsKey++ }
 
+    // #315: a bookkeeper holds billing and nothing else, and all four nav slots
+    // are conversation surfaces — rendering the shell for them would be four
+    // tabs that each answer 403. They get the one screen they can work instead.
+    // Seeded once, and NOT popped: there is nothing underneath it for them.
+    val hasInbox = MemberRole.canReadConversations(
+        hydratedMe.memberships.firstOrNull { it.company_id == companyId }?.role,
+    )
+    LaunchedEffect(hasInbox, companyId) {
+        if (!hasInbox && routeStack.isEmpty()) {
+            routeStack.add(Overlay.Settings(SettingsSection.Billing))
+        }
+    }
+
     Box(Modifier.fillMaxSize()) {
-        MainShell(
-            me = hydratedMe,
-            counts = counts,
-            unreadNotifications = unreadNotifications ?: 0,
-            tab = tab,
-            onTabChange = { tab = it },
-            onCompose = { push(Overlay.Compose(null)) },
-            onOpenAccountSheet = { sheetOpen = true },
-            floatingAction = if (tab == ShellTab.Inbox) {
-                {
-                    // Spec 20's ink pencil FAB, hosted in the shell slot so it can
-                    // never be underdrawn by the pill/gradient (#173).
-                    Surface(
-                        onClick = { push(Overlay.Compose(null)) },
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        shadowElevation = 10.dp,
-                        modifier = Modifier.size(54.dp),
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Outlined.Edit,
-                                contentDescription = "New conversation",
-                                modifier = Modifier.size(20.dp),
-                            )
+        if (hasInbox) {
+            MainShell(
+                me = hydratedMe,
+                counts = counts,
+                unreadNotifications = unreadNotifications ?: 0,
+                tab = tab,
+                onTabChange = { tab = it },
+                onCompose = { push(Overlay.Compose(null)) },
+                onOpenAccountSheet = { sheetOpen = true },
+                floatingAction = if (tab == ShellTab.Inbox) {
+                    {
+                        // Spec 20's ink pencil FAB, hosted in the shell slot so it can
+                        // never be underdrawn by the pill/gradient (#173).
+                        Surface(
+                            onClick = { push(Overlay.Compose(null)) },
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                            shadowElevation = 10.dp,
+                            modifier = Modifier.size(54.dp),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Outlined.Edit,
+                                    contentDescription = "New conversation",
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
                         }
                     }
-                }
-            } else {
-                null
-            },
-        ) { activeTab, modifier ->
-            ShellContent(
-                activeTab, graph, hydratedMe, companyId, modifier,
-                onOpenThread = { conversationId, highlightMessageId ->
-                    push(Overlay.Thread(conversationId, highlightMessageId))
+                } else {
+                    null
                 },
-                onOpenTask = { push(Overlay.Task(it)) },
-                onOpenContact = { push(Overlay.Contact(it)) },
-                onOpenNotifications = { push(Overlay.Notifications) },
-                onComposeNew = { push(Overlay.Compose(it)) },
-                // Single surface: For You's "Recent calls" header switches to
-                // the Calls tab (the pager animates) instead of pushing a
-                // duplicate route.
-                onOpenCalls = { tab = ShellTab.Calls },
-                onViewedConversationChanged = { tabViewedConversation = it },
+            ) { activeTab, modifier ->
+                ShellContent(
+                    activeTab, graph, hydratedMe, companyId, modifier,
+                    onOpenThread = { conversationId, highlightMessageId ->
+                        push(Overlay.Thread(conversationId, highlightMessageId))
+                    },
+                    onOpenTask = { push(Overlay.Task(it)) },
+                    onOpenContact = { push(Overlay.Contact(it)) },
+                    onOpenNotifications = { push(Overlay.Notifications) },
+                    onComposeNew = { push(Overlay.Compose(it)) },
+                    // Single surface: For You's "Recent calls" header switches to
+                    // the Calls tab (the pager animates) instead of pushing a
+                    // duplicate route.
+                    onOpenCalls = { tab = ShellTab.Calls },
+                    onViewedConversationChanged = { tabViewedConversation = it },
+                )
+            }
+
+            // The persistent call chip (renders nothing while idle). Mounting it is
+            // what makes this member ring-eligible while the app is open (#155).
+            CallsOverlay(
+                graph = graph,
+                companyId = companyId,
+                me = hydratedMe,
+                openConversation = { push(Overlay.Thread(it)) },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 96.dp),
+            )
+
+            // Global inbound toast for conversations the user is NOT viewing
+            // (#165). ONE mount (two parallel sessions had each added one —
+            // double snackbar + double fetch): the viewedConversation predicate
+            // also suppresses threads opened INSIDE the tabs, and the 96.dp
+            // bottom padding clears the tab bar alongside the call chip.
+            InboundMessageToastHost(
+                graph = graph,
+                companyId = companyId,
+                viewedConversationId = { viewedConversation },
+                onView = { push(Overlay.Thread(it)) },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 96.dp),
             )
         }
 
-        // The persistent call chip (renders nothing while idle). Mounting it is
-        // what makes this member ring-eligible while the app is open (#155).
-        CallsOverlay(
-            graph = graph,
-            companyId = companyId,
-            me = hydratedMe,
-            openConversation = { push(Overlay.Thread(it)) },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 96.dp),
-        )
-
-        // Global inbound toast for conversations the user is NOT viewing
-        // (#165). ONE mount (two parallel sessions had each added one —
-        // double snackbar + double fetch): the viewedConversation predicate
-        // also suppresses threads opened INSIDE the tabs, and the 96.dp
-        // bottom padding clears the tab bar alongside the call chip.
-        InboundMessageToastHost(
-            graph = graph,
-            companyId = companyId,
-            viewedConversationId = { viewedConversation },
-            onView = { push(Overlay.Thread(it)) },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 96.dp),
-        )
-
         routeStack.lastOrNull()?.let { active ->
-            BackHandler { pop() }
+            // #315: a role with no inbox has nothing underneath its one screen,
+            // so back must not strand them on an empty shell. Their route is
+            // re-seeded by the effect above if it is ever popped.
+            BackHandler(enabled = hasInbox) { pop() }
             // Canvas + status inset once for every routed surface (#172). Only
             // the TOP of the stack renders; back pops one route at a time.
             // imeHost here is the ONE keyboard policy for pushed routes

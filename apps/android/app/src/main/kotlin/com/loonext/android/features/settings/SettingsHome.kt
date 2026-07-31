@@ -74,8 +74,10 @@ import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Me
+import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.Usage
 import com.loonext.android.core.model.UsageStatus
@@ -107,41 +109,40 @@ import kotlinx.coroutines.launch
 
 /** The stacked settings index (#157) — mirrors the web's mobile section list. */
 /**
- * #461: the minimum role a settings section is SHOWN to.
+ * #461/#315: the capability a settings section is SHOWN to.
  *
  * Hand-ported from packages/shared/src/settings-visibility.ts and covered by
- * the same vectors. The split is by whose thing it is: your login, your
- * notifications and your devices are yours; what the business is, what it
- * sends and what it spends belong to the people who answer for it.
+ * the same vectors. It began as a personal/business boolean, which stopped
+ * being expressible the moment a role existed that is neither above nor below
+ * a member: a bookkeeper holds billing and nothing else, so "is this the
+ * business's?" no longer answers "may they see it?".
  *
- * Visibility, not authorization — the API's role gates are what protect
- * anything, and they are unchanged. Hiding a row is a courtesy.
+ * Visibility, not authorization — the API's gates are what protect anything,
+ * and they are unchanged. Hiding a row is a courtesy.
  */
-enum class SettingsAccess { Member, Admin }
-
 enum class SettingsSection(
     val title: String,
     val blurb: String,
-    val access: SettingsAccess = SettingsAccess.Admin,
+    val needs: String = Capability.SETTINGS_MANAGE,
 ) {
     Workspace("Workspace", "Name, business identification, timezone"),
     Hours("Business hours & away reply", "When you're open, and what after-hours texters hear"),
     Calling("Calling", "Missed-call text-back, voicemail, screening, caller ID"),
     Templates("Templates", "Saved replies your team can send in one tap"),
-    Team("Team", "Who can see and answer your customers' texts"),
-    Numbers("Numbers", "Your numbers, ports, text-enablement, registration"),
-    Usage("Usage", "Fair use, your spending cap, and the numbers"),
-    Billing("Billing", "Plan, payment, and invoices"),
+    Team("Team", "Who can see and answer your customers' texts", Capability.TEAM_MANAGE),
+    Numbers("Numbers", "Your numbers, ports, text-enablement, registration", Capability.NUMBERS_MANAGE),
+    Usage("Usage", "Fair use, your spending cap, and the numbers", Capability.BILLING_MANAGE),
+    Billing("Billing", "Plan, payment, and invoices", Capability.BILLING_MANAGE),
     Notifications(
         "Notifications",
         "Email and push for new conversations",
-        SettingsAccess.Member,
+        Capability.WORKSPACE_ACCESS,
     ),
     Ai("Lou", "Loonext's assistant: drafts replies and fills in task details"),
     Profile(
         "Profile & account",
         "Your name, theme, email, and password",
-        SettingsAccess.Member,
+        Capability.WORKSPACE_ACCESS,
     ),
 
     /**
@@ -152,7 +153,7 @@ enum class SettingsSection(
     Devices(
         "Signed-in devices",
         "Every browser and phone with access right now",
-        SettingsAccess.Member,
+        Capability.WORKSPACE_ACCESS,
     ),
 
     /**
@@ -162,7 +163,7 @@ enum class SettingsSection(
     Help(
         "Help",
         "Get in touch when something isn't right",
-        SettingsAccess.Member,
+        Capability.WORKSPACE_ACCESS,
     ),
 }
 
@@ -850,13 +851,17 @@ private fun SettingsIndexPreview() {
 }
 
 /**
- * #461: the sections this role sees, in nav order. An unknown or absent role
- * is treated as a member — the least privilege, which is the safe way for a
- * missing membership to fail.
+ * #461/#315: the sections this role sees, in nav order.
+ *
+ * A section that needs only [Capability.WORKSPACE_ACCESS] is shown to ANY
+ * role, including one this build has never heard of. That is not a hole:
+ * reaching this screen means the server already authorized a session in this
+ * workspace, and these rows are the reader's own — their login, their
+ * notifications, their devices. The alternative is an empty settings index,
+ * which reads as a broken app. Every row that belongs to the BUSINESS still
+ * asks the capability table, so an unrecognized role sees nothing of it.
  */
-internal fun visibleSettingsSections(role: String?): List<SettingsSection> {
-    val privileged = role == "owner" || role == "admin"
-    return SettingsSection.entries.filter {
-        privileged || it.access == SettingsAccess.Member
+internal fun visibleSettingsSections(role: String?): List<SettingsSection> =
+    SettingsSection.entries.filter {
+        it.needs == Capability.WORKSPACE_ACCESS || MemberRole.has(role, it.needs)
     }
-}
