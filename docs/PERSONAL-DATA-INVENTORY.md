@@ -49,6 +49,7 @@ The most sensitive category, because the person never chose us.
 | `messages` | **message bodies**, both directions | Same. The bodies are the product |
 | `conversations` | phone-number link, timings | Same |
 | `conversation_events` | who did what to a thread | Same |
+| `conversation_snoozes` | which member deferred which thread, until when, and a short note THEY wrote (#293). No customer data — the note is a crew member's own words about their own work | Same |
 | `attachments`, `message_attachments` | file names, and the objects in R2 | Same; soft-deleted objects reclaimed by sweep |
 | `calls` | **caller name (CNAM)**, voicemail audio path, **voicemail transcript** | Same |
 | `call_member_legs` | which member took which leg | Same |

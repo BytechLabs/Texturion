@@ -35,6 +35,8 @@ declare
     'push_subscriptions', 'device_push_tokens', 'member_telephony_credentials',
     'notification_prefs', 'notification_reads', 'notification_read_items',
     'mfa_recovery_codes', 'mfa_recovery_attempts', 'audit_log',
+    -- #293: a member's own deferral of a thread, and their own note about it.
+    'conversation_snoozes',
     -- §3 business data
     'companies', 'messaging_registrations', 'port_requests', 'phone_numbers',
     'number_access', 'number_health', 'company_ai_settings', 'templates', 'tags',

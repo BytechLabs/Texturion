@@ -49,7 +49,7 @@ const TENANT_TABLES = new Set([
   "attachments", "audit_log", "billing_disputes", "call_member_legs",
   "call_records", "calls", "company_ai_settings", "company_ai_usage",
   "company_members", "company_modules", "contact_consent_events",
-  "contacts", "conversation_events",
+  "contacts", "conversation_events", "conversation_snoozes",
   "conversations", "data_exports", "egress_events", "email_ledger",
   "grace_notices", "high_priority_push_budget", "high_priority_push_days",
   "inbound_notification_days", "invites", "member_telephony_credentials",

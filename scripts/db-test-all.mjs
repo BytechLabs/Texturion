@@ -109,6 +109,7 @@ const SUITES = [
   "retention_cohorts",
   "contact_timeline",
   "attachment_quarantine",
+  "conversation_snooze",
 ];
 
 const args = process.argv.slice(2);
