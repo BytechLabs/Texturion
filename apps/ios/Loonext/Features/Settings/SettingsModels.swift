@@ -307,6 +307,21 @@ struct Ownership: Codable, Sendable {
     var canCancel: Bool { can_cancel ?? false }
 }
 
+/// GET /v1/billing/missed-while-off (#490) — how many customers rang while the
+/// line could not take them, and when it last happened.
+///
+/// The argument for reinstating, with evidence attached. Before #490 the
+/// business was never told those calls had happened at all.
+struct MissedWhileOff: Codable, Sendable {
+    let count: Int?
+    /// The window's start — the count is bounded to the last 90 days.
+    let since: String?
+    /// The most recent one, or nil. Says WHEN, not only how many.
+    let last_at: String?
+
+    var total: Int { count ?? 0 }
+}
+
 // MARK: - Two-factor authentication (#314 — routes/mfa.ts)
 
 struct MfaFactor: Codable, Sendable, Identifiable {
