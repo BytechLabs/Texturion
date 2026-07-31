@@ -8,11 +8,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -53,6 +58,13 @@ internal fun ContactPanelSheet(
     members: List<Member>,
     onOpenConversation: ((conversationId: String) -> Unit)?,
     onOpenTask: ((taskId: String) -> Unit)?,
+    /**
+     * #465: open the FULL contact screen — its history, call log and every
+     * conversation. This panel holds a copy of the fields and nothing else, so
+     * without this it is a dead end, which is exactly what was reported. Web
+     * has had the jump since #82.
+     */
+    onOpenContact: ((contactId: String) -> Unit)?,
     onDismiss: () -> Unit,
 ) {
     val detail = controller.conversation ?: return
@@ -91,6 +103,21 @@ internal fun ContactPanelSheet(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                if (onOpenContact != null) {
+                    IconButton(
+                        onClick = {
+                            onDismiss()
+                            onOpenContact(detail.contact_id)
+                        },
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Outlined.OpenInNew,
+                            contentDescription = "Open the full contact",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(19.dp),
+                        )
+                    }
                 }
             }
 

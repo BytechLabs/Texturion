@@ -301,6 +301,14 @@ private struct ThreadBody: View {
                             // ABOVE this thread (the shell's openTaskId route).
                             detailSheet = nil
                             AppRouter.shared.openTaskId = taskId
+                        },
+                        onOpenContact: { contactId in
+                            // #465: the panel holds a copy of the contact's
+                            // fields; the contact SCREEN holds its history, its
+                            // calls and every conversation. Same dismiss-then-
+                            // push route the two rows above use.
+                            detailSheet = nil
+                            AppRouter.shared.openContactId = contactId
                         }
                     )
                 case .assignee:

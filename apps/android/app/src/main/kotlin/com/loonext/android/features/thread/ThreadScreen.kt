@@ -181,6 +181,8 @@ fun ThreadScreen(
     highlightMessageId: String? = null,
     /** Open the AI settings, offered under the drafts (MainActivity Overlay.Settings). */
     onOpenAiSettings: (() -> Unit)? = null,
+    /** #465: open the full contact screen from the conversation panel. */
+    onOpenContact: ((contactId: String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -303,6 +305,7 @@ fun ThreadScreen(
                         me = me,
                         highlightMessageId = highlightMessageId,
                         onOpenAiSettings = onOpenAiSettings,
+                        onOpenContact = onOpenContact,
                         onBack = onBack,
                         onOpenFile = { attachment ->
                             scope.launch {
@@ -356,6 +359,7 @@ private fun ThreadLoaded(
     onOpenConversation: ((conversationId: String) -> Unit)?,
     onOpenTask: ((taskId: String) -> Unit)?,
     onOpenAiSettings: (() -> Unit)?,
+    onOpenContact: ((contactId: String) -> Unit)?,
     highlightMessageId: String? = null,
 ) {
     val context = LocalContext.current
@@ -1009,6 +1013,12 @@ private fun ThreadLoaded(
                 { conversationId ->
                     contactPanelOpen = false
                     open(conversationId)
+                }
+            },
+            onOpenContact = onOpenContact?.let { open ->
+                { contactId ->
+                    contactPanelOpen = false
+                    open(contactId)
                 }
             },
             onOpenTask = onOpenTask?.let { open ->

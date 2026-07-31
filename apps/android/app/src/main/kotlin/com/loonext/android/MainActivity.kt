@@ -685,6 +685,7 @@ private fun ReadyShell(
                         onOpenAiSettings = {
                             push(Overlay.Settings(SettingsSection.Ai))
                         },
+                        onOpenContact = { push(Overlay.Contact(it)) },
                     )
 
                     is Overlay.Task -> TaskDetailScreen(

@@ -16,6 +16,12 @@ struct ContactPanelSheet: View {
     /// Open a checklist task's detail (#217). The caller dismisses this sheet
     /// and routes the task up to the shell.
     let onOpenTask: @MainActor (String) -> Void
+    /// #465: open the FULL contact screen — its history, call log and every
+    /// conversation. This panel holds a copy of the fields and nothing else, so
+    /// without it the panel is a dead end, which is exactly what was reported.
+    /// Web has had the jump since #82. The caller dismisses this sheet first,
+    /// the same way onOpenTask and onOpenConversation do.
+    let onOpenContact: @MainActor (String) -> Void
 
     var body: some View {
         Group {
@@ -53,6 +59,16 @@ struct ContactPanelSheet: View {
                         .font(.golos(11))
                         .foregroundStyle(BrandColor.muted500)
                     }
+                    Spacer(minLength: 8)
+                    Button {
+                        onOpenContact(detail.contact_id)
+                    } label: {
+                        Image(systemName: "arrow.up.forward.square")
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundStyle(BrandColor.muted500)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open the full contact")
                 }
                 .padding(.top, 18)
 
