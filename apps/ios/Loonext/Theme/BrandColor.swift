@@ -35,19 +35,54 @@ enum BrandColor {
     static let avatarTint = adaptive(light: 0xE4E6D7, dark: 0x2C2F22)
 
     // MARK: Muted ladder (headings → hints)
+    //
+    // #320 — THE LADDER HAS THREE TEXT RUNGS, NOT SEVEN.
+    //
+    // The canvas specifies seven greys and the app used them as a hierarchy:
+    // muted500 alone carries 77 `Text` views — error messages, empty states,
+    // status lines like "No teammates can take this call right now." At its
+    // canvas value 0x8B8E7D that measured **3.01:1 on the canvas ground**,
+    // well under AA, and muted400/muted300 (placeholders, "At least 8
+    // characters.", relative timestamps, keypad letters) were worse.
+    //
+    // Nothing caught it because nothing ever measured the phone palettes; the
+    // web app's equivalent step was fixed for exactly this in #61 and the fix
+    // never crossed over. That is #320's thesis in one token.
+    //
+    // Warm paper does not have room for seven legible greys. Between ink and
+    // the AA floor there are three distinguishable steps, so the rungs below
+    // the third collapse onto it. Hierarchy under that floor is carried by
+    // SIZE and WEIGHT — a grey too faint to read is not a hierarchy level, it
+    // is text nobody can read.
+    //
+    // The NAMES all survive so no call site changes; what changes is that
+    // every one of them is now legible. Ratios are worst-case across every
+    // surface text can land on (canvas, paper, inset, insetDeep, avatarTint,
+    // cream) and are asserted in BrandColorContrastTests.
 
+    /// Strong secondary text. 6.84:1 light / 8.35:1 dark.
     static let muted900 = adaptive(light: 0x4A4D3C, dark: 0xC9CCBA)
-    static let muted700 = adaptive(light: 0x5C5F4E, dark: 0x8F927E)
-    static let muted600 = adaptive(light: 0x6E7163, dark: 0x8F927E)
-    static let muted500 = adaptive(light: 0x8B8E7D, dark: 0x7F826F)
-    static let muted400 = adaptive(light: 0x9A9D8B, dark: 0x6F7260)
-    static let muted300 = adaptive(light: 0xA6A996, dark: 0x6F7260)
+    /// Secondary text. 5.17:1 light / 4.51:1 dark.
+    static let muted700 = adaptive(light: 0x5C5F4E, dark: 0x939683)
+    /// The quiet rung — captions, timestamps, hints, placeholders. 4.56:1
+    /// light / 4.51:1 dark. muted600/500/400/300 are one value: the ladder ran
+    /// out of legible room, and pretending otherwise is what shipped the bug.
+    static let muted600 = adaptive(light: 0x64675A, dark: 0x939683)
+    static let muted500 = adaptive(light: 0x64675A, dark: 0x939683)
+    static let muted400 = adaptive(light: 0x64675A, dark: 0x939683)
+    static let muted300 = adaptive(light: 0x64675A, dark: 0x939683)
+    /// NOT a text rung: chevrons, 1px dividers, stroke borders. Held to the
+    /// non-text bar (WCAG 1.4.11) and exempt from the AA assertion by name.
     static let muted250 = adaptive(light: 0xB4B7A6, dark: 0x4A4D3C)
 
     // MARK: The accent family (exactly one hue, rationed)
 
-    /// Deep olive: counts, links, positive emphasis.
-    static let olive = adaptive(light: 0x66801F, dark: 0xB9CF57)
+    /// Deep olive: counts, links, positive emphasis — it CARRIES TEXT, at ~90
+    /// `foregroundStyle` call sites. #320: the canvas value 0x66801F is 4.04:1
+    /// on the canvas ground and 4.41:1 on paper, i.e. under AA on the two
+    /// surfaces it is used on most. 0x586E1B is the same hue one step down:
+    /// 5.15:1 worst case. Dark is unchanged (7.89:1 worst).
+    static let olive = adaptive(light: 0x586E1B, dark: 0xB9CF57)
 
     /// Lime highlight fill (Answer button, selected states).
     static let lime = adaptive(light: 0xC9DE54, dark: 0xB9CF57)
@@ -78,12 +113,17 @@ enum BrandColor {
 
     // MARK: Status
 
-    /// Destructive — warm brick, not neon red.
-    static let destructive = adaptive(light: 0xB0442B, dark: 0xE08B72)
+    /// Destructive — warm brick, not neon red. #320: light was 0xB0442B, which
+    /// is 4.26:1 on its own container — the error message inside the error box
+    /// was the thing below AA. 0xA94129 measures 4.55:1 there and 5.19:1 on the
+    /// canvas ground.
+    static let destructive = adaptive(light: 0xA94129, dark: 0xE08B72)
     static let destructiveContainer = adaptive(light: 0xF4DAD2, dark: 0x39231C)
 
-    /// Overdue/notice amber, kept warm for paper.
-    static let overdueAmber = adaptive(light: 0x9A6B15, dark: 0xD9A441)
+    /// Overdue/notice amber, kept warm for paper. #320: light was 0x9A6B15 —
+    /// 3.85:1 on its own well and 4.20:1 on the ground. 0x8C6113 clears both
+    /// (4.50:1 / 4.92:1) and stays in the same warm family.
+    static let overdueAmber = adaptive(light: 0x8C6113, dark: 0xD9A441)
     static let amberBg = adaptive(light: 0xF4E8CD, dark: 0x2E2712)
 
     private static func adaptive(light: UInt32, dark: UInt32) -> Color {

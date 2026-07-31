@@ -23,12 +23,11 @@ object BrandColor {
     // Muted ladder (headings → hints), verbatim from the canvas.
     val Muted900 = Color(0xFF4A4D3C)
     val Muted700 = Color(0xFF5C5F4E)
-    val Muted600 = Color(0xFF6E7163)
-    val Muted500 = Color(0xFF8B8E7D)
-    val Muted400 = Color(0xFF9A9D8B)
-    val Muted300 = Color(0xFFA6A996)
+    // #320: Muted600/500/400/300/200 are gone — zero references anywhere in the
+    // app, because Android reads MaterialTheme roles rather than these names.
+    // A palette entry nobody reads is a value nobody checks; iOS kept the same
+    // rungs, used them for text, and shipped 3.01:1 body copy for months.
     val Muted250 = Color(0xFFB4B7A6)
-    val Muted200 = Color(0xFFBEC1AF)
 
     /** Inset surface: row dividers, wells, pressed states. */
     val Inset = Color(0xFFF0F0E8)
@@ -40,8 +39,14 @@ object BrandColor {
     val AvatarTint = Color(0xFFE4E6D7)
 
     // Accent family — exactly one hue, rationed.
-    /** Deep olive: counts, links, positive emphasis text. */
-    val Olive = Color(0xFF66801F)
+    /**
+     * Deep olive: counts, links, positive emphasis text, and the `secondary`
+     * role — which means it is a FILL carrying a Paper label as well as text on
+     * paper. #320: the canvas value 0xFF66801F gave that label 4.41:1 and the
+     * text 4.04:1 on canvas, both under AA. 0xFF586E1B is the same hue one step
+     * down: 5.63:1 as a fill label, 5.15:1 as text. Matched on iOS and web.
+     */
+    val Olive = Color(0xFF586E1B)
 
     /** Lime: primary highlight fills (Answer, selected states). */
     val Lime = Color(0xFFC9DE54)
@@ -71,9 +76,13 @@ object BrandColor {
     val DarkInsetDeep = Color(0xFF262A1D)
     val DarkRaised = Color(0xFF2C2F22)
     val DarkInk = Color(0xFFF0F1E5)
-    val DarkMuted500 = Color(0xFF8F927E)
-    val DarkMuted400 = Color(0xFF7F826F)
-    val DarkMuted300 = Color(0xFF6F7260)
+    /**
+     * `onSurfaceVariant` — secondary text on every dark surface. #320: at
+     * 0xFF8F927E it was 4.28:1 on surfaceContainerHigh/Highest (DarkRaised),
+     * under AA on the two most raised surfaces it lands on. 0xFF939683 clears
+     * every one (4.51:1 worst). Matched to iOS muted700's dark value.
+     */
+    val DarkMuted500 = Color(0xFF939683)
     val DarkOutline = Color(0xFF4A4D3C)
     val DarkLime = Color(0xFFB9CF57)
     val DarkLimeChipBg = Color(0xFF39421A)
@@ -81,19 +90,34 @@ object BrandColor {
     val DarkCoral = Color(0xFFE0764B)
 
     // ---- Status (warm-family, used sparingly) ----------------------------
-    /** Destructive actions / errors — warm brick, not neon red. */
-    val Destructive = Color(0xFFB0442B)
+    /**
+     * Destructive actions / errors — warm brick, not neon red. #320: 0xFFB0442B
+     * measured 4.26:1 on its own container, i.e. the error message inside the
+     * error box was the thing below AA. 0xFFA94129 clears it at 4.55:1.
+     */
+    val Destructive = Color(0xFFA94129)
     val DestructiveContainer = Color(0xFFF4DAD2)
     val DarkDestructive = Color(0xFFE08B72)
 
-    /** Amber notice (billing warnings) — kept warm to sit on paper. */
-    val Amber = Color(0xFF9A6B15)
+    /**
+     * #320: the dark `errorContainer` role was pointed at [DarkLimeChipBg] —
+     * the pale-lime "New lead" chip fill. Every error box on a dark phone was
+     * green, and the message on it measured 4.12:1. This is the warm dark well
+     * it should always have used (iOS has carried it as `destructiveContainer`
+     * all along), and DarkDestructive on it is 5.66:1.
+     */
+    val DarkDestructiveContainer = Color(0xFF39231C)
+
+    /**
+     * Amber notice (billing warnings) — kept warm to sit on paper. #320: at
+     * 0xFF9A6B15 it was 3.85:1 on its own well and 4.20:1 on canvas. 0xFF8C6113
+     * clears both (4.50:1 / 4.92:1) without leaving the warm family.
+     */
+    val Amber = Color(0xFF8C6113)
     val AmberBg = Color(0xFFF4E8CD)
 
     /** Dark-theme amber companions (warm dark well, mirrors the LimeChip pair). */
     val DarkAmber = Color(0xFFE0B25C)
     val DarkAmberBg = Color(0xFF3A2F16)
 
-    /** Legacy alias still referenced by settings; equals Muted300. */
-    val Stone400 = Muted300
 }

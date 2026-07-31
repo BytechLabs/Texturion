@@ -19,7 +19,10 @@ import androidx.compose.ui.unit.dp
  *  - primaryContainer = pale lime chip       secondaryContainer = avatar tint
  *  - outlineVariant   = hairline row dividers (#F0F0E8)
  */
-private val LightColors = lightColorScheme(
+// `internal`, not `private`: ThemeContrastTest reads these tables directly,
+// because the bug #320 found (a green error container) lived in the MAPPING
+// rather than in any single colour value.
+internal val LightColors = lightColorScheme(
     primary = BrandColor.Ink,
     onPrimary = BrandColor.Paper,
     primaryContainer = BrandColor.LimeChip,
@@ -51,7 +54,7 @@ private val LightColors = lightColorScheme(
     onErrorContainer = BrandColor.Destructive,
 )
 
-private val DarkColors = darkColorScheme(
+internal val DarkColors = darkColorScheme(
     primary = BrandColor.DarkInk,
     onPrimary = BrandColor.Ink,
     primaryContainer = BrandColor.DarkLimeChipBg,
@@ -79,7 +82,10 @@ private val DarkColors = darkColorScheme(
     outlineVariant = BrandColor.DarkInset,
     error = BrandColor.DarkDestructive,
     onError = BrandColor.DarkCanvas,
-    errorContainer = BrandColor.DarkLimeChipBg,
+    // #320: this was DarkLimeChipBg — the pale-lime "New lead" chip fill — so
+    // every error box on a dark phone rendered green, with its message at
+    // 4.12:1. Nothing caught it because nothing had ever read this table.
+    errorContainer = BrandColor.DarkDestructiveContainer,
     onErrorContainer = BrandColor.DarkDestructive,
 )
 
