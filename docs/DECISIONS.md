@@ -5849,3 +5849,46 @@ this' that expires on its own". Typing presence *is* that signal, produced with
 zero effort and expiring by itself, which is strictly better than a tap. Adding
 a claim would put a third state between "nothing" and "assigned" that a person
 has to remember to use, for a signal they are already sending by typing.
+
+## D104 — a contact's tags are its conversations' tags, and bulk contact tagging is not a feature yet (#478, 2026-07-31)
+
+#478 asks for a dated decision on contact tagging BEFORE any contacts bulk UI is
+drawn, because there is no `contact_tags` table and the issue's own motivating
+example — "tagging a batch of contacts after a job type, or after an import that
+landed untagged" — is not expressible today.
+
+**The decision: not yet a feature.** Both available shapes are wrong in a way
+that would be expensive to undo, and the motivating case belongs with work that
+is not built.
+
+**Why not "tag these contacts" meaning "tag their conversations".** It sounds
+like the cheap answer, and the product already agrees with half of it: the CSV
+export defines a contact's `tags` column as *the union of tags across its
+conversations*, and that is customer-facing today. So conversation-backed contact
+tags are already the shipped definition and nobody would be surprised by it.
+
+It fails on the exact case that motivated the ask. An imported contact has no
+conversation — that is what "landed untagged" means — so tagging its
+conversations does nothing at all. The one scenario the feature exists for is
+the one it cannot serve.
+
+**Why not a `contact_tags` table.** It works, and it creates a SECOND definition
+of "this contact's tags" that has to be reconciled with the export's. Every
+surface then has to decide whether it means the contact's own tags, its
+conversations' tags, or the union — and every answer is right somewhere and
+wrong somewhere else. For a crew of four that is two tag systems where one was
+already enough, and the drift between them is the kind that shows up as "why
+does this tag not appear there" a year later.
+
+**What would change this.** The real need underneath "segment my contacts" is
+contact-level ATTRIBUTES, and #248 (duplicate contacts / merge) is the open work
+that has to decide what a contact-level field even is — merge cannot be built
+without answering it. Designing contact attributes once, there, is better than
+bolting tags on here and reconciling the two later.
+
+So: no contacts bulk-tagging UI, no `contact_tags` table, and the export's
+existing union definition stands. Bulk contact DELETE is likewise left to #248,
+which #478 already notes it overlaps.
+
+This unblocks the half of #478 that is real engineering — bulk actions on TASKS —
+without spending a schema decision to get there.
