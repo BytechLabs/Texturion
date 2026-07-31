@@ -65,6 +65,10 @@ const PAGE_NOTES: Record<keyof typeof LIVE_ROUTES, string | null> = {
     "calls on the same number: the crew answers in the app, voicemail is written down, and missed callers get a text back",
   featuresAssistant:
     "Lou drafts replies, writes voicemails down, and fills in a job's address and due date; a person always sends",
+  featuresTasks:
+    "turn a customer text or call into a job with an owner, a due date and an address, worked from a list, board, calendar or map",
+  featuresContacts:
+    "one timeline per customer holding every text, call, voicemail and file, plus their address, consent record and your private notes",
   featuresBusinessNumber:
     "a local number that belongs to the business, new or ported in free",
   featuresCompliance: "registration, opt-outs, and consent, handled by the product",
@@ -100,6 +104,8 @@ const PAGE_LABELS: Partial<Record<keyof typeof LIVE_ROUTES, string>> = {
   featuresSharedInbox: "Shared inbox",
   featuresCalls: "Calls and voicemail",
   featuresAssistant: "Lou, your assistant",
+  featuresTasks: "Tasks",
+  featuresContacts: "Contacts",
   featuresBusinessNumber: "Your business number",
   featuresCompliance: "Compliance built in",
   featuresTemplatesAndTags: "Templates and tags",

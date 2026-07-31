@@ -52,6 +52,10 @@ export const LIVE_ROUTES = {
   // #491: five AI features had shipped with no page. The assistant is the part
   // a buyer compares against everybody else's "AI receptionist".
   featuresAssistant: "/features/assistant",
+  // #491: both are whole app tabs the site never described. /for/contractors
+  // went further and told buyers the tasks screen did not exist.
+  featuresTasks: "/features/tasks",
+  featuresContacts: "/features/contacts",
   featuresBusinessNumber: "/features/business-number",
   featuresCompliance: "/features/compliance",
   featuresTemplatesAndTags: "/features/templates-and-tags",

@@ -9,11 +9,13 @@ import {
   Mail,
   PhoneCall,
   Sparkle,
+  SquareCheckBig,
   Scale,
   Scissors,
   ShieldCheck,
   Sparkles,
   Tags,
+  UsersRound,
   Wrench,
 } from "lucide-react";
 
@@ -80,6 +82,18 @@ export const productMenu: NavMenu = {
       href: LIVE_ROUTES.featuresAssistant,
       description: "Drafts replies and writes voicemails down. Never sends.",
       icon: Sparkle,
+    },
+    {
+      label: "Tasks",
+      href: LIVE_ROUTES.featuresTasks,
+      description: "A text or a call becomes a job with an owner and a date.",
+      icon: SquareCheckBig,
+    },
+    {
+      label: "Contacts",
+      href: LIVE_ROUTES.featuresContacts,
+      description: "Every text, call and job for one customer, on one timeline.",
+      icon: UsersRound,
     },
     {
       label: "Compliance built in",
