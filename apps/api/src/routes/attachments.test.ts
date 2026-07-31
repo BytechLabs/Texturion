@@ -1431,7 +1431,8 @@ describe("POST /v1/attachments/:id/report — a member pulls a file back for eve
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(403);
-    expect((await res.json()).error.message).toContain("on hold");
+    const held = (await res.json()) as { error: { message: string } };
+    expect(held.error.message).toContain("on hold");
     // Refused BEFORE signing: no URL was ever minted for a held file.
     expect(sb.find("POST", /^\/storage\/v1\/object\/sign\//)).toHaveLength(0);
   });
