@@ -23,6 +23,42 @@ Every contrast ratio is computed with the same formula
 
 ---
 
+## AMENDMENT 3 — phase 8's real trap: `--fr-ink` is TWO things (found 2026-07-30)
+
+Phases 1-7 and 9 are shipped. Phase 8 (marketing dark mode) is the only one left,
+and the thing most likely to make a first attempt ship broken is not the 748
+token reads — it is that **`--fr-ink` is used both as text and as a surface.**
+
+`DESIGN-DIRECTION` says so itself: *"Dispatch Ink — headlines/body; also the ONLY
+two dark surfaces (dateline chip, footer)"*. In the shipped code:
+
+- `footer.tsx:76` — `background-color: var(--fr-ink)`
+- `fr/chips.tsx:42` — `bg-[color:var(--fr-ink)] text-white` for `tone === "ink"`
+
+A dark column that flips `--fr-ink` to a light value (`#F0F1E5`, as the app scope
+does) **inverts those two surfaces** and leaves `text-white` on a near-white
+background. The footer alone carries three `text-white/*` reads
+(`footer.tsx:114,137,141`), and every one becomes invisible.
+
+**So the first edit of phase 8 is not the dark block.** It is splitting the two
+meanings:
+
+- `--fr-ink` keeps the TEXT meaning and flips with the theme.
+- A new constant token — `--fr-inverse` / `--fr-on-inverse` — takes the SURFACE
+  meaning and does **not** flip, because a deliberately-dark band is dark in both
+  modes. Point `footer.tsx` and the `ink` chip tone at it, replace their
+  `text-white` with `--fr-on-inverse`, and only then author the dark column.
+
+Verify by grepping for `var(--fr-ink)` in a `background`/`bg-` position before
+and after; the count must reach zero.
+
+**And phase 8 still has no mechanical gate.** `.mkt-scope` is light-locked by
+construction (`color-scheme: light` at globals.css, plus an `@custom-variant
+dark` that deliberately excludes marketing from the global `.dark`), so the
+palette has never rendered dark and no test can tell you it looks right. 42 pages
+need looking at. That is why it is sequenced last and why it is called a project
+rather than a phase.
+
 ## AMENDMENT 2 — the repaint needs NO call-site edits (proved 2026-07-30)
 
 Amendment 1 is right that phases 3 and 4 are one commit. It is wrong about how
