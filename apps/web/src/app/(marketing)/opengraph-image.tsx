@@ -3,7 +3,7 @@ import { ImageResponse } from "next/og";
 /**
  * Default OpenGraph image for the marketing route group, rebuilt for the
  * "Open all night" identity (design spec §1, §4; copy deck FINAL metadata):
- * 1200×630, dark petrol ground #041F1C (never neutral black, spec §9), ONE
+ * 1200×630, olive dark ground #141610 (never neutral black, spec §9), ONE
  * amber-lit inbound bubble carrying the deck's verbatim bubble text, a petrol
  * reply on its way back (the alt text's promise), the Loonext wordmark, the
  * 9:04 PM clock stamp, and the footer line "One inbox. The whole crew. $29
@@ -28,16 +28,20 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 // Night-act palette (hex literals: Satori doesn't evaluate CSS variables).
-const INK_11PM = "#041F1C"; // primary dark ground
-const INK_MIDNIGHT = "#02110F"; // vignette's darkest edge
-const CAB_PANEL = "#0A312C"; // raised surface: the inbound bubble
-const PETROL = "#0F766E"; // the product's own outbound bubble color
-// (The outbound glow keeps signal-aqua #3FD5C0 as rgba literals below.)
-const MOONLIGHT = "#EAF4F0"; // text on dark grounds
+const INK_11PM = "#141610"; // #362: the olive dark ground
+const INK_MIDNIGHT = "#0E0F0A"; // vignette edge: the ground, one step down
+const CAB_PANEL = "#1F2218"; // raised surface: the inbound bubble (card)
+const PETROL = "#3A430F"; // the product's own outbound bubble color
+// #362: every colour here is a Paper & Olive member. This file had been
+// carrying the retired v3 palette — #041F1C grounds, signal-aqua #3FD5C0 and
+// porch-amber glows — two generations after they were dropped, on the image
+// shown whenever the site is shared. fr-tokens.test.ts asserts those hexes are
+// dead but only scanned globals.css, so it shipped under a green suite.
+const MOONLIGHT = "#F0F1E5"; // text on dark grounds (paper)
 // Brand identity on dark grounds (#206, brand/README.md): paper + lime.
 const BRAND_PAPER = "#F0F1E5"; // first ring + wordmark letters
 const BRAND_LIME = "#B9CF57"; // second ring + the wordmark's second o
-const DUSK = "#8FB3AC"; // secondary text: the clock stamp
+const DUSK = "#8F927E"; // secondary text: the clock stamp (5.71:1 on ground)
 
 export default function OpengraphImage() {
   return new ImageResponse(
@@ -68,7 +72,7 @@ export default function OpengraphImage() {
             width: 1400,
             height: 1400,
             backgroundImage:
-              "radial-gradient(circle, rgba(255,180,84,0.10) 0%, rgba(255,180,84,0.03) 38%, rgba(255,180,84,0) 60%)",
+              "radial-gradient(circle, rgba(214,231,126,0.10) 0%, rgba(214,231,126,0.03) 38%, rgba(214,231,126,0) 60%)",
           }}
         />
         {/* Lamp engine, warm core: amber-core -> porch-amber 35% -> transparent,
@@ -84,7 +88,7 @@ export default function OpengraphImage() {
             width: 720,
             height: 720,
             backgroundImage:
-              "radial-gradient(circle, rgba(255,244,223,0.42) 0%, rgba(255,180,84,0.26) 32%, rgba(255,180,84,0) 66%)",
+              "radial-gradient(circle, rgba(240,241,229,0.42) 0%, rgba(214,231,126,0.26) 32%, rgba(214,231,126,0) 66%)",
           }}
         />
         {/* Outbound cool glow: signal-aqua at low intensity behind the reply,
@@ -97,7 +101,7 @@ export default function OpengraphImage() {
             width: 560,
             height: 560,
             backgroundImage:
-              "radial-gradient(circle, rgba(63,213,192,0.20) 0%, rgba(63,213,192,0) 60%)",
+              "radial-gradient(circle, rgba(185,207,87,0.20) 0%, rgba(185,207,87,0) 60%)",
           }}
         />
 
@@ -123,7 +127,7 @@ export default function OpengraphImage() {
               alignSelf: "flex-start",
               maxWidth: 800,
               backgroundColor: CAB_PANEL,
-              border: "2px solid rgba(255,180,84,0.65)",
+              border: "2px solid rgba(214,231,126,0.65)",
               borderRadius: 24,
               padding: "30px 38px",
               color: MOONLIGHT,
@@ -152,7 +156,7 @@ export default function OpengraphImage() {
                 width: 13,
                 height: 13,
                 borderRadius: 999,
-                backgroundColor: "rgba(234,244,240,0.95)",
+                backgroundColor: "rgba(240,241,229,0.95)",
               }}
             />
             <div
@@ -160,7 +164,7 @@ export default function OpengraphImage() {
                 width: 13,
                 height: 13,
                 borderRadius: 999,
-                backgroundColor: "rgba(234,244,240,0.60)",
+                backgroundColor: "rgba(240,241,229,0.60)",
               }}
             />
             <div
@@ -168,7 +172,7 @@ export default function OpengraphImage() {
                 width: 13,
                 height: 13,
                 borderRadius: 999,
-                backgroundColor: "rgba(234,244,240,0.35)",
+                backgroundColor: "rgba(240,241,229,0.35)",
               }}
             />
           </div>

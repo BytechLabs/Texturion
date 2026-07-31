@@ -78,10 +78,12 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // Petrol theme color for the browser chrome (G9 PWA groundwork).
+  // #362: the browser/OS chrome matches the page GROUND, not the accent. An
+  // accent-coloured bar reads as a second header above the real one; the ground
+  // reads as the page continuing off the top of the screen.
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#0F766E" },
-    { media: "(prefers-color-scheme: dark)", color: "#0c1211" },
+    { media: "(prefers-color-scheme: light)", color: "#F3F3EE" },
+    { media: "(prefers-color-scheme: dark)", color: "#141610" },
   ],
   width: "device-width",
   initialScale: 1,

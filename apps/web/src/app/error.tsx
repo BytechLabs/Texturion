@@ -38,9 +38,9 @@ export async function reportBoundaryError(
   }
 }
 
-const ground = "#FBFCFE";
-const ink = "#10173B";
-const link = "#2740DE";
+const ground = "#F3F3EE";
+const ink = "#191B14";
+const link = "#3A430F";
 const muted = "rgba(16, 23, 59, 0.64)";
 
 const styles = {
@@ -100,7 +100,7 @@ const styles = {
     borderRadius: "999px",
     border: "none",
     backgroundColor: link,
-    color: "#FFFFFF",
+    color: "#FDFDF9",
     font: "inherit",
     fontSize: "0.9375rem",
     fontWeight: 600,

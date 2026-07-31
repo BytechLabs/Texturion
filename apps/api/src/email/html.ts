@@ -44,7 +44,7 @@ const EMAIL_FONT =
  * wordmark, readable typography, and a quiet footer. Deliberately email-client
  * safe — tables + INLINE styles only (Gmail/Outlook strip <style>/<head> CSS),
  * a light background, system fonts, and the Paper & Olive brand (#206): ink
- * #191B14 text, olive #66801F links, and the wordmark rule — "Loonext" in
+ * #191B14 text, #3A430F links (AA at 16px), and the wordmark rule — "Loonext" in
  * SemiBold with ONLY the second o in olive, as a text span, never an image.
  * These are TRANSACTIONAL messages (account/billing/usage), so it stays clean
  * and trustworthy, with no marketing chrome and no unsubscribe (not required).
@@ -90,7 +90,11 @@ export function emailLayout(bodyHtml: string): string {
 export function linkifyUrls(escapedHtml: string): string {
   return escapedHtml.replace(
     /(https?:\/\/[^\s<]+)/g,
-    '<a href="$1" style="color:#66801F;text-decoration:underline;">$1</a>',
+    // #362/#238: #3A430F, not the #66801F wordmark olive. A link is 16px body
+    // text, so it needs 4.5:1 — olive is 4.41:1 on this card and fails. The
+    // wordmark above keeps #66801F because at 20px/600 it is large text, where
+    // the bar is 3:1. Same palette, two different bars.
+    '<a href="$1" style="color:#3A430F;text-decoration:underline;">$1</a>',
   );
 }
 

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0F766E" />
+    <meta name="theme-color" content="#F3F3EE" />
     <title>You're offline. Loonext</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <!--
@@ -13,22 +13,25 @@
       reduced motion (G11).
     -->
     <style>
+      /* #362: the same olive palette the app uses. Duplicated rather than
+         imported because this file is precached and served with no bundle —
+         it has to stand alone. The values mirror globals.css's .app-scope. */
       :root {
-        --bg: #fafaf9; /* stone-50 */
-        --surface: #ffffff;
-        --border: #e7e5e4; /* stone-200 */
-        --text: #1c1917; /* stone-900 */
-        --muted: #78716c; /* stone-500 */
-        --accent: #0f766e; /* petrol */
+        --bg: #f3f3ee; /* ground */
+        --surface: #fdfdf9; /* paper */
+        --border: #e7e9dc;
+        --text: #191b14; /* ink */
+        --muted: #5c5f4e; /* 5.89:1 on the ground */
+        --accent: #3a430f; /* 9.48:1 on the ground */
       }
       @media (prefers-color-scheme: dark) {
         :root {
-          --bg: #0c0a09; /* stone-950 */
-          --surface: #1c1917; /* stone-900 */
-          --border: #292524; /* stone-800 */
-          --text: #fafaf9;
-          --muted: #a8a29e; /* stone-400 */
-          --accent: #14b8a6; /* teal-500 on dark */
+          --bg: #141610;
+          --surface: #1f2218;
+          --border: #2c2f22;
+          --text: #f0f1e5;
+          --muted: #8f927e; /* 5.71:1 on the ground */
+          --accent: #d6e77e; /* 13.53:1 on the ground */
         }
       }
       * {

@@ -28,9 +28,9 @@ describe("root not-found page", () => {
   });
 
   it("inlines the v4 palette instead of leaning on scoped classes", () => {
-    expect(html).toContain("#FBFCFE"); // ground
-    expect(html).toContain("#10173B"); // ink
-    expect(html).toContain("#2740DE"); // link/action
+    expect(html).toContain("#F3F3EE"); // ground
+    expect(html).toContain("#191B14"); // ink
+    expect(html).toContain("#3A430F"); // link/action
     // Self-contained: no Tailwind/marketing class names on the page.
     expect(html).not.toContain('class="mkt-');
     expect(html).not.toContain("var(--");

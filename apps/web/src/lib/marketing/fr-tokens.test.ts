@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -13,6 +13,15 @@ const css = readFileSync(
   join(process.cwd(), "src", "app", "globals.css"),
   "utf8",
 );
+
+/** Every .ts/.tsx under a directory. */
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((entry) => {
+    const path = join(dir, entry);
+    if (statSync(path).isDirectory()) return sourceFiles(path);
+    return /\.(ts|tsx)$/.test(path) ? [path] : [];
+  });
+}
 
 describe("globals.css — the --fr-* system (direction §2)", () => {
   it("defines every v4 token at the direction's exact value", () => {
@@ -59,12 +68,39 @@ describe("globals.css — the --fr-* system (direction §2)", () => {
   // What belongs here is the marketing scope only. What the app anchors on is
   // the app suite's business.
 
-  it("the v3 palette is dead: no night grounds, no porch amber, no copper literals", () => {
-    for (const deadHex of ["#041f1c", "#02110f", "#ffb454", "#9a4f26", "#c06a3b", "#3fd5c0"]) {
-      expect(css.toLowerCase(), `${deadHex} must not survive`).not.toContain(
-        deadHex,
-      );
+  // #362 — WIDENED FROM globals.css TO THE WHOLE TREE.
+  //
+  // This asserted the v3 palette was dead and only ever read globals.css. It
+  // passed for months while `(marketing)/opengraph-image.tsx` — the image shown
+  // whenever the site is shared — rendered #041F1C grounds, signal-aqua
+  // #3FD5C0 and porch-amber glows, two generations after they were retired.
+  // A guard that checks one file is a guard that certifies one file.
+  it("the v3 palette is dead everywhere, not just in globals.css", () => {
+    const dead = ["#041f1c", "#02110f", "#ffb454", "#9a4f26", "#c06a3b", "#3fd5c0"];
+    // The rgba spellings too: the OG image carried the same colours as comma
+    // triples, which no hex search would ever have found.
+    const deadRgb = ["63,213,192", "255,180,84"];
+    const offenders: string[] = [];
+    for (const file of sourceFiles(join(process.cwd(), "src"))) {
+      // This file NAMES every dead hex in order to search for it, so it would
+      // otherwise flag itself forever.
+      if (file.endsWith("fr-tokens.test.ts")) continue;
+      const body = readFileSync(file, "utf8").toLowerCase();
+      // The comment in the OG image that RECORDS this history is allowed to
+      // name them; a line that only mentions them is not a line that paints.
+      const painted = body
+        .replace(/\/\/.*/g, "")
+        .replace(/\/\*[\s\S]*?\*\//g, "");
+      for (const needle of [...dead, ...deadRgb]) {
+        if (painted.includes(needle)) {
+          offenders.push(`${file.replace(process.cwd(), "")}: ${needle}`);
+        }
+      }
     }
+    expect(
+      offenders,
+      `retired palette literals still painting:\n${offenders.join("\n")}`,
+    ).toEqual([]);
   });
 
   it("v4 type utilities exist for the page crews (§3)", () => {

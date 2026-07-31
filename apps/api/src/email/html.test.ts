@@ -76,7 +76,7 @@ describe("emailLayout + renderEmailHtml (#88 branded transactional layout)", () 
 
   it("linkifies bare URLs so transactional CTAs are clickable", () => {
     expect(linkifyUrls("See usage: https://app.loonext.com/x")).toBe(
-      'See usage: <a href="https://app.loonext.com/x" style="color:#66801F;text-decoration:underline;">https://app.loonext.com/x</a>',
+      'See usage: <a href="https://app.loonext.com/x" style="color:#3A430F;text-decoration:underline;">https://app.loonext.com/x</a>',
     );
   });
 

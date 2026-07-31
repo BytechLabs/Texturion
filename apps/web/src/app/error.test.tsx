@@ -99,9 +99,9 @@ describe("root error page markup", () => {
 
   it("inlines the v4 palette and uses no em-dashes", async () => {
     const html = await render();
-    expect(html).toContain("#FBFCFE");
-    expect(html).toContain("#10173B");
-    expect(html).toContain("#2740DE");
+    expect(html).toContain("#F3F3EE");
+    expect(html).toContain("#191B14");
+    expect(html).toContain("#3A430F");
     expect(html).not.toMatch(/—|–/);
   });
 });

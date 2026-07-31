@@ -21,8 +21,10 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/inbox",
     start_url: "/inbox",
     display: "standalone",
-    background_color: "#FAFAF9", // stone-50 (G2 light background)
-    theme_color: "#0F766E", // petrol
+    // #362: the splash ground and the chrome both take the page ground, so
+    // an installed app opens on the colour it will settle on.
+    background_color: "#F3F3EE",
+    theme_color: "#F3F3EE",
     orientation: "portrait",
     icons: [
       {

@@ -15,9 +15,9 @@ export const metadata: Metadata = {
   title: "Page not found",
 };
 
-const ground = "#FBFCFE";
-const ink = "#10173B";
-const link = "#2740DE";
+const ground = "#F3F3EE";
+const ink = "#191B14";
+const link = "#3A430F";
 const muted = "rgba(16, 23, 59, 0.64)";
 
 const styles = {
@@ -80,7 +80,7 @@ const styles = {
     padding: "0.625rem 1.375rem",
     borderRadius: "999px",
     backgroundColor: link,
-    color: "#FFFFFF",
+    color: "#FDFDF9",
     fontSize: "0.9375rem",
     fontWeight: 600,
     textDecoration: "none",

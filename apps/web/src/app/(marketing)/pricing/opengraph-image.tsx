@@ -11,10 +11,10 @@ export const alt = "Loonext pricing, $29/mo flat for the whole crew";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const GROUND = "#FBFCFE";
-const INK = "#10173B";
-const COBALT = "#2740DE";
-const WHITE = "#FFFFFF";
+const GROUND = "#F3F3EE"; // #362: the olive ground
+const INK = "#191B14"; // 15.61:1 on the ground
+const COBALT = "#3A430F"; // #362: the olive accent, 9.48:1 on the ground
+const WHITE = "#FDFDF9"; // paper
 // Brand identity on light grounds (#206, brand/README.md): ink + olive.
 const BRAND_INK = "#191B14"; // first ring
 const BRAND_OLIVE = "#66801F"; // second ring + the wordmark's second o
