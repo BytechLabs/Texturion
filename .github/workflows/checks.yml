@@ -381,7 +381,13 @@ jobs:
       - name: Seed a workspace to look at
         run: node scripts/dev-seed.mjs
 
-      - name: Write local-only Worker vars
+      # Writes .dev.vars AND derives wrangler.ci.jsonc. The derivation is not
+      # cosmetic: the first version of this job failed with "Failed to start the
+      # remote proxy session", because `"ai": { "binding": "AI" }` is Workers AI
+      # and has no local emulation, so wrangler opens a remote proxy for it and
+      # needs account credentials. env.ts declares AI optional and the e2e
+      # harness has always run without it.
+      - name: Write local-only Worker vars and config
         run: node scripts/ci-dev-vars.mjs
 
       - name: Build web against the local stack
@@ -398,12 +404,18 @@ jobs:
 
       - name: Start the Worker and the web app
         run: |
-          pnpm --filter @loonext/api exec wrangler dev --port 8787 --ip 127.0.0.1 &
+          pnpm --filter @loonext/api exec wrangler dev --config wrangler.ci.jsonc --port 8787 --ip 127.0.0.1 &
           pnpm --filter @loonext/web exec next start -p 3100 &
           for i in $(seq 1 90); do
-            curl -fsS -o /dev/null http://127.0.0.1:8787/ 2>/dev/null && break
+            curl -sS -o /dev/null http://127.0.0.1:8787/ 2>/dev/null && break
             sleep 2
           done
+          # The Worker answers 404 on / — it has no root route — so `curl -f`
+          # would never see it come up. Reaching it at all is the signal.
+          curl -sS -o /dev/null http://127.0.0.1:8787/ || {
+            echo "the Worker never started; the audit would only report EMPTY"
+            exit 1
+          }
           for i in $(seq 1 60); do
             curl -fsS -o /dev/null http://localhost:3100/ && break
             sleep 2

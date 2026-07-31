@@ -20,15 +20,29 @@
  *   - it refuses to overwrite an existing `.dev.vars`, so running it by
  *     accident on a developer's box cannot destroy their real one.
  *
- * No Cloudflare credentials are involved: the Worker's only bindings are
- * `unsafe.bindings` rate limiters, which wrangler emulates locally, so
- * `wrangler dev` needs nothing from the account.
+ * IT ALSO DERIVES A CI WRANGLER CONFIG, and that part exists because the first
+ * attempt at this job failed in CI with "Failed to start the remote proxy
+ * session". The assumption was that `wrangler dev` runs fully offline because
+ * the Worker's only bindings are `unsafe.bindings` rate limiters, which
+ * wrangler emulates. That was wrong: `"ai": { "binding": "AI" }` is Workers AI,
+ * which has NO local emulation, so wrangler opens a remote proxy for it and
+ * needs account credentials to do so.
+ *
+ * Dropping that one binding is safe and already proven — `env.ts` declares
+ * `AI: workersAiSchema.optional()`, and the e2e harness has run this same
+ * Worker against this same database with no AI binding at all on every commit
+ * for months. The audit opens pages and reads computed styles; it never
+ * enriches anything.
+ *
+ * The CI config is DERIVED from the real one rather than copied, so the two
+ * cannot drift. A duplicate config is a file that is correct on the day it is
+ * written and wrong by the next binding change.
  *
  * Usage: node scripts/ci-dev-vars.mjs
  */
 import { generateKeyPairSync } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const TARGET = fileURLToPath(new URL("../apps/api/.dev.vars", import.meta.url));
@@ -129,3 +143,37 @@ const body =
 
 writeFileSync(TARGET, body);
 console.log(`ci-dev-vars: wrote ${Object.keys(VARS).length} local vars for ${url}`);
+
+/* ------------------------------------------------------------------------- */
+
+const CONFIG = fileURLToPath(new URL("../apps/api/wrangler.jsonc", import.meta.url));
+const CI_CONFIG = fileURLToPath(new URL("../apps/api/wrangler.ci.jsonc", import.meta.url));
+
+const original = readFileSync(CONFIG, "utf8");
+// One targeted removal, matched exactly, so a config change that moves or
+// renames this line fails here instead of silently producing a config that
+// still needs credentials.
+const AI_BINDING = /^\s*"ai":\s*\{\s*"binding":\s*"AI"\s*\},?\s*$/m;
+if (!AI_BINDING.test(original)) {
+  console.error(
+    `ci-dev-vars: could not find the "ai" binding in wrangler.jsonc. ` +
+      `Either it is gone (delete this block) or it moved (update the pattern). ` +
+      `Guessing would produce a config that opens a remote proxy session and ` +
+      `fails in CI with no account credentials.`,
+  );
+  process.exit(1);
+}
+writeFileSync(
+  CI_CONFIG,
+  original.replace(
+    AI_BINDING,
+    [
+      "  // Removed by scripts/ci-dev-vars.mjs: Workers AI has no local",
+      "  // emulation, so its presence makes `wrangler dev` open a remote proxy",
+      "  // session that needs account credentials. env.ts declares AI optional",
+      "  // and the e2e harness has always run without it.",
+      "",
+    ].join("\n"),
+  ),
+);
+console.log(`ci-dev-vars: derived wrangler.ci.jsonc without the AI binding`);

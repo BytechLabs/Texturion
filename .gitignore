@@ -58,3 +58,6 @@ Desktop.ini
 # scratch artifacts
 telnyx-aar/
 out/
+
+# Derived by scripts/ci-dev-vars.mjs for a local Worker run (#320).
+apps/api/wrangler.ci.jsonc
