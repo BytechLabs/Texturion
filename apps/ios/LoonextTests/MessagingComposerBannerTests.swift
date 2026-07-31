@@ -269,6 +269,49 @@ final class MessagingComposerBannerTests: XCTestCase {
         )
     }
 
+    func testAViewOnlyObserverIsToldTheRoleNotTheNumber() {
+        // #315: its own banner rather than reusing numberAccess. The two are
+        // different facts with different remedies — number access is about ONE
+        // number and an owner can widen it; this is the role, and only a role
+        // change fixes it. An accountant sent to "ask for access to this
+        // number" would go looking in the wrong place.
+        XCTAssertEqual(
+            selectComposerBanner(
+                contactOptedOut: false,
+                contactOptOutSource: nil,
+                subscriptionStatus: SubscriptionStatus.active,
+                destinationCountry: "CA",
+                usApproved: true,
+                usTextingOff: false,
+                usage: usage(used: 10, cap: 100),
+                viewerReadOnly: true
+            ),
+            .readOnly
+        )
+    }
+
+    func testViewOnlyWinsOverEveryOtherBannerIncludingNoteLevel() {
+        // The most restrictive fact about the reader is the one worth saying.
+        // An observer told "you can add internal notes here" would be told
+        // something they cannot do.
+        XCTAssertEqual(
+            selectComposerBanner(
+                contactOptedOut: true,
+                contactOptOutSource: "stop_keyword",
+                subscriptionStatus: SubscriptionStatus.pastDue,
+                destinationCountry: "US",
+                usApproved: false,
+                usTextingOff: true,
+                usage: usage(used: 500, cap: 100),
+                optOutHint: true,
+                usSuspended: true,
+                viewerLevel: "note",
+                viewerReadOnly: true
+            ),
+            .readOnly
+        )
+    }
+
     func testNumberAccessWinsOverEveryOtherBanner() {
         // A note-only member told "your subscription is past due" learns
         // something true, irrelevant and unfixable by them: they could not text

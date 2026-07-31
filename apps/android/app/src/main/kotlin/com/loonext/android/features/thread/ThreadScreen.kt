@@ -112,6 +112,7 @@ import com.loonext.android.core.model.AttachmentSummary
 import com.loonext.android.core.model.ConversationStatus
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
+import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
@@ -882,6 +883,12 @@ private fun ThreadLoaded(
         // Composer (or gate banner + notes-only).
         val drafts = remember { ComposerDrafts(context.applicationContext) }
         val composer = rememberComposerState(controller.conversationId, drafts)
+        // #315: a view-only observer may read this thread and change nothing in
+        // it. Resolved from the membership, the same way the settings index
+        // does it.
+        val viewerReadOnly =
+            me.memberships.firstOrNull { it.company_id == companyId }?.role ==
+                MemberRole.READ_ONLY
         val banner = selectComposerBanner(
             contactOptedOut = controller.contact?.opted_out == true,
             contactOptOutSource = controller.contact?.opt_out_source,
@@ -899,10 +906,12 @@ private fun ThreadLoaded(
             // #363: the reader's own level on THIS number — the one banner
             // about them rather than about the conversation.
             viewerLevel = detail.viewer_level,
+            viewerReadOnly = viewerReadOnly,
         )
         ThreadComposer(
             state = composer,
             noteOnly = detail.viewer_level == "note",
+            readOnly = viewerReadOnly,
             onTyping = {
                 // #302: throttled, because the keystroke rate is not the
                 // broadcast rate. The window is extended on every keystroke; the

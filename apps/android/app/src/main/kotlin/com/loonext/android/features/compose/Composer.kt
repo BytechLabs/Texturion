@@ -282,12 +282,17 @@ fun rememberComposerState(
  * deliverable files ≤1 MB each, images transcoded down), note files
  * (≤10 × 25 MB), passive segment meter, merge-field live preview. [banner]
  * replaces text mode with an explanatory card — notes stay available;
- * [noteOnly] is the viewer_level='note' gate.
+ * [noteOnly] is the viewer_level='note' gate. [readOnly] (#315) is the
+ * stronger one: a view-only observer may do NEITHER, so the card is all there
+ * is. Leaving the note box under it would offer a write the API refuses, and
+ * the worst version of that is somebody believing they left a note.
  */
 @Composable
 fun ThreadComposer(
     state: ComposerState,
     noteOnly: Boolean,
+    /** #315: view-only — no text box and no note box, just the reason. */
+    readOnly: Boolean = false,
     /**
      * #302: called on each keystroke of a REPLY so teammates on this thread can
      * see somebody is answering. Throttled by the caller — the keystroke rate is
@@ -542,6 +547,15 @@ fun ThreadComposer(
                 TextButton(onClick = { confirmCollision = false }) { Text("Let me look") }
             },
         )
+    }
+
+    if (readOnly) {
+        Column(modifier.fillMaxWidth()) {
+            if (banner != null) {
+                ComposerBannerCard(banner, onCallInstead = onCallInstead)
+            }
+        }
+        return
     }
 
     Column(modifier.fillMaxWidth()) {

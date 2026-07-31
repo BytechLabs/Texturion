@@ -47,6 +47,15 @@ enum ComposerBanner: Equatable, Sendable {
     /// which reads as the product being broken rather than as a permission —
     /// and the worse version is a tech who believes they replied and did not.
     case numberAccess
+    /// #315: this person may READ the workspace and change nothing in it — the
+    /// view-only observer (an owner's partner, an accountant, a consultant).
+    ///
+    /// Its own case rather than reusing `numberAccess`, because the two are
+    /// different facts with different remedies: number access is about ONE
+    /// number and an owner can widen it; this is about the role and only a role
+    /// change fixes it. Telling an accountant to "ask for access to this
+    /// number" would send them to the wrong conversation.
+    case readOnly
 }
 
 func selectComposerBanner(
@@ -60,7 +69,12 @@ func selectComposerBanner(
     optOutHint: Bool = false,
     usSuspended: Bool = false,
     /// #106/#363: this caller's level on THIS conversation's number.
-    viewerLevel: String = "text"
+    viewerLevel: String = "text",
+    /// #315: the viewer holds `conversations.read` and nothing else. Checked
+    /// before the per-number level for the same reason that one is checked
+    /// before everything else — it is the fact about the reader that is true in
+    /// every conversation, on every number.
+    viewerReadOnly: Bool = false
 ) -> ComposerBanner? {
     // #363 FIRST, and the reason is worth stating: every other banner
     // describes a fact about the CONVERSATION or the workspace, and this one
@@ -69,6 +83,7 @@ func selectComposerBanner(
     // unfixable by them — they could not text on this number either way, and
     // they cannot pay the bill. "Ask an owner" is the only line they can act
     // on, and it stays true in every other conversation on this number.
+    if viewerReadOnly { return .readOnly }
     if viewerLevel == "note" { return .numberAccess }
     if contactOptedOut {
         return .optedOut(carrierBlocked: isCarrierEnforcedOptOut(contactOptOutSource))
@@ -163,6 +178,13 @@ func bannerCopy(_ banner: ComposerBanner) -> (title: String, body: String) {
         return (
             "You've hit this month's cap",
             "Outbound texts pause until the cap is raised or the month rolls over. Internal notes still work."
+        )
+    // #315: names the ROLE, not the number — an accountant sent to "ask for
+    // access to this number" would go looking in the wrong place.
+    case .readOnly:
+        return (
+            "You have view-only access",
+            "You can read this conversation but not reply or leave notes. An owner or admin can change your access."
         )
     // #363: what is true, and what to do.
     case .numberAccess:

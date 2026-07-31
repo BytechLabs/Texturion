@@ -22,11 +22,28 @@ private func isExpired(_ invite: Invite, now: Date = Date()) -> Bool {
     return expires < now
 }
 
+/// #315: every role names itself. The `default: "Member"` this replaced was a
+/// catch-all, so a view-only teammate rendered as "Member" — the app telling
+/// the owner the opposite of what they had set. An unknown role from a newer
+/// server now reads as itself rather than as a role it is not.
 private func roleLabel(_ role: String) -> String {
     switch role {
     case MemberRole.owner: "Owner"
     case MemberRole.admin: "Admin"
-    default: "Member"
+    case MemberRole.member: "Member"
+    case MemberRole.readOnly: "View only"
+    default: role.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+}
+
+/// What each assignable role is FOR, in the words an owner picking one uses.
+private func roleBlurb(_ role: String) -> String {
+    switch role {
+    case MemberRole.admin:
+        "Everything except transferring ownership and closing the workspace"
+    case MemberRole.readOnly:
+        "Can see conversations, cannot reply or change anything"
+    default: "Read and answer customers; no billing, team or settings"
     }
 }
 
@@ -180,7 +197,10 @@ private struct MemberRow: View {
                 StatusPill(label: "Owner", tone: .positive)
             } else if canChangeRole {
                 Menu {
-                    ForEach([MemberRole.admin, MemberRole.member], id: \.self) { role in
+                    ForEach(
+                        [MemberRole.admin, MemberRole.member, MemberRole.readOnly],
+                        id: \.self
+                    ) { role in
                         Button(roleLabel(role)) { changeRole(role) }
                     }
                 } label: {
@@ -295,8 +315,19 @@ private struct InvitesCard: View {
             Spacer().frame(height: 8)
             HStack(spacing: 12) {
                 Menu {
-                    ForEach([MemberRole.member, MemberRole.admin], id: \.self) { option in
-                        Button(roleLabel(option)) { role = option }
+                    ForEach(
+                        [MemberRole.member, MemberRole.admin, MemberRole.readOnly],
+                        id: \.self
+                    ) { option in
+                        // #315: a named preset that does not say what it is for
+                        // is just a word. An owner picking a role for their
+                        // accountant should not have to infer it.
+                        Button {
+                            role = option
+                        } label: {
+                            Text(roleLabel(option))
+                            Text(roleBlurb(option))
+                        }
                     }
                 } label: {
                     Text(roleLabel(role))

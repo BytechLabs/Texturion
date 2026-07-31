@@ -80,6 +80,18 @@ sealed interface ComposerBanner {
      * and the worse version is a tech who believes they replied and did not.
      */
     data object NumberAccess : ComposerBanner
+
+    /**
+     * #315: this person may READ the workspace and change nothing in it — the
+     * view-only observer (an owner's partner, an accountant, a consultant).
+     *
+     * Its own case rather than reusing [NumberAccess], because the two are
+     * different facts with different remedies: number access is about ONE
+     * number and an owner can widen it; this is about the role and only a role
+     * change fixes it. Telling an accountant to "ask for access to this number"
+     * would send them to the wrong conversation.
+     */
+    data object ReadOnly : ComposerBanner
 }
 
 fun selectComposerBanner(
@@ -94,6 +106,13 @@ fun selectComposerBanner(
     usSuspended: Boolean = false,
     /** #106/#363: this caller's level on THIS conversation's number. */
     viewerLevel: String = "text",
+    /**
+     * #315: the viewer holds `conversations.read` and nothing else. Checked
+     * before the per-number level for the same reason that one is checked
+     * before everything else — it is the fact about the reader that is true in
+     * every conversation, on every number.
+     */
+    viewerReadOnly: Boolean = false,
 ): ComposerBanner? {
     // #363 FIRST, and the reason is worth stating: every other banner
     // describes a fact about the CONVERSATION or the workspace, and this one
@@ -102,6 +121,7 @@ fun selectComposerBanner(
     // unfixable by them — they could not text on this number either way, and
     // they cannot pay the bill. "Ask an owner" is the only line they can act
     // on, and it stays true in every other conversation on this number.
+    if (viewerReadOnly) return ComposerBanner.ReadOnly
     if (viewerLevel == "note") return ComposerBanner.NumberAccess
     if (contactOptedOut) {
         return ComposerBanner.OptedOut(isCarrierEnforcedOptOut(contactOptOutSource))
@@ -178,6 +198,12 @@ fun bannerCopy(banner: ComposerBanner): Pair<String, String> = when (banner) {
     // that pointed at a second thing they also cannot do would be a second
     // dead end. `offersCallInstead` is an allow-list, so this gets it right by
     // not being on the list.
+    // #315: names the ROLE, not the number — an accountant sent to "ask for
+    // access to this number" would go looking in the wrong place.
+    ComposerBanner.ReadOnly ->
+        "You have view-only access" to
+            "You can read this conversation but not reply or leave notes. An owner or admin can change your access."
+
     ComposerBanner.NumberAccess ->
         "You can't text from this number" to
             "You can read this conversation and add internal notes, but texting this customer needs access an owner or admin grants. Calls to this number won't ring you either. Ask them if you need it."

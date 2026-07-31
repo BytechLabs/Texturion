@@ -31,6 +31,15 @@ object MemberRole {
     const val ADMIN = "admin"
     const val MEMBER = "member"
 
+    /**
+     * #315: the view-only observer — an owner's partner, an accountant, a
+     * consultant who should SEE the work and never text a customer as the
+     * business. Deliberately absent from the rank map below: it is a capability
+     * SET, not a rung, so [atLeast] refuses it everywhere. That is the same
+     * fail-closed answer the server gives.
+     */
+    const val READ_ONLY = "read_only"
+
     /** Hierarchical check: does [role] meet [required]? */
     fun atLeast(role: String?, required: String): Boolean {
         val rank = mapOf(OWNER to 3, ADMIN to 2, MEMBER to 1)

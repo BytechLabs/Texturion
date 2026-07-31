@@ -72,10 +72,26 @@ private fun expiryDate(iso: String): String =
 private fun isExpired(invite: Invite, now: Instant = Instant.now()): Boolean =
     runCatching { Instant.parse(invite.expires_at) }.getOrNull()?.isBefore(now) != false
 
+/**
+ * #315: every role names itself. The `else -> "Member"` this replaced was a
+ * catch-all, so a view-only teammate rendered as "Member" — the app telling
+ * the owner the opposite of what they had set. An unknown role from a newer
+ * server now reads as itself rather than as a role it is not.
+ */
 private fun roleLabel(role: String): String = when (role) {
     MemberRole.OWNER -> "Owner"
     MemberRole.ADMIN -> "Admin"
-    else -> "Member"
+    MemberRole.MEMBER -> "Member"
+    MemberRole.READ_ONLY -> "View only"
+    else -> role.replace('_', ' ').replaceFirstChar { it.uppercase() }
+}
+
+/** What each assignable role is FOR, in the words an owner picking one uses. */
+private fun roleBlurb(role: String): String = when (role) {
+    MemberRole.ADMIN ->
+        "Everything except transferring ownership and closing the workspace"
+    MemberRole.READ_ONLY -> "Can see conversations, cannot reply or change anything"
+    else -> "Read and answer customers; no billing, team or settings"
 }
 
 /**
@@ -223,7 +239,8 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
                     expanded = roleMenuOpen,
                     onDismissRequest = { roleMenuOpen = false },
                 ) {
-                    listOf(MemberRole.ADMIN, MemberRole.MEMBER).forEach { role ->
+                    listOf(MemberRole.ADMIN, MemberRole.MEMBER, MemberRole.READ_ONLY)
+                        .forEach { role ->
                         DropdownMenuItem(
                             text = { Text(roleLabel(role)) },
                             onClick = {
@@ -346,15 +363,28 @@ private fun InvitesCard(
                     expanded = roleMenuOpen,
                     onDismissRequest = { roleMenuOpen = false },
                 ) {
-                    listOf(MemberRole.MEMBER, MemberRole.ADMIN).forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(roleLabel(option)) },
-                            onClick = {
-                                role = option
-                                roleMenuOpen = false
-                            },
-                        )
-                    }
+                    // #315: a named preset that does not say what it is for is
+                    // just a word. An owner picking a role for their accountant
+                    // should not have to infer it from "member".
+                    listOf(MemberRole.MEMBER, MemberRole.ADMIN, MemberRole.READ_ONLY)
+                        .forEach { option ->
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(roleLabel(option))
+                                        Text(
+                                            roleBlurb(option),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    role = option
+                                    roleMenuOpen = false
+                                },
+                            )
+                        }
                 }
             }
             Spacer(Modifier.width(12.dp))

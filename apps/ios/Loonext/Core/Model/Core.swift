@@ -27,6 +27,12 @@ enum MemberRole {
     static let owner = "owner"
     static let admin = "admin"
     static let member = "member"
+    /// #315: the view-only observer — an owner's partner, an accountant, a
+    /// consultant who should SEE the work and never text a customer as the
+    /// business. Deliberately absent from the rank map below: it is a
+    /// capability SET, not a rung, so `atLeast` refuses it everywhere. That is
+    /// the same fail-closed answer the server gives.
+    static let readOnly = "read_only"
 
     /// Hierarchical check: does `role` meet `required`?
     static func atLeast(_ role: String?, required: String) -> Bool {

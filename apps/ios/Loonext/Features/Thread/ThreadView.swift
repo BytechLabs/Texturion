@@ -780,6 +780,11 @@ private struct ThreadBody: View {
     }
 
     private func composerPane(detail: ConversationDetail) -> some View {
+        // #315: a view-only observer may read this thread and change nothing
+        // in it. Resolved from the membership, the same way the settings index
+        // does it.
+        let viewerReadOnly = me.memberships
+            .first { $0.company_id == detail.company_id }?.role == MemberRole.readOnly
         let banner = selectComposerBanner(
             contactOptedOut: controller.contact?.opted_out == true,
             contactOptOutSource: controller.contact?.opt_out_source,
@@ -796,7 +801,8 @@ private struct ThreadBody: View {
             usSuspended: controller.company.map(usSuspended) ?? false,
             // #363: the reader's own level on THIS number — the one banner
             // about them rather than about the conversation.
-            viewerLevel: detail.viewer_level
+            viewerLevel: detail.viewer_level,
+            viewerReadOnly: viewerReadOnly
         )
         // #106: calling is outreach like texting, so a notes-only member gets
         // no control the API would refuse.
@@ -845,6 +851,7 @@ private struct ThreadBody: View {
         return ThreadComposerView(
             state: composer,
             noteOnly: detail.viewer_level == "note",
+            readOnly: viewerReadOnly,
             banner: banner,
             contactName: detail.contact.name,
             businessName: controller.company?.name,

@@ -117,6 +117,10 @@ final class ComposerState {
 /// (≤3, transcoded ≤1 MB), note files (≤10 × 25 MB), passive segment meter,
 /// merge-field live preview. `banner` replaces text mode with an explanatory
 /// card — notes stay available; `noteOnly` is the viewer_level='note' gate.
+/// `readOnly` (#315) is the stronger one: a view-only observer may do NEITHER,
+/// so the card is all there is. Leaving the note box under it would offer a
+/// write the API refuses, and the worst version of that is somebody believing
+/// they left a note.
 /// #408: everything the send boundary needs to spot a colliding reply.
 ///
 /// ONE parameter rather than three, deliberately. `ThreadComposerView` already
@@ -138,6 +142,8 @@ struct DuplicateReplyContext {
 struct ThreadComposerView: View {
     @Bindable var state: ComposerState
     let noteOnly: Bool
+    /// #315: view-only — no text box and no note box, just the reason.
+    var readOnly: Bool = false
     let banner: ComposerBanner?
     let contactName: String?
     let businessName: String?
@@ -212,6 +218,16 @@ struct ThreadComposerView: View {
             if let banner {
                 ComposerBannerCard(banner: banner, onCallInstead: onCallInstead)
             }
+
+            if !readOnly {
+                composerBody
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var composerBody: some View {
+        VStack(spacing: 0) {
 
             // #225: above the box, below any banner. Never for a notes-only
             // member — an internal note has no recipient to wake up.

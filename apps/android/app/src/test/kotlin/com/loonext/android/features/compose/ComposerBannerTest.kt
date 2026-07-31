@@ -311,6 +311,51 @@ class ComposerBannerTest {
     }
 
     @Test
+    fun `a view-only observer is told the role, not the number`() {
+        // #315: its own banner rather than reusing NumberAccess. The two are
+        // different facts with different remedies — number access is about ONE
+        // number and an owner can widen it; this is the role, and only a role
+        // change fixes it. An accountant sent to "ask for access to this
+        // number" would go looking in the wrong place.
+        assertEquals(
+            ComposerBanner.ReadOnly,
+            selectComposerBanner(
+                contactOptedOut = false,
+                contactOptOutSource = null,
+                subscriptionStatus = SubscriptionStatus.ACTIVE,
+                destinationCountry = "CA",
+                usApproved = true,
+                usTextingOff = false,
+                usage = usage(10, 100),
+                viewerReadOnly = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `view-only wins over every other banner, including note level`() {
+        // The most restrictive fact about the reader is the one worth saying.
+        // An observer told "you can add internal notes here" would be told
+        // something they cannot do.
+        assertEquals(
+            ComposerBanner.ReadOnly,
+            selectComposerBanner(
+                contactOptedOut = true,
+                contactOptOutSource = "stop_keyword",
+                subscriptionStatus = SubscriptionStatus.PAST_DUE,
+                destinationCountry = "US",
+                usApproved = false,
+                usTextingOff = true,
+                usage = usage(500, 100),
+                optOutHint = true,
+                usSuspended = true,
+                viewerLevel = "note",
+                viewerReadOnly = true,
+            ),
+        )
+    }
+
+    @Test
     fun `number access wins over every other banner`() {
         // A note-only member told "your subscription is past due" learns
         // something true, irrelevant and unfixable by them: they could not
