@@ -121,6 +121,65 @@ export function snoozePresets(now: Date | number = new Date()): SnoozePreset[] {
     }));
 }
 
+// ---------------------------------------------------------------------------
+// #293 — the other ladder.
+// ---------------------------------------------------------------------------
+
+export type FollowUpPresetId = "three_days" | "next_week" | "two_weeks";
+
+export interface FollowUpPreset {
+  id: FollowUpPresetId;
+  label: string;
+  at: number;
+}
+
+export const FOLLOW_UP_PRESET_LABELS: Record<FollowUpPresetId, string> = {
+  three_days: "In 3 days",
+  next_week: "Next week",
+  two_weeks: "In 2 weeks",
+};
+
+/**
+ * When to chase.
+ *
+ * A SEPARATE ladder from `snoozePresets`, and that is the point rather than
+ * duplication: "this afternoon" is a meaningful time to pick a thread back up
+ * and a meaningless time to chase a quote. Deferring your own next action and
+ * waiting on somebody else's answer run on different clocks, so offering one
+ * ladder for both would put three useless options in front of whichever job you
+ * were actually doing.
+ *
+ * All three land on the morning hour, in the user's own clock: a reminder that
+ * fires at 11pm is read the next day anyway.
+ */
+export function followUpPresets(
+  now: Date | number = new Date(),
+): FollowUpPreset[] {
+  const at = typeof now === "number" ? new Date(now) : now;
+  const candidates: { id: FollowUpPresetId; when: Date }[] = [
+    { id: "three_days", when: atHour(at, 3, SNOOZE_MORNING_HOUR) },
+    {
+      id: "next_week",
+      when: atHour(at, daysUntilNextMonday(at), SNOOZE_MORNING_HOUR),
+    },
+    { id: "two_weeks", when: atHour(at, 14, SNOOZE_MORNING_HOUR) },
+  ];
+  // Every one of these is days out, so the lead-time floor cannot bite — but
+  // the filter stays, because the day this function gains a "this evening" is
+  // the day somebody discovers it silently could.
+  const floor = at.getTime() + SNOOZE_MIN_LEAD_MS;
+  return candidates
+    .filter((c) => c.when.getTime() > floor)
+    .map((c) => ({
+      id: c.id,
+      label: FOLLOW_UP_PRESET_LABELS[c.id],
+      at: c.when.getTime(),
+    }));
+}
+
+/** How a deferral comes back: quietly, or as something to chase. */
+export type DeferralKind = "snooze" | "follow_up";
+
 /**
  * Is a custom instant one the API will accept?
  *

@@ -6,6 +6,8 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 
+import type { DeferralKind } from "@loonext/shared";
+
 import { useCompanyId } from "@/lib/company/provider";
 
 import {
@@ -417,7 +419,10 @@ function applySnoozeToCaches(
   queryClient: QueryClient,
   companyId: string,
   conversationId: string,
-  patch: Pick<ConversationListItem, "snoozed_until" | "snooze_note">,
+  patch: Pick<
+    ConversationListItem,
+    "snoozed_until" | "snooze_note" | "snooze_kind"
+  >,
 ): void {
   patchConversationLists(queryClient, companyId, (list, filters) => {
     const existing = list.pages
@@ -440,6 +445,8 @@ export interface SnoozeConversationInput {
   conversationId: string;
   /** The absolute instant it comes back, resolved in the user's own clock. */
   until: string;
+  /** #293: 'snooze' returns it quietly; 'follow_up' returns it to be chased. */
+  kind?: DeferralKind;
   note?: string;
 }
 
@@ -448,15 +455,21 @@ export function useSnoozeConversation() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ conversationId, until, note }: SnoozeConversationInput) =>
+    mutationFn: ({
+      conversationId,
+      until,
+      kind,
+      note,
+    }: SnoozeConversationInput) =>
       apiFetch<{ until: string; note: string | null }>(
         `/v1/conversations/${conversationId}/snooze`,
-        { method: "POST", companyId, body: { until, note } },
+        { method: "POST", companyId, body: { until, kind, note } },
       ),
-    onMutate: ({ conversationId, until, note }) => {
+    onMutate: ({ conversationId, until, kind, note }) => {
       applySnoozeToCaches(queryClient, companyId, conversationId, {
         snoozed_until: until,
         snooze_note: note ?? null,
+        snooze_kind: kind ?? "snooze",
       });
     },
     onError: () => {
@@ -488,6 +501,7 @@ export function useUnsnoozeConversation() {
       applySnoozeToCaches(queryClient, companyId, conversationId, {
         snoozed_until: null,
         snooze_note: null,
+        snooze_kind: null,
       });
     },
     onError: () => {

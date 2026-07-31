@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   daysUntilNextMonday,
+  followUpPresets,
   isSnoozeTargetValid,
   SNOOZE_MAX_DAYS,
   SNOOZE_MIN_LEAD_MS,
@@ -85,6 +86,45 @@ describe("snoozePresets", () => {
       for (let hour = 0; hour < 24; hour++) {
         const now = at(hour, 30, day);
         for (const preset of snoozePresets(now)) {
+          expect(preset.at).toBeGreaterThan(now.getTime());
+        }
+      }
+    }
+  });
+});
+
+describe("followUpPresets", () => {
+  it("is a DIFFERENT ladder, and every rung lands on a morning", () => {
+    // Deferring your own next action and waiting on somebody else's answer run
+    // on different clocks. "This afternoon" is a sensible time to pick a thread
+    // back up and a meaningless time to chase a quote, so offering one ladder
+    // for both would put useless options in front of whichever job you were
+    // actually doing.
+    const presets = followUpPresets(at(9));
+    expect(presets.map((p) => p.id)).toEqual([
+      "three_days",
+      "next_week",
+      "two_weeks",
+    ]);
+    expect(presets.map((p) => p.label)).toEqual([
+      "In 3 days",
+      "Next week",
+      "In 2 weeks",
+    ]);
+    // Wednesday the 5th → the 8th, Monday the 10th, the 19th. All at 08:00,
+    // because a reminder that fires at 11pm is read the next day anyway.
+    expect(presets.map((p) => new Date(p.at))).toEqual([
+      at(8, 0, 8),
+      at(8, 0, 10),
+      at(8, 0, 19),
+    ]);
+  });
+
+  it("never offers a rung in the past, at any hour of any day", () => {
+    for (let day = 1; day <= 14; day++) {
+      for (let hour = 0; hour < 24; hour++) {
+        const now = at(hour, 30, day);
+        for (const preset of followUpPresets(now)) {
           expect(preset.at).toBeGreaterThan(now.getTime());
         }
       }

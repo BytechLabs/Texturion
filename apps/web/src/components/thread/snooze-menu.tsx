@@ -1,10 +1,17 @@
 "use client";
 
-import { AlarmClock, AlarmClockOff, CalendarClock } from "lucide-react";
+import {
+  AlarmClock,
+  AlarmClockOff,
+  BellRing,
+  CalendarClock,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import {
+  type DeferralKind,
+  followUpPresets,
   isSnoozeTargetValid,
   SNOOZE_NOTE_MAX,
   snoozePresets,
@@ -57,42 +64,86 @@ import { Input } from "@/components/ui/input";
  */
 export function SnoozeMenuItems({
   snoozedUntil,
+  snoozeKind,
   onSnooze,
   onUnsnooze,
   onPickCustom,
 }: {
   /** The caller's own return time, or null when the thread is not deferred. */
   snoozedUntil: string | null;
-  onSnooze: (until: string) => void;
+  /** How it comes back. Null when the thread is not deferred. */
+  snoozeKind: DeferralKind | null;
+  onSnooze: (until: string, kind: DeferralKind) => void;
   onUnsnooze: () => void;
-  /** Open the parent-owned custom-date dialog. */
-  onPickCustom: () => void;
+  /** Open the parent-owned custom-date dialog for this kind. */
+  onPickCustom: (kind: DeferralKind) => void;
 }) {
   // Resolved on every render rather than memoized. The ladder only changes when
   // the clock crosses a preset's hour, and on that render the NEW ladder is the
   // correct one — a memo would keep offering "This afternoon" at 3:05pm.
-  const presets = snoozePresets();
-
   if (snoozedUntil) {
     return (
       <DropdownMenuItem onSelect={onUnsnooze}>
         <AlarmClockOff className="size-4" strokeWidth={1.75} />
-        Bring back now
+        {snoozeKind === "follow_up" ? "Cancel the reminder" : "Bring back now"}
       </DropdownMenuItem>
     );
   }
 
   return (
+    <>
+      <DeferralSubmenu
+        kind="snooze"
+        label="Snooze until…"
+        icon={<AlarmClock className="size-4" strokeWidth={1.75} />}
+        presets={snoozePresets()}
+        onSnooze={onSnooze}
+        onPickCustom={onPickCustom}
+      />
+      {/* #293: a SECOND ladder, not a second label on the first. "This
+          afternoon" is a sensible time to pick a thread back up and a
+          meaningless time to chase a quote — one ladder for both would put
+          three useless options in front of whichever job you were doing. */}
+      <DeferralSubmenu
+        kind="follow_up"
+        label="Remind me to chase…"
+        icon={<BellRing className="size-4" strokeWidth={1.75} />}
+        presets={followUpPresets()}
+        onSnooze={onSnooze}
+        onPickCustom={onPickCustom}
+      />
+    </>
+  );
+}
+
+function DeferralSubmenu({
+  kind,
+  label,
+  icon,
+  presets,
+  onSnooze,
+  onPickCustom,
+}: {
+  kind: DeferralKind;
+  label: string;
+  icon: React.ReactNode;
+  presets: { id: string; label: string; at: number }[];
+  onSnooze: (until: string, kind: DeferralKind) => void;
+  onPickCustom: (kind: DeferralKind) => void;
+}) {
+  return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger>
-        <AlarmClock className="size-4" strokeWidth={1.75} />
-        Snooze until…
+        {icon}
+        {label}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent>
         {presets.map((preset) => (
           <DropdownMenuItem
             key={preset.id}
-            onSelect={() => onSnooze(new Date(preset.at).toISOString())}
+            onSelect={() =>
+              onSnooze(new Date(preset.at).toISOString(), kind)
+            }
           >
             <span>{preset.label}</span>
             <span className="ml-auto pl-4 text-xs tabular-nums text-muted-foreground">
@@ -100,7 +151,7 @@ export function SnoozeMenuItems({
             </span>
           </DropdownMenuItem>
         ))}
-        <DropdownMenuItem onSelect={onPickCustom}>
+        <DropdownMenuItem onSelect={() => onPickCustom(kind)}>
           <CalendarClock className="size-4" strokeWidth={1.75} />
           Pick a date…
         </DropdownMenuItem>
@@ -115,17 +166,22 @@ export function SnoozeMenuItems({
  */
 export function SnoozeDialog({
   open,
+  kind,
   onOpenChange,
   onConfirm,
 }: {
   open: boolean;
+  /** Which ladder the reader came from — it changes what this promises. */
+  kind: DeferralKind;
   onOpenChange: (open: boolean) => void;
   onConfirm: (untilIso: string, note?: string) => void;
 }) {
   // Smart Defaults: the field starts on the next preset, so "pick a date" is an
   // adjustment rather than a blank form. Read at open time, not at mount, so a
   // dialog opened tomorrow does not still offer yesterday.
-  const initial = () => snoozePresets()[0]?.at ?? Date.now() + 3_600_000;
+  const initial = () =>
+    (kind === "follow_up" ? followUpPresets() : snoozePresets())[0]?.at ??
+    Date.now() + 3_600_000;
   const [value, setValue] = useState(() => toLocalInput(initial()));
   // The reason, optional, and only here. A preset is one tap and stays one tap;
   // somebody who has opened a date picker is already deliberating, and "waiting
@@ -149,10 +205,15 @@ export function SnoozeDialog({
     >
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Snooze until</DialogTitle>
+          <DialogTitle>
+            {kind === "follow_up" ? "Remind me to chase" : "Snooze until"}
+          </DialogTitle>
           <DialogDescription>
-            It comes back to your inbox then — and immediately if the customer
-            replies before that.
+            {kind === "follow_up"
+              ? // The cancellation is the reassuring half, and the half nobody
+                // believes until it is written down.
+                "It comes back then as something to chase — unless they reply first, in which case there is nothing to chase and the reminder disappears."
+              : "It comes back to your inbox then — and immediately if the customer replies before that."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
@@ -187,7 +248,7 @@ export function SnoozeDialog({
               );
             }}
           >
-            Snooze
+            {kind === "follow_up" ? "Remind me" : "Snooze"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -234,8 +295,13 @@ export function snoozeReturnLabel(until: string, now: Date = new Date()): string
 }
 
 /** Shared toast copy, so the thread and the inbox say the same thing. */
-export function toastSnoozed(until: string): void {
-  toast.success(snoozeReturnLabel(until).replace(/^Back/, "Snoozed — back"));
+export function toastSnoozed(until: string, kind: DeferralKind = "snooze"): void {
+  const when = snoozeReturnLabel(until);
+  toast.success(
+    kind === "follow_up"
+      ? when.replace(/^Back/, "I'll remind you — back")
+      : when.replace(/^Back/, "Snoozed — back"),
+  );
 }
 
 /** ISO instant / epoch ms → the local wall-clock string datetime-local wants. */

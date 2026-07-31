@@ -130,9 +130,65 @@ const waitingItem = {
   urgency: 1,
 } as ForYou["waiting_on_you"][number];
 
+const followUpItem = {
+  conversation_id: "conv-f",
+  status: "waiting",
+  contact: { id: "ct-f", name: "Frank Quote", phone_e164: "+16135550222" },
+  last_message_at: new Date().toISOString(),
+  unread: false,
+  due_at: new Date(Date.now() - 3_600_000).toISOString(),
+  note: "chase the quote",
+} as NonNullable<ForYou["follow_ups"]>[number];
+
 function render(): string {
   return renderToStaticMarkup(<ForYouView />);
 }
+
+describe("ForYouView follow-up reminders (#293)", () => {
+  it("leads with the reason, above everything else in the queue", () => {
+    state.forYou = queue({
+      follow_ups: [followUpItem],
+      waiting_on_you: [waitingItem],
+    });
+    const html = render();
+    expect(html).toContain("Chase these");
+    expect(html).toContain("Frank Quote");
+    // The REASON, not the last-message time: "chase the quote" is a job,
+    // "Chase this" is a chore, and three days later only one of them is
+    // actionable.
+    expect(html).toContain("chase the quote");
+    expect(html).toContain('href="/inbox/conv-f"');
+    // A quote nobody answered is the most valuable thing to be reminded about,
+    // and unlike every section below it this one only exists because the member
+    // asked for it.
+    // Compared on the ROW, not the section label: "Waiting on you" also
+    // appears in the header's summary tiles, which sit above everything.
+    expect(html.indexOf("Frank Quote")).toBeLessThan(
+      html.indexOf("Wendy Lead"),
+    );
+  });
+
+  it("falls back to naming the silence when no reason was given", () => {
+    state.forYou = queue({ follow_ups: [{ ...followUpItem, note: null }] });
+    const html = render();
+    expect(html).toContain("No reply since");
+  });
+
+  it("keeps the caught-up card honest — a due reminder is not caught up", () => {
+    state.forYou = queue({ follow_ups: [followUpItem] });
+    const html = render();
+    expect(html).not.toContain("You&#x27;re all caught up.");
+    expect(html).toContain("Chase these");
+  });
+
+  it("renders nothing when an older Worker omits the section entirely", () => {
+    // The field is optional on purpose: a client running ahead of the Worker
+    // gets the pre-#293 behaviour, not a crash.
+    state.forYou = queue({ waiting_on_you: [waitingItem] });
+    const html = render();
+    expect(html).not.toContain("Chase these");
+  });
+});
 
 describe("ForYouView Recent calls (#133)", () => {
   it("renders the section below the queue with row anatomy and the /calls jump", () => {

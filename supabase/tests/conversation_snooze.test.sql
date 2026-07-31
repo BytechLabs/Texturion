@@ -463,6 +463,167 @@ begin
 end $$;
 
 -- ===========================================================================
+-- SN-13. A PENDING FOLLOW-UP HIDES THE THREAD, exactly like a snooze.
+--
+-- This is the claim that makes one row with a `kind` the right model rather
+-- than a convenience. A quote you are waiting on is not actionable today;
+-- if a follow-up did NOT hide the thread, every existing read would need a
+-- kind filter and the two would drift the first time somebody added a third
+-- surface.
+-- ===========================================================================
+insert into public.conversation_snoozes
+  (company_id, conversation_id, user_id, until, note, kind)
+values
+  ('da000000-0000-4000-8000-0000000000c1'::uuid,
+   'da000000-0000-4000-8000-0000000000e1'::uuid,
+   'da000000-0000-4000-8000-00000000000a'::uuid,
+   now() + interval '3 days', 'chase the quote', 'follow_up');
+
+do $$
+declare listed int; queued jsonb;
+begin
+  select count(*) into listed from public.api_list_conversations(
+    'da000000-0000-4000-8000-0000000000c1'::uuid,
+    'da000000-0000-4000-8000-00000000000a'::uuid, 50);
+  if listed <> 0 then
+    raise exception
+      'SN-13 FAILED: a pending follow-up left the thread in the default list. '
+      'Every existing read tests `until > now()` and must not need to know '
+      'about kinds.';
+  end if;
+
+  select public.api_for_you(
+    'da000000-0000-4000-8000-0000000000c1'::uuid,
+    'da000000-0000-4000-8000-00000000000a'::uuid,
+    now(), 20, null) into queued;
+  if jsonb_array_length(queued->'follow_ups') <> 0 then
+    raise exception
+      'SN-13 FAILED: a follow-up fired BEFORE its time. `until <= now()` is '
+      'the whole mechanism.';
+  end if;
+  if (queued->'totals'->>'distinct_work')::int <> 0 then
+    raise exception
+      'SN-13 FAILED: a pending follow-up counts as work waiting on me today';
+  end if;
+  raise notice 'SN-13 PASSED: pending, so hidden — and not yet due';
+end $$;
+
+-- ===========================================================================
+-- SN-14. WHEN IT COMES DUE, the focus queue says so — with the reason.
+--
+-- "A quote with no answer is the most valuable thing in the business to be
+-- reminded about." Nothing runs to fire this: the row's `until` simply
+-- passes, which is why there is no sweep to be late and no reminder lost to
+-- a worker that did not run.
+-- ===========================================================================
+do $$
+declare mine jsonb; theirs jsonb; row jsonb;
+begin
+  update public.conversation_snoozes
+    set until = now() - interval '1 minute'
+    where kind = 'follow_up';
+
+  select public.api_for_you(
+    'da000000-0000-4000-8000-0000000000c1'::uuid,
+    'da000000-0000-4000-8000-00000000000a'::uuid,
+    now(), 20, null) into mine;
+  select public.api_for_you(
+    'da000000-0000-4000-8000-0000000000c1'::uuid,
+    'da000000-0000-4000-8000-00000000000b'::uuid,
+    now(), 20, null) into theirs;
+
+  if jsonb_array_length(mine->'follow_ups') <> 1 then
+    raise exception
+      'SN-14 FAILED: a due follow-up never reached the focus queue (% rows)',
+      jsonb_array_length(mine->'follow_ups');
+  end if;
+  row := mine->'follow_ups'->0;
+  if (row->>'conversation_id') <> 'da000000-0000-4000-8000-0000000000e1' then
+    raise exception 'SN-14 FAILED: the wrong conversation came due';
+  end if;
+  if (row->>'note') <> 'chase the quote' then
+    raise exception
+      'SN-14 FAILED: the reminder arrived without the reason you gave it. '
+      '"Chase this" with no context is a chore; "chase the quote" is a job.';
+  end if;
+  if (row->>'due_at') is null then
+    raise exception 'SN-14 FAILED: no due time on the reminder';
+  end if;
+
+  -- It is MINE. A colleague never asked to be reminded of this.
+  if jsonb_array_length(theirs->'follow_ups') <> 0 then
+    raise exception
+      'SN-14 FAILED: my reminder landed on a colleague''s queue too';
+  end if;
+
+  -- …and it counts as work, because the whole point is that it needs me.
+  if (mine->'totals'->>'follow_ups')::int <> 1 then
+    raise exception 'SN-14 FAILED: the due follow-up has no total of its own';
+  end if;
+  if (mine->'totals'->>'distinct_work')::int < 1 then
+    raise exception
+      'SN-14 FAILED: a due reminder does not count toward distinct_work, which '
+      'is the number a client renders as "N things need you".';
+  end if;
+  raise notice 'SN-14 PASSED: due, surfaced, with its reason, to one person';
+end $$;
+
+-- ===========================================================================
+-- SN-15. A CUSTOMER REPLY CANCELS A FOLLOW-UP TOO.
+--
+-- "Remind me to chase this in three days IF THEY HAVEN'T REPLIED" needs no
+-- clause anywhere: the same inbound trigger deletes the row. This asserts
+-- that the trigger was never narrowed to one kind — a reminder to chase
+-- somebody who has already answered is the product nagging its own customer.
+-- ===========================================================================
+do $$
+declare queued jsonb;
+begin
+  insert into public.messages
+    (id, company_id, conversation_id, direction, status, body)
+  values
+    ('da000000-0000-4000-8000-0000000000f4'::uuid,
+     'da000000-0000-4000-8000-0000000000c1'::uuid,
+     'da000000-0000-4000-8000-0000000000e1'::uuid,
+     'inbound', 'received', 'Yes, go ahead with the quote.');
+
+  if exists (select 1 from public.conversation_snoozes where kind = 'follow_up')
+  then
+    raise exception
+      'SN-15 FAILED: a follow-up survived the reply it was waiting for';
+  end if;
+
+  select public.api_for_you(
+    'da000000-0000-4000-8000-0000000000c1'::uuid,
+    'da000000-0000-4000-8000-00000000000a'::uuid,
+    now(), 20, null) into queued;
+  if jsonb_array_length(queued->'follow_ups') <> 0 then
+    raise exception 'SN-15 FAILED: the queue still says to chase them';
+  end if;
+  raise notice 'SN-15 PASSED: they answered, so there is nothing to chase';
+end $$;
+
+-- ===========================================================================
+-- SN-16. `kind` is closed. An unknown value is a typo, not a third mode.
+-- ===========================================================================
+do $$
+begin
+  begin
+    insert into public.conversation_snoozes
+      (company_id, conversation_id, user_id, until, kind)
+    values
+      ('da000000-0000-4000-8000-0000000000c1'::uuid,
+       'da000000-0000-4000-8000-0000000000e1'::uuid,
+       'da000000-0000-4000-8000-00000000000b'::uuid,
+       now() + interval '1 day', 'reminder');
+    raise exception 'SN-16 FAILED: kind = ''reminder'' was accepted';
+  exception
+    when check_violation then null;  -- expected
+  end;
+  raise notice 'SN-16 PASSED: a deferral is a snooze or a follow-up, nothing else';
+end $$;
+
+-- ===========================================================================
 -- SN-8. The read functions are service-role only, like every other api_*.
 -- ===========================================================================
 do $$

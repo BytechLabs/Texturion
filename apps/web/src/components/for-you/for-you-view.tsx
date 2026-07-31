@@ -22,6 +22,7 @@ import {
 import type {
   Call,
   ForYou,
+  ForYouFollowUp,
   ForYouTask,
   ForYouTriageConversation,
   ForYouTriageTask,
@@ -144,6 +145,40 @@ function WaitingRow({ item }: { item: ForYouWaiting }) {
         </span>
         <span className="mt-0.5 block">
           <Why text={why} warn={item.has_overdue_task} />
+        </span>
+      </span>
+    </Card>
+  );
+}
+
+/**
+ * #293 — a follow-up reminder that has come due.
+ *
+ * The row leads with the REASON, not the contact's last message time, because
+ * that is what the member wrote down and the only thing that makes the card
+ * actionable three days later: "chase the quote" is a job, "Chase this" is a
+ * chore. Falls back to the naming the queue uses everywhere else when no
+ * reason was given.
+ *
+ * `warn` is deliberately off. An overdue task is somebody late on their own
+ * commitment; this is a customer who has not answered yet, which is ordinary.
+ * Painting it as a problem would be the alert fatigue (#244) this whole feature
+ * exists to reduce.
+ */
+function FollowUpRow({ item }: { item: ForYouFollowUp }) {
+  const name = contactDisplayName(item.contact);
+  const why = item.note
+    ? `${item.note} · asked ${formatRelativeTime(item.due_at)}`
+    : `No reply since ${formatRelativeTime(item.last_message_at)}`;
+  return (
+    <Card href={`/inbox/${item.conversation_id}`}>
+      <Avatar name={name} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13.5px] font-semibold text-app-ink">
+          {name}
+        </span>
+        <span className="mt-0.5 block">
+          <Why text={why} />
         </span>
       </span>
     </Card>
@@ -462,6 +497,11 @@ export function countDistinctWork(data: ForYou): number {
   const conversations = new Set<string>();
   for (const row of data.waiting_on_you) conversations.add(row.conversation_id);
   for (const row of data.unread) conversations.add(row.conversation_id);
+  // #293: a due reminder is work. Leaving it out here made the header say
+  // "You're all caught up" while a section below it listed a quote to chase —
+  // the exact "the count lies in the other direction" this feature is about.
+  // The Set is what keeps it honest when the same thread is also unread.
+  for (const row of data.follow_ups ?? []) conversations.add(row.conversation_id);
   for (const row of data.triage?.conversations ?? []) {
     conversations.add(row.conversation_id);
   }
@@ -718,6 +758,9 @@ function SpamReviewRow({ item }: { item: SpamReviewItem }) {
 
 function ForYouSections({ data }: { data: ForYou }) {
   const { waiting_on_you, my_tasks, unread, triage } = data;
+  // #293: absent from an older Worker, which is "no reminders" — the state
+  // every client written before this shipped was already rendering.
+  const followUps = data.follow_ups ?? [];
   const t = data.totals;
   // #306: the header count is what the section HOLDS; the rows are a page of
   // it. Falling back to the row count keeps a client running ahead of the
@@ -728,8 +771,10 @@ function ForYouSections({ data }: { data: ForYou }) {
   const triageConvTotal = t?.triage_conversations ?? triage?.conversations.length ?? 0;
   const triageTaskTotal = t?.triage_tasks ?? triage?.tasks.length ?? 0;
   const triageCount = triageConvTotal + triageTaskTotal;
+  const followUpTotal = t?.follow_ups ?? followUps.length;
 
   const everythingEmpty =
+    followUps.length === 0 &&
     waiting_on_you.length === 0 &&
     my_tasks.length === 0 &&
     unread.length === 0 &&
@@ -817,6 +862,18 @@ function ForYouSections({ data }: { data: ForYou }) {
             href="/tasks"
             label="all tasks"
           />
+        </Section>
+      )}
+
+      {/* #293: ABOVE "Waiting on you". A quote nobody answered is the most
+          valuable thing in the business to be reminded about, and unlike the
+          sections below it, this one only ever appears because the member
+          asked for it — so it has earned the top of the queue. */}
+      {followUps.length > 0 && (
+        <Section label="Chase these" count={followUpTotal}>
+          {followUps.map((item) => (
+            <FollowUpRow key={item.conversation_id} item={item} />
+          ))}
         </Section>
       )}
 

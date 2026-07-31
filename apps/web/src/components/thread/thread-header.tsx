@@ -20,6 +20,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import type { DeferralKind } from "@loonext/shared";
+
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 
 import { CallButton } from "@/components/calls/call-button";
@@ -127,7 +129,7 @@ export function ThreadHeader({
   // #293: owned HERE, not inside the overflow menu — a Radix Dialog mounted
   // inside DropdownMenuContent is unmounted the moment the menu closes, so the
   // picker would flash and vanish.
-  const [snoozePickerOpen, setSnoozePickerOpen] = useState(false);
+  const [snoozePicker, setSnoozePicker] = useState<DeferralKind | null>(null);
   // #76: the phone-only "Show" filter items are MOUNTED conditionally (not just
   // md:hidden) — a display:none menu item still lives in Radix's menu collection
   // and can silently capture typeahead ("m" → hidden "Messages" instead of "Mark
@@ -213,19 +215,33 @@ export function ThreadHeader({
   // says WHEN it comes back, because "Snoozed" alone leaves the user guessing
   // what they just agreed to.
   const snoozedUntil = conversation.snoozed_until ?? null;
-  const snoozeUntil = (until: string, note?: string) => {
+  const snoozeKind = (conversation.snooze_kind ?? null) as DeferralKind | null;
+  const snoozeUntil = (
+    until: string,
+    kind: DeferralKind = "snooze",
+    note?: string,
+  ) => {
     snooze.mutate(
-      { conversationId: conversation.id, until, note },
+      { conversationId: conversation.id, until, kind, note },
       {
-        onError: (e) => onApiError(e, "Couldn't snooze this conversation."),
-        onSuccess: () => toastSnoozed(until),
+        onError: (e) =>
+          onApiError(
+            e,
+            kind === "follow_up"
+              ? "Couldn't set that reminder."
+              : "Couldn't snooze this conversation.",
+          ),
+        onSuccess: () => toastSnoozed(until, kind),
       },
     );
   };
   const bringBack = () => {
     unsnooze.mutate(conversation.id, {
       onError: (e) => onApiError(e, "Couldn't bring this back."),
-      onSuccess: () => toast.success("Back in your inbox"),
+      onSuccess: () =>
+        toast.success(
+          snoozeKind === "follow_up" ? "Reminder cancelled" : "Back in your inbox",
+        ),
     });
   };
 
@@ -359,7 +375,9 @@ export function ThreadHeader({
           className="tap-target mr-1 hidden shrink-0 items-center gap-1.5 rounded-full border border-app-line bg-app-ground px-2.5 py-1 text-[11.5px] font-semibold leading-none text-app-muted transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
         >
           <AlarmClock className="size-3.5" strokeWidth={1.75} aria-hidden />
-          {snoozeReturnLabel(snoozedUntil)}
+          {snoozeKind === "follow_up"
+            ? snoozeReturnLabel(snoozedUntil).replace("Back", "Chase")
+            : snoozeReturnLabel(snoozedUntil)}
         </button>
       )}
 
@@ -513,9 +531,10 @@ export function ThreadHeader({
             </DropdownMenuItem>
             <SnoozeMenuItems
               snoozedUntil={snoozedUntil}
+              snoozeKind={snoozeKind}
               onSnooze={snoozeUntil}
               onUnsnooze={bringBack}
-              onPickCustom={() => setSnoozePickerOpen(true)}
+              onPickCustom={setSnoozePicker}
             />
             <DropdownMenuItem onSelect={togglePin}>
               {pinned ? (
@@ -571,9 +590,12 @@ export function ThreadHeader({
       </div>
 
       <SnoozeDialog
-        open={snoozePickerOpen}
-        onOpenChange={setSnoozePickerOpen}
-        onConfirm={snoozeUntil}
+        open={snoozePicker !== null}
+        kind={snoozePicker ?? "snooze"}
+        onOpenChange={(next) => setSnoozePicker(next ? "snooze" : null)}
+        onConfirm={(until, note) =>
+          snoozeUntil(until, snoozePicker ?? "snooze", note)
+        }
       />
 
       <Dialog open={confirmOptOut} onOpenChange={setConfirmOptOut}>

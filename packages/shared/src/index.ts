@@ -285,6 +285,8 @@ export type { RejectionDomain, RejectionGuidance } from "./rejection-guidance";
 // tap on a laptop.
 export {
   daysUntilNextMonday,
+  FOLLOW_UP_PRESET_LABELS,
+  followUpPresets,
   isSnoozeTargetValid,
   SNOOZE_AFTERNOON_HOUR,
   SNOOZE_EVENING_HOUR,
@@ -297,6 +299,9 @@ export {
   snoozeReturnShape,
 } from "./snooze";
 export type {
+  DeferralKind,
+  FollowUpPreset,
+  FollowUpPresetId,
   SnoozePreset,
   SnoozePresetId,
   SnoozeReturnShape,

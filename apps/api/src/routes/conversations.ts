@@ -523,17 +523,16 @@ conversationsRoutes.get(
       ),
       db
         .from("conversation_snoozes")
-        .select("until,note")
+        .select("until,note,kind")
         .eq("company_id", companyId)
         .eq("conversation_id", id)
         .eq("user_id", c.get("userId"))
         .gt("until", new Date().toISOString())
         .limit(1),
     ]);
-    const snooze = unwrap<{ until: string; note: string | null }[]>(
-      snoozeRows,
-      "conversation snooze lookup",
-    )[0];
+    const snooze = unwrap<
+      { until: string; note: string | null; kind: string }[]
+    >(snoozeRows, "conversation snooze lookup")[0];
 
     const { contacts, conversation_tags, ...conversation } = row;
 
@@ -555,9 +554,13 @@ conversationsRoutes.get(
     return c.json({
       ...conversation,
       viewer_level: viewerLevel,
-      // #293: the caller's own deferral, same field names the list rows carry.
+      // #293: the caller's own deferral, same field names the list rows carry,
+      // plus the kind — the list cannot tell "back Thursday" from "chase them
+      // Thursday", and in the thread that is the difference between a reminder
+      // and a nap.
       snoozed_until: snooze?.until ?? null,
       snooze_note: snooze?.note ?? null,
+      snooze_kind: snooze?.kind ?? null,
       contact: contacts,
       // Null only for a conversation with no contact row, which the schema
       // does not allow — but a thread that fails to open because the clock
@@ -1326,6 +1329,13 @@ const snoozeSchema = z.object({
   until: z.iso.datetime({ offset: true }),
   /** Why it was deferred, for the list that shows what you deferred. */
   note: z.string().trim().min(1).max(120).optional(),
+  /**
+   * #293: how it comes back. 'snooze' returns the thread quietly; 'follow_up'
+   * returns it AND raises it in the focus queue as something to chase. Both
+   * hide the thread while pending, and a customer reply kills either — which
+   * is what makes "remind me if they haven't replied" need no extra machinery.
+   */
+  kind: z.enum(["snooze", "follow_up"]).default("snooze"),
 });
 
 conversationsRoutes.post(
@@ -1374,6 +1384,7 @@ conversationsRoutes.post(
       user_id: c.get("userId"),
       until: until.toISOString(),
       note: body.note ?? null,
+      kind: body.kind,
     };
     // Upsert, because "actually, make it Friday" is the same act as snoozing —
     // a second POST re-times the deferral rather than failing on the key.

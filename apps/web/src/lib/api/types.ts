@@ -1,4 +1,5 @@
 import { PLAN_SEATS } from "@loonext/shared";
+import type { DeferralKind } from "@loonext/shared";
 
 /**
  * API resource shapes, derived by reading apps/api/src/routes/*.ts (never
@@ -509,6 +510,13 @@ export interface ConversationSnippet {
 export interface SnoozeState {
   snoozed_until?: string | null;
   snooze_note?: string | null;
+  /**
+   * #293: how it comes back — 'snooze' quietly, 'follow_up' as something to
+   * chase. Carried on the DETAIL only: the list cannot tell "back Thursday"
+   * from "chase them Thursday", and in the thread that is the difference
+   * between a reminder and a nap.
+   */
+  snooze_kind?: DeferralKind | null;
 }
 
 export interface ConversationListItem extends Conversation, SnoozeState {
@@ -1833,6 +1841,26 @@ export interface ForYouWaiting {
   urgency: number;
 }
 
+/**
+ * #293 — one follow-up reminder that has come DUE, in the /for-you queue.
+ *
+ * The reason it is its own section rather than folded into "Waiting on you":
+ * that section means "you have not answered them". This means "they have not
+ * answered YOU, and you asked to be told" — which is a different job, and the
+ * highest-value one in the business to be reminded about.
+ */
+export interface ForYouFollowUp {
+  conversation_id: string;
+  status: ConversationStatus;
+  contact: ContactSummary | null;
+  last_message_at: string;
+  unread: boolean;
+  /** When you asked to be reminded. Always in the past by the time it is here. */
+  due_at: string;
+  /** The reason you gave, if you gave one. */
+  note: string | null;
+}
+
 /** One task card in the /for-you "Your tasks" section. */
 export interface ForYouTask {
   task_id: string;
@@ -1902,11 +1930,18 @@ export interface ForYouTotals {
   unread: number;
   triage_conversations: number;
   triage_tasks: number;
+  /** #293: follow-up reminders that have come due. */
+  follow_ups?: number;
   /** Each conversation counted once, plus every task. The headline number. */
   distinct_work: number;
 }
 
 export interface ForYou {
+  /**
+   * #293. Absent from an older Worker — readers default to [], which is the
+   * pre-#293 behaviour rather than a crash.
+   */
+  follow_ups?: ForYouFollowUp[];
   waiting_on_you: ForYouWaiting[];
   my_tasks: ForYouTask[];
   unread: ForYouUnread[];

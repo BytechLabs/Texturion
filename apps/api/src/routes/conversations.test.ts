@@ -1559,6 +1559,53 @@ describe("#293 snooze routes", () => {
     });
   });
 
+  it("takes a follow-up reminder as the same act with a different kind", async () => {
+    const { sb, writes } = snoozeStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const until = soon();
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/snooze`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { until, kind: "follow_up", note: "chase the quote" },
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(writes[0].body).toMatchObject({
+      kind: "follow_up",
+      note: "chase the quote",
+    });
+
+    // Omitting it is a plain snooze. Defaulting HERE rather than only in the
+    // column means a client that has not shipped the field yet cannot get a
+    // reminder it never asked for.
+    const plain = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/snooze`,
+      { method: "POST", companyId: COMPANY_ID, body: { until } },
+    );
+    expect(plain.status).toBe(200);
+    expect(writes[1].body).toMatchObject({ kind: "snooze" });
+
+    // …and it is closed. An unknown kind is a typo, not a third mode.
+    const bad = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/snooze`,
+      { method: "POST", companyId: COMPANY_ID, body: { until, kind: "nag" } },
+    );
+    expect(bad.status).toBe(422);
+    expect(writes).toHaveLength(2);
+  });
+
   it("refuses a return time in the past rather than accepting a no-op", async () => {
     // Accepting it would hide the thread for zero seconds and then simply not.
     // That is indistinguishable from a broken feature, so it is a 422.
