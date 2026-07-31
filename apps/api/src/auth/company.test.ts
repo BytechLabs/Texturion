@@ -468,3 +468,62 @@ describe("#347 — nothing bypasses the company context", () => {
     ).toBeLessThan(firstMount);
   });
 });
+
+/**
+ * #315 acceptance: "role reduction must reduce live session capability
+ * immediately."
+ *
+ * It does, and by architecture rather than by a revocation step — which is both
+ * stronger and easier to lose. The role is not a claim in the token; it is read
+ * from `api_authorize_request` on EVERY request, so a demotion lands on the very
+ * next call, with no session to terminate and nobody signed out.
+ *
+ * This test exists because that property is invisible in the code: nothing says
+ * "do not cache the role", and putting it in the JWT is exactly the optimisation
+ * somebody would reach for. A demoted admin would then keep admin powers until
+ * their token expired, which is the failure #315 is about.
+ */
+describe("a role change lands on the next request, with no session to revoke", () => {
+  it("refuses the same caller the moment their role is reduced", async () => {
+    const gated = new Hono<AppEnv>();
+    gated.use("*", async (c, next) => {
+      c.set("userId", USER_ID);
+      c.set("sessionId", SESSION_ID);
+      c.set("aal", "aal1");
+      await next();
+    });
+    gated.use("*", companyContext());
+    gated.use("*", requireCapability("billing.manage"));
+    gated.get("/v1/billing", (c) => c.json({ ok: true }));
+
+    // ONE responder whose answer changes the way the database's would — same
+    // caller, same session, nothing re-authenticated in between.
+    let role = "admin";
+    stubFetch((url) =>
+      url.pathname.endsWith("/rpc/api_authorize_request")
+        ? Response.json({
+            session_revoked: false,
+            session_new: false,
+            member: { id: MEMBER_ID, role },
+          })
+        : undefined,
+    );
+
+    const before = await gated.request(
+      "/v1/billing",
+      { headers: { "X-Company-Id": COMPANY_ID } },
+      env,
+    );
+    expect(before.status).toBe(200);
+
+    // The owner demotes them.
+    role = "read_only";
+
+    const after = await gated.request(
+      "/v1/billing",
+      { headers: { "X-Company-Id": COMPANY_ID } },
+      env,
+    );
+    expect(after.status).toBe(403);
+  });
+});

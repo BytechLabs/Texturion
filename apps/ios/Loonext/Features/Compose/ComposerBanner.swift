@@ -219,7 +219,11 @@ func offersCallInstead(_ banner: ComposerBanner) -> Bool {
     // #363: whether a note-only member may CALL is a separate access question,
     // and pointing at a second thing they may also lack would be a second dead
     // end.
-    case .optedOut, .subscription, .usageCap, .optOutHint, .numberAccess:
+    // #315: a view-only observer cannot place a call either — calling and
+    // texting are the same capability (conversations.send), so offering the
+    // phone here would be the dead end this function exists to avoid.
+    case .optedOut, .subscription, .usageCap, .optOutHint, .numberAccess,
+         .readOnly:
         return false
     }
 }
