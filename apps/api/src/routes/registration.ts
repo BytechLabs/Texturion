@@ -3,7 +3,7 @@ import * as Sentry from "@sentry/cloudflare";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import {
   owesUsRegistration,
   registrationDraftComplete,
@@ -172,7 +172,7 @@ async function upsertDraftRow(
 }
 
 /** PUT /v1/registration — owner/admin: draft upsert (§4.1 step 3, §7). */
-registrationRoutes.put("/", requireRole("admin"), async (c) => {
+registrationRoutes.put("/", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");
@@ -236,7 +236,7 @@ registrationRoutes.put("/", requireRole("admin"), async (c) => {
  * webhook (§4.1 step 5); this route exists for the recovery/fix paths and is
  * gated on the fee having been paid (§4.2).
  */
-registrationRoutes.post("/submit", requireRole("admin"), async (c) => {
+registrationRoutes.post("/submit", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");
@@ -333,7 +333,7 @@ async function otpRateLimit(
 }
 
 /** POST /v1/registration/otp { code } — owner/admin (§4.2, §7). */
-registrationRoutes.post("/otp", requireRole("admin"), async (c) => {
+registrationRoutes.post("/otp", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");
@@ -388,7 +388,7 @@ const MAX_OTP_RESENDS = 10;
  * — a wizard edit changing the number can never reset it faster than the
  * window — and the durable per-brand lifetime counter bounds the total.
  */
-registrationRoutes.post("/otp/resend", requireRole("admin"), async (c) => {
+registrationRoutes.post("/otp/resend", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");
@@ -447,7 +447,7 @@ registrationRoutes.post("/otp/resend", requireRole("admin"), async (c) => {
  * registration submission follows (R1). A company whose fee was already paid
  * (§2: charged at most once, ever) submits immediately with no new invoice.
  */
-registrationRoutes.post("/enable-us", requireRole("owner"), async (c) => {
+registrationRoutes.post("/enable-us", requireCapability("workspace.own"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");

@@ -34,7 +34,7 @@ import { recordAuditFromRequest } from "../audit/log";
 import { billingRecipients } from "../billing/recipients";
 import { renderEmailHtml } from "../email/html";
 import { capture } from "../analytics/posthog";
-import { requireRole } from "../auth/company";
+import { requireCapability, requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { emailLayout, escapeHtml } from "../email/html";
@@ -165,7 +165,7 @@ teamRoutes.get("/members", requireRole("member"), async (c) => {
   });
 });
 
-teamRoutes.patch("/members/:id", requireRole("admin"), async (c) => {
+teamRoutes.patch("/members/:id", requireCapability("team.manage"), async (c) => {
   const id = pathUuid(c, "id");
   const body = await parseJsonBody(c, roleSchema);
   const companyId = c.get("companyId");
@@ -217,7 +217,7 @@ teamRoutes.patch("/members/:id", requireRole("admin"), async (c) => {
  * one deactivated long ago — which is how an owner finds work already left
  * behind by people who have gone.
  */
-teamRoutes.get("/members/:id/holdings", requireRole("admin"), async (c) => {
+teamRoutes.get("/members/:id/holdings", requireCapability("team.manage"), async (c) => {
   const id = pathUuid(c, "id");
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));
@@ -416,7 +416,7 @@ Loonext`;
   }
 }
 
-teamRoutes.delete("/members/:id", requireRole("admin"), async (c) => {
+teamRoutes.delete("/members/:id", requireCapability("team.manage"), async (c) => {
   const id = pathUuid(c, "id");
   const companyId = c.get("companyId");
   const env = getEnv(c.env);
@@ -546,7 +546,7 @@ async function endMemberAccess(
   return { sessions, devices };
 }
 
-teamRoutes.get("/invites", requireRole("admin"), async (c) => {
+teamRoutes.get("/invites", requireCapability("team.manage"), async (c) => {
   const db = getDb(getEnv(c.env));
   const rows = unwrap<unknown[]>(
     await db
@@ -559,7 +559,7 @@ teamRoutes.get("/invites", requireRole("admin"), async (c) => {
   return c.json({ data: rows, next_cursor: null });
 });
 
-teamRoutes.post("/invites", requireRole("admin"), async (c) => {
+teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
   const body = await parseJsonBody(c, inviteSchema);
   const companyId = c.get("companyId");
   const env = getEnv(c.env);
@@ -693,7 +693,7 @@ async function sendExistingAccountInvite(
   }
 }
 
-teamRoutes.delete("/invites/:id", requireRole("admin"), async (c) => {
+teamRoutes.delete("/invites/:id", requireCapability("team.manage"), async (c) => {
   const id = pathUuid(c, "id");
   const db = getDb(getEnv(c.env));
   const rows = unwrap<{ id: string }[]>(

@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import { resolveNumberAccess } from "../auth/number-access";
 import { computeRingContext } from "../calls/runtime";
 import { MAX_LEGS_PER_SESSION } from "../calls/transitions";
@@ -212,7 +212,7 @@ interface SlotResult {
  * company-row lock + count-vs-plan + §4.2 sole-prop cap + insert, one
  * transaction) → the §4.3 saga from S2.
  */
-numbersRoutes.post("/provision", requireRole("admin"), async (c) => {
+numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");
@@ -546,7 +546,7 @@ numbersRoutes.post("/provision", requireRole("admin"), async (c) => {
  * DELETE /v1/numbers/:id — owner only (SPEC §7, §12 step 18): release a
  * number (type-to-confirm in the UI, needed pre-downgrade, never automatic).
  */
-numbersRoutes.delete("/:id", requireRole("owner"), async (c) => {
+numbersRoutes.delete("/:id", requireCapability("workspace.own"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const id = pathUuid(c, "id");
@@ -625,7 +625,7 @@ const accessBodySchema = z.discriminatedUnion("access", [
 ]);
 
 /** GET /v1/numbers/:id/access — the number's current access shape (O/A). */
-numbersRoutes.get("/:id/access", requireRole("admin"), async (c) => {
+numbersRoutes.get("/:id/access", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const id = pathUuid(c, "id");
@@ -694,7 +694,7 @@ numbersRoutes.get("/:id/access", requireRole("admin"), async (c) => {
  * question — a member asking what they themselves can reach is the /v1/me
  * company embed, already filtered.
  */
-numbersRoutes.get("/access/explain/:userId", requireRole("admin"), async (c) => {
+numbersRoutes.get("/access/explain/:userId", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const userId = pathUuid(c, "userId");
@@ -759,7 +759,7 @@ numbersRoutes.get("/access/explain/:userId", requireRole("admin"), async (c) => 
 });
 
 /** PUT /v1/numbers/:id/access — replace the number's access rules (O/A). */
-numbersRoutes.put("/:id/access", requireRole("admin"), async (c) => {
+numbersRoutes.put("/:id/access", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const id = pathUuid(c, "id");
@@ -887,7 +887,7 @@ const remediateBodySchema = z.strictObject({
  * number is validated against its OWN area code's country (never the old
  * requested code — that would reject the exhausted-416 → pick-a-647 remedy).
  */
-numbersRoutes.post("/:id/remediate", requireRole("admin"), async (c) => {
+numbersRoutes.post("/:id/remediate", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");

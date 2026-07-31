@@ -31,7 +31,7 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
-import { requireRole } from "../auth/company";
+import { requireCapability, requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { sendEmail } from "../email/resend";
@@ -121,7 +121,7 @@ ownershipRoutes.get("/company/ownership", requireRole("member"), async (c) => {
 
 ownershipRoutes.post(
   "/company/ownership/backup",
-  requireRole("owner"),
+  requireCapability("workspace.own"),
   async (c) => {
     const body = await parseJsonBody(c, backupSchema);
     const companyId = c.get("companyId");
@@ -190,7 +190,7 @@ ownershipRoutes.post(
 
 ownershipRoutes.post(
   "/company/ownership/offer",
-  requireRole("owner"),
+  requireCapability("workspace.own"),
   async (c) => {
     const body = await parseJsonBody(c, offerSchema);
     const companyId = c.get("companyId");

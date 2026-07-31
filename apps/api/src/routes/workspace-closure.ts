@@ -25,7 +25,7 @@ import * as Sentry from "@sentry/cloudflare";
 import { Hono } from "hono";
 
 import { recordAuditFromRequest } from "../audit/log";
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import { idempotencyKey } from "../billing/idempotency";
 import { getStripe } from "../billing/stripe";
 import type { AppEnv } from "../context";
@@ -52,7 +52,7 @@ interface CloseResult {
   stripe_customer_id?: string | null;
 }
 
-workspaceClosureRoutes.delete("/company", requireRole("owner"), async (c) => {
+workspaceClosureRoutes.delete("/company", requireCapability("workspace.own"), async (c) => {
   const companyId = c.get("companyId");
   const env = getEnv(c.env);
   const db = getDb(env);

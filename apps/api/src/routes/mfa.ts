@@ -23,7 +23,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { sendEmail } from "../email/resend";
@@ -240,7 +240,7 @@ const companyMfaSchema = z.object({
   grace_days: z.number().int().min(0).max(90).optional(),
 });
 
-mfaRoutes.put("/company/mfa", requireRole("owner"), async (c) => {
+mfaRoutes.put("/company/mfa", requireCapability("workspace.own"), async (c) => {
   const body = await parseJsonBody(c, companyMfaSchema);
   const companyId = c.get("companyId");
   const env = getEnv(c.env);

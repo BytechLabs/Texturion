@@ -32,7 +32,7 @@ import { z } from "zod";
 import { recordAuditFromRequest } from "../audit/log";
 import { alarmOnBulkContactAccess } from "../audit/bulk-contact-alarm";
 import { resolveDestinationClock } from "../messaging/destination-clock";
-import { requireRole } from "../auth/company";
+import { requireCapability, requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -735,7 +735,7 @@ contactsRoutes.delete("/contacts/:id", requireRole("member"), async (c) => {
 /** CSV import (SPEC §7) — owner/admin per the §10 matrix. */
 contactsRoutes.post(
   "/contacts/import",
-  requireRole("admin"),
+  requireCapability("contacts.bulk"),
   async (c) => {
     // #36: declared-size gate BEFORE formData() buffers the whole body (§10).
     assertBodyWithinLimit(c, MAX_CSV_IMPORT_BODY_BYTES);
@@ -1111,7 +1111,7 @@ const VCARD_MAX_CARDS = IMPORT_MAX_ROWS;
  */
 contactsRoutes.post(
   "/contacts/import-vcard",
-  requireRole("admin"),
+  requireCapability("contacts.bulk"),
   async (c) => {
     // #36: declared-size gate BEFORE formData() buffers the whole body (§10).
     assertBodyWithinLimit(c, MAX_VCARD_IMPORT_BODY_BYTES);

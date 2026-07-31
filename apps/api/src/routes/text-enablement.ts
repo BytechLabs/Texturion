@@ -29,7 +29,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import { PLAN_LIMITS, type PlanId } from "../billing/plans";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -151,7 +151,7 @@ function executionCtxOf(
  * insert phone_numbers[source=hosted] + text_enablement_orders) → start the saga
  * (create the hosted order) in the background.
  */
-textEnablementRoutes.post("/", requireRole("admin"), async (c) => {
+textEnablementRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");
@@ -368,7 +368,7 @@ function documentsUploadable(order: TextEnablementOrderRow): boolean {
  * when the hosted order does not exist yet (a failed create), the saga
  * attaches them on its next pass instead.
  */
-textEnablementRoutes.put("/:id/documents", requireRole("admin"), async (c) => {
+textEnablementRoutes.put("/:id/documents", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");
@@ -511,7 +511,7 @@ textEnablementRoutes.put("/:id/documents", requireRole("admin"), async (c) => {
  * resubmit resets; reusing it would let every resubmit refill the cap.
  * Consumed BEFORE any Telnyx side effect (fail-closed).
  */
-textEnablementRoutes.post("/:id/resubmit", requireRole("admin"), async (c) => {
+textEnablementRoutes.post("/:id/resubmit", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");
@@ -701,7 +701,7 @@ function verificationGate(
  */
 textEnablementRoutes.post(
   "/:id/verification-codes",
-  requireRole("admin"),
+  requireCapability("numbers.manage"),
   async (c) => {
     const env = getEnv(c.env);
     const db = getDb(env);
@@ -756,7 +756,7 @@ textEnablementRoutes.post(
  */
 textEnablementRoutes.post(
   "/:id/verification-codes/verify",
-  requireRole("admin"),
+  requireCapability("numbers.manage"),
   async (c) => {
     const env = getEnv(c.env);
     const db = getDb(env);
@@ -790,7 +790,7 @@ textEnablementRoutes.post(
  * POST /v1/text-enablements/:id/cancel — owner only: abandon a pending
  * enablement. 409 conflict if already completed/cancelled.
  */
-textEnablementRoutes.post("/:id/cancel", requireRole("owner"), async (c) => {
+textEnablementRoutes.post("/:id/cancel", requireCapability("workspace.own"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const id = pathUuid(c, "id");

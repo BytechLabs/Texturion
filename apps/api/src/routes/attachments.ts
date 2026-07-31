@@ -46,7 +46,7 @@ import {
   assertMintRateWithinLimit,
 } from "../attachments/egress";
 import { scanAttachment } from "../attachments/scan";
-import { requireRole } from "../auth/company";
+import { requireCapability, requireRole } from "../auth/company";
 import {
   requireConversationAccess,
   resolveNumberAccess,
@@ -315,7 +315,7 @@ attachmentsRoutes.post(
  */
 attachmentsRoutes.post(
   "/attachments/:id/release",
-  requireRole("admin"),
+  requireCapability("settings.manage"),
   async (c) => {
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");

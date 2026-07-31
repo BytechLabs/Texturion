@@ -7,7 +7,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { requireRole } from "../auth/company";
+import { requireCapability, requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -75,7 +75,7 @@ tagsRoutes.patch("/tags/:id", requireRole("member"), async (c) => {
 });
 
 // Tag delete is owner/admin (SPEC §10 matrix); conversation_tags rows cascade.
-tagsRoutes.delete("/tags/:id", requireRole("admin"), async (c) => {
+tagsRoutes.delete("/tags/:id", requireCapability("settings.manage"), async (c) => {
   const id = pathUuid(c, "id");
   const db = getDb(getEnv(c.env));
   const rows = unwrap<{ id: string }[]>(

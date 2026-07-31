@@ -33,7 +33,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -147,7 +147,7 @@ sessionsRoutes.post("/sessions/revoke", async (c) => {
 // Workspace view — admin and owner
 // ---------------------------------------------------------------------------
 
-sessionsRoutes.get("/members/sessions", requireRole("admin"), async (c) => {
+sessionsRoutes.get("/members/sessions", requireCapability("team.manage"), async (c) => {
   const db = getDb(getEnv(c.env));
   const members = unwrap<{ id: string; user_id: string }[]>(
     await db
@@ -176,7 +176,7 @@ sessionsRoutes.get("/members/sessions", requireRole("admin"), async (c) => {
 
 sessionsRoutes.post(
   "/members/:id/sessions/revoke",
-  requireRole("admin"),
+  requireCapability("team.manage"),
   async (c) => {
     const memberId = pathUuid(c, "id");
     const companyId = c.get("companyId");

@@ -28,7 +28,7 @@ import { z } from "zod";
 import { type CompanyAiSettings, loadAiSettings } from "../ai/settings";
 import { auditDiff } from "../audit/diff";
 import { recordAuditFromRequest } from "../audit/log";
-import { requireRole } from "../auth/company";
+import { requireCapability, requireRole } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -412,7 +412,7 @@ const AUDITED_COMPANY_SETTINGS = [
 
 companiesRoutes.patch(
   "/company/ai-settings",
-  requireRole("admin"),
+  requireCapability("settings.manage"),
   async (c) => {
     const body = await parseJsonBody(c, aiSettingsSchema);
     const db = getDb(getEnv(c.env));
@@ -482,7 +482,7 @@ companiesRoutes.patch(
   },
 );
 
-companiesRoutes.patch("/company", requireRole("admin"), async (c) => {
+companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c) => {
   const body = await parseJsonBody(c, patchSchema);
 
   // Overage cap raise/remove is owner-only (SPEC §2, §10 matrix).

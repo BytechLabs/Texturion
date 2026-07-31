@@ -16,7 +16,7 @@
 import { Hono } from "hono";
 
 import { recordAuditFromRequest } from "../audit/log";
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -43,7 +43,7 @@ interface ExportRow {
   expires_at: string | null;
 }
 
-exportsRoutes.post("/exports", requireRole("admin"), async (c) => {
+exportsRoutes.post("/exports", requireCapability("contacts.bulk"), async (c) => {
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));
 
@@ -74,7 +74,7 @@ exportsRoutes.post("/exports", requireRole("admin"), async (c) => {
   return c.json({ export_id: result.export_id, already_building: false }, 202);
 });
 
-exportsRoutes.get("/exports", requireRole("admin"), async (c) => {
+exportsRoutes.get("/exports", requireCapability("contacts.bulk"), async (c) => {
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));
 
@@ -142,7 +142,7 @@ async function signFiles(
   return signed.filter((entry): entry is { name: string; url: string } => entry !== null);
 }
 
-exportsRoutes.get("/exports/:id", requireRole("admin"), async (c) => {
+exportsRoutes.get("/exports/:id", requireCapability("contacts.bulk"), async (c) => {
   const db = getDb(getEnv(c.env));
   const rows = unwrap<ExportRow[]>(
     await db

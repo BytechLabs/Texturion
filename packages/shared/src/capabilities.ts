@@ -56,6 +56,13 @@ export const CAPABILITIES = [
   /** Read the audit log (#231). */
   "history.read",
   /**
+   * Move the customer list in or out in bulk: CSV/vCard import, and the export
+   * job. Its own axis because #231 names bulk export "the departing-employee
+   * signature" — it is the one capability whose misuse looks nothing like
+   * ordinary inbox work, and nobody who only does the books should carry it.
+   */
+  "contacts.bulk",
+  /**
    * The irreversible ones: the overage cap, US enablement, number release,
    * transferring ownership, closing the workspace. Owner only, and not part of
    * any preset — a capability nobody can be granted is the honest way to say
@@ -88,6 +95,7 @@ const ROLE_CAPABILITIES: Record<MemberRole, readonly Capability[]> = {
     "team.manage",
     "numbers.manage",
     "history.read",
+    "contacts.bulk",
   ],
   owner: [...CAPABILITIES],
 };

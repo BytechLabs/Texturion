@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import { PLAN_LIMITS, type PlanId } from "../billing/plans";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -282,7 +282,7 @@ function interpretPortability(result: PortabilityResult): {
  * VERIFY_RATE_LIMITER binding (3/60s) so a scripted tenant cannot burn the
  * shared Telnyx account-level API budget.
  */
-portingRoutes.post("/check", requireRole("admin"), async (c) => {
+portingRoutes.post("/check", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");
@@ -393,7 +393,7 @@ const idempotencyKeySchema = z.uuid();
  * the Telnyx order to the paid webhook. Post-signup path (active subscription):
  * start startPortSaga immediately in waitUntil.
  */
-portingRoutes.post("/", requireRole("admin"), async (c) => {
+portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");
@@ -701,7 +701,7 @@ const editBodySchema = createBodySchema
  * exception (the fix-and-resubmit form). validation_failed once the port is
  * past the editable window.
  */
-portingRoutes.put("/:id", requireRole("admin"), async (c) => {
+portingRoutes.put("/:id", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const id = pathUuid(c, "id");
@@ -748,7 +748,7 @@ const DOC_CONTENT_TYPES = new Set([
  * UUIDs on the row. Editable window only (draft/exception). At least one of
  * `loa` / `invoice` must be present.
  */
-portingRoutes.put("/:id/documents", requireRole("admin"), async (c) => {
+portingRoutes.put("/:id/documents", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");
@@ -871,7 +871,7 @@ portingRoutes.put("/:id/documents", requireRole("admin"), async (c) => {
  * confirm a Telnyx porting order with no documents (the carrier rejects it).
  * 409 `conflict` if the port is not in `draft`.
  */
-portingRoutes.post("/:id/submit", requireRole("admin"), async (c) => {
+portingRoutes.post("/:id/submit", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const id = pathUuid(c, "id");
@@ -913,7 +913,7 @@ portingRoutes.post("/:id/submit", requireRole("admin"), async (c) => {
  * re-confirm without both). Port-in is free — no charge. 409 `conflict` if
  * status is not `exception`.
  */
-portingRoutes.post("/:id/resubmit", requireRole("admin"), async (c) => {
+portingRoutes.post("/:id/resubmit", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const id = pathUuid(c, "id");
@@ -962,7 +962,7 @@ portingRoutes.post("/:id/resubmit", requireRole("admin"), async (c) => {
  * port (§3.8). → cancel-pending; the linked phone_numbers row is released on
  * completion. 409 conflict if already ported/cancelled.
  */
-portingRoutes.post("/:id/cancel", requireRole("owner"), async (c) => {
+portingRoutes.post("/:id/cancel", requireCapability("workspace.own"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const id = pathUuid(c, "id");

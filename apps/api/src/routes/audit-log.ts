@@ -18,7 +18,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -85,7 +85,7 @@ function csvCell(value: unknown): string {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
-auditLogRoutes.get("/audit-log", requireRole("admin"), async (c) => {
+auditLogRoutes.get("/audit-log", requireCapability("history.read"), async (c) => {
   const query = parseWith(querySchema, c.req.query());
   const db = getDb(getEnv(c.env));
   const csv = query.format === "csv";
