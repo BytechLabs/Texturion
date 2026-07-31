@@ -18,7 +18,7 @@
  */
 import { Hono } from "hono";
 
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
@@ -34,7 +34,7 @@ interface CredentialRow {
 
 export const webrtcRoutes = new Hono<AppEnv>();
 
-webrtcRoutes.post("/webrtc/token", requireRole("member"), async (c) => {
+webrtcRoutes.post("/webrtc/token", requireCapability("conversations.send"), async (c) => {
   const env = getEnv(c.env);
   if (!env.TELNYX_WEBRTC_CONNECTION_ID) {
     return errorResponse(

@@ -25,7 +25,7 @@
  */
 import { Hono } from "hono";
 
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -41,7 +41,7 @@ export const forYouRoutes = new Hono<AppEnv>();
  */
 const SECTION_LIMIT = 20;
 
-forYouRoutes.get("/for-you", requireRole("member"), async (c) => {
+forYouRoutes.get("/for-you", requireCapability("conversations.read"), async (c) => {
   const db = getDb(getEnv(c.env));
   const role = c.get("role");
   // #416/D53 opened the unclaimed queue to everyone — a crew of 1-10 has no

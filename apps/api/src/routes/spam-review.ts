@@ -22,7 +22,7 @@
  */
 import { Hono } from "hono";
 
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -38,7 +38,7 @@ export const spamReviewRoutes = new Hono<AppEnv>();
  */
 const REVIEW_LIMIT = 20;
 
-spamReviewRoutes.get("/spam-review", requireRole("member"), async (c) => {
+spamReviewRoutes.get("/spam-review", requireCapability("conversations.read"), async (c) => {
   const db = getDb(getEnv(c.env));
 
   // #106: a restricted member must not learn that a hidden number's

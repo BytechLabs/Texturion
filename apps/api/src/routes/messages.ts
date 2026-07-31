@@ -38,7 +38,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
 
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import {
   assertNumberLevel,
   requireConversationAccess,
@@ -270,7 +270,7 @@ export function messageJson(
 
 export const messageRoutes = new Hono<AppEnv>();
 
-messageRoutes.post("/messages/send", requireRole("member"), async (c) => {
+messageRoutes.post("/messages/send", requireCapability("conversations.send"), async (c) => {
   const env = getEnv(c.env);
   const companyId = c.get("companyId");
   const idempotencyKey = requireIdempotencyKey(c);
@@ -375,7 +375,7 @@ messageRoutes.post("/messages/send", requireRole("member"), async (c) => {
   return c.json(messageJson(sent, attachments), 201);
 });
 
-messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
+messageRoutes.post("/messages/:id/retry", requireCapability("conversations.send"), async (c) => {
   const env = getEnv(c.env);
   const companyId = c.get("companyId");
   const messageId = pathUuid(c, "id");
@@ -511,7 +511,7 @@ messageRoutes.post("/messages/:id/retry", requireRole("member"), async (c) => {
   );
 });
 
-messageRoutes.patch("/messages/:id", requireRole("member"), async (c) => {
+messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), async (c) => {
   const env = getEnv(c.env);
   const companyId = c.get("companyId");
   const messageId = pathUuid(c, "id");
@@ -593,7 +593,7 @@ messageRoutes.patch("/messages/:id", requireRole("member"), async (c) => {
 
 messageRoutes.get(
   "/conversations/:id/messages",
-  requireRole("member"),
+  requireCapability("conversations.read"),
   async (c) => {
     const env = getEnv(c.env);
     const companyId = c.get("companyId");

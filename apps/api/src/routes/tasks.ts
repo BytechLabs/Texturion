@@ -55,7 +55,7 @@ import { z } from "zod";
 import {
   loadAiSettings,
 } from "../ai/settings";
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import {
   requireConversationAccess,
   resolveConversationLevel,
@@ -321,7 +321,7 @@ export const tasksRoutes = new Hono<AppEnv>();
  * POST /v1/tasks — promote a message to a task (T4). This is the route the
  * thread overflow "Make a task" affordance calls (T5.1).
  */
-tasksRoutes.post("/tasks", requireRole("member"), async (c) => {
+tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) => {
   const body = await parseJsonBody(c, createSchema);
   const companyId = c.get("companyId");
   const userId = c.get("userId");
@@ -496,7 +496,7 @@ async function loadEnrichmentContext(
   };
 }
 
-tasksRoutes.post("/tasks/enrich", requireRole("member"), async (c) => {
+tasksRoutes.post("/tasks/enrich", requireCapability("conversations.note"), async (c) => {
   const body = await parseJsonBody(c, enrichSchema);
   const companyId = c.get("companyId");
   const env = getEnv(c.env);
@@ -597,7 +597,7 @@ tasksRoutes.post("/tasks/enrich", requireRole("member"), async (c) => {
  * GET /v1/tasks — flat filtered list (T6.1). The derived status filter runs on
  * the joined messages.done_at via an inner-embedded messages resource.
  */
-tasksRoutes.get("/tasks", requireRole("member"), async (c) => {
+tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => {
   const companyId = c.get("companyId");
   const userId = c.get("userId");
   const limit = parseLimit(c, 25, 100);
@@ -856,7 +856,7 @@ tasksRoutes.get("/tasks", requireRole("member"), async (c) => {
  * address is not waiting for anything, and folding it in would make an "N of M"
  * that never reaches its total, which looks permanently stuck.
  */
-tasksRoutes.get("/tasks/geocode-progress", requireRole("member"), async (c) => {
+tasksRoutes.get("/tasks/geocode-progress", requireCapability("conversations.read"), async (c) => {
   const db = getDb(getEnv(c.env));
   const progress = unwrap<Record<string, number>>(
     await db.rpc("api_geocode_progress", {
@@ -869,7 +869,7 @@ tasksRoutes.get("/tasks/geocode-progress", requireRole("member"), async (c) => {
 
 tasksRoutes.get(
   "/conversations/:id/tasks",
-  requireRole("member"),
+  requireCapability("conversations.read"),
   async (c) => {
     const conversationId = pathUuid(c, "id");
     const companyId = c.get("companyId");
@@ -1103,7 +1103,7 @@ async function loadTaskAttachments(
  * joined source message (live body + done_at for the derived status) + the
  * D28 derived attachments union.
  */
-tasksRoutes.get("/tasks/:id", requireRole("member"), async (c) => {
+tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c) => {
   const id = pathUuid(c, "id");
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));
@@ -1368,7 +1368,7 @@ async function loadTaskActivity(
  * PATCH /v1/tasks/:id — metadata only (T4). No `done` field. An assignee
  * change writes `task_assigned`; a due_at change writes `task_due_set`.
  */
-tasksRoutes.patch("/tasks/:id", requireRole("member"), async (c) => {
+tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (c) => {
   const id = pathUuid(c, "id");
   const body = await parseJsonBody(c, patchSchema);
   const companyId = c.get("companyId");
@@ -1495,7 +1495,7 @@ tasksRoutes.patch("/tasks/:id", requireRole("member"), async (c) => {
  * cleanup of the task's generic attachments is a D19 sweep owned by the
  * storage track's cron — the row soft-delete here marks them for that sweep.
  */
-tasksRoutes.delete("/tasks/:id", requireRole("member"), async (c) => {
+tasksRoutes.delete("/tasks/:id", requireCapability("conversations.note"), async (c) => {
   const id = pathUuid(c, "id");
   const companyId = c.get("companyId");
   const userId = c.get("userId");

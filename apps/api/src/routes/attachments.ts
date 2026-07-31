@@ -46,7 +46,7 @@ import {
   assertMintRateWithinLimit,
 } from "../attachments/egress";
 import { scanAttachment } from "../attachments/scan";
-import { requireCapability, requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import {
   requireConversationAccess,
   resolveNumberAccess,
@@ -247,7 +247,7 @@ export const attachmentsRoutes = new Hono<AppEnv>();
  */
 attachmentsRoutes.post(
   "/attachments/:id/report",
-  requireRole("member"),
+  requireCapability("conversations.note"),
   async (c) => {
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");
@@ -359,7 +359,7 @@ attachmentsRoutes.post(
   },
 );
 
-attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
+attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), async (c) => {
   const companyId = c.get("companyId");
   const userId = c.get("userId");
   const db = getDb(getEnv(c.env));
@@ -580,7 +580,7 @@ attachmentsRoutes.post("/attachments", requireRole("member"), async (c) => {
  * idempotent under retries. Company-scoped (§10): an id outside the caller's
  * company (or already deleted) is `not_found`.
  */
-attachmentsRoutes.delete("/attachments/:id", requireRole("member"), async (c) => {
+attachmentsRoutes.delete("/attachments/:id", requireCapability("conversations.note"), async (c) => {
   const id = pathUuid(c, "id");
   const companyId = c.get("companyId");
   const userId = c.get("userId");
@@ -661,7 +661,7 @@ attachmentsRoutes.delete("/attachments/:id", requireRole("member"), async (c) =>
   return c.body(null, 204);
 });
 
-attachmentsRoutes.get("/attachments", requireRole("member"), async (c) => {
+attachmentsRoutes.get("/attachments", requireCapability("conversations.read"), async (c) => {
   const companyId = c.get("companyId");
   const ownerTypeRaw = c.req.query("owner_type");
   const ownerType = OWNER_TYPES.find((value) => value === ownerTypeRaw);
@@ -708,7 +708,7 @@ attachmentsRoutes.get("/attachments", requireRole("member"), async (c) => {
 
 attachmentsRoutes.get(
   "/attachments/:id/url",
-  requireRole("member"),
+  requireCapability("conversations.read"),
   async (c) => {
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");

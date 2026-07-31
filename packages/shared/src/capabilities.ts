@@ -37,6 +37,15 @@
  *   owner-only and stays that way. Those are not delegation problems.
  */
 export const CAPABILITIES = [
+  /**
+   * You belong to this workspace at all: the company record the app boots on,
+   * your own notification preferences, your push subscriptions, leaving.
+   *
+   * Every role has it, including presets that hold no inbox access — without a
+   * baseline the app cannot even load for them, and a role that cannot boot is
+   * not a role.
+   */
+  "workspace.access",
   /** See conversations, contacts, tasks — the shared inbox, read side. */
   "conversations.read",
   /** Send a text, place a call: act as the business toward a customer. */
@@ -85,8 +94,14 @@ export type MemberRole = (typeof MEMBER_ROLES)[number];
  * which is what lets a later preset break the line without breaking these.
  */
 const ROLE_CAPABILITIES: Record<MemberRole, readonly Capability[]> = {
-  member: ["conversations.read", "conversations.send", "conversations.note"],
+  member: [
+    "workspace.access",
+    "conversations.read",
+    "conversations.send",
+    "conversations.note",
+  ],
   admin: [
+    "workspace.access",
     "conversations.read",
     "conversations.send",
     "conversations.note",

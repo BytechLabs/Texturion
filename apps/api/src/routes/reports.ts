@@ -39,7 +39,7 @@
 import { isAfterHours, type BusinessHours, type HoursException } from "@loonext/shared";
 import { Hono } from "hono";
 
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -128,7 +128,7 @@ function sideOf(rows: LeadRow[]): {
   };
 }
 
-reportsRoutes.get("/reports/response-time", requireRole("member"), async (c) => {
+reportsRoutes.get("/reports/response-time", requireCapability("conversations.read"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");

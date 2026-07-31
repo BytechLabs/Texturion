@@ -45,7 +45,7 @@ import {
   assertEgressWithinAllowance,
   assertMintRateWithinLimit,
 } from "../attachments/egress";
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import { listConversationViewers } from "../auth/conversation-audience";
 import { resolveDestinationClock } from "../messaging/destination-clock";
 import {
@@ -217,7 +217,7 @@ async function findConversation(
 
 export const conversationsRoutes = new Hono<AppEnv>();
 
-conversationsRoutes.get("/conversations", requireRole("member"), async (c) => {
+conversationsRoutes.get("/conversations", requireCapability("conversations.read"), async (c) => {
   const query = parseWith(listQuerySchema, {
     status: c.req.query("status"),
     assigned_user_id: c.req.query("assigned_user_id"),
@@ -344,7 +344,7 @@ const bulkSchema = z
 
 conversationsRoutes.post(
   "/conversations/bulk",
-  requireRole("member"),
+  requireCapability("conversations.note"),
   async (c) => {
     const body = parseWith(bulkSchema, await c.req.json().catch(() => ({})));
     const db = getDb(getEnv(c.env));
@@ -397,7 +397,7 @@ conversationsRoutes.post(
  */
 conversationsRoutes.get(
   "/conversations/:id/pinned",
-  requireRole("member"),
+  requireCapability("conversations.read"),
   async (c) => {
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");
@@ -439,7 +439,7 @@ conversationsRoutes.get(
 
 conversationsRoutes.get(
   "/conversations/:id",
-  requireRole("member"),
+  requireCapability("conversations.read"),
   async (c) => {
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");
@@ -597,7 +597,7 @@ conversationsRoutes.get(
 
 conversationsRoutes.patch(
   "/conversations/:id",
-  requireRole("member"),
+  requireCapability("conversations.note"),
   async (c) => {
     const id = pathUuid(c, "id");
     const body = await parseJsonBody(c, patchSchema);
@@ -737,7 +737,7 @@ conversationsRoutes.patch(
  */
 conversationsRoutes.get(
   "/conversations/:id/mentionable-members",
-  requireRole("member"),
+  requireCapability("conversations.read"),
   async (c) => {
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");
@@ -797,7 +797,7 @@ conversationsRoutes.get(
 
 conversationsRoutes.post(
   "/conversations/:id/notes",
-  requireRole("member"),
+  requireCapability("conversations.note"),
   async (c) => {
     const id = pathUuid(c, "id");
     const body = await parseJsonBody(c, noteSchema);
@@ -993,7 +993,7 @@ const aiOutcomeSchema = z.object({
   outcome: z.enum(["used", "edited", "discarded"]),
 });
 
-conversationsRoutes.post("/ai/outcome", requireRole("member"), async (c) => {
+conversationsRoutes.post("/ai/outcome", requireCapability("conversations.note"), async (c) => {
   const body = await parseJsonBody(c, aiOutcomeSchema);
   const db = getDb(getEnv(c.env));
   const result = unwrap<{ recorded?: string; error?: string }>(
@@ -1025,7 +1025,7 @@ conversationsRoutes.post("/ai/outcome", requireRole("member"), async (c) => {
 // --------------------------------------------------------------------------
 conversationsRoutes.post(
   "/conversations/:id/reply-suggestions",
-  requireRole("member"),
+  requireCapability("conversations.note"),
   async (c) => {
     const id = pathUuid(c, "id");
     const body = await parseJsonBody(c, replySuggestionSchema);
@@ -1238,7 +1238,7 @@ conversationsRoutes.post(
 
 conversationsRoutes.post(
   "/conversations/:id/read",
-  requireRole("member"),
+  requireCapability("conversations.note"),
   async (c) => {
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");
@@ -1274,7 +1274,7 @@ conversationsRoutes.post(
 
 conversationsRoutes.delete(
   "/conversations/:id/read",
-  requireRole("member"),
+  requireCapability("conversations.note"),
   async (c) => {
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");
@@ -1340,7 +1340,7 @@ const snoozeSchema = z.object({
 
 conversationsRoutes.post(
   "/conversations/:id/snooze",
-  requireRole("member"),
+  requireCapability("conversations.note"),
   async (c) => {
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");
@@ -1400,7 +1400,7 @@ conversationsRoutes.post(
 
 conversationsRoutes.delete(
   "/conversations/:id/snooze",
-  requireRole("member"),
+  requireCapability("conversations.note"),
   async (c) => {
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");
@@ -1435,7 +1435,7 @@ conversationsRoutes.delete(
 
 conversationsRoutes.get(
   "/conversations/:id/events",
-  requireRole("member"),
+  requireCapability("conversations.read"),
   async (c) => {
     const id = pathUuid(c, "id");
     const limit = parseLimit(c, 50, 100);
@@ -1477,7 +1477,7 @@ conversationsRoutes.get(
 
 conversationsRoutes.post(
   "/conversations/:id/tags",
-  requireRole("member"),
+  requireCapability("conversations.note"),
   async (c) => {
     const id = pathUuid(c, "id");
     const body = await parseJsonBody(c, attachTagSchema);
@@ -1570,7 +1570,7 @@ conversationsRoutes.post(
 
 conversationsRoutes.delete(
   "/conversations/:id/tags/:tag_id",
-  requireRole("member"),
+  requireCapability("conversations.note"),
   async (c) => {
     const id = pathUuid(c, "id");
     const tagId = pathUuid(c, "tag_id");
@@ -1672,7 +1672,7 @@ function beforeCursor(row: { created_at: string; id: string }, cursor: Cursor): 
  */
 conversationsRoutes.get(
   "/conversations/:id/attachments",
-  requireRole("member"),
+  requireCapability("conversations.read"),
   async (c) => {
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");

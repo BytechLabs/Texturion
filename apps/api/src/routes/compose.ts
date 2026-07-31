@@ -32,7 +32,7 @@ import {
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import { assertNumberLevel } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -343,7 +343,7 @@ async function createOrReuseConversation(
 
 export const composeRoutes = new Hono<AppEnv>();
 
-composeRoutes.post("/conversations", requireRole("member"), async (c) => {
+composeRoutes.post("/conversations", requireCapability("conversations.send"), async (c) => {
   const env = getEnv(c.env);
   const companyId = c.get("companyId");
   const userId = c.get("userId");

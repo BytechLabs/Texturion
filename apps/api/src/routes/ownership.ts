@@ -31,7 +31,7 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
-import { requireCapability, requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { sendEmail } from "../email/resend";
@@ -113,7 +113,7 @@ function viewFor(state: OwnershipState, userId: string) {
   };
 }
 
-ownershipRoutes.get("/company/ownership", requireRole("member"), async (c) => {
+ownershipRoutes.get("/company/ownership", requireCapability("workspace.access"), async (c) => {
   const db = getDb(getEnv(c.env));
   const state = await loadState(db, c.get("companyId"));
   return c.json(viewFor(state, c.get("userId")));
@@ -249,7 +249,7 @@ ownershipRoutes.post(
 
 ownershipRoutes.post(
   "/company/ownership/claim",
-  requireRole("member"),
+  requireCapability("workspace.access"),
   async (c) => {
     const companyId = c.get("companyId");
     const db = getDb(getEnv(c.env));
@@ -308,7 +308,7 @@ ownershipRoutes.post(
 
 ownershipRoutes.post(
   "/company/ownership/accept",
-  requireRole("member"),
+  requireCapability("workspace.access"),
   async (c) => {
     const companyId = c.get("companyId");
     const db = getDb(getEnv(c.env));
@@ -379,7 +379,7 @@ ownershipRoutes.post(
 
 ownershipRoutes.post(
   "/company/ownership/cancel",
-  requireRole("member"),
+  requireCapability("workspace.access"),
   async (c) => {
     const companyId = c.get("companyId");
     const db = getDb(getEnv(c.env));

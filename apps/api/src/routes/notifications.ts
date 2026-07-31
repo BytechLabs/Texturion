@@ -50,7 +50,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -122,7 +122,7 @@ export const notificationsRoutes = new Hono<AppEnv>();
 
 notificationsRoutes.get(
   "/notification-prefs",
-  requireRole("member"),
+  requireCapability("workspace.access"),
   async (c) => {
     const env = getEnv(c.env);
     const db = getDb(env);
@@ -143,7 +143,7 @@ notificationsRoutes.get(
 
 notificationsRoutes.put(
   "/notification-prefs",
-  requireRole("member"),
+  requireCapability("workspace.access"),
   async (c) => {
     const body = await parseJsonBody(c, prefsSchema);
     const env = getEnv(c.env);
@@ -171,7 +171,7 @@ notificationsRoutes.put(
 
 notificationsRoutes.post(
   "/push-subscriptions",
-  requireRole("member"),
+  requireCapability("workspace.access"),
   async (c) => {
     const body = await parseJsonBody(c, subscriptionSchema);
     // Reject keys the §8 send path could never encrypt to (base64url 65-byte
@@ -243,7 +243,7 @@ notificationsRoutes.post(
 
 notificationsRoutes.delete(
   "/push-subscriptions/:id",
-  requireRole("member"),
+  requireCapability("workspace.access"),
   async (c) => {
     const id = pathUuid(c, "id");
     const db = getDb(getEnv(c.env));
@@ -296,7 +296,7 @@ const markOneReadSchema = z.object({
 
 notificationsRoutes.get(
   "/notifications",
-  requireRole("member"),
+  requireCapability("workspace.access"),
   async (c) => {
     const limit = parseLimit(c, 25, 100);
     const cursor = parseCursor(c);
@@ -325,7 +325,7 @@ notificationsRoutes.get(
 
 notificationsRoutes.get(
   "/notifications/unread-count",
-  requireRole("member"),
+  requireCapability("workspace.access"),
   async (c) => {
     const db = getDb(getEnv(c.env));
     // #106: the badge must agree with the filtered feed.
@@ -361,7 +361,7 @@ notificationsRoutes.get(
 
 notificationsRoutes.post(
   "/notifications/mark-all-read",
-  requireRole("member"),
+  requireCapability("workspace.access"),
   async (c) => {
     const db = getDb(getEnv(c.env));
     // #188: p_now null → the RPC stamps the DB's own now(). Notification
@@ -382,7 +382,7 @@ notificationsRoutes.post(
 
 notificationsRoutes.post(
   "/notifications/:id/read",
-  requireRole("member"),
+  requireCapability("workspace.access"),
   async (c) => {
     const id = pathUuid(c, "id");
     const body = await parseJsonBody(c, markOneReadSchema);
@@ -407,7 +407,7 @@ notificationsRoutes.post(
 
 notificationsRoutes.post(
   "/notifications/mark-read",
-  requireRole("member"),
+  requireCapability("workspace.access"),
   async (c) => {
     const body = await parseJsonBody(c, markReadSchema);
     const db = getDb(getEnv(c.env));

@@ -21,6 +21,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { CAPABILITIES } from "@loonext/shared";
+
 const ROUTES_DIR = join(import.meta.dirname, "..", "routes");
 
 function routeSources(): { name: string; src: string }[] {
@@ -66,18 +68,10 @@ describe("route gates ask for a capability, not a rank", () => {
   it("every capability a route asks for is a real one", () => {
     // A typo'd capability would silently refuse EVERYONE, which reads as a
     // broken feature rather than as a permission bug.
-    const known = new Set([
-      "conversations.read",
-      "conversations.send",
-      "conversations.note",
-      "billing.manage",
-      "settings.manage",
-      "team.manage",
-      "numbers.manage",
-      "history.read",
-      "contacts.bulk",
-      "workspace.own",
-    ]);
+    // DERIVED from the capability table, not listed here. The first version of
+    // this test hand-listed them and went stale the moment an axis was added —
+    // which is the failure mode this whole file exists to prevent.
+    const known = new Set<string>(CAPABILITIES);
     let seen = 0;
     for (const { name, src } of routeSources()) {
       for (const match of src.matchAll(/requireCapability\("([^"]+)"\)/g)) {

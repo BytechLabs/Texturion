@@ -38,7 +38,7 @@ import { Hono } from "hono";
 
 import { summarize } from "../messaging/delivery-by-country";
 import { loadAiSettings } from "../ai/settings";
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import { decideOverage } from "../billing/overage-projection";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -68,7 +68,7 @@ const HISTORY_MONTHS = 6;
 
 export const usageRoutes = new Hono<AppEnv>();
 
-usageRoutes.get("/usage", requireRole("member"), async (c) => {
+usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));
 

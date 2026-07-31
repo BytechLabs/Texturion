@@ -7,7 +7,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { requireCapability, requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -32,7 +32,7 @@ const patchSchema = z
 
 export const tagsRoutes = new Hono<AppEnv>();
 
-tagsRoutes.get("/tags", requireRole("member"), async (c) => {
+tagsRoutes.get("/tags", requireCapability("conversations.read"), async (c) => {
   const db = getDb(getEnv(c.env));
   const rows = unwrap<unknown[]>(
     await db
@@ -49,7 +49,7 @@ tagsRoutes.get("/tags", requireRole("member"), async (c) => {
   return c.json({ data: rows, next_cursor: null });
 });
 
-tagsRoutes.patch("/tags/:id", requireRole("member"), async (c) => {
+tagsRoutes.patch("/tags/:id", requireCapability("conversations.note"), async (c) => {
   const id = pathUuid(c, "id");
   const body = await parseJsonBody(c, patchSchema);
 

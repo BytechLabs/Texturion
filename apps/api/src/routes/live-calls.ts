@@ -19,7 +19,7 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import {
   assertNumberLevel,
   resolveNumberAccess,
@@ -172,7 +172,7 @@ const LIVE_CALL_WINDOW_MS = 4 * 60 * 60 * 1000;
  * session id. #106: a number hidden from the member never enumerates, even
  * for a call they answered before access changed.
  */
-liveCallsRoutes.get("/calls/live/mine", requireRole("member"), async (c) => {
+liveCallsRoutes.get("/calls/live/mine", requireCapability("conversations.read"), async (c) => {
   const db = getDb(getEnv(c.env));
   const companyId = c.get("companyId");
   interface MineRow {
@@ -237,7 +237,7 @@ liveCallsRoutes.get("/calls/live/mine", requireRole("member"), async (c) => {
  */
 liveCallsRoutes.post(
   "/calls/live/decline-mine",
-  requireRole("member"),
+  requireCapability("conversations.send"),
   async (c) => {
     const env = getEnv(c.env);
     const companyId = c.get("companyId");
@@ -303,7 +303,7 @@ liveCallsRoutes.post(
  */
 liveCallsRoutes.get(
   "/calls/live/by-leg/:legCcid",
-  requireRole("member"),
+  requireCapability("conversations.read"),
   async (c) => {
     const db = getDb(getEnv(c.env));
     const rows = unwrap<{ call_session_id: string }[]>(
@@ -327,7 +327,7 @@ liveCallsRoutes.get(
 /** What the call bar needs about a live call (notes link, transfer state). */
 liveCallsRoutes.get(
   "/calls/live/:sessionId",
-  requireRole("member"),
+  requireCapability("conversations.read"),
   async (c) => {
     const db = getDb(getEnv(c.env));
     const gate = await requireLiveCall(c, db, c.req.param("sessionId"));
@@ -349,7 +349,7 @@ liveCallsRoutes.get(
  */
 liveCallsRoutes.get(
   "/calls/live/:sessionId/state",
-  requireRole("member"),
+  requireCapability("conversations.read"),
   async (c) => {
     const env = getEnv(c.env);
     const db = getDb(env);
@@ -436,7 +436,7 @@ liveCallsRoutes.get(
  */
 liveCallsRoutes.get(
   "/calls/live/:sessionId/targets",
-  requireRole("member"),
+  requireCapability("conversations.read"),
   async (c) => {
     const db = getDb(getEnv(c.env));
     const gate = await requireLiveCall(c, db, c.req.param("sessionId"));
@@ -495,7 +495,7 @@ liveCallsRoutes.get(
 /** Blind transfer: the customer leg re-rings at the target's browser. */
 liveCallsRoutes.post(
   "/calls/live/:sessionId/transfer",
-  requireRole("member"),
+  requireCapability("conversations.send"),
   async (c) => {
     const env = getEnv(c.env);
     const db = getDb(env);
@@ -569,7 +569,7 @@ liveCallsRoutes.post(
  */
 liveCallsRoutes.post(
   "/calls/live/:sessionId/consult",
-  requireRole("member"),
+  requireCapability("conversations.send"),
   async (c) => {
     const env = getEnv(c.env);
     const db = getDb(env);
@@ -706,7 +706,7 @@ liveCallsRoutes.post(
  */
 liveCallsRoutes.post(
   "/calls/live/:sessionId/consult/complete",
-  requireRole("member"),
+  requireCapability("conversations.send"),
   async (c) => {
     const env = getEnv(c.env);
     const db = getDb(env);
@@ -831,7 +831,7 @@ liveCallsRoutes.post(
 /** Tear the consult down (both legs; the customer call is untouched). */
 liveCallsRoutes.post(
   "/calls/live/:sessionId/consult/cancel",
-  requireRole("member"),
+  requireCapability("conversations.send"),
   async (c) => {
     const env = getEnv(c.env);
     const db = getDb(env);
@@ -870,7 +870,7 @@ liveCallsRoutes.post(
  */
 liveCallsRoutes.post(
   "/calls/live/:sessionId/ring-me",
-  requireRole("member"),
+  requireCapability("conversations.send"),
   async (c) => {
     const env = getEnv(c.env);
     const db = getDb(env);
@@ -956,7 +956,7 @@ liveCallsRoutes.post(
  */
 liveCallsRoutes.post(
   "/calls/live/:sessionId/decline",
-  requireRole("member"),
+  requireCapability("conversations.send"),
   async (c) => {
     const env = getEnv(c.env);
     const db = getDb(env);

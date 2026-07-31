@@ -847,8 +847,8 @@ Roles: **O**=owner, **A**=admin, **M**=member. "O/A" = owner or admin. All conve
 | `POST /v1/contacts/:id/opt-out/revoke` | M | Revoke + event |
 | `GET /v1/tags` | M | List (create happens on attach) |
 | `DELETE /v1/tags/:id` | O/A | Delete tag (cascades from conversation_tags) |
-| `GET /v1/templates` · `POST /v1/templates` | M | Saved replies |
-| `PATCH /v1/templates/:id` · `DELETE /v1/templates/:id` | M | — |
+| `GET /v1/templates` | M | Saved replies — using one is every member's |
+| `POST /v1/templates` · `PATCH /v1/templates/:id` · `DELETE /v1/templates/:id` | O/A | #461: curating the shared set is admin's, like the away message |
 | `GET /v1/search?q=` | M | `{ conversations: [...], contacts: [...] }` (FTS + trgm, §6) |
 | `GET /v1/members` | M | Members + roles + profiles |
 | `PATCH /v1/members/:id` | O/A | `{ role: 'admin'\|'member' }` — owner role never assignable; owner row immutable. Ownership moves only through the #332 handover below |

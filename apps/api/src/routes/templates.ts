@@ -1,17 +1,24 @@
 /**
- * Saved-reply routes (SPEC §7, §10 matrix): templates are member-level for
- * every operation — any active member can create, edit, and delete.
+ * Saved-reply routes (SPEC §7, §10 matrix).
  *
- *   GET    /v1/templates      M
- *   POST   /v1/templates      M   { name, body }
- *   PATCH  /v1/templates/:id  M   { name?, body? }
- *   DELETE /v1/templates/:id  M
+ * #461 (founder: "Member can see/edit templates, should this be more
+ * granular??"): USING a saved reply stays every member's — that is the whole
+ * point of the composer's "/" picker, and it is what a crew does all day.
+ * CURATING the shared set became admin's, because a template is words the whole
+ * crew sends in the business's name: the same class of thing as the away
+ * message, the missed-call text-back and the voicemail greeting, all three of
+ * which were already admin. One member's edit changes what everyone sends.
+ *
+ *   GET    /v1/templates      conversations.read
+ *   POST   /v1/templates      settings.manage   { name, body }
+ *   PATCH  /v1/templates/:id  settings.manage   { name?, body? }
+ *   DELETE /v1/templates/:id  settings.manage
  */
 import { Hono } from "hono";
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -60,7 +67,7 @@ const NAME_CONFLICT = "A saved reply with this name already exists.";
 
 export const templatesRoutes = new Hono<AppEnv>();
 
-templatesRoutes.get("/templates", requireRole("member"), async (c) => {
+templatesRoutes.get("/templates", requireCapability("conversations.read"), async (c) => {
   const db = getDb(getEnv(c.env));
   const rows = unwrap<Record<string, unknown>[]>(
     await db
@@ -98,7 +105,7 @@ templatesRoutes.get("/templates", requireRole("member"), async (c) => {
   return c.json({ data, next_cursor: null });
 });
 
-templatesRoutes.post("/templates", requireRole("member"), async (c) => {
+templatesRoutes.post("/templates", requireCapability("settings.manage"), async (c) => {
   const body = await parseJsonBody(c, createSchema);
   const db = getDb(getEnv(c.env));
   const rows = unwrap<Record<string, unknown>[]>(
@@ -124,7 +131,7 @@ templatesRoutes.post("/templates", requireRole("member"), async (c) => {
   return c.json(rows[0], 201);
 });
 
-templatesRoutes.patch("/templates/:id", requireRole("member"), async (c) => {
+templatesRoutes.patch("/templates/:id", requireCapability("settings.manage"), async (c) => {
   const id = pathUuid(c, "id");
   const body = await parseJsonBody(c, patchSchema);
 
@@ -174,7 +181,7 @@ templatesRoutes.patch("/templates/:id", requireRole("member"), async (c) => {
   return c.json(rows[0]);
 });
 
-templatesRoutes.delete("/templates/:id", requireRole("member"), async (c) => {
+templatesRoutes.delete("/templates/:id", requireCapability("settings.manage"), async (c) => {
   const id = pathUuid(c, "id");
   const db = getDb(getEnv(c.env));
   // #419: SOFT. Templates were the one shared object in this codebase that

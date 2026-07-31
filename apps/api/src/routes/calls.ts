@@ -39,7 +39,7 @@ import {
 } from "../messaging/inbound-ring";
 import { z } from "zod";
 
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import { assertNumberLevel, resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -120,7 +120,7 @@ export interface CallRow {
 
 export const callsRoutes = new Hono<AppEnv>();
 
-callsRoutes.get("/calls", requireRole("member"), async (c) => {
+callsRoutes.get("/calls", requireCapability("conversations.read"), async (c) => {
   const query = parseWith(listQuerySchema, {
     outcome: c.req.query("outcome"),
     contact_id: c.req.query("contact_id"),
@@ -183,7 +183,7 @@ callsRoutes.get("/calls", requireRole("member"), async (c) => {
  * the same shape its conversations give, so the detail route cannot be used
  * to prove a call exists.
  */
-callsRoutes.get("/calls/:sessionId", requireRole("member"), async (c) => {
+callsRoutes.get("/calls/:sessionId", requireCapability("conversations.read"), async (c) => {
   const sessionId = c.req.param("sessionId");
   const db = getDb(getEnv(c.env));
 
@@ -241,7 +241,7 @@ callsRoutes.get("/calls/:sessionId", requireRole("member"), async (c) => {
  * readable by the caller (a hidden number's voicemail must not even
  * enumerate — same not_found shape as its conversations).
  */
-callsRoutes.get("/calls/:sessionId/voicemail", requireRole("member"), async (c) => {
+callsRoutes.get("/calls/:sessionId/voicemail", requireCapability("conversations.read"), async (c) => {
   const sessionId = c.req.param("sessionId");
   const env = getEnv(c.env);
   const db = getDb(env);
@@ -859,7 +859,7 @@ async function authorizeOutboundCall(
  * INVITE and auto-answers it. `client_state` is still returned for wire-shape
  * stability but is no longer used by the client.
  */
-callsRoutes.post("/calls/browser", requireRole("member"), async (c) => {
+callsRoutes.post("/calls/browser", requireCapability("conversations.send"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");

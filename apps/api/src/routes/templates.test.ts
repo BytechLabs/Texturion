@@ -47,7 +47,22 @@ function memberStub(): SupabaseStub {
   return sb;
 }
 
-describe("templates CRUD (member-level per §10)", () => {
+/**
+ * #461: curating the shared set is admin's now. Writes run as an admin; the
+ * LIST still runs as a plain member, because using a saved reply is what a
+ * crew does all day and that had to stay theirs.
+ */
+function adminStub(): SupabaseStub {
+  const sb = supabaseStub(env);
+  sb.on(
+    "POST",
+    "/rest/v1/rpc/api_authorize_request",
+    membershipResponder(MEMBER_ID, "admin"),
+  );
+  return sb;
+}
+
+describe("templates CRUD (#461: read is a member's, curating is admin's)", () => {
   it("lists, and names who last edited each one", async () => {
     const sb = memberStub();
     sb.on("GET", "/rest/v1/templates", () => [
@@ -81,8 +96,8 @@ describe("templates CRUD (member-level per §10)", () => {
     expect(listed.url.searchParams.get("deleted_at")).toBe("is.null");
   });
 
-  it("creates as a plain member with created_by = caller; 409s duplicate names", async () => {
-    const sb = memberStub();
+  it("creates with created_by = caller; 409s duplicate names", async () => {
+    const sb = adminStub();
     let first = true;
     sb.on("POST", "/rest/v1/templates", (call) => {
       if (first) {
@@ -115,7 +130,7 @@ describe("templates CRUD (member-level per §10)", () => {
   });
 
   it("422s invalid create bodies", async () => {
-    const sb = memberStub();
+    const sb = adminStub();
     stubFetch(jwksRoute(auth), sb.route);
     for (const body of [{}, { name: "x" }, { name: "", body: "hi" }]) {
       const res = await apiRequest(
@@ -130,7 +145,7 @@ describe("templates CRUD (member-level per §10)", () => {
   });
 
   it("patches, records the editor, and audits the change", async () => {
-    const sb = memberStub();
+    const sb = adminStub();
     // #419: the route reads the row BEFORE updating, because "what did it say
     // before" is the question asked after a price or a promise turns up in a
     // message nobody remembers writing.
@@ -171,7 +186,7 @@ describe("templates CRUD (member-level per §10)", () => {
   });
 
   it("deletes SOFTLY, so an accidental delete is recoverable", async () => {
-    const sb = memberStub();
+    const sb = adminStub();
     // The delete is an UPDATE now. Templates were the one shared object in
     // this codebase that simply ceased to exist, while tasks (D17) and
     // attachments (D19) both mark deleted_at.
@@ -213,7 +228,7 @@ describe("templates CRUD (member-level per §10)", () => {
   });
 
   it("404s an unknown id on both writes", async () => {
-    const sb2 = memberStub();
+    const sb2 = adminStub();
     sb2.on("GET", "/rest/v1/templates", () => []);
     sb2.on("PATCH", "/rest/v1/templates", () => []);
     stubFetch(jwksRoute(auth), sb2.route);
@@ -230,6 +245,37 @@ describe("templates CRUD (member-level per §10)", () => {
         },
       );
       expect(res.status, method).toBe(404);
+    }
+  });
+
+  it("#461: a member may USE saved replies but not curate them", async () => {
+    // The founder asked whether this should be more granular. It should: a
+    // template is words the whole crew sends in the business's name, which is
+    // the same class of thing as the away message and the voicemail greeting,
+    // both already admin. One member's edit changes what everyone sends.
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/templates", () => []);
+    sb.on("POST", "/rest/v1/templates", () => []);
+    sb.on("PATCH", "/rest/v1/templates", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    // Reading is theirs, and stays theirs — the "/" picker depends on it.
+    const list = await apiRequest(app, env, await auth.token(), "/v1/templates", {
+      companyId: COMPANY_ID,
+    });
+    expect(list.status).toBe(200);
+
+    for (const [method, path, body] of [
+      ["POST", "/v1/templates", { name: "N", body: "B" }],
+      ["PATCH", `/v1/templates/${TEMPLATE_ID}`, { name: "N" }],
+      ["DELETE", `/v1/templates/${TEMPLATE_ID}`, undefined],
+    ] as const) {
+      const res = await apiRequest(app, env, await auth.token(), path, {
+        method,
+        companyId: COMPANY_ID,
+        body,
+      });
+      expect(res.status, `${method} ${path}`).toBe(403);
     }
   });
 });

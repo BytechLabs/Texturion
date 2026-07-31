@@ -32,7 +32,7 @@ import { z } from "zod";
 import { recordAuditFromRequest } from "../audit/log";
 import { alarmOnBulkContactAccess } from "../audit/bulk-contact-alarm";
 import { resolveDestinationClock } from "../messaging/destination-clock";
-import { requireCapability, requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -204,7 +204,7 @@ export function contactSearchOr(rawQ: string): string {
   return terms.join(",");
 }
 
-contactsRoutes.get("/contacts", requireRole("member"), async (c) => {
+contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (c) => {
   const limit = parseLimit(c, 25, 100);
   const cursor = parseCursor(c);
   const rawQ = c.req.query("q")?.trim();
@@ -335,7 +335,7 @@ const EXPORT_HEADER = [
  * Registered before `/contacts/:id` so the literal path is never captured by
  * the param route.
  */
-contactsRoutes.get("/contacts/export", requireRole("member"), async (c) => {
+contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), async (c) => {
   const companyId = c.get("companyId");
   const rawQ = c.req.query("q")?.trim();
   const db = getDb(getEnv(c.env));
@@ -457,7 +457,7 @@ contactsRoutes.get("/contacts/export", requireRole("member"), async (c) => {
   });
 });
 
-contactsRoutes.post("/contacts", requireRole("member"), async (c) => {
+contactsRoutes.post("/contacts", requireCapability("conversations.note"), async (c) => {
   const body = await parseJsonBody(c, createSchema);
   const phone = normalizeNanpPhone(body.phone_e164);
   if (!phone) {
@@ -544,7 +544,7 @@ contactsRoutes.post("/contacts", requireRole("member"), async (c) => {
  * `URLComponents` does not escape and Hono decodes as a space, so every iOS
  * "Show earlier" came back 422. base64url exists to avoid exactly that.
  */
-contactsRoutes.get("/contacts/:id/timeline", requireRole("member"), async (c) => {
+contactsRoutes.get("/contacts/:id/timeline", requireCapability("conversations.read"), async (c) => {
   const id = pathUuid(c, "id");
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));
@@ -580,7 +580,7 @@ contactsRoutes.get("/contacts/:id/timeline", requireRole("member"), async (c) =>
   });
 });
 
-contactsRoutes.get("/contacts/:id", requireRole("member"), async (c) => {
+contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), async (c) => {
   const id = pathUuid(c, "id");
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));
@@ -632,7 +632,7 @@ contactsRoutes.get("/contacts/:id", requireRole("member"), async (c) => {
   });
 });
 
-contactsRoutes.patch("/contacts/:id", requireRole("member"), async (c) => {
+contactsRoutes.patch("/contacts/:id", requireCapability("conversations.note"), async (c) => {
   const id = pathUuid(c, "id");
   const body = await parseJsonBody(c, patchSchema);
   const companyId = c.get("companyId");
@@ -710,7 +710,7 @@ contactsRoutes.patch("/contacts/:id", requireRole("member"), async (c) => {
   });
 });
 
-contactsRoutes.delete("/contacts/:id", requireRole("member"), async (c) => {
+contactsRoutes.delete("/contacts/:id", requireCapability("conversations.note"), async (c) => {
   const id = pathUuid(c, "id");
   const db = getDb(getEnv(c.env));
   const rows = unwrap<{ id: string }[]>(
@@ -1268,7 +1268,7 @@ contactsRoutes.post(
 
 contactsRoutes.post(
   "/contacts/:id/opt-out",
-  requireRole("member"),
+  requireCapability("conversations.note"),
   async (c) => {
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");
@@ -1442,12 +1442,12 @@ async function revokeOptOut(c: Context<AppEnv>) {
 
 contactsRoutes.post(
   "/contacts/:id/opt-out/revoke",
-  requireRole("member"),
+  requireCapability("conversations.note"),
   revokeOptOut,
 );
 // Alias: DELETE of the opt-out resource — same revoke semantics.
 contactsRoutes.delete(
   "/contacts/:id/opt-out",
-  requireRole("member"),
+  requireCapability("conversations.note"),
   revokeOptOut,
 );

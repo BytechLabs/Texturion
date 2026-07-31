@@ -16,7 +16,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -42,7 +42,7 @@ interface SearchResult {
 
 export const searchRoutes = new Hono<AppEnv>();
 
-searchRoutes.get("/search", requireRole("member"), async (c) => {
+searchRoutes.get("/search", requireCapability("conversations.read"), async (c) => {
   const q = parseWith(qSchema, c.req.query("q"));
   const limit = parseLimit(c, 20, 50);
   const cursor = parseCursor(c);

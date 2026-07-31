@@ -28,7 +28,7 @@ import { z } from "zod";
 import { type CompanyAiSettings, loadAiSettings } from "../ai/settings";
 import { auditDiff } from "../audit/diff";
 import { recordAuditFromRequest } from "../audit/log";
-import { requireCapability, requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -322,7 +322,7 @@ companiesRoutes.post("/companies", async (c) => {
   return c.json(company, 201);
 });
 
-companiesRoutes.get("/company", requireRole("member"), async (c) => {
+companiesRoutes.get("/company", requireCapability("workspace.access"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const company = await loadCompanyView(db, c.get("companyId"), env, {
@@ -341,7 +341,7 @@ companiesRoutes.get("/company", requireRole("member"), async (c) => {
 // all-off when the company has never set it.
 companiesRoutes.get(
   "/company/ai-settings",
-  requireRole("member"),
+  requireCapability("workspace.access"),
   async (c) => {
     const db = getDb(getEnv(c.env));
     // Defaults ON when the company has never set them (founder #214 follow-up).

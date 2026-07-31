@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { LoadError, SettingsPage } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
+import { useActiveCompany } from "@/lib/company/provider";
 import {
   Dialog,
   DialogContent,
@@ -92,6 +93,13 @@ export default function TemplatesSettingsPage() {
   const [editing, setEditing] = useState<Template | null>(null);
   const [deleting, setDeleting] = useState<Template | null>(null);
 
+  const { role } = useActiveCompany();
+  // #461: curating the shared set is admin's — a template is words the whole
+  // crew sends in the business's name. Using them is untouched: the composer's
+  // "/" picker reads the same list and every member still has it. Without this
+  // a member deep-linking here would see buttons the API answers with 403.
+  const canCurate = role === "owner" || role === "admin";
+
   function openCreate() {
     setEditing(null);
     setDialogOpen(true);
@@ -108,12 +116,19 @@ export default function TemplatesSettingsPage() {
       description="Saved replies your team can send in one tap. Type / in the composer to insert one."
     >
       <div className="space-y-4">
-        <div className="flex justify-end">
-          <Button onClick={openCreate}>
-            <Plus strokeWidth={1.75} aria-hidden />
-            New template
-          </Button>
-        </div>
+        {canCurate ? (
+          <div className="flex justify-end">
+            <Button onClick={openCreate}>
+              <Plus strokeWidth={1.75} aria-hidden />
+              New template
+            </Button>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Anyone can send these — type / in the composer. Only an owner or
+            admin can add or change them.
+          </p>
+        )}
 
         {templates.isPending ? (
           <div className="space-y-2" aria-label="Loading templates">
@@ -129,9 +144,11 @@ export default function TemplatesSettingsPage() {
               No templates yet. Save a reply you type all the time, then insert
               it with / in the composer.
             </p>
-            <Button className="mt-4" onClick={openCreate}>
-              Create your first template
-            </Button>
+            {canCurate && (
+              <Button className="mt-4" onClick={openCreate}>
+                Create your first template
+              </Button>
+            )}
           </div>
         ) : (
           <div className="divide-y rounded-lg border bg-card">

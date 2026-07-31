@@ -49,9 +49,13 @@ import kotlinx.coroutines.launch
  * times a day meant finding a laptop. This is the web page's behaviour —
  * create, edit, delete — in the settings section grammar.
  *
- * There is deliberately NO role gate: apps/api/src/routes/templates.ts pins
- * `requireRole("member")` on all four routes, so every active teammate may
- * write them. An admin-only screen here would lie about who can save a reply.
+ * #461: CURATING the set is admin's now — a template is words the whole crew
+ * sends in the business's name, the same class of thing as the away message and
+ * the voicemail greeting, both already admin. USING them is untouched: the
+ * composer's "/" picker reads the same list and every member still has it.
+ * This section no longer appears in a member's settings index at all
+ * (SettingsAccess.Admin), and the API answers the three write routes with
+ * `settings.manage`.
  */
 
 /** Mirrors the API schema (routes/templates.ts): trimmed 1..120 / 1..2000. */

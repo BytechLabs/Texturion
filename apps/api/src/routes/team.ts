@@ -34,7 +34,7 @@ import { recordAuditFromRequest } from "../audit/log";
 import { billingRecipients } from "../billing/recipients";
 import { renderEmailHtml } from "../email/html";
 import { capture } from "../analytics/posthog";
-import { requireCapability, requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { emailLayout, escapeHtml } from "../email/html";
@@ -119,7 +119,7 @@ async function companyPlan(db: Db, companyId: string): Promise<string | null> {
 
 export const teamRoutes = new Hono<AppEnv>();
 
-teamRoutes.get("/members", requireRole("member"), async (c) => {
+teamRoutes.get("/members", requireCapability("workspace.access"), async (c) => {
   const db = getDb(getEnv(c.env));
   interface MemberRow {
     id: string;
@@ -274,7 +274,7 @@ const offboardSchema = z.object({
  * is #332's problem — a self-leave that stranded a workspace with no owner
  * would be worse than the gap it closed.
  */
-teamRoutes.delete("/members/me", requireRole("member"), async (c) => {
+teamRoutes.delete("/members/me", requireCapability("workspace.access"), async (c) => {
   const companyId = c.get("companyId");
   const userId = c.get("userId");
   const env = getEnv(c.env);

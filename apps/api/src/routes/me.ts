@@ -16,7 +16,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -53,7 +53,7 @@ export const meRoutes = new Hono<AppEnv>();
  * resolves membership before this runs and the answer is scoped to the
  * workspace the caller is actually in.
  */
-meRoutes.get("/me/firsts", requireRole("member"), async (c) => {
+meRoutes.get("/me/firsts", requireCapability("workspace.access"), async (c) => {
   const db = getDb(getEnv(c.env));
   const { data, error } = await db.rpc("api_member_firsts", {
     p_company_id: c.get("companyId"),

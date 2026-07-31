@@ -61,9 +61,17 @@ describe("the model reproduces today's rank exactly", () => {
     expect(roleHasCapability("member", "workspace.own")).toBe(false);
   });
 
-  it("a member can work the inbox and nothing else", () => {
+  it("a member gets the inbox and the baseline, and nothing of the business", () => {
+    // workspace.access is the boot baseline every role has (the company record
+    // the app loads on, your own notification prefs, leaving). The point of
+    // pinning the exact set is that widening a member happens on purpose.
     expect(capabilitiesOf("member").sort()).toEqual(
-      ["conversations.note", "conversations.read", "conversations.send"].sort(),
+      [
+        "conversations.note",
+        "conversations.read",
+        "conversations.send",
+        "workspace.access",
+      ].sort(),
     );
   });
 
