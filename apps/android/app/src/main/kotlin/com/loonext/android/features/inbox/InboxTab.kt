@@ -90,6 +90,8 @@ import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.StoreCache
+import com.loonext.android.core.snooze.isSnoozed
+import com.loonext.android.core.snooze.snoozeReturnLabel
 import com.loonext.android.core.model.ContactSummary
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.ConversationStatus
@@ -248,6 +250,14 @@ private class InboxController(
         private set
     var spamOnly by mutableStateOf(false)
         private set
+    /**
+     * #293: the Snoozed view. Same shape as [spamOnly] — a population hidden
+     * from the default list, revealed by one chip — because that pattern
+     * already exists here and a second invention of it is how two hidden
+     * populations end up behaving differently.
+     */
+    var snoozedOnly by mutableStateOf(false)
+        private set
 
     var state by mutableStateOf<LoadState<Unit>>(LoadState.Loading)
         private set
@@ -309,7 +319,7 @@ private class InboxController(
         get() {
             val assigneeId = if (tab == InboxStatusTab.Mine) null else assignee?.user_id
             val isDefault = tab == InboxStatusTab.Open && assigneeId == null &&
-                tag == null && !unreadOnly && !spamOnly
+                tag == null && !unreadOnly && !spamOnly && !snoozedOnly
             if (isDefault) return "default"
             return buildString {
                 append(tab.name.lowercase())
@@ -317,6 +327,7 @@ private class InboxController(
                 tag?.let { append("/t=").append(it.id) }
                 if (unreadOnly) append("/unread")
                 if (spamOnly) append("/spam")
+                if (snoozedOnly) append("/snoozed")
             }
         }
 
@@ -342,7 +353,8 @@ private class InboxController(
     }
 
     val hasFilterChips: Boolean
-        get() = assignee != null || tag != null || unreadOnly || spamOnly
+        get() = assignee != null || tag != null || unreadOnly || spamOnly ||
+            snoozedOnly
 
     fun selectTab(next: InboxStatusTab) {
         if (tab == next) return
@@ -370,6 +382,11 @@ private class InboxController(
         showPane()
     }
 
+    fun toggleSnoozed() {
+        snoozedOnly = !snoozedOnly
+        showPane()
+    }
+
     /** One reload for the sheet's Reset (not four chained ones). */
     fun resetFilters() {
         if (!hasFilterChips) return
@@ -377,6 +394,7 @@ private class InboxController(
         tag = null
         unreadOnly = false
         spamOnly = false
+        snoozedOnly = false
         showPane()
     }
 
@@ -417,6 +435,10 @@ private class InboxController(
             tagId = tag?.id,
             // Spam is hidden from defaults server-side; the chip reveals it.
             spam = if (spamOnly) true else null,
+            // #293: same for deferrals. Null leaves the field off entirely,
+            // which IS the server's hide-them default — sending "exclude"
+            // would say the same thing twice.
+            snoozed = if (snoozedOnly) "only" else null,
             unread = if (unreadOnly) true else null,
             pinned = pinned,
             cursor = cursor,
@@ -1494,12 +1516,28 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (row.tags.isNotEmpty() || row.is_spam || assigneeName != null) {
+            // #293: only in the Snoozed view does this row normally exist —
+            // but it also survives a mid-session return, and a row that came
+            // back with no explanation is what makes people stop trusting the
+            // list. The return time IS its reason for being here, so it leads.
+            val snoozeLabel = row.snoozed_until
+                ?.takeIf { isSnoozed(it) }
+                ?.let { snoozeReturnLabel(it) }
+            if (row.tags.isNotEmpty() || row.is_spam || assigneeName != null ||
+                snoozeLabel != null
+            ) {
                 Row(
                     Modifier.padding(top = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    if (snoozeLabel != null) {
+                        DsChip(
+                            snoozeLabel,
+                            container = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            content = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     row.tags.take(3).forEach { tag -> TagChip(tag) }
                     if (row.tags.size > 3) {
                         Text(
@@ -1732,6 +1770,15 @@ private fun FiltersSheet(
                 label = "Spam only",
                 checked = controller.spamOnly,
                 onToggle = { controller.toggleSpam() },
+            )
+            // #293: the way back to what you deferred. A snooze that hid a
+            // thread with no way to find it would be worse than the clutter it
+            // solved, and this sheet is where every other hidden population in
+            // the inbox already lives.
+            ToggleCard(
+                label = "Snoozed only",
+                checked = controller.snoozedOnly,
+                onToggle = { controller.toggleSnoozed() },
             )
 
             // Filters apply live; this just closes the sheet (ink pill + lime

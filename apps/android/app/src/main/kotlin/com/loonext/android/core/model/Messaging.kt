@@ -106,6 +106,15 @@ data class ConversationListItem(
     val tags: List<Tag> = emptyList(),
     val unread: Boolean = false,
     val last_message: ConversationSnippet? = null,
+    /**
+     * #293: when THIS member's deferral brings the thread back, and why they
+     * deferred it. Null for everyone else — the snooze is mine, the
+     * conversation is the crew's — and null once the return time has passed,
+     * because the server computes "currently deferred" rather than sweeping
+     * rows on a timer.
+     */
+    val snoozed_until: String? = null,
+    val snooze_note: String? = null,
 )
 
 @Serializable
@@ -201,6 +210,15 @@ data class ConversationDetail(
     val contact: ConversationDetailContact,
     val tags: List<Tag> = emptyList(),
     val messages: Page<Message>,
+    /**
+     * #293: when THIS member's deferral brings the thread back, and why they
+     * deferred it. Null for everyone else — the snooze is mine, the
+     * conversation is the crew's — and null once the return time has passed,
+     * because the server computes "currently deferred" rather than sweeping
+     * rows on a timer.
+     */
+    val snoozed_until: String? = null,
+    val snooze_note: String? = null,
     /** #106: 'note' = read + internal notes only (composer hides SMS mode). */
     val viewer_level: String = "text",
     /**

@@ -10,6 +10,7 @@ import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.MeRepository
 import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.Attachment
+import com.loonext.android.core.snooze.snoozeReturnLabel
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ConversationDetail
@@ -931,6 +932,41 @@ class ThreadController(
                 } else {
                     notify("Marked as not spam. It stays closed.")
                 }
+            } catch (cause: Exception) {
+                notify(cause.userMessage())
+            }
+        }
+    }
+
+    /**
+     * #293 — defer this thread out of MY inbox until [untilIso].
+     *
+     * Reversible in one tap and cancelled outright by a customer reply, so the
+     * snackbar confirms rather than offering an undo — and it says WHEN it
+     * comes back, because "Snoozed" alone leaves the crew guessing what they
+     * just agreed to.
+     */
+    fun snooze(untilIso: String) {
+        scope.launch {
+            try {
+                repo.snooze(companyId, conversationId, untilIso)
+                conversation = conversation?.copy(snoozed_until = untilIso)
+                persistSnapshot()
+                notify(snoozeReturnLabel(untilIso).replace("Back", "Snoozed — back"))
+            } catch (cause: Exception) {
+                notify(cause.userMessage())
+            }
+        }
+    }
+
+    /** #293 — bring it back now. Idempotent, so one tap is always safe. */
+    fun unsnooze() {
+        scope.launch {
+            try {
+                repo.unsnooze(companyId, conversationId)
+                conversation = conversation?.copy(snoozed_until = null, snooze_note = null)
+                persistSnapshot()
+                notify("Back in your inbox.")
             } catch (cause: Exception) {
                 notify(cause.userMessage())
             }

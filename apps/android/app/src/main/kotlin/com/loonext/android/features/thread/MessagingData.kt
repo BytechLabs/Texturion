@@ -95,6 +95,12 @@ class MessagingRepository(private val api: ApiClient) {
         spam: Boolean? = null,
         unread: Boolean? = null,
         pinned: String? = null,
+        /**
+         * #293: null is the server's default — the ordinary inbox hides what
+         * this member deferred. Only "only" (the Snoozed view) and "all"
+         * (opting out of the filter entirely) ever travel.
+         */
+        snoozed: String? = null,
         q: String? = null,
         cursor: String? = null,
         limit: Int = 25,
@@ -107,12 +113,42 @@ class MessagingRepository(private val api: ApiClient) {
             "is_spam" to spam?.toString(),
             "unread" to unread?.toString(),
             "pinned" to pinned,
+            "snoozed" to snoozed,
             "q" to q,
             "cursor" to cursor,
             "limit" to limit.toString(),
         ),
         companyId = companyId,
     )
+
+    /**
+     * #293 — defer a thread out of MY list until [untilIso].
+     *
+     * The instant is absolute and resolved on the DEVICE, because #292 says
+     * "tomorrow morning" is the user's morning and only the device knows what
+     * that is. A customer reply cancels it in the database, whatever the timer
+     * said, so nothing on this side has to remember that rule.
+     */
+    suspend fun snooze(
+        companyId: String,
+        conversationId: String,
+        untilIso: String,
+        note: String? = null,
+    ) {
+        api.post<JsonObject, JsonObject>(
+            "/v1/conversations/$conversationId/snooze",
+            buildJsonObject {
+                put("until", untilIso)
+                if (note != null) put("note", note)
+            },
+            companyId = companyId,
+        )
+    }
+
+    /** #293 — bring it back now. Idempotent, so one tap is always safe. */
+    suspend fun unsnooze(companyId: String, conversationId: String) {
+        api.delete("/v1/conversations/$conversationId/snooze", companyId = companyId)
+    }
 
     /**
      * This contact's conversations, found the way the web contact panel does

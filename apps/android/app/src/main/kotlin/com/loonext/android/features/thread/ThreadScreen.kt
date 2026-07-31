@@ -65,6 +65,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Sell
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -81,6 +82,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -116,6 +118,8 @@ import com.loonext.android.features.compose.NoteFileUploader
 import com.loonext.android.features.compose.ThreadComposer
 import com.loonext.android.features.compose.Nanp
 import com.loonext.android.features.compose.rememberComposerState
+import com.loonext.android.core.snooze.isSnoozed
+import com.loonext.android.core.snooze.snoozeReturnLabel
 import com.loonext.android.features.compose.selectComposerBanner
 import com.loonext.android.features.compose.usSendApproved
 import com.loonext.android.features.compose.usSuspended
@@ -533,6 +537,20 @@ private fun ThreadLoaded(
             },
         )
 
+        // #293: a deferred thread says so IN PLACE, with a one-tap way back.
+        // The alternative is opening a thread you snoozed, seeing nothing, and
+        // finding it gone from the inbox again an hour later — a state the app
+        // knew about and did not mention.
+        detail.snoozed_until?.takeIf { isSnoozed(it) }?.let { until ->
+            SnoozedBanner(
+                label = snoozeReturnLabel(until),
+                onBringBack = {
+                    haptics.tap()
+                    controller.unsnooze()
+                },
+            )
+        }
+
         if (controller.pinnedMessages.isNotEmpty()) {
             PinnedBanner(
                 pinned = controller.pinnedMessages,
@@ -761,6 +779,12 @@ private fun ThreadLoaded(
             }
         }
 
+        // COLLECTED, not read. `state.value` inside composition samples the
+        // flow once and never recomposes on a change, so a socket that dropped
+        // would leave the last viewers pinned to the thread forever — the exact
+        // stale-presence failure the `healthy` gate exists to prevent.
+        val realtimeState by graph.realtime.state.collectAsState()
+
         val viewers = viewersOf(
             entries = presenceEntries(
                 presenceByTopic["realtime:company:$companyId:number:$numberId:presence"]
@@ -771,7 +795,7 @@ private fun ThreadLoaded(
             now = presenceNow,
             // Presence we are no longer being told about is presence we must not
             // show. The realtime state IS the health signal.
-            healthy = graph.realtime.state.value is RealtimeState.Joined,
+            healthy = realtimeState is RealtimeState.Joined,
         )
         presenceLabel(viewers)?.let { line ->
             Row(
@@ -1406,6 +1430,47 @@ private fun AssigneePickerSheet(
 }
 
 /**
+ * #293 — "Back Thursday, 8:00 AM · Bring back". One line, the same shape as the
+ * pinned banner so a second in-thread status strip does not invent a second
+ * visual language, and the whole strip is the tap target: at this point there
+ * is exactly one thing a person wants from it.
+ */
+@Composable
+private fun SnoozedBanner(label: String, onBringBack: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 5.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .clickable(onClick = onBringBack)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Outlined.Schedule,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(14.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "Bring back",
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+            ),
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+/**
  * Collapsed "Pinned · N" disclosure; expanded rows jump to the message.
  * Rendered as the cream pinned-well from the token table (paper-raised in
  * dark, where cream has no counterpart).
@@ -1677,6 +1742,12 @@ private fun ConversationSheet(
                     }
                 }
             }
+
+            // #293: deferral gets its own card rather than a row in the
+            // actions list above, because it is a CHOICE (which "later") not a
+            // toggle, and folding four presets into that list would bury the
+            // actions that are one tap each.
+            SnoozeSection(detail = detail, controller = controller, onDismiss = onDismiss)
 
             // Timeline visibility.
             Surface(
