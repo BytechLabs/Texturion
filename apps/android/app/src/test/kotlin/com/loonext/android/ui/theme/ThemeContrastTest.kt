@@ -205,18 +205,19 @@ class ThemeContrastTest {
         // are iOS BrandColor.swift's values for the same roles; a divergence
         // means one phone got a correction and the other silently did not.
         //
-        // The olive is deliberately NOT the web's value, and the difference is
-        // worth stating rather than hiding. Web splits the accent in two —
-        // `--app-olive` #66801f carries decoration at the 3:1 bar and
-        // `--app-olive-strong` #3a430f carries text at 4.5:1. Both phones use a
-        // SINGLE `olive` for both jobs, so it has to satisfy the stricter one,
-        // and 0xFF586E1B is the value that does while staying closest to the
-        // design canvas. Giving the phones the same two-token split is the
-        // follow-up recorded in docs/THEMING.md; until then this is one token
-        // held to the higher bar, which is the safe direction to be wrong in.
-        assertEquals("olive must match iOS", Color(0xFF586E1B), BrandColor.Olive)
+        // #494 repainted the neutrals: `olive` is a historical NAME whose value
+        // is now a plain grey, because the owner's decision is that only lime
+        // carries a hue. It still does both jobs (decoration and text) off one
+        // token, so it is still held to the stricter 4.5:1 bar — 0xFF666666 is
+        // the grey of the same luminance as the 0xFF586E1B it replaces, which
+        // is why that bar did not move.
+        //
+        // The clay and amber below deliberately KEPT their hues. They mean
+        // "destructive" and "waiting", not "brand", and greying them would cost
+        // meaning to buy consistency.
+        assertEquals("olive must match iOS", Color(0xFF666666), BrandColor.Olive)
         assertEquals("destructive must match iOS", Color(0xFFA94129), BrandColor.Destructive)
         assertEquals("amber must match iOS overdueAmber", Color(0xFF8C6113), BrandColor.Amber)
-        assertEquals("dark secondary text must match iOS", Color(0xFF939683), BrandColor.DarkMuted500)
+        assertEquals("dark secondary text must match iOS", Color(0xFF979797), BrandColor.DarkMuted500)
     }
 }

@@ -13,26 +13,26 @@ enum BrandColor {
     // MARK: Core surfaces
 
     /// Screen background.
-    static let canvas = adaptive(light: 0xF3F3EE, dark: 0x141610)
+    static let canvas = adaptive(light: 0xF3F3F3, dark: 0x151515)
 
     /// Card / raised surface ("paper").
-    static let paper = adaptive(light: 0xFDFDF9, dark: 0x1F2218)
+    static let paper = adaptive(light: 0xFDFDFD, dark: 0x212121)
 
     /// Primary text + dark buttons / the pill nav.
-    static let ink = adaptive(light: 0x191B14, dark: 0xF0F1E5)
+    static let ink = adaptive(light: 0x1A1A1A, dark: 0xF0F0F0)
 
     /// Fixed ink (the pill nav stays dark in BOTH themes).
-    static let inkFixed = Color(hex: 0x191B14)
-    static let paperFixed = Color(hex: 0xFDFDF9)
+    static let inkFixed = Color(hex: 0x1A1A1A)
+    static let paperFixed = Color(hex: 0xFDFDFD)
 
     /// Inset wells / hairline dividers.
-    static let inset = adaptive(light: 0xF0F0E8, dark: 0x23261A)
+    static let inset = adaptive(light: 0xEFEFEF, dark: 0x252525)
 
     /// Deeper inset (segmented tracks, input fills).
-    static let insetDeep = adaptive(light: 0xE7E9DC, dark: 0x262A1D)
+    static let insetDeep = adaptive(light: 0xE8E8E8, dark: 0x282828)
 
     /// Highest raised tint (avatar bg, selected wells).
-    static let avatarTint = adaptive(light: 0xE4E6D7, dark: 0x2C2F22)
+    static let avatarTint = adaptive(light: 0xE5E5E5, dark: 0x2E2E2E)
 
     // MARK: Muted ladder (headings → hints)
     //
@@ -41,7 +41,7 @@ enum BrandColor {
     // The canvas specifies seven greys and the app used them as a hierarchy:
     // muted500 alone carries 77 `Text` views — error messages, empty states,
     // status lines like "No teammates can take this call right now." At its
-    // canvas value 0x8B8E7D that measured **3.01:1 on the canvas ground**,
+    // canvas value 0x8C8C8C that measured **3.01:1 on the canvas ground**,
     // well under AA, and muted400/muted300 (placeholders, "At least 8
     // characters.", relative timestamps, keypad letters) were worse.
     //
@@ -61,55 +61,55 @@ enum BrandColor {
     // cream) and are asserted in BrandColorContrastTests.
 
     /// Strong secondary text. 6.84:1 light / 8.35:1 dark.
-    static let muted900 = adaptive(light: 0x4A4D3C, dark: 0xC9CCBA)
+    static let muted900 = adaptive(light: 0x4B4B4B, dark: 0xCACACA)
     /// Secondary text. 5.17:1 light / 4.51:1 dark.
-    static let muted700 = adaptive(light: 0x5C5F4E, dark: 0x939683)
+    static let muted700 = adaptive(light: 0x5D5D5D, dark: 0x979797)
     /// The quiet rung — captions, timestamps, hints, placeholders. 4.56:1
     /// light / 4.51:1 dark. muted600/500/400/300 are one value: the ladder ran
     /// out of legible room, and pretending otherwise is what shipped the bug.
-    static let muted600 = adaptive(light: 0x64675A, dark: 0x939683)
-    static let muted500 = adaptive(light: 0x64675A, dark: 0x939683)
-    static let muted400 = adaptive(light: 0x64675A, dark: 0x939683)
-    static let muted300 = adaptive(light: 0x64675A, dark: 0x939683)
+    static let muted600 = adaptive(light: 0x656565, dark: 0x979797)
+    static let muted500 = adaptive(light: 0x656565, dark: 0x979797)
+    static let muted400 = adaptive(light: 0x656565, dark: 0x979797)
+    static let muted300 = adaptive(light: 0x656565, dark: 0x979797)
     /// NOT a text rung: chevrons, 1px dividers, stroke borders. Held to the
     /// non-text bar (WCAG 1.4.11) and exempt from the AA assertion by name.
-    static let muted250 = adaptive(light: 0xB4B7A6, dark: 0x4A4D3C)
+    static let muted250 = adaptive(light: 0xB5B5B5, dark: 0x4B4B4B)
 
     // MARK: The accent family (exactly one hue, rationed)
 
     /// Deep olive: counts, links, positive emphasis — it CARRIES TEXT, at ~90
-    /// `foregroundStyle` call sites. #320: the canvas value 0x66801F is 4.04:1
+    /// `foregroundStyle` call sites. #320: the canvas value 0x777777 is 4.04:1
     /// on the canvas ground and 4.41:1 on paper, i.e. under AA on the two
-    /// surfaces it is used on most. 0x586E1B is the same hue one step down:
+    /// surfaces it is used on most. 0x666666 is the same hue one step down:
     /// 5.15:1 worst case. Dark is unchanged (7.89:1 worst).
-    static let olive = adaptive(light: 0x586E1B, dark: 0xB9CF57)
+    static let olive = adaptive(light: 0x666666, dark: 0xA3E635)
 
     /// Lime highlight fill (Answer button, selected states).
-    static let lime = adaptive(light: 0xC9DE54, dark: 0xB9CF57)
+    static let lime = adaptive(light: 0x84CC16, dark: 0xA3E635)
 
     /// Ink on a lime fill (fixed — lime is light in both themes).
-    static let onLime = Color(hex: 0x191B14)
+    static let onLime = Color(hex: 0x1A1A1A)
 
     /// Task-map marker — theme-INDEPENDENT deep olive (#219). The map pin must
     /// stay legible on the raster tiles in BOTH themes: the adaptive `olive`
-    /// turns pale lime (`0xB9CF57`) in dark mode, which washes out against the
+    /// turns pale lime (`0xA3E635`) in dark mode, which washes out against the
     /// tiles and drops the contrast of the marker's white pin glyph. A fixed
     /// deep olive keeps the balloon AND its glyph readable regardless of scheme
     /// (mirrors Android pinning the marker to a high-contrast color).
-    static let mapPin = Color(hex: 0x66801F)
+    static let mapPin = Color(hex: 0x777777)
 
     /// Pale lime chip ("New lead").
-    static let limeChip = adaptive(light: 0xE3EFA3, dark: 0x39421A)
-    static let onLimeChip = adaptive(light: 0x3A430F, dark: 0xD6E77E)
+    static let limeChip = adaptive(light: 0xD8F5AC, dark: 0x3E3E3E)
+    static let onLimeChip = adaptive(light: 0x1A1A1A, dark: 0xBDEE6B)
 
     /// Selection wash.
-    static let limeWash = adaptive(light: 0xD6E77E, dark: 0x39421A)
+    static let limeWash = adaptive(light: 0xBDEE6B, dark: 0x3E3E3E)
 
     /// Coral attention dot — unread/alerts, NEVER an error color.
     static let coral = adaptive(light: 0xD96C47, dark: 0xE0764B)
 
     /// Warm cream well (pinned / internal notes).
-    static let cream = adaptive(light: 0xEFE3CE, dark: 0x2C2F22)
+    static let cream = adaptive(light: 0xEFE3CE, dark: 0x2E2E2E)
 
     // MARK: Status
 

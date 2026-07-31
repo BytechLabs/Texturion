@@ -161,24 +161,68 @@ to read is not a hierarchy level — it is text nobody can read.
 
 ## Cross-platform parity
 
-The three clients share the Paper & Olive palette (#362) but not its structure,
-and the differences are deliberate. They are written down here so a future
-correction is applied to all three rather than one.
+The three clients share one palette but not its structure, and the differences
+are deliberate. They are written down here so a future correction is applied to
+all three rather than one.
+
+### #494 — neutrals, and lime as the only hue
+
+**Status: BINDING. Supersedes Paper & Olive (#362).** The owner's decision:
+
+> Majority of the colors throughout the website and apps should be neutrals,
+> blacks, white, grey etc. Only use lime as the brand/accent color.
+
+Paper & Olive put ONE hue on every surface — grounds, hairlines, body text,
+hover fills, chips and the accent were all the same yellow-green family. A hue
+applied to everything stops being an accent and becomes a cast, which is why a
+palette containing lime read as "yellow", and why the actual lime had nothing to
+stand out against.
+
+**How the values were derived, and why that matters for anyone changing them:**
+every neutral is the grey of the *same WCAG luminance* as the Paper & Olive
+value it replaces. That is what let a repaint across four surfaces land in two
+commits — the contrast suites pin ~30 pairs and every one held. If you move a
+neutral, move it along the lightness axis and re-run the suites; do not
+introduce a hue.
+
+The rounding is not free at the boundary: `DarkMuted500` came out at 4.48:1
+against the dark raised surface because green contributes most of a colour's
+luminance and the matched grey lost a hair of it. `ThemeContrastTest` caught it
+and the colour was raised to `#979797`. Raise the colour, never the bar.
+
+**Lime is at ~83°, not 69°.** The old `#c9de54` was a yellow-green, which is
+precisely what reads as yellow on a screen full of it. `#84cc16` light,
+`#a3e635` dark.
+
+**Lime is a FILL, never a label** (D100). It is bright enough that it can only
+carry a dark label and can never be one on paper. That split is what lets the
+accent be genuinely lime instead of a compromise dark enough to double as text:
+web's `--fr-olive` stays the ink that carries links and focus rings, and
+`--fr-brand` is the lime that carries the primary CTA and nothing else.
+
+**What deliberately kept its hue:** the semantic states. Coral means attention,
+green means handled, amber means waiting, clay means destructive. None of them
+is the brand, and greying them would cost meaning to buy consistency.
 
 | Role | Web | Android | iOS |
 |---|---|---|---|
-| Accent as **text** | `--app-olive-strong` `#3a430f` | `BrandColor.Olive` `#586E1B` | `BrandColor.olive` `#586E1B` |
-| Accent as **decoration** (3:1) | `--app-olive` `#66801f` | *(same token)* | *(same token)* |
-| Accent as **fill** | `--app-olive-accent` `#3a430f` + `--app-olive-foreground` | `secondary` + `onSecondary` | `lime` + `onLime` |
-| Secondary text, dark | `--app-muted` `#c9ccba` | `DarkMuted500` `#939683` | `muted700` `#939683` |
+| Accent as **text** | `--app-olive-strong` `#1a1a1a` | `BrandColor.Olive` `#666666` | `BrandColor.olive` `#666666` |
+| Accent as **decoration** (3:1) | `--app-olive` `#777777` | *(same token)* | *(same token)* |
+| Brand **fill** | `--fr-brand` `#84cc16` + `--fr-on-brand` | `Lime` + `OnLimeChip` | `lime` + `onLime` |
+| Secondary text, dark | `--app-muted` `#cacaca` | `DarkMuted500` `#979797` | `muted700` `#979797` |
 | Error container | `--destructive` pair | `DarkDestructiveContainer` `#39231C` | `destructiveContainer` `#39231C` |
 
+The token NAMES still say "olive" and "fr". They are historical; renaming them
+is a mechanical change across ~40 files and is deliberately not bundled with a
+value change, so that this repaint stayed reviewable as one thing.
+
 **The one real divergence:** web splits the accent into a decorative rung
-(`#66801f`, 3:1) and a textual rung (`#3a430f`, 4.5:1). Both phones use a single
-`olive` for both jobs, so it has to satisfy the stricter one — `#586E1B` is the
-value that does while staying closest to the design canvas. Giving the phones
-the same two-token split is a follow-up; until then they hold one token to the
-higher bar, which is the safe direction to be wrong in.
+(`#777777`, 3:1) and a textual rung (`#1a1a1a`, 4.5:1). Both phones use a single
+`olive` for both jobs, so it has to satisfy the stricter one — `#666666` is the
+grey of the same luminance as the `#586E1B` it replaces, which is why that bar
+did not move. Giving the phones the same two-token split is a follow-up; until
+then they hold one token to the higher bar, which is the safe direction to be
+wrong in.
 
 `ThemeContrastTest.kt` asserts the Android values equal iOS's, so the two phones
 cannot drift apart silently. The web/phone difference above is the one that is
