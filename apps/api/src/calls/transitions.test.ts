@@ -22,6 +22,7 @@ import {
   reduce,
   type SessionEvent,
   type SessionMachine,
+  UNAVAILABLE_NOTICE,
 } from "./transitions";
 
 // ---- builders --------------------------------------------------------------
@@ -45,6 +46,7 @@ function initCtx(overrides: Partial<InitiatedContext> = {}): InitiatedContext {
     lineBusy: false,
     screeningDivert: false,
     suspendedOrInactive: false,
+    noticeAllowed: false,
     overCap: false,
     dialTargets: [{ userId: "u1", sipUsername: "sip1" }],
     pushAudience: ["u1"],
@@ -122,6 +124,126 @@ describe("T1 — call.initiated branches", () => {
     const alarms = r.effects.filter((e) => e.kind === "arm-alarm") as Extract<Effect, { kind: "arm-alarm" }>[];
     expect(alarms.map((a) => a.alarm)).not.toContain("ring");
     expect(alarms.map((a) => a.alarm)).toContain("janitor");
+  });
+
+  // #490 — what the caller hears on a suspended line.
+  describe("#490 the unavailable notice", () => {
+    const suspended = (noticeAllowed: boolean) =>
+      reduce(
+        null,
+        { type: "initiated", context: initCtx({ suspendedOrInactive: true, noticeAllowed }) },
+        1_000,
+        keyGen(),
+      );
+
+    it("answers to speak, instead of ringing out, when it is affordable", () => {
+      const r = suspended(true);
+      expect(has(r.effects, "telnyx-answer-notice")).toBe(true);
+      expect(r.machine?.noticeSpoken).toBe(true);
+      // Still no dials: there is nobody to ring. The notice replaces the
+      // silence, not the ring.
+      expect(has(r.effects, "telnyx-dial")).toBe(false);
+    });
+
+    it("rings out exactly as before once the daily cap is spent", () => {
+      const r = suspended(false);
+      expect(has(r.effects, "telnyx-answer-notice")).toBe(false);
+      expect(r.machine?.noticeSpoken).toBe(false);
+      // The property that makes the cap safe to write: past it, this is the
+      // behaviour #490 replaced, so spending the ceiling degrades rather than
+      // breaks. The janitor still guarantees the ring cannot be immortal.
+      expect(r.machine?.unattended).toBe(true);
+      const alarms = r.effects.filter((e) => e.kind === "arm-alarm") as Extract<Effect, { kind: "arm-alarm" }>[];
+      expect(alarms.map((a) => a.alarm)).toContain("janitor");
+    });
+
+    it("records the call as unattended either way — that is the owner's number", () => {
+      // The count an owner is shown when deciding whether to reinstate. It is
+      // true of every call that reached a suspended line, including the ones
+      // past the cap that nobody spoke to.
+      for (const allowed of [true, false]) {
+        const mirrors = suspended(allowed).effects.filter(
+          (e) => e.kind === "mirror",
+        ) as Extract<Effect, { kind: "mirror" }>[];
+        expect(mirrors.some((m) => m.set.unattended === true), String(allowed)).toBe(true);
+      }
+    });
+
+    it("speaks the fixed notice, never the company's own greeting", () => {
+      // A suspended workspace cannot be trusted to have configured a greeting,
+      // and a greeting is the company's words — which could say anything,
+      // including why the line is down.
+      const r = reduce(
+        suspended(true).machine,
+        { type: "notice-answer-outcome", ok: true },
+        1_100,
+        keyGen(),
+      );
+      const speak = r.effects.find((e) => e.kind === "telnyx-speak") as
+        | Extract<Effect, { kind: "telnyx-speak" }>
+        | undefined;
+      expect(speak?.script).toBe("unavailable-notice");
+    });
+
+    it("never tells the caller WHY the line is down", () => {
+      // The caller is our customer's customer. A plumber's billing status is
+      // not theirs to learn, and the sentence has to be true of a suspended
+      // number, an unpaid subscription and a released number alike.
+      const notice = UNAVAILABLE_NOTICE.toLowerCase();
+      for (const leak of ["suspend", "bill", "pay", "unpaid", "account", "subscription", "overdue"]) {
+        expect(notice, `notice must not mention "${leak}"`).not.toContain(leak);
+      }
+    });
+
+    it("hangs up after speaking, rather than recording a voicemail nobody hears", () => {
+      const answered = reduce(
+        suspended(true).machine,
+        { type: "notice-answer-outcome", ok: true },
+        1_100,
+        keyGen(),
+      );
+      const r = reduce(answered.machine, { type: "speak-ended" }, 1_200, keyGen());
+      const hangups = r.effects.filter((e) => e.kind === "telnyx-hangup") as Extract<
+        Effect,
+        { kind: "telnyx-hangup" }
+      >[];
+      expect(hangups.length).toBeGreaterThan(0);
+      // NOT the voicemail path: there is no mailbox on a suspended line, so a
+      // recording would be a message that is never delivered and still billed.
+      expect(has(r.effects, "telnyx-record-start")).toBe(false);
+      expect(r.machine?.state).not.toBe("voicemail_recording");
+    });
+
+    it("falls back to ring-out when the answer itself fails", () => {
+      const r = reduce(
+        suspended(true).machine,
+        { type: "notice-answer-outcome", ok: false },
+        1_100,
+        keyGen(),
+      );
+      expect(has(r.effects, "telnyx-speak")).toBe(false);
+      // And it does NOT hang up: the caller's leg is in an unknown state, and
+      // hanging up a leg we failed to answer is how a live call gets cut off by
+      // a bookkeeping guess.
+      expect(has(r.effects, "telnyx-hangup")).toBe(false);
+      // The mirror is corrected, so the daily cap counts what happened rather
+      // than what was attempted.
+      expect(r.machine?.noticeSpoken).toBe(false);
+    });
+
+    it("leaves a healthy line completely alone", () => {
+      // The guard that matters most: nothing here may reach a paying customer's
+      // caller. `noticeAllowed` is only ever consulted on the suspended branch.
+      const r = reduce(
+        null,
+        { type: "initiated", context: initCtx({ noticeAllowed: true }) },
+        1_000,
+        keyGen(),
+      );
+      expect(has(r.effects, "telnyx-answer-notice")).toBe(false);
+      expect(r.machine?.noticeSpoken).toBe(false);
+      expect(has(r.effects, "telnyx-dial")).toBe(true);
+    });
   });
 
   // #325/D97: a billing state change never severs a call already in progress.

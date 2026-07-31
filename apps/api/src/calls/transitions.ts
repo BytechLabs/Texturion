@@ -30,6 +30,23 @@ export const RING_ME_DEBOUNCE_MS = 4_000;
 /** §13 cap-and-drop: engine fan-out + ring-me adds. */
 export const MAX_LEGS_PER_SESSION = 24;
 
+/**
+ * #490 — how many suspended-line notices one company may be spoken in a day.
+ *
+ * Answering costs a billable minute where ringing out costs nothing. At the
+ * measured 1.2¢/min voice rate a six-second answered call is about 0.12¢, so
+ * this ceiling is worth roughly 24¢ a day — on a workspace that by definition
+ * is not paying us anything.
+ *
+ * 200 rather than a number that binds: a real trade line does not take 200
+ * calls in a day, so this is not rationing a legitimate caller's experience.
+ * It exists so a loop, a spammer or a number somebody is hammering cannot turn
+ * a non-paying workspace into an unbounded bill. Per the cost-protection
+ * posture that is a cap BEFORE it is a prompt: past it, the caller hears
+ * exactly what they heard before #490 shipped.
+ */
+export const MAX_UNAVAILABLE_NOTICES_PER_DAY = 200;
+
 /** §13: derived, not flat — 3 × legs + 16 (= 88 at the current 24). Past it,
  *  commands drop EXCEPT the terminal-path exemption class (a session must
  *  always be able to end honestly). */
@@ -215,6 +232,10 @@ export interface SessionMachine {
   answeredAtIso: string | null;
   rejectedForCap: boolean;
   unattended: boolean;
+  /** #490: this session answered a suspended line to speak the unavailable
+   *  notice. Distinct from `unattended`, which is true for every call that
+   *  reached one — including the ones past the daily cap that rang out. */
+  noticeSpoken: boolean;
   wakeAttempted: boolean;
   /** §4 T7: userId of the answered owner whose leg died while an intent was
    *  live (the stand-down consumed the only observing event); null otherwise. */
@@ -249,6 +270,10 @@ export interface InitiatedContext {
   lineBusy: boolean;
   screeningDivert: boolean;
   suspendedOrInactive: boolean;
+  /** #490: this company is under its daily ceiling for spoken suspended-line
+   *  notices. False degrades to today's ring-out, which is why the cap is
+   *  cheap to write: the fallback is the behaviour it replaces. */
+  noticeAllowed: boolean;
   overCap: boolean;
   dialTargets: { userId: string; sipUsername: string }[];
   /** §5.4: #106-'text'-eligible members holding ANY push channel AND
@@ -316,6 +341,10 @@ export type SessionEvent =
       payload: Record<string, unknown> | null;
     }
   | { type: "speak-ended" }
+  /** #490: T1b's answer landed (or did not). Its own event, because the
+   *  voicemail answer's outcome starts a recording and this one speaks a
+   *  sentence and hangs up. */
+  | { type: "notice-answer-outcome"; ok: boolean }
   | { type: "recording-saved"; payload: Record<string, unknown> }
   | {
       type: "ring-me";
@@ -399,6 +428,7 @@ export const EVENT_TYPES: readonly SessionEvent["type"][] = [
   "member-leg-hangup",
   "inbound-hangup",
   "speak-ended",
+  "notice-answer-outcome",
   "recording-saved",
   "ring-me",
   "set-owner",
@@ -435,6 +465,12 @@ export type Effect =
         state?: CallState;
         answered_by_user_id?: string | null;
         answered_at?: string | null;
+        /** #490: this call reached a line that could not take it. The number
+         *  an owner is shown when deciding whether to reinstate. */
+        unattended?: boolean;
+        /** #490: we answered and spoke rather than ringing out. The billable
+         *  half, and what the per-company daily cap counts. */
+        notice_spoken?: boolean;
       };
       /** Terminal mirrors retry until they land (§2.2). */
       terminal: boolean;
@@ -461,10 +497,28 @@ export type Effect =
     }
   | { kind: "telnyx-answer-inbound"; ccid: string; answerIntent: AnswerIntent }
   | { kind: "telnyx-answer-vm"; ccid: string }
+  | {
+      /** #490: answer a call on a suspended line, to say so and hang up.
+       *  Separate from `telnyx-answer-vm` because there is no voicemail on a
+       *  suspended line and its outcome must not enter the recording path.
+       *  On the terminal-path exemption class (§13): this answer is how the
+       *  session ends honestly, so it must never drop at the command cap. */
+      kind: "telnyx-answer-notice";
+      ccid: string;
+    }
   | { kind: "telnyx-bridge"; memberCcid: string; customerCcid: string }
   | { kind: "telnyx-hangup"; ccid: string; terminal: boolean }
   | { kind: "telnyx-reject"; ccid: string; cause: "USER_BUSY" }
-  | { kind: "telnyx-speak"; ccid: string }
+  | {
+      kind: "telnyx-speak";
+      ccid: string;
+      /** #490: which line to read. `voicemail-greeting` is the company's own
+       *  configured greeting; `unavailable-notice` is the fixed sentence a
+       *  caller hears on a suspended line. Named rather than passed as text so
+       *  the copy lives in one place and a caller can never be read a string
+       *  assembled at a call site. */
+      script: "voicemail-greeting" | "unavailable-notice";
+    }
   | { kind: "telnyx-record-start"; ccid: string }
   | { kind: "telnyx-probe-member-leg"; ccid: string; userId: string }
   | { kind: "push-fanout"; userIds: string[] }
@@ -567,6 +621,25 @@ function vmEntry(machine: SessionMachine, effects: Effect[]): void {
   }
   effects.push({ kind: "push-call-end", reason: "voicemail" });
 }
+
+/**
+ * #490 — what a caller hears when the line they rang cannot take calls.
+ *
+ * It never says why. The caller is our customer's customer, and a plumber's
+ * billing status is not theirs to learn: "isn't taking calls right now" is true
+ * of a suspended number, an unpaid subscription and a released number alike,
+ * which is exactly why it is the sentence that can be said out loud.
+ *
+ * Short on purpose. Every second is a billable second on a workspace that is
+ * not paying, and the caller has one decision to make — try again, or try
+ * another way. Six seconds is enough to make it.
+ *
+ * A constant rather than a company setting: a suspended workspace cannot be
+ * trusted to have configured anything, and a greeting that failed to load would
+ * leave the caller with the silence this exists to remove.
+ */
+export const UNAVAILABLE_NOTICE =
+  "Sorry, this number isn't taking calls right now. Please try again later.";
 
 /** §4 T3's avenue ladder — total, in order; exhaustive by construction. */
 function runAvenueLadder(machine: SessionMachine, effects: Effect[]): void {
@@ -730,6 +803,21 @@ export function reduce(
 
     // ---- T11 --------------------------------------------------------------
     case "speak-ended": {
+      // #490: the suspended-line notice has been read. There is no voicemail on
+      // a suspended line — nobody would ever hear it — so the honest end is to
+      // hang up, and the terminal state is the same `ended_missed` the ring-out
+      // produced before. The caller heard a sentence rather than a minute of
+      // ringback; the owner's row still says a call was missed.
+      if (next.noticeSpoken) {
+        if (next.customerCcid) {
+          effects.push({
+            kind: "telnyx-hangup",
+            ccid: next.customerCcid,
+            terminal: true,
+          });
+        }
+        return { machine: next, effects };
+      }
       if (next.state !== "voicemail_greeting") return { machine: next, effects };
       next.state = "voicemail_recording";
       effects.push({ kind: "mirror", set: { state: "voicemail_recording" }, terminal: false });
@@ -870,12 +958,42 @@ export function reduce(
     case "answer-outcome":
       return reduceAnswerOutcome(next, event, effects, nowMs);
 
+    // ---- Internal: #490's T1b answer discrimination -----------------------
+    case "notice-answer-outcome": {
+      if (!next.noticeSpoken) return { machine: next, effects };
+      if (event.ok && next.customerCcid) {
+        effects.push({
+          kind: "telnyx-speak",
+          ccid: next.customerCcid,
+          script: "unavailable-notice",
+        });
+        return { machine: next, effects };
+      }
+      // The answer did not land. Fall back to what this call did before #490:
+      // ring out, and let the janitor alarm end it. Deliberately NOT terminal
+      // here — the caller's leg is in an unknown state, and hanging up a leg we
+      // failed to answer is how a live call gets cut off by a bookkeeping
+      // guess. `noticeSpoken` goes back to false so the mirror and the daily
+      // cap both record what actually happened.
+      next.noticeSpoken = false;
+      effects.push({
+        kind: "mirror",
+        set: { notice_spoken: false },
+        terminal: false,
+      });
+      return { machine: next, effects };
+    }
+
     // ---- Internal: T9's answer discrimination -----------------------------
     case "vm-answer-outcome": {
       if (next.state !== "voicemail_greeting") return { machine: next, effects };
       if (event.ok) {
         if (next.customerCcid) {
-          effects.push({ kind: "telnyx-speak", ccid: next.customerCcid });
+          effects.push({
+            kind: "telnyx-speak",
+            ccid: next.customerCcid,
+            script: "voicemail-greeting",
+          });
         }
         cancelAllLiveLegs(next, effects, true);
         return { machine: next, effects };
@@ -1034,6 +1152,7 @@ function reduceInitiated(
     answeredAtIso: null,
     rejectedForCap: false,
     unattended: false,
+    noticeSpoken: false,
     wakeAttempted: false,
     ownerLegDeadDuringIntent: null,
     adopted: false,
@@ -1056,10 +1175,33 @@ function reduceInitiated(
     return { machine: base, effects };
   }
 
-  // T1b: suspended number / inactive subscription → unattended ring-out.
+  // T1b: suspended number / inactive subscription.
+  //
+  // #490: the caller now hears one honest sentence instead of ringback until
+  // their own carrier gives up thirty to sixty seconds later. They are our
+  // customer's customer trying to give a tradesperson money; ringing out
+  // teaches them the business is unreliable, and six seconds teaches them to
+  // try again or another way. The copy never says WHY (see UNAVAILABLE_NOTICE).
+  //
+  // `unattended` is recorded either way — it is the count the OWNER is shown
+  // when deciding whether to reinstate, and it is true whether we spoke or not.
+  // Only the ANSWER is capped, because only the answer costs money.
+  //
+  // Past the cap this is exactly the old behaviour, which is what makes the cap
+  // safe: the fallback is the thing it replaces, so a company that spends its
+  // ceiling degrades rather than breaks.
   if (context.suspendedOrInactive) {
     base.unattended = true;
-    effects.push({ kind: "mirror", set: { state: "ringing" }, terminal: false });
+    const speak = context.noticeAllowed && Boolean(context.inboundCcid);
+    base.noticeSpoken = speak;
+    effects.push({
+      kind: "mirror",
+      set: { state: "ringing", unattended: true, notice_spoken: speak },
+      terminal: false,
+    });
+    if (speak) {
+      effects.push({ kind: "telnyx-answer-notice", ccid: context.inboundCcid });
+    }
     return { machine: base, effects };
   }
 
@@ -1174,6 +1316,7 @@ function reduceOutboundInitiated(
     answeredAtIso: null,
     rejectedForCap: false,
     unattended: false,
+    noticeSpoken: false,
     wakeAttempted: false,
     ownerLegDeadDuringIntent: null,
     adopted: false,

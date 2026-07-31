@@ -54,7 +54,12 @@ import type {
   OutboundInitiatedContext,
   SessionMachine,
 } from "./transitions";
-import { isTerminal, outcomeForState, RING_WINDOW_SECS } from "./transitions";
+import {
+  isTerminal,
+  MAX_UNAVAILABLE_NOTICES_PER_DAY,
+  outcomeForState,
+  RING_WINDOW_SECS,
+} from "./transitions";
 
 /** Result of a dial POST (§7.7 pending-key discipline). */
 export type DialResult =
@@ -149,6 +154,12 @@ export interface SessionRuntime {
       state?: CallState;
       answered_by_user_id?: string | null;
       answered_at?: string | null;
+      /** #490: this call reached a line that could not take it — the count an
+       *  owner is shown when deciding whether to reinstate. */
+      unattended?: boolean;
+      /** #490: we answered and spoke the notice rather than ringing out. The
+       *  billable half, and what the per-company daily cap counts. */
+      notice_spoken?: boolean;
     },
   ): Promise<void>;
   /** call_member_legs audit insert (§2.2 — no longer decides any race). */
@@ -529,6 +540,22 @@ export function createSessionRuntime(env: Env): SessionRuntime {
             overage_cap_multiplier: company.overage_cap_multiplier,
           });
 
+      // #490: may we answer this one to say the line is down?
+      //
+      // Counted off the `calls` rows we already write, so the cap needs no
+      // counter of its own and can never disagree with what actually happened.
+      // Asked only when the answer could matter — a healthy line never pays for
+      // this query, and this is the inbound hot path where a caller is
+      // listening to silence for every millisecond.
+      //
+      // Fails OPEN to the CHEAP side: if the count cannot be read we do not
+      // speak, because the failure we must never have is an unbounded spend on
+      // a workspace that is not paying. The caller then hears what they heard
+      // before #490, which is a degradation and not a break.
+      const noticeAllowed = suspendedOrInactive
+        ? await companyUnderNoticeCap(db, number.company_id)
+        : false;
+
       // v2 metadata stamp (screening verdict, attestation, dipped name, the
       // customer leg's ccid) onto the inbound calls row.
       const { error: metaError } = await db
@@ -570,6 +597,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         lineBusy,
         screeningDivert,
         suspendedOrInactive,
+        noticeAllowed,
         overCap,
         dialTargets,
         pushAudience,
@@ -1054,6 +1082,40 @@ export function createSessionRuntime(env: Env): SessionRuntime {
  * address while promising it gets written down, when we do not know that the
  * business ever agreed to that.
  */
+/**
+ * #490 — has this company been spoken fewer than the daily ceiling of
+ * suspended-line notices?
+ *
+ * Counts the `calls` rows already written for today rather than keeping a
+ * counter, so there is nothing to drift and nothing to reset. `head: true`
+ * asks PostgREST for the count alone — no rows cross the wire on a path where
+ * a caller is listening to silence.
+ *
+ * The day boundary is UTC and deliberately not the company's timezone: this is
+ * a spend ceiling, not a report, and a caller does not care which midnight it
+ * resets on.
+ *
+ * Fails CLOSED to the cheap side. A count we cannot read means we do not
+ * spend — the caller hears the ring-out they heard before #490, which is a
+ * degradation rather than a break, and the alternative is an unbounded bill on
+ * a workspace that is not paying.
+ */
+async function companyUnderNoticeCap(
+  db: ReturnType<typeof getDb>,
+  companyId: string,
+): Promise<boolean> {
+  const since = new Date();
+  since.setUTCHours(0, 0, 0, 0);
+  const { count, error } = await db
+    .from("calls")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", companyId)
+    .eq("notice_spoken", true)
+    .gte("started_at", since.toISOString());
+  if (error) return false;
+  return (count ?? 0) < MAX_UNAVAILABLE_NOTICES_PER_DAY;
+}
+
 async function loadIntakeEnabled(
   db: SupabaseClient,
   companyId: string,

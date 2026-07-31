@@ -225,6 +225,7 @@ function ctx(overrides: Partial<InitiatedContext> = {}): InitiatedContext {
     lineBusy: false,
     screeningDivert: false,
     suspendedOrInactive: false,
+    noticeAllowed: false,
     overCap: false,
     dialTargets: [{ userId: "u1", sipUsername: "s1" }],
     pushAudience: ["u1"],

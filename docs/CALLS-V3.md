@@ -1461,6 +1461,23 @@ proposed, or rejected; recorded here so the reasoning survives:
    before effects + the untagged-hangup T17 extension) keeps the state
    truthful AND total.
 
+**#490 UPDATE — this rejection stands, and the thing it rejected is still not
+what shipped.** The reasoning above turns on "no honesty gain (there is no
+voicemail product surface on a suspended line)", and that was right: a server
+hangup at 45 seconds would have replaced ringback with silence, which teaches
+the caller nothing. What shipped instead is a *sentence*. T1b now answers,
+speaks a fixed line that never says WHY the line is down, and hangs up — six
+seconds instead of the thirty to sixty their carrier allows.
+
+The no-immortal-ringing guarantee still belongs to the janitor alarm, exactly as
+this item insisted. Nothing was moved onto a 45-second timer.
+
+The answer is capped per company per day (`MAX_UNAVAILABLE_NOTICES_PER_DAY`),
+because it costs a billable minute on a workspace that by definition is not
+paying. Past the cap the caller hears precisely what this section describes as
+today's behaviour, which is what makes the cap safe: the fallback is the thing
+it replaces.
+
 ---
 
 ## 17. Gate-review addenda (BINDING on implementers)

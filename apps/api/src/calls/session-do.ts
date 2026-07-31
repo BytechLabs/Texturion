@@ -56,6 +56,7 @@ import {
   type RingMeReply,
   type SessionEvent,
   type SessionMachine,
+  UNAVAILABLE_NOTICE,
 } from "./transitions";
 
 /** The freshest machine view the /state route serves (read-your-writes). */
@@ -97,6 +98,10 @@ interface PendingMirror {
     state?: CallState;
     answered_by_user_id?: string | null;
     answered_at?: string | null;
+    /** #490: this call reached a line that could not take it. */
+    unattended?: boolean;
+    /** #490: we answered and spoke rather than ringing out. */
+    notice_spoken?: boolean;
   };
   attempts: number;
 }
@@ -647,6 +652,17 @@ export class CallSessionDO extends DurableObject<Env> {
           },
         ];
       }
+      // #490: answer a suspended line to say so. Terminal-path exemption
+      // class (§13) exactly like the voicemail answer — it is how the session
+      // ends honestly, so it must never be the command the cap drops.
+      case "telnyx-answer-notice": {
+        if (!machine || !effect.ccid) return [];
+        this.spendCommand(machine, true);
+        const clientState = this.rt.buildClientStates.vmi(machine.callerE164);
+        const outcome = await this.rt.telnyx.answerVm(effect.ccid, clientState);
+        await this.save(machine);
+        return [{ type: "notice-answer-outcome", ok: outcome === "ok" }];
+      }
       case "telnyx-answer-vm": {
         if (!machine || !effect.ccid) return [];
         // Terminal-path exemption class (§13): never dropped at the cap.
@@ -697,10 +713,17 @@ export class CallSessionDO extends DurableObject<Env> {
       }
       case "telnyx-speak": {
         if (!machine) return [];
-        this.spendCommand(machine, true); // voicemail speak is terminal-path
-        const greeting = this.rt.greetingText(machine);
+        this.spendCommand(machine, true); // both scripts are terminal-path
+        // #490: the script decides the words. The unavailable notice is a
+        // constant and NOT the company's greeting — a suspended workspace
+        // cannot be trusted to have configured one, and it must never disclose
+        // why the line is down.
+        const text =
+          effect.script === "unavailable-notice"
+            ? UNAVAILABLE_NOTICE
+            : this.rt.greetingText(machine);
         const clientState = this.rt.buildClientStates.vmi(machine.callerE164);
-        await this.rt.telnyx.speak(effect.ccid, greeting, clientState);
+        await this.rt.telnyx.speak(effect.ccid, text, clientState);
         await this.save(machine);
         return [];
       }
@@ -1192,6 +1215,10 @@ export class CallSessionDO extends DurableObject<Env> {
 
     const machine: SessionMachine = {
       state,
+      // #490: an adopted session is one already in flight, and the notice is
+      // spoken at initiation or not at all — so adoption can only ever inherit
+      // "no notice", never invent one.
+      noticeSpoken: false,
       callSessionId: row.callSessionId,
       companyId: row.companyId,
       phoneNumberId: row.phoneNumberId,
