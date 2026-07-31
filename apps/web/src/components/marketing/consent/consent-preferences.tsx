@@ -40,7 +40,7 @@ const CSS = `
   color: var(--fr-ink);
 }
 .frcp-btn:hover {
-  background-color: rgba(39, 64, 222, 0.08);
+  background-color: rgba(58, 67, 15, 0.08);
 }
 .frcp-btn:focus-visible {
   outline: 2px solid var(--fr-cobalt);

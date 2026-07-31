@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
  *
  * Transparent background only (the page's Signal White ground shows through and
  * is never repainted). Decorative: aria-hidden, no tab stops. Palette is
- * v4-locked: cobalt #2740DE in motion, green #0B7A50 at the resolve, no Flare.
+ * v4-locked: olive #3A430F in motion, green #0B7A50 at the resolve, no Flare.
  */
 
 /** The dock node: where the live field resolves, at the inbox card's left

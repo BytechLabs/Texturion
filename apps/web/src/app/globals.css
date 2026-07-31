@@ -997,12 +997,12 @@
   --paper: var(--fr-ink);
   --paper-2: #23261a;
   --paper-edge: #2c2f22;
-  --marker-40: rgba(168, 182, 255, 0.28);
+  --marker-40: rgba(214, 231, 126, 0.28);
   --ink-70: rgba(255, 255, 255, 0.78);
   --ink-55: rgba(255, 255, 255, 0.62);
   --hairline: var(--rule-dark);
-  --petrol-12: rgba(168, 182, 255, 0.14);
-  --petrol-24: rgba(168, 182, 255, 0.26);
+  --petrol-12: rgba(214, 231, 126, 0.14);
+  --petrol-24: rgba(214, 231, 126, 0.26);
   color: var(--ink);
 }
 

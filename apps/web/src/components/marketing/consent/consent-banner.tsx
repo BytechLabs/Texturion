@@ -66,7 +66,7 @@ const CSS = `
   color: var(--fr-ink);
 }
 .frcc-btn-no:hover {
-  background-color: rgba(39, 64, 222, 0.12);
+  background-color: rgba(58, 67, 15, 0.12);
 }
 .frcc-link {
   color: var(--fr-cobalt);

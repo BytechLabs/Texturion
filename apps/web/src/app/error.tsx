@@ -41,7 +41,7 @@ export async function reportBoundaryError(
 const ground = "#F3F3EE";
 const ink = "#191B14";
 const link = "#3A430F";
-const muted = "rgba(16, 23, 59, 0.64)";
+const muted = "rgba(25, 27, 20, 0.64)";
 
 const styles = {
   main: {

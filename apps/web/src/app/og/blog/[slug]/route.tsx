@@ -33,11 +33,11 @@ export function generateStaticParams() {
   return BLOG_POSTS.map((post) => ({ slug: post.slug }));
 }
 
-const GROUND = "#EDF2FB"; // Frost: the plate well, full-bleed.
-const INK = "#10173B";
-const INK_55 = "#5A6080";
-const COBALT = "#2740DE";
-const FLARE = "#FF4A1F";
+const GROUND = "#F0F0E8"; // Frost: the plate well, full-bleed.
+const INK = "#191B14";
+const INK_55 = "#5C5F4E";
+const COBALT = "#3A430F";
+const FLARE = "#D96C47";
 const GREEN = "#0B7A50";
 // Brand identity on light grounds (#206, brand/README.md): ink + olive.
 const BRAND_INK = "#191B14"; // first ring

@@ -14,7 +14,9 @@
  * Loaded only via next/dynamic({ ssr: false }) AFTER the boot gates pass
  * (arrival-layer.tsx), so this file plus p5 are a lazy chunk that never sits
  * in the critical request chain. Palette is the exact v4 tokens: Signal Cobalt
- * #2740DE (in motion) warming to Answered Green #0B7A50 only at the resolve.
+ * #3A430F (in motion) warming to Answered Green #0B7A50 only at the resolve.
+ * The resolve stays green on purpose (#362): it means HANDLED, and that is the
+ * one meaning deliberately not repainted with the brand.
  * No Flare: this piece is about resolution, not the waiting/tension beat.
  *
  * Delta-time integration throughout (framerate-independent), deltaTime clamped
@@ -30,7 +32,10 @@ import { ARRIVAL_DOCK_ATTR } from "./arrival-script";
 
 /* v4 tokens, exact. Cobalt in the open field warming to Green at the
  * confluence is the ENTIRE palette of this sketch (Flare dropped). */
-const COBALT: readonly [number, number, number] = [39, 64, 222]; // #2740DE
+// #362: the accent, as an rgb triple for p5. Named ACCENT rather than COBALT
+// because the name was the thing that kept the retired palette findable-but-
+// unfound: a hex sweep never sees [58, 67, 15].
+const ACCENT: readonly [number, number, number] = [58, 67, 15]; // #3A430F
 const GREEN: readonly [number, number, number] = [11, 122, 80]; // #0B7A50
 
 /* Field / motion constants (P5-SPEC "ALGORITHM" + "MOTION TUNING"). */
@@ -317,9 +322,9 @@ export default function ArrivalField({
           for (const q of particles) {
             const n = q.tx.length;
             if (n === 0) continue;
-            const cr = COBALT[0] + (GREEN[0] - COBALT[0]) * q.hue;
-            const cg = COBALT[1] + (GREEN[1] - COBALT[1]) * q.hue;
-            const cb = COBALT[2] + (GREEN[2] - COBALT[2]) * q.hue;
+            const cr = ACCENT[0] + (GREEN[0] - ACCENT[0]) * q.hue;
+            const cg = ACCENT[1] + (GREEN[1] - ACCENT[1]) * q.hue;
+            const cb = ACCENT[2] + (GREEN[2] - ACCENT[2]) * q.hue;
             const headAlpha = 64 + 30 * q.z + 60 * q.hue;
             const headWeight = (1.1 + 1.7 * q.z) * (1 + 0.4 * q.hue);
             for (let i = 0; i < n; i += 1) {

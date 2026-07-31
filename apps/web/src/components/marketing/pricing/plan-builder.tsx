@@ -100,7 +100,7 @@ function Switch({ on }: { on: boolean }) {
     >
       <span
         className={cn(
-          "absolute top-1/2 size-[1.125rem] -translate-y-1/2 rounded-full bg-white shadow-[0_1px_2px_rgba(16,23,59,0.2)] transition-[left] duration-200 ease-out",
+          "absolute top-1/2 size-[1.125rem] -translate-y-1/2 rounded-full bg-white shadow-[0_1px_2px_rgba(25,27,20,0.2)] transition-[left] duration-200 ease-out",
           on ? "left-[calc(100%-1.375rem)]" : "left-1",
         )}
       />

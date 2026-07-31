@@ -86,15 +86,30 @@ describe("globals.css — the --fr-* system (direction §2)", () => {
   // #3FD5C0 and porch-amber glows, two generations after they were retired.
   // A guard that checks one file is a guard that certifies one file.
   it("the v3 palette is dead everywhere, not just in globals.css", () => {
-    const dead = ["#041f1c", "#02110f", "#ffb454", "#9a4f26", "#c06a3b", "#3fd5c0"];
-    // The rgba spellings too: the OG image carried the same colours as comma
-    // triples, which no hex search would ever have found.
-    const deadRgb = ["63,213,192", "255,180,84"];
+    // v3, and v4 cobalt: #362 retired both, so neither may paint anywhere.
+    const dead = [
+      "#041f1c", "#02110f", "#ffb454", "#9a4f26", "#c06a3b", "#3fd5c0",
+      "#2740de", "#1f33b8", "#10173b", "#fbfcfe", "#edf2fb", "#ff4a1f",
+      "#5a6080", "#3f4563", "#a8b6ff", "#0f766e", "#2fb3a5",
+    ];
+    // THE COMMA-TRIPLE SPELLINGS, which is how this hid twice. The same colour
+    // written as rgb components is invisible to a hex search: the shared-link
+    // preview kept #3FD5C0 as `63,213,192`, and the homepage hero kept cobalt
+    // as `[39, 64, 222]` through a phase that reported the site converged.
+    // Both spacings, because one file wrote them with spaces and one without.
+    const deadRgb = [
+      "63,213,192", "63, 213, 192",
+      "255,180,84", "255, 180, 84",
+      "39,64,222", "39, 64, 222",
+      "168,182,255", "168, 182, 255",
+      "16,23,59", "16, 23, 59",
+    ];
     const offenders: string[] = [];
     for (const file of sourceFiles(join(process.cwd(), "src"))) {
-      // This file NAMES every dead hex in order to search for it, so it would
-      // otherwise flag itself forever.
-      if (file.endsWith("fr-tokens.test.ts")) continue;
+      // Tests NAME dead hexes in order to assert their absence — this file
+      // most of all. Flagging the files that police the palette is how a guard
+      // gets switched off.
+      if (/\.test\.tsx?$/.test(file)) continue;
       const body = readFileSync(file, "utf8").toLowerCase();
       // The comment in the OG image that RECORDS this history is allowed to
       // name them; a line that only mentions them is not a line that paints.
