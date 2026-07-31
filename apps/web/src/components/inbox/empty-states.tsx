@@ -20,11 +20,14 @@ import { formatPhone } from "@/lib/format/phone";
  * kind, one line, centered, generous air, no illustration, no emoji. The
  * reassurance IS the design.
  */
-export function FilteredEmptyState() {
+export function FilteredEmptyState({ snoozed }: { snoozed?: boolean } = {}) {
   return (
     <div className="flex flex-1 items-center justify-center p-10">
       <p className="text-[15px] text-muted-foreground">
-        Nothing waiting on you.
+        {/* #293: in the Snoozed view "Nothing waiting on you" is the wrong
+            sentence — an empty deferral list is the good outcome, not an idle
+            inbox, and naming the view is what tells you the filter is on. */}
+        {snoozed ? "Nothing snoozed." : "Nothing waiting on you."}
       </p>
     </div>
   );

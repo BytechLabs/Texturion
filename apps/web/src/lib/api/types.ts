@@ -496,7 +496,22 @@ export interface ConversationSnippet {
 }
 
 /** GET /v1/conversations row (api_list_conversations RPC). */
-export interface ConversationListItem extends Conversation {
+/**
+ * #293: when THIS member's deferral brings the thread back, and why they
+ * deferred it. Null for everyone else — the snooze is mine, the conversation is
+ * the crew's — and null once the return time has passed, because the server
+ * computes "currently deferred" rather than sweeping rows on a timer.
+ *
+ * Optional because the PATCH response and the realtime payloads carry the bare
+ * conversation row; readers treat a missing field as "not deferred", which is
+ * what every surface written before #293 already assumed.
+ */
+export interface SnoozeState {
+  snoozed_until?: string | null;
+  snooze_note?: string | null;
+}
+
+export interface ConversationListItem extends Conversation, SnoozeState {
   contact: ContactSummary;
   tags: Tag[];
   unread: boolean;
@@ -595,7 +610,7 @@ export interface DestinationClock {
 }
 
 /** GET /v1/conversations/:id — embeds the first page of messages. */
-export interface ConversationDetail extends Conversation {
+export interface ConversationDetail extends Conversation, SnoozeState {
   contact: ConversationDetailContact;
   tags: Tag[];
   messages: Page<Message>;

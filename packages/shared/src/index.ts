@@ -279,3 +279,24 @@ export {
   RESUBMISSION_WAIT,
 } from "./rejection-guidance";
 export type { RejectionDomain, RejectionGuidance } from "./rejection-guidance";
+
+// #293 — when "later" is. One ladder of presets, resolved in the device's own
+// clock (#292), so a snooze set on a phone means the same instant as the same
+// tap on a laptop.
+export {
+  daysUntilNextMonday,
+  isSnoozeTargetValid,
+  SNOOZE_AFTERNOON_HOUR,
+  SNOOZE_EVENING_HOUR,
+  SNOOZE_MAX_DAYS,
+  SNOOZE_MIN_LEAD_MS,
+  SNOOZE_MORNING_HOUR,
+  SNOOZE_PRESET_LABELS,
+  snoozePresets,
+  snoozeReturnShape,
+} from "./snooze";
+export type {
+  SnoozePreset,
+  SnoozePresetId,
+  SnoozeReturnShape,
+} from "./snooze";

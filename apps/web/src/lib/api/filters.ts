@@ -8,6 +8,12 @@ export interface ConversationFilters {
   is_spam?: boolean;
   unread?: boolean;
   q?: string;
+  /**
+   * #293 deferral. Absent is the product default — the ordinary inbox does not
+   * show what you deferred — so this only ever carries an explicit "show me
+   * what I deferred" ('only') or "show everything" ('all').
+   */
+  snoozed?: "only" | "all";
 }
 
 /**
@@ -28,7 +34,24 @@ export function normalizeFilters(
   if (filters.q !== undefined && filters.q.trim() !== "") {
     out.q = filters.q.trim();
   }
+  if (filters.snoozed !== undefined) out.snoozed = filters.snoozed;
   return out;
+}
+
+/**
+ * #293: is this row currently deferred by the caller?
+ *
+ * Computed from the return time rather than from the row's presence, matching
+ * the server exactly: a snooze whose moment has passed is simply over, with no
+ * sweep to run late and no window where a returned thread stays hidden.
+ */
+export function isSnoozed(
+  item: Pick<ConversationListItem, "snoozed_until">,
+  now: number = Date.now(),
+): boolean {
+  if (!item.snoozed_until) return false;
+  const until = Date.parse(item.snoozed_until);
+  return !Number.isNaN(until) && until > now;
 }
 
 /**
@@ -47,6 +70,13 @@ export function conversationMatchesFilters(
   // Spam never shows outside the spam view (SPEC §6 threading step 3).
   const wantSpam = filters.is_spam === true;
   if (item.is_spam !== wantSpam) return false;
+  // #293: the same rule the server applies, so a thread deferred in one tab
+  // leaves the cached list instead of sitting there until it goes stale — and
+  // so an un-snooze puts it back without a refetch.
+  if (filters.snoozed !== "all") {
+    const deferred = isSnoozed(item);
+    if (deferred !== (filters.snoozed === "only")) return false;
+  }
   if (filters.status !== undefined && item.status !== filters.status) {
     return false;
   }

@@ -49,6 +49,10 @@ function memberStub(): SupabaseStub {
   );
   // #106: no access rules → every member unrestricted (today's default).
   sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
+  // #293: the detail route reads the caller's own deferral. "Not deferred" is
+  // the state every test in this file was written against; the snooze suite
+  // asserts on the write path, which is where the interesting behaviour is.
+  sb.on("GET", "/rest/v1/conversation_snoozes", () => []);
   return sb;
 }
 
@@ -1610,6 +1614,46 @@ describe("#293 snooze routes", () => {
     );
     expect(tooLong.status).toBe(422);
     expect(writes).toHaveLength(0);
+  });
+
+  it("rides the thread payload, so a deep-linked thread knows it is deferred", async () => {
+    // Without this the only place the state exists is the list row, and a
+    // thread opened from search or a notification would offer no way back —
+    // it would just re-hide itself the next time the inbox loaded.
+    const sb = supabaseStub(env);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
+    sb.on("GET", "/rest/v1/conversation_snoozes", () => [
+      { until: "2026-08-06T15:00:00+00:00", note: "waiting on the supplier" },
+    ]);
+    sb.on("GET", "/rest/v1/conversations", () => [
+      { ...conversationRow(), contacts: { id: "d", name: "Jo" }, conversation_tags: [] },
+    ]);
+    sb.on("GET", "/rest/v1/messages", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      snoozed_until: "2026-08-06T15:00:00+00:00",
+      snooze_note: "waiting on the supplier",
+    });
+
+    // Read as the CALLER's deferral, not the thread's — a colleague's snooze
+    // must not show up here.
+    const read = sb.find("GET", "/rest/v1/conversation_snoozes")[0];
+    expect(read.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
+    expect(read.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
 
   it("brings it back in one tap, idempotently", async () => {

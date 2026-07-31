@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import { skipToken, useQuery } from "@tanstack/react-query";
-import { Lock, Paperclip, Pin, TriangleAlert } from "lucide-react";
+import { AlarmClock, Lock, Paperclip, Pin, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 
 import { mmsMediaKind, type MmsMediaKind } from "@loonext/shared";
@@ -20,6 +20,9 @@ import { useCompanyId } from "@/lib/company/provider";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
+
+import { isSnoozed } from "@/lib/api/filters";
+import { snoozeReturnLabel } from "../thread/snooze-menu";
 
 import { avatarColorClass, avatarInitials } from "../shell/avatar-color";
 import { useMemberNames } from "./member-avatar";
@@ -156,6 +159,12 @@ export const ConversationRow = memo(function ConversationRow({
 
   const name = contactDisplayName(conversation.contact);
   const tags = conversation.tags.slice(0, 2);
+  // #293: only in the Snoozed view does this row exist at all — but it also
+  // survives a mid-session return, and a row that came back with no explanation
+  // is the thing that makes people stop trusting the list.
+  const snoozedUntil = isSnoozed(conversation)
+    ? (conversation.snoozed_until ?? null)
+    : null;
 
   const previewText = snippet
     ? `${snippet.direction === "outbound" ? "You: " : ""}${snippetText(snippet)}`
@@ -183,7 +192,9 @@ export const ConversationRow = memo(function ConversationRow({
         pinned ? ", pinned" : ""
       }${snippet?.direction === "note" ? ", internal note" : ""}${
         assigneeName ? `, assigned to ${assigneeName}` : ""
-      }${spamView ? ", spam" : ""}${attachmentNote}${previewText ? `. ${previewText}` : ""}`}
+      }${spamView ? ", spam" : ""}${
+        snoozedUntil ? `, snoozed, ${snoozeReturnLabel(snoozedUntil)}` : ""
+      }${attachmentNote}${previewText ? `. ${previewText}` : ""}`}
       style={{ height: ROW_HEIGHT }}
       className={cn(
         "relative flex items-start gap-[11px] rounded-app-card border p-[11px] transition-[background,box-shadow,border-color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
@@ -272,8 +283,17 @@ export const ConversationRow = memo(function ConversationRow({
           </span>
         </span>
 
-        {(tags.length > 0 || spamView || assigneeName) && (
+        {(tags.length > 0 || spamView || assigneeName || snoozedUntil) && (
           <span className="mt-[7px] flex flex-wrap items-center gap-[5px]">
+            {/* The return time IS the row's reason for being in this view, so
+                it leads — "Snoozed" without a when is the vanishing act #293
+                calls worse than the problem. */}
+            {snoozedUntil && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-app-line bg-app-ground px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted">
+                <AlarmClock className="size-3" strokeWidth={1.75} aria-hidden />
+                {snoozeReturnLabel(snoozedUntil)}
+              </span>
+            )}
             {spamView && (
               <span className="inline-flex items-center rounded-full border border-app-line px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-clay">
                 Spam

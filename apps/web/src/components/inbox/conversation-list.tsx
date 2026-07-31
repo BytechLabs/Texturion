@@ -256,7 +256,11 @@ export function ConversationList({
   }
 
   if (rows.length === 0) {
-    return hasUrlFilters ? <FilteredEmptyState /> : <ActivationEmptyState />;
+    return hasUrlFilters ? (
+      <FilteredEmptyState snoozed={filters.snoozed === "only"} />
+    ) : (
+      <ActivationEmptyState />
+    );
   }
 
   return (

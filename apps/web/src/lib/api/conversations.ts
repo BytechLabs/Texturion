@@ -59,6 +59,10 @@ export function fetchConversationPage(
       is_spam: filters.is_spam,
       unread: filters.unread,
       q: filters.q,
+      // #293: omitted means the server's default — the ordinary inbox hides
+      // what this member deferred. Only "show me what I deferred" and "show
+      // everything" travel.
+      snoozed: filters.snoozed,
       cursor,
     },
   });
@@ -84,6 +88,10 @@ export function fetchPinnedConversations(
       is_spam: filters.is_spam,
       unread: filters.unread,
       q: filters.q,
+      // #293: a pin does not outrank a deferral. If I have deferred a pinned
+      // thread, it stays deferred — otherwise the one place it is guaranteed
+      // to appear is the top of the list I deferred it out of.
+      snoozed: filters.snoozed,
       pinned: "only",
       limit: "100",
     },
@@ -386,6 +394,103 @@ export function useMarkConversationUnread() {
     onError: () => {
       // Same reasoning as the read path: refetch rather than restore, so the
       // badges come back from the source of truth.
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.lists(companyId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.pinnedRoot(companyId),
+      });
+    },
+  });
+}
+
+/**
+ * #293 — deferral. "Needs attention, but on Thursday."
+ *
+ * Both mutations move the row rather than invalidating: a thread deferred from
+ * the inbox has to leave the list under the hand that deferred it, and the same
+ * row has to appear in the Snoozed view if that view is open in another tab of
+ * the same session. `listApplyConversation` re-runs each cached list's own
+ * filters against the patched row, so one patch does both.
+ */
+function applySnoozeToCaches(
+  queryClient: QueryClient,
+  companyId: string,
+  conversationId: string,
+  patch: Pick<ConversationListItem, "snoozed_until" | "snooze_note">,
+): void {
+  patchConversationLists(queryClient, companyId, (list, filters) => {
+    const existing = list.pages
+      .flatMap((page) => page.data)
+      .find((row) => row.id === conversationId);
+    if (!existing) return list;
+    return listApplyConversation(list, { ...existing, ...patch }, filters);
+  });
+  patchPinnedConversations(queryClient, companyId, (row) =>
+    row.id === conversationId ? { ...row, ...patch } : row,
+  );
+  // The thread header reads the same two fields, so it flips with the list.
+  queryClient.setQueryData<ConversationDetail>(
+    keys.conversations.detail(companyId, conversationId),
+    (detail) => (detail ? { ...detail, ...patch } : detail),
+  );
+}
+
+export interface SnoozeConversationInput {
+  conversationId: string;
+  /** The absolute instant it comes back, resolved in the user's own clock. */
+  until: string;
+  note?: string;
+}
+
+/** POST /v1/conversations/:id/snooze — defer it out of MY list until `until`. */
+export function useSnoozeConversation() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ conversationId, until, note }: SnoozeConversationInput) =>
+      apiFetch<{ until: string; note: string | null }>(
+        `/v1/conversations/${conversationId}/snooze`,
+        { method: "POST", companyId, body: { until, note } },
+      ),
+    onMutate: ({ conversationId, until, note }) => {
+      applySnoozeToCaches(queryClient, companyId, conversationId, {
+        snoozed_until: until,
+        snooze_note: note ?? null,
+      });
+    },
+    onError: () => {
+      // The row was optimistically removed from the inbox. If the write did not
+      // land, leaving it removed hides a live thread — the exact failure this
+      // feature must never cause — so reconcile from the server rather than
+      // trusting a snapshot.
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.lists(companyId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.pinnedRoot(companyId),
+      });
+    },
+  });
+}
+
+/** DELETE /v1/conversations/:id/snooze — bring it back now, in one tap. */
+export function useUnsnoozeConversation() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (conversationId: string) =>
+      apiFetch<void>(`/v1/conversations/${conversationId}/snooze`, {
+        method: "DELETE",
+        companyId,
+      }),
+    onMutate: (conversationId) => {
+      applySnoozeToCaches(queryClient, companyId, conversationId, {
+        snoozed_until: null,
+        snooze_note: null,
+      });
+    },
+    onError: () => {
       void queryClient.invalidateQueries({
         queryKey: keys.conversations.lists(companyId),
       });

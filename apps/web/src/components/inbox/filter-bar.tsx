@@ -254,6 +254,8 @@ function ChipRow({
         return "Unread";
       case "spam":
         return "Spam";
+      case "snoozed":
+        return "Snoozed";
     }
   };
 
@@ -423,6 +425,25 @@ function FilterPopover({
               >
                 <span>Spam</span>
                 {filters.spam && (
+                  <Check
+                    className="ml-auto size-4 text-primary"
+                    strokeWidth={1.75}
+                  />
+                )}
+              </CommandItem>
+              {/* #293: the way back to what you deferred. A snooze that hid a
+                  thread with no way to find it would be worse than the clutter
+                  it solved, and this popover is where every other hidden
+                  population in the inbox already lives. */}
+              <CommandItem
+                value="snoozed"
+                keywords={["snoozed", "snooze", "later", "deferred"]}
+                onSelect={() =>
+                  set("snoozed", filters.snoozed ? undefined : true)
+                }
+              >
+                <span>Snoozed</span>
+                {filters.snoozed && (
                   <Check
                     className="ml-auto size-4 text-primary"
                     strokeWidth={1.75}

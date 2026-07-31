@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlarmClock,
   ArrowLeft,
   Ban,
   ChevronDown,
@@ -47,6 +48,8 @@ import {
 import { useOptOutContact, useRevokeOptOut } from "@/lib/api/contacts";
 import {
   useMarkConversationUnread,
+  useSnoozeConversation,
+  useUnsnoozeConversation,
   useUpdateConversation,
 } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
@@ -61,6 +64,12 @@ import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { useIsBelowMd } from "@/lib/use-is-below-md";
 import { cn } from "@/lib/utils";
 
+import {
+  SnoozeDialog,
+  SnoozeMenuItems,
+  snoozeReturnLabel,
+  toastSnoozed,
+} from "./snooze-menu";
 import {
   THREAD_CATEGORIES,
   THREAD_CATEGORY_LABELS,
@@ -107,12 +116,18 @@ export function ThreadHeader({
 }) {
   const update = useUpdateConversation(conversation.id);
   const unread = useMarkConversationUnread();
+  const snooze = useSnoozeConversation();
+  const unsnooze = useUnsnoozeConversation();
   const optOut = useOptOutContact();
   const revokeOptOut = useRevokeOptOut();
   const members = useMembers();
   const memberNames = useMemberNames();
   const { userId } = useActiveCompany();
   const [confirmOptOut, setConfirmOptOut] = useState(false);
+  // #293: owned HERE, not inside the overflow menu — a Radix Dialog mounted
+  // inside DropdownMenuContent is unmounted the moment the menu closes, so the
+  // picker would flash and vanish.
+  const [snoozePickerOpen, setSnoozePickerOpen] = useState(false);
   // #76: the phone-only "Show" filter items are MOUNTED conditionally (not just
   // md:hidden) — a display:none menu item still lives in Radix's menu collection
   // and can silently capture typeahead ("m" → hidden "Messages" instead of "Mark
@@ -190,6 +205,27 @@ export function ThreadHeader({
     unread.mutate(conversation.id, {
       onError: (e) => onApiError(e, "Couldn't mark this unread."),
       onSuccess: () => toast.success("Marked unread"),
+    });
+  };
+
+  // #293: deferral. Reversible in one tap and cancelled outright by a customer
+  // reply, so a plain confirm rather than an undo affordance — and the confirm
+  // says WHEN it comes back, because "Snoozed" alone leaves the user guessing
+  // what they just agreed to.
+  const snoozedUntil = conversation.snoozed_until ?? null;
+  const snoozeUntil = (until: string) => {
+    snooze.mutate(
+      { conversationId: conversation.id, until },
+      {
+        onError: (e) => onApiError(e, "Couldn't snooze this conversation."),
+        onSuccess: () => toastSnoozed(until),
+      },
+    );
+  };
+  const bringBack = () => {
+    unsnooze.mutate(conversation.id, {
+      onError: (e) => onApiError(e, "Couldn't bring this back."),
+      onSuccess: () => toast.success("Back in your inbox"),
     });
   };
 
@@ -287,6 +323,10 @@ export function ThreadHeader({
             it here read as a glitch — the line becomes the "Add a name" door
             (the panel it opens holds the name field). */}
         <div className="hidden items-center gap-1 px-1 md:flex">
+          {/* #293: a deferred thread says so, in place, with a one-tap way
+              back. The alternative is opening a thread you snoozed, seeing
+              nothing, and finding it gone from the inbox again an hour later —
+              a state the product knows about and did not tell you. */}
           {conversation.contact.name === null ? (
             <button
               type="button"
@@ -310,6 +350,18 @@ export function ThreadHeader({
           </button>
         </div>
       </div>
+
+      {snoozedUntil && (
+        <button
+          type="button"
+          onClick={bringBack}
+          title="Bring this back to your inbox now"
+          className="tap-target mr-1 hidden shrink-0 items-center gap-1.5 rounded-full border border-app-line bg-app-ground px-2.5 py-1 text-[11.5px] font-semibold leading-none text-app-muted transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
+        >
+          <AlarmClock className="size-3.5" strokeWidth={1.75} aria-hidden />
+          {snoozeReturnLabel(snoozedUntil)}
+        </button>
+      )}
 
       <div className="flex shrink-0 items-center gap-1.5">
         {/* Call — D38: the outbound bridge (business number presented; your
@@ -459,6 +511,12 @@ export function ThreadHeader({
               <MailOpen className="size-4" strokeWidth={1.75} />
               Mark unread
             </DropdownMenuItem>
+            <SnoozeMenuItems
+              snoozedUntil={snoozedUntil}
+              onSnooze={snoozeUntil}
+              onUnsnooze={bringBack}
+              onPickCustom={() => setSnoozePickerOpen(true)}
+            />
             <DropdownMenuItem onSelect={togglePin}>
               {pinned ? (
                 <PinOff className="size-4" strokeWidth={1.75} />
@@ -511,6 +569,12 @@ export function ThreadHeader({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <SnoozeDialog
+        open={snoozePickerOpen}
+        onOpenChange={setSnoozePickerOpen}
+        onConfirm={snoozeUntil}
+      />
 
       <Dialog open={confirmOptOut} onOpenChange={setConfirmOptOut}>
         <DialogContent className="sm:max-w-sm">

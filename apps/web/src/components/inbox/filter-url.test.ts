@@ -115,6 +115,42 @@ describe("toConversationFilters", () => {
   });
 });
 
+describe("#293 snoozed chip", () => {
+  it("round-trips through the URL like every other hidden population", () => {
+    expect(
+      parseInboxSearchParams(new URLSearchParams("snoozed=true")),
+    ).toEqual({ snoozed: true });
+    expect(parseInboxSearchParams(new URLSearchParams("snoozed=1"))).toEqual({
+      snoozed: true,
+    });
+    expect(parseInboxSearchParams(new URLSearchParams("snoozed=false"))).toEqual(
+      {},
+    );
+    expect(serializeInboxFilters({ snoozed: true })).toBe("?snoozed=true");
+  });
+
+  it("asks for the deferred ones INSTEAD of the ordinary list", () => {
+    // Not a widening: "what did I defer" is a view. If this ever became
+    // `snoozed: "all"` the chip would silently stop being a view and start
+    // being a no-op that shows everything.
+    expect(toConversationFilters({ snoozed: true }, "me-id")).toEqual({
+      snoozed: "only",
+    });
+    // …and absent means absent, so the server's hide-them default applies.
+    expect(toConversationFilters({}, "me-id")).toEqual({});
+  });
+
+  it("is a removable chip and counts as an active filter", () => {
+    expect(activeChips({ snoozed: true })).toEqual([{ key: "snoozed" }]);
+    expect(clearSecondary({ snoozed: true, unread: true }, "snoozed")).toEqual({
+      unread: true,
+    });
+    // Otherwise the empty Snoozed view would render the brand-new-company
+    // activation screen instead of "Nothing snoozed."
+    expect(hasActiveFilters({ snoozed: true })).toBe(true);
+  });
+});
+
 describe("hasActiveFilters", () => {
   it("is false only for the bare All view", () => {
     expect(hasActiveFilters({})).toBe(false);

@@ -504,7 +504,11 @@ conversationsRoutes.get(
     // other — one parallel round-trip, not two serial. D17/T5.1: which messages
     // have a live task over them (the stone task indicator). TASKS-V2 D-D: the
     // linked task { id, title } for task-linked notes (the "on: <title>" chip).
-    const [promoted, taskLinks] = await Promise.all([
+    // #293: and whether THIS member has deferred it, so the header can offer
+    // "bring it back" rather than the thread quietly re-hiding itself the next
+    // time the list loads. Reading it here rather than from the list row means
+    // a thread opened from search or a deep link knows too.
+    const [promoted, taskLinks, snoozeRows] = await Promise.all([
       loadMessageTaskFlags(
         db,
         companyId,
@@ -517,7 +521,19 @@ conversationsRoutes.get(
           .map((message) => message.task_id)
           .filter((v): v is string => typeof v === "string"),
       ),
+      db
+        .from("conversation_snoozes")
+        .select("until,note")
+        .eq("company_id", companyId)
+        .eq("conversation_id", id)
+        .eq("user_id", c.get("userId"))
+        .gt("until", new Date().toISOString())
+        .limit(1),
     ]);
+    const snooze = unwrap<{ until: string; note: string | null }[]>(
+      snoozeRows,
+      "conversation snooze lookup",
+    )[0];
 
     const { contacts, conversation_tags, ...conversation } = row;
 
@@ -539,6 +555,9 @@ conversationsRoutes.get(
     return c.json({
       ...conversation,
       viewer_level: viewerLevel,
+      // #293: the caller's own deferral, same field names the list rows carry.
+      snoozed_until: snooze?.until ?? null,
+      snooze_note: snooze?.note ?? null,
       contact: contacts,
       // Null only for a conversation with no contact row, which the schema
       // does not allow — but a thread that fails to open because the clock
@@ -1394,6 +1413,7 @@ conversationsRoutes.delete(
       await db
         .from("conversation_snoozes")
         .delete()
+        .eq("company_id", companyId)
         .eq("conversation_id", id)
         .eq("user_id", c.get("userId")),
       "conversation snooze delete",

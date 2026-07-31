@@ -21,6 +21,13 @@ export interface InboxUrlFilters {
   unread?: boolean;
   /** Spam never shows in the default list — this chip reveals it (§2.2). */
   spam?: boolean;
+  /**
+   * #293: nor does a thread this member deferred. Same shape as `spam` — a
+   * population hidden from the default view, revealed by one removable chip —
+   * because that pattern already exists here and a second invention of it is
+   * how two hidden populations end up behaving differently.
+   */
+  snoozed?: boolean;
   q?: string;
 }
 
@@ -51,6 +58,7 @@ export function parseInboxSearchParams(
   const isTruthy = (v: string | null) => v === "true" || v === "1";
   if (isTruthy(params.get("unread"))) filters.unread = true;
   if (isTruthy(params.get("spam"))) filters.spam = true;
+  if (isTruthy(params.get("snoozed"))) filters.snoozed = true;
   const q = params.get("q");
   if (q !== null && q.trim() !== "") filters.q = q;
   return filters;
@@ -67,6 +75,7 @@ export function serializeInboxFilters(filters: InboxUrlFilters): string {
   if (filters.tag) params.set("tag", filters.tag);
   if (filters.unread) params.set("unread", "true");
   if (filters.spam) params.set("spam", "true");
+  if (filters.snoozed) params.set("snoozed", "true");
   if (filters.q !== undefined && filters.q.trim() !== "") {
     params.set("q", filters.q);
   }
@@ -154,6 +163,10 @@ export function toConversationFilters(
   if (filters.tag) out.tag_id = filters.tag;
   if (filters.unread) out.unread = true;
   if (filters.spam) out.is_spam = true;
+  // #293: the chip asks for the deferred ones INSTEAD of the ordinary list,
+  // not as well — "what did I defer" is a view, not a widening. Absent leaves
+  // the field off entirely, which is the server's hide-them default.
+  if (filters.snoozed) out.snoozed = "only";
   return out;
 }
 
@@ -165,6 +178,7 @@ export function hasActiveFilters(filters: InboxUrlFilters): boolean {
       filters.tag ||
       filters.unread ||
       filters.spam ||
+      filters.snoozed ||
       (filters.q !== undefined && filters.q.trim() !== ""),
   );
 }
@@ -197,7 +211,12 @@ export function formatOpenCount(count: number): string {
 // ---------------------------------------------------------------------------
 
 /** The URL params a secondary chip / the `+ Filter` popover can toggle. */
-export type SecondaryFilterKey = "assignee" | "tag" | "unread" | "spam";
+export type SecondaryFilterKey =
+  | "assignee"
+  | "tag"
+  | "unread"
+  | "spam"
+  | "snoozed";
 
 /**
  * The secondary filters that are currently active, in a stable render order,
@@ -223,6 +242,7 @@ export function activeChips(filters: InboxUrlFilters): ActiveChip[] {
   if (filters.tag) chips.push({ key: "tag", value: filters.tag });
   if (filters.unread) chips.push({ key: "unread" });
   if (filters.spam) chips.push({ key: "spam" });
+  if (filters.snoozed) chips.push({ key: "snoozed" });
   return chips;
 }
 
