@@ -1323,6 +1323,116 @@ describe("DELETE /v1/tasks/:id — soft-delete + role gate", () => {
 // --------------------------------------------------------------------------
 // #107: tasks stay GLOBAL, but the source conversation obeys #106 access.
 // --------------------------------------------------------------------------
+describe("POST /v1/tasks/bulk (#478)", () => {
+  function rpcStub(result: Record<string, unknown>): Stub {
+    return stubRoute(rpcMatch(env, "api_bulk_tasks"), () => result);
+  }
+
+  const ok = {
+    action: "mark_done",
+    matched: 2,
+    applied: [
+      { id: "11111111-1111-4111-8111-111111111111", previous: { done_at: null } },
+    ],
+    failed: [],
+    capped: false,
+  };
+
+  it("hands explicit ids straight to the RPC", async () => {
+    const rpc = rpcStub(ok);
+    stubFetch(jwksRoute(auth), membersRoute(), numberAccessRoute(), rpc.route);
+    const response = await request("POST", "/v1/tasks/bulk", {
+      action: "mark_done",
+      ids: ["11111111-1111-4111-8111-111111111111"],
+    });
+    expect(response.status).toBe(200);
+    expect(rpc.calls).toHaveLength(1);
+  });
+
+  it("resolves a filter with the LIST's query, not a second one", async () => {
+    // The whole design. "Mark everything matching this filter done" has to mean
+    // exactly what the list showed, and the only way to guarantee that is for
+    // both to run the same builder — so the filter mode reads `tasks` with the
+    // same predicates rather than passing them to SQL.
+    const list = stubRoute(restMatch(env, "GET", "tasks"), () => [
+      { id: "11111111-1111-4111-8111-111111111111" },
+    ]);
+    const rpc = rpcStub(ok);
+    stubFetch(jwksRoute(auth), membersRoute(), numberAccessRoute(), list.route, rpc.route);
+    const response = await request("POST", "/v1/tasks/bulk", {
+      action: "mark_done",
+      filter: { status: "open", overdue: true },
+    });
+    expect(response.status).toBe(200);
+    expect(list.calls).toHaveLength(1);
+    const url = list.calls[0].url;
+    // The status filter lands on the JOINED message's done_at (T2 — there is no
+    // task status column), and overdue adds the past-due bound.
+    expect(url.searchParams.get("messages.done_at")).toBe("is.null");
+    expect(url.searchParams.get("due_at")).toContain("lt.");
+  });
+
+  it("answers an empty filter match without calling the RPC", async () => {
+    // A selection that matched nothing is a legitimate outcome, not a malformed
+    // request — and the RPC requires a non-empty id list.
+    const list = stubRoute(restMatch(env, "GET", "tasks"), () => []);
+    const rpc = rpcStub(ok);
+    stubFetch(jwksRoute(auth), membersRoute(), numberAccessRoute(), list.route, rpc.route);
+    const response = await request("POST", "/v1/tasks/bulk", {
+      action: "mark_done",
+      filter: { status: "open" },
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ matched: 0, applied: [] });
+    expect(rpc.calls).toHaveLength(0);
+  });
+
+  it("refuses a request with neither ids nor filter", async () => {
+    // Neither means "every task in the company", which no UI should be able to
+    // ask for by omitting a field.
+    stubFetch(jwksRoute(auth), membersRoute());
+    const response = await request("POST", "/v1/tasks/bulk", { action: "mark_done" });
+    expect(response.status).toBe(422);
+  });
+
+  it("refuses an unassign-everything-matching-a-filter", async () => {
+    // `assign` with no target means UNASSIGN, which is legitimate — but not as
+    // something a UI can fire by leaving a field out.
+    stubFetch(jwksRoute(auth), membersRoute());
+    const response = await request("POST", "/v1/tasks/bulk", {
+      action: "assign",
+      filter: { status: "open" },
+    });
+    expect(response.status).toBe(422);
+  });
+
+  it("has no send action, and cannot be given one", async () => {
+    // The rule #275 established, inherited by every new bulk surface: the zod
+    // enum here is the second of two gates, the SQL enum is the first.
+    stubFetch(jwksRoute(auth), membersRoute());
+    for (const action of ["send", "reply", "message"]) {
+      const response = await request("POST", "/v1/tasks/bulk", {
+        action,
+        ids: ["11111111-1111-4111-8111-111111111111"],
+      });
+      expect(response.status, action).toBe(422);
+    }
+  });
+
+  it("passes the caller's hidden numbers to the RPC", async () => {
+    // #106: the access intersection happens in SQL, but the route has to hand
+    // over what the caller may not see — passing null would apply the action to
+    // tasks on denied numbers.
+    const rpc = rpcStub(ok);
+    stubFetch(jwksRoute(auth), membersRoute(), numberAccessRoute(), rpc.route);
+    await request("POST", "/v1/tasks/bulk", {
+      action: "mark_done",
+      ids: ["11111111-1111-4111-8111-111111111111"],
+    });
+    expect(rpc.calls[0].body).toHaveProperty("p_hidden_number_ids");
+  });
+});
+
 describe("#106/#107 number access on tasks", () => {
   const HIDDEN_NUM = "f0000000-0000-4000-8000-0000000000f1";
   const VIS_NUM = "f0000000-0000-4000-8000-0000000000f2";

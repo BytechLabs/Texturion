@@ -164,6 +164,72 @@ function parseDueCursor(rawCursor: string | undefined): DueCursor | null {
  *
  * `id` is a UUID (no reserved PostgREST chars) so it needs no escaping here.
  */
+/**
+ * #478: the task list's filters, in ONE place.
+ *
+ * They used to live inline in the GET handler, which was fine while the list
+ * was the only reader. The bulk route is the second: "mark everything matching
+ * this filter done" has to mean exactly what the list showed, and the only way
+ * to guarantee that is for both to run the same code rather than two
+ * implementations that agree today.
+ *
+ * The alternative considered and rejected was re-expressing these predicates in
+ * SQL inside the bulk RPC. That would have made "what the list shows" and "what
+ * the bulk action touches" two separate definitions, and they would have drifted
+ * the first time somebody added a filter to one — silently, and in the direction
+ * where a bulk action reaches rows the user never saw.
+ *
+ * Deliberately NOT including the ordering, the cursor or `q`. The first two are
+ * pagination, which a bulk selection has no use for; `q` stays at the call site
+ * because it needs its own length validation and throws rather than filtering.
+ */
+interface TaskFilters {
+  /** "messages.done_at" on the list path, "done_at" on the flat map view. */
+  doneAtCol: string;
+  effectiveStatus: string | undefined;
+  assignee: string | undefined;
+  unassigned: boolean;
+  conversationId: string | undefined;
+  dueBefore: string | undefined;
+  dueAfter: string | undefined;
+  overdue: boolean;
+}
+
+function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
+  // The PostgREST builder is fluent and untyped across these calls; the cast
+  // keeps the caller's concrete type without restating the builder's generics.
+  let q = query as never as {
+    is(col: string, value: null): typeof q;
+    not(col: string, op: string, value: null): typeof q;
+    eq(col: string, value: string): typeof q;
+    lte(col: string, value: string): typeof q;
+    gte(col: string, value: string): typeof q;
+    lt(col: string, value: string): typeof q;
+  };
+  const { doneAtCol } = filters;
+
+  if (filters.effectiveStatus === "open") {
+    q = q.is(doneAtCol, null);
+  } else if (filters.effectiveStatus === "done") {
+    q = q.not(doneAtCol, "is", null);
+  }
+  if (filters.assignee !== undefined) {
+    q = q.eq("assigned_user_id", filters.assignee);
+  } else if (filters.unassigned) {
+    q = q.is("assigned_user_id", null);
+  }
+  if (filters.conversationId !== undefined) {
+    q = q.eq("conversation_id", filters.conversationId);
+  }
+  if (filters.dueBefore !== undefined) q = q.lte("due_at", filters.dueBefore);
+  if (filters.dueAfter !== undefined) q = q.gte("due_at", filters.dueAfter);
+  if (filters.overdue) {
+    // Overdue = past due AND not yet done (a done task is never "overdue").
+    q = q.lt("due_at", new Date().toISOString()).is(doneAtCol, null);
+  }
+  return q as never as T;
+}
+
 function dueKeysetFilter(cursor: DueCursor): string {
   if (cursor.d === null) {
     return `and(due_at.is.null,id.gt.${cursor.id})`;
@@ -706,25 +772,16 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
         .eq("company_id", companyId)
         .is("deleted_at", null);
 
-  if (effectiveStatus === "open") {
-    query = query.is(doneAtCol, null);
-  } else if (effectiveStatus === "done") {
-    query = query.not(doneAtCol, "is", null);
-  }
-  if (assignee !== undefined) {
-    query = query.eq("assigned_user_id", assignee);
-  } else if (unassigned) {
-    query = query.is("assigned_user_id", null);
-  }
-  if (conversationId !== undefined) {
-    query = query.eq("conversation_id", conversationId);
-  }
-  if (dueBefore !== undefined) query = query.lte("due_at", dueBefore);
-  if (dueAfter !== undefined) query = query.gte("due_at", dueAfter);
-  if (overdue) {
-    // Overdue = past due AND not yet done (a done task is never "overdue").
-    query = query.lt("due_at", new Date().toISOString()).is(doneAtCol, null);
-  }
+  query = applyTaskFilters(query, {
+    doneAtCol,
+    effectiveStatus,
+    assignee,
+    unassigned,
+    conversationId,
+    dueBefore,
+    dueAfter,
+    overdue,
+  });
   if (hasLocation) {
     // #106/#107: the map exposes the source contact's NAME + geocode — that's
     // conversation content, not the globally-visible task title. Exclude tasks
@@ -856,6 +913,172 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
  * address is not waiting for anything, and folding it in would make an "N of M"
  * that never reaches its total, which looks permanently stuck.
  */
+/**
+ * POST /v1/tasks/bulk (#478) — one action, every task matching either a list of
+ * ids or the CURRENT FILTER.
+ *
+ * # Why this resolves ids here rather than passing filters to SQL
+ *
+ * `api_bulk_conversations` takes the list filters and re-expresses them in SQL.
+ * That works because the conversation list IS a SQL function. The task list is
+ * not: its filters are built in TypeScript against a view, so re-expressing them
+ * would create a second definition of "what the list shows" that has to agree
+ * with the first forever. It would not — the two would drift the first time
+ * somebody added a filter to one, silently, in the direction where a bulk action
+ * touches rows the user never saw.
+ *
+ * So the filter runs through `applyTaskFilters`, the same function the list
+ * uses, and the resolved ids go to the RPC. "Select all matching the filter" is
+ * then true by construction.
+ *
+ * # What the RPC owns, and why
+ *
+ * The access intersection, the cap, the per-row results and the prior values
+ * for undo — all identical across four actions, and a route that reimplemented
+ * any of them per action is how the fifth gets one wrong. Most of all: bulk
+ * completion writes N `messages.done_at` flips and N audit events in ONE
+ * transaction (D14/D22). A bulk done that half-records is worse than none.
+ *
+ * THERE IS NO BULK SEND, and the zod enum below is the second of two gates (the
+ * SQL enum is the first) — the rule #275 established, which any new bulk
+ * surface inherits.
+ *
+ * Member-level, like the conversations twin: ticking off your own task list in
+ * bulk is ordinary daily work. The per-number deny list limits reach, not a role.
+ */
+interface TaskBulkResult {
+  action?: string;
+  matched?: number;
+  applied?: { id: string; previous: Record<string, unknown> }[];
+  failed?: { id: string; reason: string }[];
+  capped?: boolean;
+  error?: string;
+}
+
+const taskBulkSchema = z
+  .object({
+    action: z.enum(["mark_done", "mark_undone", "assign", "delete"]),
+    /** Explicit selection. Omit to act on everything matching `filter`. */
+    ids: z.array(z.uuid()).min(1).max(1000).optional(),
+    /** Select-all-matching. Same field names as GET /v1/tasks. */
+    filter: z
+      .object({
+        status: z.enum(["open", "done"]).optional(),
+        assigned_user_id: z.uuid().optional(),
+        unassigned: z.boolean().optional(),
+        conversation_id: z.uuid().optional(),
+        due_before: z.string().optional(),
+        due_after: z.string().optional(),
+        overdue: z.boolean().optional(),
+      })
+      .optional(),
+    target_user_id: z.uuid().nullable().optional(),
+  })
+  .refine((body) => body.ids !== undefined || body.filter !== undefined, {
+    // Neither means "every task in the company", which no UI should be able to
+    // ask for by omitting a field.
+    message: "Provide ids or filter.",
+  })
+  .refine(
+    (body) =>
+      body.action !== "assign" ||
+      body.target_user_id !== undefined ||
+      body.ids !== undefined,
+    {
+      // An assign with no target means UNASSIGN, which is legitimate — but
+      // unassigning everything matching a filter is not something a UI should
+      // be able to fire by omitting a field. Say it with explicit ids.
+      message: "assign with no target requires explicit ids.",
+    },
+  );
+
+tasksRoutes.post(
+  "/tasks/bulk",
+  requireCapability("conversations.note"),
+  async (c) => {
+    const body = await parseJsonBody(c, taskBulkSchema);
+    const db = getDb(getEnv(c.env));
+    const companyId = c.get("companyId");
+    const userId = c.get("userId");
+
+    let ids = body.ids;
+    if (ids === undefined) {
+      // Filter mode. The SAME builder the list uses, so what gets acted on is
+      // what was on screen.
+      const filter = body.filter ?? {};
+      const query = applyTaskFilters(
+        db
+          .from("tasks")
+          .select("id,messages!message_id!inner(id,done_at)")
+          .eq("company_id", companyId)
+          .is("deleted_at", null),
+        {
+          doneAtCol: "messages.done_at",
+          effectiveStatus: filter.status,
+          assignee:
+            filter.assigned_user_id === undefined
+              ? undefined
+              : filter.assigned_user_id,
+          unassigned: filter.unassigned === true,
+          conversationId: filter.conversation_id,
+          dueBefore: filter.due_before,
+          dueAfter: filter.due_after,
+          overdue: filter.overdue === true,
+        },
+      );
+      // One more than the RPC's cap, so `capped` can be honest: the RPC reports
+      // it from `matched`, and a window that stopped exactly at the ceiling
+      // could not tell "exactly 500" from "more than 500".
+      const rows = unwrap<{ id: string }[]>(
+        await query.limit(1001),
+        "tasks bulk filter",
+      );
+      ids = rows.map((row) => row.id);
+      if (ids.length === 0) {
+        // Nothing matched. Answered here rather than by the RPC, which requires
+        // a non-empty id list — an empty selection is a legitimate outcome, not
+        // a malformed request.
+        return c.json({
+          action: body.action,
+          matched: 0,
+          applied: [],
+          failed: [],
+          capped: false,
+        });
+      }
+    }
+
+    const access = await resolveNumberAccess(db, {
+      companyId,
+      userId,
+      role: c.get("role"),
+    });
+
+    const result = unwrap<TaskBulkResult>(
+      await db.rpc("api_bulk_tasks", {
+        p_company_id: companyId,
+        p_user_id: userId,
+        p_action: body.action,
+        p_ids: ids,
+        p_target_user_id: body.target_user_id ?? null,
+        p_hidden_number_ids: access.hiddenNumberIds ?? null,
+      }),
+      "api_bulk_tasks",
+    );
+
+    if (result.error === "validation_failed") {
+      throw new ApiError("validation_failed", "That bulk request is not valid.");
+    }
+    if (result.error === "not_member") {
+      throw new ApiError(
+        "validation_failed",
+        "That person is not an active member of this workspace.",
+      );
+    }
+    return c.json(result);
+  },
+);
+
 tasksRoutes.get("/tasks/geocode-progress", requireCapability("conversations.read"), async (c) => {
   const db = getDb(getEnv(c.env));
   const progress = unwrap<Record<string, number>>(
