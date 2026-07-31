@@ -174,7 +174,7 @@ export function UseCaseSteps({
         {steps.map((step, i) => (
           <FrCard as="li" key={step.title} className="p-6">
             <span
-              className="fr-mono-data flex size-8 items-center justify-center rounded-full bg-[color:var(--fr-olive)] text-white"
+              className="fr-mono-data flex size-8 items-center justify-center rounded-full bg-[color:var(--fr-olive)] text-[color:var(--fr-on-olive)]"
               aria-hidden
             >
               {i + 1}

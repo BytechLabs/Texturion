@@ -98,7 +98,7 @@ export function MobileNav({ onNavigate }: { onNavigate: () => void }) {
           <Link
             href={LOGIN_HREF}
             onClick={onNavigate}
-            className="frn-focus font-body-mkt flex min-h-12 w-full items-center justify-center rounded-full border border-black/10 bg-white text-[15px] font-semibold text-[color:var(--fr-ink)] transition-colors duration-200 ease-out hover:bg-black/[0.03]"
+            className="frn-focus font-body-mkt flex min-h-12 w-full items-center justify-center rounded-full border border-black/10 bg-[color:var(--fr-card)] text-[15px] font-semibold text-[color:var(--fr-ink)] transition-colors duration-200 ease-out hover:bg-black/[0.03]"
           >
             Log in
           </Link>

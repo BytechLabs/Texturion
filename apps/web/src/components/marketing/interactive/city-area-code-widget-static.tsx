@@ -24,7 +24,7 @@ export function CityAreaCodeWidgetStatic() {
         Find your local area code
       </p>
       {/* Inert input; the interactive island replaces it with a real combobox. */}
-      <div className="mt-2 w-full rounded-[10px] border border-[color:var(--fr-frost)] bg-white px-3 py-2 text-[0.9375rem] text-[color:var(--fr-ink)]">
+      <div className="mt-2 w-full rounded-[10px] border border-[color:var(--fr-frost)] bg-[color:var(--fr-card)] px-3 py-2 text-[0.9375rem] text-[color:var(--fr-ink)]">
         Austin
       </div>
 

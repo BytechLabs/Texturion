@@ -24,14 +24,14 @@ const CSS = `
   color: var(--fr-ink);
 }
 /* Past 24px: the bar ground clears and the nav row floats as a frosted
-   pill. The solid white paints first so engines without backdrop-filter
-   still get a clean pill. */
+   pill. The solid card colour paints first so engines without
+   backdrop-filter still get a clean pill. */
 .frn-bar[data-condensed="true"] {
   background-color: transparent;
 }
 .frn-pill {
-  background-color: #ffffff;
-  background-color: rgba(255, 255, 255, 0.88);
+  background-color: var(--fr-card);
+  background-color: var(--fr-pill);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   box-shadow: var(--fr-shadow-card);
@@ -58,7 +58,7 @@ const CSS = `
   padding: 0.375rem 0.75rem;
   border-radius: 999px;
   background-color: var(--fr-olive);
-  color: #ffffff;
+  color: var(--fr-on-olive);
   font-size: 0.875rem;
   font-weight: 600;
   outline: 2px solid var(--fr-olive);
@@ -100,7 +100,7 @@ const CSS = `
   padding: 0 1.125rem;
   border-radius: 999px;
   background-color: var(--fr-olive);
-  color: #ffffff;
+  color: var(--fr-on-olive);
   font-size: 0.875rem;
   font-weight: 600;
   white-space: nowrap;
@@ -115,12 +115,12 @@ const CSS = `
   font-size: 1rem;
 }
 
-/* Mobile sheet surface: white. The Sheet portals to <body>, OUTSIDE
+/* Mobile sheet surface: the card colour. The Sheet portals to <body>, OUTSIDE
    .mkt-scope, so the call site re-adds the scope class (for tokens) + the
    marketing font variables; the doubled class outranks .mkt-scope's own
    ground by specificity. */
 .mkt-scope.frn-sheet {
-  background-color: #ffffff;
+  background-color: var(--fr-card);
   color: var(--fr-ink);
   border: none;
 }

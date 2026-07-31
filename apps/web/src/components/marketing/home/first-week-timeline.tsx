@@ -57,13 +57,16 @@ function Node({ kind }: { kind: "green" | "track" }) {
         className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-green)]"
         aria-hidden
       >
-        <Check className="size-3.5 text-white" strokeWidth={3} />
+        <Check
+          className="size-3.5 text-[color:var(--fr-on-green)]"
+          strokeWidth={3}
+        />
       </span>
     );
   }
   return (
     <span
-      className="flex size-6 shrink-0 items-center justify-center rounded-full border-2 border-[color:var(--fr-olive)] bg-white"
+      className="flex size-6 shrink-0 items-center justify-center rounded-full border-2 border-[color:var(--fr-olive)] bg-[color:var(--fr-card)]"
       aria-hidden
     >
       <span className="size-2 rounded-full bg-[color:var(--fr-olive)]" />
@@ -89,7 +92,7 @@ function UsTimeline() {
               <Node kind={stage.node} />
               {/* The one Flare tab (§3.4.4): white tag, Flare border, ink text. */}
               {stage.here ? (
-                <span className="fr-eyebrow inline-flex items-center rounded-[6px] border-[1.5px] border-[color:var(--fr-flare)] bg-white px-2 py-1 text-[color:var(--fr-ink)]">
+                <span className="fr-eyebrow inline-flex items-center rounded-[6px] border-[1.5px] border-[color:var(--fr-flare)] bg-[color:var(--fr-card)] px-2 py-1 text-[color:var(--fr-ink)]">
                   You are here
                 </span>
               ) : null}

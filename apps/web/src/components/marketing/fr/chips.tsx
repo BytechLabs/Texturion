@@ -3,8 +3,9 @@ import { cn } from "@/lib/utils";
 /**
  * FR CHIPS (DESIGN-DIRECTION v4 §5.1, §5.2, fixtures).
  *
- * <Dateline>   The page-opening fact chip: Dispatch Ink ground, white mono
- *              uppercase text, 6px radius. ONE per page, and it ALWAYS
+ * <Dateline>   The page-opening fact chip: the deliberately-separate dark
+ *              ground, paper mono uppercase text, 6px radius. ONE per page,
+ *              and it ALWAYS
  *              carries a load-bearing fact for that page (e.g.
  *              "9:04 PM · TUESDAY", "$58 FIRST MONTH (US) · $29 AFTER").
  *              Never decoration. Pages with no load-bearing fact get no
@@ -39,7 +40,7 @@ export function Dateline({
       className={cn(
         "fr-eyebrow inline-flex items-center rounded-[6px] px-2.5 py-1.5",
         tone === "ink"
-          ? "bg-[color:var(--fr-ink)] text-white"
+          ? "bg-[color:var(--fr-inverse)] text-[color:var(--fr-on-inverse)]"
           : "bg-[color:var(--fr-frost)] text-[color:var(--fr-ink)]",
         className,
       )}

@@ -78,7 +78,7 @@ export function DeepDiveCaption({
         className={
           state === "rest"
             ? "font-mono-mkt mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-frost)] text-[12px] font-medium tabular-nums text-[color:var(--fr-olive)] transition-colors duration-200"
-            : "font-mono-mkt mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-olive)] text-[12px] font-medium tabular-nums text-white transition-colors duration-200"
+            : "font-mono-mkt mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-olive)] text-[12px] font-medium tabular-nums text-[color:var(--fr-on-olive)] transition-colors duration-200"
         }
         aria-hidden
       >

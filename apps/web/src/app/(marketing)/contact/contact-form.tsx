@@ -269,7 +269,7 @@ export function ContactForm() {
       <button
         type="submit"
         disabled={submitting}
-        className="inline-flex w-full items-center justify-center rounded-full bg-[color:var(--fr-olive)] px-7 py-3.5 text-[0.9375rem] font-semibold whitespace-nowrap text-white transition-colors duration-200 ease-out hover:bg-[color:var(--fr-olive-deep)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
+        className="inline-flex w-full items-center justify-center rounded-full bg-[color:var(--fr-olive)] px-7 py-3.5 text-[0.9375rem] font-semibold whitespace-nowrap text-[color:var(--fr-on-olive)] transition-colors duration-200 ease-out hover:bg-[color:var(--fr-olive-deep)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)] disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
       >
         {submitting ? "Sending..." : "Send message"}
       </button>

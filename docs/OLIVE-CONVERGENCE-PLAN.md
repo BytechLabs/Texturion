@@ -23,11 +23,46 @@ Every contrast ratio is computed with the same formula
 
 ---
 
+## PLAN COMPLETE — all nine phases shipped (2026-07-30)
+
+Phase 8 landed last. What follows (amendment 3, then the original nine-phase
+plan) is kept as the record of how it was reasoned, because the trap it names is
+the reason the phase did not ship broken.
+
+**Four things the executed phase 8 did that the plan below did not anticipate:**
+
+1. **The v3 compat layer was entirely dead.** ~28 token aliases and ~13 utilities
+   (`--ink`, `--petrol`, `.display-hero`, `.dsp-marker-swipe`, `.ground-night`,
+   the whole `marketing/marks/` module and its always-mounted `<style>` block) had
+   ZERO readers across the tree. Deleting them is what made the dark column
+   tractable: each would otherwise have needed a second value nobody could verify.
+   That deletion, not the 748 token reads, was the bulk of the phase.
+
+2. **The accent's LABEL was the bigger trap than the ink.** Amendment 3 found
+   `--fr-ink` doubling as a surface. The same shape turned out to apply to
+   `--fr-olive` (~20 sites of `bg-…(--fr-olive)] text-white`) and `--fr-green`,
+   and those are worse: the accent lifts to lime on dark, so white goes from
+   10.35:1 to 1.54:1. `--fr-on-olive` / `--fr-on-green` are the fix.
+
+3. **"No mechanical gate" was half wrong.** Nothing can tell you the site looks
+   good on dark. But `marketing-dark.test.ts` does catch all three ways it goes
+   silently wrong — a pair below AA in either column, a fill carrying the other
+   mode's label, and a token declared in one column only — and each assertion was
+   verified by breaking it. The screenshots then only had to confirm taste.
+
+4. **The `dark:` carve-out was protecting nothing.** `globals.css:12` recorded 76
+   marketing `dark:` utilities as the reason for the exclusion. A sweep found
+   **zero** left in the whole marketing tree, including the shared `ui/sheet`
+   it imports. The hazard had been deleted years of commits ago; only the
+   workaround survived.
+
+---
+
 ## AMENDMENT 3 — phase 8's real trap: `--fr-ink` is TWO things (found 2026-07-30)
 
-Phases 1-7 and 9 are shipped. Phase 8 (marketing dark mode) is the only one left,
-and the thing most likely to make a first attempt ship broken is not the 748
-token reads — it is that **`--fr-ink` is used both as text and as a surface.**
+Phase 8 (marketing dark mode) was the last one left, and the thing most likely to
+make a first attempt ship broken is not the 748 token reads — it is that
+**`--fr-ink` is used both as text and as a surface.**
 
 `DESIGN-DIRECTION` says so itself: *"Dispatch Ink — headlines/body; also the ONLY
 two dark surfaces (dateline chip, footer)"*. In the shipped code:

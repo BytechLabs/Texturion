@@ -129,7 +129,7 @@ function FlippedTimeline() {
     <FrCard className="p-6 sm:p-8">
       <div className="flex gap-4">
         <span
-          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-green)] text-white"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-green)] text-[color:var(--fr-on-green)]"
           aria-hidden
         >
           <Check className="size-5" strokeWidth={2.5} />

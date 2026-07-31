@@ -258,7 +258,7 @@ export function TradePage({ content }: { content: TradeContent }) {
           {content.useCases.map((uc, i) => (
             <FrCard key={uc.title} className="p-6 sm:p-7">
               <span
-                className="fr-mono-data flex size-8 items-center justify-center rounded-full bg-[color:var(--fr-olive)] text-white"
+                className="fr-mono-data flex size-8 items-center justify-center rounded-full bg-[color:var(--fr-olive)] text-[color:var(--fr-on-olive)]"
                 aria-hidden
               >
                 {i + 1}

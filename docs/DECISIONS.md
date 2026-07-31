@@ -5628,3 +5628,58 @@ without saying the same contact has others matching (#324's second ask), and
 there is still no job-level structure — that is #294 and #247, and #291/#246
 own the deeper problem that "prior conversations" is per NUMBER rather than per
 person, since contacts are phone-keyed by D7.
+
+---
+
+## D100 — a colour is either a fill or a label, never both (#362 phase 8, 2026-07-30)
+
+**Decision.** The marketing surface renders dark as well as light, following the
+same theme preference the app does. Every fill token in the `--fr-*` system has a
+matching `--fr-on-*` label token, and a hardcoded `text-white` / `bg-white` /
+`#ffffff` anywhere under `(marketing)` fails CI.
+
+**The rule exists because of a specific failure shape, not tidiness.** Three
+`--fr-*` tokens were doing two jobs at once, and each one breaks *only* in the
+mode nobody was looking at:
+
+- `--fr-ink` was the body TEXT and also the ground of the two sanctioned dark
+  surfaces (the dateline chip, the footer). Flipping ink light for dark mode
+  inverts both bands and leaves every `text-white/70` link on near-white.
+- `--fr-olive` is the accent as text AND as a button fill with a white label.
+  The accent lifts to lime `#D6E77E` on dark, where white measures **1.54:1**.
+  Twenty call sites wrote `bg-[color:var(--fr-olive)] text-white`.
+- `--fr-green` has the same shape, one call site.
+
+None of these throws, warns, or fails a type check. The page renders; it is
+simply unreadable for every visitor whose OS is dark. That is the same
+silent-CSS shape as #362's invisible pricing divider and the uncoloured sidebar
+nav — the fourth instance, which is why it became a rule rather than a fix.
+
+**On dark the separate band LIFTS rather than deepens.** `--fr-inverse` is
+`#191B14` on light and `#2C2F22` on dark. Keeping the light value would have put
+a `#191B14` footer on a `#141610` ground — 1.05:1, no footer. The eye reads
+"raised" on a dark surface the way it reads "recessed" on a light one, which is
+how `--app-hover` already works in the app.
+
+**Every dark value is the app's shipped token**, taken from `.dark .app-scope`
+rather than picked, with one derived exception: Answered Green. `#0B7A50` is
+3.40:1 on the dark ground, below AA for the ticks and status dots it carries, so
+the dark column uses `#1F9E6C` — the same hue at the lightness that clears AA on
+all three dark surfaces (5.35:1 ground / 4.74:1 card / 4.52:1 frost). Derived and
+measured the way `--app-muted-2` was in #61, not eyeballed. Green stays a
+separate colour from the accent in both modes on purpose: "handled" and "brand"
+must not be the same thing, and lifting both would have quietly merged them.
+
+**What this replaced.** The `dark:` variant carried a `:not(.mkt-scope *)`
+carve-out justified by 76 marketing `dark:` utilities that produced dark-on-dark
+failures. A sweep found zero left anywhere in the marketing tree — the hazard was
+deleted long ago and only the workaround survived. Removing it also let ~28 dead
+v3 token aliases and ~13 dead v3 utilities go, including a `<style>` block that
+shipped on every marketing page with no class in it used anywhere.
+
+**What gates it.** `apps/web/src/app/marketing-dark.test.ts`: AA recomputed from
+the hexes in both columns, a token-parity check (declared in one column only), the
+white-literal sweep, and an assertion that `--fr-ink` never appears in a
+background position. Every one of those was verified by breaking it. What no test
+can say is whether the site looks right — that was 42 pages of screenshots at
+both schemes.

@@ -68,7 +68,7 @@ export function PanelFrame({
       {phone ? (
         /* Phone bezel: an ink rim around the app surface; inside it the
            product's own light or dark theme applies. */
-        <div className="mx-auto w-full max-w-[22.5rem] rounded-[2.25rem] bg-[color:var(--fr-ink)] p-2 shadow-[var(--fr-shadow-card)]">
+        <div className="mx-auto w-full max-w-[22.5rem] rounded-[2.25rem] bg-[color:var(--fr-inverse)] p-2 shadow-[var(--fr-shadow-card)]">
           {phoneDark ? <div className="dark rounded-[1.75rem]">{embed}</div> : embed}
         </div>
       ) : (

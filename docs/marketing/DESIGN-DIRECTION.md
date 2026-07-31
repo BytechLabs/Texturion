@@ -11,12 +11,33 @@
 > and coral `#D96C47` means *attention, never error*.
 >
 > The live definition is `apps/web/src/app/globals.css`, gated by
-> `globals.contrast.test.ts`, `fr-tokens.test.ts` and `custom-properties.test.ts`.
-> Where this document and that file disagree, **the file is right**.
+> `globals.contrast.test.ts`, `fr-tokens.test.ts`, `custom-properties.test.ts`
+> and `marketing-dark.test.ts`. Where this document and that file disagree,
+> **the file is right**.
 >
 > **Everything that is not a colour still binds** — structure, type scale, motion,
 > spacing, the QA gates and the reasoning. This note supersedes the palette, not
 > the document.
+>
+> ### The site is no longer light-only (2026-07-30, #362 phase 8)
+>
+> This document says in several places that marketing is light on every page.
+> That was true and is not any more: `.mkt-scope` carries a full dark column and
+> follows the same theme preference the app does, because one company cannot show
+> a visitor a dark product and a blazing-white site.
+>
+> Three tokens exist that this document never named, and they exist because a
+> colour here meant two things at once:
+>
+> | Token | Light | Dark | Why it had to be split out |
+> |---|---|---|---|
+> | `--fr-inverse` / `--fr-on-inverse` | `#191B14` / `#FDFDF9` | `#2C2F22` / `#F0F1E5` | The dateline chip and the footer are SURFACES. They used to ride `--fr-ink`, which is TEXT — flipping ink light for dark mode inverted both bands and left white links on near-white. On dark the band *lifts* rather than deepens: `#191B14` on a `#141610` ground is 1.05:1, i.e. no footer at all. |
+> | `--fr-on-olive` (+ `-70`, `-55`) | `#FDFDF9` | `#191B14` | "On the cobalt band, primary inverts: white pill, ink text" (§4) stops working when the accent lifts to lime. White on `#D6E77E` is 1.54:1. The label ramp inverts direction with the theme, so it cannot be a literal. |
+> | `--fr-on-green` | `#FDFDF9` | `#191B14` | Same trap on Answered Green, which also lifts (`#0B7A50` → `#1F9E6C`, AA on all three dark grounds). |
+>
+> The rule this leaves: **a colour is either a fill or a label, never both, and
+> every fill token has a matching `--fr-on-*`.** A hardcoded `text-white` /
+> `bg-white` / `#ffffff` anywhere under `(marketing)` now fails CI.
 
 > **Two rules here are now false and are called out because they governed future
 > work, not just appearance.** Law 2 ("Cobalt is the marketing voice OUTSIDE the

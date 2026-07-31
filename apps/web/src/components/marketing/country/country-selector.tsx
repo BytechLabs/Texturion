@@ -74,7 +74,7 @@ export function CountrySelector({
                 ? "min-h-9 flex-1 px-4 py-2 text-center text-sm"
                 : "min-h-6 px-2.5 py-1 text-xs leading-none",
               selected
-                ? "bg-[color:var(--fr-olive)] text-white"
+                ? "bg-[color:var(--fr-olive)] text-[color:var(--fr-on-olive)]"
                 : "text-[color:var(--fr-ink-70)] hover:text-[color:var(--fr-ink)]",
             )}
           >

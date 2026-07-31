@@ -11,10 +11,15 @@ import { cn } from "@/lib/utils";
  * Grounds:
  *   "white"  — Signal White, the dominant ground (default).
  *   "frost"  — the only wash, for alternating bands.
- *   "ink"    — Dispatch Ink. Sanctioned for exactly one band-scale use:
- *              the footer already is one of the two ink surfaces, so think
+ *   "ink"    — the deliberately-separate band. Sanctioned for exactly one
+ *              band-scale use: the footer already is one of the two, so think
  *              twice before reaching for this.
  *   "cobalt" — the ONE full-bleed final-CTA band, home page only (§2).
+ *
+ * Both dark grounds read their label from an `--fr-on-*` token rather than
+ * `text-white` (#362 phase 8). On dark the accent lifts to lime and the
+ * separate band lifts to #2c2f22, so a white label would go from 10.35:1 to
+ * 1.54:1 on the accent — legible to illegible, with nothing to notice it.
  *
  * Usage:
  *   <FrSection ground="frost" id="pattern">…</FrSection>
@@ -42,8 +47,8 @@ export function FrSection({
   const grounds: Record<string, string> = {
     white: "bg-[color:var(--fr-ground)] text-[color:var(--fr-ink)]",
     frost: "bg-[color:var(--fr-frost)] text-[color:var(--fr-ink)]",
-    ink: "bg-[color:var(--fr-ink)] text-white",
-    cobalt: "bg-[color:var(--fr-olive)] text-white",
+    ink: "bg-[color:var(--fr-inverse)] text-[color:var(--fr-on-inverse)]",
+    cobalt: "bg-[color:var(--fr-olive)] text-[color:var(--fr-on-olive)]",
   };
   return (
     <Tag id={id} className={cn(grounds[ground], "py-16 md:py-24", className)}>

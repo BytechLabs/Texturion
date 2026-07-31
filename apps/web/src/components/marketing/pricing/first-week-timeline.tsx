@@ -55,7 +55,7 @@ function GreenNode() {
         <path
           d="M3.5 8.5 6.5 11.5 12.5 4.5"
           fill="none"
-          stroke="#fff"
+          stroke="var(--fr-on-green)"
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -70,7 +70,7 @@ function Node({ kind }: { kind: "green" | "cobalt" }) {
     <GreenNode />
   ) : (
     <span
-      className="fr-eyebrow flex h-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-olive)] px-2 text-[10px] text-white"
+      className="fr-eyebrow flex h-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--fr-olive)] px-2 text-[10px] text-[color:var(--fr-on-olive)]"
       aria-hidden
     >
       1-7
@@ -92,7 +92,7 @@ function UsTimeline() {
       </div>
 
       {/* The YOU ARE HERE tab (§3.4.4): white tag, ink text, Flare border. */}
-      <span className="fr-eyebrow mt-3 inline-flex items-center rounded-[6px] border-[1.5px] border-[color:var(--fr-flare)] bg-white px-2 py-1 text-[color:var(--fr-ink)]">
+      <span className="fr-eyebrow mt-3 inline-flex items-center rounded-[6px] border-[1.5px] border-[color:var(--fr-flare)] bg-[color:var(--fr-card)] px-2 py-1 text-[color:var(--fr-ink)]">
         You are here
       </span>
 

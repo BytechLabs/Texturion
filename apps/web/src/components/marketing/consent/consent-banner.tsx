@@ -56,7 +56,7 @@ const CSS = `
 }
 .frcc-btn-yes {
   background-color: var(--fr-olive);
-  color: #ffffff;
+  color: var(--fr-on-olive);
 }
 .frcc-btn-yes:hover {
   background-color: var(--fr-olive-deep);
@@ -66,7 +66,7 @@ const CSS = `
   color: var(--fr-ink);
 }
 .frcc-btn-no:hover {
-  background-color: rgba(58, 67, 15, 0.12);
+  background-color: var(--fr-olive-wash);
 }
 .frcc-link {
   color: var(--fr-olive);
@@ -114,7 +114,7 @@ function ConsentBannerInner({ initialOpen = false }: { initialOpen?: boolean }) 
       className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-4 sm:px-6 sm:pb-6"
     >
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div className="frcc-card pointer-events-auto mx-auto w-full max-w-2xl rounded-2xl bg-white p-5 sm:p-6">
+      <div className="frcc-card pointer-events-auto mx-auto w-full max-w-2xl rounded-2xl bg-[color:var(--fr-card)] p-5 sm:p-6">
         <p className="font-body-mkt text-sm leading-relaxed text-[color:var(--fr-ink-70)]">
           <strong className="font-semibold text-[color:var(--fr-ink)]">
             Cookies, your call.

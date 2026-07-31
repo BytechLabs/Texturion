@@ -226,7 +226,7 @@ export function SwitchBand({
         {/* On the Frost band the strip sits in the white card voice so the
             cobalt edge + mono treatment stays legible (§5.4). */}
         <TruthStrip
-          className="mt-8 bg-white shadow-[var(--fr-shadow-card)]"
+          className="mt-8 bg-[color:var(--fr-card)] shadow-[var(--fr-shadow-card)]"
           items={items}
         />
       </div>

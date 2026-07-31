@@ -4,12 +4,19 @@ import { LEGAL_ENTITY_NAME, MAILING_ADDRESS } from "@/lib/marketing/business";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 
 /**
- * FOOTER (COPY-DECK v2 §F, DESIGN-DIRECTION v4 §4): the Dispatch Ink band,
+ * FOOTER (COPY-DECK v2 §F, DESIGN-DIRECTION v4 §4): the separate band,
  * "night outside the window", one of the site's two sanctioned dark
- * surfaces. White-at-70% links in four columns covering every route in the
+ * surfaces. Quiet links in four columns covering every route in the
  * coverage map (Product 7 · Who it's for 6 · Compare 2 · Company and legal
  * 10), the brand line, the conditional identity line, and the sign-off.
  * Server component, zero JS, shared by every marketing page.
+ *
+ * #362 phase 8: the band rides `--fr-inverse`, not `--fr-ink`. Ink is TEXT and
+ * flips light in dark mode; this band is a surface and stays dark in both, so
+ * sharing one token would have inverted the footer and left every white link on
+ * near-white. The link colours come from `--fr-on-inverse*` for the same
+ * reason — a literal white reads as a decision nobody has to re-check, and on
+ * the dark band it is the wrong one.
  *
  * Law 1: no credits of any kind (no fonts, no framework, nothing about what
  * the site does or doesn't fake). Identity line renders ONLY when ops has
@@ -68,23 +75,24 @@ const COMPANY_AND_LEGAL: FooterLinkItem[] = [
 ];
 
 /* Footer CSS, prefix "frf-". ONE inert style block, unlayered so the base
-   declarations beat Tailwind utilities. On the ink ground: links white at
-   70%, hover white; focus = 2px white outline (cobalt vanishes on ink). The
-   only transition (link color) is reduced-motion gated. */
+   declarations beat Tailwind utilities. On the separate band: links at the
+   quiet step, hover to full; focus = 2px outline in the on-band ink (the olive
+   accent vanishes against this surface in both modes). The only transition
+   (link color) is reduced-motion gated. */
 const CSS = `
 .frf-root {
-  background-color: var(--fr-ink);
-  color: #ffffff;
+  background-color: var(--fr-inverse);
+  color: var(--fr-on-inverse);
 }
 .frf-link {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--fr-on-inverse-70);
 }
 .frf-link:hover {
-  color: #ffffff;
+  color: var(--fr-on-inverse);
 }
 .frf-link:focus-visible,
 .frf-mark:focus-visible {
-  outline: 2px solid #ffffff;
+  outline: 2px solid var(--fr-on-inverse);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -111,7 +119,7 @@ function LinkList({ links }: { links: FooterLinkItem[] }) {
 
 function ColumnHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="fr-eyebrow text-white/55">
+    <h2 className="fr-eyebrow text-[color:var(--fr-on-inverse-55)]">
       {children}
     </h2>
   );
@@ -134,11 +142,11 @@ export function Footer() {
             <Link
               href="/"
               aria-label="Loonext home"
-              className="frf-mark text-2xl font-semibold tracking-tight text-white [font-family:var(--font-golos),system-ui,sans-serif]"
+              className="frf-mark text-2xl font-semibold tracking-tight text-[color:var(--fr-on-inverse)] [font-family:var(--font-golos),system-ui,sans-serif]"
             >
               Lo<span className="text-[#B9CF57]">o</span>next
             </Link>
-            <p className="font-body-mkt mt-3 max-w-xs text-sm leading-relaxed text-white/70">
+            <p className="font-body-mkt mt-3 max-w-xs text-sm leading-relaxed text-[color:var(--fr-on-inverse-70)]">
               The shared text inbox for your crew.
             </p>
           </div>
@@ -168,12 +176,14 @@ export function Footer() {
             until then, nothing renders (Law 1: never a placeholder). */}
         <div className="font-body-mkt mt-14 space-y-3 text-sm leading-relaxed">
           {hasIdentity ? (
-            <p className="text-white/70">
+            <p className="text-[color:var(--fr-on-inverse-70)]">
               {LEGAL_ENTITY_NAME} · {MAILING_ADDRESS}
             </p>
           ) : null}
-          <p className="text-white/70">Month to month. No sales calls, ever.</p>
-          <p className="text-white/55">
+          <p className="text-[color:var(--fr-on-inverse-70)]">
+            Month to month. No sales calls, ever.
+          </p>
+          <p className="text-[color:var(--fr-on-inverse-55)]">
             © {year} Loonext. All rights reserved.
           </p>
         </div>

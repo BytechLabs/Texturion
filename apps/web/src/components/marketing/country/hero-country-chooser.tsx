@@ -47,8 +47,8 @@ export function HeroCountryChooser({ className }: { className?: string }) {
             aria-label={option.aria}
             onClick={() => setCountry(option.id)}
             className={cn(
-              "frn-focus font-body-mkt rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-[color:var(--fr-ink)] transition-colors duration-200 ease-out",
-              "hover:bg-[color:var(--fr-olive)] hover:text-white",
+              "frn-focus font-body-mkt rounded-full bg-[color:var(--fr-card)] px-4 py-1.5 text-sm font-semibold text-[color:var(--fr-ink)] transition-colors duration-200 ease-out",
+              "hover:bg-[color:var(--fr-olive)] hover:text-[color:var(--fr-on-olive)]",
             )}
           >
             {option.label}

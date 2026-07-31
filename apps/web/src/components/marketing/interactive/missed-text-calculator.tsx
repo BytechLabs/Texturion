@@ -84,7 +84,7 @@ function Field({
           if (!Number.isNaN(n)) onChange(Math.min(max, Math.max(min, n)));
         }}
         aria-label={`${label} (exact value)`}
-        className="fr-mono-data mt-2 w-full rounded-[10px] border border-[color:var(--fr-frost)] bg-white px-3 py-1.5 text-[color:var(--fr-ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
+        className="fr-mono-data mt-2 w-full rounded-[10px] border border-[color:var(--fr-frost)] bg-[color:var(--fr-card)] px-3 py-1.5 text-[color:var(--fr-ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
       />
     </div>
   );

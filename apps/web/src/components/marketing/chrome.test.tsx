@@ -145,7 +145,14 @@ describe("footer (deck §F: the Dispatch Ink band)", () => {
     expect(html.toLowerCase()).not.toContain("#0f766e");
   });
 
-  it("is the Dispatch Ink band (v4 §4), not a light footer", () => {
-    expect(html).toContain("--fr-ink");
+  it("is the separate dark band (v4 §4), not a light footer", () => {
+    // #362 phase 8: --fr-inverse, NOT --fr-ink. Ink is text and flips light on
+    // dark; a band painted with it would invert and take every link with it.
+    expect(html).toContain("--fr-inverse");
+    expect(html).not.toMatch(/background-color: var\(--fr-ink\)/);
+    // And its labels ride the band's own ramp rather than a literal white,
+    // which on the dark band would be the wrong end of the scale.
+    expect(html).toContain("--fr-on-inverse");
+    expect(html).not.toContain("text-white");
   });
 });

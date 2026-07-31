@@ -43,19 +43,19 @@ export function PhoneFrame({
   return (
     <div
       className={cn(
-        "relative mx-auto w-full max-w-[300px] rounded-[2.25rem] bg-[color:var(--fr-ink)] p-2",
+        "relative mx-auto w-full max-w-[300px] rounded-[2.25rem] bg-[color:var(--fr-inverse)] p-2",
         !flat && "shadow-[var(--fr-shadow-card)]",
         className,
       )}
     >
-      <div className="relative overflow-hidden rounded-[1.75rem] bg-white">
+      <div className="relative overflow-hidden rounded-[1.75rem] bg-[color:var(--fr-card)]">
         {/* Neutral speaker pill, a "phone" hint, not a specific device's notch. */}
         <div className="flex justify-center pt-2" aria-hidden>
           <span className="h-1 w-10 rounded-full bg-[color:var(--fr-frost)]" />
         </div>
 
         {pushBanner && (
-          <div className="absolute inset-x-2 top-4 z-10 rounded-xl bg-white/95 px-3 py-2 shadow-[var(--fr-shadow-card)] backdrop-blur">
+          <div className="absolute inset-x-2 top-4 z-10 rounded-xl bg-[color:var(--fr-card)]/95 px-3 py-2 shadow-[var(--fr-shadow-card)] backdrop-blur">
             <div className="flex items-center gap-2">
               {/* The app's own icon: the double-o tile (#206) inside the
                   frame, never marketing cobalt (Law 2). */}

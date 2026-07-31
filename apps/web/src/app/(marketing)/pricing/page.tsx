@@ -113,7 +113,7 @@ function GuaranteeTick() {
         <path
           d="M3.5 8.5 6.5 11.5 12.5 4.5"
           fill="none"
-          stroke="#fff"
+          stroke="var(--fr-on-green)"
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"

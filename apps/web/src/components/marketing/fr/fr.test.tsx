@@ -15,10 +15,13 @@ import {
 /** The v4 laws the primitives must encode (DESIGN-DIRECTION v4). */
 
 describe("fr primitives — the FIRST RESPONSE component kit", () => {
-  it("Dateline is the ink chip (white mono text) with a frost tone for legal summary chips", () => {
+  it("Dateline is the dark chip (paper mono text) with a frost tone for legal summary chips", () => {
     const ink = renderToStaticMarkup(<Dateline>9:04 PM · TUESDAY</Dateline>);
     expect(ink).toContain("9:04 PM · TUESDAY");
-    expect(ink).toContain("--fr-ink");
+    // #362 phase 8: the chip is one of the two deliberately-dark surfaces, so
+    // it rides --fr-inverse and takes its label from --fr-on-inverse.
+    expect(ink).toContain("--fr-inverse");
+    expect(ink).toContain("--fr-on-inverse");
     expect(ink).toContain("fr-eyebrow");
     const frost = renderToStaticMarkup(
       <Dateline tone="frost">Plain English summary</Dateline>,
@@ -54,8 +57,11 @@ describe("fr primitives — the FIRST RESPONSE component kit", () => {
         Get your number
       </CtaButton>,
     );
-    expect(inverted).toContain("bg-white");
-    expect(inverted).toContain("--fr-ink");
+    // On the accent band the button INVERTS: fill = the band's label colour,
+    // label = the band. The swap is automatic in both modes, where a literal
+    // `bg-white` would have stayed white on a lime band.
+    expect(inverted).toContain("bg-[color:var(--fr-on-olive)]");
+    expect(inverted).toContain("text-[color:var(--fr-olive)]");
   });
 
   it("FrSection renders the four sanctioned grounds and the §4 container", () => {
@@ -71,7 +77,10 @@ describe("fr primitives — the FIRST RESPONSE component kit", () => {
       <FrSection ground="cobalt">x</FrSection>,
     );
     expect(cobalt).toContain("--fr-olive");
-    expect(cobalt).toContain("text-white");
+    expect(cobalt).toContain("--fr-on-olive");
+    const ink = renderToStaticMarkup(<FrSection ground="ink">x</FrSection>);
+    expect(ink).toContain("--fr-inverse");
+    expect(ink).toContain("--fr-on-inverse");
   });
 
   it("FrCard is white + the one shadow via fr-card; well variant is the frost wash", () => {
@@ -146,9 +155,12 @@ describe("fr primitives — the FIRST RESPONSE component kit", () => {
     expect((mark.match(/var\(--fr-flare\)/g) ?? []).length).toBe(1);
 
     const backdrop = renderToStaticMarkup(
-      <ConvergedField variant="backdrop" className="text-white" />,
+      <ConvergedField
+        variant="backdrop"
+        className="text-[color:var(--fr-on-olive)]"
+      />,
     );
-    // Backdrop is currentColor only, so it works on the cobalt band.
+    // Backdrop is currentColor only, so it works on the accent band.
     expect(backdrop).toContain("currentColor");
     expect(backdrop).not.toContain("--fr-flare");
     expect(backdrop).not.toContain("<text");

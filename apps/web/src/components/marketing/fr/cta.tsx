@@ -46,7 +46,7 @@ export function CtaButton({
   );
   const variants = {
     primary: cn(
-      "bg-[color:var(--fr-olive)] text-white",
+      "bg-[color:var(--fr-olive)] text-[color:var(--fr-on-olive)]",
       "hover:bg-[color:var(--fr-olive-deep)]",
       "focus-visible:outline-[color:var(--fr-olive)]",
     ),
@@ -55,10 +55,14 @@ export function CtaButton({
       "hover:bg-[color:var(--fr-frost)]",
       "focus-visible:outline-[color:var(--fr-olive)]",
     ),
+    // On the accent band the button INVERTS: its fill is the band's label
+    // colour and its label is the band. That swap is automatic in both modes —
+    // paper pill / olive text on light, ink pill / lime text on dark — where a
+    // literal `bg-white` would have stayed white on a lime band.
     "on-cobalt": cn(
-      "bg-white text-[color:var(--fr-ink)]",
+      "bg-[color:var(--fr-on-olive)] text-[color:var(--fr-olive)]",
       "hover:bg-[color:var(--fr-frost)]",
-      "focus-visible:outline-white",
+      "focus-visible:outline-[color:var(--fr-on-olive)]",
     ),
   } as const;
 

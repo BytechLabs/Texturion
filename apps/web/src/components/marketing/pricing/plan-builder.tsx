@@ -100,7 +100,7 @@ function Switch({ on }: { on: boolean }) {
     >
       <span
         className={cn(
-          "absolute top-1/2 size-[1.125rem] -translate-y-1/2 rounded-full bg-white shadow-[0_1px_2px_rgba(25,27,20,0.2)] transition-[left] duration-200 ease-out",
+          "absolute top-1/2 size-[1.125rem] -translate-y-1/2 rounded-full bg-[color:var(--fr-card)] shadow-[0_1px_2px_rgba(25,27,20,0.2)] transition-[left] duration-200 ease-out",
           on ? "left-[calc(100%-1.375rem)]" : "left-1",
         )}
       />
@@ -200,7 +200,7 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
                         <path
                           d="M3.5 8.5 6.5 11.5 12.5 4.5"
                           fill="none"
-                          stroke="#fff"
+                          stroke="var(--fr-on-olive)"
                           strokeWidth="2.5"
                           strokeLinecap="round"
                           strokeLinejoin="round"

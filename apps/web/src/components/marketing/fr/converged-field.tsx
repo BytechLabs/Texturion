@@ -20,7 +20,8 @@ import { cn } from "@/lib/utils";
  *               streamline, one Flare mark mid-path, one green docked mark.
  *               Stroke rides currentColor; the dots keep their token colors.
  *   "backdrop"  The final-CTA band backdrop: converging paths only, all
- *               currentColor (set text-white/…  on the cobalt band), no
+ *               currentColor (set text-[color:var(--fr-on-olive)] on the
+ *               accent band), no
  *               figures, no text. Absolutely position it behind the band's
  *               content.
  *
@@ -28,7 +29,7 @@ import { cn } from "@/lib/utils";
  *
  * Usage:
  *   <ConvergedField variant="mark" className="h-10 w-auto" />
- *   <ConvergedField variant="backdrop" className="absolute inset-0 h-full w-full text-white" />
+ *   <ConvergedField variant="backdrop" className="absolute inset-0 h-full w-full text-[color:var(--fr-on-olive)]" />
  */
 export function ConvergedField({
   variant = "full",

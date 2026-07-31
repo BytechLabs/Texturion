@@ -48,7 +48,7 @@ export function DesktopNav() {
       <div className="absolute top-full left-0 flex">
         <NavigationMenu.Viewport
           className={cn(
-            "relative mt-2 origin-top-left overflow-hidden rounded-xl bg-white text-[color:var(--fr-ink)] shadow-[var(--fr-shadow-card)]",
+            "relative mt-2 origin-top-left overflow-hidden rounded-xl bg-[color:var(--fr-card)] text-[color:var(--fr-ink)] shadow-[var(--fr-shadow-card)]",
             "h-[var(--radix-navigation-menu-viewport-height)] w-[var(--radix-navigation-menu-viewport-width)]",
             "transition-[width,height] duration-200 ease-out",
             "data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",

@@ -189,7 +189,7 @@ export function CityAreaCodeWidget() {
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
           onBlur={() => setOpen(false)}
-          className="w-full rounded-[10px] border border-[color:var(--fr-frost)] bg-white px-3 py-2 text-[0.9375rem] text-[color:var(--fr-ink)] placeholder:text-[color:var(--fr-ink-55)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
+          className="w-full rounded-[10px] border border-[color:var(--fr-frost)] bg-[color:var(--fr-card)] px-3 py-2 text-[0.9375rem] text-[color:var(--fr-ink)] placeholder:text-[color:var(--fr-ink-55)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
         />
         {open && results.length > 0 && (
           <ul
@@ -197,7 +197,7 @@ export function CityAreaCodeWidget() {
             ref={listRef}
             role="listbox"
             aria-label="Matching cities and area codes"
-            className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-[10px] bg-white py-1 shadow-[var(--fr-shadow-card)]"
+            className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-[10px] bg-[color:var(--fr-card)] py-1 shadow-[var(--fr-shadow-card)]"
           >
             {results.map((r, i) => {
               const active = i === activeIndex;

@@ -95,10 +95,13 @@ describe("laws that hold across the whole page (Laws 1, 6, 11)", () => {
     }
   });
 
-  it("opens with the load-bearing dateline, exactly one ink chip", () => {
+  it("opens with the load-bearing dateline, exactly one dark chip", () => {
     expect(PAGE).toContain("9:04 PM · TUESDAY");
+    // #362 phase 8: the chip's ground is --fr-inverse, not the text ink.
     expect(
-      PAGE.match(/bg-\[color:var\(--fr-ink\)\] text-white/g)?.length,
+      PAGE.match(
+        /bg-\[color:var\(--fr-inverse\)\] text-\[color:var\(--fr-on-inverse\)\]/g,
+      )?.length,
     ).toBe(1); // the dateline chip; the footer band lives in the layout
   });
 

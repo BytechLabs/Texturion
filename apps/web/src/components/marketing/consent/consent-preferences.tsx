@@ -36,11 +36,11 @@ const CSS = `
   border-radius: 999px;
   font-size: 0.875rem;
   font-weight: 600;
-  background-color: #ffffff;
+  background-color: var(--fr-card);
   color: var(--fr-ink);
 }
 .frcp-btn:hover {
-  background-color: rgba(58, 67, 15, 0.08);
+  background-color: var(--fr-olive-wash);
 }
 .frcp-btn:focus-visible {
   outline: 2px solid var(--fr-olive);
@@ -48,7 +48,7 @@ const CSS = `
 }
 .frcp-btn[aria-pressed="true"] {
   background-color: var(--fr-olive);
-  color: #ffffff;
+  color: var(--fr-on-olive);
 }
 @media (prefers-reduced-motion: no-preference) {
   .frcp-btn {

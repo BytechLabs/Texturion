@@ -150,7 +150,7 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
                   STEP_BUTTON,
                   engaged
                     ? "text-[color:var(--fr-olive)] hover:bg-[color:var(--fr-frost)]"
-                    : "bg-[color:var(--fr-olive)] text-white hover:bg-[color:var(--fr-olive-deep)]",
+                    : "bg-[color:var(--fr-olive)] text-[color:var(--fr-on-olive)] hover:bg-[color:var(--fr-olive-deep)]",
                 )}
               >
                 {engaged ? (
@@ -175,7 +175,7 @@ export function ThreadDeepDive({ script }: { script: ThreadScript }) {
                 onClick={advance}
                 className={cn(
                   STEP_BUTTON,
-                  "bg-[color:var(--fr-olive)] text-white hover:bg-[color:var(--fr-olive-deep)]",
+                  "bg-[color:var(--fr-olive)] text-[color:var(--fr-on-olive)] hover:bg-[color:var(--fr-olive-deep)]",
                 )}
               >
                 Next

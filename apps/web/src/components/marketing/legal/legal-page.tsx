@@ -67,7 +67,7 @@ export function LegalPage({
           {/* The one chip legal pages get (§5.1): Frost, ink text, and under
               it the true summary in plain English. */}
           <div className="mt-8 rounded-xl bg-[color:var(--fr-frost)] p-5 sm:p-6">
-            <Dateline tone="frost" className="bg-white">
+            <Dateline tone="frost" className="bg-[color:var(--fr-card)]">
               Plain English summary
             </Dateline>
             <p className="fr-body mt-3 text-[color:var(--fr-ink)]">{summary}</p>
