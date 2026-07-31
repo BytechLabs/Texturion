@@ -32,9 +32,9 @@ const CONTENT: TradeContent = {
   displayName: "Landscapers",
 
   dateline: "7:15 AM · GATE LOCKED",
-  h1: "The text inbox for landscaping crews.",
+  h1: "One line for the whole landscaping crew.",
   heroSub:
-    "The crew is at the gate, the gate is locked, and the code is in a text thread on somebody's day off. Loonext puts every gate code, reschedule, and add-on ask in one shared inbox on your business number. $29 a month for the whole company.",
+    "The crew is at the gate, the gate is locked, and the code is in a thread on somebody's day off. Loonext puts every gate code, reschedule, and add-on ask on one business number the whole company works from, calls included. $29 a month.",
   heroTruth:
     `One inbox for every property · ${ACTIVATION_CHIP} · No busy-season lock-in`,
 

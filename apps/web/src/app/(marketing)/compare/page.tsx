@@ -155,7 +155,7 @@ export default function CompareIndexPage() {
             What Loonext doesn&apos;t do, on purpose.
           </h2>
           <p className="fr-body mt-4 max-w-2xl text-[color:var(--fr-ink-70)]">
-            Loonext is a shared text inbox at a flat price, and holding that
+            Loonext is one shared line at a flat price, and holding that
             line means leaving real capabilities to the bigger platforms. If
             one of these is the job, the head-to-head pages name the tool that
             does it.
@@ -243,7 +243,7 @@ export default function CompareIndexPage() {
 
       <CompareCta
         heading="Skip the demo. See the price and start today."
-        sub="A shared text inbox for the whole crew, $29 a month flat, month to month, with a full refund in your first 30 days if it's not for you."
+        sub="One business number for texts and calls, worked by the whole crew, $29 a month flat, month to month, with a full refund in your first 30 days if it's not for you."
       />
     </>
   );

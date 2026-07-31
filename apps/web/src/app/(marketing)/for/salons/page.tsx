@@ -34,9 +34,9 @@ const CONTENT: TradeContent = {
   displayName: "Salons",
 
   dateline: "11:20 AM · RUNNING LATE",
-  h1: "The text inbox for your front desk, even if you don't have one.",
+  h1: "A front desk, even if you don't have one.",
   heroSub:
-    "A running-late text only helps if somebody sees it before the chair sits empty. Loonext gives the whole floor one shared inbox, so confirmations, reschedules, and waitlist fills get handled by whoever's free, not whoever's phone it landed on. $29 a month for the whole salon.",
+    "A running-late text only helps if somebody sees it before the chair sits empty, and a booking call only helps if somebody picks it up. Loonext gives the whole floor one line, so confirmations, reschedules and waitlist fills get handled by whoever is free, not whoever's phone it landed on. $29 a month for the whole salon.",
   heroTruth:
     `One inbox for the whole floor · ${ACTIVATION_CHIP} · Month to month`,
 

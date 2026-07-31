@@ -28,7 +28,7 @@ import {
 export function ArticlePage({
   post,
   ctaHeading = "Give your crew one inbox to share.",
-  ctaSub = `A local business number and a shared text inbox the whole team can see, ${ACTIVATION_CLAIM}. See the price.`,
+  ctaSub = `A local business number with one shared inbox for texts and calls, worked by the whole team, ${ACTIVATION_CLAIM}. See the price.`,
   children,
 }: {
   post: BlogPost;

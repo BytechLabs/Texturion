@@ -36,9 +36,9 @@ const CONTENT: TradeContent = {
   displayName: "Plumbers",
 
   dateline: "9:04 PM · BASEMENT DRAIN",
-  h1: "The text inbox for plumbing crews.",
+  h1: "One line for the whole plumbing crew.",
   heroSub:
-    "Customers text a photo of the leak. Whoever's free answers. The owner's personal cell goes back to being a personal cell. A local business number, one shared inbox, $29 a month for the whole crew.",
+    "Customers text a photo of the leak, or they call. Either way it reaches every tech at once and whoever is free answers, and the calls nobody can take leave a voicemail you can read between jobs. The owner's personal cell goes back to being a personal cell. A local business number, one shared inbox, $29 a month for the whole crew.",
   heroTruth:
     `Works on the phones your techs already carry · ${ACTIVATION_CHIP} · Month to month`,
 

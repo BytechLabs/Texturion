@@ -37,9 +37,9 @@ const CONTENT: TradeContent = {
   displayName: "Contractors",
 
   dateline: "8:02 AM · CHANGE ORDER",
-  h1: "The text inbox for contracting crews.",
+  h1: "One line for the whole contracting crew.",
   heroSub:
-    "The homeowner's change request is worth real money, if it lands where the crew can see it and gets approved in writing. Loonext gives the client, the GC, and the subs a business number to text and the crew one shared inbox, so every decision is on the record. $29 a month.",
+    "The homeowner's change request is worth real money, if it lands where the crew can see it and gets approved in writing. Loonext gives the client, the GC and the subs one business number to text or call, and the crew one shared inbox, so every decision is on the record and every job that comes out of it has an owner. $29 a month.",
   heroTruth:
     `Job texts off your personal cell · ${ACTIVATION_CHIP} · Month to month`,
 

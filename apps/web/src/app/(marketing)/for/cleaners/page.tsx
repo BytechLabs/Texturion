@@ -32,9 +32,9 @@ const CONTENT: TradeContent = {
   displayName: "Cleaners",
 
   dateline: "5:56 PM · KEY UNDER MAT?",
-  h1: "The text inbox for cleaning crews.",
+  h1: "One line for the whole cleaning crew.",
   heroSub:
-    "Key under the mat, dog in the crate, oven this time, and Friday moved to Monday. Half of cleaning is what the client told you last week, and it can't live on one phone. Loonext keeps every access note, reschedule, and add-on in one inbox the whole team can see. $29 a month.",
+    "Key under the mat, dog in the crate, oven this time, and Friday moved to Monday. Half of cleaning is what the client told you last week, and it can't live on one phone. Loonext keeps every access note, reschedule and add-on on one timeline the whole team can see, whether the client texted it or said it on the phone. $29 a month.",
   heroTruth:
     `Access notes saved to the client · ${ACTIVATION_CHIP} · Month to month`,
 

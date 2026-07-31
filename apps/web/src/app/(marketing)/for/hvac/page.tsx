@@ -33,9 +33,9 @@ const CONTENT: TradeContent = {
   displayName: "HVAC",
 
   dateline: "6:48 AM · NO HEAT",
-  h1: "The text inbox for HVAC crews.",
+  h1: "One line for the whole HVAC crew.",
   heroSub:
-    "It's 6:48 in the morning, the house is cold, and the customer texted the only number they had. In a shared inbox, whoever's up answers, the right part rides the van, and the no-heat call is booked before the shop opens. A local business number, $29 a month for the whole crew.",
+    "It's 6:48 in the morning, the house is cold, and the customer used the only number they had. Whether they texted it or rang it, whoever is up answers, the right part rides the van, and the no-heat call is booked before the shop opens. A local business number for texts and calls, $29 a month for the whole crew.",
   heroTruth:
     `Works on the phones your techs already carry · ${ACTIVATION_CHIP} · No busy-season contract`,
 
