@@ -193,7 +193,11 @@ export const ConversationRow = memo(function ConversationRow({
       }${snippet?.direction === "note" ? ", internal note" : ""}${
         assigneeName ? `, assigned to ${assigneeName}` : ""
       }${spamView ? ", spam" : ""}${
-        snoozedUntil ? `, snoozed, ${snoozeReturnLabel(snoozedUntil)}` : ""
+        snoozedUntil
+          ? `, snoozed, ${snoozeReturnLabel(snoozedUntil)}${
+              conversation.snooze_note ? `, ${conversation.snooze_note}` : ""
+            }`
+          : ""
       }${attachmentNote}${previewText ? `. ${previewText}` : ""}`}
       style={{ height: ROW_HEIGHT }}
       className={cn(
@@ -292,6 +296,14 @@ export const ConversationRow = memo(function ConversationRow({
               <span className="inline-flex items-center gap-1 rounded-full border border-app-line bg-app-ground px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted">
                 <AlarmClock className="size-3" strokeWidth={1.75} aria-hidden />
                 {snoozeReturnLabel(snoozedUntil)}
+                {/* The reason, when one was left. "Waiting on the supplier"
+                    three days later is the difference between a list you can
+                    read and a list of names. */}
+                {conversation.snooze_note && (
+                  <span className="max-w-40 truncate font-normal text-app-muted-2">
+                    · {conversation.snooze_note}
+                  </span>
+                )}
               </span>
             )}
             {spamView && (

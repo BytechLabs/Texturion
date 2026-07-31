@@ -10,6 +10,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -50,6 +51,10 @@ import java.time.format.FormatStyle
  *   exactly one thing a person wants from it.
  * - **Smart Defaults.** "Pick a date…" opens on the next preset's day, never on
  *   a blank calendar, and lands on the morning hour rather than midnight.
+ * - **A reason, only where somebody is already deliberating.** The optional
+ *   note lives in the date picker, not on the presets: a preset is one tap and
+ *   stays one tap, but "waiting on the supplier" three days later is the
+ *   difference between a list you can read and a list of names.
  * - **No ethical friction.** A snooze is reversible in one tap and cancels
  *   itself the moment the customer replies, so it confirms rather than asking.
  *
@@ -65,6 +70,7 @@ fun SnoozeSection(
 ) {
     val haptics = rememberHaptics()
     var pickerOpen by remember { mutableStateOf(false) }
+    var note by remember { mutableStateOf("") }
     val snoozedUntil = detail.snoozed_until?.takeIf { isSnoozed(it) }
 
     Surface(
@@ -100,7 +106,10 @@ fun SnoozeSection(
                     }
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                SnoozeRow("Pick a date…") { pickerOpen = true }
+                SnoozeRow("Pick a date…") {
+                    note = ""
+                    pickerOpen = true
+                }
             }
         }
     }
@@ -138,7 +147,10 @@ fun SnoozeSection(
                         // refuse it, so the sheet simply does not send it.
                         if (instant.toEpochMilli() > System.currentTimeMillis()) {
                             haptics.tap()
-                            controller.snooze(instant.toString())
+                            controller.snooze(
+                                instant.toString(),
+                                note.trim().ifBlank { null },
+                            )
                             onDismiss()
                         }
                     }
@@ -148,7 +160,20 @@ fun SnoozeSection(
             dismissButton = {
                 TextButton(onClick = { pickerOpen = false }) { Text("Cancel") }
             },
-        ) { DatePicker(state = pickerState) }
+        ) {
+            DatePicker(state = pickerState)
+            OutlinedTextField(
+                value = note,
+                // The column's CHECK. Stopping here turns a Postgres error into
+                // a field that simply stops taking characters.
+                onValueChange = { if (it.length <= SnoozeTiming.NOTE_MAX) note = it },
+                label = { Text("Why? (optional)") },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+            )
+        }
     }
 }
 

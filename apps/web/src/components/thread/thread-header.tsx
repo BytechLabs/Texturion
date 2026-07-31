@@ -213,9 +213,9 @@ export function ThreadHeader({
   // says WHEN it comes back, because "Snoozed" alone leaves the user guessing
   // what they just agreed to.
   const snoozedUntil = conversation.snoozed_until ?? null;
-  const snoozeUntil = (until: string) => {
+  const snoozeUntil = (until: string, note?: string) => {
     snooze.mutate(
-      { conversationId: conversation.id, until },
+      { conversationId: conversation.id, until, note },
       {
         onError: (e) => onApiError(e, "Couldn't snooze this conversation."),
         onSuccess: () => toastSnoozed(until),

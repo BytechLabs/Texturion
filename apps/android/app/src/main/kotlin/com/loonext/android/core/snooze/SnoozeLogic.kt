@@ -40,6 +40,14 @@ object SnoozeTiming {
 
     /** Snoozing further out than this is neither offered nor accepted. */
     const val MAX_DAYS = 365L
+
+    /**
+     * The reason a person leaves on a deferral, in characters. This is the
+     * `char_length(note) <= 120` CHECK on conversation_snoozes, so the picker
+     * stops taking characters exactly where the database stops accepting them
+     * rather than turning a thoughtful note into an error on Snooze.
+     */
+    const val NOTE_MAX = 120
 }
 
 enum class SnoozePresetId { LATER_TODAY, THIS_EVENING, TOMORROW, NEXT_WEEK }

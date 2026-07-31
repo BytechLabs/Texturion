@@ -1282,7 +1282,11 @@ private struct ConversationRow: View {
                         // makes people stop trusting the list. The return time
                         // IS its reason for being here.
                         if let until = row.snoozed_until, isSnoozed(until) {
-                            Text(snoozeReturnLabel(until))
+                            Text(
+                                row.snooze_note.map {
+                                    "\(snoozeReturnLabel(until)) · \($0)"
+                                } ?? snoozeReturnLabel(until)
+                            )
                                 .font(.golos(10, weight: .bold))
                                 .foregroundStyle(BrandColor.muted600)
                                 .padding(.horizontal, 7)

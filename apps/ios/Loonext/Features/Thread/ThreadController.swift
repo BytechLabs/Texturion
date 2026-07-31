@@ -888,15 +888,17 @@ final class ThreadController {
     /// toast confirms rather than offering an undo — and it says WHEN it comes
     /// back, because "Snoozed" alone leaves the crew guessing what they just
     /// agreed to.
-    func snooze(untilISO: String) {
+    func snooze(untilISO: String, note: String? = nil) {
         Task {
             do {
                 try await repo.snooze(
                     companyId: companyId,
                     conversationId: conversationId,
-                    untilISO: untilISO
+                    untilISO: untilISO,
+                    note: note
                 )
                 conversation?.snoozed_until = untilISO
+                conversation?.snooze_note = note
                 notify(
                     snoozeReturnLabel(untilISO)
                         .replacingOccurrences(of: "Back", with: "Snoozed — back")

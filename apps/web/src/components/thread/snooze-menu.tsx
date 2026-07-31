@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import {
   isSnoozeTargetValid,
+  SNOOZE_NOTE_MAX,
   snoozePresets,
   snoozeReturnShape,
 } from "@loonext/shared";
@@ -119,13 +120,18 @@ export function SnoozeDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (untilIso: string) => void;
+  onConfirm: (untilIso: string, note?: string) => void;
 }) {
   // Smart Defaults: the field starts on the next preset, so "pick a date" is an
   // adjustment rather than a blank form. Read at open time, not at mount, so a
   // dialog opened tomorrow does not still offer yesterday.
   const initial = () => snoozePresets()[0]?.at ?? Date.now() + 3_600_000;
   const [value, setValue] = useState(() => toLocalInput(initial()));
+  // The reason, optional, and only here. A preset is one tap and stays one tap;
+  // somebody who has opened a date picker is already deliberating, and "waiting
+  // on the supplier" three days later is the difference between a list you can
+  // read and a list of names.
+  const [note, setNote] = useState("");
 
   const parsed = value === "" ? Number.NaN : new Date(value).getTime();
   const valid = !Number.isNaN(parsed) && isSnoozeTargetValid(parsed);
@@ -134,7 +140,10 @@ export function SnoozeDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (next) setValue(toLocalInput(initial()));
+        if (next) {
+          setValue(toLocalInput(initial()));
+          setNote("");
+        }
         onOpenChange(next);
       }}
     >
@@ -146,12 +155,23 @@ export function SnoozeDialog({
             replies before that.
           </DialogDescription>
         </DialogHeader>
-        <Input
-          type="datetime-local"
-          value={value}
-          aria-label="Return date and time"
-          onChange={(event) => setValue(event.target.value)}
-        />
+        <div className="space-y-2">
+          <Input
+            type="datetime-local"
+            value={value}
+            aria-label="Return date and time"
+            onChange={(event) => setValue(event.target.value)}
+          />
+          <Input
+            value={note}
+            // The column's CHECK, stated once in shared. Stopping here turns a
+            // Postgres error into a field that simply stops taking characters.
+            maxLength={SNOOZE_NOTE_MAX}
+            placeholder="Why? (optional)"
+            aria-label="Why you are snoozing this"
+            onChange={(event) => setNote(event.target.value)}
+          />
+        </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
@@ -161,7 +181,10 @@ export function SnoozeDialog({
             onClick={() => {
               if (!valid) return;
               onOpenChange(false);
-              onConfirm(new Date(parsed).toISOString());
+              onConfirm(
+                new Date(parsed).toISOString(),
+                note.trim() === "" ? undefined : note.trim(),
+              );
             }}
           >
             Snooze

@@ -1522,7 +1522,14 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
             // list. The return time IS its reason for being here, so it leads.
             val snoozeLabel = row.snoozed_until
                 ?.takeIf { isSnoozed(it) }
-                ?.let { snoozeReturnLabel(it) }
+                ?.let { until ->
+                    // The reason, when one was left. "Waiting on the supplier"
+                    // three days later is the difference between a list you can
+                    // read and a list of names.
+                    val back = snoozeReturnLabel(until)
+                    row.snooze_note?.takeIf { it.isNotBlank() }
+                        ?.let { "$back · $it" } ?: back
+                }
             if (row.tags.isNotEmpty() || row.is_spam || assigneeName != null ||
                 snoozeLabel != null
             ) {

@@ -946,11 +946,14 @@ class ThreadController(
      * comes back, because "Snoozed" alone leaves the crew guessing what they
      * just agreed to.
      */
-    fun snooze(untilIso: String) {
+    fun snooze(untilIso: String, note: String? = null) {
         scope.launch {
             try {
-                repo.snooze(companyId, conversationId, untilIso)
-                conversation = conversation?.copy(snoozed_until = untilIso)
+                repo.snooze(companyId, conversationId, untilIso, note)
+                conversation = conversation?.copy(
+                    snoozed_until = untilIso,
+                    snooze_note = note,
+                )
                 persistSnapshot()
                 notify(snoozeReturnLabel(untilIso).replace("Back", "Snoozed — back"))
             } catch (cause: Exception) {

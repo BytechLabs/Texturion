@@ -11,11 +11,16 @@ import SwiftUI
 /// sheet with nothing in it and no explanation. That is the opposite of the
 /// preset ladder, where dropping a stale option leaves three good ones.
 struct SnoozeDatePicker: View {
-    let onPick: @MainActor (Date) -> Void
+    let onPick: @MainActor (Date, String?) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var picked: Date = snoozePresets().first?.at
         ?? Date().addingTimeInterval(3600)
+    /// The reason, optional, and only here. A preset is one tap and stays one
+    /// tap; somebody who has opened a date picker is already deliberating, and
+    /// "waiting on the supplier" three days later is the difference between a
+    /// list you can read and a list of names.
+    @State private var note = ""
 
     var body: some View {
         NavigationStack {
@@ -37,6 +42,17 @@ struct SnoozeDatePicker: View {
                 .datePickerStyle(.graphical)
                 .labelsHidden()
 
+                TextField("Why? (optional)", text: $note)
+                    .font(.golos(13.5))
+                    .textFieldStyle(.roundedBorder)
+                    // The column's CHECK. Stopping here turns a Postgres error
+                    // into a field that simply stops taking characters.
+                    .onChange(of: note) { _, next in
+                        if next.count > SnoozeTiming.noteMax {
+                            note = String(next.prefix(SnoozeTiming.noteMax))
+                        }
+                    }
+
                 Spacer(minLength: 0)
             }
             .padding(18)
@@ -48,8 +64,13 @@ struct SnoozeDatePicker: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Snooze") { onPick(picked) }
-                        .disabled(!isSnoozeTargetValid(picked))
+                    Button("Snooze") {
+                        let trimmed = note.trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        )
+                        onPick(picked, trimmed.isEmpty ? nil : trimmed)
+                    }
+                    .disabled(!isSnoozeTargetValid(picked))
                 }
             }
         }

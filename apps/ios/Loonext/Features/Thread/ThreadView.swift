@@ -1129,9 +1129,9 @@ private struct ConversationSheet: View {
         }
         .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .sheet(isPresented: $snoozePickerOpen) {
-            SnoozeDatePicker { picked in
+            SnoozeDatePicker { picked, note in
                 snoozePickerOpen = false
-                controller.snooze(untilISO: snoozeInstantISO(picked))
+                controller.snooze(untilISO: snoozeInstantISO(picked), note: note)
                 onDismiss()
             }
         }

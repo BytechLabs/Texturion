@@ -37,6 +37,16 @@ export const SNOOZE_MIN_LEAD_MS = 10 * 60 * 1000;
 /** Snoozing further out than this is not offered or accepted (see the API). */
 export const SNOOZE_MAX_DAYS = 365;
 
+/**
+ * The reason a person leaves on a deferral, in characters.
+ *
+ * This is the `char_length(note) <= 120` CHECK on conversation_snoozes, stated
+ * once so the three pickers stop typing at the same place the database stops
+ * accepting — a client that let somebody write 130 characters would turn a
+ * thoughtful note into a Postgres error at the moment they pressed Snooze.
+ */
+export const SNOOZE_NOTE_MAX = 120;
+
 export type SnoozePresetId =
   | "later_today"
   | "this_evening"

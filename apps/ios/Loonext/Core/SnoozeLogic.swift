@@ -31,6 +31,12 @@ enum SnoozeTiming {
 
     /// Snoozing further out than this is neither offered nor accepted.
     static let maxDays: Double = 365
+
+    /// The reason a person leaves on a deferral, in characters. This is the
+    /// `char_length(note) <= 120` CHECK on conversation_snoozes, so the picker
+    /// stops taking characters exactly where the database stops accepting them
+    /// rather than turning a thoughtful note into an error on Snooze.
+    static let noteMax = 120
 }
 
 enum SnoozePresetID: String, Sendable, CaseIterable {
