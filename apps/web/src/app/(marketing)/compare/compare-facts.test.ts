@@ -158,8 +158,15 @@ describe("quo ledger facts (their published prices, July 2026)", () => {
     expect(flat).not.toContain("$8");
     // #133/D38: calling covers both directions, not forwarding alone.
     expect(flat).toContain("call customers back from the business number");
-    // Still honest about what it isn't.
-    expect(flat).toContain("not a full phone system");
+    // #491/D43: cell forwarding is DELETED — the app is the phone. The row
+    // used to say calls "forward to your cell", which sold a capability the
+    // product had removed.
+    expect(flat).not.toContain("forward");
+    expect(flat).toContain("ring the crew inside the app");
+    // Still honest about what it isn't. "Full phone system" was the wrong
+    // disclaimer once a softphone shipped: what Loonext is not is a CALL
+    // CENTER — no menus, no queues, no desk phones.
+    expect(flat).toContain("not a call center");
   });
 
   it("credits their $19.50 registration disclosure in the footnote (deck order)", () => {

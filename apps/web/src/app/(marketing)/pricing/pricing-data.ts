@@ -147,7 +147,7 @@ export const LEDGER: LedgerEntry[] = [
     term: "Optional add-ons, if you turn them on",
     figure: `${CANADA_NUMBERS.price}/mo`,
     detail:
-      `Calling is included in every plan, not an add-on: calls to your number forward to your cell, you can call customers back from the app on your business number, and callers you miss get an automatic text back, with generous calling minutes under fair use (the mechanics live in our fair use policy). One add-on exists: Canada numbers, ${CANADA_NUMBERS.price}/mo, which adds Canadian numbers you can get and text alongside your US number. It isn't switchable on quite yet; we'll sell it when it works, at this price, and nothing here is required to text.`,
+      `Calling is included in every plan, not an add-on: incoming calls ring your crew inside Loonext and whoever is free answers, you call customers back from the app on your business number, and callers you miss leave a voicemail and get an automatic text back, with generous calling minutes under fair use (the mechanics live in our fair use policy). One add-on exists: Canada numbers, ${CANADA_NUMBERS.price}/mo, which adds Canadian numbers you can get and text alongside your US number. It isn't switchable on quite yet; we'll sell it when it works, at this price, and nothing here is required to text.`,
   },
   {
     term: "Tax",
@@ -275,6 +275,6 @@ export const FAQS: { q: string; a: string }[] = [
   },
   {
     q: "What am I not getting at these prices?",
-    a: "Loonext is a shared texting inbox first, not a full phone system: no mass text blasts, no review management, no softphone. Calling is included on every plan, though: calls to your business number forward to your cell, you can call customers back from the app on that same number, and missed callers get an automatic text back, so the lead still lands in your inbox. The minutes are generous under fair use, with the exact mechanics in our fair use policy. If you need blasts or review tools, a bigger platform might fit better; our comparison pages say so honestly.",
+    a: "Loonext is your business line and the work that comes out of it, not a call center: no mass text blasts, no review management, no phone menus, no queues, and no desk phones or SIP handsets. Calling is included on every plan: the app itself is the phone, so incoming calls ring the whole crew inside Loonext and whoever is free answers, you call customers back on that same business number, and callers you miss leave a voicemail we write down and get an automatic text back, so the lead still lands in your inbox. The minutes are generous under fair use, with the exact mechanics in our fair use policy. If you need blasts or review tools, a bigger platform might fit better; our comparison pages say so honestly.",
   },
 ];

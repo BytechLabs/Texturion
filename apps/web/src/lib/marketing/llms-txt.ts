@@ -61,6 +61,8 @@ const PAGE_NOTES: Record<keyof typeof LIVE_ROUTES, string | null> = {
   pricing:
     "the interactive plan builder with the live total, both plans, and every cost on one page",
   featuresSharedInbox: "every customer text in one inbox the whole crew can see",
+  featuresCalls:
+    "calls on the same number: the crew answers in the app, voicemail is written down, and missed callers get a text back",
   featuresBusinessNumber:
     "a local number that belongs to the business, new or ported in free",
   featuresCompliance: "registration, opt-outs, and consent, handled by the product",
@@ -94,6 +96,7 @@ const PAGE_NOTES: Record<keyof typeof LIVE_ROUTES, string | null> = {
 const PAGE_LABELS: Partial<Record<keyof typeof LIVE_ROUTES, string>> = {
   pricing: "Pricing",
   featuresSharedInbox: "Shared inbox",
+  featuresCalls: "Calls and voicemail",
   featuresBusinessNumber: "Your business number",
   featuresCompliance: "Compliance built in",
   featuresTemplatesAndTags: "Templates and tags",
@@ -181,13 +184,13 @@ export function buildLlmsTxt(): string {
  */
 const PROSE = `# Loonext
 
-Loonext is a shared SMS text inbox for small service businesses in the United States and Canada: plumbers, landscapers, cleaners, HVAC, salons, and contractors, from a solo owner to a whole crew. A business gets its own local phone number, either a new one or the number it already has, ported in free. Every incoming customer text becomes a conversation the whole crew can see, reply to, assign, tag, note, and close from any phone. It replaces running the business off one person's personal cell.
+Loonext is the shared line for small service businesses in the United States and Canada: plumbers, landscapers, cleaners, HVAC, salons, and contractors, from a solo owner to a whole crew. A business gets its own local phone number, either a new one or the number it already has, ported in free. Texts AND calls to that number reach the whole crew: a text becomes a conversation anyone can see, reply to, assign, tag, note and close, and a call rings every teammate in the app so whoever is free answers. Missed calls go to voicemail, get written down, and text the caller back. From there a message or a call becomes a task with a due date, and every customer's texts, calls, voicemails and files sit on one timeline. It replaces running the business off one person's personal cell.
 
 Website: https://loonext.com
 
 ## Positioning
 - Flat per-company pricing, not per seat: $${PLAN_PRICING.starter.monthlyDollars}/mo covers ${PLAN_PRICING.starter.seats} people; $${PLAN_PRICING.pro.monthlyDollars}/mo covers up to ${PLAN_PRICING.pro.seats}. Bigger crews use the contact-sales Enterprise tier (unlimited seats).
-- Transparent and self-serve: see the price, pay, start texting. No demo, no sales call, no annual contract, no phone number in the nav.
+- Transparent and self-serve: see the price, pay, start working the line. No demo, no sales call, no annual contract, no phone number in the nav.
 - Month to month. Cancel anytime from billing settings. 30-day money-back guarantee (full first-invoice refund, registration fee included).
 - Leaving is stated up front, not just permitted: cancel yourself with no retention call, nothing is charged after, and a person is reachable inside the app on the way out. The number is held 30 days in case you come back, then released to the phone company and can be reassigned to another business, so people who saved it eventually reach someone else. Port it out first to keep it. We say the uncomfortable half deliberately; the claim is honesty about the exit, not a painless one.
 - Canada-first: Canadian businesses can text Canadian customers the same day they sign up (no US carrier registration needed for Canada-to-Canada).
@@ -228,14 +231,18 @@ Website: https://loonext.com
 
 ## Product features
 - Shared inbox with per-conversation owner and status (new, open, waiting, closed).
+- Snooze a conversation until a time you pick, per person, so a thread you cannot act on today stops cluttering the queue; a customer reply cancels it instantly. Or set a follow-up reminder ("chase this in 3 days if they have not replied"), which cancels itself the moment they do reply.
 - Internal notes (marked, never sent to the customer).
 - Saved replies (templates) via a "/" shortcut.
 - Tags for how you sell (Quote sent, Scheduled, Won, Lost).
 - Pictures both ways: receiving photos is free on every plan and sending photos is included on every plan too; every photo is stored free, with no caps.
 - After-hours auto-reply: outside your business hours, a message you wrote yourself is sent back automatically (at most once per conversation per burst, so nobody gets spammed).
 - Calling included on every plan, both directions: the crew answers in the app, voicemail, call screening, hold and transfer, caller ID name, and missed-call text-back.
-- Search across every message and contact; CSV contact import with a dry-run preview.
-- Works on every phone with no download (a web app you add to your home screen; push notifications; dark mode).
+- Tasks: turn any customer text or call into a job with a due date, an address and an owner, linked back to the message it came from, so "book the Hendersons for Tuesday" stops living in somebody's head.
+- Contacts: one timeline per customer holding every text, call, voicemail and file across every conversation you have ever had with them, plus their address, consent record and private notes.
+- Response time, measured: how fast the crew answers a new customer now, against how fast it answered when it started, with the leads nobody answered counted beside the median rather than quietly dropped.
+- Search across every message, voicemail transcript and contact; CSV contact import with a dry-run preview and CSV export.
+- Works on every phone with no download: a web app you add to your home screen, with push notifications, dark mode, and the same inbox, calls, tasks and contacts as the desktop. There are native iPhone and Android builds, but they are not in the app stores yet, so the honest answer today is the web app.
 - Two numbers on Pro (two locations, or an office line and a field line), each with its own inbox.
 
 ## Compliance, handled by the product

@@ -190,8 +190,8 @@ export default function FairUsePage() {
           the same fair-use mechanics as texting: Starter
           includes 2,500 calling minutes a month and Pro includes 6,000,
           shared by both directions. A minute is a minute you actually
-          talked, whether a customer&apos;s call was forwarded to your cell or you
-          called a customer from the app, always from your business number;
+          talked, whether the crew answered an incoming call in the app or you
+          called a customer from it, always from your business number;
           ringing that goes unanswered never counts. Extra minutes are billed
           at 1&cent; each, under the same monthly spending cap you control,
           and we alert the owner at 80% and again at 100% of the included

@@ -82,7 +82,7 @@ export const QUO_ROWS: LedgerTableRow[] = [
     cells: [
       {
         value: "Included on every plan",
-        note: "Calls to your number forward to your cell, missed ones get a text-back, and you can call customers back from the business number. Generous minutes under fair use; still not a full phone system.",
+        note: "Incoming calls ring the crew inside the app and whoever is free answers, missed ones leave a voicemail and get a text-back, and you call customers back from the business number. Generous minutes under fair use; still not a call center.",
       },
       {
         value: "Included, US and Canada",

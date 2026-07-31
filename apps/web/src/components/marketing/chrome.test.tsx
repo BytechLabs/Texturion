@@ -23,13 +23,26 @@ import {
 const ALL_LIVE = new Set<string>(Object.values(LIVE_ROUTES));
 
 describe("nav-links (deck §Global: Product · Pricing · Who it's for · Compare)", () => {
-  it("Product menu links exactly the 4 feature pages", () => {
-    expect(productMenu.items.map((i) => i.href)).toEqual([
-      LIVE_ROUTES.featuresSharedInbox,
-      LIVE_ROUTES.featuresBusinessNumber,
-      LIVE_ROUTES.featuresCompliance,
-      LIVE_ROUTES.featuresTemplatesAndTags,
-    ]);
+  /**
+   * #491: DERIVED, not enumerated. This used to assert "exactly the 4 feature
+   * pages" against a hardcoded list, which made it a ceiling rather than a
+   * coverage check — calling had shipped on every plan since D36-D43 and the
+   * test that should have caught its absence from the nav was instead the
+   * thing forbidding its presence.
+   *
+   * Now: every `features*` route in LIVE_ROUTES must be reachable from the
+   * Product menu, and the menu may not link anything else. Adding a feature
+   * page and forgetting the nav fails here; adding one to the nav needs no
+   * edit to this file at all.
+   */
+  it("Product menu covers every feature page, and only feature pages", () => {
+    const featureRoutes = Object.entries(LIVE_ROUTES)
+      .filter(([key]) => key.startsWith("features"))
+      .map(([, path]) => path);
+    expect(featureRoutes.length).toBeGreaterThan(0);
+    expect(new Set(productMenu.items.map((i) => i.href))).toEqual(
+      new Set(featureRoutes),
+    );
   });
 
   it("Who it's for menu links exactly the 6 trades", () => {

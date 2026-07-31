@@ -141,7 +141,7 @@ export default function SharedInboxPage() {
             text: "Starter seats 3 people, Pro seats 15. Real limits, never per-seat billing.",
           },
           {
-            text: "Loonext is a texting inbox first, not a full phone system. Calling is included on every plan: calls to your number forward to your cell, you can call customers back from the app on your business number, and missed calls get a text back.",
+            text: "Calling is included on every plan, on the same number: incoming calls ring the whole crew inside Loonext and whoever is free answers, you call customers back from the app on the business number, and callers you miss get a voicemail and an automatic text back. No phone menus, no queues, no desk phones.",
           },
         ]}
       />

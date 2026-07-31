@@ -46,6 +46,9 @@ export const LIVE_ROUTES = {
 
   // Feature pages (BLUEPRINT §2, §5).
   featuresSharedInbox: "/features/shared-inbox",
+  // #491: calling has been included on every plan since D36-D43 and the site
+  // never said so. The omission made the product look like a texting tool.
+  featuresCalls: "/features/calls",
   featuresBusinessNumber: "/features/business-number",
   featuresCompliance: "/features/compliance",
   featuresTemplatesAndTags: "/features/templates-and-tags",

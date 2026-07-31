@@ -32,47 +32,60 @@ Source of truth: `brand/README.md` and the SVGs in `brand/`.
 
 **Primary:** Your number. One inbox. The whole crew.
 
+The primary line is deliberately unchanged by #491: it never said "text". It
+says *number* and *inbox*, which is exactly what the product became — the line
+was right before the product caught up to it.
+
 Alternates (same idea, different angle):
 
-- Every customer text, handled by whoever is free.
-- Your business's texts, off one person's phone.
-- The shared text inbox for your crew.
+- Every call and text, answered by whoever is free.
+- Your business line, off one person's phone.
+- The shared line for your crew.
+- One number. Texts, calls, and the jobs that come out of them.
 
 ## The one-liner ("We help X do Y without Z")
 
-**We help small service crews answer every customer text, from any phone,
-without living on one person's personal cell or paying per seat.**
+**We help small service crews answer every customer call and text, from any
+phone, without living on one person's personal cell or paying per seat.**
 
 Trade-specific variants:
 
-- We help plumbers and HVAC techs turn customer texts into shared jobs the
-  whole crew can see, without a sales call or a per-user bill.
+- We help plumbers and HVAC techs turn customer calls and texts into shared
+  jobs the whole crew can see, without a sales call or a per-user bill.
 - We help cleaners, landscapers, and salons keep every customer conversation
   in one place, without losing the thread on someone's personal phone.
 
 ## Short intro (2 to 3 sentences)
 
-Loonext gives your small service business a local phone number and a shared
-text inbox that your whole crew works from any phone. Every customer text
-becomes a conversation anyone can see, reply to, assign, and close, so the next
-9 PM message gets answered by whoever is free instead of dying on one person's
-personal cell. It is a flat price for the whole team, month to month, with no
-sales call and no per-seat fee.
+Loonext gives your small service business a local phone number and one shared
+inbox that your whole crew works from any phone. Texts become conversations
+anyone can see, reply to, assign and close. Calls to the same number ring every
+teammate in the app, and the ones nobody catches go to voicemail, get written
+down, and text the caller back. Either one turns into a task with a due date,
+and every customer's whole history sits on one timeline. So the 9 PM message
+gets answered by whoever is free instead of dying on one person's personal cell.
+It is a flat price for the whole team, month to month, with no sales call and no
+per-seat fee.
 
 ## Short summary (under 500 words)
 
-Small service businesses run on text messages. A customer texts a photo of a
-leaking water heater, asks for a quote, or says they are running late, and that
-message almost always lands on one person's personal cell phone. When that
-person is on a job, asleep, or out sick, the text sits unseen and the work goes
-to whoever answers first. Loonext fixes that.
+Small service businesses run on one phone number. A customer texts a photo of a
+leaking water heater, or rings during a job to ask for a quote, and it almost
+always lands on one person's personal cell. When that person is under a sink,
+asleep, or out sick, the text sits unseen and the call goes to a voicemail box
+nobody checks. The work goes to whoever answers first. Loonext fixes that.
 
 Loonext gives your business its own local phone number, either a brand new one
 or the number you already use, ported over for free. Every text to that number
 becomes a conversation in one shared inbox that your whole crew can open from
-any phone. Anyone can reply, take ownership, add an internal note the customer
-never sees, tag it, or turn it into a task. Nothing is trapped on a single
-person's device, and nobody has to hand their personal number to customers.
+any phone. Every call to it rings the whole crew in the app, so whoever is free
+picks up; the ones nobody catches leave a voicemail that is transcribed and
+searchable, and the caller gets a text back automatically so the job does not go
+elsewhere. Anyone can reply, take ownership, add an internal note the customer
+never sees, tag it, snooze it until Thursday, or turn it into a task with an
+address and a due date. Every customer has one timeline holding all of it.
+Nothing is trapped on a single person's device, and nobody has to hand their
+personal number to customers.
 
 It is built for the trades and service work: plumbers, HVAC, landscapers,
 cleaners, salons, and contractors, from a solo owner to a crew of fifteen. The
@@ -100,8 +113,9 @@ companies approve your business, usually within about a week, and Loonext tells
 you the honest timeline before you pay.
 
 It works on every phone with nothing to download: add it to your home screen,
-get push notifications, use it in dark mode. Your number, one inbox, your whole
-crew, for one flat price.
+get push notifications, use it in dark mode. (Native iPhone and Android builds
+exist but are not in the app stores yet, so the honest answer today is the web
+app.) Your number, one inbox, your whole crew, for one flat price.
 
 ## Long summary (about 1200 words)
 
@@ -109,9 +123,10 @@ crew, for one flat price.
 
 Most small service businesses do not run on a fancy CRM. They run on a phone
 number, and that number is usually a personal cell. A customer texts a photo of
-a burst pipe, asks "can someone come Thursday," or writes "running ten minutes
-late." That message lands on one person's phone. If that person is under a sink,
-driving, asleep, or off for the day, the text goes unseen. The customer waits,
+a burst pipe, asks "can someone come Thursday," writes "running ten minutes
+late," or simply calls. It all lands on one person's phone. If that person is
+under a sink, driving, asleep, or off for the day, the text goes unseen and the
+call goes to a personal voicemail greeting nobody checks. The customer waits,
 assumes nobody is home, and calls the next business on the list. The job is lost
 before anyone at the company even knew there was a job.
 
@@ -122,28 +137,46 @@ employee leaves, the customer relationships can walk out with their phone.
 
 ### What Loonext is
 
-Loonext is a shared text inbox for small service businesses in the United States
+Loonext is the shared line for small service businesses in the United States
 and Canada. You get a local business phone number, either a new one or the
-number you already advertise, ported in for free. Every text to that number
-lands in one inbox that your entire crew can open from any phone. It replaces
-running the business off one person's personal cell.
+number you already advertise, ported in for free. Everything that reaches that
+number — texts, photos, and calls — lands where your entire crew can work it
+from any phone. It replaces running the business off one person's personal cell.
 
 Each incoming text becomes a conversation with an owner and a status (new, open,
 waiting, closed), exactly like a shared email inbox but for SMS. Anyone on the
 crew can reply, claim a conversation, reassign it, tag it (Quote sent,
-Scheduled, Won, Lost), add an internal note that the customer never sees, or
-turn a message into a task with an assignee and a due date. The whole team sees
-the same thread, so the next person to pick up the phone always has the full
-picture.
+Scheduled, Won, Lost), add an internal note that the customer never sees, snooze
+it until a time they choose, or turn a message into a task with an assignee, an
+address and a due date. The whole team sees the same thread, so the next person
+to pick up the phone always has the full picture.
+
+Calls run on the same number and the same crew. An incoming call rings every
+teammate inside the app at once and whoever answers first takes it; there is no
+phone tree and nothing to forward. Callers who reach nobody leave a voicemail
+that is written down so it can be read and searched instead of listened to, and
+they get an automatic text back in your own words so the job does not quietly go
+to the next business. Outbound calls present the business number, never anyone's
+cell. Screening, hold, transfer between teammates, and caller ID name in both
+directions are included, on every plan, with nothing to switch on.
+
+Underneath both is one record of the customer. A contact holds every text, call,
+voicemail and file you have ever exchanged with that person, across every
+conversation, on one timeline, with their address, their consent record and your
+private notes. And Lou, the assistant, drafts replies for a person to edit and
+send, writes voicemails down, and fills in a task's address and due date from
+what the customer actually wrote. Every AI feature ships on and can be switched
+off one at a time.
 
 ### Who it is for
 
 The trades and hands-on service work: plumbers, HVAC, landscapers, cleaners,
 salons, and contractors. It fits a solo owner who wants to stop giving out their
 personal number, and it fits a crew of a dozen who need everyone on the same
-inbox. It is not a bulk-marketing blaster, a call center platform, or an
-enterprise contact center. It does one job well: turn the texts your customers
-already send into shared, answerable work.
+line. It is not a bulk-marketing blaster, a call center platform, or an
+enterprise contact center: no phone menus, no queues, no campaigns. It does one
+job well: turn the calls and texts your customers already send into shared,
+answerable work.
 
 ### How the pricing works
 
@@ -154,7 +187,7 @@ and a field line. Bigger crews use a contact-sales Enterprise tier that keeps
 the same flat, no-per-user philosophy at a larger scale.
 
 Everything is transparent and self-serve. You see the price, pay, and start
-texting the same session. There is no demo to schedule, no sales call, no annual
+working the line the same session. There is no demo to schedule, no sales call, no annual
 lock-in, and a 30-day money-back guarantee that refunds your first invoice in
 full, registration fee included.
 

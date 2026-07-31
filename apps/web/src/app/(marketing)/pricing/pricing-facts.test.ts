@@ -356,13 +356,23 @@ describe("/pricing FAQ (all nine, facts intact)", () => {
     // plan, both directions, and the answer must say so instead of selling
     // an add-on that no longer exists.
     expect(not?.a).toContain("Calling is included on every plan");
-    expect(not?.a).toContain("forward to your cell");
-    expect(not?.a).toContain("call customers back from the app");
+    // #491/D43: cell forwarding is DELETED. This assertion used to require the
+    // phrase "forward to your cell", which pinned a claim the product had
+    // stopped honouring — a guard asserting a false fact is worse than no
+    // guard, because it makes the CORRECTION look like the regression. The app
+    // settings have carried `expect(html).not.toContain("forward")` since D43;
+    // the marketing half of that deletion was never done.
+    expect(not?.a).not.toContain("forward");
+    expect(not?.a).toContain("ring the whole crew");
+    expect(not?.a).toContain("call customers back");
     expect(not?.a).toContain("text back");
     expect(not?.a).toContain("fair use");
     expect(not?.a).not.toContain("add-on");
     expect(not?.a).not.toContain("$8");
     expect(not?.a).not.toContain("no calling inside the app");
+    // D36-D43: the browser softphone IS the product. The old answer disclaimed
+    // "no softphone" in the same breath as describing one.
+    expect(not?.a).not.toContain("no softphone");
   });
 
   it("#134/D42: no string anywhere on /pricing sells calling for $8 or as an add-on", () => {

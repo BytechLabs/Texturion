@@ -38,6 +38,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly",
     },
     {
+      path: LIVE_ROUTES.featuresCalls,
+      priority: 0.8,
+      changeFrequency: "monthly",
+    },
+    {
       path: LIVE_ROUTES.featuresBusinessNumber,
       priority: 0.8,
       changeFrequency: "monthly",

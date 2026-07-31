@@ -6,7 +6,7 @@
  * seat price in the chart IS Quo's, sourced here) → the honest calling
  * concession (Quo is a full phone system; our included calling rings your
  * cell, calls customers back on the business number, and texts back missed
- * calls, but it is not a full phone system — #133/D38, included on every
+ * calls, but it is not a call center — #133/D38, included on every
  * plan per #134/D42) → switching Truth Strip → CTA. Their $19.50
  * registration disclosure is credited in the footnote, as the deck orders.
  *
@@ -126,11 +126,11 @@ export default function CompareQuoPage() {
             <p>
               Your business lives on phone calls. Quo makes and receives them,
               with unlimited US and Canada calling on every tier, voicemail,
-              and an AI agent. Loonext is texting-first; calling is included
-              on every plan (calls ring your whole crew in the app, unanswered
-              calls take a voicemail, you can call customers back on your
-              business number, and the ones you miss get a text back), but
-              it is not a full phone system.
+              and an AI agent. Loonext answers calls too, on every plan: they
+              ring your whole crew in the app, unanswered ones take a voicemail
+              we write down, you call customers back on your business number,
+              and the ones you miss get a text back. What it is not is a call
+              center: no phone menus, no queues, no desk phones.
             </p>
             <p>
               You want desktop and mobile apps for a distributed team that

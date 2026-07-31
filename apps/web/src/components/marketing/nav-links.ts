@@ -7,6 +7,7 @@ import {
   Leaf,
   type LucideIcon,
   Mail,
+  PhoneCall,
   Scale,
   Scissors,
   ShieldCheck,
@@ -46,7 +47,9 @@ export interface NavMenu {
   items: NavItem[];
 }
 
-/** Product ▾ — the four feature pages (coverage map). */
+/** Product ▾ — the feature pages (coverage map). #491 added Calls: it had
+ * shipped on every plan since D36-D43 with no way to reach it from the nav,
+ * which is most of why the site read as a texting tool. */
 export const productMenu: NavMenu = {
   label: "Product",
   columns: 1,
@@ -56,6 +59,12 @@ export const productMenu: NavMenu = {
       href: LIVE_ROUTES.featuresSharedInbox,
       description: "Every text in one inbox the whole crew can see.",
       icon: Inbox,
+    },
+    {
+      label: "Calls and voicemail",
+      href: LIVE_ROUTES.featuresCalls,
+      description: "Calls ring the whole crew. Missed ones get written down.",
+      icon: PhoneCall,
     },
     {
       label: "Your business number",
