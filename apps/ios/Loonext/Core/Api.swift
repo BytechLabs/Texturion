@@ -71,6 +71,10 @@ struct InboxApi: Sendable {
         spam: Bool? = nil,
         unread: Bool? = nil,
         pinned: String? = nil,
+        // #293: nil is the server's default — the ordinary inbox hides what
+        // this member deferred. Only "only" (the Snoozed view) and "all"
+        // (opting out of the filter entirely) ever travel.
+        snoozed: String? = nil,
         q: String? = nil,
         cursor: String? = nil,
         limit: Int = 25
@@ -84,6 +88,7 @@ struct InboxApi: Sendable {
                 "is_spam": spam.map { $0 ? "true" : "false" },
                 "unread": unread.map { $0 ? "true" : "false" },
                 "pinned": pinned,
+                "snoozed": snoozed,
                 "q": q,
                 "cursor": cursor,
                 "limit": String(limit),

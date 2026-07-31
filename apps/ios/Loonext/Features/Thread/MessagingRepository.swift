@@ -205,6 +205,35 @@ struct MessagingRepository: Sendable {
         )
     }
 
+    /// #293 — defer a thread out of MY list until `untilISO`.
+    ///
+    /// The instant is absolute and resolved on the DEVICE, because #292 says
+    /// "tomorrow morning" is the user's morning and only the device knows what
+    /// that is. A customer reply cancels it in the database, whatever the timer
+    /// said, so nothing on this side has to remember that rule.
+    func snooze(
+        companyId: String,
+        conversationId: String,
+        untilISO: String,
+        note: String? = nil
+    ) async throws {
+        var body: [String: JSONValue] = ["until": .string(untilISO)]
+        if let note { body["note"] = .string(note) }
+        let _: JSONValue = try await api.post(
+            "/v1/conversations/\(conversationId)/snooze",
+            body: JSONValue.object(body),
+            companyId: companyId
+        )
+    }
+
+    /// #293 — bring it back now. Idempotent, so one tap is always safe.
+    func unsnooze(companyId: String, conversationId: String) async throws {
+        try await api.delete(
+            "/v1/conversations/\(conversationId)/snooze",
+            companyId: companyId
+        )
+    }
+
     // MARK: - Tags (#159 gap-close; Android twin MessagingData.kt)
 
     /// Attach an existing tag by id. Attaching an attached tag is a no-op.

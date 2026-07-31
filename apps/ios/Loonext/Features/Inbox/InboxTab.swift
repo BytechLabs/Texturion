@@ -141,6 +141,11 @@ private final class InboxController {
     private(set) var tag: Tag?
     private(set) var unreadOnly = false
     private(set) var spamOnly = false
+    /// #293: the Snoozed view. Same shape as `spamOnly` — a population hidden
+    /// from the default list, revealed by one chip — because that pattern
+    /// already exists here and a second invention of it is how two hidden
+    /// populations end up behaving differently.
+    private(set) var snoozedOnly = false
 
     private(set) var state: LoadState<Void> = .loading
     private(set) var rows: [ConversationListItem] = []
@@ -175,7 +180,7 @@ private final class InboxController {
     }
 
     var hasFilterChips: Bool {
-        assignee != nil || tag != nil || unreadOnly || spamOnly
+        assignee != nil || tag != nil || unreadOnly || spamOnly || snoozedOnly
     }
 
     func selectTab(_ next: InboxStatusTab) {
@@ -204,6 +209,11 @@ private final class InboxController {
         reload(showLoading: true)
     }
 
+    func toggleSnoozed() {
+        snoozedOnly.toggle()
+        reload(showLoading: true)
+    }
+
     private func fetchPage(cursor: String?, pinned: String) async throws -> Page<ConversationListItem> {
         try await inboxApi.conversations(
             companyId: companyId,
@@ -220,6 +230,10 @@ private final class InboxController {
             spam: spamOnly ? true : nil,
             unread: unreadOnly ? true : nil,
             pinned: pinned,
+            // #293: same for deferrals. Nil leaves the field off entirely,
+            // which IS the server's hide-them default — sending "exclude"
+            // would say the same thing twice.
+            snoozed: snoozedOnly ? "only" : nil,
             cursor: cursor,
             limit: pinned == "only" ? 100 : 25
         )
@@ -1004,6 +1018,15 @@ private struct FilterChipRow: View {
                     onTap: { controller.toggleSpam() },
                     onClear: nil
                 )
+                // #293: the way back to what you deferred. A snooze that hid a
+                // thread with no way to find it would be worse than the
+                // clutter it solved.
+                FilterChip(
+                    label: "Snoozed",
+                    selected: controller.snoozedOnly,
+                    onTap: { controller.toggleSnoozed() },
+                    onClear: nil
+                )
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 2)
@@ -1253,6 +1276,20 @@ private struct ConversationRow: View {
                             .font(.golos(14, weight: row.unread ? .semibold : .medium))
                             .foregroundStyle(BrandColor.ink)
                             .lineLimit(1)
+                        // #293: normally this row only exists in the Snoozed
+                        // view — but it also survives a mid-session return, and
+                        // a row that came back with no explanation is what
+                        // makes people stop trusting the list. The return time
+                        // IS its reason for being here.
+                        if let until = row.snoozed_until, isSnoozed(until) {
+                            Text(snoozeReturnLabel(until))
+                                .font(.golos(10, weight: .bold))
+                                .foregroundStyle(BrandColor.muted600)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(BrandColor.inset, in: Capsule())
+                                .lineLimit(1)
+                        }
                         if row.is_spam {
                             Text("Spam")
                                 .font(.golos(10, weight: .bold))

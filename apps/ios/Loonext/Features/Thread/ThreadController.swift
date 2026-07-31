@@ -882,6 +882,48 @@ final class ThreadController {
         }
     }
 
+    /// #293 — defer this thread out of MY inbox until `untilISO`.
+    ///
+    /// Reversible in one tap and cancelled outright by a customer reply, so the
+    /// toast confirms rather than offering an undo — and it says WHEN it comes
+    /// back, because "Snoozed" alone leaves the crew guessing what they just
+    /// agreed to.
+    func snooze(untilISO: String) {
+        Task {
+            do {
+                try await repo.snooze(
+                    companyId: companyId,
+                    conversationId: conversationId,
+                    untilISO: untilISO
+                )
+                conversation?.snoozed_until = untilISO
+                notify(
+                    snoozeReturnLabel(untilISO)
+                        .replacingOccurrences(of: "Back", with: "Snoozed — back")
+                )
+            } catch {
+                notify(error.userMessage)
+            }
+        }
+    }
+
+    /// #293 — bring it back now. Idempotent, so one tap is always safe.
+    func unsnooze() {
+        Task {
+            do {
+                try await repo.unsnooze(
+                    companyId: companyId,
+                    conversationId: conversationId
+                )
+                conversation?.snoozed_until = nil
+                conversation?.snooze_note = nil
+                notify("Back in your inbox.")
+            } catch {
+                notify(error.userMessage)
+            }
+        }
+    }
+
     func toggleConversationPin() {
         let pinning = conversation?.pinned_at == nil
         Task {
@@ -1116,6 +1158,12 @@ extension ConversationDetail {
             updated_at: updated_at,
             contact: contact,
             tags: tags,
+            // #293: carried explicitly. These rebuild the whole struct through
+            // the memberwise init, so a field omitted here is a field SILENTLY
+            // CLEARED — pinning a deferred thread would have made its snooze
+            // banner vanish while the server still had it deferred.
+            snoozed_until: snoozed_until,
+            snooze_note: snooze_note,
             messages: messages,
             viewer_level: viewer_level
         )
@@ -1139,6 +1187,12 @@ extension ConversationDetail {
             updated_at: row.updated_at,
             contact: contact,
             tags: tags,
+            // #293: carried explicitly. These rebuild the whole struct through
+            // the memberwise init, so a field omitted here is a field SILENTLY
+            // CLEARED — pinning a deferred thread would have made its snooze
+            // banner vanish while the server still had it deferred.
+            snoozed_until: snoozed_until,
+            snooze_note: snooze_note,
             messages: messages,
             viewer_level: viewer_level
         )

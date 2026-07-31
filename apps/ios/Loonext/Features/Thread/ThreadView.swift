@@ -211,6 +211,16 @@ private struct ThreadBody: View {
                     onRemove: { controller.detachTag($0) }
                 )
 
+                // #293: a deferred thread says so IN PLACE, with a one-tap
+                // way back. The alternative is opening a thread you snoozed,
+                // seeing nothing, and finding it gone from the inbox again an
+                // hour later — a state the app knew about and did not mention.
+                if let until = detail.snoozed_until, isSnoozed(until) {
+                    SnoozedBanner(label: snoozeReturnLabel(until)) {
+                        controller.unsnooze()
+                    }
+                }
+
                 if !controller.pinnedMessages.isEmpty {
                     PinnedBanner(pinned: controller.pinnedMessages) { messageId in
                         Task {
@@ -948,6 +958,10 @@ private struct ConversationSheet: View {
     let onRefresh: @MainActor () -> Void
     let onDismiss: @MainActor () -> Void
 
+    /// #293: the custom-date sheet, owned here rather than inside the row, so
+    /// dismissing the actions sheet cannot take the picker with it.
+    @State private var snoozePickerOpen = false
+
     private let statuses = [
         ConversationStatus.new,
         ConversationStatus.open,
@@ -968,6 +982,7 @@ private struct ConversationSheet: View {
                 identityRow
                 statusSection
                 actionsCard
+                snoozeCard
                 timelineCard
             }
             .padding(.horizontal, 18)
@@ -1078,6 +1093,54 @@ private struct ConversationSheet: View {
         .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
+    /// #293 — "needs attention, but on Thursday".
+    ///
+    /// Its own card rather than a row in `actionsCard`, because deferring is a
+    /// CHOICE (which "later") not a toggle, and four presets folded into that
+    /// list would bury the actions that are one tap each.
+    ///
+    /// Chunking: at most four presets, and the ladder SHRINKS as the day goes —
+    /// at 4pm there is no "This afternoon" to offer, so it is not offered. A
+    /// disabled row is a worse answer than a shorter list. Once deferred the
+    /// card collapses to a single "Bring back now", because at that point there
+    /// is exactly one thing a person wants from it.
+    @ViewBuilder
+    private var snoozeCard: some View {
+        VStack(spacing: 0) {
+            if let until = detail.snoozed_until, isSnoozed(until) {
+                sheetNote(snoozeReturnLabel(until))
+                RowDivider()
+                sheetRow("Bring back now") {
+                    controller.unsnooze()
+                    onDismiss()
+                }
+            } else {
+                sheetNote("Snooze until")
+                ForEach(snoozePresets()) { preset in
+                    RowDivider()
+                    sheetRow(preset.label, trailing: presetClock(preset.at)) {
+                        controller.snooze(untilISO: snoozeInstantISO(preset.at))
+                        onDismiss()
+                    }
+                }
+                RowDivider()
+                sheetRow("Pick a date…") { snoozePickerOpen = true }
+            }
+        }
+        .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .sheet(isPresented: $snoozePickerOpen) {
+            SnoozeDatePicker { picked in
+                snoozePickerOpen = false
+                controller.snooze(untilISO: snoozeInstantISO(picked))
+                onDismiss()
+            }
+        }
+    }
+
+    private func presetClock(_ date: Date) -> String {
+        date.formatted(date: .omitted, time: .shortened)
+    }
+
     private var timelineCard: some View {
         VStack(spacing: 0) {
             toggleRow("Show messages", on: controller.filter.messages) {
@@ -1112,15 +1175,26 @@ private struct ConversationSheet: View {
             .padding(.vertical, 13)
     }
 
-    private func sheetRow(_ label: String, action: @escaping @MainActor () -> Void) -> some View {
+    private func sheetRow(
+        _ label: String,
+        trailing: String? = nil,
+        action: @escaping @MainActor () -> Void
+    ) -> some View {
         Button(action: action) {
-            Text(label)
-                .font(.golos(13.5, weight: .medium))
-                .foregroundStyle(BrandColor.ink)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 15)
-                .padding(.vertical, 13)
-                .contentShape(Rectangle())
+            HStack(spacing: 10) {
+                Text(label)
+                    .font(.golos(13.5, weight: .medium))
+                    .foregroundStyle(BrandColor.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let trailing {
+                    Text(trailing)
+                        .font(.golos(11.5))
+                        .foregroundStyle(BrandColor.muted500)
+                }
+            }
+            .padding(.horizontal, 15)
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -1239,6 +1313,44 @@ struct AssigneePickerSheet: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium, .large])
+    }
+}
+
+/// #293 — "Back Thursday, 8:00 AM · Bring back". One line, the same shape as
+/// the pinned banner so a second in-thread status strip does not invent a
+/// second visual language, and the whole strip is the tap target: at this point
+/// there is exactly one thing a person wants from it.
+@MainActor
+private struct SnoozedBanner: View {
+    let label: String
+    let onBringBack: @MainActor () -> Void
+
+    var body: some View {
+        Button(action: onBringBack) {
+            HStack(spacing: 8) {
+                Image(systemName: "clock")
+                    .font(.system(size: 12))
+                    .foregroundStyle(BrandColor.muted700)
+                Text(label)
+                    .font(.golos(11.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.muted900)
+                Spacer()
+                Text("Bring back")
+                    .font(.golos(11.5, weight: .semibold))
+                    .foregroundStyle(BrandColor.olive)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(
+                BrandColor.inset,
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 5)
+        .accessibilityHint("Brings this conversation back to your inbox now")
     }
 }
 

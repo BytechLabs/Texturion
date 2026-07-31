@@ -94,6 +94,14 @@ struct ConversationListItem: Codable, Sendable {
     @Default<DefaultEmptyList<Tag>> var tags: [Tag]
     @Default<DefaultFalse> var unread: Bool
     let last_message: ConversationSnippet?
+    /// #293: when THIS member's deferral brings the thread back, and why they
+    /// deferred it. Nil for everyone else — the snooze is mine, the
+    /// conversation is the crew's — and nil once the return time has passed,
+    /// because the server computes "currently deferred" rather than sweeping
+    /// rows on a timer. `var … = nil` so it does not become a required
+    /// memberwise-init parameter at every existing construction site.
+    var snoozed_until: String? = nil
+    var snooze_note: String? = nil
 }
 
 struct AttachmentSummary: Codable, Sendable {
@@ -200,6 +208,14 @@ struct ConversationDetail: Codable, Sendable {
     let updated_at: String
     let contact: ConversationDetailContact
     @Default<DefaultEmptyList<Tag>> var tags: [Tag]
+    /// #293: when THIS member's deferral brings the thread back, and why they
+    /// deferred it. Nil for everyone else — the snooze is mine, the
+    /// conversation is the crew's — and nil once the return time has passed,
+    /// because the server computes "currently deferred" rather than sweeping
+    /// rows on a timer. `var … = nil` so it does not become a required
+    /// memberwise-init parameter at every existing construction site.
+    var snoozed_until: String? = nil
+    var snooze_note: String? = nil
     let messages: Page<Message>
     /// #106: 'note' = read + internal notes only (composer hides SMS mode).
     @Default<DefaultViewerText> var viewer_level: String
