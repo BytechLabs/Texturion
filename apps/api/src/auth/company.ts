@@ -1,6 +1,8 @@
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
 
+import { roleSatisfiesRank } from "@loonext/shared";
+
 import { MEMBER_ROLES, type AppEnv, type MemberRole } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -203,12 +205,6 @@ export function companyContext() {
   });
 }
 
-const ROLE_RANK: Record<MemberRole, number> = {
-  member: 1,
-  admin: 2,
-  owner: 3,
-};
-
 /**
  * Role gate per the SPEC §10 matrix. Roles are strictly hierarchical
  * (owner ⊃ admin ⊃ member): `requireRole('admin')` admits owner and admin
@@ -219,7 +215,10 @@ const ROLE_RANK: Record<MemberRole, number> = {
 export function requireRole(minimum: MemberRole) {
   return createMiddleware<AppEnv>(async (c, next) => {
     const role: MemberRole | undefined = c.get("role");
-    if (role === undefined || ROLE_RANK[role] < ROLE_RANK[minimum]) {
+    // #315: the rank lives in @loonext/shared beside the capability table it
+    // is being replaced by, so the two cannot disagree while the 138 gates are
+    // converted one axis at a time. Behaviour here is unchanged.
+    if (role === undefined || !roleSatisfiesRank(role, minimum)) {
       return errorResponse(c, "forbidden", "Insufficient role for this action.");
     }
     await next();

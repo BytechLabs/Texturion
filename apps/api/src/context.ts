@@ -1,9 +1,15 @@
 import type { Bindings } from "./env";
 
-/** `member_role` enum values (SPEC §6). */
-export const MEMBER_ROLES = ["owner", "admin", "member"] as const;
+/**
+ * `member_role` enum values (SPEC §6).
+ *
+ * #315: defined once in @loonext/shared, beside the capability table that will
+ * replace the rank, so the API, the web app and the phones cannot hold three
+ * different opinions about what roles exist while the presets land.
+ */
+import type { MemberRole } from "@loonext/shared";
 
-export type MemberRole = (typeof MEMBER_ROLES)[number];
+export { MEMBER_ROLES, type MemberRole } from "@loonext/shared";
 
 /**
  * Request-scoped variables set by the /v1 middleware chain (SPEC §7, §10):

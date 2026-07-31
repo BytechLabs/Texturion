@@ -26,7 +26,9 @@
  * agreeing on the rows and disagreeing about nothing at all.
  */
 
-export type MemberRole = "owner" | "admin" | "member";
+import type { MemberRole } from "./capabilities";
+
+export type { MemberRole };
 
 /**
  * Canonical section ids. Each client maps its own route/enum onto these; the

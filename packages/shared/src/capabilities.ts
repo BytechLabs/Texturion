@@ -1,0 +1,121 @@
+/**
+ * #315 — the axes a role is actually made of.
+ *
+ * `requireRole` implements a strict RANK: owner ⊃ admin ⊃ member. It is clean,
+ * correctly enforced, and one-dimensional — and the people in a real crew are
+ * not arranged on a line. The bookkeeper needs billing and NOT every customer
+ * conversation; a read-only observer needs conversations and NOT the ability to
+ * text as the business. Neither is expressible as a rank, so today the answer
+ * is "make them an admin", and the practical outcome is a shared login — which
+ * defeats #191 attribution, #231 audit and #314 MFA at the same time.
+ *
+ * This is the model those presets will be built from. It changes NO behaviour
+ * on its own: the three existing roles are defined here as the exact capability
+ * sets their rank already implies, and `capabilities.test.ts` proves the
+ * equivalence case by case rather than asserting it in a comment. That
+ * equivalence is the whole point of landing this separately — the conversion of
+ * 138 `requireRole` gates is only safe if the model provably says what the rank
+ * says today.
+ *
+ * Deliberately NOT a permission matrix. #315's own discipline: "a checkbox grid
+ * is a correct model and a bad product for a two-person plumbing company." The
+ * capabilities below are the axes an owner already thinks in; roles stay named
+ * presets over them, and per-capability configuration waits for a customer who
+ * asks for it.
+ */
+
+/**
+ * What someone can DO, split along the lines that are genuinely independent.
+ *
+ * Split rules, so the next person adding one has a test to apply:
+ * - Two capabilities are separate when a real crew member needs one and not
+ *   the other. The bookkeeper is why `billing.manage` is not `settings.manage`.
+ * - Reading and acting are separate wherever acting is visible to a CUSTOMER.
+ *   That is why `conversations.read` and `conversations.send` are two things:
+ *   the read-only observer is exactly the gap between them.
+ * - Anything that spends money, ends the workspace, or moves the number is
+ *   owner-only and stays that way. Those are not delegation problems.
+ */
+export const CAPABILITIES = [
+  /** See conversations, contacts, tasks — the shared inbox, read side. */
+  "conversations.read",
+  /** Send a text, place a call: act as the business toward a customer. */
+  "conversations.send",
+  /** Post internal notes. Separate from `send` because a note reaches nobody
+   *  outside the crew, which is what makes note-only access useful (#106 has
+   *  the same 'text' vs 'note' split per number). */
+  "conversations.note",
+  /** Plan, payment method, invoices, receipts. */
+  "billing.manage",
+  /** Workspace settings: hours, away reply, calling, Lou, templates. */
+  "settings.manage",
+  /** Invite, remove, and re-role teammates. */
+  "team.manage",
+  /** Buy, release, port and register numbers; per-number access rules. */
+  "numbers.manage",
+  /** Read the audit log (#231). */
+  "history.read",
+  /**
+   * The irreversible ones: the overage cap, US enablement, number release,
+   * transferring ownership, closing the workspace. Owner only, and not part of
+   * any preset — a capability nobody can be granted is the honest way to say
+   * "this is the owner's alone".
+   */
+  "workspace.own",
+] as const;
+
+export type Capability = (typeof CAPABILITIES)[number];
+
+/** The roles that exist today. New presets are added here, not invented at a
+ *  call site. */
+export const MEMBER_ROLES = ["owner", "admin", "member"] as const;
+export type MemberRole = (typeof MEMBER_ROLES)[number];
+
+/**
+ * Each role's capabilities, set to EXACTLY what its rank grants today.
+ *
+ * owner ⊃ admin ⊃ member is preserved here as data rather than arithmetic,
+ * which is what lets a later preset break the line without breaking these.
+ */
+const ROLE_CAPABILITIES: Record<MemberRole, readonly Capability[]> = {
+  member: ["conversations.read", "conversations.send", "conversations.note"],
+  admin: [
+    "conversations.read",
+    "conversations.send",
+    "conversations.note",
+    "billing.manage",
+    "settings.manage",
+    "team.manage",
+    "numbers.manage",
+    "history.read",
+  ],
+  owner: [...CAPABILITIES],
+};
+
+/** Does this role carry this capability? */
+export function roleHasCapability(
+  role: MemberRole,
+  capability: Capability,
+): boolean {
+  return ROLE_CAPABILITIES[role].includes(capability);
+}
+
+/** Everything this role can do. Copied, so a caller cannot mutate the table. */
+export function capabilitiesOf(role: MemberRole): Capability[] {
+  return [...ROLE_CAPABILITIES[role]];
+}
+
+/**
+ * The rank `requireRole` uses today, kept so the equivalence test can compare
+ * the two models directly. New presets that are not on the line must NOT be
+ * given a rank — that is the point of moving off it.
+ */
+const RANK: Record<MemberRole, number> = { member: 1, admin: 2, owner: 3 };
+
+/** Today's gate, expressed exactly: does `role` satisfy `requireRole(minimum)`? */
+export function roleSatisfiesRank(
+  role: MemberRole,
+  minimum: MemberRole,
+): boolean {
+  return RANK[role] >= RANK[minimum];
+}

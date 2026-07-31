@@ -1,8 +1,17 @@
 export {
+  CAPABILITIES,
+  MEMBER_ROLES,
+  capabilitiesOf,
+  roleHasCapability,
+  roleSatisfiesRank,
+  type Capability,
+  type MemberRole,
+} from "./capabilities";
+
+export {
   canSeeSettingsSection,
   settingsSectionMinimumRole,
   visibleSettingsSections,
-  type MemberRole,
   type SettingsSectionId,
 } from "./settings-visibility";
 
