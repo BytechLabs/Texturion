@@ -223,7 +223,10 @@ final class RootViewModel {
                 await graph.realtime.connect(
                     companyId: membership.company_id,
                     numberIds: numberIds ?? [],
-                    accessToken: session.accessToken
+                    accessToken: session.accessToken,
+                    // #302: the presence key. Nothing else on this socket says
+                    // anything about who the viewer is.
+                    userId: me.user_id
                 )
             }
             state = .ready(me, companyId: membership.company_id)

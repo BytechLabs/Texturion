@@ -162,6 +162,11 @@ struct ThreadComposerView: View {
     /// but not calling. Nil withholds it (a member without text level on the
     /// number would be refused by the API).
     var onCallInstead: (@MainActor () -> Void)?
+    /// #302: called on each keystroke of a REPLY so teammates on this thread
+    /// see somebody is answering. Throttled by the caller — the keystroke rate
+    /// is not the broadcast rate. Notes deliberately do not signal: a note goes
+    /// to the crew, and nobody is racing to answer the customer with it.
+    var onTyping: (@MainActor () -> Void)?
     /// Identifies this thread AT ITS CURRENT POINT, so drafts already paid for
     /// are reused until a message in either direction retires them. Nil skips
     /// the cache entirely (a compose screen with no thread behind it yet).
@@ -597,6 +602,7 @@ struct ThreadComposerView: View {
         } else {
             let previous = state.text
             state.onTextChange(value)
+            if !isNote, !value.isEmpty { onTyping?() }
             // "@" at the start of a note or after a space names a teammate.
             // Mid-word it belongs to an email address or a rate like
             // "2 hrs @ $95", so the picker stays shut and the character is

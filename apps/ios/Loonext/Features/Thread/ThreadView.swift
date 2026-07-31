@@ -57,6 +57,40 @@ struct ThreadView: View {
                 created.start()
             }
         }
+        // #302: presence for as long as this thread is on screen.
+        .task(id: conversationId) {
+            guard let detail = controller.conversation else { return }
+            let numberId = detail.phone_number_id
+            await graph.realtime.joinPresence(numberId: numberId)
+            announcePresence(typing: false)
+            defer {
+                // Leaving stops the announcement immediately rather than waiting
+                // out the TTL — "promptly" is the acceptance criterion, and 45
+                // seconds of a ghost is not prompt.
+                Task { await graph.realtime.leavePresence(numberId: numberId) }
+            }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(PresenceTiming.heartbeatMs))
+                if Task.isCancelled { break }
+                let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+                announcePresence(typing: nowMs < typingUntilMs)
+            }
+        }
+        // A faster tick purely for staleness: a viewer who simply stops speaking
+        // must leave the screen, and on a quiet thread nothing else would
+        // trigger that. Cheap, and it fetches nothing.
+        .task(id: conversationId) {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                presenceNow = Date().timeIntervalSince1970
+            }
+        }
+        .task(id: conversationId) {
+            for await snapshot in await graph.realtime.presence() {
+                presenceByTopic = snapshot
+                presenceNow = Date().timeIntervalSince1970
+            }
+        }
         .task(id: conversationId) {
             for await event in await graph.realtime.events() {
                 controller?.onRealtime(event)
@@ -120,6 +154,11 @@ private struct ThreadBody: View {
     @State private var confirmRevoke = false
     @State private var confirmDiscardQueued: PendingSend?
     @State private var showNewPill = false
+    /// #302: who else is on this thread, and this viewer's typing window.
+    @State private var presenceByTopic: [String: PresenceMap] = [:]
+    @State private var presenceNow = Date().timeIntervalSince1970
+    @State private var typingUntilMs = 0
+    @State private var lastTypingSentMs = 0
     @State private var isAtBottom = true
     @State private var jumpToMessageId: String?
     /// The message to FLASH (search-result indication); cleared after ~2.2s.
@@ -218,6 +257,7 @@ private struct ThreadBody: View {
 
                 timelinePane(names: names, contactName: contactName)
 
+                presenceStrip(detail: detail)
                 composerPane(detail: detail)
             }
             // One swappable sheet: the conversation card and the two surfaces it
@@ -614,6 +654,64 @@ private struct ThreadBody: View {
     /// Deliberately NOT a @ViewBuilder: this returns a single view, so the
     /// result-builder transform buys nothing and spends type-checker budget
     /// this function has none of to spare.
+    /// #302 — who else is on this thread.
+    ///
+    /// Advisory and quiet, at the composer rather than the header: the header is
+    /// read once when the thread opens and forgotten, and the decision this
+    /// exists to change — "I'll answer this" — is made with a thumb already on
+    /// the keyboard. Nothing here is tappable and nothing is locked; a person
+    /// who sees a colleague's name simply stops, which is the whole mechanism.
+    @ViewBuilder
+    private func presenceStrip(detail: ConversationDetail) -> some View {
+        let topic = RealtimeClient.presenceTopic(detail.company_id, detail.phone_number_id)
+        let viewers = viewersOf(
+            entries: presenceEntries(presenceByTopic[topic] ?? [:]),
+            conversationId: detail.id,
+            selfUserId: me.user_id,
+            now: Int(presenceNow * 1000),
+            // The topic's presence in the map IS the health signal, and it is
+            // more precise than the socket state: the key exists only once the
+            // server has sent a `presence_state` for it, and the client removes
+            // it on close or error. An empty ROOM is `[:]` — present and empty,
+            // so healthy with nobody here. A dead channel is absent entirely, so
+            // "we do not know", which must look like silence rather than like
+            // "nobody is here".
+            healthy: presenceByTopic[topic] != nil
+        )
+        if let line = presenceLabel(viewers) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(viewers.contains(where: { $0.typing }) ? BrandColor.olive : BrandColor.muted500)
+                    .frame(width: 6, height: 6)
+                Text(line)
+                    .font(.golos(11.5))
+                    .foregroundStyle(BrandColor.muted700)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 2)
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    /// Announce this viewer on the thread's presence topic.
+    private func announcePresence(typing: Bool) {
+        guard let detail = controller.conversation else { return }
+        let entry: JSONValue = .object([
+            "user_id": .string(me.user_id),
+            "display_name": .string(me.display_name),
+            "conversation_id": .string(detail.id),
+            "typing": .bool(typing),
+            "at": .int(Int(Date().timeIntervalSince1970 * 1000)),
+        ])
+        Task {
+            await graph.realtime.trackPresence(
+                numberId: detail.phone_number_id,
+                entry: entry
+            )
+        }
+    }
+
     private func composerPane(detail: ConversationDetail) -> some View {
         let banner = selectComposerBanner(
             contactOptedOut: controller.contact?.opted_out == true,
@@ -680,6 +778,14 @@ private struct ThreadBody: View {
         return ThreadComposerView(
             state: composer,
             noteOnly: detail.viewer_level == "note",
+            onTyping: {
+                // #302: throttled — the keystroke rate is not the broadcast rate.
+                let now = Int(Date().timeIntervalSince1970 * 1000)
+                typingUntilMs = now + PresenceTiming.typingTtlMs
+                guard now - lastTypingSentMs >= PresenceTiming.typingThrottleMs else { return }
+                lastTypingSentMs = now
+                announcePresence(typing: true)
+            },
             banner: banner,
             contactName: detail.contact.name,
             businessName: controller.company?.name,

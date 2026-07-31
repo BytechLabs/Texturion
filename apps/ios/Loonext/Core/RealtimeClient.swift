@@ -74,6 +74,20 @@ actor RealtimeClient {
     /// Reset by `joinFrames`: a new socket has confirmed nothing.
     private var confirmedNumberTopics: Set<String> = []
 
+    /// #302: who we are, for the presence key. Presence is the only thing on
+    /// this socket that says anything ABOUT the viewer.
+    private var userId: String?
+
+    /// #302: presence per topic, as the server last described it. Joined per
+    /// OPEN THREAD rather than per number — see `joinPresence`.
+    private var presenceByTopic: [String: PresenceMap] = [:]
+    private var presenceObservers: [UUID: AsyncStream<[String: PresenceMap]>.Continuation] = [:]
+
+    /// #302: presence topics joined for a currently-open thread. Deliberately
+    /// separate from `joinedNumberTopics`, which `reconcileNumberTopics` owns —
+    /// these come and go with a screen, not with a number list.
+    private var joinedPresenceTopics: Set<String> = []
+
     private var accessToken: String?
     private var everJoined = false
     private var joined = false
@@ -116,6 +130,114 @@ actor RealtimeClient {
     }
 
     /// Fires on every re-JOIN after the first — refetch first pages.
+    /// #302: the current presence picture, and every change to it.
+    ///
+    /// A stream that opens with the CURRENT value rather than only future ones:
+    /// presence is a picture of right now, and a screen that subscribes
+    /// mid-thread needs the answer, not the diffs it missed.
+    func presence() -> AsyncStream<[String: PresenceMap]> {
+        let id = UUID()
+        let (stream, continuation) = AsyncStream<[String: PresenceMap]>.makeStream(
+            bufferingPolicy: .bufferingNewest(1)
+        )
+        presenceObservers[id] = continuation
+        continuation.onTermination = { _ in
+            Task { await self.removePresenceObserver(id) }
+        }
+        continuation.yield(presenceByTopic)
+        return stream
+    }
+
+    private func removePresenceObserver(_ id: UUID) {
+        presenceObservers.removeValue(forKey: id)
+    }
+
+    private func publishPresence() {
+        for continuation in presenceObservers.values { continuation.yield(presenceByTopic) }
+    }
+
+    /// #302: the presence sibling of a number topic. Derived from
+    /// `numberTopic` so the two can never disagree about which number they are
+    /// for — that agreement is the basis of the authorization, which resolves
+    /// the same uuid out of both.
+    /// `JSONValue` → the plain dictionary `PresenceLogic` parses.
+    ///
+    /// A round-trip rather than a hand-written unwrapper, and deliberately so:
+    /// the presence parser is tested against `JSONSerialization` output taken
+    /// from real captured frames, so feeding it anything else would mean the
+    /// tests no longer cover what actually runs. Presence frames arrive a few
+    /// times a minute; the cost does not matter and the equivalence does.
+    private static func foundationObject(_ value: JSONValue?) -> [String: Any] {
+        guard let value,
+              let data = try? JSONEncoder().encode(value),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return [:] }
+        return object
+    }
+
+    /// Fire-and-forget push. Presence is a courtesy: a frame that cannot be
+    /// sent costs a teammate a hint, never anybody a message, so no caller
+    /// waits on it and no failure propagates.
+    private func push(_ text: String, on socket: URLSessionWebSocketTask) {
+        Task { try? await socket.send(.string(text)) }
+    }
+
+    static func presenceTopic(_ company: String, _ number: String) -> String {
+        numberTopic(company, number) + ":presence"
+    }
+
+    /// #302: join a number's presence topic for as long as a thread on it is
+    /// open.
+    ///
+    /// PER OPEN THREAD, NOT PER NUMBER — the same shape web and Android use.
+    /// Holding every number's presence topic all session would mean receiving
+    /// every teammate's movements all day to show them on one screen (the
+    /// fan-out #251 has never measured), and would fold presence into the
+    /// number-topic lifecycle that `reconcileNumberTopics` owns.
+    func joinPresence(numberId: String) {
+        guard let company = companyId, let socket, let userId else { return }
+        let topic = Self.presenceTopic(company, numberId)
+        guard !joinedPresenceTopics.contains(topic) else { return }
+        joinedPresenceTopics.insert(topic)
+        push(frame(topic: topic, event: "phx_join", payload: joinPayload(presenceKey: userId)), on: socket)
+    }
+
+    /// #302: leave it, and forget what it told us.
+    func leavePresence(numberId: String) {
+        guard let company = companyId else { return }
+        let topic = Self.presenceTopic(company, numberId)
+        joinedPresenceTopics.remove(topic)
+        // Dropped even when the frame cannot be sent: stale presence on screen is
+        // the failure this feature exists to prevent, and a socket that cannot
+        // take the leave is exactly when it would linger.
+        presenceByTopic.removeValue(forKey: topic)
+        publishPresence()
+        if let socket {
+            push(frame(topic: topic, event: "phx_leave", payload: .object([:])), on: socket)
+        }
+    }
+
+    /// #302: announce this viewer. Best-effort — a failed send means a teammate
+    /// does not see somebody is here, which is the state the product was in
+    /// before this feature, never a reason to fail anything the user asked for.
+    func trackPresence(numberId: String, entry: JSONValue) {
+        guard let company = companyId, let socket else { return }
+        let topic = Self.presenceTopic(company, numberId)
+        guard joinedPresenceTopics.contains(topic) else { return }
+        push(
+            frame(
+                topic: topic,
+                event: "presence",
+                payload: .object([
+                    "type": .string("presence"),
+                    "event": .string("track"),
+                    "payload": entry,
+                ])
+            ),
+            on: socket
+        )
+    }
+
     func reconnected() -> AsyncStream<Void> {
         let id = UUID()
         let (stream, continuation) = AsyncStream<Void>.makeStream(
@@ -148,7 +270,14 @@ actor RealtimeClient {
     /// Connect (or switch) to a company channel plus one channel per visible
     /// number (`numberIds`, access-filtered by the server). Safe to call
     /// repeatedly.
-    func connect(companyId: String, numberIds: [String], accessToken: String) {
+    func connect(
+        companyId: String,
+        numberIds: [String],
+        accessToken: String,
+        userId: String? = nil
+    ) {
+        // #302: only presence reads this, and only as its key.
+        if let userId { self.userId = userId }
         // #337: the count, not the ids. How many number topics this session
         // expects is the fact that made #480's partial-join case diagnosable;
         // the ids themselves identify a business's phone lines.
@@ -352,6 +481,36 @@ actor RealtimeClient {
         // rejected company join and cancelled the transport, turning one closed
         // channel into an endless reconnect.
         let isCompanyTopic = Self.isCompanyTopic(topic, company: companyId)
+
+        // #302: presence frames are their own events on their own topics, and
+        // they never touch the connection state. A presence topic dying is not
+        // realtime dying — the crew loses a courtesy, not their messages — so
+        // these are handled and returned before any branch that can cancel the
+        // transport or forget a number.
+        if let topic, topic.hasSuffix(":presence") {
+            switch event {
+            case "presence_state":
+                presenceByTopic[topic] = applyPresenceState(Self.foundationObject(payload))
+                publishPresence()
+                return
+            case "presence_diff":
+                presenceByTopic[topic] = applyPresenceDiff(
+                    presenceByTopic[topic] ?? [:],
+                    Self.foundationObject(payload)
+                )
+                publishPresence()
+                return
+            case "phx_close", "phx_error":
+                // Drop it rather than let it age on screen: stale presence says
+                // a colleague has this thread when they may have closed the app.
+                presenceByTopic.removeValue(forKey: topic)
+                joinedPresenceTopics.remove(topic)
+                publishPresence()
+                return
+            default:
+                break
+            }
+        }
 
         switch event {
         case "phx_reply":
@@ -756,11 +915,18 @@ actor RealtimeClient {
         }
     }
 
-    private func joinPayload() -> JSONValue {
+    private func joinPayload(presenceKey: String? = nil) -> JSONValue {
         .object([
             "config": .object([
                 "broadcast": .object(["self": .bool(false), "ack": .bool(false)]),
-                "presence": .object(["key": .string("")]),
+                // #302: `enabled` is REQUIRED for presence to flow, and its
+                // absence is SILENT — the server accepts the join and then sends
+                // nothing at all. Captured off the working web client's socket
+                // rather than assumed; PresenceLogic.swift documents the frames.
+                "presence": .object([
+                    "key": .string(presenceKey ?? ""),
+                    "enabled": .bool(presenceKey != nil),
+                ]),
                 "private": .bool(true),
             ]),
             "access_token": .string(accessToken ?? ""),
