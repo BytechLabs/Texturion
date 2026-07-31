@@ -26,16 +26,23 @@ function sourceFiles(dir: string): string[] {
 describe("globals.css — the --fr-* system (direction §2)", () => {
   it("defines every v4 token at the direction's exact value", () => {
     const expected: Record<string, string> = {
-      "--fr-ground": "#fbfcfe",
-      "--fr-card": "#ffffff",
-      "--fr-ink": "#10173b",
-      "--fr-ink-70": "#3f4563",
-      "--fr-ink-55": "#5a6080",
-      "--fr-cobalt": "#2740de",
-      "--fr-cobalt-deep": "#1f33b8",
+      // #362 — Paper & Olive. The token NAMES still say "fr"/"cobalt";
+      // renaming them is phase 9 and deliberately separate, so the repaint
+      // stayed a value change these assertions could gate end to end.
+      "--fr-ground": "#f3f3ee",
+      "--fr-card": "#fdfdf9",
+      "--fr-ink": "#191b14",
+      "--fr-ink-70": "#4a4d3c",
+      "--fr-ink-55": "#5c5f4e",
+      "--fr-cobalt": "#3a430f",
+      "--fr-cobalt-deep": "#191b14",
+      // Semantic, not identity — deliberately still green so "handled" and
+      // "brand" are not the same colour.
       "--fr-green": "#0b7a50",
-      "--fr-flare": "#ff4a1f",
-      "--fr-frost": "#edf2fb",
+      // Paper & Olive's coral, whose stated meaning (attention, never error)
+      // is exactly what the flare carried.
+      "--fr-flare": "#d96c47",
+      "--fr-frost": "#f0f0e8",
     };
     for (const [token, hex] of Object.entries(expected)) {
       expect(css, `${token} must be ${hex}`).toMatch(
@@ -44,10 +51,13 @@ describe("globals.css — the --fr-* system (direction §2)", () => {
     }
   });
 
-  it("carries the one card shadow (§2), verbatim ink-tinted pair", () => {
+  it("carries the one card shadow (§2), tinted with the ink it sits under", () => {
+    // #362: rgb(25, 27, 20) is #191b14, the olive ink. A shadow carries a tint
+    // of the palette's darkest text, not a neutral black — that is what keeps
+    // it reading as depth rather than as dirt.
     expect(css).toContain("--fr-shadow-card:");
-    expect(css).toMatch(/0 1px 2px rgba\(16, 23, 59, 0\.06\)/);
-    expect(css).toMatch(/0 8px 24px rgba\(16, 23, 59, 0\.06\)/);
+    expect(css).toMatch(/0 1px 2px rgba\(25, 27, 20, 0\.06\)/);
+    expect(css).toMatch(/0 8px 24px rgba\(25, 27, 20, 0\.06\)/);
   });
 
   it("scopes the system to the marketing root (.mkt-scope, with .marketing honored)", () => {

@@ -859,28 +859,38 @@
    above (.app-scope, :root, .dark) are untouched: real product embeds inside
    marketing pages are wrapped in an `.app-scope` region (see
    components/marketing/fr/panel-frame.tsx) so the product renders with its
-   own petrol tokens inside the frame while marketing cobalt stays outside
-   (Law 2: frame the product, never repaint it).
+   own tokens inside the frame. #362 retired Law 2 ("frame the product, never
+   repaint it") by owner decision: marketing and the product now share one
+   palette, so the frame no longer separates two identities — it just frames.
    ========================================================================== */
 
 .mkt-scope,
 .marketing {
-  /* ---- The v4 palette (direction §2). These nine are the law. ---- */
-  --fr-ground: #fbfcfe; /* Signal White — dominant ground on every page */
-  --fr-card: #ffffff; /* cards on the ground (12px radius + card shadow) */
-  --fr-ink: #10173b; /* Dispatch Ink — headlines/body; also the ONLY two dark surfaces (dateline chip, footer) */
-  --fr-ink-70: #3f4563; /* secondary text */
-  --fr-ink-55: #5a6080; /* captions, timestamps, table labels */
-  --fr-cobalt: #2740de; /* Signal Cobalt — CTAs, links, focus rings, in-motion trails, the one cobalt band */
-  --fr-cobalt-deep: #1f33b8; /* primary CTA hover (§4 Buttons) */
-  --fr-green: #0b7a50; /* Answered Green — only when something got handled */
-  --fr-flare: #ff4a1f; /* 9:04 Flare — WHITELIST ONLY (§3.4); never body text, never backgrounds */
-  --fr-frost: #edf2fb; /* Frost — the only wash (bands, chips, row striping, wells) */
+  /* ---- Paper & Olive (#362). The names still say "fr"; the values are the
+         product's. Renaming them is phase 9 and deliberately separate, so this
+         stayed a value change the tests could gate. ---- */
+  --fr-ground: #f3f3ee; /* the product's ground, on every page */
+  --fr-card: #fdfdf9; /* paper — cards on the ground */
+  --fr-ink: #191b14; /* ink — headlines and body, 15.61:1 on the ground */
+  --fr-ink-70: #4a4d3c; /* secondary text, 7.80:1 */
+  --fr-ink-55: #5c5f4e; /* captions, timestamps, table labels, 5.89:1 */
+  --fr-cobalt: #3a430f; /* the accent — CTAs, links, focus rings. 9.48:1 as
+                           text AND takes a paper label as a fill (10.35:1),
+                           which is why nothing downstream had to move. */
+  --fr-cobalt-deep: #191b14; /* primary CTA hover — ink, paper label 17.05:1 */
+  --fr-green: #0b7a50; /* Answered Green — semantic, NOT the identity. Left
+                          alone deliberately: "handled" and "brand" must not
+                          be the same colour. Same reasoning as destructive. */
+  --fr-flare: #d96c47; /* coral. Paper & Olive's own attention mark, and its
+                          stated meaning — attention, NEVER error — is exactly
+                          what the flare was for. WHITELIST ONLY; never body
+                          text, never backgrounds. */
+  --fr-frost: #f0f0e8; /* the inset wash — bands, chips, row striping, wells */
 
   /* The card shadow (§2) — the only shadow on the site. No glows, no colored
      shadows (§4). */
   --fr-shadow-card:
-    0 1px 2px rgba(16, 23, 59, 0.06), 0 8px 24px rgba(16, 23, 59, 0.06);
+    0 1px 2px rgba(25, 27, 20, 0.06), 0 8px 24px rgba(25, 27, 20, 0.06);
 
   /* ------------------------------------------------------------------
      v3 COMPAT ALIASES — TRANSITIONAL. The v3 "Open all night"/"Quiet
@@ -892,31 +902,31 @@
      ------------------------------------------------------------------ */
   --ink-11pm: var(--fr-ink);
   --ink-midnight: var(--fr-ink);
-  --cab-panel: #1d2650; /* raised step on Dispatch Ink */
-  --signal-aqua: #a8b6ff; /* readable link tint on ink grounds */
+  --cab-panel: #2c2f22; /* raised step on ink */
+  --signal-aqua: #d6e77e; /* readable link tint on ink grounds, 13.53:1 */
   --porch-amber: var(--fr-cobalt);
   --amber-core: var(--fr-frost);
-  --moonlight: #ffffff;
+  --moonlight: #f0f1e5; /* paper on dark grounds */
   --dusk: rgba(255, 255, 255, 0.7);
   --first-light: var(--fr-frost);
   --day-ink: var(--fr-ink);
   --copper: var(--fr-ink);
   --copper-lift: var(--fr-ink);
-  --petrol: var(--fr-cobalt); /* the marketing chrome accent is cobalt in v4 */
+  --petrol: var(--fr-cobalt); /* #362: one accent across the whole product */
   --rule-dark: rgba(255, 255, 255, 0.12);
-  --rule-light: rgba(16, 23, 59, 0.1);
+  --rule-light: rgba(25, 27, 20, 0.1);
   --amber-strip: var(--fr-frost);
-  --amber-spill: rgba(39, 64, 222, 0.05);
+  --amber-spill: rgba(58, 67, 15, 0.05);
   --deep: var(--fr-ink);
   --ink: var(--fr-ink);
   --paper: var(--fr-ground);
   --marker: var(--fr-cobalt);
   --graphite: var(--fr-ink-70);
   --paper-2: var(--fr-card);
-  --paper-edge: #e3e9f6;
-  --petrol-12: rgba(39, 64, 222, 0.12);
-  --petrol-24: rgba(39, 64, 222, 0.24);
-  --marker-40: rgba(39, 64, 222, 0.18);
+  --paper-edge: #e7e9dc;
+  --petrol-12: rgba(58, 67, 15, 0.12);
+  --petrol-24: rgba(58, 67, 15, 0.24);
+  --marker-40: rgba(58, 67, 15, 0.18);
   --ink-70: var(--fr-ink-70);
   --ink-55: var(--fr-ink-55);
   --hairline: var(--rule-light);
@@ -933,30 +943,34 @@
      DOM consumes would flip dark while the marketing palette stayed light.
      Re-asserting light app-token values on the scope root pins the whole
      marketing subtree; a nested explicit `.dark` region still flips them back
-     for just that region. Values are the v4 family so any shadcn primitive
-     rendered in marketing chrome (sheet, dialog) reads as v4, with COBALT as
-     primary/ring — product embeds wrapped in .app-scope reset these to the
-     app's own petrol (Law 2). */
-  --background: #fbfcfe;
-  --foreground: #10173b;
-  --card: #ffffff;
-  --card-foreground: #10173b;
-  --popover: #ffffff;
-  --popover-foreground: #10173b;
-  --primary: #2740de;
-  --primary-foreground: #ffffff;
-  --secondary: #edf2fb;
-  --secondary-foreground: #10173b;
-  --muted: #edf2fb;
-  --muted-foreground: #5a6080;
-  --foreground-tertiary: #8a90ac;
-  --border-subtle: #edf2fb;
-  --accent: #edf2fb;
-  --accent-foreground: #10173b;
+     for just that region.
+
+     #362: these are now the SAME olive values the app scope carries, so this
+     block no longer switches identity — it only pins LIGHTNESS. Marketing is
+     light on every page and the OS preference must not flip it; that is the
+     one job left here. Kept rather than deleted for exactly that reason: with
+     it gone, an OS dark preference would drag the marketing subtree into the
+     app's dark tokens, which no marketing page is designed for. */
+  --background: #f3f3ee;
+  --foreground: #191b14;
+  --card: #fdfdf9;
+  --card-foreground: #191b14;
+  --popover: #fdfdf9;
+  --popover-foreground: #191b14;
+  --primary: #3a430f;
+  --primary-foreground: #fdfdf9;
+  --secondary: #f0f0e8;
+  --secondary-foreground: #191b14;
+  --muted: #f0f0e8;
+  --muted-foreground: #5c5f4e;
+  --foreground-tertiary: #a6a996;
+  --border-subtle: #f0f0e8;
+  --accent: #e3efa3;
+  --accent-foreground: #3a430f;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: #e3e9f6;
-  --input: #e3e9f6;
-  --ring: #2740de; /* cobalt focus rings everywhere in marketing (§7) */
+  --border: #e7e9dc;
+  --input: #e7e9dc;
+  --ring: #3a430f; /* one focus ring colour across the whole product (§7) */
   color-scheme: light;
 
   /* The dominant ground (§2): Signal White with Dispatch Ink text, set on the
@@ -978,11 +992,11 @@
   --ink: #ffffff;
   --day-ink: #ffffff;
   --graphite: rgba(255, 255, 255, 0.72);
-  --petrol: #a8b6ff; /* links on ink lift to a readable cobalt tint */
+  --petrol: #d6e77e; /* links on ink lift to a readable olive tint, 13.53:1 */
   --deep: var(--fr-ink);
   --paper: var(--fr-ink);
-  --paper-2: #1d2650;
-  --paper-edge: #2a3466;
+  --paper-2: #23261a;
+  --paper-edge: #2c2f22;
   --marker-40: rgba(168, 182, 255, 0.28);
   --ink-70: rgba(255, 255, 255, 0.78);
   --ink-55: rgba(255, 255, 255, 0.62);
