@@ -31,6 +31,7 @@ import { scanAttachment } from "../attachments/scan";
 import { bytesMatchDeclaredType } from "../routes/core/attachments";
 import { insertConversationEvents } from "../routes/core/events";
 import { maybeSendAwayReply } from "./away-reply";
+import { maybeSendOffRamp } from "./off-ramp";
 import { sendEmergencyAcknowledgment } from "./emergency-ack";
 import {
   budgetAlertCopy,
@@ -190,7 +191,13 @@ export async function handleInboundMessage(
         // structurally different time-to-value). All three ride the lookup this
         // path already makes, so activation costs no extra round trip either.
         "emergency_keyword_enabled,emergency_keywords,emergency_message," +
-        "first_inbound_reply_at,country,us_texting_enabled)",
+        "first_inbound_reply_at,country,us_texting_enabled," +
+        // #481: the off-ramp only ever applies to a workspace on its way
+        // out, and this is the hottest path in the product. Riding the
+        // lookup that already runs means a PAYING workspace costs nothing
+        // for a feature it can never use — the alternative was a second
+        // round trip on every inbound message forever.
+        "subscription_status)",
     )
     .eq("number_e164", toE164)
     .neq("status", "released")
@@ -213,6 +220,7 @@ export async function handleInboundMessage(
           first_inbound_reply_at?: string | null;
           country?: string | null;
           us_texting_enabled?: boolean | null;
+          subscription_status?: string | null;
         } | null;
       }
     | undefined;
@@ -354,6 +362,29 @@ export async function handleInboundMessage(
         cause instanceof Error ? cause.message : String(cause),
       );
     }
+  }
+
+  // #481: a departing workspace's customers hear where it went, once each,
+  // while we still hold the number. Deliberately AFTER the away reply: an
+  // active workspace never reaches this, and a cancelled one has no away reply
+  // to send (the gate refuses it), so the two can never both fire. Best-effort
+  // and self-swallowing, like the away reply above.
+  //
+  // Gated on CANCELED specifically, not on "not active". The off-ramp exists
+  // for a business that has left, and the grace window it lives inside is
+  // measured from `canceled_at` — a past-due workspace has not gone anywhere
+  // and has no deadline to be inside. Reading the status off the lookup above
+  // rather than fetching it means a paying workspace pays no round trip for a
+  // feature that can never fire for it, and an absent status reads as "not a
+  // departure" rather than as permission.
+  if (threaded.created && company?.subscription_status === "canceled") {
+    await maybeSendOffRamp(env, db, {
+      companyId: number.company_id,
+      conversationId: threaded.conversation_id,
+      from: toE164,
+      to: fromE164,
+      triggerBody: payload.text ?? "",
+    });
   }
 
   // #414 ask 4: the honest answer. Silence would be better than false

@@ -12,6 +12,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { lookupAreaCode } from "@loonext/shared";
 
 import { capture } from "../analytics/posthog";
+import { GRACE_PERIOD_DAYS } from "../billing/grace";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { classifySendFailure } from "@loonext/shared";
@@ -21,6 +22,47 @@ import { ApiError } from "../http/errors";
 import { getSendGates } from "../telnyx/registration";
 import { recordCarrierOptOut } from "./opt-out";
 import type { GateResult, MessageRow } from "./types";
+
+/**
+ * #481: is this workspace actually entitled to the off-ramp exemption?
+ *
+ * Asked here rather than at the call site on purpose. The exemption is only
+ * safe because it cannot be claimed — a caller passing `offRamp` is asking a
+ * question, and this is the answer. Both halves have to hold:
+ *
+ *   * the owner opted in, explicitly, with their own message (a message we
+ *     wrote would be us speaking for a company that has left), and
+ *   * we still hold the number. After release nothing can answer from it, so
+ *     an off-ramp send past that point is a message to a stranger's line.
+ *
+ * Fails CLOSED on any error: a workspace that has stopped paying does not get
+ * an outbound send because a lookup failed.
+ */
+async function offRampAllowed(env: Env, companyId: string): Promise<boolean> {
+  const { data, error } = await getDb(env)
+    .from("companies")
+    .select("offramp_opted_in_at,offramp_message,canceled_at")
+    .eq("id", companyId)
+    .limit(1);
+  if (error || !data?.length) return false;
+  const row = data[0] as {
+    offramp_opted_in_at: string | null;
+    offramp_message: string | null;
+    canceled_at: string | null;
+  };
+  if (!row.offramp_opted_in_at || !row.offramp_message?.trim()) return false;
+  // No cancellation means the number is not on its way out, so there is
+  // nothing to point anybody at — and a workspace that is merely past due must
+  // not gain a send path by having filled this in months ago.
+  if (!row.canceled_at) return false;
+  // Derived from `canceled_at`, the same way grace.ts derives it, rather than
+  // stored: two places computing the same deadline is two places for it to
+  // disagree, and the one that decides when the number actually goes is the
+  // release job.
+  const releaseAt =
+    Date.parse(row.canceled_at) + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000;
+  return releaseAt > Date.now();
+}
 
 /**
  * #331 — proof that {@link runPreSendGates} ran, and for WHICH number.
@@ -64,6 +106,28 @@ export async function runPreSendGates(
   env: Env,
   companyId: string,
   destinationE164: string,
+  /**
+   * #481: the ONE send this product makes on behalf of a workspace whose
+   * subscription has ended.
+   *
+   * A departing business's customers keep texting the old number for years —
+   * it is in phones, on invoices, in old search results — and after release
+   * they reach a stranger. The off-ramp tells them where the business went,
+   * in the owner's own words, while we still hold the number.
+   *
+   * It is an EXEMPTION, not a loosening, and it is deliberately expressed as
+   * an argument to this function rather than a relaxation inside it: every
+   * other gate below still runs, including the opt-out check, which is the one
+   * that must never have an exception. All this changes is the subscription
+   * gate — the gate that exists to stop a cancelled workspace continuing to
+   * operate, which is not what this is.
+   *
+   * The caller cannot grant itself the exemption by asking. `offRamp` only has
+   * an effect when the workspace has an opt-in recorded AND is still inside the
+   * grace window, both re-checked HERE rather than trusted from the call site,
+   * so a future path that passes the flag hopefully gets nothing.
+   */
+  offRamp = false,
 ): Promise<SendClearance> {
   // #283: the outbound kill switch, checked FIRST and at the single dispatch
   // choke point every send passes through. The most serious switch we have —
@@ -78,7 +142,7 @@ export async function runPreSendGates(
   }
 
   const gates = await getSendGates(env, companyId);
-  if (!gates.subscriptionActive) {
+  if (!gates.subscriptionActive && !(offRamp && (await offRampAllowed(env, companyId)))) {
     throw new ApiError(
       "subscription_inactive",
       "Outbound texting requires an active subscription.",
