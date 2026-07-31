@@ -714,15 +714,18 @@ private fun AddNumberCard(
     val starterAtCap = company.plan == "starter" && liveCount >= 2
     if (starterAtCap) return
     val nextIsExtra = liveCount >= facts.numbers
-    // Extra numbers are US numbers, and only once US texting is on. Offering
-    // the picker anyway sold something the server would refuse; a Canadian
-    // workspace tapping Add got an error instead of an answer.
-    if (nextIsExtra && !(company.country == "US" && company.us_texting_enabled)) {
+    // #464: an extra number is available to US AND Canadian workspaces. This
+    // used to require country == "US", which a Canadian workspace can never
+    // satisfy — and the gate it hid behind (10DLC approval) is a US carrier
+    // requirement that does not exist in Canada. Same rule as the server's
+    // extraNumberBlockedReason; only the US branch has a wait.
+    val extraBlockedReason = extraNumberBlockedReason(
+        country = company.country,
+        usTextingEnabled = company.us_texting_enabled,
+    )
+    if (nextIsExtra && extraBlockedReason != null) {
         SettingsCard(title = "Add a number") {
-            ReadOnlyLine(
-                "Your plan's numbers are all in use. An extra number is a US " +
-                    "number, so it needs US texting enabled first.",
-            )
+            ReadOnlyLine("Your plan's numbers are all in use. $extraBlockedReason")
         }
         return
     }
@@ -869,4 +872,28 @@ internal fun numberHealthCopy(health: NumberHealth): String {
         " Carriers sometimes start filtering a number — often one that was " +
         "reused from a previous business. We've been alerted and we're on it; " +
         "you don't need to do anything yet."
+}
+
+/**
+ * #464: why this workspace cannot buy one more number, or null when it can.
+ *
+ * Hand-ported from packages/shared/src/extra-numbers.ts and covered by the
+ * same vectors, because a client that disagrees with the server here either
+ * hides a purchase the server would allow or offers one it would refuse.
+ *
+ * The Starter total cap is checked by the caller (it already counts live
+ * numbers), so this covers only the country/registration half.
+ */
+internal fun extraNumberBlockedReason(
+    country: String,
+    usTextingEnabled: Boolean,
+): String? {
+    if (country != "US" && country != "CA") {
+        return "Extra numbers are available for US and Canadian workspaces."
+    }
+    // US only: the carriers must approve the brand before a US number can text.
+    if (country == "US" && !usTextingEnabled) {
+        return "An extra number needs US texting turned on for your workspace first."
+    }
+    return null
 }

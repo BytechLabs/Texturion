@@ -13,6 +13,7 @@ import { useCompany } from "@/lib/api/companies";
 import { useNumbers } from "@/lib/api/numbers";
 import { usePortRequests } from "@/lib/api/porting";
 import { useActiveCompany } from "@/lib/company/provider";
+import { extraNumberBlockedReason } from "@loonext/shared";
 
 /** SPEC §2: Pro includes 2 numbers, Starter 1. */
 const PLAN_NUMBER_LIMIT = { starter: 1, pro: 2 } as const;
@@ -79,14 +80,20 @@ export default function NumbersSettingsPage() {
             : 0;
           // #105 (#80): past the included count, the next number is a PAID
           // extra — $5/mo on Starter (hard max 2 total), $4/mo on Pro
-          // (unlimited). US numbers only, and only once US texting is enabled.
-          // The message allowance stays shared across all numbers.
+          // (unlimited). The message allowance stays shared across all numbers.
+          // #464: the eligibility rule is the SERVER'S, imported rather than
+          // restated — this page used to carry its own copy that refused every
+          // Canadian workspace, which is the bug that issue reported.
           const paidExtra = usedSlots >= limit && limit > 0;
-          const canBuyExtra =
-            paidExtra &&
-            company.data.country === "US" &&
-            company.data.us_texting_enabled &&
-            !(company.data.plan === "starter" && usedSlots >= 2);
+          const extraBlockedReason = company.data.plan
+            ? extraNumberBlockedReason({
+                plan: company.data.plan,
+                currentCount: usedSlots,
+                country: company.data.country,
+                usTextingEnabled: company.data.us_texting_enabled,
+              })
+            : "No plan yet.";
+          const canBuyExtra = paidExtra && extraBlockedReason === null;
           // #74: a plan-included number can be (re)provisioned in-app whenever a
           // slot is open — NOT just Pro's second number. This is what lets a
           // Starter who released their only number get a replacement (their plan

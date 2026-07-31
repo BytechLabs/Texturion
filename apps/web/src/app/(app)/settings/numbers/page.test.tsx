@@ -116,9 +116,42 @@ describe("/settings/numbers provisioning affordance (#74)", () => {
     state.company = company({
       plan: "starter",
       subscription_status: "active",
+      country: "US",
       us_texting_enabled: false,
     });
     state.numbers = [activeNumber()];
+    const html = render();
+    expect(html).not.toContain("Add a number");
+  });
+
+  // #464: "Why is extra phone number US only?? that makes no sense." It didn't.
+  // Canada has no 10DLC equivalent, so `us_texting_enabled` is never true for a
+  // CA workspace — and this page required it, which refused every Canadian
+  // customer forever, for a carrier rule that does not apply to them.
+  it("offers a Canadian workspace its paid extra, with no registration wait", () => {
+    state.company = company({
+      plan: "starter",
+      subscription_status: "active",
+      country: "CA",
+      us_texting_enabled: false,
+    });
+    state.numbers = [activeNumber()];
+    const html = render();
+    expect(html).toContain("Add a number");
+    expect(html).toContain("$5");
+  });
+
+  it("still holds a Canadian Starter to the hard 2-number max", () => {
+    state.company = company({
+      plan: "starter",
+      subscription_status: "active",
+      country: "CA",
+      us_texting_enabled: false,
+    });
+    state.numbers = [
+      activeNumber(),
+      { ...activeNumber(), id: "00000000-0000-4000-8000-000000000002" },
+    ];
     const html = render();
     expect(html).not.toContain("Add a number");
   });

@@ -3,9 +3,10 @@
  *
  * Pricing (founder decision, #80): Starter $5/mo per extra with a HARD total
  * cap of 2 numbers (1 included + 1 extra); Pro $4/mo per extra, unlimited
- * extras (2 included). US numbers only, and only for companies with US texting
- * enabled. The message quota is per-company and SHARED across all numbers —
- * an extra number never adds quota (the UI says so plainly).
+ * extras (2 included). #464: US AND Canadian workspaces — a US one waits for
+ * 10DLC approval first, a Canadian one has no registration to wait on. The
+ * message quota is per-company and SHARED across all numbers — an extra
+ * number never adds quota (the UI says so plainly).
  *
  * BILLING MODEL — one licensed Stripe price per plan, quantity = the number of
  * PAID extras, kept CONVERGENT with the truth in the DB:
@@ -35,6 +36,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { extraNumberBlockedReason } from "@loonext/shared";
+
 import type { Env } from "../env";
 import { idempotencyKey } from "./idempotency";
 import { PLAN_LIMITS, type PlanId } from "./plans";
@@ -47,7 +50,7 @@ export const EXTRA_NUMBER_MONTHLY_CENTS: Record<PlanId, number> = {
 };
 
 /** Starter's hard TOTAL number cap: 1 included + at most 1 extra (#80). */
-export const STARTER_MAX_TOTAL_NUMBERS = 2;
+export { STARTER_MAX_TOTAL_NUMBERS } from "@loonext/shared";
 
 /** The plan's extra-number Stripe price id, or null when not provisioned —
  *  then extras are simply not purchasable in this environment (fail CLOSED:
@@ -82,30 +85,34 @@ export function effectiveNumberAllowance(
 // consumed by the slot RPCs under their company-row lock), which closed the
 // admit-vs-converge race that Stripe-read approach carried.
 
-/** May this company buy ONE MORE number beyond `currentCount`? (#80 rules.) */
+/**
+ * May this company buy ONE MORE number beyond `currentCount`? (#80 rules.)
+ *
+ * #464: the decision lives in @loonext/shared so the API, the web app and the
+ * two phone clients cannot disagree about who is allowed to buy one — which
+ * they did, because each carried its own copy of the condition.
+ */
 export function extraNumberPurchasable(args: {
   plan: PlanId;
   currentCount: number;
   country: string;
   usTextingEnabled: boolean;
 }): { ok: true } | { ok: false; reason: string } {
-  if (args.country !== "US" || !args.usTextingEnabled) {
+  // An unknown country is refused rather than assumed: this gate guards a
+  // charge, and the provisioner only orders NANP numbers.
+  if (args.country !== "US" && args.country !== "CA") {
     return {
       ok: false,
-      reason:
-        "Extra numbers are US numbers and need US texting enabled on your account first.",
+      reason: "Extra numbers are available for US and Canadian workspaces.",
     };
   }
-  if (
-    args.plan === "starter" &&
-    args.currentCount >= STARTER_MAX_TOTAL_NUMBERS
-  ) {
-    return {
-      ok: false,
-      reason: `Starter tops out at ${STARTER_MAX_TOTAL_NUMBERS} numbers (1 included + 1 extra). Move to Pro for more.`,
-    };
-  }
-  return { ok: true };
+  const reason = extraNumberBlockedReason({
+    plan: args.plan,
+    currentCount: args.currentCount,
+    country: args.country,
+    usTextingEnabled: args.usTextingEnabled,
+  });
+  return reason === null ? { ok: true } : { ok: false, reason };
 }
 
 /** Count the company's numbers that still cost us rent (not released). */

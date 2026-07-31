@@ -91,11 +91,34 @@ describe("extraNumberPurchasable (#80 gates)", () => {
     if (!capped.ok) expect(capped.reason).toContain("Pro");
   });
 
-  it("refuses non-US companies and companies without US texting", () => {
-    expect(extraNumberPurchasable({ ...base, country: "CA" }).ok).toBe(false);
+  // #464: this used to assert `country: "CA"` was REFUSED, and it was correct
+  // when written — Telnyx returned Canadian inventory masked and un-orderable
+  // (number_reservations answered 10038). Re-checked live 2026-07-31: CA
+  // inventory now comes back fully revealed and reservable, so the refusal had
+  // outlived its reason and the guard was holding it in place. Canada also has
+  // no 10DLC equivalent, so requiring `usTextingEnabled` of a CA workspace
+  // refused every Canadian customer forever.
+  it("lets a Canadian company buy one, with no registration to wait on", () => {
     expect(
-      extraNumberPurchasable({ ...base, usTextingEnabled: false }).ok,
-    ).toBe(false);
+      extraNumberPurchasable({
+        ...base,
+        country: "CA",
+        usTextingEnabled: false,
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it("still makes a US company wait for carrier approval", () => {
+    const blocked = extraNumberPurchasable({ ...base, usTextingEnabled: false });
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) expect(blocked.reason).toContain("US texting");
+  });
+
+  it("refuses a country the provisioner cannot order in", () => {
+    // The gate guards a CHARGE, so an unrecognised country fails closed.
+    const blocked = extraNumberPurchasable({ ...base, country: "GB" });
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) expect(blocked.reason).toContain("US and Canadian");
   });
 });
 

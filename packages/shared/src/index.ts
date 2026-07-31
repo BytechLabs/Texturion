@@ -1,4 +1,13 @@
 export {
+  extraNumberBlockedReason,
+  canBuyExtraNumber,
+  STARTER_MAX_TOTAL_NUMBERS,
+  type ExtraNumberEligibility,
+  type ExtraNumberPlan,
+  type NumberCountry,
+} from "./extra-numbers";
+
+export {
   registrationStage,
   registrationProgress,
   isWaitingOnRegistration,
