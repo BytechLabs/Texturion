@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { MEMBER_ROLES, type AppEnv, type MemberRole } from "../context";
+import type { AppEnv, MemberRole } from "../context";
 import {
   authorizeRoute,
   completeEnv,
@@ -321,9 +321,29 @@ describe("requireCapability (#315: the axis, not the rung)", () => {
     expect(await allows("member", "workspace.own")).toBe(false);
   });
 
-  it("lets every role see the inbox", async () => {
-    for (const role of MEMBER_ROLES) {
+  it("lets every role that works the inbox see it", async () => {
+    // Not every role: #315's bookkeeper preset is billing and NOT the inbox,
+    // which is the entire reason it exists. Naming the exception here rather
+    // than looping over MEMBER_ROLES keeps the claim true as roles are added.
+    for (const role of [...HIERARCHY, "read_only"] as MemberRole[]) {
       expect(await allows(role, "conversations.read"), role).toBe(true);
+    }
+    expect(await allows("bookkeeper", "conversations.read")).toBe(false);
+  });
+
+  it("lets a bookkeeper manage billing and nothing else", async () => {
+    // The case #315 names as the one currently forcing credential sharing.
+    expect(await allows("bookkeeper", "billing.manage")).toBe(true);
+    expect(await allows("bookkeeper", "workspace.access")).toBe(true);
+    for (const cap of [
+      "conversations.read",
+      "conversations.send",
+      "settings.manage",
+      "team.manage",
+      "contacts.bulk",
+      "workspace.own",
+    ] as Capability[]) {
+      expect(await allows("bookkeeper", cap), cap).toBe(false);
     }
   });
 
@@ -347,7 +367,7 @@ describe("requireCapability (#315: the axis, not the rung)", () => {
   });
 
   it("refuses a role the capability table has never heard of", async () => {
-    const offLine = "bookkeeper" as unknown as MemberRole;
+    const offLine = "auditor" as unknown as MemberRole;
     const res = await capApp(offLine, "billing.manage").request(
       "/action",
       {},

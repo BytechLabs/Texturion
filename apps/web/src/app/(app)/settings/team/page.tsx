@@ -76,6 +76,7 @@ const ROLE_LABELS: Record<Member["role"], string> = {
   admin: "Admin",
   member: "Member",
   read_only: "View only",
+  bookkeeper: "Bookkeeper",
 };
 
 /**
@@ -83,10 +84,14 @@ const ROLE_LABELS: Record<Member["role"], string> = {
  * A checkbox grid is a correct model and a bad product for a crew of four, so
  * the roles ship as named presets and the picker says what each is for.
  */
-const ROLE_BLURBS: Record<"admin" | "member" | "read_only", string> = {
+const ROLE_BLURBS: Record<
+  "admin" | "member" | "read_only" | "bookkeeper",
+  string
+> = {
   admin: "Everything except transferring ownership and closing the workspace",
   member: "Read and answer customers; no billing, team or settings",
   read_only: "Can see conversations, cannot reply or change anything",
+  bookkeeper: "Billing and invoices only; no access to conversations",
 };
 
 function MemberRow({
@@ -181,6 +186,7 @@ function MemberRow({
             <SelectItem value="admin">Admin</SelectItem>
             <SelectItem value="member">Member</SelectItem>
             <SelectItem value="read_only">View only</SelectItem>
+            <SelectItem value="bookkeeper">Bookkeeper</SelectItem>
           </SelectContent>
         </Select>
       ) : (
@@ -583,7 +589,9 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
                     {/* #315: named presets, and each says what it is FOR. An
                         owner picking a role for their accountant should not
                         have to infer it from the word "member". */}
-                    {(["member", "admin", "read_only"] as const).map((value) => (
+                    {(
+                      ["member", "admin", "read_only", "bookkeeper"] as const
+                    ).map((value) => (
                       <SelectItem key={value} value={value}>
                         <span className="flex flex-col gap-0.5 py-0.5">
                           <span>{ROLE_LABELS[value]}</span>

@@ -1,0 +1,34 @@
+-- #315 — the bookkeeper role, enum value only.
+--
+-- In its OWN migration because a new enum value cannot be USED in the same
+-- transaction that adds it (Postgres restriction; each migration file is one
+-- transaction). It is first USED by apps/api's capability table and by the
+-- role picker — never inside this file.
+--
+-- WHY. #315 names this as the case to solve FIRST, because it is the one
+-- actively costing us something today: "The bookkeeper or spouse doing the
+-- books needs billing and invoices. Under the current model that means admin,
+-- which also hands them every customer conversation in the business. The
+-- alternative is member, which cannot see billing at all. Neither is right, and
+-- the practical outcome is that the owner shares their own login — which
+-- defeats #191's attribution, #231's audit log, and #314's MFA simultaneously."
+--
+-- Every security feature in this product is undermined by a roles model that
+-- forces people to share credentials to do their jobs. This is the smallest
+-- change that stops that for the most common case.
+--
+-- WHAT IT IS. `workspace.access` + `billing.manage`, and nothing else. It is
+-- the one role that never sees a customer conversation, which is why it needed
+-- a landing of its own: every primary surface in this app is a conversation
+-- surface, so a bookkeeper who signed in before this would have found an empty
+-- shell and a 403.
+--
+-- NOT a rung. Like 'read_only' (20260731060000), it is deliberately off the
+-- owner ⊃ admin ⊃ member line, so the rank check in apps/api refuses it at any
+-- gate not yet moved to an axis. All 137 gates were moved first (410a9c2c,
+-- 733b8770), which is what makes adding a non-hierarchical role safe at all.
+--
+-- EXISTING WORKSPACES ARE UNTOUCHED. Adding a value to an enum changes no row,
+-- and nobody holds this role until an owner picks it.
+
+alter type public.member_role add value if not exists 'bookkeeper';

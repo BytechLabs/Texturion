@@ -89,6 +89,7 @@ export const MEMBER_ROLES = [
   "admin",
   "member",
   "read_only",
+  "bookkeeper",
 ] as const;
 export type MemberRole = (typeof MEMBER_ROLES)[number];
 
@@ -110,6 +111,19 @@ const ROLE_CAPABILITIES: Record<MemberRole, readonly Capability[]> = {
    * That is only safe because all 137 gates moved to axes first.
    */
   read_only: ["workspace.access", "conversations.read"],
+  /**
+   * #315: the bookkeeper or spouse doing the books. THE case that issue names
+   * as the one to solve first, because it is the one currently forcing
+   * credential sharing: the only way to hand somebody billing today is to make
+   * them an admin, which also hands them every customer conversation in the
+   * business. So the owner shares their own login instead, and #191
+   * attribution, #231 audit and #314 MFA stop meaning anything at once.
+   *
+   * Billing and NOT the inbox. No conversations.read at all — this is the one
+   * role that never sees a customer, which is also why it needed a landing of
+   * its own: every primary surface in the app is a conversation surface.
+   */
+  bookkeeper: ["workspace.access", "billing.manage"],
   member: [
     "workspace.access",
     "conversations.read",

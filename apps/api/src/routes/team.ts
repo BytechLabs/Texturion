@@ -62,11 +62,17 @@ const INVITE_COLUMNS =
  * Owner is never assignable (SPEC §6 CHECK, §10 — ownership is transferred,
  * never granted). `read_only` joins the list as a named preset: an owner's
  * partner, an accountant, a consultant who should see the work and never text
- * a customer as the business. Before it, the honest options were "let them
- * text your customers" or "give them nothing", and the third one people picked
- * was sharing a login.
+ * a customer as the business. `bookkeeper` is the other half of the same
+ * problem: billing and NOT the inbox. Before them, the honest options were
+ * "let them text your customers" or "give them nothing", and the third one
+ * people picked was sharing a login.
  */
-const ASSIGNABLE_ROLES = ["admin", "member", "read_only"] as const;
+const ASSIGNABLE_ROLES = [
+  "admin",
+  "member",
+  "read_only",
+  "bookkeeper",
+] as const;
 
 const inviteSchema = z.object({
   email: z.email(),

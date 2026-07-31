@@ -137,7 +137,7 @@ describe("the model is well-formed", () => {
     // of a deployed client, and a role arrives here as data from a row.
     // Indexing the table blindly threw a TypeError, which a gate turns into a
     // 500 — an error page where the honest answer is "no".
-    const unknown = "bookkeeper" as unknown as MemberRole;
+    const unknown = "auditor" as unknown as MemberRole;
     expect(() => roleHasCapability(unknown, "billing.manage")).not.toThrow();
     expect(roleHasCapability(unknown, "billing.manage")).toBe(false);
     expect(capabilitiesOf(unknown)).toEqual([]);
@@ -180,14 +180,43 @@ describe("the model is well-formed", () => {
     }
   });
 
-  it("splits billing from settings — the bookkeeper gap", () => {
-    // Same shape: the axes are separate in the model, and no preset yet takes
-    // one without the other. That preset is the next commit.
-    const noRoleSplitsThem = MEMBER_ROLES.every(
-      (r) =>
-        roleHasCapability(r, "billing.manage") ===
-        roleHasCapability(r, "settings.manage"),
+  it("billing without settings now has a role — the bookkeeper gap is closed", () => {
+    // This test used to assert the GAP: no role took billing without settings,
+    // which is why handing somebody the books meant making them an admin and
+    // handing them the whole inbox with it. It now asserts the opposite.
+    expect(roleHasCapability("bookkeeper", "billing.manage")).toBe(true);
+    expect(roleHasCapability("bookkeeper", "settings.manage")).toBe(false);
+  });
+
+  it("a bookkeeper never sees a customer", () => {
+    // The exact set, because widening this role is the one change that would
+    // quietly undo what it exists for.
+    expect(capabilitiesOf("bookkeeper").sort()).toEqual(
+      ["billing.manage", "workspace.access"].sort(),
     );
-    expect(noRoleSplitsThem).toBe(true);
+    for (const cap of [
+      "conversations.read",
+      "conversations.send",
+      "conversations.note",
+      "contacts.bulk",
+      "team.manage",
+      "numbers.manage",
+      "settings.manage",
+      "workspace.own",
+    ] as Capability[]) {
+      expect(roleHasCapability("bookkeeper", cap), cap).toBe(false);
+    }
+  });
+
+  it("neither preset is on the hierarchy, so every rank gate refuses them", () => {
+    // The safety property the whole incremental conversion rested on.
+    for (const role of ["read_only", "bookkeeper"] as MemberRole[]) {
+      for (const minimum of ["owner", "admin", "member"] as MemberRole[]) {
+        expect(
+          roleSatisfiesRank(role, minimum),
+          `${role} vs requireRole("${minimum}")`,
+        ).toBe(false);
+      }
+    }
   });
 });

@@ -4,6 +4,7 @@ import {
   Check,
   CheckSquare,
   ChevronsUpDown,
+  CreditCard,
   Inbox as InboxIcon,
   PanelLeft,
   PhoneIncoming,
@@ -28,6 +29,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  roleHasCapability,
+  type Capability,
+  type MemberRole,
+} from "@loonext/shared";
+
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +60,12 @@ interface NavRow {
   label: string;
   href: string;
   icon: typeof InboxIcon;
+  /**
+   * #315: what this row needs to be worth showing. Every focus surface is a
+   * conversation surface, so a role without `conversations.read` (a bookkeeper)
+   * would otherwise be given a nav of five rows that all answer 403.
+   */
+  needs: Capability;
 }
 
 // The sidebar is the SOLE primary nav (issue #8). Templates and Numbers live in
@@ -61,12 +74,43 @@ interface NavRow {
 // (+ the #129 call log — quiet row, no count: the accent budget stays on
 // compose and the unread numeral).
 const FOCUS: NavRow[] = [
-  { label: "For you", href: "/for-you", icon: Zap },
-  { label: "Inbox", href: "/inbox", icon: InboxIcon },
-  { label: "Calls", href: "/calls", icon: PhoneIncoming },
-  { label: "Tasks", href: "/tasks", icon: CheckSquare },
-  { label: "Contacts", href: "/contacts", icon: Users },
+  { label: "For you", href: "/for-you", icon: Zap, needs: "conversations.read" },
+  { label: "Inbox", href: "/inbox", icon: InboxIcon, needs: "conversations.read" },
+  { label: "Calls", href: "/calls", icon: PhoneIncoming, needs: "conversations.read" },
+  { label: "Tasks", href: "/tasks", icon: CheckSquare, needs: "conversations.read" },
+  { label: "Contacts", href: "/contacts", icon: Users, needs: "conversations.read" },
 ];
+
+/**
+ * #315: what a role with no inbox gets instead of an empty nav.
+ *
+ * A bookkeeper holds billing and nothing else, and every row above is a
+ * conversation surface. A sidebar with nothing in it reads as a broken app, so
+ * the one thing they CAN work is promoted into the primary nav rather than
+ * left buried in the account menu.
+ */
+const BILLING_ROW: NavRow = {
+  label: "Billing",
+  href: "/settings/billing",
+  icon: CreditCard,
+  needs: "billing.manage",
+};
+
+/** Role names as a person would read them. */
+const ROLE_LABELS: Partial<Record<MemberRole, string>> = {
+  owner: "Owner",
+  admin: "Admin",
+  member: "Member",
+  read_only: "View only",
+  bookkeeper: "Bookkeeper",
+};
+
+/** The rows this role can actually use, never an empty list. */
+export function navRowsFor(role: MemberRole): NavRow[] {
+  const focus = FOCUS.filter((row) => roleHasCapability(role, row.needs));
+  if (focus.length > 0) return focus;
+  return roleHasCapability(role, BILLING_ROW.needs) ? [BILLING_ROW] : [];
+}
 
 /**
  * One nav row (PORTAL-UX §1.1): glyph + label + optional count, 36px, soft
@@ -197,7 +241,11 @@ export function Sidebar({
   const numbers = useNumbers();
 
   const multi = memberships.length > 1;
-  const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+  // #315: was `role.charAt(0).toUpperCase() + role.slice(1)`, which renders
+  // "read_only" as "Read_only". A role name is a thing we chose to show
+  // somebody; it should read like one.
+  const roleLabel = ROLE_LABELS[role] ?? role;
+  const navRows = navRowsFor(role);
 
   const logo = (
     <span
@@ -377,7 +425,7 @@ export function Sidebar({
 
           {/* FOCUS group. */}
           <nav aria-label="Primary" className="flex flex-col gap-px">
-            {FOCUS.map((row) => (
+            {navRows.map((row) => (
               <NavItem
                 key={row.href}
                 row={row}

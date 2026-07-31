@@ -3,6 +3,8 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 
+import { roleHasCapability } from "@loonext/shared";
+
 import { useActiveCompany } from "@/lib/company/provider";
 
 /**
@@ -27,6 +29,23 @@ export function LandingGate() {
 
   useEffect(() => {
     if (decidedRef.current) return;
+
+    // #315: a role with no inbox has nowhere to land. Every primary surface in
+    // this app is a conversation surface, so a bookkeeper — billing and
+    // nothing else — would be dropped on a screen that answers 403. They go to
+    // the one thing they can work.
+    //
+    // Deliberately NOT once-per-session like the member redirect below: that
+    // one is a preference (a member may click Inbox later and stay there),
+    // this one is a wall. Sending them back to /inbox on a second visit would
+    // just show them the 403 again.
+    if (!roleHasCapability(role, "conversations.read")) {
+      decidedRef.current = true;
+      if (pathname === "/inbox" || pathname === "/for-you") {
+        router.replace("/settings/billing");
+      }
+      return;
+    }
 
     // Only members are redirected to /for-you; leads land on the inbox.
     if (role !== "member") {
