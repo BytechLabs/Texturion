@@ -359,6 +359,110 @@ begin
 end $$;
 
 -- ===========================================================================
+-- SN-11. THE FOCUS QUEUE STOPS COUNTING WHAT I DEFERRED — and only for me.
+--
+-- #293: "Snoozed threads are excluded from ... the focus queue count, or the
+-- metric lies in the other direction." The focus queue is the surface that
+-- tells a crew what needs them; a queue where half the items are not
+-- actionable today trains people to stop trusting the count.
+--
+-- Asserted on TRIAGE (unassigned work), because that is the section both
+-- members can see at once — which is what makes "only for me" provable rather
+-- than merely stated.
+-- ===========================================================================
+update public.conversations
+  set status = 'open', assigned_user_id = null
+  where id = 'da000000-0000-4000-8000-0000000000e1'::uuid;
+
+update public.conversation_snoozes
+  set until = now() + interval '2 days'
+  where user_id = 'da000000-0000-4000-8000-00000000000a'::uuid;
+
+do $$
+declare mine jsonb; theirs jsonb;
+begin
+  select public.api_for_you(
+    'da000000-0000-4000-8000-0000000000c1'::uuid,
+    'da000000-0000-4000-8000-00000000000a'::uuid,
+    now(), 20, null) into mine;
+  select public.api_for_you(
+    'da000000-0000-4000-8000-0000000000c1'::uuid,
+    'da000000-0000-4000-8000-00000000000b'::uuid,
+    now(), 20, null) into theirs;
+
+  if jsonb_array_length(mine->'triage'->'conversations') <> 0 then
+    raise exception
+      'SN-11 FAILED: my focus queue still lists the thread I deferred';
+  end if;
+  if (mine->'totals'->>'distinct_work')::int <> 0 then
+    raise exception
+      'SN-11 FAILED: the deferred thread still counts toward distinct_work (%). '
+      'The headline number is the one a client renders as "N things need you".',
+      mine->'totals'->>'distinct_work';
+  end if;
+
+  if jsonb_array_length(theirs->'triage'->'conversations') <> 1 then
+    raise exception
+      'SN-11 FAILED: my deferral emptied a COLLEAGUE''s queue too. The snooze '
+      'is mine; the work is still the crew''s.';
+  end if;
+  raise notice 'SN-11 PASSED: off my queue, still on theirs';
+end $$;
+
+-- ===========================================================================
+-- SN-12. A DEFERRAL CANNOT MOVE THE RESPONSE-TIME NUMBERS. Deliberately.
+--
+-- #293 asks that "snoozed periods do not count against response-time metrics".
+-- Read against what #239 actually measures, that turns out to be TRUE ALREADY,
+-- and building an exclusion would have made the metric lie:
+--
+--   #239 measures ONE window per thread — first inbound to first HUMAN reply.
+--   A deferral can only overlap that window in one case: a lead somebody
+--   deferred WITHOUT EVER ANSWERING IT. And #239 rule 6 exists precisely so a
+--   workspace cannot improve its median by setting leads aside — "excluding
+--   them would let a workspace improve its median by ignoring more leads,
+--   which is the exact behaviour the metric is supposed to expose".
+--
+--   The case #293 describes — "I''ll get you a price once I''ve spoken to my
+--   supplier" — is a thread the crew has ALREADY replied to. Its measurement
+--   closed at that reply and no later deferral can touch it.
+--
+-- So this asserts the invariant instead of implementing a subtraction: the
+-- stats are byte-identical with and without an active deferral. If somebody
+-- later adds that subtraction, this fails and says why.
+-- ===========================================================================
+do $$
+declare with_snooze jsonb; without_snooze jsonb;
+begin
+  select public.api_response_time_stats(
+    'da000000-0000-4000-8000-0000000000c1'::uuid,
+    now() - interval '1 day', now() + interval '1 day') into with_snooze;
+
+  delete from public.conversation_snoozes;
+
+  select public.api_response_time_stats(
+    'da000000-0000-4000-8000-0000000000c1'::uuid,
+    now() - interval '1 day', now() + interval '1 day') into without_snooze;
+
+  if (with_snooze->>'answered') <> (without_snooze->>'answered')
+     or (with_snooze->>'unanswered') <> (without_snooze->>'unanswered')
+     or coalesce(with_snooze->>'median_seconds', '')
+        <> coalesce(without_snooze->>'median_seconds', '') then
+    raise exception
+      'SN-12 FAILED: a deferral changed the response-time numbers (% vs %). '
+      'Deferring must not be a lever on the metric we sell.',
+      with_snooze, without_snooze;
+  end if;
+  -- …and the thread WAS measured, so this is not passing on an empty set.
+  if (with_snooze->>'answered')::int < 1 then
+    raise exception
+      'SN-12 SETUP FAILED: no answered lead in range, so the comparison above '
+      'proved nothing.';
+  end if;
+  raise notice 'SN-12 PASSED: deferring is not a lever on the response-time metric';
+end $$;
+
+-- ===========================================================================
 -- SN-8. The read functions are service-role only, like every other api_*.
 -- ===========================================================================
 do $$

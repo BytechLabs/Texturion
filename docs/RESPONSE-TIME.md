@@ -81,6 +81,31 @@ improve its median by ignoring more leads** — the exact behaviour the metric
 exists to expose. So the unanswered count sits next to the median everywhere the
 median appears, and no client shows one without the other.
 
+## Snoozing a thread does not change the number
+
+#293 lets a member defer a conversation until a chosen time, and asks that
+"snoozed periods do not count against response-time metrics". Read against what
+is actually measured here, that is **already true**, and making it explicitly
+true would have made the metric lie.
+
+There is one window per thread: first inbound to first human reply. A deferral
+can only overlap it in one case — a lead somebody deferred **without ever
+answering it**. That is precisely the case the section above exists to keep
+counted. Subtracting deferred time would hand a workspace the lever the metric
+is supposed to remove: defer the slow ones, watch the median improve.
+
+The case #293 describes — *"I'll get you a price once I've spoken to my
+supplier"* — is a thread the crew has **already replied to**. Its measurement
+closed at that reply, and no later deferral can move it.
+
+Where deferral does apply is the **focus queue**, which asks a different
+question: not "how fast did we answer" but "what needs me today". A thread you
+deferred leaves your queue and its count, per member, and stays on everyone
+else's. `supabase/tests/conversation_snooze.test.sql` SN-11 and SN-12 pin both
+halves — SN-12 asserts the response-time numbers are identical with and without
+an active deferral, so if somebody later adds the subtraction, it fails and says
+why.
+
 ## Business hours
 
 Each lead is classified by **when the customer wrote**, never by when we replied.
