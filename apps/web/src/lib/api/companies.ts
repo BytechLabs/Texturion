@@ -64,6 +64,9 @@ export interface CompanyPatch {
   business_hours?: BusinessHours;
   away_enabled?: boolean;
   away_message?: string | null;
+  /** #481: what a departing owner's customers are told, in their own words.
+   *  `null` turns the off-ramp off. Owner-only, and writing it IS the opt-in. */
+  offramp_message?: string | null;
   /** #414: whether a reply of URGENT wakes the whole crew. */
   emergency_keyword_enabled?: boolean;
   /** #460: the workspace's own emergency words. `null` restores the product

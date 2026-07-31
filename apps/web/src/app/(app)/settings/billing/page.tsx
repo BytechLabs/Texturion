@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { ChangePlanDialog } from "@/components/settings/change-plan-dialog";
 import { MissedWhileOff } from "@/components/settings/missed-while-off";
+import { OffRampCard } from "@/components/settings/off-ramp-card";
 import { PlanModulesCard } from "@/components/settings/plan-modules-card";
 import {
   LoadError,
@@ -177,6 +178,11 @@ export default function BillingSettingsPage() {
               because it is the consequence of that sentence rather than a
               separate topic. Renders nothing when nobody called. */}
           <MissedWhileOff show={company.data.subscription_status !== "active"} />
+
+          {/* #481: only for a workspace on its way out — the card returns null
+              otherwise. Directly under the count of customers who rang into
+              nothing, because this is what to DO about that. */}
+          <OffRampCard />
 
           {company.data.subscription_status === "canceled" ? (
             <SettingsCard title="Subscription">

@@ -286,6 +286,9 @@ data class CompanyView(
     val overage_cap_multiplier: kotlinx.serialization.json.JsonPrimitive? = null,
     val registration_fee_paid_at: String? = null,
     val canceled_at: String? = null,
+    /** #481: what a departing owner's customers are told. Null = off. */
+    val offramp_message: String? = null,
+    val offramp_opted_in_at: String? = null,
     val cancel_at_period_end: Boolean = false,
     /** weekday (mon..sun) -> window; missing/null weekday = closed all day. */
     val business_hours: Map<String, DayHours?> = emptyMap(),

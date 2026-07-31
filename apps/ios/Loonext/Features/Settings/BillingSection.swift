@@ -49,6 +49,9 @@ struct BillingSectionView: View {
         // #490: directly under the notice that says the line is off, because it
         // is the consequence of that sentence rather than a separate topic.
         MissedWhileOffNote(scope: scope, company: company)
+        // #481: only for a workspace on its way out. Directly under the count
+        // of customers who rang into nothing, because this is what to DO.
+        OffRampCard(scope: scope, company: company)
         PlanCard(scope: scope, company: company, canManage: canManage, onRefreshCompany: onRefreshCompany)
         if canManage && company.billing_writes_enabled
             && company.plan != nil && company.subscriptionActive {
@@ -536,6 +539,134 @@ private struct MissedWhileOffNote: View {
         .task(id: show) {
             guard show else { return }
             missed = try? await scope.repo.missedWhileOff(scope.companyId)
+        }
+    }
+}
+
+/// #481 — what a departing crew's customers are told, while we still hold the
+/// number.
+///
+/// THE DEADLINE IS THE FEATURE. After release the number belongs to somebody
+/// else and nothing can answer from it, so this is not forwarding — it is
+/// "tell the people who text you, while we still can". The copy leads with when
+/// it stops, because an owner who believes this outlives their account has been
+/// misled at the worst possible moment.
+///
+/// THE WORDS ARE THEIRS: an empty box with an example placeholder, never a
+/// draft. Writing the message IS the opt-in, so there is no separate switch to
+/// leave somebody unsure whether they set this up.
+///
+/// NO PERSUASION. A business is winding down, and how we behave on the way out
+/// is the referral channel (#399).
+@MainActor
+private struct OffRampCard: View {
+    let scope: SettingsScope
+    let company: CompanyView
+
+    private static let maxCharacters = 320
+
+    @State private var draft = ""
+    @State private var busy = false
+
+    private var saved: String? { company.offramp_message }
+    private var trimmed: String { draft.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        Group {
+            if company.subscription_status == SubscriptionStatus.canceled,
+               SettingsRoleGate.canManageBilling(scope.role) {
+                SettingsCard(title: "Tell your customers where you went") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(blurb)
+                            .font(.golos(12.5))
+                            .foregroundStyle(BrandColor.muted600)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        TextField(
+                            "We've moved to (416) 555-0123 — call or text us there and we'll pick right up.",
+                            text: $draft,
+                            axis: .vertical
+                        )
+                        .lineLimit(3...6)
+                        .font(.golos(13))
+                        .disabled(busy)
+                        .onChange(of: draft) { _, next in
+                            if next.count > Self.maxCharacters {
+                                draft = String(next.prefix(Self.maxCharacters))
+                            }
+                        }
+
+                        Text(
+                            trimmed.isEmpty
+                                ? "Nothing is sent until you write something here."
+                                : "\(trimmed.count) of \(Self.maxCharacters) characters. Your words, sent as they are."
+                        )
+                        .font(.golos(11.5))
+                        .foregroundStyle(BrandColor.muted600)
+
+                        HStack(spacing: 12) {
+                            Button(saved == nil ? "Start sending this" : "Save") {
+                                Task { await save(trimmed) }
+                            }
+                            .font(.golos(13, weight: .semibold))
+                            .foregroundStyle(BrandColor.olive)
+                            .buttonStyle(.plain)
+                            .disabled(busy || trimmed.isEmpty || trimmed == (saved ?? ""))
+
+                            if saved != nil {
+                                Button("Turn off") {
+                                    draft = ""
+                                    Task { await save(nil) }
+                                }
+                                .font(.golos(13, weight: .semibold))
+                                .foregroundStyle(BrandColor.muted600)
+                                .buttonStyle(.plain)
+                                .disabled(busy)
+                            }
+                        }
+                    }
+                }
+                .task(id: saved) { draft = saved ?? "" }
+            }
+        }
+    }
+
+    private var blurb: String {
+        let stops = releaseDate.map { "It stops on \($0), when " } ?? "It stops when "
+        return "Anyone who texts your old number gets this back, once each. "
+            + stops
+            + "the number goes back to the phone company. After that we can't "
+            + "answer it, and texts to it reach whoever gets it next."
+    }
+
+    /// UTC, because that is the clock the release job runs on. A deadline shown
+    /// a day out from the one the number actually goes on is worse than none.
+    private var releaseDate: String? {
+        guard let canceledAt = company.canceled_at,
+              let date = parseWireTimestamp(canceledAt) else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "d MMMM"
+        return formatter.string(from: date.addingTimeInterval(30 * 24 * 60 * 60))
+    }
+
+    private func save(_ message: String?) async {
+        guard !busy else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            _ = try await scope.repo.updateCompany(
+                scope.companyId,
+                patch: .object(["offramp_message": message.map { .string($0) } ?? .null])
+            )
+            scope.showMessage(
+                message == nil
+                    ? "Turned off."
+                    : "Saved. We'll send this once to each customer who texts you."
+            )
+        } catch {
+            scope.showMessage("Couldn't save that. Try again.")
         }
     }
 }

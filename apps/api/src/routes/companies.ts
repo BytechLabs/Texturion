@@ -98,6 +98,16 @@ const patchSchema = z
       .regex(/^\+1\d{10}$/)
       .nullable()
       .optional(),
+    /**
+     * #481: what a departing owner wants their customers told, in their own
+     * words. `null` turns the off-ramp off and clears the opt-in with it.
+     *
+     * 320 characters — two segments. Long enough for "we've moved to
+     * 555-0123, call or text us there" plus a sentence of context, short
+     * enough that nobody writes a letter we then send to their whole contact
+     * list one message at a time.
+     */
+    offramp_message: z.string().trim().min(1).max(320).nullable().optional(),
     // #12 Phase 0.3: the overage cap is an un-defeatable ceiling — bounded to
     // the (0, 10] safety range. `null` ("no cap") is still accepted for
     // backward-compat but resolves to the 10x hard maximum below.
@@ -509,8 +519,29 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
     );
   }
 
+  // #481: the off-ramp speaks to a departing business's customers using the
+  // business's own line. That is the owner's call in the same way transferring
+  // ownership or closing the workspace is — an admin deciding what a company's
+  // customers are told as it winds down is a decision about the business, not
+  // about its settings.
+  if (body.offramp_message !== undefined && c.get("role") !== "owner") {
+    return errorResponse(
+      c,
+      "forbidden",
+      "Only the owner can set what customers are told after you leave.",
+    );
+  }
+
   const patch: Record<string, unknown> = {};
   if (body.name !== undefined) patch.name = body.name;
+  if (body.offramp_message !== undefined) {
+    // The message and the opt-in move together — the CHECK constraint requires
+    // it, and so does the meaning: writing the words IS the opt-in, and there
+    // is no state where one exists without the other.
+    patch.offramp_message = body.offramp_message;
+    patch.offramp_opted_in_at =
+      body.offramp_message === null ? null : new Date().toISOString();
+  }
   if (body.timezone !== undefined) {
     assertValidTimezone(body.timezone);
     patch.timezone = body.timezone;

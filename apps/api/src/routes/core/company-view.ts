@@ -27,6 +27,11 @@ export const COMPANY_COLUMNS =
   "subscription_status,current_period_start,current_period_end," +
   "overage_cap_multiplier,registration_fee_paid_at,canceled_at," +
   "cancel_at_period_end," +
+  // #481: what a departing owner has chosen to tell their customers, and
+  // whether they have opted in at all. Beside `canceled_at` because the three
+  // only make sense together — the message is meaningless without the deadline
+  // it lives inside.
+  "offramp_message,offramp_opted_in_at," +
   // FEATURE-GAPS Step 1: after-hours away settings. #414:
   // emergency_keyword_enabled belongs beside them because the away message is
   // what asks a customer to reply URGENT in the first place — the switch and

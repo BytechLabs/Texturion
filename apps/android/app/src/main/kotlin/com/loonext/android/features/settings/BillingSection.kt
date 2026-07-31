@@ -2,6 +2,7 @@ package com.loonext.android.features.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,8 +14,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,6 +43,9 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 private val FULL_DATE = DateTimeFormatter.ofPattern("MMMM d, yyyy")
 
@@ -91,6 +97,9 @@ fun BillingSection(
     // #490: directly under the notice that says the line is off, because it is
     // the consequence of that sentence rather than a separate topic.
     MissedWhileOffNote(scope, company)
+    // #481: only for a workspace on its way out. Directly under the count of
+    // customers who rang into nothing, because this is what to DO about that.
+    OffRampCard(scope, company)
     PlanCard(scope, company, canManage, onRefreshCompany)
     if (canManage && company.plan != null && company.subscriptionActive) {
         ModulesCard(scope)
@@ -179,6 +188,120 @@ private fun PortalButton(
  * renders nothing too — this is a supporting fact on somebody else's screen,
  * and a billing page showing a broken box looks like the billing is broken.
  */
+/**
+ * #481 — what a departing crew's customers are told, while we still hold the
+ * number.
+ *
+ * THE DEADLINE IS THE FEATURE. After release the number belongs to somebody
+ * else and nothing can answer from it, so this is not forwarding — it is "tell
+ * the people who text you, while we still can". The copy leads with when it
+ * stops, because an owner who believes this outlives their account has been
+ * misled at the worst possible moment.
+ *
+ * THE WORDS ARE THEIRS: an empty box with an example placeholder, never a
+ * draft. Writing the message IS the opt-in, so there is no separate switch to
+ * leave somebody unsure whether they set this up.
+ *
+ * NO PERSUASION. A business is winding down. How we behave on the way out is
+ * the referral channel (#399), so there is no retention pitch here.
+ */
+@Composable
+private fun OffRampCard(scope: SettingsScope, company: CompanyView) {
+    if (company.subscription_status != SubscriptionStatus.CANCELED) return
+    if (!SettingsRoleGate.canManageBilling(scope.role)) return
+
+    var draft by remember(company.offramp_message) {
+        mutableStateOf(company.offramp_message.orEmpty())
+    }
+    var busy by remember { mutableStateOf(false) }
+    val coroutines = rememberCoroutineScope()
+    val saved = company.offramp_message
+    val trimmed = draft.trim()
+
+    fun save(message: String?) {
+        if (busy) return
+        busy = true
+        coroutines.launch {
+            runCatching {
+                scope.repo.updateCompany(
+                    scope.companyId,
+                    buildJsonObject {
+                        if (message == null) put("offramp_message", JsonNull)
+                        else put("offramp_message", message)
+                    },
+                )
+            }.onSuccess {
+                scope.showMessage(
+                    if (message == null) "Turned off." else "Saved. We'll send this once to each customer who texts you.",
+                )
+            }.onFailure { scope.showMessage("Couldn't save that. Try again.") }
+            busy = false
+        }
+    }
+
+    Spacer(Modifier.height(10.dp))
+    SettingsCard(title = "Tell your customers where you went") {
+        Text(
+            "Anyone who texts your old number gets this back, once each. " +
+                (releaseDate(company.canceled_at)?.let { "It stops on $it, when " }
+                    ?: "It stops when ") +
+                "the number goes back to the phone company. After that we can't " +
+                "answer it, and texts to it reach whoever gets it next.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = draft,
+            onValueChange = { if (it.length <= OFFRAMP_MAX) draft = it },
+            enabled = !busy,
+            minLines = 3,
+            placeholder = {
+                Text("We've moved to (416) 555-0123 — call or text us there and we'll pick right up.")
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            if (trimmed.isEmpty()) {
+                "Nothing is sent until you write something here."
+            } else {
+                "${trimmed.length} of $OFFRAMP_MAX characters. Your words, sent as they are."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { save(trimmed) },
+                enabled = !busy && trimmed.isNotEmpty() && trimmed != saved.orEmpty(),
+            ) {
+                Text(if (saved == null) "Start sending this" else "Save")
+            }
+            if (saved != null) {
+                TextButton(onClick = { draft = ""; save(null) }, enabled = !busy) {
+                    Text("Turn off")
+                }
+            }
+        }
+    }
+}
+
+/** #481: the release date, in UTC — the clock the release job runs on. A
+ *  deadline shown a day out from the one the number actually goes on is worse
+ *  than no date. */
+private fun releaseDate(canceledAt: String?): String? = canceledAt?.let {
+    runCatching {
+        Instant.parse(it)
+            .plus(java.time.Duration.ofDays(30))
+            .atZone(ZoneId.of("UTC"))
+            .format(DateTimeFormatter.ofPattern("d MMMM"))
+    }.getOrNull()
+}
+
+private const val OFFRAMP_MAX = 320
+
 @Composable
 private fun MissedWhileOffNote(scope: SettingsScope, company: CompanyView) {
     val show = !company.subscriptionActive

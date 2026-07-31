@@ -291,6 +291,9 @@ struct CompanyView: Codable, Sendable {
     let overage_cap_multiplier: JSONValue?
     let registration_fee_paid_at: String?
     let canceled_at: String?
+    /// #481: what a departing owner's customers are told. Nil = off.
+    let offramp_message: String?
+    let offramp_opted_in_at: String?
     @Default<DefaultFalse> var cancel_at_period_end: Bool
     /// #163 store-rules kill-switch: false = hide in-app billing WRITES (plan
     /// change, module toggles) and route them to the external-browser Stripe

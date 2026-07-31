@@ -314,6 +314,9 @@ export interface CompanyView {
   overage_cap_multiplier: number | string | null;
   registration_fee_paid_at: string | null;
   canceled_at: string | null;
+  /** #481: what a departing owner's customers are told. Null = off. */
+  offramp_message?: string | null;
+  offramp_opted_in_at?: string | null;
   /** SPEC §9: Stripe's pending period-end cancellation, mirrored by webhook. */
   cancel_at_period_end: boolean;
   /** FEATURE-GAPS Step 1 — after-hours away reply (company-local clock). */
