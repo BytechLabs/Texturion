@@ -1,34 +1,24 @@
 package com.loonext.android.features.thread
 
-import android.net.ConnectivityManager
-import android.net.Network
 import android.Manifest
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.LocalIndication
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.loonext.android.core.realtime.PRESENCE_HEARTBEAT_MS
-import com.loonext.android.core.realtime.RealtimeState
-import com.loonext.android.core.realtime.TYPING_THROTTLE_MS
-import com.loonext.android.core.realtime.TYPING_TTL_MS
-import com.loonext.android.core.realtime.presenceEntries
-import com.loonext.android.core.realtime.presenceLabel
-import com.loonext.android.core.realtime.viewersOf
-import kotlinx.coroutines.delay
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -44,16 +34,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
@@ -65,7 +52,18 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Sell
+import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.CheckBox
+import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.PersonAdd
+import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.outlined.Report
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Undo
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -81,9 +79,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -92,54 +92,69 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.model.Attachment
 import com.loonext.android.core.model.AttachmentSummary
 import com.loonext.android.core.model.ConversationStatus
-import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
+import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.net.ApiErrorCode
-import com.loonext.android.telephony.SoftphoneManager
-import com.loonext.android.features.compose.DraftSuggestionsCache
-import com.loonext.android.features.compose.ComposerDrafts
-import com.loonext.android.features.compose.NoteFileUploader
-import com.loonext.android.features.compose.ThreadComposer
-import com.loonext.android.features.compose.Nanp
-import com.loonext.android.features.compose.rememberComposerState
+import com.loonext.android.core.realtime.PRESENCE_HEARTBEAT_MS
+import com.loonext.android.core.realtime.RealtimeState
+import com.loonext.android.core.realtime.TYPING_THROTTLE_MS
+import com.loonext.android.core.realtime.TYPING_TTL_MS
+import com.loonext.android.core.realtime.presenceEntries
+import com.loonext.android.core.realtime.presenceLabel
+import com.loonext.android.core.realtime.viewersOf
 import com.loonext.android.core.snooze.isSnoozed
 import com.loonext.android.core.snooze.snoozeReturnLabel
+import com.loonext.android.features.compose.ComposerDrafts
+import com.loonext.android.features.compose.DraftSuggestionsCache
+import com.loonext.android.features.compose.Nanp
+import com.loonext.android.features.compose.NoteFileUploader
+import com.loonext.android.features.compose.ThreadComposer
+import com.loonext.android.features.compose.rememberComposerState
 import com.loonext.android.features.compose.selectComposerBanner
 import com.loonext.android.features.compose.usSendApproved
 import com.loonext.android.features.compose.usSuspended
 import com.loonext.android.features.compose.usTextingOff
+import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
-import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * One conversation: header (identity → contact panel, Call button, status,
@@ -1734,25 +1749,34 @@ private fun ConversationSheet(
                         .firstOrNull { it.user_id == detail.assigned_user_id }
                         ?.display_name?.ifBlank { null }
                     SheetActionRow(
+                        icon = Icons.Outlined.PersonAdd,
                         label = assignee?.let { "Assigned to " + it } ?: "Assign to…",
                         onClick = onAssign,
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    SheetActionRow(
-                        label = if (detail.pinned_at == null) "Pin conversation"
-                        else "Unpin conversation",
-                        onClick = {
+                    // #465: pinned and spam are STATES, drawn and named as such.
+                    SheetToggleRow(
+                        icon = Icons.Outlined.PushPin,
+                        label = "Pinned",
+                        checked = detail.pinned_at != null,
+                        onToggle = {
                             haptics.tap()
                             controller.toggleConversationPin()
                             onDismiss()
                         },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    SheetActionRow(label = "Photos & files", onClick = onOpenGallery)
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SheetActionRow(
-                        label = if (detail.is_spam) "Not spam" else "Mark as spam",
-                        onClick = {
+                        icon = Icons.Outlined.PhotoLibrary,
+                        label = "Photos & files",
+                        onClick = onOpenGallery,
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SheetToggleRow(
+                        icon = Icons.Outlined.Report,
+                        label = "Spam",
+                        checked = detail.is_spam,
+                        onToggle = {
                             haptics.tap()
                             controller.setSpam(!detail.is_spam)
                             onDismiss()
@@ -1773,10 +1797,18 @@ private fun ConversationSheet(
                                     "texting START to your number.",
                             )
                         } else {
-                            SheetActionRow(label = "Remove opt-out", onClick = onRevokeOptOut)
+                            SheetActionRow(
+                                icon = Icons.Outlined.Undo,
+                                label = "Remove opt-out",
+                                onClick = onRevokeOptOut,
+                            )
                         }
                     } else {
-                        SheetActionRow(label = "Opt out of texts", onClick = onOptOut)
+                        SheetActionRow(
+                            icon = Icons.Outlined.Block,
+                            label = "Opt out of texts",
+                            onClick = onOptOut,
+                        )
                     }
                 }
             }
@@ -1794,6 +1826,7 @@ private fun ConversationSheet(
             ) {
                 Column {
                     SheetToggleRow(
+                        icon = Icons.Outlined.ChatBubbleOutline,
                         label = "Show messages",
                         checked = controller.filter.messages,
                         onToggle = {
@@ -1803,6 +1836,7 @@ private fun ConversationSheet(
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SheetToggleRow(
+                        icon = Icons.Outlined.Lock,
                         label = "Show notes",
                         checked = controller.filter.notes,
                         onToggle = {
@@ -1812,6 +1846,7 @@ private fun ConversationSheet(
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SheetToggleRow(
+                        icon = Icons.Outlined.Info,
                         label = "Show events",
                         checked = controller.filter.events,
                         onToggle = {
@@ -1846,7 +1881,7 @@ private fun SheetNote(text: String) {
 }
 
 @Composable
-private fun SheetActionRow(label: String, onClick: () -> Unit) {
+private fun SheetActionRow(icon: ImageVector, label: String, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -1854,6 +1889,16 @@ private fun SheetActionRow(label: String, onClick: () -> Unit) {
             .padding(horizontal = 15.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // #465: these rows were text-only, so assign, pin and spam all read as
+        // one undifferentiated list. The icon is the fastest way to find the
+        // row you came for, and the message sheet has always had one.
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(13.dp))
         Text(
             label,
             style = MaterialTheme.typography.bodyMedium.copy(
@@ -1906,14 +1951,31 @@ private fun ThreadSkeletonBubble(inbound: Boolean, width: Dp) {
 }
 
 @Composable
-private fun SheetToggleRow(label: String, checked: Boolean, onToggle: () -> Unit) {
+private fun SheetToggleRow(
+    icon: ImageVector,
+    label: String,
+    checked: Boolean,
+    onToggle: () -> Unit,
+) {
     Row(
         Modifier
             .fillMaxWidth()
+            .semantics { toggleableState = ToggleableState(checked) }
             .clickable(onClick = onToggle)
             .padding(horizontal = 15.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (checked) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(13.dp))
         Text(
             label,
             style = MaterialTheme.typography.bodyMedium.copy(
@@ -1922,13 +1984,18 @@ private fun SheetToggleRow(label: String, checked: Boolean, onToggle: () -> Unit
             ),
             modifier = Modifier.weight(1f),
         )
-        if (checked) {
-            Icon(
-                Icons.Filled.Check,
-                contentDescription = "On",
-                tint = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.size(16.dp),
-            )
-        }
+        // #465: the box is drawn in BOTH states. A mark that appears only when
+        // on leaves an unchecked row identical to the action rows above it,
+        // which is the whole complaint.
+        Icon(
+            if (checked) Icons.Outlined.CheckBox else Icons.Outlined.CheckBoxOutlineBlank,
+            contentDescription = null,
+            tint = if (checked) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.outline
+            },
+            modifier = Modifier.size(17.dp),
+        )
     }
 }

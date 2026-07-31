@@ -1105,23 +1105,23 @@ private struct ConversationSheet: View {
 
     private var actionsCard: some View {
         VStack(spacing: 0) {
-            sheetRow(assigneeLabel, action: onAssign)
+            sheetRow(assigneeLabel, icon: "person.badge.plus", action: onAssign)
             RowDivider()
             // #465: pinned is a STATE, not a command. It was drawn as a plain
             // action row, identical to "Photos & files" below it, while this
             // sheet already had a toggleRow used only by the view filters. Same
             // vocabulary everywhere now: a trailing mark means state, and the
             // label names the state rather than flipping between two verbs.
-            toggleRow("Pinned", on: detail.pinned_at != nil) {
+            toggleRow("Pinned", icon: "pin", on: detail.pinned_at != nil) {
                 controller.toggleConversationPin()
                 onDismiss()
             }
             RowDivider()
-            sheetRow("Photos & files", action: onOpenGallery)
+            sheetRow("Photos & files", icon: "photo.on.rectangle", action: onOpenGallery)
             RowDivider()
-            sheetRow("Refresh") { onRefresh() }
+            sheetRow("Refresh", icon: "arrow.clockwise") { onRefresh() }
             RowDivider()
-            toggleRow("Spam", on: detail.is_spam) {
+            toggleRow("Spam", icon: "exclamationmark.octagon", on: detail.is_spam) {
                 controller.setSpam(!detail.is_spam)
                 onDismiss()
             }
@@ -1139,10 +1139,14 @@ private struct ConversationSheet: View {
                             + "texting START to your number."
                     )
                 } else {
-                    sheetRow("Remove opt-out", action: onRevokeOptOut)
+                    sheetRow(
+                        "Remove opt-out",
+                        icon: "arrow.uturn.backward",
+                        action: onRevokeOptOut
+                    )
                 }
             } else {
-                sheetRow("Opt out of texts", action: onOptOut)
+                sheetRow("Opt out of texts", icon: "nosign", action: onOptOut)
             }
         }
         .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -1171,7 +1175,10 @@ private struct ConversationSheet: View {
                         : back
                 )
                 RowDivider()
-                sheetRow(isFollowUp ? "Cancel the reminder" : "Bring back now") {
+                sheetRow(
+                    isFollowUp ? "Cancel the reminder" : "Bring back now",
+                    icon: "alarm.slash"
+                ) {
                     controller.unsnooze()
                     onDismiss()
                 }
@@ -1185,7 +1192,7 @@ private struct ConversationSheet: View {
                     }
                 }
                 RowDivider()
-                sheetRow("Pick a date…") { snoozePickerKind = .snooze }
+                sheetRow("Pick a date…", icon: "calendar") { snoozePickerKind = .snooze }
 
                 // #293: a SECOND ladder, not a second label on the first.
                 // "This afternoon" is a sensible time to pick a thread back up
@@ -1204,7 +1211,7 @@ private struct ConversationSheet: View {
                     }
                 }
                 RowDivider()
-                sheetRow("Pick a date…") { snoozePickerKind = .followUp }
+                sheetRow("Pick a date…", icon: "calendar") { snoozePickerKind = .followUp }
             }
         }
         .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -1227,15 +1234,15 @@ private struct ConversationSheet: View {
 
     private var timelineCard: some View {
         VStack(spacing: 0) {
-            toggleRow("Show messages", on: controller.filter.messages) {
+            toggleRow("Show messages", icon: "bubble.left", on: controller.filter.messages) {
                 controller.filter = controller.filter.toggledMessages()
             }
             RowDivider()
-            toggleRow("Show notes", on: controller.filter.notes) {
+            toggleRow("Show notes", icon: "lock", on: controller.filter.notes) {
                 controller.filter = controller.filter.toggledNotes()
             }
             RowDivider()
-            toggleRow("Show events", on: controller.filter.events) {
+            toggleRow("Show events", icon: "info.circle", on: controller.filter.events) {
                 controller.filter = controller.filter.toggledEvents()
             }
         }
@@ -1259,13 +1266,24 @@ private struct ConversationSheet: View {
             .padding(.vertical, 13)
     }
 
+    /// #465: these rows were text-only, so assign, pin and spam all read as one
+    /// undifferentiated list. The icon is the fastest way to find the row you
+    /// came for. `icon` is optional because the snooze presets are a list of
+    /// times, where eight identical clock glyphs would be noise, not help.
     private func sheetRow(
         _ label: String,
+        icon: String? = nil,
         trailing: String? = nil,
         action: @escaping @MainActor () -> Void
     ) -> some View {
         Button(action: action) {
             HStack(spacing: 10) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(BrandColor.muted500)
+                        .frame(width: 20, alignment: .leading)
+                }
                 Text(label)
                     .font(.golos(13.5, weight: .medium))
                     .foregroundStyle(BrandColor.ink)
@@ -1285,11 +1303,18 @@ private struct ConversationSheet: View {
 
     private func toggleRow(
         _ label: String,
+        icon: String? = nil,
         on: Bool,
         action: @escaping @MainActor () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack {
+            HStack(spacing: 10) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(on ? BrandColor.olive : BrandColor.muted500)
+                        .frame(width: 20, alignment: .leading)
+                }
                 Text(label)
                     .font(.golos(13.5, weight: .medium))
                     .foregroundStyle(BrandColor.ink)
