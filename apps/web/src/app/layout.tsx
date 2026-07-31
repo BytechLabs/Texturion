@@ -51,11 +51,16 @@ export const metadata: Metadata = {
   // title; every other marketing page supplies just the "%s" half.
   metadataBase: new URL("https://loonext.com"),
   title: {
-    default: "Loonext: a shared SMS inbox for your crew",
+    default: "Loonext: the shared line for your crew",
     template: "%s · Loonext",
   },
+  // #491: the fallback description for every route that sets none of its own,
+  // which includes the whole signup and onboarding funnel and the app shell.
+  // It described a texting-only product, and it also carried the number-count
+  // claim (marketing)/page.tsx deliberately dropped: Pro carries two numbers,
+  // so "a local business number" oversells the constraint.
   description:
-    "A local business number your whole team can text from. Every incoming text becomes a conversation you can reply to, assign, tag, and close.",
+    "Local business numbers your whole team works from. Texts and calls land in one shared inbox anyone can answer, assign, turn into a job, and close.",
   // Favicons + PWA icons (G9): the double-o brand tile (#206). The SVG
   // favicon is the runtime default; the unread-title manager
   // (lib/push/use-unread-title.ts) swaps its href to /favicon-unread.svg when

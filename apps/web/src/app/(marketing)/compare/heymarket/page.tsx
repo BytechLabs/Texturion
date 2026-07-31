@@ -134,7 +134,7 @@ export default function CompareHeymarketPage() {
           },
           {
             title: "Text and email in one shared inbox.",
-            body: "Heymarket handles both channels together. Loonext is texting only. If your team needs to work email and texts from a single place, Heymarket does something we simply don't.",
+            body: "Heymarket handles both channels together. Loonext has no email channel at all: our shared line is texts and calls, and email is not part of it. If your team needs to work email and texts from a single place, Heymarket does something we simply don't.",
           },
           {
             title: "Deep CRM integrations and automations.",

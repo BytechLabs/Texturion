@@ -120,8 +120,12 @@ export function organizationJsonLd() {
     name: "Loonext",
     url: SITE_URL,
     logo: `${SITE_URL}/icons/icon-512.png`,
+    // #491: was "A shared SMS inbox for small service businesses in the US
+    // and Canada." This node renders on EVERY marketing URL and is the only
+    // structured-data sentence describing what the product is, so it was the
+    // machine-readable version of the whole issue.
     description:
-      "A shared SMS inbox for small service businesses in the US and Canada.",
+      "A shared business line for small service businesses in the US and Canada: texts and calls on one number, worked by the whole crew, with the jobs and customer history that come out of them.",
   } as const;
 }
 

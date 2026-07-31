@@ -183,7 +183,7 @@ export default function TemplatesAndTagsPage() {
           {
             term: "Saved replies are shortcuts, not automation.",
             detail:
-              "A template is a text you send with one tap; it never sends on its own. There are no automated reminders or drip campaigns. Confirmations and follow-ups are fast because they're one tap away, not because the app texts customers for you.",
+              "A template is a text you send with one tap; it never sends on its own, and there are no drip campaigns or scheduled sends. Two things do send by themselves, both in words you wrote: your after-hours auto-reply and your missed-call text back. Everything else is one tap away because it is a shortcut, not because the app is texting customers for you.",
           },
           {
             term: "Done-marks are on messages, not jobs.",
@@ -263,7 +263,7 @@ export default function TemplatesAndTagsPage() {
           },
           {
             q: "Do templates send automatically?",
-            a: "No. A saved reply is a text you send with one tap; it never sends on its own. Loonext has no automated reminders or scheduled sends. The speed comes from templates being one tap away, not from the app texting customers for you.",
+            a: "No. A saved reply is a text you send with one tap; it never sends on its own, and there is no drip sequencing or scheduled sending. Two automatic messages do exist and both are yours: the after-hours auto-reply and the missed-call text back, sent in words you wrote yourself. Separately, you can ask to be reminded to chase a thread, which nudges YOU rather than texting the customer.",
           },
           {
             q: "What exactly does marking a text done do?",

@@ -100,13 +100,28 @@ describe("nav-links (deck §Global: Product · Pricing · Who it's for · Compar
 describe("footer (deck §F: the Dispatch Ink band)", () => {
   const html = renderToStaticMarkup(<Footer />);
 
-  it("covers every coverage-map route: Product 7 · Who it's for 6 · Compare 2 · Company and legal 9", () => {
+  /**
+   * #491: the FEATURE half is derived, for the same reason the Product-menu
+   * test above is.
+   *
+   * This assertion listed four feature routes by hand and iterated them with
+   * `toContain`, so the footer could fall behind LIVE_ROUTES forever without
+   * failing — and it did: /features/calls shipped and was unreachable from the
+   * footer from that day until this one, along with tasks, contacts and the
+   * assistant. The nav had all eight only because ITS test derives the set.
+   *
+   * A hardcoded subset check cannot catch an omission; it can only catch a
+   * deletion. The rest of the list stays enumerated because those routes are
+   * not a derivable family.
+   */
+  it("covers every feature page, plus the coverage-map routes", () => {
+    const featureRoutes = Object.entries(LIVE_ROUTES)
+      .filter(([key]) => key.startsWith("features"))
+      .map(([, path]) => path);
+    expect(featureRoutes.length).toBeGreaterThan(0);
     const required = [
-      // Product (7)
-      LIVE_ROUTES.featuresSharedInbox,
-      LIVE_ROUTES.featuresBusinessNumber,
-      LIVE_ROUTES.featuresCompliance,
-      LIVE_ROUTES.featuresTemplatesAndTags,
+      ...featureRoutes,
+      // Product, the non-feature rows
       LIVE_ROUTES.pricing,
       LIVE_ROUTES.security,
       LIVE_ROUTES.canada,

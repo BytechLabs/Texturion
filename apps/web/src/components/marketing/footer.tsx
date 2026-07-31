@@ -32,6 +32,10 @@ interface FooterLinkItem {
 /* Deck §F column inventories, verbatim order. */
 const PRODUCT: FooterLinkItem[] = [
   { label: "Shared inbox", href: LIVE_ROUTES.featuresSharedInbox },
+  { label: "Calls and voicemail", href: LIVE_ROUTES.featuresCalls },
+  { label: "Tasks", href: LIVE_ROUTES.featuresTasks },
+  { label: "Contacts", href: LIVE_ROUTES.featuresContacts },
+  { label: "Lou, your assistant", href: LIVE_ROUTES.featuresAssistant },
   { label: "Your business number", href: LIVE_ROUTES.featuresBusinessNumber },
   { label: "Compliance built in", href: LIVE_ROUTES.featuresCompliance },
   { label: "Templates and tags", href: LIVE_ROUTES.featuresTemplatesAndTags },

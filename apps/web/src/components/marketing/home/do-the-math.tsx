@@ -27,9 +27,10 @@ export function DoTheMath() {
               column carries only the closer; repeating the lead here would
               print the same sentence twice in one viewport. */}
           <p className="fr-body mt-6 max-w-[52ch] text-[color:var(--fr-ink-70)]">
-            Loonext can&apos;t answer your phone. But customers who won&apos;t
-            leave a voicemail will text, and a text in a shared inbox gets
-            answered by whoever&apos;s free, not whoever&apos;s phone it is.
+            A missed call and an unanswered text cost the same job. Loonext
+            rings your whole crew when somebody calls, writes down the
+            voicemail when nobody can pick up, and puts every text where
+            whoever&apos;s free answers it, not whoever&apos;s phone it is.
             That&apos;s{" "}
             <span className="fr-mono-data text-[color:var(--fr-ink)]">$29</span>{" "}
             a month against the number above.

@@ -57,7 +57,7 @@ export default function CompareQuoPage() {
       <CompareHero
         dateline="$19/USER/MO + 1¢/TEXT"
         title="Loonext vs Quo: flat beats per-user."
-        lead="Quo (formerly OpenPhone) is a full business phone system: calling included, priced per user at $19 a month on monthly billing, with texting metered at 1¢ a segment and extra numbers at $5 each. Loonext is texting only, $29 a month flat for the whole crew, texts included. Here is the arithmetic, dated and sourced, July 2026."
+        lead="Quo (formerly OpenPhone) is a full business phone system: calling included, priced per user at $19 a month on monthly billing, with texting metered at 1¢ a segment and extra numbers at $5 each. Loonext is one line for texts and calls, $29 a month flat for the whole crew, both included. Here is the arithmetic, dated and sourced, July 2026."
       />
 
       <LedgerBand
@@ -141,7 +141,7 @@ export default function CompareQuoPage() {
         points={[
           {
             title: "Calling is the honest headline.",
-            body: "Unlimited US/Canada calling ships on every Quo tier. If your customers expect to reach you by voice all day, Quo is genuinely the better tool and no texting inbox replaces it.",
+            body: "Unlimited US/Canada calling ships on every Quo tier. If your customers expect to reach you by voice all day, Quo is genuinely the better tool and a shared line does not replace a phone system.",
           },
           {
             title: "Their fee disclosure sets a high bar.",
