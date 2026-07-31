@@ -15,6 +15,10 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompany } from "@/lib/api/companies";
+import { useMe } from "@/lib/api/me";
+import { useCompanyId } from "@/lib/company/provider";
+import { useConversationPresence } from "@/lib/realtime/presence";
+import { PresenceStrip } from "@/components/thread/presence-strip";
 import { useContact } from "@/lib/api/contacts";
 import {
   useConversation,
@@ -148,6 +152,19 @@ export function ThreadView({ conversationId }: { conversationId: string }) {
 
 function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   const conversationId = conversation.id;
+
+  // #302: who else is on this thread, and whether they are replying. The hook
+  // owns its own realtime channel (see lib/realtime/presence.ts for why it is
+  // not the number topic), announces this viewer, and returns nothing at all
+  // when the connection is not healthy — stale presence is worse than none.
+  const me = useMe();
+  const presence = useConversationPresence({
+    companyId: useCompanyId(),
+    phoneNumberId: conversation.phone_number_id,
+    conversationId,
+    selfUserId: me.data?.user_id,
+    displayName: me.data?.display_name,
+  });
   const contact = useContact(conversation.contact_id);
   const company = useCompany();
   const usage = useUsage();
@@ -309,6 +326,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
                 because the composer and the message list are siblings: React
                 requires keys to be unique among siblings, and matching two
                 different components on one key is undefined behaviour. */}
+            <PresenceStrip viewers={presence.viewers} />
             <Composer
               key={`composer-${conversationId}`}
               conversationId={conversationId}
@@ -325,10 +343,12 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             {conversation.viewer_level === "text" && (
               <TheirTime clock={conversation.destination_clock} />
             )}
+            <PresenceStrip viewers={presence.viewers} />
             <Composer
               key={`composer-${conversationId}`}
               conversationId={conversationId}
               noteOnly={conversation.viewer_level === "note"}
+              onTyping={presence.onTyping}
             />
           </>
         )}

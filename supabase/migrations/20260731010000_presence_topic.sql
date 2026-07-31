@@ -79,3 +79,40 @@ comment on function public.is_company_topic_member(text) is
   '(D88) and company:{id}:number:{n}:presence (#302) — the last two share one '
   'access test so a presence topic can never outlive the number access it '
   'inherits.';
+
+-- ---------------------------------------------------------------------------
+-- Presence needs its OWN policies, and finding that out took a live browser.
+--
+-- The existing `company_topic_read` policy is `for select` and filters
+-- `extension = 'broadcast'`. That is exactly right for what came before:
+-- every broadcast in this system is server-generated (triggers calling
+-- `realtime.send`), so a client only ever READS, and only broadcasts exist.
+--
+-- Presence breaks both halves of that assumption. Its messages carry
+-- `extension = 'presence'`, so the broadcast filter refuses them; and a client
+-- ANNOUNCES itself with `track()`, so it writes as well as reads.
+--
+-- WHAT MADE THIS WORTH A COMMENT: the channel still reported SUBSCRIBED. Join
+-- succeeded, presence was silently refused underneath, and nothing surfaced —
+-- two browsers sat on the same conversation seeing nothing, with no error on
+-- either. A policy that admits the join and drops the payload looks exactly
+-- like a feature that does not work.
+--
+-- Scoped to `:presence` topics only. Broadcast authorization is untouched, and
+-- write access is granted for presence and nothing else — a client still cannot
+-- forge a `message.created`.
+-- ---------------------------------------------------------------------------
+
+create policy presence_topic_read on realtime.messages
+for select to authenticated using (
+  realtime.messages.extension = 'presence'
+  and realtime.topic() like '%:presence'
+  and public.is_company_topic_member(realtime.topic())
+);
+
+create policy presence_topic_write on realtime.messages
+for insert to authenticated with check (
+  realtime.messages.extension = 'presence'
+  and realtime.topic() like '%:presence'
+  and public.is_company_topic_member(realtime.topic())
+);

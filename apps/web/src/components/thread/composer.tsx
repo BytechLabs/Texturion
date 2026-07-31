@@ -412,9 +412,16 @@ export function useAutoGrow(value: string) {
 export function Composer({
   conversationId,
   noteOnly = false,
+  onTyping,
 }: {
   conversationId: string;
   noteOnly?: boolean;
+  /**
+   * #302: called on each keystroke so teammates on this thread can see that
+   * somebody is replying. Throttled by the caller — the keystroke rate is not
+   * the broadcast rate. Optional so every other mount site is unchanged.
+   */
+  onTyping?: () => void;
 }) {
   const send = useSendMessage(conversationId);
   const createNote = useCreateNote(conversationId);
@@ -1127,6 +1134,11 @@ export function Composer({
           onChange={(event) => {
             const next = event.target.value;
             setText(next);
+            // #302: "Sam is replying…" is the single line that stops a second
+            // person mid-sentence, and it costs the person typing nothing to
+            // produce. Only for a real reply — a note goes to the crew, and
+            // nobody is racing to answer the customer with it.
+            if (!isNote && next.length > 0) onTyping?.();
             // The picker opens from the typed text, not from a keydown: an
             // Android soft keyboard reports every key as "Unidentified", so a
             // keydown trigger never fired there at all. The "@" is left in the
