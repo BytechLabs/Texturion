@@ -1,7 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react"
+import {
+  CheckIcon,
+  ChevronRightIcon,
+  CircleIcon,
+  SquareCheckBigIcon,
+  SquareIcon,
+} from "lucide-react"
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
@@ -105,6 +111,87 @@ function DropdownMenuCheckboxItem({
       </span>
       {children}
     </DropdownMenuPrimitive.CheckboxItem>
+  )
+}
+
+/**
+ * #465: "Why are toggles and menu items the exact same visually?"
+ *
+ * A menu holds three different kinds of thing and used to draw them all the
+ * same way:
+ *
+ *   ACTION       does something once   Copy text, Retry send
+ *   TOGGLE       a state you are in    Pinned, Spam, Done
+ *   CHOICE       one of a set          status, assignee, theme
+ *
+ * The rule, applied everywhere: **a trailing mark means state.** No mark means
+ * the row does something and is over. An action and a toggle can then sit in
+ * the same menu and still be told apart at a glance.
+ *
+ * These deliberately do NOT use shadcn's stock left-gutter indicator. Our menu
+ * rows lead with an icon or an avatar, so a left check would either displace
+ * that or indent one row past the others. The mark goes on the right, which is
+ * also what the iOS sheet has always done (`toggleRow`) and what the Android
+ * sheet's trailing slot is for — one shape on all three clients.
+ *
+ * Copy rule that comes with this: a toggle names the STATE, not the verb.
+ * "Pinned" with a check, never "Pin"/"Unpin" — a label that flips between two
+ * imperatives is precisely what made a toggle read as an action.
+ */
+const STATE_ITEM_CLASSES =
+  "relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden transition-colors duration-150 ease-out select-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground"
+
+/**
+ * A state you are in.
+ *
+ * The box is drawn in BOTH states, empty or ticked. Showing it only when on
+ * was the first attempt and it still failed the actual complaint: an unchecked
+ * "Pinned" was pixel-identical to "Mark unread" one row up, so half the time a
+ * toggle still read as an action. An empty box is what says "this is a thing
+ * that can be on".
+ */
+function DropdownMenuToggleItem({
+  className,
+  children,
+  checked,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>) {
+  return (
+    <DropdownMenuPrimitive.CheckboxItem
+      data-slot="dropdown-menu-toggle-item"
+      className={cn("group", STATE_ITEM_CLASSES, className)}
+      checked={checked}
+      {...props}
+    >
+      {children}
+      <span className="ml-auto flex size-4 shrink-0 items-center justify-center">
+        <SquareIcon className="size-3.5 text-muted-foreground/50 group-data-[state=checked]:hidden" />
+        <SquareCheckBigIcon className="hidden size-3.5 text-primary! group-data-[state=checked]:block" />
+      </span>
+    </DropdownMenuPrimitive.CheckboxItem>
+  )
+}
+
+/** One of a set: the selected one shows the trailing mark. Keeps its left slot
+ *  (icon, status pill, member avatar) so the row is not re-laid-out. */
+function DropdownMenuChoiceItem({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.RadioItem>) {
+  return (
+    <DropdownMenuPrimitive.RadioItem
+      data-slot="dropdown-menu-choice-item"
+      className={cn(STATE_ITEM_CLASSES, className)}
+      {...props}
+    >
+      {children}
+      <span className="ml-auto flex size-4 shrink-0 items-center justify-center">
+        <DropdownMenuPrimitive.ItemIndicator>
+          <CheckIcon className="size-4 text-primary!" />
+        </DropdownMenuPrimitive.ItemIndicator>
+      </span>
+    </DropdownMenuPrimitive.RadioItem>
   )
 }
 
@@ -247,6 +334,8 @@ export {
   DropdownMenuLabel,
   DropdownMenuItem,
   DropdownMenuCheckboxItem,
+  DropdownMenuToggleItem,
+  DropdownMenuChoiceItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,

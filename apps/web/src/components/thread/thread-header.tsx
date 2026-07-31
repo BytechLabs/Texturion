@@ -12,7 +12,6 @@ import {
   MoreHorizontal,
   OctagonAlert,
   Pin,
-  PinOff,
   Undo2,
   UserRound,
 } from "lucide-react";
@@ -40,11 +39,13 @@ import {
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
+  DropdownMenuChoiceItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
   DropdownMenuSeparator,
+  DropdownMenuToggleItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useOptOutContact, useRevokeOptOut } from "@/lib/api/contacts";
@@ -80,6 +81,10 @@ import {
 } from "./thread-filter";
 
 const STATUSES: ConversationStatus[] = ["new", "open", "waiting", "closed"];
+
+/** Stands in for a null assignee: a radio group's value must be a string.
+ *  User ids are UUIDs, so this sentinel cannot collide with one. */
+const UNASSIGNED_VALUE = "__unassigned__";
 
 function onApiError(error: unknown, fallback: string) {
   toast.error(error instanceof ApiError ? error.message : fallback);
@@ -412,15 +417,21 @@ export function ThreadHeader({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {STATUSES.map((status) => (
-              <DropdownMenuItem
-                key={status}
-                onSelect={() => setStatus(status)}
-                className={cn(status === conversation.status && "bg-secondary")}
-              >
-                <StatusPill status={status} />
-              </DropdownMenuItem>
-            ))}
+            {/* #465: picking a status is a CHOICE, and it used to be drawn as
+                four identical actions with a faint tint on the current one.
+                The radio group says which one you are on, and says it to a
+                screen reader as well (aria-checked), which the tint never
+                did. */}
+            <DropdownMenuRadioGroup
+              value={conversation.status}
+              onValueChange={(next) => setStatus(next as ConversationStatus)}
+            >
+              {STATUSES.map((status) => (
+                <DropdownMenuChoiceItem key={status} value={status}>
+                  <StatusPill status={status} />
+                </DropdownMenuChoiceItem>
+              ))}
+            </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -446,24 +457,36 @@ export function ThreadHeader({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Assign to</DropdownMenuLabel>
-            <DropdownMenuItem onSelect={() => assignTo(null)}>
-              Unassigned
-            </DropdownMenuItem>
-            {(members.data?.data ?? [])
-              .filter((m) => m.deactivated_at === null)
-              .map((member) => (
-                <DropdownMenuItem
-                  key={member.user_id}
-                  onSelect={() => assignTo(member.user_id)}
-                >
-                  <MemberAvatar
-                    name={member.display_name || "Teammate"}
-                    className="size-5"
-                  />
-                  {member.display_name || "Teammate"}
-                  {member.user_id === userId ? " (you)" : ""}
-                </DropdownMenuItem>
-              ))}
+            {/* #465: this menu gave NO sign of who was already assigned — every
+                teammate looked identical, so the one answer it exists to give
+                was the one it withheld. It is a choice, so it is drawn as one.
+                UNASSIGNED_VALUE stands in for null because a radio group's
+                value must be a string. */}
+            <DropdownMenuRadioGroup
+              value={conversation.assigned_user_id ?? UNASSIGNED_VALUE}
+              onValueChange={(next) =>
+                assignTo(next === UNASSIGNED_VALUE ? null : next)
+              }
+            >
+              <DropdownMenuChoiceItem value={UNASSIGNED_VALUE}>
+                Unassigned
+              </DropdownMenuChoiceItem>
+              {(members.data?.data ?? [])
+                .filter((m) => m.deactivated_at === null)
+                .map((member) => (
+                  <DropdownMenuChoiceItem
+                    key={member.user_id}
+                    value={member.user_id}
+                  >
+                    <MemberAvatar
+                      name={member.display_name || "Teammate"}
+                      className="size-5"
+                    />
+                    {member.display_name || "Teammate"}
+                    {member.user_id === userId ? " (you)" : ""}
+                  </DropdownMenuChoiceItem>
+                ))}
+            </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -508,7 +531,7 @@ export function ThreadHeader({
                     on by default. `onSelect`-preventDefault keeps the menu open
                     so several can be flipped in one pass. */}
                 {THREAD_CATEGORIES.map((category) => (
-                  <DropdownMenuCheckboxItem
+                  <DropdownMenuToggleItem
                     key={category}
                     checked={filter[category]}
                     onSelect={(event) => event.preventDefault()}
@@ -517,7 +540,7 @@ export function ThreadHeader({
                     }
                   >
                     {THREAD_CATEGORY_LABELS[category]}
-                  </DropdownMenuCheckboxItem>
+                  </DropdownMenuToggleItem>
                 ))}
                 <DropdownMenuSeparator />
               </>
@@ -536,18 +559,25 @@ export function ThreadHeader({
               onUnsnooze={bringBack}
               onPickCustom={setSnoozePicker}
             />
-            <DropdownMenuItem onSelect={togglePin}>
-              {pinned ? (
-                <PinOff className="size-4" strokeWidth={1.75} />
-              ) : (
-                <Pin className="size-4" strokeWidth={1.75} />
-              )}
-              {pinned ? "Unpin conversation" : "Pin conversation"}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={toggleSpam}>
+            {/* #465: pinned and spam are STATES, not commands. They are drawn
+                as toggles and named as states, so they stop looking like
+                "Copy text" two rows down. */}
+            <DropdownMenuToggleItem
+              checked={pinned}
+              onSelect={(event) => event.preventDefault()}
+              onCheckedChange={togglePin}
+            >
+              <Pin className="size-4" strokeWidth={1.75} />
+              Pinned
+            </DropdownMenuToggleItem>
+            <DropdownMenuToggleItem
+              checked={conversation.is_spam}
+              onSelect={(event) => event.preventDefault()}
+              onCheckedChange={toggleSpam}
+            >
               <OctagonAlert className="size-4" strokeWidth={1.75} />
-              {conversation.is_spam ? "Not spam" : "Mark as spam"}
-            </DropdownMenuItem>
+              Spam
+            </DropdownMenuToggleItem>
             {/* §5.2: the gallery's single entry point. */}
             <DropdownMenuItem onSelect={onOpenGallery}>
               <Images className="size-4" strokeWidth={1.75} />

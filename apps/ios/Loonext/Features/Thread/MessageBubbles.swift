@@ -185,21 +185,25 @@ struct MessageBubble: View {
                 Label("Copy text", systemImage: "doc.on.doc")
             }
         }
-        Button {
-            actions.onToggleDone()
-        } label: {
-            Label(
-                message.done_at == nil ? "Mark done" : "Mark not done",
-                systemImage: message.done_at == nil ? "circle" : "checkmark.circle.fill"
+        // #465: done and pinned are STATES, not commands, and as plain Buttons
+        // they were indistinguishable from "Copy text" above them. A Toggle in
+        // a Menu is the platform's own answer: it draws the checkmark itself,
+        // and the label names the state rather than flipping between two verbs.
+        Toggle(
+            isOn: Binding(
+                get: { message.done_at != nil },
+                set: { _ in actions.onToggleDone() }
             )
+        ) {
+            Label("Done", systemImage: "checkmark.circle")
         }
-        Button {
-            actions.onTogglePin()
-        } label: {
-            Label(
-                message.pinned_at == nil ? "Pin message" : "Unpin message",
-                systemImage: "pin"
+        Toggle(
+            isOn: Binding(
+                get: { message.pinned_at != nil },
+                set: { _ in actions.onTogglePin() }
             )
+        ) {
+            Label("Pinned", systemImage: "pin")
         }
         if message.retryable {
             Button {

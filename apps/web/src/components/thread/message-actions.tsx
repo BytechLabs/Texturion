@@ -7,7 +7,6 @@ import {
   ListChecks,
   MoreHorizontal,
   Pin,
-  PinOff,
   RotateCw,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -19,6 +18,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuToggleItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -210,18 +210,17 @@ function MessageOverflow({
         >
           {/* #3: pin/unpin surfaces an important message (address, quote, gate
               code) at the top of the thread. Shared/team-wide, any message. */}
-          <DropdownMenuItem
-            onSelect={() =>
-              setPinned.mutate({ messageId: message.id, pinned: !pinned })
+          {/* #465: pinned is a STATE. Drawn as a toggle and named as one, so it
+              stops looking like "Copy text" two rows down. */}
+          <DropdownMenuToggleItem
+            checked={pinned}
+            onCheckedChange={(next) =>
+              setPinned.mutate({ messageId: message.id, pinned: next })
             }
           >
-            {pinned ? (
-              <PinOff className="size-4" strokeWidth={1.75} aria-hidden />
-            ) : (
-              <Pin className="size-4" strokeWidth={1.75} aria-hidden />
-            )}
-            {pinned ? "Unpin" : "Pin"}
-          </DropdownMenuItem>
+            <Pin className="size-4" strokeWidth={1.75} aria-hidden />
+            Pinned
+          </DropdownMenuToggleItem>
           {promotable && (
             <DropdownMenuItem
               onSelect={() => {

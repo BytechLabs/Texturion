@@ -1107,7 +1107,12 @@ private struct ConversationSheet: View {
         VStack(spacing: 0) {
             sheetRow(assigneeLabel, action: onAssign)
             RowDivider()
-            sheetRow(detail.pinned_at == nil ? "Pin conversation" : "Unpin conversation") {
+            // #465: pinned is a STATE, not a command. It was drawn as a plain
+            // action row, identical to "Photos & files" below it, while this
+            // sheet already had a toggleRow used only by the view filters. Same
+            // vocabulary everywhere now: a trailing mark means state, and the
+            // label names the state rather than flipping between two verbs.
+            toggleRow("Pinned", on: detail.pinned_at != nil) {
                 controller.toggleConversationPin()
                 onDismiss()
             }
@@ -1116,7 +1121,7 @@ private struct ConversationSheet: View {
             RowDivider()
             sheetRow("Refresh") { onRefresh() }
             RowDivider()
-            sheetRow(detail.is_spam ? "Not spam" : "Mark as spam") {
+            toggleRow("Spam", on: detail.is_spam) {
                 controller.setSpam(!detail.is_spam)
                 onDismiss()
             }
@@ -1289,11 +1294,12 @@ private struct ConversationSheet: View {
                     .font(.golos(13.5, weight: .medium))
                     .foregroundStyle(BrandColor.ink)
                 Spacer()
-                if on {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(BrandColor.olive)
-                }
+                // #465: the box is drawn in BOTH states. A bare checkmark that
+                // appears only when on leaves an unchecked row pixel-identical
+                // to the plain action rows around it, which is the complaint.
+                Image(systemName: on ? "checkmark.square.fill" : "square")
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(on ? BrandColor.olive : BrandColor.muted400)
             }
             .padding(.horizontal, 15)
             .padding(.vertical, 13)

@@ -37,6 +37,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuToggleItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -314,10 +315,14 @@ function TaskDetailLoaded({
             {/* Mirrors the check-circle — the same derived-done write, and the
                 same access requirement. */}
             {!noAccess && (
-              <DropdownMenuItem onSelect={toggleDone} disabled={done.isPending}>
+              <DropdownMenuToggleItem
+                checked={task.done}
+                onCheckedChange={toggleDone}
+                disabled={done.isPending}
+              >
                 <Check className="size-4" strokeWidth={1.75} aria-hidden />
-                {task.done ? "Mark not done" : "Mark done"}
-              </DropdownMenuItem>
+                Done
+              </DropdownMenuToggleItem>
             )}
             {/* #89: a real, destructive Delete (creator or owner/admin only).
                 Confirms first when the task carries notes or files. */}

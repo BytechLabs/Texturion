@@ -21,19 +21,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddTask
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.CheckBox
+import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material.icons.outlined.PushPin
-import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
@@ -57,6 +58,9 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -78,7 +82,6 @@ import com.loonext.android.ui.common.CountryField
 import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
-import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -86,6 +89,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.launch
 
 /**
  * Long-press actions for one message: copy, done toggle, pin/unpin, retry
@@ -116,9 +120,9 @@ fun MessageActionsSheet(
                 }
             }
             ActionRow(
-                icon = if (message.done_at == null) Icons.Outlined.RadioButtonUnchecked
-                else Icons.Outlined.CheckCircle,
-                label = if (message.done_at == null) "Mark done" else "Mark not done",
+                icon = Icons.Outlined.CheckCircle,
+                label = "Done",
+                on = message.done_at != null,
             ) {
                 haptics.confirm()
                 onToggleDone()
@@ -126,7 +130,8 @@ fun MessageActionsSheet(
             }
             ActionRow(
                 icon = Icons.Outlined.PushPin,
-                label = if (message.pinned_at == null) "Pin message" else "Unpin message",
+                label = "Pinned",
+                on = message.pinned_at != null,
             ) {
                 haptics.tap()
                 onTogglePin()
@@ -153,11 +158,35 @@ fun MessageActionsSheet(
     }
 }
 
+/**
+ * One sheet row.
+ *
+ * #465: a sheet holds two different kinds of thing and used to draw them the
+ * same way — "Copy text" DOES something once, while done and pinned are STATES
+ * you are in. `on` splits them: a state row carries a trailing mark and names
+ * the state ("Pinned"), an action row carries none and names the verb. Same
+ * rule on all three clients, so a crew that learns it once has learnt it
+ * everywhere.
+ */
 @Composable
-private fun ActionRow(icon: ImageVector, label: String, onClick: () -> Unit) {
+private fun ActionRow(
+    icon: ImageVector,
+    label: String,
+    /** Null = an action. Non-null = a state, drawn with a trailing mark. */
+    on: Boolean? = null,
+    // Last so every call site keeps passing it as a trailing lambda.
+    onClick: () -> Unit,
+) {
     Row(
         Modifier
             .fillMaxWidth()
+            .then(
+                if (on != null) {
+                    Modifier.semantics { toggleableState = ToggleableState(on) }
+                } else {
+                    Modifier
+                }
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -165,14 +194,34 @@ private fun ActionRow(icon: ImageVector, label: String, onClick: () -> Unit) {
         Icon(
             icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = if (on == true) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
             modifier = Modifier.size(20.dp),
         )
         Spacer(Modifier.width(16.dp))
         Text(
             label,
             style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+            modifier = Modifier.weight(1f),
         )
+        // The box is drawn in BOTH states. Showing it only when on leaves an
+        // unchecked "Pinned" pixel-identical to "Copy text", which is the very
+        // complaint this answers.
+        if (on != null) {
+            Icon(
+                if (on) Icons.Outlined.CheckBox else Icons.Outlined.CheckBoxOutlineBlank,
+                contentDescription = null,
+                tint = if (on) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.outline
+                },
+                modifier = Modifier.size(18.dp),
+            )
+        }
     }
 }
 
