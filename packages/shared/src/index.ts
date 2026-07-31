@@ -98,6 +98,16 @@ export {
   type MmsMediaType,
   type MmsMediaKind,
 } from "./mms";
+export {
+  PRESENCE_HEARTBEAT_MS,
+  PRESENCE_TTL_MS,
+  TYPING_THROTTLE_MS,
+  TYPING_TTL_MS,
+  presenceFor,
+  presenceLabel,
+  type PresenceEntry,
+  type Viewer,
+} from "./presence";
 
 export {
   WEEKDAYS,

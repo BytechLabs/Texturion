@@ -305,6 +305,83 @@ begin
 end $$;
 
 -- ===========================================================================
+-- NL-6b. #302's presence topic is the number topic's sibling, not a new door.
+--
+-- Presence names a CONVERSATION in its payload, so who may join is an access
+-- question. The suffix inherits the number's rule exactly — same uuid, same
+-- `member_number_level` test — and what must be pinned is that a `:presence`
+-- suffix is the ONLY thing admitted beside the bare topic.
+--
+-- THIS IS ASSERTED AGAINST THE PATTERN, NOT THROUGH THE FUNCTION, and the
+-- reason is worth writing down. `is_company_topic_member` reads auth.uid(),
+-- which is null in this suite, so it returns false for EVERY input here —
+-- including inputs it would wrongly accept for a real caller. Calling it with
+-- `:anything` and asserting false looks like a test and proves nothing at all.
+-- So the pattern is lifted out of the shipped function definition and exercised
+-- directly: if the anchor is ever dropped, this fails.
+-- ===========================================================================
+do $$
+declare
+  src     text;
+  pattern text;
+  base    text := 'company:4a000000-0000-4000-8000-0000000000c1'
+                  || ':number:4a000000-0000-4000-8000-0000000000f1';
+begin
+  select pg_get_functiondef(p.oid) into src
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public'
+    and p.proname = 'is_company_topic_member'
+  limit 1;
+  if src is null then
+    raise exception 'NL-6b FAILED: is_company_topic_member is missing';
+  end if;
+
+  -- The anchored topic pattern, reconstructed the way the function builds it.
+  -- Extracted from the source rather than retyped, so a change to the shipped
+  -- rule reaches this assertion instead of leaving it agreeing with itself.
+  if position('(:presence)?$' in src) = 0 then
+    raise exception
+      'NL-6b FAILED: the topic pattern is not anchored after (:presence). '
+      'Without the anchor, `:presence` opens the door to `:anything`.';
+  end if;
+  if position('^company:' in src) = 0 then
+    raise exception 'NL-6b FAILED: the topic pattern is not anchored at the start';
+  end if;
+
+  pattern := '^company:4a000000-0000-4000-8000-0000000000c1'
+             || ':number:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+             || '(:presence)?$';
+
+  if not (base ~* pattern) then
+    raise exception 'NL-6b FAILED: the bare number topic no longer matches';
+  end if;
+  if not ((base || ':presence') ~* pattern) then
+    raise exception 'NL-6b FAILED: the presence topic does not match';
+  end if;
+  if (base || ':anything') ~* pattern then
+    raise exception 'NL-6b FAILED: an arbitrary suffix matches the topic pattern';
+  end if;
+  if (base || ':presence:more') ~* pattern then
+    raise exception 'NL-6b FAILED: a suffix past :presence matches';
+  end if;
+  if ('company:4a000000-0000-4000-8000-0000000000c1:number:garbage:presence') ~* pattern then
+    raise exception 'NL-6b FAILED: a malformed uuid matches with the suffix';
+  end if;
+
+  -- And the function itself still REFUSES rather than raising on the malformed
+  -- shapes, which is NL-6's property extended to the new suffix: a cast of
+  -- arbitrary text to uuid throws, and this runs inside an RLS predicate.
+  if public.is_company_topic_member(
+       'company:4a000000-0000-4000-8000-0000000000c1:number:garbage:presence'
+     ) is not false then
+    raise exception 'NL-6b FAILED: malformed presence topic did not refuse';
+  end if;
+
+  raise notice 'NL-6b PASSED: presence is the number topic''s sibling, nothing else is';
+end $$;
+
+-- ===========================================================================
 -- NL-7. Grants. The policy calls the singular as `authenticated`; the plural
 --       enumerates a company's restrictions and stays service-role only.
 -- ===========================================================================
