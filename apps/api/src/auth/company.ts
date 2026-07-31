@@ -1,7 +1,11 @@
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
 
-import { roleSatisfiesRank } from "@loonext/shared";
+import {
+  roleHasCapability,
+  roleSatisfiesRank,
+  type Capability,
+} from "@loonext/shared";
 
 import { MEMBER_ROLES, type AppEnv, type MemberRole } from "../context";
 import { getDb } from "../db";
@@ -215,10 +219,39 @@ export function companyContext() {
 export function requireRole(minimum: MemberRole) {
   return createMiddleware<AppEnv>(async (c, next) => {
     const role: MemberRole | undefined = c.get("role");
-    // #315: the rank lives in @loonext/shared beside the capability table it
-    // is being replaced by, so the two cannot disagree while the 138 gates are
-    // converted one axis at a time. Behaviour here is unchanged.
+    // #315: the rank lives in @loonext/shared beside the capability table that
+    // is replacing it, so the two cannot disagree while the gates are converted
+    // one axis at a time. Behaviour here is unchanged.
+    //
+    // A role with no rank FAILS every rank gate. That is deliberate and it is
+    // what makes the conversion safe to do incrementally: a preset that is not
+    // on the owner ⊃ admin ⊃ member line (a bookkeeper, a read-only observer)
+    // is refused by every gate that has not yet been moved to its axis, so an
+    // unconverted route can never leak access to a role it was never written
+    // for. Fail closed, then open each door on purpose.
     if (role === undefined || !roleSatisfiesRank(role, minimum)) {
+      return errorResponse(c, "forbidden", "Insufficient role for this action.");
+    }
+    await next();
+  });
+}
+
+/**
+ * #315: gate on the CAPABILITY a route actually needs, rather than on a
+ * position in a hierarchy that cannot describe a real crew.
+ *
+ * This is the replacement for {@link requireRole}, applied one axis at a time.
+ * The two coexist on purpose: a converted route asks the honest question
+ * ("may this person manage billing?"), an unconverted one keeps its rank check
+ * and keeps refusing anyone off the line. The capability table in
+ * @loonext/shared proves it answers exactly as the rank does for the three
+ * roles that exist today, so a conversion is behaviour-preserving until a new
+ * preset is introduced.
+ */
+export function requireCapability(capability: Capability) {
+  return createMiddleware<AppEnv>(async (c, next) => {
+    const role: MemberRole | undefined = c.get("role");
+    if (role === undefined || !roleHasCapability(role, capability)) {
       return errorResponse(c, "forbidden", "Insufficient role for this action.");
     }
     await next();

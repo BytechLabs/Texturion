@@ -12,7 +12,14 @@ import {
   stubFetch,
   type CapturedRequest,
 } from "../test/support";
-import { COMPANY_EXEMPT_ROUTES, companyContext, requireRole } from "./company";
+import type { Capability } from "@loonext/shared";
+
+import {
+  COMPANY_EXEMPT_ROUTES,
+  companyContext,
+  requireCapability,
+  requireRole,
+} from "./company";
 
 const env = completeEnv();
 const USER_ID = "6f0c2f0e-6a5a-4bfa-9b6e-2d6d1a6c9e01";
@@ -255,6 +262,80 @@ describe("requireRole (SPEC §10 role matrix: owner ⊃ admin ⊃ member)", () =
 
   it("refuses when no role is attached at all (gate used without company context)", async () => {
     const res = await gateApp(undefined, "member").request("/action", {}, env);
+    expect(res.status).toBe(403);
+  });
+
+  it("refuses a role that is not on the hierarchy at all", async () => {
+    // #315: the presets that close the bookkeeper and read-only gaps are NOT
+    // on the owner ⊃ admin ⊃ member line, and they must be refused by every
+    // gate that has not yet been moved to its axis. That is what makes the
+    // conversion safe to do a few routes at a time: an unconverted route can
+    // never leak access to a role it was not written for.
+    const offLine = "bookkeeper" as unknown as MemberRole;
+    for (const minimum of MEMBER_ROLES) {
+      const res = await gateApp(offLine, minimum).request("/action", {}, env);
+      expect(res.status, `requireRole('${minimum}')`).toBe(403);
+    }
+  });
+});
+
+describe("requireCapability (#315: the axis, not the rung)", () => {
+  function capApp(actual: MemberRole | undefined, capability: Capability) {
+    const gated = new Hono<AppEnv>();
+    gated.use("*", async (c, next) => {
+      if (actual !== undefined) c.set("role", actual);
+      await next();
+    });
+    gated.use("*", requireCapability(capability));
+    gated.get("/action", (c) => c.json({ ok: true }));
+    return gated;
+  }
+
+  async function allows(role: MemberRole, capability: Capability) {
+    const res = await capApp(role, capability).request("/action", {}, env);
+    return res.status === 200;
+  }
+
+  it("answers billing exactly as the rank did, for the roles that exist today", async () => {
+    // The conversion of the billing router is only behaviour-preserving if
+    // this holds. It is the route-level twin of the equivalence test in
+    // @loonext/shared.
+    expect(await allows("owner", "billing.manage")).toBe(true);
+    expect(await allows("admin", "billing.manage")).toBe(true);
+    expect(await allows("member", "billing.manage")).toBe(false);
+  });
+
+  it("keeps the irreversible capability with the owner", async () => {
+    expect(await allows("owner", "workspace.own")).toBe(true);
+    expect(await allows("admin", "workspace.own")).toBe(false);
+    expect(await allows("member", "workspace.own")).toBe(false);
+  });
+
+  it("lets every member work the inbox", async () => {
+    for (const role of MEMBER_ROLES) {
+      expect(await allows(role, "conversations.read"), role).toBe(true);
+      expect(await allows(role, "conversations.send"), role).toBe(true);
+    }
+  });
+
+  it("refuses when no role is attached at all", async () => {
+    const res = await capApp(undefined, "billing.manage").request(
+      "/action",
+      {},
+      env,
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("refuses a role the capability table has never heard of", async () => {
+    const offLine = "bookkeeper" as unknown as MemberRole;
+    const res = await capApp(offLine, "billing.manage").request(
+      "/action",
+      {},
+      env,
+    );
+    // Fail closed: a role with no entry carries no capabilities, so it is
+    // refused until the table says otherwise.
     expect(res.status).toBe(403);
   });
 });

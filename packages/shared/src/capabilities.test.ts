@@ -105,6 +105,20 @@ describe("the model is well-formed", () => {
     }
   });
 
+  it("an unknown role carries nothing, and does not throw", () => {
+    // Real rather than theoretical: the database enum can grow a value ahead
+    // of a deployed client, and a role arrives here as data from a row.
+    // Indexing the table blindly threw a TypeError, which a gate turns into a
+    // 500 — an error page where the honest answer is "no".
+    const unknown = "bookkeeper" as unknown as MemberRole;
+    expect(() => roleHasCapability(unknown, "billing.manage")).not.toThrow();
+    expect(roleHasCapability(unknown, "billing.manage")).toBe(false);
+    expect(capabilitiesOf(unknown)).toEqual([]);
+    for (const minimum of MEMBER_ROLES) {
+      expect(roleSatisfiesRank(unknown, minimum), minimum).toBe(false);
+    }
+  });
+
   it("hands out a copy, so a caller cannot edit the table", () => {
     const first = capabilitiesOf("member");
     first.push("billing.manage");

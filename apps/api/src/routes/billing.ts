@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
-import { requireRole } from "../auth/company";
+import { requireCapability } from "../auth/company";
 import {
   hasLiveSubscription,
   PLAN_IDS,
@@ -144,7 +144,13 @@ async function countActiveMembers(
  */
 export const billingRoutes = new Hono<AppEnv>();
 
-billingRoutes.use("*", requireRole("admin"));
+// #315: billing is its own axis, not a rung on a ladder. The bookkeeper or
+// spouse doing the books needs THIS and not every customer conversation, and
+// the only way to give it to them today is to make them an admin — which hands
+// over the whole inbox, and in practice means the owner shares their login.
+// Asking for the capability is the same answer for owner and admin as the rank
+// was; it is what lets a preset carry billing alone.
+billingRoutes.use("*", requireCapability("billing.manage"));
 
 /**
  * POST /v1/billing/checkout (SPEC §4.1 step 4, §9 checkout composition).

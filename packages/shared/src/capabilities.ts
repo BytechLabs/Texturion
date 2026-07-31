@@ -92,17 +92,23 @@ const ROLE_CAPABILITIES: Record<MemberRole, readonly Capability[]> = {
   owner: [...CAPABILITIES],
 };
 
-/** Does this role carry this capability? */
-export function roleHasCapability(
-  role: MemberRole,
-  capability: Capability,
-): boolean {
-  return ROLE_CAPABILITIES[role].includes(capability);
+/**
+ * Does this role carry this capability?
+ *
+ * An UNKNOWN role carries nothing. That case is real rather than theoretical:
+ * the database enum can grow a value ahead of a deployed client, and a role
+ * arrives here as data from a row. Indexing the table blindly threw a
+ * TypeError, which a gate turns into a 500 — an error page where the honest
+ * answer is "no". Fail closed.
+ */
+export function roleHasCapability(role: MemberRole, capability: Capability): boolean {
+  return (ROLE_CAPABILITIES[role] ?? []).includes(capability);
 }
 
-/** Everything this role can do. Copied, so a caller cannot mutate the table. */
+/** Everything this role can do. Copied, so a caller cannot mutate the table;
+ *  empty for a role this build has never heard of (see above). */
 export function capabilitiesOf(role: MemberRole): Capability[] {
-  return [...ROLE_CAPABILITIES[role]];
+  return [...(ROLE_CAPABILITIES[role] ?? [])];
 }
 
 /**
@@ -117,5 +123,8 @@ export function roleSatisfiesRank(
   role: MemberRole,
   minimum: MemberRole,
 ): boolean {
-  return RANK[role] >= RANK[minimum];
+  // Same fail-closed rule: a role with no rank satisfies no rank gate, which
+  // is exactly what an off-the-line preset should do at an unconverted route.
+  const rank = RANK[role];
+  return rank !== undefined && rank >= RANK[minimum];
 }
