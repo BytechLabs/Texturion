@@ -265,11 +265,11 @@ struct MfaGateView: View {
         do {
             let token = try await repo.freshAccessToken()
             var enrolling = false
-            var factorId: String
+            let factorId: String
             if case .enrol(let id, _, _) = step {
                 factorId = id
                 enrolling = true
-            } else if let id = try await repo.mfa().factors.first?.id {
+            } else if let id = try await repo.mfa().allFactors.first?.id {
                 factorId = id
             } else {
                 self.error = "We couldn't find an authenticator on this account. Sign out and back in."

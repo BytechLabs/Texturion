@@ -246,7 +246,10 @@ final class RootViewModel {
                 api: graph.api,
                 sessionStore: graph.sessionStore
             ).mfa()
-            if let mfa, mfa.enrolled, mfa.aal != "aal2" {
+            // `aal` absent reads as aal1, matching the Worker's own reading of
+            // the claim — the conservative direction, since the only thing that
+            // turns it into aal2 is a factor this person actually presented.
+            if let mfa, mfa.isEnrolled, (mfa.aal ?? "aal1") != "aal2" {
                 state = .needsMfa(enrolmentRequired: false)
                 return
             }
