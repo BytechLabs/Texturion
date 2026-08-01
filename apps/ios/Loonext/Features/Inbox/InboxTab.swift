@@ -993,23 +993,30 @@ private struct InboxList: View {
             }
             controller.runSearch()
         }
+        // `controller` is already unwrapped in this branch of the body, so
+        // these take it directly rather than re-binding an optional.
         .sheet(isPresented: $savedViewSheetOpen) {
-            if let controller {
-                SaveViewSheet(
-                    controller: controller,
-                    canShare: canShareSavedViews,
-                    onClose: { savedViewSheetOpen = false }
-                )
-            }
+            SaveViewSheet(
+                controller: controller,
+                // Computed HERE rather than in the sheet's init: `body` is
+                // MainActor-isolated and a View's init is not, so reading the
+                // controller's state from an initialiser is a concurrency
+                // error under Swift 6.
+                suggestedName: suggestViewName(
+                    controller.currentSelection,
+                    assigneeName: controller.assignee?.display_name,
+                    tagName: controller.tag?.name
+                ),
+                canShare: canShareSavedViews,
+                onClose: { savedViewSheetOpen = false }
+            )
         }
         .sheet(item: $renamingView) { view in
-            if let controller {
-                RenameViewSheet(
-                    controller: controller,
-                    view: view,
-                    onClose: { renamingView = nil }
-                )
-            }
+            RenameViewSheet(
+                controller: controller,
+                view: view,
+                onClose: { renamingView = nil }
+            )
         }
         // Ethical Friction, only where it is earned: a crew view is a screen
         // other people open every morning, and the person deleting it cannot
@@ -1023,7 +1030,7 @@ private struct InboxList: View {
             titleVisibility: .visible
         ) {
             Button("Delete for everyone", role: .destructive) {
-                if let view = deletingSharedView { controller?.deleteView(id: view.id) }
+                if let view = deletingSharedView { controller.deleteView(id: view.id) }
                 deletingSharedView = nil
             }
             Button("Keep it", role: .cancel) { deletingSharedView = nil }
@@ -2261,19 +2268,14 @@ private struct SaveViewSheet: View {
 
     init(
         controller: InboxController,
+        suggestedName: String,
         canShare: Bool,
         onClose: @escaping @MainActor () -> Void
     ) {
         self.controller = controller
         self.canShare = canShare
         self.onClose = onClose
-        _name = State(
-            initialValue: suggestViewName(
-                controller.currentSelection,
-                assigneeName: controller.assignee?.display_name,
-                tagName: controller.tag?.name
-            )
-        )
+        _name = State(initialValue: suggestedName)
     }
 
     var body: some View {

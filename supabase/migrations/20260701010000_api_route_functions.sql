@@ -63,6 +63,13 @@ begin
   insert into public.notification_prefs (user_id, company_id)
   values (p_owner_user_id, v_company.id);
 
+  -- #354: mark the four seeded tags with the stage they ARE, and ship the
+  -- "Quote sent" view the marketing already describes. Guarded on existence so
+  -- this file stays runnable against a database that predates the function.
+  if to_regprocedure('public.seed_pipeline(uuid, uuid)') is not null then
+    perform public.seed_pipeline(v_company.id, p_owner_user_id);
+  end if;
+
   return to_jsonb(v_company);
 end $$;
 
