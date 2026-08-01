@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.9.0](https://github.com/BytechLabs/Texturion/compare/web-v0.8.0...web-v0.9.0) (2026-08-01)
+
+
+### Features
+
+* **billing:** tell the owner how many customers rang while their number was off ([29ee30f](https://github.com/BytechLabs/Texturion/commit/29ee30f5394a91f75001840e10c4532a4ee2fe41))
+* **clients:** add a view-only role for people who should see the work, not change it ([fc87232](https://github.com/BytechLabs/Texturion/commit/fc87232b2a780da17005b7139378ed5e7fec6bc7)), closes [#315](https://github.com/BytechLabs/Texturion/issues/315)
+* **clients:** only an owner or admin can change the crew's saved replies ([733b877](https://github.com/BytechLabs/Texturion/commit/733b87702ff1aa950f47190fce0646378ff306c3)), closes [#315](https://github.com/BytechLabs/Texturion/issues/315) [#461](https://github.com/BytechLabs/Texturion/issues/461)
+* **clients:** settings lists what is yours, not what you cannot touch ([ccc91bb](https://github.com/BytechLabs/Texturion/commit/ccc91bb2ad71cd6de9f4f5004e47bcc7cc8db12a)), closes [#461](https://github.com/BytechLabs/Texturion/issues/461)
+* **dialer:** the keypad finds people by name, and can text them ([cdc149b](https://github.com/BytechLabs/Texturion/commit/cdc149b98f937682110075709b17355b3b9b31e1))
+* **mobile:** bulk task actions reach Android and iOS ([8e81829](https://github.com/BytechLabs/Texturion/commit/8e8182966c4257e670c0497783e729e9acb3127c))
+* **reports:** the per-number response times finally have a reader ([4265c6e](https://github.com/BytechLabs/Texturion/commit/4265c6ee67d6530e564b31abaf9a591ed6493307))
+* **settings:** a departing owner writes what their customers will hear ([5849489](https://github.com/BytechLabs/Texturion/commit/5849489d87eecce630f9f1c3232a016877124463))
+* **web:** add a bookkeeper role that gets billing without the inbox ([27f133e](https://github.com/BytechLabs/Texturion/commit/27f133e1c6b67d7554426a895cfcadfc42b60eaa)), closes [#315](https://github.com/BytechLabs/Texturion/issues/315)
+* **web:** customers can ask to be emailed when something breaks ([14c4489](https://github.com/BytechLabs/Texturion/commit/14c4489966de4cffd05ba9c00969e2a427374912))
+* **web:** repaint the app and marketing neutral, with lime as the one accent ([20858a5](https://github.com/BytechLabs/Texturion/commit/20858a59d3e3495015a5d4658013268191df421d))
+* **web:** tick off, hand over or clear a whole task list at once ([a205ca9](https://github.com/BytechLabs/Texturion/commit/a205ca970642c925c816c34e41e0f165ae36fbcf))
+
+
+### Bug Fixes
+
+* **auth:** a second factor you turned on is now actually required ([f0f4946](https://github.com/BytechLabs/Texturion/commit/f0f49469a6f220b1b50ede39cd330c2bd012d3e4))
+
 ## [0.8.0](https://github.com/BytechLabs/Texturion/compare/web-v0.7.0...web-v0.8.0) (2026-07-31)
 
 

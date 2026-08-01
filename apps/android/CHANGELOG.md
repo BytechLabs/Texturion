@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.7.0](https://github.com/BytechLabs/Texturion/compare/android-v0.6.0...android-v0.7.0) (2026-08-01)
+
+
+### Features
+
+* **android:** the task list gains multi-select ([3c6a00e](https://github.com/BytechLabs/Texturion/commit/3c6a00e2b7b1219efe1dd5e81fee2beb3adad964))
+* **billing:** tell the owner how many customers rang while their number was off ([29ee30f](https://github.com/BytechLabs/Texturion/commit/29ee30f5394a91f75001840e10c4532a4ee2fe41))
+* **clients:** only an owner or admin can change the crew's saved replies ([733b877](https://github.com/BytechLabs/Texturion/commit/733b87702ff1aa950f47190fce0646378ff306c3)), closes [#315](https://github.com/BytechLabs/Texturion/issues/315) [#461](https://github.com/BytechLabs/Texturion/issues/461)
+* **clients:** settings lists what is yours, not what you cannot touch ([ccc91bb](https://github.com/BytechLabs/Texturion/commit/ccc91bb2ad71cd6de9f4f5004e47bcc7cc8db12a)), closes [#461](https://github.com/BytechLabs/Texturion/issues/461)
+* **clients:** the phones can assign the view-only role, and say why it blocks ([455538f](https://github.com/BytechLabs/Texturion/commit/455538fbd7acc01f74e55a962136c33234c003f4)), closes [#315](https://github.com/BytechLabs/Texturion/issues/315)
+* **contacts:** the phone's own address book shows up beside the crew's ([fbf00b3](https://github.com/BytechLabs/Texturion/commit/fbf00b384ff8b21ab66855eb63d9e14ad7fbe9c0))
+* **dialer:** the keypad finds people by name, and can text them ([cdc149b](https://github.com/BytechLabs/Texturion/commit/cdc149b98f937682110075709b17355b3b9b31e1))
+* **mobile:** bulk task actions reach Android and iOS ([8e81829](https://github.com/BytechLabs/Texturion/commit/8e8182966c4257e670c0497783e729e9acb3127c))
+* **mobile:** the bookkeeper and view-only roles reach both phones ([87d563c](https://github.com/BytechLabs/Texturion/commit/87d563c0ab0c69322cce78d64b446fd2b283fac4))
+* **mobile:** the neutral repaint reaches Android and iOS ([9cf419b](https://github.com/BytechLabs/Texturion/commit/9cf419b797c490e01273bd38d7a2480988269d07))
+* **reports:** the per-number response times finally have a reader ([4265c6e](https://github.com/BytechLabs/Texturion/commit/4265c6ee67d6530e564b31abaf9a591ed6493307))
+* **settings:** a departing owner writes what their customers will hear ([5849489](https://github.com/BytechLabs/Texturion/commit/5849489d87eecce630f9f1c3232a016877124463))
+
+
+### Bug Fixes
+
+* **auth:** a second factor you turned on is now actually required ([f0f4946](https://github.com/BytechLabs/Texturion/commit/f0f49469a6f220b1b50ede39cd330c2bd012d3e4))
+* **mobile:** scope the missed-while-off read to a company on both phones ([cfbe3c6](https://github.com/BytechLabs/Texturion/commit/cfbe3c66d80550504389220ffe4752aacd1e0d84))
+
 ## [0.6.0](https://github.com/BytechLabs/Texturion/compare/android-v0.5.0...android-v0.6.0) (2026-07-31)
 
 
