@@ -395,3 +395,12 @@ export {
   viewNamesCollide,
 } from "./saved-views";
 export type { SavedViewFilters, SavedViewSurface } from "./saved-views";
+export {
+  PIPELINE_SEED_NAMES,
+  PIPELINE_STAGES,
+  isPipelineStage,
+  pipelineDeleteWarning,
+  pipelineInsight,
+  pipelineWinRate,
+} from "./pipeline";
+export type { PipelineReport, PipelineStage } from "./pipeline";

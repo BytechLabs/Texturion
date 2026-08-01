@@ -146,6 +146,9 @@ describe("DELETE /v1/tags/:id (O/A only)", () => {
   it("deletes as admin and owner; 404s unknown", async () => {
     for (const role of ["admin", "owner"]) {
       const sb = stubWithRole(role);
+      // #354: the handler reads the row first, to see whether it is a pipeline
+      // stage. An ordinary tag carries none and deletes as it always did.
+      sb.on("GET", "/rest/v1/tags", () => [{ id: TAG_ID, pipeline_stage: null }]);
       sb.on("DELETE", "/rest/v1/tags", () => [{ id: TAG_ID }]);
       stubFetch(jwksRoute(auth), sb.route);
       const res = await apiRequest(
@@ -160,7 +163,7 @@ describe("DELETE /v1/tags/:id (O/A only)", () => {
     }
 
     const sb = stubWithRole("owner");
-    sb.on("DELETE", "/rest/v1/tags", () => []);
+    sb.on("GET", "/rest/v1/tags", () => []);
     stubFetch(jwksRoute(auth), sb.route);
     const res = await apiRequest(
       app,
@@ -170,5 +173,71 @@ describe("DELETE /v1/tags/:id (O/A only)", () => {
       { method: "DELETE", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(404);
+  });
+});
+
+describe("#354 deleting a pipeline stage", () => {
+  it("refuses without an explicit confirmation, and says what would be lost", async () => {
+    // The gate is on the ROUTE rather than in a client dialog, because a client
+    // dialog exempts the mobile apps, any future integration, and curl.
+    const sb = stubWithRole("owner");
+    sb.on("GET", "/rest/v1/tags", () => [
+      { id: TAG_ID, pipeline_stage: "won" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/tags/${TAG_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("stop counting");
+    // Nothing was deleted while the question was being asked.
+    expect(sb.find("DELETE", "/rest/v1/tags")).toHaveLength(0);
+  });
+
+  it("goes through when the caller confirms", async () => {
+    // #354 is explicit that stages must not be locked: a crew that wants a
+    // different pipeline should be able to have one, deliberately.
+    const sb = stubWithRole("owner");
+    sb.on("GET", "/rest/v1/tags", () => [
+      { id: TAG_ID, pipeline_stage: "won" },
+    ]);
+    sb.on("DELETE", "/rest/v1/tags", () => [{ id: TAG_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/tags/${TAG_ID}?confirm_pipeline=true`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(204);
+  });
+
+  it("does not gate a RENAME, because nothing reads the name", async () => {
+    // The whole design: the stage key is what the saved view and the report
+    // key on, so renaming "Quote sent" to "Quoted" breaks nothing and should
+    // meet no friction at all.
+    const sb = stubWithRole("member");
+    sb.on("PATCH", "/rest/v1/tags", () => [
+      { id: TAG_ID, name: "Quoted", pipeline_stage: "quote_sent" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/tags/${TAG_ID}`,
+      { method: "PATCH", companyId: COMPANY_ID, body: { name: "Quoted" } },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ pipeline_stage: "quote_sent" });
   });
 });

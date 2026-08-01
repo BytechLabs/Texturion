@@ -36,6 +36,11 @@
  *      made it, the whole crew sees it — a leaderboard nobody may look at is not
  *      a leaderboard, and the opt-in IS the control.
  */
+import {
+  pipelineInsight,
+  pipelineWinRate,
+  type PipelineReport,
+} from "@loonext/shared";
 import { isAfterHours, type BusinessHours, type HoursException } from "@loonext/shared";
 import { Hono } from "hono";
 
@@ -336,5 +341,71 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
     // that reports nothing reads as "we looked at everything".
     split_truncated: current.truncated,
     split_row_limit: current.row_limit,
+  });
+});
+
+/**
+ * #354 — GET /v1/reports/pipeline: quoted, won, lost, still out.
+ *
+ * The conversion the seeded tags have always held and nothing ever read. It
+ * needs no new writes: `conversation_tags.created_at` already records when each
+ * stage was applied, which is why #354 calls this cheap and calls it the first
+ * honest business metric this product could show an owner.
+ *
+ * Two windows, so the number has a direction. A win rate with nothing to
+ * compare it to is a statistic; the same rate against the period before is a
+ * thing to act on.
+ */
+reportsRoutes.get("/reports/pipeline", requireCapability("conversations.read"), async (c) => {
+  const db = getDb(getEnv(c.env));
+  const companyId = c.get("companyId");
+
+  const requested = Number(c.req.query("days") ?? DEFAULT_DAYS);
+  const days = (ALLOWED_DAYS as readonly number[]).includes(requested)
+    ? requested
+    : DEFAULT_DAYS;
+
+  const until = new Date();
+  const since = new Date(until.getTime() - days * 24 * 60 * 60 * 1000);
+  const previousSince = new Date(since.getTime() - days * 24 * 60 * 60 * 1000);
+
+  async function window(from: Date, to: Date): Promise<PipelineReport> {
+    const { data, error } = await db.rpc("api_pipeline_report", {
+      p_company_id: companyId,
+      p_since: from.toISOString(),
+      p_until: to.toISOString(),
+    });
+    if (error) throw new Error(`api_pipeline_report failed: ${error.message}`);
+    return data as PipelineReport;
+  }
+
+  const [current, previous] = await Promise.all([
+    window(since, until),
+    window(previousSince, since),
+  ]);
+
+  // Which tags the stages currently ARE, so a client can link a stage straight
+  // to its list without matching on a name the crew may have changed.
+  const tags = unwrap<{ id: string; name: string; pipeline_stage: string }[]>(
+    await db
+      .from("tags")
+      .select("id,name,pipeline_stage")
+      .eq("company_id", companyId)
+      .not("pipeline_stage", "is", null),
+    "pipeline stage tags",
+  );
+
+  return c.json({
+    days,
+    current,
+    previous,
+    win_rate: pipelineWinRate(current),
+    previous_win_rate: pipelineWinRate(previous),
+    insight: pipelineInsight(current),
+    stages: tags.map((tag) => ({
+      stage: tag.pipeline_stage,
+      tag_id: tag.id,
+      name: tag.name,
+    })),
   });
 });

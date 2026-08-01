@@ -78,6 +78,7 @@
     "db:test:legal-hold": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/legal_hold.test.sql",
     "db:test:retention-setting": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/retention_setting.test.sql",
     "db:test:ownership": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/ownership_transfer.test.sql",
+    "db:test:pipeline-stages": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/pipeline_stages.test.sql",
     "db:test:saved-views": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/saved_views.test.sql",
     "db:test:consent-ledger": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/consent_ledger.test.sql",
     "check:env-doc": "node scripts/check-env-doc.mjs",

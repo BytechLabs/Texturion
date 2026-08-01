@@ -459,3 +459,88 @@ describe("GET /v1/reports/response-time", () => {
     expect(body.p90_seconds).toBeNull();
   });
 });
+
+describe("#354 GET /v1/reports/pipeline", () => {
+  const QUOTE_TAG = "aaaaaaaa-1111-4222-8333-444444444444";
+
+  function stubPipeline(
+    role: string,
+    windows: { quoted: number; won: number; lost: number; open: number }[],
+  ): SupabaseStub {
+    const sb = supabaseStub(env);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
+      membershipResponder(MEMBER_ID, role),
+    );
+    let call = 0;
+    sb.on("POST", "/rest/v1/rpc/api_pipeline_report", () => {
+      const w = windows[Math.min(call, windows.length - 1)];
+      call += 1;
+      return { ...w, median_days_to_win: 3 };
+    });
+    sb.on("GET", "/rest/v1/tags", () => [
+      // Renamed by the crew, and still the quote stage. The point of the whole
+      // design: nothing matched on the name to find it.
+      { id: QUOTE_TAG, name: "Quoted", pipeline_stage: "quote_sent" },
+    ]);
+    return sb;
+  }
+
+  it("reports both windows, the rate, and which tag each stage IS", async () => {
+    const sb = stubPipeline("member", [
+      { quoted: 10, won: 6, lost: 2, open: 2 },
+      { quoted: 8, won: 2, lost: 6, open: 0 },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/reports/pipeline?days=30",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.win_rate).toBe(75);
+    expect(body.previous_win_rate).toBe(25);
+    expect(body.stages).toEqual([
+      { stage: "quote_sent", tag_id: QUOTE_TAG, name: "Quoted" },
+    ]);
+    // Two windows, so the number has a direction. A win rate with nothing to
+    // compare it to is a statistic rather than something to act on.
+    expect(sb.find("POST", "/rest/v1/rpc/api_pipeline_report")).toHaveLength(2);
+  });
+
+  it("divides by DECIDED jobs, so quoting more work cannot lower the rate", async () => {
+    const sb = stubPipeline("member", [
+      { quoted: 100, won: 6, lost: 2, open: 92 },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/reports/pipeline",
+      { companyId: COMPANY_ID },
+    );
+    expect(((await res.json()) as { win_rate: number }).win_rate).toBe(75);
+  });
+
+  it("says nothing rather than a confident number off two jobs", async () => {
+    const sb = stubPipeline("member", [{ quoted: 3, won: 2, lost: 0, open: 1 }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/reports/pipeline",
+      { companyId: COMPANY_ID },
+    );
+    const body = (await res.json()) as { insight: string | null };
+    expect(body.insight).toBeNull();
+  });
+});

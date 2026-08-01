@@ -4,6 +4,7 @@
  * (POST /v1/conversations/:id/tags — conversations.ts); this file lists,
  * renames/recolors, and deletes.
  */
+import { isPipelineStage, pipelineDeleteWarning } from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -14,7 +15,12 @@ import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
 import { parseJsonBody, pathUuid, unwrap } from "./core/http";
 
-const TAG_COLUMNS = "id,name,color,created_at,updated_at";
+// #354: `pipeline_stage` rides along on every read. It is what the saved
+// view, the conversion report and the delete guard all key on, and a
+// client that cannot see it would have to guess from the name — which is
+// exactly the coupling this column exists to remove.
+const TAG_COLUMNS =
+  "id,name,color,pipeline_stage,created_at,updated_at";
 
 const patchSchema = z
   .object({
@@ -74,10 +80,47 @@ tagsRoutes.patch("/tags/:id", requireCapability("conversations.note"), async (c)
   return c.json(rows[0]);
 });
 
-// Tag delete is owner/admin (SPEC §10 matrix); conversation_tags rows cascade.
+/**
+ * Tag delete is owner/admin (SPEC §10 matrix); conversation_tags rows cascade.
+ *
+ * #354: deleting a PIPELINE STAGE needs `?confirm_pipeline=true`. Renaming one
+ * is deliberately left alone — nothing reads the name any more, so a crew that
+ * wants "Quoted" instead of "Quote sent" should meet no friction at all. What
+ * this stops is losing the stage, and with it every conversion that tag ever
+ * recorded, by tidying up on a Tuesday.
+ *
+ * The gate is a query parameter rather than a client-side dialog because a
+ * client-side dialog is not a gate: the mobile apps, a future integration and
+ * anybody with curl would all be exempt from it.
+ */
 tagsRoutes.delete("/tags/:id", requireCapability("settings.manage"), async (c) => {
   const id = pathUuid(c, "id");
   const db = getDb(getEnv(c.env));
+
+  const existing = unwrap<{ id: string; pipeline_stage: string | null }[]>(
+    await db
+      .from("tags")
+      .select("id,pipeline_stage")
+      .eq("company_id", c.get("companyId"))
+      .eq("id", id)
+      .limit(1),
+    "tag delete lookup",
+  );
+  const tag = existing[0];
+  if (!tag) return errorResponse(c, "not_found", "No such tag.");
+
+  if (
+    tag.pipeline_stage !== null &&
+    isPipelineStage(tag.pipeline_stage) &&
+    c.req.query("confirm_pipeline") !== "true"
+  ) {
+    return errorResponse(
+      c,
+      "conflict",
+      pipelineDeleteWarning(tag.pipeline_stage),
+    );
+  }
+
   const rows = unwrap<{ id: string }[]>(
     await db
       .from("tags")

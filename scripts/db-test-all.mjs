@@ -111,6 +111,7 @@ const SUITES = [
   "attachment_quarantine",
   "conversation_snooze",
   "saved_views",
+  "pipeline_stages",
 ];
 
 const args = process.argv.slice(2);
