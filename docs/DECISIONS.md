@@ -6188,3 +6188,66 @@ Stripe shipping a first-class "prepaid term on a metered subscription" primitive
 or the product losing its metered items. Every objection across all four designs
 traces to one fact: this subscription bills usage monthly, and a year is not a
 unit it can express.
+
+## D108 — a pipeline stage is a key the product owns; the tag's name belongs to the crew (#354, 2026-08-01)
+
+Four tags are seeded into every workspace at creation and `/for/plumbers`,
+`/for/hvac` and `/features/templates-and-tags` all sell the ritual built on
+them: tag a thread "Quote sent", and Monday morning open that list.
+
+#354 found the workflow had nothing underneath it. Any member could rename the
+tag, and the marketed list was a filter every member rebuilt on every device.
+
+### The decision
+
+**A seeded tag carries a `pipeline_stage` — `quote_sent`, `scheduled`, `won`,
+`lost` — and everything that reads the pipeline reads the stage, never the
+name.** The saved view stores a tag id, the conversion report joins on the
+stage, and both survive any rename.
+
+The alternative was to protect the name, and it is wrong twice. It turns a
+deliberately lightweight convention into rigid configuration — SPEC is explicit
+that stages are TAGS rather than statuses, and D7 seeds them that way so a crew
+can adapt or ignore them. And it does not work: the shop that says "quoted" will
+rename it and be right to.
+
+**Deleting a stage is the only gated act**, because it is the only genuinely
+destructive one — it throws the key away and every conversion that tag recorded
+with it. The gate is a `?confirm_pipeline=true` parameter on the route rather
+than a dialog in a client, because a dialog exempts the mobile apps, any future
+integration, and anybody with curl.
+
+### What this settles for the two issues #354 names
+
+**#287 (quotes as a first-class object).** If a quote becomes a real row, the
+tags STAY and the stage key is the join. A quote carries the stage; it does not
+invent a parallel status enum beside it. That keeps one vocabulary across the
+inbox, the report and the marketing, and it means #287 can ship without a
+migration that rewrites how every existing workspace's pipeline is labelled.
+
+**#298 (tag governance).** Merging is not built. When it is, the rule is: the
+stage travels with the surviving tag. Merging an ordinary tag INTO a stage tag
+keeps the stage; merging a stage tag into an ordinary one moves the stage onto
+the survivor rather than dropping it, because the alternative is silently losing
+a workspace's history to a tidy-up. Two stage tags cannot merge — the unique
+index already refuses a second tag on one stage, which is what stops a merge
+from doubling every count.
+
+### The report, and the three ways to get it wrong
+
+Counted per CONVERSATION rather than per tag event, so re-tagging cannot inflate
+a win rate. Attributed to the QUOTE's date rather than the win's, so asking how
+March's quotes did means the quotes sent in March. Divided by DECIDED jobs
+rather than every quote, so quoting more work never lowers the rate — a number
+that punishes the behaviour it exists to encourage is worse than no number.
+
+And silent below five decided jobs. A 100% win rate off two quotes is noise
+presented as an achievement, and an owner who repeats it to another contractor
+has been misled by us.
+
+### What would change this
+
+A crew wanting more than four stages, or wanting stages per number or per trade.
+The column is a single nullable text value on `tags`; a second axis would want a
+real table, and at that point the state machine D7 rejected is worth
+re-examining rather than worked around.
