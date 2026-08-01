@@ -60,6 +60,10 @@ const PAGE_NOTES: Record<keyof typeof LIVE_ROUTES, string | null> = {
   home: null, // the file opens with the site URL; a second link adds nothing
   pricing:
     "the interactive plan builder with the live total, both plans, and every cost on one page",
+  // #321: what SHIPPED, dated, newest first. Listed because "is this product
+  // still being worked on" is a question a buyer asks and an answer we have.
+  whatsNew:
+    "what shipped recently, in plain English and dated; never what is planned",
   featuresSharedInbox: "every customer text in one inbox the whole crew can see",
   featuresCalls:
     "calls on the same number: the crew answers in the app, voicemail is written down, and missed callers get a text back",

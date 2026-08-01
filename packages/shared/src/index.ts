@@ -404,3 +404,10 @@ export {
   pipelineWinRate,
 } from "./pipeline";
 export type { PipelineReport, PipelineStage } from "./pipeline";
+export {
+  WHATS_NEW,
+  hasUnseenWhatsNew,
+  latestWhatsNewDate,
+  unseenEntries,
+} from "./whats-new";
+export type { WhatsNewEntry } from "./whats-new";

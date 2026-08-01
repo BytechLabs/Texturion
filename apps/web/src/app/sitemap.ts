@@ -22,6 +22,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
     // Blog (#127): the index plus every post from the BLOG_POSTS registry.
     { path: LIVE_ROUTES.blog, priority: 0.6, changeFrequency: "weekly" },
+    // #321: dated and updated on every release, so weekly is the honest
+    // frequency. Low priority — it converts nobody, and it is here because
+    // "is this still being worked on" is a question buyers ask.
+    { path: LIVE_ROUTES.whatsNew, priority: 0.4, changeFrequency: "weekly" },
     ...BLOG_POSTS.map((post) => ({
       path: blogPostPath(post.slug),
       priority: 0.5,

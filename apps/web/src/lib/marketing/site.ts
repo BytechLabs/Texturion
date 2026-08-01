@@ -30,6 +30,10 @@ export const LIVE_ROUTES = {
   // the registry that also drives the index page, the sitemap, and the RSS
   // feed — so LIVE_ROUTES stays a fixed-route inventory.
   blog: "/blog",
+  // #321: what shipped, for customers rather than developers. Separate from
+  // the per-app CHANGELOG.md release-please generates, deliberately — those
+  // are honest history and this is news.
+  whatsNew: "/whats-new",
   security: "/security",
   contact: "/contact",
   status: "/status",
