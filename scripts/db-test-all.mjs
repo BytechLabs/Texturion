@@ -113,6 +113,7 @@ const SUITES = [
   "saved_views",
   "pipeline_stages",
   "pricing_snapshot",
+  "tag_governance",
 ];
 
 const args = process.argv.slice(2);

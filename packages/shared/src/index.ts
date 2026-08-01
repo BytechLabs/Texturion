@@ -411,3 +411,12 @@ export {
   unseenEntries,
 } from "./whats-new";
 export type { WhatsNewEntry } from "./whats-new";
+export {
+  TAG_SUGGEST_DISTANCE,
+  TAGS_PER_WORKSPACE,
+  editDistance,
+  normalizeTagName,
+  suggestExistingTag,
+  tagNameDistance,
+} from "./tag-similarity";
+export type { TagLike, TagSuggestion } from "./tag-similarity";
