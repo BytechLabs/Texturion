@@ -30,6 +30,13 @@ struct TasksTab: View {
     @State private var loader: TaskListLoader?
     @State private var toggleError: String?
 
+    // #478 multi-select. Named `bulkSelection` for the same reason the inbox
+    // does: `selection` on a SwiftUI list means the navigation selection, and
+    // two things called selection on one screen is a bug waiting for whoever
+    // reads it next.
+    @State private var bulkSelection: BulkSelection = .empty
+    @State private var bulkRunning = false
+
     private var filtersActive: Bool {
         assigneeChip != nil || unassignedChip || dueChip != nil || !debouncedQ.isEmpty
     }
@@ -369,15 +376,45 @@ struct TasksTab: View {
                 .padding(.horizontal, 32)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
+                if !bulkSelection.isEmpty {
+                    taskBulkBar
+                }
                 ScrollView {
                     VStack(spacing: 14) {
                         PaperCard {
                             ForEach(rows, id: \.id) { task in
+                                let picked = bulkSelection.isRowSelected(task.id)
                                 TaskListRow(task: task, assigneeName: assigneeName(task)) { done in
                                     toggleDone(task, done: done)
                                 }
                                 .contentShape(Rectangle())
-                                .onTapGesture { AppRouter.shared.openTaskId = task.id }
+                                .onTapGesture {
+                                    // #478: while a selection is live a tap
+                                    // EXTENDS it. Opening a task mid-selection
+                                    // would throw the selection away and land
+                                    // somewhere nobody asked for — the rule the
+                                    // inbox already follows.
+                                    if bulkSelection.isEmpty {
+                                        AppRouter.shared.openTaskId = task.id
+                                    } else {
+                                        bulkSelection = bulkSelection.toggling(
+                                            task.id,
+                                            loadedIds: rows.map(\.id)
+                                        )
+                                    }
+                                }
+                                // #478: long-press starts selection mode.
+                                .onLongPressGesture {
+                                    bulkSelection = bulkSelection.toggling(
+                                        task.id,
+                                        loadedIds: rows.map(\.id)
+                                    )
+                                }
+                                // A tint, not a checkbox column. The row already
+                                // carries the done circle, and on a phone a
+                                // second column of controls costs a row's worth
+                                // of width for what long-press already says.
+                                .background(picked ? BrandColor.olive.opacity(0.12) : .clear)
                                 if task.id != rows.last?.id {
                                     RowDivider()
                                 }
@@ -649,4 +686,150 @@ private func previewTask(
     }
     .padding(18)
     .background(BrandColor.canvas)
+}
+
+// MARK: - #478 bulk actions
+
+extension TasksTab {
+    /// The selection bar over the task list.
+    ///
+    /// Every rule is #275's, reused rather than restated: the selection type,
+    /// the escalation ladder, the label and the result sentence all come from
+    /// BulkSelection.swift. What differs is only which actions a task can take.
+    ///
+    /// NEVER SHOWS A NUMBER IT WAS NOT TOLD. `label` says "all matching" rather
+    /// than a count when the selection is filter-wide, because this client does
+    /// not know how many rows the server will find.
+    @ViewBuilder
+    var taskBulkBar: some View {
+        HStack(spacing: 12) {
+            Button {
+                bulkSelection = .empty
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .disabled(bulkRunning)
+            .accessibilityLabel("Clear selection")
+
+            Text(bulkSelection.label)
+                .font(.golos(13, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
+
+            Spacer()
+
+            if bulkRunning { ProgressView() }
+
+            Button("Done") { runBulk(action: "mark_done", verb: "Marked done") }
+                .font(.golos(13, weight: .semibold))
+                .foregroundStyle(BrandColor.olive)
+                .buttonStyle(.plain)
+                .disabled(bulkRunning)
+
+            Menu {
+                ForEach(members.filter { $0.deactivated_at == nil }, id: \.user_id) { member in
+                    Button("Assign to \(member.display_name.isBlank ? "Teammate" : member.display_name)") {
+                        runBulk(action: "assign", verb: "Assigned", targetUserId: member.user_id)
+                    }
+                }
+                Button("Unassign") {
+                    runBulk(action: "assign", verb: "Unassigned", unassign: true)
+                }
+                Button("Mark not done") {
+                    runBulk(action: "mark_undone", verb: "Marked not done")
+                }
+                // Destructive and last: an action adjacent to the ones people
+                // use by momentum is one somebody hits by momentum.
+                Button("Delete", role: .destructive) {
+                    runBulk(action: "delete", verb: "Deleted")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .disabled(bulkRunning)
+            .accessibilityLabel("More bulk actions")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(BrandColor.inset)
+
+        // The escalation ladder: the page first, then the filter. Never one
+        // "select all" that quietly means whichever of the two it feels like.
+        if case let .ids(ids) = bulkSelection,
+           !rows.isEmpty,
+           !rows.allSatisfy({ ids.contains($0.id) }) {
+            Button("Select these \(rows.count)") {
+                bulkSelection = selectLoaded(rows.map(\.id))
+            }
+            .font(.golos(12.5, weight: .semibold))
+            .foregroundStyle(BrandColor.olive)
+            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+        }
+        if bulkSelection.canEscalate(loadedIds: rows.map(\.id), hasMore: hasMore) {
+            Button("Select all matching") { bulkSelection = .filter }
+                .font(.golos(12.5, weight: .semibold))
+                .foregroundStyle(BrandColor.olive)
+                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+        }
+    }
+
+    /// Run one action over the current selection, then say what actually
+    /// happened — from the SERVER's response, never from the selection. In
+    /// filter mode this client does not know how many rows matched, and a count
+    /// it guessed would be a count somebody trusted.
+    func runBulk(
+        action: String,
+        verb: String,
+        targetUserId: String? = nil,
+        unassign: Bool = false
+    ) {
+        guard !bulkRunning else { return }
+        bulkRunning = true
+        Task {
+            defer { bulkRunning = false }
+            do {
+                let ids = bulkSelection.idsOrNil
+                let result = try await graph.tasksApi.bulk(
+                    companyId: companyId,
+                    action: action,
+                    ids: ids,
+                    // The SAME filters the list fetched with, so "everything I
+                    // am looking at" cannot mean something different here.
+                    // The first arm carries the user's filters; the second
+                    // exists only to union open+done on the statusless tabs and
+                    // has no meaning to a bulk route.
+                    filters: ids == nil
+                        ? taskListArms(
+                            tab: tab,
+                            assigneeUserId: assigneeChip,
+                            unassigned: unassignedChip,
+                            due: dueChip,
+                            q: debouncedQ.isEmpty ? nil : debouncedQ
+                          ).first
+                        : nil,
+                    targetUserId: targetUserId,
+                    unassign: unassign
+                )
+                toggleError = bulkResultMessage(
+                    verb: verb,
+                    applied: result.applied.count,
+                    failed: result.failed.count,
+                    matched: result.matched,
+                    capped: result.capped,
+                    nounOne: "task",
+                    nounMany: "tasks"
+                )
+                bulkSelection = .empty
+                refreshKey += 1
+            } catch {
+                toggleError = "That didn't go through. Nothing was changed."
+            }
+        }
+    }
 }
