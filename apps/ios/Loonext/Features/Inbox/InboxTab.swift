@@ -130,6 +130,7 @@ private enum InboxStatusTab: String, CaseIterable, Identifiable, Sendable {
 @Observable
 private final class InboxController {
     private let inboxApi: InboxApi
+    private let savedViewsApi: SavedViewsApi
     private let searchApi: SearchApi
     private let repo: MessagingRepository
     private let companyId: String
@@ -156,6 +157,13 @@ private final class InboxController {
     private(set) var members: [Member] = []
     private(set) var allTags: [Tag] = []
 
+    /// #280 — the member's saved views, which one they land on, and the bounded
+    /// badges. Loaded alongside the other supporting lists: the inbox must paint
+    /// whether or not this request has landed, so nothing here gates the list.
+    private(set) var savedViews: [SavedView] = []
+    private(set) var defaultViewId: String?
+    private(set) var viewCounts: [String: Int] = [:]
+
     /// One-shot toast for row-mutation failures (id makes repeats re-fire).
     private(set) var notice: ThreadNotice?
 
@@ -173,6 +181,7 @@ private final class InboxController {
 
     init(graph: AppGraph, companyId: String, meUserId: String) {
         self.inboxApi = graph.inboxApi
+        self.savedViewsApi = graph.savedViewsApi
         self.searchApi = graph.searchApi
         self.repo = MessagingRepository(api: graph.api)
         self.companyId = companyId
@@ -214,6 +223,128 @@ private final class InboxController {
         reload(showLoading: true)
     }
 
+    // MARK: - #280 saved views
+
+    /// The arrangement currently on screen, in the shape a view stores.
+    var currentSelection: ViewSelection {
+        let mapped: SavedViewTab
+        switch tab {
+        case .open: mapped = .open
+        case .mine: mapped = .mine
+        case .all: mapped = .all
+        case .closed: mapped = .closed
+        }
+        return ViewSelection(
+            tab: mapped,
+            assigneeUserId: tab == .mine ? nil : assignee?.user_id,
+            tagId: tag?.id,
+            unreadOnly: unreadOnly,
+            spamOnly: spamOnly,
+            snoozedOnly: snoozedOnly
+        )
+    }
+
+    /// Apply a saved view: every control at once, then ONE reload.
+    ///
+    /// Setting them one at a time would fire a request per filter and leave the
+    /// list flickering through arrangements nobody asked for.
+    func applyView(_ view: SavedView) {
+        let selection = viewToSelection(view.filters)
+        switch selection.tab {
+        case .open: tab = .open
+        case .mine: tab = .mine
+        case .all: tab = .all
+        case .closed: tab = .closed
+        }
+        assignee = selection.assigneeUserId.flatMap { id in members.first { $0.user_id == id } }
+        tag = selection.tagId.flatMap { id in allTags.first { $0.id == id } }
+        unreadOnly = selection.unreadOnly
+        spamOnly = selection.spamOnly
+        snoozedOnly = selection.snoozedOnly
+        reload(showLoading: true)
+    }
+
+    func loadSavedViews(landIfUntouched: Bool = false) {
+        Task {
+            guard let page = try? await self.savedViewsApi.list(companyId: self.companyId) else {
+                return
+            }
+            self.savedViews = page.data
+            self.defaultViewId = page.defaults.conversations
+            // Land on the chosen view only from an untouched inbox. Somebody who
+            // has already filtered has said what they want to see, and a default
+            // that overrode that would be a screen that argues.
+            if landIfUntouched, !self.hasFilterChips, self.tab == .open,
+               let id = page.defaults.conversations,
+               let view = page.data.first(where: { $0.id == id }) {
+                self.applyView(view)
+            }
+            self.loadViewCounts()
+        }
+    }
+
+    private func loadViewCounts() {
+        let ids = savedViews.prefix(SavedViewLimits.countMaxViews).map { $0.id }
+        if ids.isEmpty { return }
+        Task {
+            if let result = try? await self.savedViewsApi.counts(
+                companyId: self.companyId,
+                ids: ids
+            ) {
+                self.viewCounts = result.counts
+            }
+        }
+    }
+
+    func saveCurrentView(
+        name: String,
+        shared: Bool,
+        onDone: @escaping @MainActor (String?) -> Void
+    ) {
+        let filters = selectionToView(currentSelection)
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        Task {
+            do {
+                _ = try await self.savedViewsApi.create(
+                    companyId: self.companyId,
+                    name: trimmed,
+                    filters: filters,
+                    shared: shared
+                )
+                self.loadSavedViews()
+                onDone(nil)
+            } catch {
+                onDone(error.userMessage)
+            }
+        }
+    }
+
+    func renameView(id: String, name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        Task {
+            _ = try? await self.savedViewsApi.rename(
+                companyId: self.companyId,
+                id: id,
+                name: trimmed
+            )
+            self.loadSavedViews()
+        }
+    }
+
+    func deleteView(id: String) {
+        Task {
+            try? await self.savedViewsApi.delete(companyId: self.companyId, id: id)
+            self.loadSavedViews()
+        }
+    }
+
+    func setDefaultView(_ id: String?) {
+        Task {
+            try? await self.savedViewsApi.setDefault(companyId: self.companyId, viewId: id)
+            self.defaultViewId = id
+        }
+    }
+
     private func fetchPage(cursor: String?, pinned: String) async throws -> Page<ConversationListItem> {
         try await inboxApi.conversations(
             companyId: companyId,
@@ -248,6 +379,9 @@ private final class InboxController {
     private func loadSupportingLists() {
         if supportLoaded { return }
         supportLoaded = true
+        // #280: the landing view is only applied on this first load, so a later
+        // refresh never yanks somebody out of what they are looking at.
+        loadSavedViews(landIfUntouched: true)
         Task {
             if let page = try? await self.repo.members(companyId: self.companyId) {
                 self.members = page.data
@@ -694,6 +828,10 @@ private struct InboxList: View {
     /// the action, so an Undo could never have been shown here.
     @State private var visibleNotice: ThreadNotice?
     @State private var noticeDismissTask: Task<Void, Never>?
+    /// #280 saved views.
+    @State private var savedViewSheetOpen = false
+    @State private var renamingView: SavedView?
+    @State private var deletingSharedView: SavedView?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -820,6 +958,7 @@ private struct InboxList: View {
                 )
             } else {
                 statusPillRow(controller)
+                savedViewsRow(controller)
 
                 FilterChipRow(
                     controller: controller,
@@ -853,6 +992,45 @@ private struct InboxList: View {
                 if Task.isCancelled { return }
             }
             controller.runSearch()
+        }
+        .sheet(isPresented: $savedViewSheetOpen) {
+            if let controller {
+                SaveViewSheet(
+                    controller: controller,
+                    canShare: canShareSavedViews,
+                    onClose: { savedViewSheetOpen = false }
+                )
+            }
+        }
+        .sheet(item: $renamingView) { view in
+            if let controller {
+                RenameViewSheet(
+                    controller: controller,
+                    view: view,
+                    onClose: { renamingView = nil }
+                )
+            }
+        }
+        // Ethical Friction, only where it is earned: a crew view is a screen
+        // other people open every morning, and the person deleting it cannot
+        // see who that affects.
+        .confirmationDialog(
+            "Delete this crew view?",
+            isPresented: Binding(
+                get: { deletingSharedView != nil },
+                set: { if !$0 { deletingSharedView = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete for everyone", role: .destructive) {
+                if let view = deletingSharedView { controller?.deleteView(id: view.id) }
+                deletingSharedView = nil
+            }
+            Button("Keep it", role: .cancel) { deletingSharedView = nil }
+        } message: {
+            Text(
+                "Anyone who opens the app there will land on the ordinary inbox instead."
+            )
         }
         .sheet(isPresented: $assigneeSheetOpen) {
             AssigneeFilterSheet(
@@ -1983,5 +2161,202 @@ private struct BulkActionButton: View {
         }
         .buttonStyle(.plain)
         .disabled(disabled)
+    }
+}
+
+// MARK: - #280 saved views
+
+/// The row of saved views, and the one affordance for keeping the arrangement
+/// on screen.
+///
+/// Applying: the Safety Principle (a horizontal strip of named queries directly
+/// under the status pills is where saved views live in every product that has
+/// them), Zen of Clarity (per-view actions are a long-press context menu rather
+/// than three controls crowded onto a pill), Chunking (its own band, spaced away
+/// from the pills above and the list below), and Smart Defaults (the save sheet
+/// opens with a name already derived from the filters, because typing one is
+/// the whole friction between arranging a useful screen and keeping it).
+extension InboxList {
+    @ViewBuilder
+    fileprivate func savedViewsRow(_ controller: InboxController) -> some View {
+        let selection = controller.currentSelection
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 7) {
+                ForEach(controller.savedViews) { view in
+                    let active = viewMatchesSelection(view.filters, selection)
+                    let count = controller.viewCounts[view.id] ?? 0
+                    Button {
+                        controller.applyView(view)
+                    } label: {
+                        Text(count > 0 ? "\(view.name)  \(formatViewCount(count))" : view.name)
+                            .font(.golos(12.5, weight: .medium))
+                            .foregroundStyle(active ? BrandColor.paper : BrandColor.muted700)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(active ? BrandColor.ink : BrandColor.paper, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu { savedViewMenu(controller, view: view) }
+                }
+                Button("Save this view") { savedViewSheetOpen = true }
+                    .font(.golos(12.5, weight: .medium))
+                    .foregroundStyle(BrandColor.muted700)
+                    .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 4)
+        }
+    }
+
+    /// Per-view actions.
+    ///
+    /// Ethical Friction applied only where it is earned: deleting your own view
+    /// goes immediately, because it is yours and rebuilding it is two taps.
+    /// Deleting a shared one removes a screen the rest of the crew opens every
+    /// morning, and the person doing it cannot see who that affects.
+    @ViewBuilder
+    fileprivate func savedViewMenu(
+        _ controller: InboxController,
+        view: SavedView
+    ) -> some View {
+        let isDefault = view.id == controller.defaultViewId
+        Button(isDefault ? "Stop opening here" : "Open here by default") {
+            controller.setDefaultView(isDefault ? nil : view.id)
+        }
+        if !view.shared || canShareSavedViews {
+            Button("Rename") { renamingView = view }
+            Button("Delete", role: .destructive) {
+                if view.shared {
+                    deletingSharedView = view
+                } else {
+                    controller.deleteView(id: view.id)
+                }
+            }
+        }
+    }
+
+    /// Sharing a view is workspace configuration, so it rides the same
+    /// capability the server gates it on rather than a fresh role comparison.
+    fileprivate var canShareSavedViews: Bool {
+        MemberRole.has(
+            me.memberships.first { $0.company_id == companyId }?.role,
+            Capability.settingsManage
+        )
+    }
+}
+
+/// The save sheet.
+///
+/// Smart Defaults: the name field is never empty. The person already said what
+/// the view is by building it, and "Open · Unread" beats what most would type.
+private struct SaveViewSheet: View {
+    let controller: InboxController
+    let canShare: Bool
+    let onClose: @MainActor () -> Void
+
+    @State private var name: String
+    @State private var shared = false
+    @State private var error: String?
+    @State private var saving = false
+
+    init(
+        controller: InboxController,
+        canShare: Bool,
+        onClose: @escaping @MainActor () -> Void
+    ) {
+        self.controller = controller
+        self.canShare = canShare
+        self.onClose = onClose
+        _name = State(
+            initialValue: suggestViewName(
+                controller.currentSelection,
+                assigneeName: controller.assignee?.display_name,
+                tagName: controller.tag?.name
+            )
+        )
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Name", text: $name)
+                } header: {
+                    Text("Save this view")
+                } footer: {
+                    Text("The filters you have on now, under a name, one tap away tomorrow.")
+                }
+                if canShare {
+                    Section {
+                        Toggle("Share it with the crew", isOn: $shared)
+                    } footer: {
+                        Text(
+                            "Everyone gets the same view, and each person sees only the numbers they already have access to."
+                        )
+                    }
+                }
+                if let error {
+                    Section { Text(error).foregroundStyle(.red) }
+                }
+            }
+            .navigationTitle("Save this view")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { onClose() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(saving ? "Saving" : "Save") {
+                        saving = true
+                        controller.saveCurrentView(name: name, shared: shared) { failure in
+                            saving = false
+                            if let failure { error = failure } else { onClose() }
+                        }
+                    }
+                    .disabled(saving || name.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+    }
+}
+
+private struct RenameViewSheet: View {
+    let controller: InboxController
+    let view: SavedView
+    let onClose: @MainActor () -> Void
+
+    @State private var draft: String
+
+    init(
+        controller: InboxController,
+        view: SavedView,
+        onClose: @escaping @MainActor () -> Void
+    ) {
+        self.controller = controller
+        self.view = view
+        self.onClose = onClose
+        _draft = State(initialValue: view.name)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Name", text: $draft)
+            }
+            .navigationTitle("Rename view")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { onClose() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        controller.renameView(id: view.id, name: draft)
+                        onClose()
+                    }
+                    .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
     }
 }

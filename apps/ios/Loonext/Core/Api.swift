@@ -98,6 +98,97 @@ struct InboxApi: Sendable {
     }
 }
 
+/// #280 — saved views.
+///
+/// A view holds FILTER PARAMETERS, never conversation ids. Opening one replays
+/// them through `InboxApi.conversations`, so #106 number access applies per
+/// viewer and a shared view grants nothing.
+struct SavedViewsApi: Sendable {
+    let api: ApiClient
+
+    func list(companyId: String, surface: String = "conversations") async throws -> SavedViewPage {
+        try await api.get(
+            "/v1/saved-views",
+            query: ["surface": surface],
+            companyId: companyId
+        )
+    }
+
+    /// Queue badges, for at most `SavedViewLimits.countMaxViews` views.
+    ///
+    /// Capped on this side as well as the server's, so the two ends agree about
+    /// what was asked. A badge that silently never arrives looks like a bug.
+    func counts(
+        companyId: String,
+        ids: [String],
+        surface: String = "conversations"
+    ) async throws -> SavedViewCounts {
+        try await api.get(
+            "/v1/saved-views/counts",
+            query: [
+                "surface": surface,
+                "ids": ids.prefix(SavedViewLimits.countMaxViews).joined(separator: ","),
+            ],
+            companyId: companyId
+        )
+    }
+
+    func create(
+        companyId: String,
+        name: String,
+        filters: [String: JSONValue],
+        shared: Bool,
+        surface: String = "conversations"
+    ) async throws -> SavedView {
+        try await api.post(
+            "/v1/saved-views",
+            body: JSONValue.object([
+                "surface": .string(surface),
+                "name": .string(name),
+                "filters": .object(filters),
+                "shared": .bool(shared),
+            ]),
+            companyId: companyId
+        )
+    }
+
+    func rename(companyId: String, id: String, name: String) async throws -> SavedView {
+        try await api.patch(
+            "/v1/saved-views/\(id)",
+            body: JSONValue.object(["name": .string(name)]),
+            companyId: companyId
+        )
+    }
+
+    func share(companyId: String, id: String, shared: Bool) async throws -> SavedView {
+        try await api.patch(
+            "/v1/saved-views/\(id)",
+            body: JSONValue.object(["shared": .bool(shared)]),
+            companyId: companyId
+        )
+    }
+
+    func delete(companyId: String, id: String) async throws {
+        try await api.delete("/v1/saved-views/\(id)", companyId: companyId)
+    }
+
+    /// Land on this view, or on nothing when `viewId` is nil.
+    func setDefault(
+        companyId: String,
+        viewId: String?,
+        surface: String = "conversations"
+    ) async throws {
+        let _: JSONValue = try await api.put(
+            "/v1/saved-views/default",
+            body: JSONValue.object([
+                "surface": .string(surface),
+                "view_id": viewId.map { JSONValue.string($0) } ?? .null,
+            ]),
+            companyId: companyId
+        )
+    }
+}
+
 struct TasksApi: Sendable {
     let api: ApiClient
 

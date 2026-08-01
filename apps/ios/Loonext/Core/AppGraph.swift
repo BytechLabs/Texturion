@@ -157,6 +157,7 @@ final class AppGraph {
     let meApi: MeApi
     let forYouApi: ForYouApi
     let inboxApi: InboxApi
+    let savedViewsApi: SavedViewsApi
     let tasksApi: TasksApi
     let contactsApi: ContactsApi
     let notificationsApi: NotificationsApi
@@ -186,6 +187,7 @@ final class AppGraph {
         self.meApi = meApi
         self.forYouApi = ForYouApi(api: api)
         self.inboxApi = InboxApi(api: api)
+        self.savedViewsApi = SavedViewsApi(api: api)
         self.tasksApi = TasksApi(api: api)
         self.contactsApi = ContactsApi(api: api)
         self.notificationsApi = NotificationsApi(api: api)
