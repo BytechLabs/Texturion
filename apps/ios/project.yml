@@ -65,6 +65,10 @@ targets:
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "Loonext uses the microphone for phone calls."
         # Only asked for when the task map's My location button is tapped.
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Loonext shows where you are on the job map so you can see which jobs are nearby."
+        # #459. Only asked for from the Contacts tab, where the section that
+        # needs it is already on screen. Says what it buys and what it does not
+        # do, because iOS never prompts twice and a vague string is a decline.
+        INFOPLIST_KEY_NSContactsUsageDescription: "Loonext shows your phone's contacts alongside your crew's, so you can text someone without adding them first. Your contacts stay on your phone."
         INFOPLIST_KEY_UIBackgroundModes: "audio voip remote-notification"
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"

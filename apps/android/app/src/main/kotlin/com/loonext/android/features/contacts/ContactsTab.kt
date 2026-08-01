@@ -1,6 +1,8 @@
 package com.loonext.android.features.contacts
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -33,11 +35,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -87,6 +91,12 @@ import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SkeletonList
+import androidx.core.content.ContextCompat
+import com.loonext.android.features.contacts.device.ContentResolverDeviceContacts
+import com.loonext.android.features.contacts.device.DeviceContactListRow
+import com.loonext.android.features.contacts.device.MAX_DEVICE_CONTACT_ROWS
+import com.loonext.android.features.contacts.device.deviceContactRows
+import com.loonext.android.features.contacts.device.filterDeviceContacts
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.pressScale
@@ -136,6 +146,8 @@ fun ContactsTab(
     me: Me? = null,
     onOpenContact: ((contactId: String) -> Unit)? = null,
     onComposeNew: ((contactId: String) -> Unit)? = null,
+    /** #459: text a raw number — a device contact has no contact id yet. */
+    onComposeTo: ((phone: String) -> Unit)? = null,
 ) {
     val mutations = remember(companyId) { ContactMutations(graph.api, BuildConfig.API_URL) }
     var listRefresh by remember(companyId) { mutableIntStateOf(0) }
@@ -161,6 +173,7 @@ fun ContactsTab(
         refreshKey = listRefresh,
         onRefresh = { listRefresh++ },
         onOpenContact = { onOpenContact?.invoke(it) },
+        onComposeTo = { onComposeTo?.invoke(it) },
         modifier = modifier,
     )
 }
@@ -175,6 +188,7 @@ private fun ContactListScreen(
     refreshKey: Int,
     onRefresh: () -> Unit,
     onOpenContact: (String) -> Unit,
+    onComposeTo: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -189,6 +203,32 @@ private fun ContactListScreen(
     val pullState = rememberPullToRefreshState()
 
     var createOpen by remember { mutableStateOf(false) }
+    // #459: the phone's own address book, shown as its own group below the
+    // crew's. Loaded ONCE into memory when access is granted; the filter runs
+    // locally because these rows never leave the phone.
+    var deviceGranted by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) ==
+                PackageManager.PERMISSION_GRANTED,
+        )
+    }
+    var deviceRows by remember { mutableStateOf<List<DeviceContactListRow>>(emptyList()) }
+    var deviceExpanded by rememberSaveable { mutableStateOf(false) }
+    var addFromDevice by remember { mutableStateOf<DeviceContactListRow?>(null) }
+    val deviceContactsPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted -> deviceGranted = granted }
+    LaunchedEffect(deviceGranted) {
+        if (!deviceGranted) {
+            deviceRows = emptyList()
+            return@LaunchedEffect
+        }
+        deviceRows = runCatching {
+            withContext(Dispatchers.IO) {
+                deviceContactRows(ContentResolverDeviceContacts(context).loadContacts())
+            }
+        }.getOrDefault(emptyList())
+    }
     var importMenuOpen by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<ImportKind?>(null) }
     var importing by remember { mutableStateOf(false) }
@@ -588,6 +628,106 @@ private fun ContactListScreen(
                                         }
                                     }
                                 }
+                                // #459 — the phone's own address book, its
+                                // own group below the crew's. Never merged:
+                                // four hundred personal numbers above forty
+                                // shared ones would bury the thing the product
+                                // is for.
+                                val devicePage = filterDeviceContacts(deviceRows, debouncedQ)
+                                val deviceVisible =
+                                    if (deviceExpanded || debouncedQ.isNotEmpty()) {
+                                        devicePage.rows
+                                    } else {
+                                        devicePage.rows.take(DEVICE_PREVIEW_ROWS)
+                                    }
+                                item(key = "device-header") {
+                                    DeviceContactsHeader(
+                                        granted = deviceGranted,
+                                        matchCount = devicePage.rows.size,
+                                        onGrant = {
+                                            haptics.tap()
+                                            deviceContactsPermission.launch(
+                                                Manifest.permission.READ_CONTACTS,
+                                            )
+                                        },
+                                        modifier = Modifier.animateItem(),
+                                    )
+                                }
+                                itemsIndexed(
+                                    deviceVisible,
+                                    key = { _, row -> "device-" + row.id },
+                                ) { index, row ->
+                                    val top = if (index == 0) 22.dp else 0.dp
+                                    val bottom =
+                                        if (index == deviceVisible.lastIndex) 22.dp else 0.dp
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surface,
+                                        shape = RoundedCornerShape(
+                                            topStart = top,
+                                            topEnd = top,
+                                            bottomStart = bottom,
+                                            bottomEnd = bottom,
+                                        ),
+                                        modifier = Modifier.animateItem(),
+                                    ) {
+                                        Column {
+                                            DeviceContactRowItem(
+                                                row = row,
+                                                onText = {
+                                                    haptics.tap()
+                                                    onComposeTo(row.number)
+                                                },
+                                                onAdd = {
+                                                    haptics.tap()
+                                                    addFromDevice = row
+                                                },
+                                            )
+                                            if (index != deviceVisible.lastIndex) {
+                                                RowDivider(Modifier.padding(horizontal = 15.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                                if (
+                                    deviceGranted &&
+                                    debouncedQ.isEmpty() &&
+                                    !deviceExpanded &&
+                                    devicePage.rows.size > DEVICE_PREVIEW_ROWS
+                                ) {
+                                    item(key = "device-more") {
+                                        Box(
+                                            Modifier
+                                                .animateItem()
+                                                .fillMaxWidth()
+                                                .padding(vertical = 8.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            TextButton(onClick = { deviceExpanded = true }) {
+                                                Text("Show all from this phone")
+                                            }
+                                        }
+                                    }
+                                }
+                                if (devicePage.truncated) {
+                                    item(key = "device-truncated") {
+                                        // Said out loud rather than cutting the
+                                        // list silently: a list that stops at
+                                        // fifty without saying so reads as
+                                        // "these are all of them".
+                                        Text(
+                                            "Showing the first " +
+                                                MAX_DEVICE_CONTACT_ROWS +
+                                                ". Search to find someone else.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier
+                                                .animateItem()
+                                                .fillMaxWidth()
+                                                .padding(top = 8.dp),
+                                            textAlign = TextAlign.Center,
+                                        )
+                                    }
+                                }
                                 item(key = "footer") {
                                     Column(
                                         Modifier
@@ -632,9 +772,128 @@ private fun ContactListScreen(
         )
     }
 
+    addFromDevice?.let { row ->
+        CreateContactSheet(
+            mutations = mutations,
+            companyId = companyId,
+            onCreated = { contact ->
+                addFromDevice = null
+                graph.storeCache.put(CacheKeys.contact(companyId, contact.id), contact)
+                onRefresh()
+                onOpenContact(contact.id)
+            },
+            onDismiss = { addFromDevice = null },
+            prefillPhone = row.number,
+            prefillName = row.name,
+        )
+    }
+
     val report = importReport
     if (report != null) {
         ImportReportSheet(report = report, onDismiss = { importReport = null })
+    }
+}
+
+/** How many device rows show before "Show all from this phone". */
+private const val DEVICE_PREVIEW_ROWS = 5
+
+/**
+ * The header over the phone's own contacts — or the ask, when access has not
+ * been granted.
+ *
+ * The permission is requested HERE, at the point of use, with a plain sentence
+ * about what it buys. Never at launch: a permission prompt before the person
+ * has seen why is one they decline, and a declined contacts permission is
+ * declined for good.
+ */
+@Composable
+private fun DeviceContactsHeader(
+    granted: Boolean,
+    matchCount: Int,
+    onGrant: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .padding(top = 26.dp, bottom = 10.dp),
+    ) {
+        Text(
+            "On this phone",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        if (granted) {
+            Text(
+                if (matchCount == 0) {
+                    "Nobody here matches."
+                } else {
+                    "Your own contacts. They stay on your phone."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        } else {
+            Text(
+                "Let Loonext read your phone's contacts and they show up here, " +
+                    "so you can text somebody without adding them first. " +
+                    "They stay on your phone.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+            TextButton(onClick = onGrant, modifier = Modifier.padding(top = 2.dp)) {
+                Text("Show my phone contacts")
+            }
+        }
+    }
+}
+
+/**
+ * One row of the phone's own address book.
+ *
+ * Tapping it TEXTS them, because that is what this product does and because a
+ * device contact has no detail screen here to open — it is not ours. The
+ * trailing action pulls them into the crew's shared book, carrying the name the
+ * phone already had, which is the whole difference between adding a contact and
+ * retyping one.
+ */
+@Composable
+private fun DeviceContactRowItem(
+    row: DeviceContactListRow,
+    onText: () -> Unit,
+    onAdd: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onText)
+            .padding(start = 15.dp, end = 6.dp, top = 12.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                row.name,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+            )
+            Text(
+                formatPhone(row.number),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
+        IconButton(onClick = onAdd) {
+            Icon(
+                Icons.Outlined.PersonAdd,
+                contentDescription = "Add " + row.name + " to contacts",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(19.dp),
+            )
+        }
     }
 }
 
@@ -853,11 +1112,17 @@ internal fun CreateContactSheet(
     onCreated: (Contact) -> Unit,
     onDismiss: () -> Unit,
     prefillPhone: String = "",
+    /**
+     * #459: the name the phone already had for this person. Filling it is the
+     * whole difference between pulling a device contact into the shared book
+     * and retyping it — Smart Defaults, on the one field we actually know.
+     */
+    prefillName: String = "",
 ) {
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
     var phone by remember { mutableStateOf(prefillPhone) }
-    var name by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(prefillName) }
     var address by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }

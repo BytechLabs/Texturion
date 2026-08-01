@@ -522,6 +522,7 @@ fun ShellContent(
             me = me,
             onOpenContact = onOpenContact,
             onComposeNew = { contactId -> onComposeNew(contactId) },
+            onComposeTo = onComposeTo,
         )
     }
 }

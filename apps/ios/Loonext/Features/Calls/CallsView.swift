@@ -114,6 +114,13 @@ struct CallsView: View {
             guard let page = try? await service.members(companyId: companyId) else { return }
             members = page.data
         }
+        // #459: the phone's own book, read once while this surface is alive.
+        // Silent when access has never been granted — the dialer is not where
+        // that permission is asked for. The Contacts tab asks, with the section
+        // it buys already on screen; this just uses the answer.
+        .task {
+            deviceCandidates = await DeviceContactsAccess.load()
+        }
         // #215 Part A: a call.updated missed while backgrounded self-heals on
         // foreground — the same first-page refetch the re-JOIN runs.
         .resyncOnForeground { refreshKey += 1 }
@@ -154,6 +161,12 @@ struct CallsView: View {
         }
     }
 
+    /// #459: the phone's own address book, read ONCE while this surface is
+    /// alive and never re-read per keystroke. Empty without permission, which
+    /// is the honest degraded state: the dialer still correlates our own
+    /// contacts, it just cannot name somebody only the phone knows.
+    @State private var deviceCandidates: [DeviceContactListRow] = []
+
     /// The single calls-surface presentation (#186 item 5): the dialer and the
     /// create sheet it swaps to — never two simultaneous `.sheet` toggles.
     private enum CallsSheet: Identifiable {
@@ -175,21 +188,22 @@ struct CallsView: View {
     /// The ranking then runs locally through the same matcher the browser and
     /// Android use, so all three agree on who is at the top of the list.
     ///
-    /// iOS reads no device address book yet, so every candidate here is one of
-    /// ours; the matcher's app-beats-device precedence costs nothing today and
-    /// is already right when that lands.
+    /// The phone's own address book supplements ours when access has been
+    /// granted (the Android twin's #183 behaviour, which iOS lacked until
+    /// #459). App candidates go FIRST so they win ties: the crew's shared book
+    /// is the source of truth and a personal phone entry fills the gaps.
     private func lookupMatches(_ typed: String) async -> [DialerMatch] {
-        guard let page = try? await graph.contactsApi.contacts(
+        let app = (try? await graph.contactsApi.contacts(
             companyId: companyId, q: typed, limit: 10, t9: true
-        ) else { return [] }
-        return rankDialerCandidates(
-            typed: typed,
-            candidates: page.data.map {
-                DialerCandidate(
-                    name: $0.name, number: $0.phone_e164, source: .app, contactId: $0.id
-                )
-            }
-        )
+        ))?.data.map {
+            DialerCandidate(
+                name: $0.name, number: $0.phone_e164, source: .app, contactId: $0.id
+            )
+        } ?? []
+        let device = deviceCandidates.map {
+            DialerCandidate(name: $0.name, number: $0.number, source: .device)
+        }
+        return rankDialerCandidates(typed: typed, candidates: app + device)
     }
 
     private var header: some View {

@@ -344,3 +344,11 @@ export {
   t9Words,
 } from "./dialer";
 export type { DialerCandidate, DialerMatch, DialerSource } from "./dialer";
+
+export {
+  MAX_DEVICE_CONTACT_ROWS,
+  MIN_DEVICE_QUERY,
+  deviceContactMatches,
+  filterDeviceContacts,
+} from "./device-contacts";
+export type { DeviceContactPage, DeviceContactListRow } from "./device-contacts";

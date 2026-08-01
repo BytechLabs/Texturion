@@ -112,6 +112,14 @@ struct ContactsTab: View {
     @State private var importReport: ImportReport?
     @State private var notice: String?
 
+    // #459: the phone's own address book, its own group below the crew's.
+    // Loaded once into memory when access is granted; the filter runs locally
+    // because these rows never leave the phone.
+    @State private var deviceRows: [DeviceContactListRow] = []
+    @State private var deviceAuthorized = DeviceContactsAccess.isAuthorized
+    @State private var deviceExpanded = false
+    @State private var addFromDevice: DeviceContactListRow?
+
     private var mutations: ContactMutations {
         ContactMutations(
             api: graph.api,
@@ -163,6 +171,12 @@ struct ContactsTab: View {
                 resolvedMe = try? await graph.meApi.me()
             }
         }
+        // #459: read the phone's own book once, and again the moment access is
+        // granted. Never at launch — see DeviceContacts.swift for why the ask
+        // waits until the section that needs it is on screen.
+        .task(id: deviceAuthorized) {
+            deviceRows = deviceAuthorized ? await DeviceContactsAccess.load() : []
+        }
         .task(id: notice) {
             // The notice line is a transient snackbar equivalent — it clears
             // itself; a new notice restarts the clock.
@@ -176,6 +190,20 @@ struct ContactsTab: View {
                 createOpen = false
                 refreshKey += 1
                 // Open the freshly created contact ABOVE the shell.
+                AppRouter.shared.openContactId = created.id
+            }
+        }
+        .sheet(item: $addFromDevice) { row in
+            // #459: pulling a device contact into the crew's shared book,
+            // carrying the name the phone already had.
+            CreateContactSheet(
+                mutations: mutations,
+                companyId: companyId,
+                prefillPhone: row.number,
+                prefillName: row.name
+            ) { created in
+                addFromDevice = nil
+                refreshKey += 1
                 AppRouter.shared.openContactId = created.id
             }
         }
@@ -321,17 +349,26 @@ struct ContactsTab: View {
             CenteredError(message: message) { refreshKey += 1 }
         case .ready:
             if rows.isEmpty {
-                Text(
-                    debouncedQ.isEmpty
-                        ? "No contacts yet. They're added automatically when "
-                            + "someone texts you, or add one yourself."
-                        : "No matches for \"\(debouncedQ)\"."
-                )
-                .font(.golos(13))
-                .foregroundStyle(BrandColor.muted500)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // #459: still a ScrollView, because the phone's own contacts
+                // render below — and an empty shared book is exactly when
+                // somebody needs them most.
+                ScrollView {
+                    Text(
+                        debouncedQ.isEmpty
+                            ? "No contacts yet. They're added automatically when "
+                                + "someone texts you, or add one yourself."
+                            : "No matches for \"\(debouncedQ)\"."
+                    )
+                    .font(.golos(13))
+                    .foregroundStyle(BrandColor.muted500)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                    .padding(.top, 40)
+                    .frame(maxWidth: .infinity)
+
+                    devicePhoneSection
+                }
+                .refreshable { await reload() }
             } else {
                 ScrollView {
                     PaperCard {
@@ -361,6 +398,8 @@ struct ContactsTab: View {
                     .padding(.horizontal, 18)
                     .padding(.top, 6)
                     .padding(.bottom, 12)
+
+                    devicePhoneSection
                 }
                 // Pull to refresh, matching Android. Awaiting the real reload
                 // settles the spinner when the data lands, not when the gesture
@@ -368,6 +407,140 @@ struct ContactsTab: View {
                 .refreshable { await reload() }
             }
         }
+    }
+
+    /// #459 — the phone's own address book, its own group below the crew's.
+    ///
+    /// Never merged into the list above: four hundred personal numbers over
+    /// forty shared ones would bury the thing the product is for. Two groups,
+    /// each with its own heading, and a wide gap between them.
+    @ViewBuilder
+    private var devicePhoneSection: some View {
+        let page = filterDeviceContacts(deviceRows, query: debouncedQ)
+        let visible = (deviceExpanded || !debouncedQ.isEmpty)
+            ? page.rows
+            : Array(page.rows.prefix(devicePreviewRows))
+
+        VStack(alignment: .leading, spacing: 0) {
+            Text("On this phone")
+                .font(.golos(14, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
+                .padding(.horizontal, 4)
+
+            if deviceAuthorized {
+                Text(
+                    page.rows.isEmpty
+                        ? "Nobody here matches."
+                        : "Your own contacts. They stay on your phone."
+                )
+                .font(.golos(12))
+                .foregroundStyle(BrandColor.muted500)
+                .padding(.horizontal, 4)
+                .padding(.top, 3)
+
+                if !visible.isEmpty {
+                    PaperCard {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(visible.enumerated()), id: \.element.id) { index, row in
+                                if index > 0 { RowDivider() }
+                                deviceRow(row)
+                            }
+                        }
+                    }
+                    .padding(.top, 10)
+                }
+
+                if debouncedQ.isEmpty, !deviceExpanded, page.rows.count > devicePreviewRows {
+                    Button("Show all from this phone") { deviceExpanded = true }
+                        .buttonStyle(.plain)
+                        .font(.golos(12, weight: .semibold))
+                        .foregroundStyle(BrandColor.olive)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 10)
+                }
+
+                if page.truncated {
+                    // Said out loud rather than cutting the list silently: a
+                    // list that stops at fifty without saying so reads as
+                    // "these are all of them".
+                    Text("Showing the first \(maxDeviceContactRows). Search to find someone else.")
+                        .font(.golos(12))
+                        .foregroundStyle(BrandColor.muted500)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 10)
+                }
+            } else {
+                Text(
+                    "Let Loonext read your phone's contacts and they show up here, "
+                        + "so you can text somebody without adding them first. "
+                        + "They stay on your phone."
+                )
+                .font(.golos(12))
+                .foregroundStyle(BrandColor.muted500)
+                .padding(.horizontal, 4)
+                .padding(.top, 3)
+
+                if DeviceContactsAccess.canAsk {
+                    Button("Show my phone contacts") {
+                        Task { deviceAuthorized = await DeviceContactsAccess.request() }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.golos(12, weight: .semibold))
+                    .foregroundStyle(BrandColor.olive)
+                    .padding(.horizontal, 4)
+                    .padding(.top, 8)
+                } else {
+                    // iOS never prompts twice. A button claiming it will is a
+                    // button that lies, so this says where the switch actually
+                    // lives.
+                    Text("Turn Contacts on for Loonext in Settings.")
+                        .font(.golos(12, weight: .semibold))
+                        .foregroundStyle(BrandColor.muted700)
+                        .padding(.horizontal, 4)
+                        .padding(.top, 8)
+                }
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 22)
+        .padding(.bottom, 28)
+    }
+
+    /// One row of the phone's own address book.
+    ///
+    /// Tapping it TEXTS them, because that is what this product does and
+    /// because a device contact has no detail screen here to open — it is not
+    /// ours. The trailing action pulls them into the crew's shared book with
+    /// the name the phone already had.
+    @ViewBuilder
+    private func deviceRow(_ row: DeviceContactListRow) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.name)
+                    .font(.golos(15))
+                    .foregroundStyle(BrandColor.ink)
+                    .lineLimit(1)
+                Text(formatPhone(row.number))
+                    .font(.golos(12))
+                    .foregroundStyle(BrandColor.muted500)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture { AppRouter.shared.composeTo = row.number }
+
+            Button {
+                addFromDevice = row
+            } label: {
+                Image(systemName: "person.badge.plus")
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(BrandColor.muted500)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Add \(row.name) to contacts")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
     }
 
     private func reload() async {
@@ -566,10 +739,14 @@ struct CreateContactSheet: View {
     /// Prefill the phone field (the dialer's "Add contact" for a typed,
     /// unknown number, #186 item 5). Empty = a blank sheet.
     var prefillPhone: String = ""
+    /// #459: the name the phone already had for this person. Filling it is the
+    /// whole difference between pulling a device contact into the shared book
+    /// and retyping it.
+    var prefillName: String = ""
     let onCreated: @MainActor (Contact) -> Void
 
     @State private var phone: String
-    @State private var name = ""
+    @State private var name: String
     @State private var address = ""
     @State private var notes = ""
     @State private var saving = false
@@ -580,11 +757,14 @@ struct CreateContactSheet: View {
         mutations: ContactMutations,
         companyId: String,
         prefillPhone: String = "",
+        prefillName: String = "",
         onCreated: @escaping @MainActor (Contact) -> Void
     ) {
         self.mutations = mutations
         self.companyId = companyId
         self.prefillPhone = prefillPhone
+        self.prefillName = prefillName
+        _name = State(initialValue: prefillName)
         self.onCreated = onCreated
         _phone = State(initialValue: Nanp.formatAsYouType(prefillPhone))
     }
