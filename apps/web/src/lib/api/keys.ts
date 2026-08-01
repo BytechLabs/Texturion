@@ -49,6 +49,12 @@ export const keys = {
       [companyId, "text-enablements", "detail", orderId] as const,
   },
   tags: (companyId: string) => [companyId, "tags"] as const,
+  /** #280: one key per surface — the two lists are fetched independently. */
+  savedViews: (companyId: string, surface: string) =>
+    [companyId, "saved-views", surface] as const,
+  /** Badges are keyed on the ids ASKED FOR, so a changed set refetches. */
+  savedViewCounts: (companyId: string, surface: string, ids: string[]) =>
+    [companyId, "saved-views", surface, "counts", ids.join(",")] as const,
   templates: (companyId: string) => [companyId, "templates"] as const,
   members: (companyId: string) => [companyId, "members"] as const,
   /** #236: every active member's live devices, workspace-wide. */

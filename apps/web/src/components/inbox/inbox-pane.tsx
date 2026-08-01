@@ -8,9 +8,10 @@ import {
   useRouter,
   useSearchParams,
 } from "next/navigation";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useSavedViews } from "@/lib/api/saved-views";
 import { useActiveCompany } from "@/lib/company/provider";
 
 import { ConversationList } from "./conversation-list";
@@ -23,6 +24,8 @@ import {
   toConversationFilters,
   type InboxUrlFilters,
 } from "./filter-url";
+import { SavedViewsBar } from "./saved-views-bar";
+import { viewFiltersToUrl } from "./saved-view-filters";
 import { SearchResults } from "./search-results";
 
 /**
@@ -54,6 +57,28 @@ export function InboxPane() {
     [router, pathname],
   );
 
+  // #280: land on the view this member chose.
+  //
+  // Only when the URL carries NOTHING. A person who arrived through a link, or
+  // who cleared the filters on purpose, has said what they want to see, and a
+  // default that overrides that would be a screen that argues with you. The ref
+  // makes it a once-per-mount redirect rather than a rule that fights every
+  // later navigation back to a bare /inbox.
+  const savedViews = useSavedViews("conversations");
+  const landed = useRef(false);
+  useEffect(() => {
+    if (landed.current || searchParams.toString() !== "") return;
+    const defaultId = savedViews.data?.defaults.conversations ?? null;
+    if (defaultId === null) return;
+    const view = savedViews.data?.data.find((v) => v.id === defaultId);
+    if (!view) return;
+    landed.current = true;
+    router.replace(
+      `${pathname}${serializeInboxFilters(viewFiltersToUrl(view.filters))}`,
+      { scroll: false },
+    );
+  }, [savedViews.data, searchParams, router, pathname]);
+
   const q = filters.q?.trim() ?? "";
   const searching = q.length >= 2;
   const activeConversationId =
@@ -76,6 +101,7 @@ export function InboxPane() {
         </Button>
       </header>
       <FilterBar filters={filters} onChange={setFilters} />
+      <SavedViewsBar filters={filters} onApply={setFilters} />
       {searching ? (
         <SearchResults q={q} />
       ) : (
