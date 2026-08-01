@@ -190,8 +190,19 @@ the app pulled weeks later in a review sweep, which for a business phone line
 is an outage for every mobile customer at once with no engineering fix
 available.
 
-Run this whenever a release touches the apps. It takes a few minutes and it is
-the only thing standing between a new feature and a stale declaration.
+Run this whenever a release touches the apps. It takes a few minutes.
+
+**The mechanical half now runs on every commit** (#502).
+`packages/shared/src/store-declarations.test.ts` fails when a purpose string in
+`apps/ios/project.yml` or a permission in `AndroidManifest.xml` is not named in
+the declaration filed for it, when a filed purpose string has drifted from the
+one the app shows, when the inventory contradicts the code, or when a deletion
+surface a declaration names has moved. It was written because this list is a
+checklist and #459 shipped a contacts permission that three documents then
+denied for a week.
+
+What is left below is the half a test cannot do: reading the prose and judging
+whether it is still honest.
 
 1. **Did this release change what data leaves the device?** A new permission, a
    new field stored, a new third party, a new thing sent to a model. If yes,

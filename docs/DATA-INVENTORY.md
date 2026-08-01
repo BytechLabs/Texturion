@@ -88,6 +88,7 @@ Contacts is the one Play requires a written justification for; it is in
 |---|---|
 | `NSMicrophoneUsageDescription` | "Loonext uses the microphone for phone calls." |
 | `NSLocationWhenInUseUsageDescription` | "Loonext shows where you are on the job map so you can see which jobs are nearby." |
+| `NSContactsUsageDescription` | "Loonext shows your phone's contacts alongside your crew's, so you can text someone without adding them first. Your contacts stay on your phone." |
 | `UIBackgroundModes` | `audio`, `voip`, `remote-notification` — a call has to survive the screen locking |
 
 **No photo-library permission string, deliberately.** Attachments use SwiftUI's
@@ -96,8 +97,28 @@ the app receives only what the person picked and never gains library access, so
 no `NSPhotoLibraryUsageDescription` is needed or requested. Adding one would
 declare access we do not take.
 
-**No contacts permission on iOS.** The #183 Connected-Apps integration is
-Android-only.
+---
+
+## Reading the device address book is not collecting contacts
+
+Both apps read the phone's own contact book, and neither uploads it. This is the
+distinction that decides two store answers, so it is stated once here and both
+declarations point at it:
+
+| | What it does | Declaration |
+|---|---|---|
+| Reading the device book | Shows and searches the phone's own contacts beside the crew's, so a number does not have to be retyped. Given name, family name, organisation, phone numbers. The search runs on the device | A permission with a purpose string. **Not** a collected data class: nothing is sent |
+| The customer records the business keeps | Names, phones, addresses and notes stored in the workspace, typed or imported by the crew | A collected and shared data class, in both tables above |
+| Android's Connected-Apps sync (#183) | Writes "Call with Loonext" / "Text with Loonext" rows INTO the phone's contacts | Needs `WRITE_CONTACTS` as well, and its own Play justification |
+
+Files: `apps/ios/Loonext/Features/Contacts/DeviceContacts.swift` (#459),
+`apps/android/.../features/contacts/device/` (read),
+`apps/android/.../features/contacts/sync/` (#183, write).
+
+Conflating the first two over-declares one and under-declares the other. Neither
+error is safe: claiming we collect an address book we never receive is a promise
+we cannot keep, and omitting the permission is the finding that gets an app
+pulled.
 
 ---
 

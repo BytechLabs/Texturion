@@ -8,7 +8,7 @@ Kept in the repo on purpose: a declaration that lives only in a web console one
 person can reach cannot be reviewed, diffed, or checked against the code by
 anyone else.
 
-**Last reconciled with the code:** 2026-07-26.
+**Last reconciled with the code:** 2026-08-01.
 
 ---
 
@@ -64,15 +64,31 @@ subscription identifiers only.
 
 **Justification as filed:**
 
-> Loonext is a business phone line for a work crew. With the user's explicit
-> permission, the app adds "Call with Loonext" and "Text with Loonext" actions
-> to their existing contacts, so a tradesperson can reach a customer from their
-> business number straight out of the phone's own Contacts app rather than
-> retyping the number. The permission is requested only when the user turns
-> that feature on, never at launch, and the account it creates is removed when
-> they sign out.
+> Loonext is a business phone line for a work crew, and the permission serves
+> two things the app does with the phone's own contacts.
+>
+> Reading: the app shows and searches the phone's contacts beside the crew's
+> shared ones, so a tradesperson can text or call somebody without retyping a
+> number or adding them twice. It reads names, organisations and phone numbers
+> only, the matching and searching happen on the device, and no contact is
+> uploaded to our servers.
+>
+> Writing: with the user's explicit permission, the app adds "Call with
+> Loonext" and "Text with Loonext" actions to their existing contacts, so a
+> customer can be reached from the business number straight out of the phone's
+> own Contacts app. That half is requested only when the user turns the feature
+> on, never at launch, and the account it creates is removed when they sign
+> out.
 
-Implementation: `apps/android/.../features/contacts/sync/`.
+Implementation: `apps/android/.../features/contacts/device/` (read),
+`apps/android/.../features/contacts/sync/` (write, #183).
+
+**Reading the device book is not a collected data class.** The Contacts row in
+the table above is the customer records the business itself keeps in the
+workspace. The phone's own address book is read, matched and searched on the
+device and never sent to us. `docs/DATA-INVENTORY.md` states the distinction in
+full; declaring the address book as collected would claim we hold data we never
+receive.
 
 ### `RECORD_AUDIO`, `MANAGE_OWN_CALLS`, `FOREGROUND_SERVICE_MICROPHONE`, `FOREGROUND_SERVICE_PHONE_CALL`
 
@@ -85,6 +101,24 @@ in a work van.
 
 An incoming business call has to reach a locked phone as a ringing call, in the
 same way the system dialer does. It is used for inbound calls only.
+
+### Runtime prompts Play asks no form about
+
+Neither of these maps to a Data safety type and neither triggers a permissions
+declaration form. They are recorded here anyway, so this file is the whole list
+of what the app asks a person for rather than only the parts with a form
+attached:
+
+- **`POST_NOTIFICATIONS`** — a ringing call and a customer's text. Asked on
+  first launch, because a business line that cannot notify is not one.
+- **`BLUETOOTH_CONNECT`** — routes call audio to a headset, which is how a call
+  is taken in a van. Asked at call time, and a refusal only means the call plays
+  through the phone.
+
+### `ACCESS_COARSE_LOCATION`
+
+The job map's "my location" button, and nothing else. Asked only when that
+button is tapped. `ACCESS_FINE_LOCATION` is never requested.
 
 ---
 

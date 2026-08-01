@@ -9,7 +9,7 @@ person can reach cannot be reviewed, diffed, or checked against the code by
 anyone else. Doubly so here, where iOS cannot be built on the founder's machine
 and the console is the only other place this would exist.
 
-**Last reconciled with the code:** 2026-07-26.
+**Last reconciled with the code:** 2026-08-01.
 
 ---
 
@@ -75,6 +75,19 @@ not here.
 |---|---|
 | `NSMicrophoneUsageDescription` | "Loonext uses the microphone for phone calls." |
 | `NSLocationWhenInUseUsageDescription` | "Loonext shows where you are on the job map so you can see which jobs are nearby." |
+| `NSContactsUsageDescription` | "Loonext shows your phone's contacts alongside your crew's, so you can text someone without adding them first. Your contacts stay on your phone." |
+
+**The contacts string is asked for from the Contacts tab, never at launch** (#459).
+iOS never prompts twice, so a request made before the person can see what it buys
+is a permanent decline.
+
+**Reading that book is not a collected data class.** The app reads given name,
+family name, organisation and phone numbers, matches and searches them on the
+device (`Features/Contacts/DeviceContactSearch.swift`), and sends none of it
+anywhere. The Contacts row in the table above is the customer records the
+business itself keeps, which is a different thing;
+`docs/DATA-INVENTORY.md` states the distinction in full. Declaring the address
+book as collected would claim we hold data we never receive.
 
 **No `NSPhotoLibraryUsageDescription`, deliberately.** Attachments use
 SwiftUI's `PhotosPicker`, which runs out of process: the app receives only the
