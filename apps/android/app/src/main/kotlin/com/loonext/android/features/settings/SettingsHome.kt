@@ -165,6 +165,18 @@ enum class SettingsSection(
         "Get in touch when something isn't right",
         Capability.WORKSPACE_ACCESS,
     ),
+
+    /**
+     * #321: improvement was invisible. The product ships almost daily and a
+     * customer who signed up in June would never encounter reply drafting,
+     * voicemail transcripts or saved views, because nothing pointed at them.
+     * Beside Help because both are what you go looking for.
+     */
+    WhatsNew(
+        "What's new",
+        "What shipped recently, and where to find it",
+        Capability.WORKSPACE_ACCESS,
+    ),
 }
 
 /** Everything a section needs, threaded once instead of eight parameters. */
@@ -360,6 +372,11 @@ fun SettingsHome(
                                 companyName = company.name,
                                 plan = company.plan,
                             )
+
+                            SettingsSection.WhatsNew -> WhatsNewSection(
+                                settingsScope,
+                                joinedAt = company.created_at,
+                            )
                         }
                     }
                 }
@@ -402,9 +419,20 @@ private fun SettingsIndex(
         PaperCard(Modifier.fillMaxWidth()) {
             // #461: a member saw every section and could act on almost none
             // of them. The list is now what is theirs.
+            // #321: computed once for the list. Read from prefs rather than
+            // the server — a marker is a courtesy, and the failure mode of the
+            // local version is one extra dot on a second device.
+            val rowContext = LocalContext.current
+            val whatsNewMarker = remember(company.created_at) {
+                hasUnseenWhatsNew(readWhatsNewSeen(rowContext), company.created_at)
+            }
             visibleSettingsSections(role).forEachIndexed { index, section ->
                 if (index > 0) RowDivider()
-                SettingsIndexRow(section, onOpen)
+                SettingsIndexRow(
+                    section,
+                    onOpen,
+                    showMarker = whatsNewMarker,
+                )
             }
         }
         // #198: the unlocked Diagnostics row — quiet, last, its own card so
@@ -741,7 +769,12 @@ private fun resetsIn(periodEnd: String?): String? {
 }
 
 @Composable
-private fun SettingsIndexRow(section: SettingsSection, onOpen: (SettingsSection) -> Unit) {
+private fun SettingsIndexRow(
+    section: SettingsSection,
+    onOpen: (SettingsSection) -> Unit,
+    /** #321: true only for the What's new row, and only when unseen. */
+    showMarker: Boolean = false,
+) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -778,6 +811,13 @@ private fun SettingsIndexRow(section: SettingsSection, onOpen: (SettingsSection)
             )
         }
         Spacer(Modifier.width(8.dp))
+        // #321: a dot, and nothing else. The audience is holding a phone on a
+        // job site, so this marks that there is something behind a row they
+        // choose to open, never anything that arrives over the top.
+        if (section == SettingsSection.WhatsNew && showMarker) {
+            WhatsNewDot()
+            Spacer(Modifier.width(8.dp))
+        }
         Icon(
             Icons.AutoMirrored.Outlined.KeyboardArrowRight,
             contentDescription = null,
@@ -801,6 +841,7 @@ private fun iconFor(section: SettingsSection): ImageVector = when (section) {
     SettingsSection.Profile -> Icons.Outlined.Person
     SettingsSection.Devices -> Icons.Outlined.Devices
     SettingsSection.Help -> Icons.Outlined.SupportAgent
+    SettingsSection.WhatsNew -> Icons.Outlined.AutoAwesome
 }
 
 /**

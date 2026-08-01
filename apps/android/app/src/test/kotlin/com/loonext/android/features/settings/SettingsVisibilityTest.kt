@@ -21,6 +21,9 @@ class SettingsVisibilityTest {
         SettingsSection.Profile,
         SettingsSection.Devices,
         SettingsSection.Help,
+        // #321: everybody paying for the product is entitled to know it got
+        // better, so this is a personal section like the four above it.
+        SettingsSection.WhatsNew,
     )
 
     @Test
