@@ -126,7 +126,6 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
   // issue asks. Once per mount — a re-render is not a fresh consideration.
   useEffect(() => {
     trackPlanBuilderViewed("pricing", DEFAULT_SELECTION.plan, DEFAULT_SELECTION.addons);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const selection = { plan, addons };

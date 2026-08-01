@@ -595,11 +595,20 @@ A: For now, yes — your card is charged in USD and your bank converts it. CAD b
 coming; until it's real, we won't pretend otherwise.
 
 **Q: What am I not getting at these prices?**
-A: Loonext is a shared texting inbox — it doesn't do mass text blasts or review management, and
-there's no phone dialer in the app (an $8/mo add-on forwards calls on your business number to a
-phone you choose and texts back the ones you miss, but you make and take the calls on that
-phone). If you need blasts, reviews, or full call handling, a bigger platform might fit better;
-our comparison pages say so honestly.
+A: Loonext is a shared texting inbox that also takes calls — it doesn't do mass text blasts or
+review management, and it isn't a call center. Calling is included on every plan: calls ring your
+whole crew in the app, unanswered ones take a voicemail we write down, and the ones you miss get
+an automatic text back. What you don't get is phone menus, queues and all-day inbound volume. If
+you need blasts, reviews, or full call handling, a bigger platform might fit better; our
+comparison pages say so honestly.
+
+<!-- #334, corrected 2026-08-01. This answer described an $8/mo voice add-on that
+     forwards calls to a phone you answer. Calls shipped as a browser softphone
+     (D36-D43), D42 made them included on every plan, the voice MODULE was
+     retired, and forwarding was deleted. The live /compare page had been fixed
+     by somebody noticing; this source had not — which is the drift #334 is
+     about. The correction keeps the specifics rather than hedging into
+     vagueness, which that issue asks for explicitly. -->
 
 ## Final CTA
 

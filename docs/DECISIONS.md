@@ -33,6 +33,15 @@ An entry here is not "never". It is "not without a new numbered decision that
 supersedes the one named", and the Because column is what such a decision would
 have to answer.
 
+**Changing a row here changes the marketing (#334).** `/compare` tells buyers
+what we deliberately do not do, and each of those claims cites a decision in
+this table. Removing a refusal fails
+`apps/web/src/app/(marketing)/compare/honest-omissions.test.ts`, which names the
+page still claiming it — so the edit that amends a scope decision is the same
+edit that surfaces the copy to correct. That is the whole mechanism; there is no
+review step to remember. `node scripts/ops/claims-audit.mjs` walks every
+marketing page when a broader pass is wanted.
+
 ---
 
 ## D1. Hosting: Cloudflare Workers, not Pages

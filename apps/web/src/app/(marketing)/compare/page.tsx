@@ -34,6 +34,7 @@ import {
 } from "@/app/(marketing)/pricing/pricing-data";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
+import { HONEST_OMISSIONS } from "./honest-omissions";
 import { COMPARE_AS_OF } from "./verification";
 
 const PATH = LIVE_ROUTES.compareIndex;
@@ -161,20 +162,11 @@ export default function CompareIndexPage() {
             does it.
           </p>
           <div className="mt-10 grid gap-6 md:grid-cols-3">
-            {[
-              {
-                title: "No mass text blasts.",
-                body: "Loonext is for conversations with your customers, not campaigns at them. If you need list broadcasts, Heymarket and the marketing-texting tools do that.",
-              },
-              {
-                title: "No review management.",
-                body: "We don't chase Google reviews. That's Podium's home turf, and if reviews are load-bearing for you, it's the better buy.",
-              },
-              {
-                title: "No full dialer.",
-                body: "Loonext answers calls as well as texts, on every plan: they ring your whole crew right in the app, unanswered ones take a voicemail we write down, you call customers back on your business number, and the ones you miss get an automatic text back. What it is not is a call center, so a business that lives on phone menus, queues and all-day inbound volume belongs on Quo.",
-              },
-            ].map((point) => (
+            {/* #334: the copy and the decision each claim rests on live
+                together in `honest-omissions.ts`. The decision is never
+                rendered — it exists so a scope change has a discoverable list
+                of pages to correct. */}
+            {HONEST_OMISSIONS.map((point) => (
               <Reveal key={point.title} className="h-full">
                 <FrCard className="h-full p-6">
                   <h3 className="fr-h3 text-[color:var(--fr-ink)]">
