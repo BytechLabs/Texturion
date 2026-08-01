@@ -647,6 +647,14 @@ private fun ReadyShell(
                     onOpenContact = { push(Overlay.Contact(it)) },
                     onOpenNotifications = { push(Overlay.Notifications) },
                     onComposeNew = { push(Overlay.Compose(it)) },
+                    // #459: the dialer's Text action. A raw number rather than a
+                    // contact id, because the point of dialing a stranger is
+                    // that we have never met them.
+                    onComposeTo = { push(Overlay.Compose(null, prefillPhone = it)) },
+                    // #459: the dialer's Contacts affordance. Switches tab
+                    // rather than pushing a route, for the same reason
+                    // onOpenCalls does — one surface, no duplicate.
+                    onOpenContacts = { tab = ShellTab.Contacts },
                     // Single surface: For You's "Recent calls" header switches to
                     // the Calls tab (the pager animates) instead of pushing a
                     // duplicate route.

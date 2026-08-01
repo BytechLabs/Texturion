@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -37,17 +37,31 @@ const NOTES_MAX = 5000;
 export function NewContactDialog({
   open,
   onOpenChange,
+  prefillPhone = "",
 }: {
   open: boolean;
   onOpenChange: (next: boolean) => void;
+  /**
+   * #459: the number the dialer had on screen. A form that made somebody
+   * retype the digits they just dialed would be a form that punishes them for
+   * using the feature — Smart Defaults, the one field we CAN fill.
+   */
+  prefillPhone?: string;
 }) {
   const router = useRouter();
   const create = useCreateContact();
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(prefillPhone);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // Re-seed when the dialog opens with a different number: the component
+  // stays mounted between openings, so initial state alone would show the
+  // first number forever.
+  useEffect(() => {
+    if (open) setPhone(prefillPhone);
+  }, [open, prefillPhone]);
 
   const normalized = normalizeNanpPhone(phone);
   const phoneLooksWrong = phone.trim() !== "" && normalized === null;

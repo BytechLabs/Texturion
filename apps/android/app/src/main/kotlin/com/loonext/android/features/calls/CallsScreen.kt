@@ -82,7 +82,7 @@ import com.loonext.android.features.contacts.CreateContactSheet
 import com.loonext.android.features.contacts.device.ContentResolverDeviceContacts
 import com.loonext.android.features.contacts.device.DialerCandidate
 import com.loonext.android.features.contacts.device.MatchSource
-import com.loonext.android.features.contacts.device.correlateDialedNumber
+import com.loonext.android.features.contacts.device.rankDialerCandidates
 import com.loonext.android.features.contacts.device.deviceDialerCandidates
 import com.loonext.android.BuildConfig
 import com.loonext.android.telephony.CallPhase
@@ -171,6 +171,12 @@ fun CallsScreen(
     me: Me,
     modifier: Modifier = Modifier,
     openConversation: (String) -> Unit = {},
+    /** #459: text the number on the keypad instead of calling it. */
+    onComposeTo: (phone: String) -> Unit = {},
+    /** #459: open a contact the dialer matched. */
+    onOpenContact: (contactId: String) -> Unit = {},
+    /** #459: leave the keypad for the contacts list. */
+    onOpenContacts: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val manager = remember(graph) { SoftphoneManager.get(context, graph.api) }
@@ -589,23 +595,32 @@ fun CallsScreen(
             },
             onDismiss = { dialerOpen = false },
             initialDigits = dialerPrefill,
-            lookupContact = { typed ->
-                // #183 part 2: correlate typed digits with the crew's saved
-                // contacts AND the device address book, in ONE pure matcher.
-                // App candidates go first so they win ties (server q matches
-                // name+phone); device candidates supplement from the in-memory
-                // snapshot. The matcher re-verifies the digits actually match.
+            lookupMatches = { typed ->
+                // #183 part 2 + #459: correlate typed digits with the crew's
+                // saved contacts AND the device address book, in ONE pure
+                // matcher. App candidates go first so they win ties; device
+                // candidates supplement from the in-memory snapshot.
+                //
+                // `t9 = true` is what makes the keypad a NAME search: the
+                // server matches contact names by their keypad letters, and the
+                // matcher below does the same for the device book, which never
+                // leaves the phone.
                 val app = runCatching {
-                    contactsRepo.contacts(companyId, q = typed, limit = 5).data.map { c ->
-                        DialerCandidate(
-                            name = c.name,
-                            number = c.phone_e164,
-                            source = MatchSource.APP,
-                        )
-                    }
+                    contactsRepo.contacts(companyId, q = typed, limit = 10, t9 = true)
+                        .data.map { c ->
+                            DialerCandidate(
+                                name = c.name,
+                                number = c.phone_e164,
+                                source = MatchSource.APP,
+                                contactId = c.id,
+                            )
+                        }
                 }.getOrDefault(emptyList())
-                correlateDialedNumber(typed, app + deviceCandidates)?.name
+                rankDialerCandidates(typed, app + deviceCandidates)
             },
+            onMessage = onComposeTo,
+            onOpenContact = onOpenContact,
+            onOpenContacts = onOpenContacts,
             deviceContactsGranted = contactsGranted,
             // Flipping this triggers the LaunchedEffect above, which loads
             // device candidates AND stands up the Connected-Apps rows (part 3).

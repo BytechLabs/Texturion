@@ -140,6 +140,23 @@ export function NewConversation() {
   // PrefillContact child so the hook only mounts with a real id.
   const prefillId = searchParams.get("contact");
 
+  // #459 ?to={number}: the dialer's Message action, and the one prefill that
+  // does NOT resolve to a contact — the whole point of dialing a stranger is
+  // that we have never met them. Applied once: re-running on every render
+  // would fight the person the moment they cleared the field to pick somebody
+  // else.
+  const prefillTo = searchParams.get("to");
+  const prefillToApplied = useRef(false);
+  useEffect(() => {
+    if (!prefillTo || prefillToApplied.current) return;
+    prefillToApplied.current = true;
+    const e164 = normalizeNanpInput(prefillTo);
+    // A number we cannot normalize goes into the field rather than being
+    // silently dropped: the person still sees what they dialed and can fix it.
+    if (e164) setRecipient({ kind: "number", e164 });
+    else setInput(prefillTo);
+  }, [prefillTo]);
+
   const typedE164 = isPhone ? normalizeNanpInput(input) : null;
 
   // #63 — combobox geometry: the listbox is the contact matches followed by

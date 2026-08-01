@@ -22,7 +22,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Backspace
+import androidx.compose.material.icons.automirrored.outlined.Message
 import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.PersonAdd
+import androidx.compose.material.icons.outlined.People
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -44,8 +47,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.TextButton
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.core.net.ApiException
+import com.loonext.android.features.contacts.device.DialerMatch
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.PreviewHarness
@@ -88,10 +96,21 @@ fun DialerSheet(
     numbers: List<PhoneNumberSummary>,
     onDismiss: () -> Unit,
     initialDigits: String = "",
-    /** Resolve typed digits to a saved contact's name (null = no match). */
-    lookupContact: (suspend (digits: String) -> String?)? = null,
+    /**
+     * #459: who the typed digits could be, best first. The caller merges the
+     * crew's own contacts (server, name-searched via `t9=1`) with the device
+     * address book and ranks both through one matcher, so this returns a list
+     * rather than a name — "dial by name" IS this list.
+     */
+    lookupMatches: (suspend (digits: String) -> List<DialerMatch>)? = null,
     /** Offer "Add contact" for an unmatched dialable number. */
     onAddContact: ((e164: String) -> Unit)? = null,
+    /** #459: text this number instead of calling it. */
+    onMessage: ((number: String) -> Unit)? = null,
+    /** #459: open a contact we already have on file. */
+    onOpenContact: ((contactId: String) -> Unit)? = null,
+    /** #459: leave the keypad for the contacts list. */
+    onOpenContacts: (() -> Unit)? = null,
     /**
      * #183 part 2: whether device-contact correlation is live (READ_CONTACTS
      * granted). When false and [onDeviceContactsGranted] is set, the dialer
@@ -103,19 +122,29 @@ fun DialerSheet(
 ) {
     val haptics = rememberHaptics()
     var digits by remember { mutableStateOf(initialDigits.take(15)) }
-    var matchedName by remember { mutableStateOf<String?>(null) }
-    if (lookupContact != null) {
+    var matches by remember { mutableStateOf<List<DialerMatch>>(emptyList()) }
+    // Whoever was tapped in the list. Kept separate from the digits so editing
+    // the number after picking somebody drops the pick: a call that went to the
+    // person you tapped rather than the number on screen would be a call
+    // nobody could explain.
+    var picked by remember { mutableStateOf<DialerMatch?>(null) }
+    if (lookupMatches != null) {
         // Re-key on the grant flag too: granting device access mid-session
         // re-correlates the already-typed number without waiting for a keystroke.
         LaunchedEffect(digits, deviceContactsGranted) {
-            if (digits.length < 4) {
-                matchedName = null
+            // TWO digits, not four: two keys is a normal way to reach for a
+            // name ("Bo…"), and the matcher itself keeps the four-digit floor
+            // for matching a NUMBER.
+            if (digits.length < 2) {
+                matches = emptyList()
                 return@LaunchedEffect
             }
             kotlinx.coroutines.delay(250) // debounce keypad taps
-            matchedName = runCatching { lookupContact(digits) }.getOrNull()
+            matches = runCatching { lookupMatches(digits) }.getOrDefault(emptyList())
         }
     }
+    val target = picked ?: matches.firstOrNull()
+    val matchedName = target?.name
     var fromId by remember { mutableStateOf(numbers.firstOrNull()?.id) }
     var calling by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -273,22 +302,6 @@ fun DialerSheet(
                             maxLines = 1,
                         )
 
-                        addTarget != null -> Text(
-                            "Add contact",
-                            style = MaterialTheme.typography.labelLarge.copy(
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            ),
-                            color = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .clickable {
-                                    haptics.tap()
-                                    onAddContact!!.invoke(addTarget)
-                                }
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
-                        )
-
                         // #183 part 2: the clear rationale + opt-in when device
                         // correlation is off. Tapping re-requests READ_CONTACTS.
                         onDeviceContactsGranted != null && !deviceContactsGranted -> Text(
@@ -309,6 +322,32 @@ fun DialerSheet(
                     }
                 }
 
+                // #459: who this could be, best first — the list that makes the
+                // keypad a name search. Between the readout and the keys, where
+                // every system dialer has put it for fifteen years. Capped at
+                // four by the matcher; the height cap keeps the keys reachable
+                // when all four land.
+                if (matches.isNotEmpty()) {
+                    LazyColumn(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 132.dp)
+                            .padding(bottom = 8.dp),
+                    ) {
+                        items(matches, key = { it.number }) { match ->
+                            DialerMatchRow(
+                                match = match,
+                                selected = picked?.number == match.number,
+                                onClick = {
+                                    haptics.tap()
+                                    picked = match
+                                    digits = match.number.filter(Char::isDigit).take(15)
+                                },
+                            )
+                        }
+                    }
+                }
+
                 KEYPAD_ROWS.forEach { row ->
                     Row(
                         Modifier.padding(bottom = 12.dp * scale),
@@ -321,6 +360,7 @@ fun DialerSheet(
                                 onClick = {
                                     if (digits.length < 15) {
                                         haptics.tap()
+                                        picked = null
                                         digits += key
                                     }
                                 },
@@ -337,7 +377,31 @@ fun DialerSheet(
                         .padding(top = 6.dp * scale, bottom = 16.dp * scale),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(Modifier.weight(1f)) {}
+                    // #459: the other verb, mirroring backspace on the right so
+                    // the call disc stays centred. A trades crew texts more than
+                    // it calls; this is secondary only because the screen is the
+                    // dialer, not because texting matters less.
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        if (onMessage != null) {
+                            IconButton(
+                                onClick = {
+                                    haptics.tap()
+                                    val to = picked?.number ?: dialable
+                                    if (to != null) {
+                                        onDismiss()
+                                        onMessage(to)
+                                    }
+                                },
+                                enabled = dialable != null || picked != null,
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Outlined.Message,
+                                    contentDescription = "Send a message instead",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
                     // The lime call disc (spec 03) — disabled until dialable.
                     val callInteraction = remember { MutableInteractionSource() }
                     Surface(
@@ -375,6 +439,7 @@ fun DialerSheet(
                         IconButton(
                             onClick = {
                                 haptics.tap()
+                                picked = null
                                 digits = digits.dropLast(1)
                             },
                             enabled = digits.isNotEmpty(),
@@ -384,6 +449,77 @@ fun DialerSheet(
                                 contentDescription = "Delete last digit",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                        }
+                    }
+                }
+
+                // #459: the two ways out of the keypad. "Add contact" appears
+                // only for a dialable number we do NOT have, because offering to
+                // save somebody already on file is an offer that does nothing.
+                if (onOpenContacts != null || onAddContact != null) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (onOpenContacts != null) {
+                            TextButton(onClick = {
+                                haptics.tap()
+                                onDismiss()
+                                onOpenContacts()
+                            }) {
+                                Icon(
+                                    Icons.Outlined.People,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(17.dp),
+                                )
+                                Text(
+                                    "Contacts",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(start = 6.dp),
+                                )
+                            }
+                        } else {
+                            Box {}
+                        }
+
+                        val openId = target?.contactId
+                        when {
+                            openId != null && onOpenContact != null -> TextButton(onClick = {
+                                haptics.tap()
+                                onDismiss()
+                                onOpenContact(openId)
+                            }) {
+                                Text(
+                                    "Open contact",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+
+                            addTarget != null && onAddContact != null -> TextButton(
+                                onClick = {
+                                    haptics.tap()
+                                    onAddContact(addTarget)
+                                },
+                            ) {
+                                Icon(
+                                    Icons.Outlined.PersonAdd,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(17.dp),
+                                )
+                                Text(
+                                    "Add contact",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(start = 6.dp),
+                                )
+                            }
+
+                            else -> Box {}
                         }
                     }
                 }
@@ -494,6 +630,54 @@ private fun DialerBodyPreview() {
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * One row of the #459 match list: who this could be, and the number it dials.
+ *
+ * The number is shown beside the name rather than hidden behind it. A crew has
+ * the same customer twice under two numbers often enough that a name alone is
+ * not an answer, and the whole promise of the row is that tapping it dials the
+ * right one.
+ */
+@Composable
+private fun DialerMatchRow(
+    match: DialerMatch,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        color = if (selected) {
+            MaterialTheme.colorScheme.surfaceContainer
+        } else {
+            MaterialTheme.colorScheme.background
+        },
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                match.name,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Box(Modifier.weight(1f)) {}
+            Text(
+                formatPhone(match.number),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
         }
     }
 }

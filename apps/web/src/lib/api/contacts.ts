@@ -23,24 +23,38 @@ export function fetchContactsPage(
   companyId: string,
   q: string,
   cursor?: string,
+  /**
+   * #459: read digits as keypad letters too (2 is ABC, so 262 finds "Bob").
+   * Opt-in, because in a search box "416" means an area code and quietly
+   * returning names as well would answer a question nobody asked.
+   */
+  t9 = false,
 ): Promise<Page<ContactListItem>> {
   // List rows carry `opted_out` (the G6 opted-out badge) and
   // `last_activity_at` (the G6 "Last activity" column — conversation
   // activity, null when the contact has never texted).
   return apiFetch<Page<ContactListItem>>("/v1/contacts", {
     companyId,
-    searchParams: { q: q === "" ? undefined : q, cursor },
+    searchParams: {
+      q: q === "" ? undefined : q,
+      cursor,
+      t9: t9 && q !== "" ? "1" : undefined,
+    },
   });
 }
 
-/** Contacts table — trgm-backed search via `q` (G6). */
-export function useContacts(q = "") {
+/** Contacts table — trgm-backed search via `q` (G6), keypad letters via `t9`. */
+export function useContacts(q = "", options: { t9?: boolean } = {}) {
   const companyId = useCompanyId();
   const trimmed = q.trim();
+  const t9 = options.t9 === true;
   return useInfiniteQuery({
-    queryKey: keys.contacts.list(companyId, trimmed),
+    // The flag is part of the key: the same digits mean a different result set
+    // with names folded in, and sharing a cache entry would show one caller the
+    // other's answer.
+    queryKey: [...keys.contacts.list(companyId, trimmed), t9 ? "t9" : "n"],
     queryFn: ({ pageParam }) =>
-      fetchContactsPage(companyId, trimmed, pageParam),
+      fetchContactsPage(companyId, trimmed, pageParam, t9),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,
     // Keep the previous result set visible while a new search term resolves —

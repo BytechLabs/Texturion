@@ -31,11 +31,19 @@ private let minDialerScale: CGFloat = 0.55
 struct DialerSheet: View {
     let manager: CallsManager
     let numbers: [PhoneNumberSummary]
-    /// Resolve typed digits to a saved contact's name (nil = no match) — the
-    /// live correlation shown as you dial (#186 item 5).
-    var lookupContact: (@MainActor (String) async -> String?)?
+    /// #459: who the typed digits could be, best first. The caller searches
+    /// the crew's own contacts with `t9: true` so the keypad's letters find
+    /// names, and ranks the result through the shared matcher — "dial by name"
+    /// IS this list.
+    var lookupMatches: (@MainActor (String) async -> [DialerMatch])?
     /// Offer "Add contact" for a dialable, unmatched typed number (#186 item 5).
     var onAddContact: (@MainActor (String) -> Void)?
+    /// #459: text this number instead of calling it.
+    var onMessage: (@MainActor (String) -> Void)?
+    /// #459: open a contact we already have on file.
+    var onOpenContact: (@MainActor (String) -> Void)?
+    /// #459: leave the keypad for the contacts list.
+    var onOpenContacts: (@MainActor () -> Void)?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -43,21 +51,36 @@ struct DialerSheet: View {
     @State private var fromId: String?
     @State private var calling = false
     @State private var errorText: String?
-    /// The saved contact's name matching the typed digits, or nil.
-    @State private var matchedName: String?
+    /// #459: the ranked matches for what has been typed.
+    @State private var matches: [DialerMatch] = []
+    /// Whoever was tapped in the list. Separate from the digits so editing the
+    /// number after picking somebody drops the pick — a call that went to the
+    /// person you tapped rather than the number on screen would be a call
+    /// nobody could explain.
+    @State private var picked: DialerMatch?
 
     init(
         manager: CallsManager,
         numbers: [PhoneNumberSummary],
-        lookupContact: (@MainActor (String) async -> String?)? = nil,
-        onAddContact: (@MainActor (String) -> Void)? = nil
+        lookupMatches: (@MainActor (String) async -> [DialerMatch])? = nil,
+        onAddContact: (@MainActor (String) -> Void)? = nil,
+        onMessage: (@MainActor (String) -> Void)? = nil,
+        onOpenContact: (@MainActor (String) -> Void)? = nil,
+        onOpenContacts: (@MainActor () -> Void)? = nil
     ) {
         self.manager = manager
         self.numbers = numbers
-        self.lookupContact = lookupContact
+        self.lookupMatches = lookupMatches
         self.onAddContact = onAddContact
+        self.onMessage = onMessage
+        self.onOpenContact = onOpenContact
+        self.onOpenContacts = onOpenContacts
         _fromId = State(initialValue: numbers.first?.id)
     }
+
+    /// Who the actions act on: whoever was picked, else the best match.
+    private var target: DialerMatch? { picked ?? matches.first }
+    private var matchedName: String? { target?.name }
 
     private var dialable: String? { dialableE164(digits) }
 
@@ -82,15 +105,17 @@ struct DialerSheet: View {
         .presentationBackground(BrandColor.canvas)
         // Debounced live contact correlation as the digits change.
         .task(id: digits) {
-            guard let lookupContact else { return }
+            guard let lookupMatches else { return }
             let typed = digits.filter(\.isNumber)
-            if typed.count < 4 {
-                matchedName = nil
+            // TWO digits, not four: two keys is a normal way to reach for a
+            // name. The matcher keeps the four-digit floor for a NUMBER match.
+            if typed.count < 2 {
+                matches = []
                 return
             }
             try? await Task.sleep(for: .milliseconds(250)) // debounce keypad taps
             if Task.isCancelled { return }
-            matchedName = await lookupContact(typed)
+            matches = await lookupMatches(String(typed))
         }
     }
 
@@ -118,7 +143,25 @@ struct DialerSheet: View {
             // and unknown. Fixed height so the keypad never jumps.
             correlationRow
                 .frame(height: 26)
-                .padding(.bottom, 8 * scale)
+                .padding(.bottom, 4 * scale)
+
+            // #459: who this could be, best first — the list that makes the
+            // keypad a name search. Between the readout and the keys, where
+            // every system dialer has put it for fifteen years. Capped at four
+            // by the matcher; the height cap keeps the keys reachable when all
+            // four land.
+            if !matches.isEmpty {
+                ScrollView {
+                    VStack(spacing: 2) {
+                        ForEach(matches) { match in
+                            matchRow(match)
+                        }
+                    }
+                }
+                .frame(maxHeight: 132)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 6 * scale)
+            }
 
             if numbers.count > 1 {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -153,7 +196,10 @@ struct DialerSheet: View {
                     HStack(spacing: keySpacing) {
                         ForEach(row, id: \.self) { key in
                             Button {
-                                if digits.count < 15 { digits += key }
+                                if digits.count < 15 {
+                                    picked = nil
+                                    digits += key
+                                }
                             } label: {
                                 VStack(spacing: 0) {
                                     Text(key)
@@ -180,8 +226,29 @@ struct DialerSheet: View {
             }
 
             HStack {
-                Spacer()
-                    .frame(maxWidth: .infinity)
+                // #459: the other verb, mirroring backspace on the right so the
+                // call disc stays centred. A trades crew texts more than it
+                // calls; this is secondary only because the screen is the
+                // dialer, not because texting matters less.
+                HStack {
+                    Spacer()
+                    if let onMessage {
+                        Button {
+                            if let to = picked?.number ?? dialable {
+                                dismiss()
+                                onMessage(to)
+                            }
+                        } label: {
+                            Image(systemName: "message")
+                                .font(.system(size: 20, weight: .regular))
+                                .foregroundStyle(BrandColor.muted500)
+                        }
+                        .disabled(dialable == nil && picked == nil)
+                        .accessibilityLabel("Send a message instead")
+                    }
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
                 Button(action: preflightThenCall) {
                     Group {
                         if calling {
@@ -203,6 +270,7 @@ struct DialerSheet: View {
                 HStack {
                     Spacer()
                     Button {
+                        picked = nil
                         digits = String(digits.dropLast())
                     } label: {
                         Image(systemName: "delete.left")
@@ -217,6 +285,46 @@ struct DialerSheet: View {
             }
             .padding(.top, 8 * scale)
 
+            // #459: the two ways out of the keypad. "Add contact" appears only
+            // for a dialable number we do NOT have, because offering to save
+            // somebody already on file is an offer that does nothing.
+            HStack {
+                if let onOpenContacts {
+                    Button {
+                        dismiss()
+                        onOpenContacts()
+                    } label: {
+                        Label("Contacts", systemImage: "person.2")
+                            .font(.golos(13, weight: .semibold))
+                            .foregroundStyle(BrandColor.muted700)
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer()
+                if let contactId = target?.contactId, let onOpenContact {
+                    Button {
+                        dismiss()
+                        onOpenContact(contactId)
+                    } label: {
+                        Text("Open contact")
+                            .font(.golos(13, weight: .semibold))
+                            .foregroundStyle(BrandColor.olive)
+                    }
+                    .buttonStyle(.plain)
+                } else if target == nil, let onAddContact, let addTarget = dialable {
+                    Button {
+                        onAddContact(addTarget)
+                    } label: {
+                        Label("Add contact", systemImage: "person.badge.plus")
+                            .font(.golos(13, weight: .semibold))
+                            .foregroundStyle(BrandColor.olive)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 6)
+
             if let errorText {
                 Text(errorText)
                     .font(.golos(11.5))
@@ -229,8 +337,43 @@ struct DialerSheet: View {
         }
     }
 
-    /// The matched contact name, or an "Add contact" pill for a dialable,
-    /// unknown number. Empty otherwise — the fixed-height slot holds the layout.
+    /// One row of the #459 match list: who this could be, and the number it
+    /// dials. The number sits beside the name rather than behind it — a crew
+    /// has the same customer under two numbers often enough that a name alone
+    /// is not an answer, and the row's whole promise is that tapping it dials
+    /// the right one.
+    @ViewBuilder
+    private func matchRow(_ match: DialerMatch) -> some View {
+        Button {
+            picked = match
+            digits = String(match.number.filter(\.isNumber).prefix(15))
+        } label: {
+            HStack(spacing: 10) {
+                Text(match.name)
+                    .font(.golos(14, weight: .semibold))
+                    .foregroundStyle(BrandColor.ink)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Text(formatPhone(match.number))
+                    .font(.golos(12))
+                    .foregroundStyle(BrandColor.muted500)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
+            .background(
+                picked?.number == match.number ? BrandColor.inset : BrandColor.canvas,
+                in: RoundedRectangle(cornerRadius: 10)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The matched contact name. Empty otherwise — the fixed-height slot holds
+    /// the layout. "Add contact" lives in the row below the keypad now: two
+    /// identical offers on one screen is one too many.
     @ViewBuilder
     private var correlationRow: some View {
         if let matchedName {
@@ -238,18 +381,6 @@ struct DialerSheet: View {
                 .font(.golos(13, weight: .semibold))
                 .foregroundStyle(BrandColor.olive)
                 .lineLimit(1)
-        } else if let onAddContact, let target = dialable {
-            Button {
-                onAddContact(target)
-            } label: {
-                Text("Add contact")
-                    .font(.golos(12.5, weight: .semibold))
-                    .foregroundStyle(BrandColor.olive)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
         } else {
             Color.clear
         }

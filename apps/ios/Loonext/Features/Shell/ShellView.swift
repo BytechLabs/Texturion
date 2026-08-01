@@ -45,14 +45,15 @@ private enum ShellSheet: Identifiable {
     case account
     case notifications
     case settings
-    case compose(prefillContactId: String?)
+    case compose(prefillContactId: String?, prefillPhone: String?)
 
     var id: String {
         switch self {
         case .account: "account"
         case .notifications: "notifications"
         case .settings: "settings"
-        case .compose(let contactId): "compose:\(contactId ?? "")"
+        case .compose(let contactId, let phone):
+            "compose:\(contactId ?? "")|\(phone ?? "")"
         }
     }
 }
@@ -184,6 +185,14 @@ struct ShellView: View {
             activeSheet = nil
             path.removeAll()
             tab = .calls
+        }
+        // #459: the dialer's Text action. Opens compose seeded with the number
+        // rather than pushing a thread, because a number we have never texted
+        // has no thread to push.
+        .onReceive(router.$composeTo) { number in
+            guard let number else { return }
+            router.composeTo = nil
+            activeSheet = .compose(prefillContactId: nil, prefillPhone: number)
         }
         .onReceive(router.$openContacts) { open in
             guard open else { return }
@@ -336,7 +345,9 @@ struct ShellView: View {
                 companyId: companyId,
                 contactId: contactId,
                 onOpenConversation: { AppRouter.shared.openConversationId = $0 },
-                onComposeNew: { activeSheet = .compose(prefillContactId: $0) },
+                onComposeNew: {
+                    activeSheet = .compose(prefillContactId: $0, prefillPhone: nil)
+                },
                 callerIdName: hydratedMe.display_name
             )
             // Edits/opt-outs/deletes made in the detail show on return to the
@@ -488,7 +499,7 @@ struct ShellView: View {
     /// pill nav.
     private var composeButton: some View {
         Button {
-            activeSheet = .compose(prefillContactId: nil)
+            activeSheet = .compose(prefillContactId: nil, prefillPhone: nil)
         } label: {
             Image(systemName: "pencil")
                 .font(.system(size: 21, weight: .medium))
@@ -541,12 +552,13 @@ struct ShellView: View {
                 onSignOut: { root.signOut() },
                 initialSection: pendingSettingsSection
             )
-        case .compose(let prefillContactId):
+        case .compose(let prefillContactId, let prefillPhone):
             NewConversationView(
                 graph: graph,
                 companyId: companyId,
                 me: hydratedMe,
                 prefillContactId: prefillContactId,
+                prefillPhone: prefillPhone,
                 onCreated: { AppRouter.shared.openConversationId = $0 },
                 onBack: { activeSheet = nil }
             )

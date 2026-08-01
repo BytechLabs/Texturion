@@ -148,9 +148,20 @@ class ContactsRepository(private val api: ApiClient) {
         q: String? = null,
         cursor: String? = null,
         limit: Int = 25,
+        /**
+         * #459: read the digits in [q] as keypad letters too, so 2-6-2 finds
+         * "Bob". Opt-in, because in a search box "416" means an area code and
+         * quietly returning names as well would answer a question nobody asked.
+         */
+        t9: Boolean = false,
     ): Page<Contact> = api.get(
         "/v1/contacts",
-        query = mapOf("q" to q, "cursor" to cursor, "limit" to limit.toString()),
+        query = mapOf(
+            "q" to q,
+            "cursor" to cursor,
+            "limit" to limit.toString(),
+            "t9" to if (t9 && !q.isNullOrEmpty()) "1" else null,
+        ),
         companyId = companyId,
     )
 }

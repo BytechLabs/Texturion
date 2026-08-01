@@ -6,8 +6,27 @@
  * with a raw `to` (the server normalizes + NANP-validates it and resolves which
  * business number to present). Threading find-or-creates the contact +
  * conversation on answer, so a dialed stranger still lands in the inbox.
+ *
+ * #459 — the keypad is also a name search. The letters printed on a phone key
+ * are not decoration: 2 is ABC, so typing 2-6-2 spells BOB, and the server
+ * matches contact names by their keypad digits when asked with `t9=1`. That is
+ * what makes "dial by name, from the same screen" possible with no second
+ * input, because the keypad already is one.
+ *
+ * The matches list caps at four. Four rows is a glance and ten is a directory,
+ * and the point of this screen is to reach one person quickly.
+ *
+ * Applying: Prioritize Intent (reaching a person is the action, so Call and
+ * Message sit together rather than Message living on another screen), Zen of
+ * Clarity (one primary action, one secondary, contact edits behind the match
+ * row), Chunking (four results, not a scrolling list), and the Safety
+ * Principle — matches render between the readout and the keypad, which is
+ * where every system dialer has put them for fifteen years.
  */
-import { Delete, Phone } from "lucide-react";
+import { rankDialerCandidates, type DialerMatch } from "@loonext/shared";
+import { Delete, MessageSquare, Phone, UserPlus, Users } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -48,6 +67,7 @@ const KEYS = [
 ] as const;
 
 export function Dialer({ trigger }: { trigger: ReactNode }) {
+  const router = useRouter();
   const softphone = useSoftphone();
   const numbers = useNumbers();
   const active = (numbers.data?.data ?? []).filter(
@@ -60,15 +80,14 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
   const [fromId, setFromId] = useState<string | undefined>(undefined);
   const [calling, setCalling] = useState(false);
 
-  // Who you are about to call, if they are already on file. Both phone apps
-  // show this under the readout; web showed the bare digits, so dialling a
-  // number you already had in contacts told you nothing, and the call chip
-  // said "(416) 555-0182" instead of the customer's name.
+  // Who you are about to reach, from the crew's own contacts. #459: TWO digits
+  // is the floor now rather than four, because two keys is a normal way to
+  // reach for a name ("Bo…"). The server only widens to names when asked, so a
+  // short query still means a number search unless it can also be a name.
   const [debounced, setDebounced] = useState("");
   useEffect(() => {
     const typed = digits.replace(/\D/g, "");
-    // Under 4 digits every contact matches; the search is not worth running.
-    if (typed.length < 4) {
+    if (typed.length < 2) {
       setDebounced("");
       return;
     }
@@ -76,23 +95,69 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
     return () => clearTimeout(timer);
   }, [digits]);
 
-  const matches = useContacts(debounced);
-  const matchedName = useMemo(() => {
-    if (debounced === "") return null;
+  const matches = useContacts(debounced, { t9: true });
+  // Ranked by the shared matcher rather than "the first row whose number
+  // contains this", so an exact number beats a loose one and a first name
+  // beats a surname. The phones run the SAME function over their own results
+  // plus the device address book, so all three agree on who is at the top.
+  const ranked: DialerMatch[] = useMemo(() => {
+    if (debounced === "") return [];
     const rows = matches.data?.pages.flatMap((page) => page.data) ?? [];
-    const hit = rows.find((contact) =>
-      contact.phone_e164.replace(/\D/g, "").includes(debounced),
+    return rankDialerCandidates(
+      debounced,
+      rows.map((contact) => ({
+        name: contact.name,
+        number: contact.phone_e164,
+        source: "app" as const,
+        contactId: contact.id,
+      })),
     );
-    if (!hit) return null;
-    return hit.name?.trim() || formatPhone(hit.phone_e164);
   }, [debounced, matches.data]);
+
+  // The person the actions act on: whoever was picked from the list, else the
+  // top match for what has been typed. Picking is sticky so editing the number
+  // after picking somebody does not silently retarget the call.
+  const [picked, setPicked] = useState<DialerMatch | null>(null);
+  const target = picked ?? ranked[0] ?? null;
+  const matchedName = target?.label ?? null;
 
   // The server does the authoritative NANP validation; this just gates the
   // Call button so an obviously-too-short number can't be dialed.
   const canCall = digits.replace(/\D/g, "").length >= 10 && !calling;
 
   function press(key: string) {
+    // Editing the number after choosing somebody drops the choice: a call that
+    // went to the person you picked rather than the number on screen would be
+    // a call nobody could explain.
+    setPicked(null);
     setDigits((d) => (d.length >= 18 ? d : d + key));
+  }
+
+  function backspace() {
+    setPicked(null);
+    setDigits((d) => d.slice(0, -1));
+  }
+
+  /** Tapping a match fills the readout with it, which is what a keypad does. */
+  function pickMatch(match: DialerMatch) {
+    setPicked(match);
+    setDigits(match.number.replace(/\D/g, ""));
+  }
+
+  /** #459: the same person, the other verb. */
+  function message() {
+    const to = picked?.number ?? digits;
+    if (!to) return;
+    setOpen(false);
+    // The contact when we know them, the raw number when we do not — compose
+    // resolves both, and passing the id means the thread opens on the person
+    // rather than find-or-creating a second contact for a number we already
+    // have on file.
+    router.push(
+      picked?.contactId
+        ? `/inbox/new?contact=${encodeURIComponent(picked.contactId)}`
+        : `/inbox/new?to=${encodeURIComponent(to)}`,
+    );
   }
 
   async function call() {
@@ -142,7 +207,10 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) setDigits("");
+        if (!next) {
+          setDigits("");
+          setPicked(null);
+        }
       }}
     >
       <DialogTrigger asChild>{trigger}</DialogTrigger>
@@ -158,7 +226,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
             press(e.key);
           } else if (e.key === "Backspace") {
             e.preventDefault();
-            setDigits((d) => d.slice(0, -1));
+            backspace();
           } else if (
             e.key === "Enter" &&
             canCall &&
@@ -185,10 +253,39 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
             )}
           </div>
 
-          {matchedName && (
-            <p className="-mt-2 text-center text-sm font-medium text-primary">
-              {matchedName}
-            </p>
+          {/* #459: who this could be, best first. Between the readout and the
+              keypad, where every system dialer puts it. */}
+          {ranked.length > 0 ? (
+            <ul className="-mt-2 space-y-1" aria-label="Matching contacts">
+              {ranked.map((match) => {
+                const chosen = picked?.number === match.number;
+                return (
+                  <li key={`${match.number}-${match.contactId ?? ""}`}>
+                    <button
+                      type="button"
+                      onClick={() => pickMatch(match)}
+                      aria-pressed={chosen}
+                      className={`flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left transition-colors duration-100 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                        chosen ? "bg-accent" : ""
+                      }`}
+                    >
+                      <span className="truncate text-sm font-medium text-app-ink">
+                        {match.label}
+                      </span>
+                      <span className="shrink-0 text-xs tabular-nums text-app-muted-2">
+                        {formatPhone(match.number)}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            matchedName && (
+              <p className="-mt-2 text-center text-sm font-medium text-primary">
+                {matchedName}
+              </p>
+            )
           )}
 
           {active.length > 1 && (
@@ -228,15 +325,59 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
               <Phone strokeWidth={1.75} />
               Call
             </Button>
+            {/* #459: the other verb, and the one a trades crew uses more. It is
+                secondary because this screen is the dialer, not because texting
+                matters less. */}
+            <Button
+              variant="outline"
+              onClick={message}
+              disabled={!canCall}
+              aria-label="Send a message instead"
+            >
+              <MessageSquare strokeWidth={1.75} />
+              Text
+            </Button>
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setDigits((d) => d.slice(0, -1))}
+              onClick={backspace}
               disabled={!digits}
               aria-label="Delete last digit"
             >
               <Delete strokeWidth={1.75} />
             </Button>
+          </div>
+
+          {/* #459: the two ways out of the keypad. "Add contact" only when the
+              number is dialable and unknown, because offering to save somebody
+              already on file is an offer that does nothing. */}
+          <div className="flex items-center justify-between gap-2 border-t border-app-line pt-3 text-sm">
+            <Link
+              href="/contacts"
+              onClick={() => setOpen(false)}
+              className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 font-medium text-app-muted-2 transition-colors duration-100 hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Users strokeWidth={1.75} className="size-4" />
+              Contacts
+            </Link>
+            {target?.contactId ? (
+              <Link
+                href={`/contacts/${target.contactId}`}
+                onClick={() => setOpen(false)}
+                className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 font-medium text-primary transition-colors duration-100 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Open contact
+              </Link>
+            ) : canCall ? (
+              <Link
+                href={`/contacts?new=${encodeURIComponent(digits)}`}
+                onClick={() => setOpen(false)}
+                className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 font-medium text-primary transition-colors duration-100 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <UserPlus strokeWidth={1.75} className="size-4" />
+                Add contact
+              </Link>
+            ) : null}
           </div>
         </div>
       </DialogContent>

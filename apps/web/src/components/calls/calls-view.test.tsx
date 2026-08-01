@@ -58,6 +58,9 @@ vi.mock("@/lib/softphone/provider", () => ({
 }));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
+  // #459: the dialer routes to compose and to /contacts, so the view now pulls
+  // a router in through it.
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
 import { CallsView } from "./calls-view";

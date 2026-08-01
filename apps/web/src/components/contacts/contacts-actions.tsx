@@ -8,6 +8,7 @@ import {
   Upload,
   UserPlus,
 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,12 @@ export function ContactsActions({
   importSource: ImportSource;
   onImportSourceChange: (source: ImportSource) => void;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // #459 ?new=<digits>: the dialer's "Add contact", which lands here rather
+  // than opening a second create form inside the keypad. One create form for
+  // the whole app means one set of validation rules to keep true.
+  const newFromDialer = searchParams.get("new");
   const exportContacts = useExportContacts();
   const [exportError, setExportError] = useState<string | null>(null);
   const setImportSource = onImportSourceChange;
@@ -134,7 +141,17 @@ export function ContactsActions({
         </p>
       )}
 
-      <NewContactDialog open={creating} onOpenChange={setCreating} />
+      <NewContactDialog
+        open={creating || newFromDialer !== null}
+        onOpenChange={(next) => {
+          setCreating(next);
+          // #459: closing a dialer-opened dialog drops the query parameter, so
+          // a later reload of /contacts does not reopen a form somebody
+          // already dismissed.
+          if (!next && newFromDialer !== null) router.replace("/contacts");
+        }}
+        prefillPhone={newFromDialer ?? ""}
+      />
 
       {canImport && (
         <>

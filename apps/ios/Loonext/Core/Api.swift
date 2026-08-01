@@ -185,11 +185,20 @@ struct ContactsApi: Sendable {
         companyId: String,
         q: String? = nil,
         cursor: String? = nil,
-        limit: Int = 25
+        limit: Int = 25,
+        /// #459: read the digits in `q` as keypad letters too, so 2-6-2 finds
+        /// "Bob". Opt-in, because in a search box "416" means an area code and
+        /// quietly returning names as well would answer a question nobody asked.
+        t9: Bool = false
     ) async throws -> Page<Contact> {
         try await api.get(
             "/v1/contacts",
-            query: ["q": q, "cursor": cursor, "limit": String(limit)],
+            query: [
+                "q": q,
+                "cursor": cursor,
+                "limit": String(limit),
+                "t9": (t9 && !(q ?? "").isEmpty) ? "1" : nil
+            ],
             companyId: companyId
         )
     }

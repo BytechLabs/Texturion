@@ -482,6 +482,10 @@ fun ShellContent(
     onOpenContact: (contactId: String) -> Unit,
     onOpenNotifications: () -> Unit,
     onComposeNew: (prefillContactId: String?) -> Unit,
+    /** #459: text a raw number from the dialer, with no contact to point at. */
+    onComposeTo: (phone: String) -> Unit,
+    /** #459: the dialer's way out to the contacts list. */
+    onOpenContacts: () -> Unit,
     onOpenCalls: () -> Unit,
     onViewedConversationChanged: (conversationId: String?) -> Unit,
 ) {
@@ -503,6 +507,9 @@ fun ShellContent(
         ShellTab.Calls -> CallsScreen(
             graph, companyId, me, modifier,
             openConversation = { onOpenThread(it, null) },
+            onComposeTo = onComposeTo,
+            onOpenContact = onOpenContact,
+            onOpenContacts = onOpenContacts,
         )
 
         ShellTab.Tasks -> TasksTab(

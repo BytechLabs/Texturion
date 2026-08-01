@@ -18,6 +18,10 @@ struct NewConversationView: View {
     let companyId: String
     let me: Me
     let prefillContactId: String?
+    /// #459: a raw number to seed the recipient with, from the dialer's Text
+    /// action. Ignored when `prefillContactId` resolves — a contact we already
+    /// have is a better answer than the digits that found them.
+    var prefillPhone: String?
     let onCreated: @MainActor (String) -> Void
     let onBack: @MainActor () -> Void
 
@@ -44,6 +48,7 @@ struct NewConversationView: View {
                     businessName: businessName,
                     companySignature: companySignature,
                     selectedContact: selectedContact,
+                    prefillPhone: selectedContact == nil ? prefillPhone : nil,
                     onContactChange: { selectedContact = $0 },
                     onCreated: onCreated,
                     onBack: onBack
@@ -80,11 +85,16 @@ private struct NewConversationLoaded: View {
     /// #393: the company-wide signature, before the per-customer check.
     let companySignature: String?
     let selectedContact: Contact?
+    /// #459: the dialer's number, seeded into the recipient field once.
+    var prefillPhone: String?
     let onContactChange: @MainActor (Contact?) -> Void
     let onCreated: @MainActor (String) -> Void
     let onBack: @MainActor () -> Void
 
     @State private var recipientInput = ""
+    /// Applied once. Re-seeding on every render would fight the person the
+    /// moment they cleared the field to pick somebody else.
+    @State private var prefillApplied = false
     @State private var contactMatches: [Contact] = []
     @State private var fromNumberId: String?
     @State private var composer: ComposerState?
@@ -149,6 +159,13 @@ private struct NewConversationLoaded: View {
         .background(BrandColor.canvas.ignoresSafeArea())
         .onAppear {
             if fromNumberId == nil { fromNumberId = numbers.first?.id }
+            // #459: the number the dialer had on screen. Seeded into the field
+            // rather than committed as a recipient, so the person can still see
+            // and correct what they dialed.
+            if let prefillPhone, !prefillApplied {
+                prefillApplied = true
+                recipientInput = Nanp.formatAsYouType(prefillPhone)
+            }
             if composer == nil {
                 composer = ComposerState(
                     draftKey: ComposerDrafts.newConversation,

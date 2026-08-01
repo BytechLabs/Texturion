@@ -194,15 +194,34 @@ export const contactsRoutes = new Hono<AppEnv>();
  *
  * Three digits is the floor: a shorter fragment matches most of a contact list.
  */
-export function contactSearchOr(rawQ: string): string {
+export function contactSearchOr(rawQ: string, t9 = false): string {
   const q = orIlikeValue(rawQ);
   const terms = [`name.ilike.*${q}*`, `phone_e164.ilike.*${q}*`];
   const digits = rawQ.replace(/\D/g, "");
   if (digits.length >= 3 && digits !== q) {
     terms.push(`phone_e164.ilike.*${digits}*`);
   }
+  // #459: the dialer asks for this explicitly and the contacts search box never
+  // does. Typing "416" in a search box means an area code, and quietly also
+  // returning every name whose keypad letters spell 416 would make a text
+  // search answer a question nobody asked. On a keypad it is the whole point.
+  //
+  // Two patterns, because the match rule is per-word: the first word, and any
+  // later one. Matching mid-word would find "Alaska" for L-A-S, and a list that
+  // returns names nobody typed is one people stop reading.
+  if (t9 && digits.length >= T9_MIN_DIGITS && digits === rawQ) {
+    terms.push(`name_t9.ilike.${digits}*`, `name_t9.ilike.* ${digits}*`);
+  }
   return terms.join(",");
 }
+
+/**
+ * Fewest digits that will run a name search. Two, because two letters is a
+ * normal way to reach for somebody and the dialer caps what it shows anyway.
+ * Mirrors MIN_NAME_DIGITS in `@loonext/shared`'s dialer matcher, which ranks
+ * the same rows once the clients merge in the phone's own address book.
+ */
+export const T9_MIN_DIGITS = 2;
 
 contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (c) => {
   const limit = parseLimit(c, 25, 100);
@@ -219,7 +238,9 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
     if (rawQ.length > 200) {
       throw new ApiError("validation_failed", "q: too long (max 200).");
     }
-    query = query.or(contactSearchOr(rawQ));
+    // #459: `t9=1` is the dialer saying "these digits may be a name". Opt-in so
+    // the contacts search box keeps meaning exactly what it meant.
+    query = query.or(contactSearchOr(rawQ, c.req.query("t9") === "1"));
   }
   if (cursor) {
     query = query.or(keysetFilter("created_at", cursor));

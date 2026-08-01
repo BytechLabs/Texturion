@@ -103,6 +103,45 @@ describe("GET /v1/contacts", () => {
     expect(call.url.searchParams.get("select")).not.toContain("notes");
   });
 
+  it("#459: leaves the search box alone — digits do not become a name search", async () => {
+    // Typing "416" in the contacts search box means an area code. Quietly also
+    // returning every name whose keypad letters spell 416 would make a text
+    // search answer a question nobody asked, so T9 is opt-in.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(app, env, await auth.token(), "/v1/contacts?q=416", {
+      companyId: COMPANY_ID,
+    });
+    expect(sb.find("GET", "/rest/v1/contacts")[0].url.searchParams.get("or"))
+      .not.toContain("name_t9");
+  });
+
+  it("#459: t9=1 makes the keypad a name search, at word starts only", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    // 2-6-2 spells BOB.
+    await apiRequest(app, env, await auth.token(), "/v1/contacts?q=262&t9=1", {
+      companyId: COMPANY_ID,
+    });
+    const or = sb.find("GET", "/rest/v1/contacts")[0].url.searchParams.get("or") ?? "";
+    // A first word, and any later word. NOT a bare *262* — matching mid-word
+    // finds "Alaska" for L-A-S, and a list nobody typed is one people stop
+    // reading.
+    expect(or).toContain("name_t9.ilike.262*");
+    expect(or).toContain("name_t9.ilike.* 262*");
+    expect(or).not.toContain("name_t9.ilike.*262*");
+    // The number search it always did is untouched.
+    expect(or).toContain("phone_e164.ilike.*262*");
+  });
+
   it("decorates rows with opted_out (G6 badge) and last_activity_at (conversation activity, never updated_at) via batched lookups", async () => {
     const OTHER_ID = "eeeeeeee-1111-4222-8333-444444444444";
     const sb = stubWithRole("member");

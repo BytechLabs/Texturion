@@ -128,8 +128,16 @@ struct CallsView: View {
                     numbers: (me.company?.numbers ?? []).filter {
                         $0.status == NumberStatus.active && $0.number_e164 != nil
                     },
-                    lookupContact: { typed in await lookupContact(typed) },
-                    onAddContact: { e164 in activeSheet = .addContact(prefill: e164) }
+                    lookupMatches: { typed in await lookupMatches(typed) },
+                    onAddContact: { e164 in activeSheet = .addContact(prefill: e164) },
+                    // #459: the dialer's other three exits. A raw number for the
+                    // text, because the point of dialing a stranger is that we
+                    // have never met them.
+                    onMessage: { number in AppRouter.shared.composeTo = number },
+                    onOpenContact: { contactId in
+                        AppRouter.shared.openContactId = contactId
+                    },
+                    onOpenContacts: { AppRouter.shared.openContacts = true }
                 )
             case .addContact(let prefill):
                 CreateContactSheet(
@@ -160,14 +168,28 @@ struct CallsView: View {
         }
     }
 
-    /// Correlate typed digits with a saved contact (name shows live in the
-    /// dialer). The server `q` matches name + phone; double-check the digits
-    /// actually appear in the hit's number (the Android `lookupContact` twin).
-    private func lookupContact(_ typed: String) async -> String? {
+    /// #459: who the typed digits could be, best first.
+    ///
+    /// `t9: true` is what makes the keypad a name search — the server matches
+    /// contact names by their keypad letters (2 is ABC, so 2-6-2 finds "Bob").
+    /// The ranking then runs locally through the same matcher the browser and
+    /// Android use, so all three agree on who is at the top of the list.
+    ///
+    /// iOS reads no device address book yet, so every candidate here is one of
+    /// ours; the matcher's app-beats-device precedence costs nothing today and
+    /// is already right when that lands.
+    private func lookupMatches(_ typed: String) async -> [DialerMatch] {
         guard let page = try? await graph.contactsApi.contacts(
-            companyId: companyId, q: typed, limit: 5
-        ) else { return nil }
-        return dialerContactName(matching: typed, in: page.data)
+            companyId: companyId, q: typed, limit: 10, t9: true
+        ) else { return [] }
+        return rankDialerCandidates(
+            typed: typed,
+            candidates: page.data.map {
+                DialerCandidate(
+                    name: $0.name, number: $0.phone_e164, source: .app, contactId: $0.id
+                )
+            }
+        )
     }
 
     private var header: some View {

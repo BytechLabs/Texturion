@@ -98,20 +98,199 @@ func dialableE164(_ raw: String) -> String? {
     return nil
 }
 
+// MARK: - #459 dialer correlation
+
+/// Which book a dialer match came from. On an equal score APP beats DEVICE.
+enum DialerSource { case app, device }
+
+/// One thing that could be who you meant. App contacts (ours) and device
+/// contacts (the phone's address book) collapse to this shape so the matcher
+/// never has to know which book it is reading.
+struct DialerCandidate {
+    var name: String?
+    var number: String
+    var source: DialerSource
+    /// Our contact id when this came from our own book; nil for device rows.
+    var contactId: String?
+
+    init(name: String?, number: String, source: DialerSource, contactId: String? = nil) {
+        self.name = name
+        self.number = number
+        self.source = source
+        self.contactId = contactId
+    }
+}
+
+/// A resolved match: what to show, what to dial, and where it came from.
+struct DialerMatch: Identifiable, Equatable {
+    var name: String
+    var number: String
+    var source: DialerSource
+    var contactId: String?
+    var score: Int
+
+    var id: String { number }
+}
+
+/// Fewest digits before a NUMBER match runs. Below this, the whole book matches.
+let minNumberDigits = 4
+
+/// Fewest digits before a NAME match runs. Two letters is how people reach.
+let minNameDigits = 2
+
+/// How many matches the dialer shows. Four is a glance; ten is a directory.
+let maxDialerMatches = 4
+
+/// Digit for a keypad letter, or nil when the character is not a letter.
+private func t9Digit(_ character: Character) -> Character? {
+    switch character {
+    case "a", "b", "c": return "2"
+    case "d", "e", "f": return "3"
+    case "g", "h", "i": return "4"
+    case "j", "k", "l": return "5"
+    case "m", "n", "o": return "6"
+    case "p", "q", "r", "s": return "7"
+    case "t", "u", "v": return "8"
+    case "w", "x", "y", "z": return "9"
+    default: return nil
+    }
+}
+
+/// A name as its keypad digits, one entry per word: "Bob Vance" gives
+/// ["262", "82623"].
+///
+/// Per word because the match rule is per word — typing the start of a surname
+/// has to find it, and letters buried mid-word must not. Split by hand rather
+/// than with a regex word boundary, which does not compile in a Swift regex
+/// literal and is a backspace character in the Kotlin twin.
+func t9Words(_ name: String) -> [String] {
+    var words: [String] = []
+    var current = ""
+    for character in name.lowercased() {
+        if let digit = t9Digit(character) {
+            current.append(digit)
+        } else if character.isNumber {
+            current.append(character) // "A1 Plumbing" is already keypad-shaped
+        } else {
+            if !current.isEmpty { words.append(current) }
+            current = ""
+        }
+    }
+    if !current.isEmpty { words.append(current) }
+    return words
+}
+
+/// National digits: the bare digits with a single leading NANP country code
+/// dropped, so "+14165550123", "14165550123" and "4165550123" compare equal.
+func nationalDigits(_ value: String) -> String {
+    let digits = String(value.filter(\.isNumber))
+    if digits.count == 11 && digits.hasPrefix("1") { return String(digits.dropFirst()) }
+    return digits
+}
+
+/// Score a candidate against the typed digits. Zero means no match.
+///
+/// The scale is spread out rather than 1-2-3 so a number match and a name match
+/// can be compared without either category swallowing the other: an exact
+/// number always wins, a name that STARTS with what you typed beats a number
+/// that merely contains it, and a surname beats nothing but noise.
+func scoreDialerCandidate(typed: String, candidate: DialerCandidate) -> Int {
+    let typedDigits = nationalDigits(typed)
+    guard !typedDigits.isEmpty else { return 0 }
+
+    var best = 0
+
+    let candidateDigits = nationalDigits(candidate.number)
+    if !candidateDigits.isEmpty && typedDigits.count >= minNumberDigits {
+        if candidateDigits == typedDigits {
+            best = 100
+        } else if candidateDigits.hasSuffix(typedDigits) {
+            best = 80
+        } else if candidateDigits.contains(typedDigits) {
+            best = 20
+        }
+    }
+
+    let name = (candidate.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if !name.isEmpty && typedDigits.count >= minNameDigits {
+        let words = t9Words(name)
+        for (index, word) in words.enumerated() where word.hasPrefix(typedDigits) {
+            // The first word is the one people reach for, so it ranks above a
+            // match on a surname or the second half of a business name.
+            let nameScore = index == 0 ? 60 : 40
+            if nameScore > best { best = nameScore }
+        }
+    }
+
+    return best
+}
+
+/// The matches for what has been typed, best first, capped at `limit`.
+///
+/// Ties break toward our own book and then toward the order the caller passed —
+/// callers pass app candidates first, so the crew's shared contacts win over a
+/// personal phone entry for the same person. Duplicates collapse by number
+/// AFTER sorting: collapsing on the way in keeps whichever row arrived first,
+/// which quietly hands the tie to a device contact whenever it is listed first.
+///
+/// The hand-port of `packages/shared/src/dialer.ts`; `DialerCorrelationTests`
+/// asserts the same cases its vitest twin does.
+func rankDialerCandidates(
+    typed: String,
+    candidates: [DialerCandidate],
+    limit: Int = maxDialerMatches
+) -> [DialerMatch] {
+    var scored: [(order: Int, match: DialerMatch)] = []
+
+    for (order, candidate) in candidates.enumerated() {
+        let score = scoreDialerCandidate(typed: typed, candidate: candidate)
+        guard score > 0 else { continue }
+        // A candidate with no dialable digits is a dead row.
+        guard !nationalDigits(candidate.number).isEmpty else { continue }
+        let name = (candidate.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        scored.append((
+            order,
+            DialerMatch(
+                name: name.isEmpty ? formatPhone(candidate.number) : name,
+                number: candidate.number,
+                source: candidate.source,
+                contactId: candidate.contactId,
+                score: score
+            )
+        ))
+    }
+
+    scored.sort { lhs, rhs in
+        if lhs.match.score != rhs.match.score { return lhs.match.score > rhs.match.score }
+        if lhs.match.source != rhs.match.source { return lhs.match.source == .app }
+        return lhs.order < rhs.order
+    }
+
+    var seen = Set<String>()
+    var unique: [DialerMatch] = []
+    for entry in scored {
+        let key = nationalDigits(entry.match.number)
+        if seen.contains(key) { continue }
+        seen.insert(key)
+        unique.append(entry.match)
+        if unique.count >= limit { break }
+    }
+    return unique
+}
+
 /// The saved-contact name matching typed dialer digits (#186 item 5), or nil.
-/// The server `q` matches name AND phone, so we double-check the typed digits
-/// actually appear in the hit's number before lighting the correlation — a
-/// name-only match on unrelated digits must never mislabel the dial. A blank
-/// name falls back to the formatted number. The Android `lookupContact` twin;
-/// kept pure so the correlation is unit-testable without a device.
+/// Now the top of the same ranking the list below the readout uses, so the name
+/// under the number and the first row can never disagree.
 func dialerContactName(matching typed: String, in contacts: [Contact]) -> String? {
-    let digits = typed.filter(\.isNumber)
-    guard !digits.isEmpty else { return nil }
-    guard let match = contacts.first(where: {
-        $0.phone_e164.filter(\.isNumber).contains(digits)
-    }) else { return nil }
-    if let name = match.name, !name.isBlank { return name }
-    return formatPhone(match.phone_e164)
+    rankDialerCandidates(
+        typed: typed,
+        candidates: contacts.map {
+            DialerCandidate(
+                name: $0.name, number: $0.phone_e164, source: .app, contactId: $0.id
+            )
+        },
+        limit: 1
+    ).first?.name
 }
 
 // MARK: - #210 ongoing call card

@@ -332,3 +332,15 @@ export type {
   SnoozePresetId,
   SnoozeReturnShape,
 } from "./snooze";
+
+export {
+  MAX_DIALER_MATCHES,
+  MIN_NAME_DIGITS,
+  MIN_NUMBER_DIGITS,
+  bestDialerMatch,
+  nationalDigits,
+  rankDialerCandidates,
+  scoreDialerCandidate,
+  t9Words,
+} from "./dialer";
+export type { DialerCandidate, DialerMatch, DialerSource } from "./dialer";

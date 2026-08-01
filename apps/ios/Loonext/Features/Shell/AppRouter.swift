@@ -17,6 +17,8 @@ import Foundation
 ///   shell).
 /// - `openContacts` — show the contacts surface (nav-less destination reached
 ///   from the account sheet).
+/// - `composeTo` — open compose seeded with a raw phone number (#459, the
+///   dialer's Text action).
 ///
 /// Reports:
 /// - `viewedConversationId` — the thread currently on screen (nil when none).
@@ -34,6 +36,10 @@ import Foundation
     @Published var openContactId: String?        // command: open this contact's detail (shell pushes, then clears)
     @Published var openCalls: Bool = false        // command: show the calls tab
     @Published var openContacts: Bool = false     // command: show the contacts surface
+    // #459 command: compose to a raw number (the dialer's Text action). A
+    // number rather than a contact id, because the point of dialing a stranger
+    // is that we have never met them.
+    @Published var composeTo: String?
     // command: open settings AT one section, for a surface offering a specific
     // setting as the fix for what the reader is looking at (shell opens the
     // sheet seeded with it, then clears)
