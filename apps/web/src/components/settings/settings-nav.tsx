@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import {
   visibleSettingsSections,
@@ -28,6 +29,8 @@ import {
 } from "@loonext/shared";
 
 import { useActiveCompany } from "@/lib/company/provider";
+import { shouldShowWhatsNewMarker } from "@/lib/whats-new/seen";
+import { useCompany } from "@/lib/api/companies";
 import { cn } from "@/lib/utils";
 
 export interface SettingsSection {
@@ -171,6 +174,19 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     description: "Get in touch when something isn't right",
     icon: LifeBuoy,
   },
+  {
+    // #321 — improvement was invisible. The product ships almost daily and a
+    // customer who signed up in June would never encounter reply drafting,
+    // voicemail transcripts or saved views, because nothing pointed at them.
+    // Beside Help because it is the other thing you go looking for rather than
+    // pass through, and because neither belongs in the middle of the list a
+    // person scans while trying to change their hours.
+    id: "whatsNew",
+    slug: "whats-new",
+    label: "What's new",
+    description: "What shipped recently, and where to find it",
+    icon: Sparkles,
+  },
 ];
 
 /**
@@ -190,6 +206,20 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
     (section) => section.id,
     role,
   );
+
+  // #321: a dot, and nothing else. The audience is holding a phone on a job
+  // site, so anything that blocks the inbox is a failure — this marks that
+  // there is something behind a link somebody chooses to follow.
+  //
+  // Computed in an effect because it reads localStorage: doing it during
+  // render would make the server pass and the first client pass disagree, and
+  // a hydration mismatch on the settings nav is a worse bug than a dot that
+  // appears a frame late.
+  const company = useCompany();
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
+  useEffect(() => {
+    setShowWhatsNew(shouldShowWhatsNewMarker(company.data?.created_at ?? null));
+  }, [company.data?.created_at, pathname]);
 
   if (asList) {
     return (
@@ -214,6 +244,12 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
                   {section.description}
                 </span>
               </span>
+              {section.id === "whatsNew" && showWhatsNew && (
+                <span
+                  aria-label="Something new"
+                  className="size-2 shrink-0 rounded-full bg-primary"
+                />
+              )}
               <ChevronRight
                 className="size-4 shrink-0 text-muted-foreground"
                 strokeWidth={1.75}
@@ -246,6 +282,12 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
           >
             <Icon className="size-4 shrink-0" strokeWidth={1.75} />
             {section.label}
+            {section.id === "whatsNew" && showWhatsNew && (
+              <span
+                aria-label="Something new"
+                className="size-2 shrink-0 rounded-full bg-primary"
+              />
+            )}
           </Link>
         );
       })}

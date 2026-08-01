@@ -54,6 +54,9 @@ export type SettingsSectionId =
   | "account"
   | "devices"
   | "help"
+  // #321: what shipped, in the product. Beside Help because it is the other
+  // thing you go looking for rather than pass through.
+  | "whatsNew"
   | "diagnostics";
 
 /**
@@ -71,6 +74,8 @@ const SECTION_CAPABILITY: Record<SettingsSectionId, Capability> = {
   notifications: "workspace.access",
   devices: "workspace.access",
   help: "workspace.access",
+  // Everybody paying for the product is entitled to know it got better.
+  whatsNew: "workspace.access",
   diagnostics: "workspace.access",
 
   // The business's, each behind the axis that actually governs it.
