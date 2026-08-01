@@ -42,6 +42,9 @@ vi.mock("@/lib/api/reports", () => ({
     isError: false,
     refetch: vi.fn(),
   }),
+  // #354: this view now also mounts the pipeline panel. Loaded-with-no-data,
+  // so the panel renders nothing and these assertions stay about the queue.
+  usePipelineReport: () => ({ data: undefined, isLoading: false }),
 }));
 vi.mock("@/lib/api/for-you", () => ({
   useForYou: () => ({

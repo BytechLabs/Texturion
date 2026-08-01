@@ -5,6 +5,7 @@
  * server computes all of it: this hook does no arithmetic, because a median
  * computed twice is a median that can disagree with itself.
  */
+import type { PipelineReport, PipelineStage } from "@loonext/shared";
 import { useQuery } from "@tanstack/react-query";
 
 import { useCompanyId } from "@/lib/company/provider";
@@ -66,6 +67,42 @@ export function useResponseTime(days: ResponseTimeWindow = 30) {
     queryKey: keys.responseTime(companyId, days),
     queryFn: () =>
       apiFetch<ResponseTimeReport>("/v1/reports/response-time", {
+        companyId,
+        searchParams: { days: String(days) },
+      }),
+  });
+}
+
+/**
+ * #354 — GET /v1/reports/pipeline.
+ *
+ * Same rule as its neighbour above: every number is computed server-side. A win
+ * rate computed twice is a win rate that can disagree with itself, and this one
+ * is a claim about the customer's own business.
+ */
+export interface PipelineStageTag {
+  stage: PipelineStage;
+  tag_id: string;
+  name: string;
+}
+
+export interface PipelineReportResponse {
+  days: number;
+  current: PipelineReport;
+  previous: PipelineReport;
+  win_rate: number | null;
+  previous_win_rate: number | null;
+  /** Null when there is not enough decided work to say anything honest. */
+  insight: string | null;
+  stages: PipelineStageTag[];
+}
+
+export function usePipelineReport(days: ResponseTimeWindow = 30) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: keys.pipeline(companyId, days),
+    queryFn: () =>
+      apiFetch<PipelineReportResponse>("/v1/reports/pipeline", {
         companyId,
         searchParams: { days: String(days) },
       }),

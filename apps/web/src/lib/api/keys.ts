@@ -148,6 +148,9 @@ export const keys = {
    * new one loads — a stale median next to a fresh label is a number the crew
    * would reasonably believe.
    */
+  /** #354: the pipeline report, keyed like its neighbour. */
+  pipeline: (companyId: string, days: number) =>
+    [companyId, "reports", "pipeline", days] as const,
   responseTime: (companyId: string, days: number) =>
     [companyId, "response-time", days] as const,
 

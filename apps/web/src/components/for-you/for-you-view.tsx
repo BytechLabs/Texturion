@@ -34,6 +34,7 @@ import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 import { callOutcomeLabel } from "@/lib/format/call";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatRelativeTime } from "@/lib/format/time";
+import { PipelineCard } from "@/components/for-you/pipeline-card";
 import { ResponseTimeCard } from "@/components/for-you/response-time-card";
 import { WhileYouWait } from "@/components/for-you/while-you-wait";
 import { cn } from "@/lib/utils";
@@ -830,6 +831,9 @@ function ForYouSections({ data }: { data: ForYou }) {
           owner reads, not a control they operate.* */}
       <div className="lg:col-span-2">
         <ResponseTimeCard />
+        {/* #354: beside its neighbour, and absent entirely until there is
+            something true to say. */}
+        <PipelineCard />
       </div>
 
       {/* #416/D53: shown to EVERY member, not owners and admins only. The

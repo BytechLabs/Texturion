@@ -1,4 +1,5 @@
 import { PLAN_SEATS } from "@loonext/shared";
+import type { PipelineStage } from "@loonext/shared";
 import type { DeferralKind } from "@loonext/shared";
 
 /**
@@ -454,6 +455,13 @@ export interface Tag {
   id: string;
   name: string;
   color: string | null;
+  /**
+   * #354: which marketed pipeline stage this tag IS, independent of what the
+   * crew renamed it to. Null for tags a crew invented, absent on the embedded
+   * summaries. Everything that reads the pipeline reads this — matching on the
+   * NAME is the coupling the stage key exists to remove.
+   */
+  pipeline_stage?: PipelineStage | null;
   /** Present on GET /v1/tags rows; absent from embedded tag summaries. */
   created_at?: string;
   updated_at?: string;
