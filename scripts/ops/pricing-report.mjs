@@ -200,17 +200,51 @@ await runScript(
       );
     }
 
-    // --- Module attach --------------------------------------------------
+    // --- Module attach, now ---------------------------------------------
     const attach = new Map();
     for (const { row } of priced) {
       for (const id of row.modules ?? []) {
         attach.set(id, (attach.get(id) ?? 0) + 1);
       }
     }
-    console.log("\n  Add-ons attached");
+    console.log("\n  Add-ons attached right now");
     for (const id of Object.keys(MODULE_CATALOG)) {
       console.log(
         `    ${pad(id, 18)} ${attach.get(id) ?? 0} of ${priced.length}`,
+      );
+    }
+
+    // --- Expansion and contraction ---------------------------------------
+    //
+    // #255 asks for these as first-class events. They already were: the attach
+    // and drop timestamps have been on `company_modules` since it existed, so
+    // this is a read rather than new instrumentation, and the history we
+    // already have is the more valuable half.
+    //
+    // Split by WHEN, because a module attached during checkout is a
+    // pricing-page decision and one attached weeks later is expansion. A total
+    // that mixes them answers neither question.
+    const moves = await db.rpc("api_module_movements", { p_days: 90 });
+    if (moves.error) {
+      throw new Error(`api_module_movements failed: ${moves.error.message}`);
+    }
+    const moved = moves.data ?? [];
+    console.log("\n  Add-on movement, last 90 days");
+    if (moved.length === 0) {
+      console.log("    nothing attached or dropped in the window.");
+    } else {
+      console.log(
+        `    ${pad("add-on", 18)}${pad("at signup", 12)}${pad("later", 9)}dropped`,
+      );
+      for (const m of moved) {
+        console.log(
+          `    ${pad(m.module, 18)}${pad(m.attached_at_signup, 12)}` +
+            `${pad(m.attached_later, 9)}${m.dropped}`,
+        );
+      }
+      console.log(
+        "    (at signup is a pricing-page decision; later is expansion, which\n" +
+          "     is the one saying the product earned more after it was sold.)",
       );
     }
 

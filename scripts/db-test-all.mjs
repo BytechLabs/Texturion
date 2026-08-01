@@ -112,6 +112,7 @@ const SUITES = [
   "conversation_snooze",
   "saved_views",
   "pipeline_stages",
+  "pricing_snapshot",
 ];
 
 const args = process.argv.slice(2);
