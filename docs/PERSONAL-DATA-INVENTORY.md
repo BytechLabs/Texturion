@@ -115,7 +115,7 @@ gets overlooked.
 | `webhook_rejections` | signature failures | Rolling |
 | `inbound_canary_runs` | our own numbers only | Rolling |
 | `data_exports` | a notify-email id, and the export objects **contain everything above** | Expired exports deleted at 7 days (#378) |
-| `usage_events`, `usage_alerts`, `egress_events`, `company_ai_usage`, `call_records`, `provider_costs`, `billing_disputes`, `prepayments` | volumes and Stripe ids; no names or bodies | Billing record |
+| `usage_events`, `usage_alerts`, `egress_events`, `company_ai_usage`, `call_records`, `provider_costs`, `billing_disputes`, `prepayments`, `referrals` | volumes and Stripe ids; no names or bodies | Billing record |
 
 ## 6. No personal data
 
