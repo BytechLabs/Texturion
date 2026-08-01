@@ -12,20 +12,10 @@ name: Checks
 # It deploys NOTHING. Passing here means "this is safe to merge"; what reaches
 # customers is decided in main.yml, and only when the release PR merges (D50).
 on:
-  # #493: NOT on the release-please branch. Those pull requests are opened by a
-  # bot, so GitHub parks their runs at `action_required` until somebody clicks
-  # approve — which meant every release PR carried two permanently yellow checks
-  # that had never executed and never would. A check that cannot run is worse
-  # than no check: it looks like a gate and gates nothing.
-  #
-  # Nothing is lost by skipping it. The PR contains version numbers and
-  # changelog text, this exact gate already ran on the push that produced it,
-  # and it runs AGAIN on the push that merges it — before `Version & changelog`
-  # and before `Ship to production`, which is the run that decides whether
-  # anything reaches customers (D50). A broken release PR fails there and ships
-  # nothing, which is the behaviour either way.
+  # #493: the release-please pull request is skipped at JOB level, not here.
+  # `branches-ignore` filters the BASE branch and those PRs target `main`, so a
+  # pattern here never matches — see the condition on each job below.
   pull_request:
-    branches-ignore: [release-please--**]
   workflow_call:
 
 # #122: cancel superseded runs on a pull request. Pushing a new commit
@@ -41,6 +31,13 @@ concurrency:
 jobs:
   schema:
     name: SQL tests (Supabase)
+    # #493: skip the release-please pull request. `branches-ignore` in the
+    # trigger CANNOT do this — it filters the BASE branch, and these PRs target
+    # `main` like any other. The head branch is only readable here.
+    #
+    # `github.head_ref` is empty for push and workflow_call, so this condition
+    # is true on every path except the one it exists to skip.
+    if: "!startsWith(github.head_ref, 'release-please--')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -77,6 +74,13 @@ jobs:
 
   e2e:
     name: Launch-pass E2E (hermetic golden paths)
+    # #493: skip the release-please pull request. `branches-ignore` in the
+    # trigger CANNOT do this — it filters the BASE branch, and these PRs target
+    # `main` like any other. The head branch is only readable here.
+    #
+    # `github.head_ref` is empty for push and workflow_call, so this condition
+    # is true on every path except the one it exists to skip.
+    if: "!startsWith(github.head_ref, 'release-please--')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -128,6 +132,13 @@ jobs:
   # a type error or failing test lands without waiting for a full build.
   verify:
     name: Typecheck, lint, test
+    # #493: skip the release-please pull request. `branches-ignore` in the
+    # trigger CANNOT do this — it filters the BASE branch, and these PRs target
+    # `main` like any other. The head branch is only readable here.
+    #
+    # `github.head_ref` is empty for push and workflow_call, so this condition
+    # is true on every path except the one it exists to skip.
+    if: "!startsWith(github.head_ref, 'release-please--')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -267,6 +278,13 @@ jobs:
 
   build:
     name: Build (next + OpenNext + wrangler)
+    # #493: skip the release-please pull request. `branches-ignore` in the
+    # trigger CANNOT do this — it filters the BASE branch, and these PRs target
+    # `main` like any other. The head branch is only readable here.
+    #
+    # `github.head_ref` is empty for push and workflow_call, so this condition
+    # is true on every path except the one it exists to skip.
+    if: "!startsWith(github.head_ref, 'release-please--')"
     runs-on: ubuntu-latest
     env:
       # next build inlines these; web/src/env.ts fails the build if they are
@@ -364,6 +382,13 @@ jobs:
   # ---------------------------------------------------------------------------
   theme:
     name: Theme audit (authenticated surfaces, both schemes)
+    # #493: skip the release-please pull request. `branches-ignore` in the
+    # trigger CANNOT do this — it filters the BASE branch, and these PRs target
+    # `main` like any other. The head branch is only readable here.
+    #
+    # `github.head_ref` is empty for push and workflow_call, so this condition
+    # is true on every path except the one it exists to skip.
+    if: "!startsWith(github.head_ref, 'release-please--')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -461,6 +486,13 @@ jobs:
 
   android:
     name: Android (assemble + unit tests)
+    # #493: skip the release-please pull request. `branches-ignore` in the
+    # trigger CANNOT do this — it filters the BASE branch, and these PRs target
+    # `main` like any other. The head branch is only readable here.
+    #
+    # `github.head_ref` is empty for push and workflow_call, so this condition
+    # is true on every path except the one it exists to skip.
+    if: "!startsWith(github.head_ref, 'release-please--')"
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -504,6 +536,13 @@ jobs:
 
   ios:
     name: iOS (build + unit tests)
+    # #493: skip the release-please pull request. `branches-ignore` in the
+    # trigger CANNOT do this — it filters the BASE branch, and these PRs target
+    # `main` like any other. The head branch is only readable here.
+    #
+    # `github.head_ref` is empty for push and workflow_call, so this condition
+    # is true on every path except the one it exists to skip.
+    if: "!startsWith(github.head_ref, 'release-please--')"
     runs-on: macos-latest
     defaults:
       run:
