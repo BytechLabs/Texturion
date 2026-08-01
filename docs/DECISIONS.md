@@ -5955,3 +5955,111 @@ complaints, an address that will not unsubscribe, our sending domain damaged by
 abuse of the public form. Those are provider problems worth paying to make
 somebody else's. None of them exist yet, and the list is capped at 200 so none
 of them can grow quietly.
+
+---
+
+## D106 — a year is a prepayment, not a billing interval (#400, 2026-07-31)
+
+#400 asks for annual prices in the Stripe catalog: a twelve-month interval
+alongside the monthly one, priced at roughly ten months for twelve. The cash
+argument is right and the churn argument is right. **The mechanism is wrong for
+this product**, and the reason is specific enough to be worth writing down
+before anybody builds the obvious thing.
+
+**Stripe subscriptions have one interval for every item.** Our subscriptions
+are not flat — they carry metered SMS overage, metered voice overage, and
+per-plan allowances that reset each period. Move the subscription to a
+twelve-month interval and every one of those moves with it:
+
+- **The allowance becomes annual.** A Starter's 500 included segments a month
+  becomes 6,000 a year, and a crew that lands a big job in January can spend the
+  whole year's texts in three weeks. What happens next is worse than a bill: the
+  overage cap (`overage_cap_multiplier`, default 3×) is enforced against the
+  PERIOD, so they hit the ceiling in February and are throttled until December.
+  We would have taken a year's money and then stopped the product working.
+- **Overage collects once, at the end.** Metered items invoice at period end,
+  so twelve months of carrier cost would sit uncollected. `billing_thresholds`
+  — Stripe's mechanism for invoicing mid-period when usage crosses an amount —
+  **does not exist in the pinned SDK (22.3.0)**, so there is no supported way
+  to pull that forward.
+- **Every plan-change path assumes a month.** Upgrades prorate onto an invoice
+  issued now; downgrades ride a subscription schedule to `current_period_end`.
+  On an annual interval a Starter who hires a fourth person in month two either
+  eats a prorated Pro charge for ten months up front or waits ten months to
+  downgrade. #400's ask 4 asks us to "work out the mid-term seat change"; on an
+  annual interval there is no version of it that is not a surprise.
+
+**So the year is sold as a prepayment, and the subscription stays monthly.**
+
+The customer pays $290 once. That lands as a **credit on their Stripe
+customer**, which every subsequent monthly invoice draws down before touching a
+card. Nothing else changes: allowances reset monthly, the overage cap works
+monthly, overage bills monthly, proration and schedules behave exactly as they
+do today.
+
+What that buys, ask by ask:
+
+- **The cash arrives up front**, which was the entire point (#400's working
+  capital argument).
+- **Involuntary churn goes to zero for the covered year**, not down 92%. There
+  is no card charge to fail at all while credit remains — a strictly better
+  answer than #395's dunning work.
+- **The mid-term seat change stops being a problem.** An upgrade to Pro simply
+  costs more per month and draws the credit down faster. Nobody loses a
+  prepayment, and there is no proration to explain.
+- **The refund posture becomes arithmetic instead of judgement** (below).
+- **No allowance cliff.** This is the one the obvious design cannot fix.
+
+The visible cost is that the Stripe customer portal shows a monthly
+subscription with a credit balance rather than an "annual plan". That is a
+cosmetic difference, and arguably the more honest description of what was sold.
+
+### Ask 3 — the refund posture, decided
+
+`/legal/refunds` promises a full refund of the **first invoice** within 30 days
+of signing up, no deductions for texts already sent. A twelve-month prepayment
+cannot inherit that sentence, because the first invoice is now the year.
+
+**The posture: the 30-day guarantee covers the full prepayment, and after 30
+days the unused credit balance is refundable on request, less nothing.**
+
+- Inside 30 days it is the existing promise, applied to a bigger number. A
+  refund we would honour at $29 we honour at $290; anything else makes the
+  guarantee a trick that gets smaller as the customer commits more.
+- After 30 days the refundable amount is **the remaining Stripe credit
+  balance**, which is a number Stripe already tracks and which both sides can
+  read. Months already consumed are not refunded, because they were used.
+- Nothing is deducted for the discount. Refunding "at the monthly rate" — the
+  standard move, clawing back the two free months — turns the discount into a
+  penalty for leaving and is exactly the kind of term this product's legal
+  pages exist not to have.
+
+This is more generous than typical annual SaaS and deliberately so: we are
+asking a contractor to hand a new supplier a year of money, and the thing that
+makes that a reasonable ask is that they can get the unused part back.
+
+### Ask 5 — the tax question, stated rather than answered
+
+Under the monthly model, Stripe Tax computes on each invoice, at the customer's
+location, on the supply that month. The prepayment model keeps that intact:
+invoices are still monthly and still taxed the same way.
+
+**The open question is whether tax is due on the $290 at the moment it is
+collected.** In Canada GST/HST is generally payable on the earlier of the day
+payment is made or the day an invoice is issued — so collecting a year up front
+with tax charged only on the later monthly invoices may under-collect at the
+moment of sale. A customer-balance credit created through the API is not itself
+a taxable transaction, which is convenient for the mechanism and is exactly why
+it needs checking rather than assuming.
+
+**This is an accountant's question, not an engineering one, and it gates the
+first annual sale rather than the code.** What engineering owes it is a
+mechanism that can charge tax at collection if the answer says so — a one-time
+Checkout session with `automatic_tax` enabled does that, and is what the
+implementation should use, so the answer changes a flag rather than the design.
+
+### What would change this
+
+A flat-rate plan with no metered items. Every objection above comes from the
+subscription carrying usage; a product where a year is genuinely twelve
+identical months has no reason to avoid an annual interval.
