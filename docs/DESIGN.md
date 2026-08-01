@@ -1,5 +1,7 @@
 # Loonext — Design System & UX Decisions
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 Binding design decisions for the web app. Same authority as DECISIONS.md: implement, don't
 re-litigate. The buyer is a plumber, landscaper, cleaner, or salon owner — often on a phone,
 in a truck, between jobs. Every screen must feel calm, obvious, and fast. The emotional

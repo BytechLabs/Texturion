@@ -1,5 +1,7 @@
 # Destructive actions: undo, confirm, or neither (#295)
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 Every action in the product that destroys or hides something, classified. #295
 asked for this list because a shared undo primitive existed and nobody had
 enumerated what it covered — so "does this action have a guard" was answerable

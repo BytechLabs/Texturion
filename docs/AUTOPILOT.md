@@ -1,5 +1,7 @@
 # Autopilot
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 Project-agnostic autonomous loop: run `/autopilot` in any repo (the skill
 lives at `~/.claude/skills/autopilot/SKILL.md`). It discovers the project's
 own conventions, gates, and tracker on start.

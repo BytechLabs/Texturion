@@ -1,5 +1,7 @@
 # Environments — where things get tested
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 Short version: there is **one deployed environment (production)**, and that is a
 deliberate trade, not an oversight. What protects it is a real local stack, a CI
 pipeline that stands up an actual database, a guard on the only irreversible

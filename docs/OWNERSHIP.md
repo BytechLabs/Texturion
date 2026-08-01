@@ -1,5 +1,7 @@
 # Who owns a workspace, and how that changes
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 The owner role controls billing, the spending cap, phone numbers, and US
 texting. It is the one role that cannot be demoted by anybody else, which is
 what stops an admin locking out the person who pays.

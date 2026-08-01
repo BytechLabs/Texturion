@@ -1,5 +1,7 @@
 # Loonext — "For You" Home + Task Views (BINDING)
 
+**Status: IMPLEMENTED (#323).** The build spec for work that has shipped. Accurate about what was built and why; the CODE is the authority on what it does now, and `docs/DECISIONS.md` on what it should do next.
+
 Complements docs/TASKS.md and docs/APP-LAYOUT-V2.md (written by the app-v2 spec pass). These
 are product-owner decisions added 2026-07-02 answering: where do crew members see what to focus
 on, and what views does the tasks page have. Keep the calm Wealthsimple aesthetic (petrol/stone,

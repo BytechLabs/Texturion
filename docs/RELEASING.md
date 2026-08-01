@@ -1,5 +1,7 @@
 # Releasing
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 **A version per app, because they ship on different clocks.**
 
 `api` and `web` deploy themselves the moment a release merges. `android` and

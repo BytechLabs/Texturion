@@ -1,5 +1,7 @@
 # Open questions somebody has to ask (#373)
 
+**Status: HISTORICAL RESEARCH (#323).** Kept for the reasoning, not as direction. Some of it has been overtaken by what shipped. `docs/DECISIONS.md` outranks every line of it.
+
 Facts we could not settle from documentation or from the codebase, and that
 somebody has to **ask** rather than infer. Mostly vendor questions; one is for
 counsel (#393 ask 4 asks that they travel together, and splitting them into two

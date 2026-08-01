@@ -1,5 +1,7 @@
 # Carrier portability (#241)
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 `grep -rl telnyx apps/api/src` returns **20+ modules**. Telnyx is not a
 dependency we use; it is the substrate the product is built out of.
 

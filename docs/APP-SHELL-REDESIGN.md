@@ -1,5 +1,7 @@
 # Loonext App Shell Redesign (BINDING, except colour — see the palette note)
 
+**Status: IMPLEMENTED (#323).** The build spec for work that has shipped. Accurate about what was built and why; the CODE is the authority on what it does now, and `docs/DECISIONS.md` on what it should do next.
+
 > ## 🎨 PALETTE SUPERSEDED — 2026-07-30 (#362)
 >
 > **Every colour below is dead.** By owner decision on #362, the marketing site,

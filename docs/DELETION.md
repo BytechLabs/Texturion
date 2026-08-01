@@ -1,5 +1,7 @@
 # Deleting a workspace
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 The ordered teardown behind D48. `DELETE FROM companies WHERE id = …` fails on
 the first of **25 `restrict`** foreign keys, having already destroyed rows
 through **13 `cascade`** ones — which is why deletion is a sequence, not a

@@ -1,5 +1,7 @@
 # What leaves the device, and where it goes
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 The inventory behind both store declarations (#254). The forms are its output:
 fill them from here, not from memory, and update here first when a feature
 changes what we collect.

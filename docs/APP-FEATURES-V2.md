@@ -1,5 +1,7 @@
 # Loonext — App Features V2 (build-ready detail)
 
+**Status: IMPLEMENTED (#323).** The build spec for work that has shipped. Accurate about what was built and why; the CODE is the authority on what it does now, and `docs/DECISIONS.md` on what it should do next.
+
 Companion to `docs/DECISIONS.md` **D17–D22**. This is the *how* for the smaller features the product
 owner has already decided — the decisions are binding; this doc refines execution. It assumes the
 Wealthsimple-grade calm bar from `docs/APP-UI-ELEVATION.md` (petrol `#0F766E` / warm-stone / Inter /

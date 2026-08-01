@@ -1,5 +1,7 @@
 # Response time, defined (#239)
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 We sell the idea that the business which answers first gets the job. This is the
 number that says whether we deliver it, and it is meant to be a number a
 contractor repeats to other contractors. So it has to survive being checked

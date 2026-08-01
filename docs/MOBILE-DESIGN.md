@@ -1,5 +1,7 @@
 # Loonext Mobile — "Paper & Olive" design system (BINDING)
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 Source of truth: the founder's Claude Design project **“Loonext mobile redesign
 review”** (`42514b71-f208-41e7-9f15-5f77b8b0eee7`, file `Loonext Mobile.dc.html`,
 33 screens). This doc is the implementation contract for BOTH apps

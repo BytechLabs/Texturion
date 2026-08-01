@@ -1,5 +1,7 @@
 # Loonext — Feature Gaps: the small features worth adding
 
+**Status: HISTORICAL RESEARCH (#323).** Kept for the reasoning, not as direction. Some of it has been overtaken by what shipped. `docs/DECISIONS.md` outranks every line of it.
+
 Owner: product. Decided 2026-07-03 (revised after critique). Lens: what a plumber /
 HVAC / landscaper / cleaner / electrician / salon owner actually needs from a shared
 SMS inbox that Loonext does **not** provide today. Grounded in the current-audit

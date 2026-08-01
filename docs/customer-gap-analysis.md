@@ -1,5 +1,7 @@
 # Loonext — Customer-Lens Gap Analysis (trades daily reality)
 
+**Status: HISTORICAL RESEARCH (#323).** Kept for the reasoning, not as direction. Some of it has been overtaken by what shipped. `docs/DECISIONS.md` outranks every line of it.
+
 Researched 2026-07-03. Lens: what a plumber / HVAC / landscaper / cleaner / salon owner
 actually needs day-to-day from a business texting tool that Loonext does not provide today.
 
@@ -123,10 +125,16 @@ ever promised.
 - **Do NOT build (scope/upkeep discipline):** a full scheduler/calendar-booking system, mass-text
   blasts (D4/D11 exclude for compliance), voice as a phone system. Missed-call text-back needs only
   voice *reception*, not a full IVR.
+  > **SUPERSEDED IN PART, 2026-08-01 (#323).** The voice half is no longer the
+  > boundary this describes. D36-D43 shipped a browser softphone, inbound ring,
+  > voicemail with transcription, screening, hold and transfer — far past
+  > reception. What is still refused is a PHONE SYSTEM in the PBX sense: IVR,
+  > call trees, extensions, hunt groups. `docs/DECISIONS.md`'s "Do not build"
+  > table carries the current line. The mass-text and scheduler halves stand.
 
 ## Why these are the right calls
 Loonext's marketing is honest that it "doesn't do voice calls, mass text blasts, or review
-management" (COPY §H8) — but three of those four honest-omissions (missed-call catch, review asks,
+management" (COPY §H8 — **the voice clause is superseded, 2026-08-01: calls shipped, D36-D43**) — but three of those four honest-omissions (missed-call catch, review asks,
 and by extension text-to-pay) are exactly the trade's money jobs, and all three are buildable on the
 **existing** Telnyx/Stripe/Workers stack with no new vendor. The pattern of the real gap: Loonext
 nailed the *shared-inbox* job and turned the trade's daily texts into *templates a human sends*; the

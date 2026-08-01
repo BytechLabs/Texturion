@@ -1,5 +1,7 @@
 # Map tiles: where the basemap comes from (#428)
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 **The Map view ships with no basemap.** Pins, clustering and "you are here" all
 work; the street background does not, until a provider is configured. That is the
 deliberate state, and this document is how to change it.

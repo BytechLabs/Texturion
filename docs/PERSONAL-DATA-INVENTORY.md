@@ -1,5 +1,7 @@
 # Where personal data lives (#340)
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 This exists because `contact_messages` was found by listing all the tables and
 noticing one nobody had thought about. There was no reason to assume it was the
 only one, and it was not.

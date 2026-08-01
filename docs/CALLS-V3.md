@@ -1,5 +1,7 @@
 # Calls v3 — the inbound-call state machine (#170 phase 2)
 
+**Status: IMPLEMENTED (#323).** The build spec for work that has shipped. Accurate about what was built and why; the CODE is the authority on what it does now, and `docs/DECISIONS.md` on what it should do next.
+
 Founder mandate (verbatim): *"This calling stuff needs full audit and proper
 implementation, dont patch, fix the architecture and how we have set it up so
 these issues arent even possible."*

@@ -1,5 +1,7 @@
 # Calls v2 (D43, #135) — the browser is the phone
 
+**Status: IMPLEMENTED (#323).** The build spec for work that has shipped. Accurate about what was built and why; the CODE is the authority on what it does now, and `docs/DECISIONS.md` on what it should do next.
+
 Founder directives (2026-07-11): voicemail; Telnyx inbound screening with a
 per-workspace toggle and scam labels in the UI; **no cell forwarding
 whatsoever — delete all of it**; caller ID both directions with a

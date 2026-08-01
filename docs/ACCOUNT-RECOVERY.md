@@ -1,5 +1,7 @@
 # Getting back in
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 Two-factor authentication protects the thing an attacker actually wants: not
 data, but the ability to text a homeowner **from the plumber's real number**
 asking them to re-send payment somewhere else. The customer cannot detect that,

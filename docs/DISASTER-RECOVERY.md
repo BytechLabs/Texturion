@@ -1,5 +1,7 @@
 # Disaster recovery (#249)
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 `docs/deploy/08-operations.md` §6 covered backups in six lines: "confirm PITR is
 enabled", and to recover, "use the dashboard to restore to a timestamp". That is
 a plan, not a capability — an untested backup is a belief, and the first

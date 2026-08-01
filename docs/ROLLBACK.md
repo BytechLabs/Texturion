@@ -1,5 +1,7 @@
 # Rollback (#283)
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 Something is broken in production. This is the order to work in, and the one
 question that decides everything.
 

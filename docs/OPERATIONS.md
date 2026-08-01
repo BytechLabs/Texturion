@@ -1,5 +1,7 @@
 # How a support request becomes a change in production
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 There is no admin console, and there is deliberately not going to be one soon:
 it is a large build for a solo founder and most of it would go unused. What
 there is instead is a short set of reviewed scripts, and two rules that apply

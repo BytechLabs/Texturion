@@ -1,5 +1,7 @@
 # Calls client v2 — the Android calling client on Android's Telecom framework (#171)
 
+**Status: IMPLEMENTED (#323).** The build spec for work that has shipped. Accurate about what was built and why; the CODE is the authority on what it does now, and `docs/DECISIONS.md` on what it should do next.
+
 Founder mandate (verbatim, GitHub #171): *"I don't want patches, I want
 architecture where this isn't even possible."*
 

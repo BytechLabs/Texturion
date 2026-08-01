@@ -1,5 +1,7 @@
 # Calls — end-to-end feature spec (#129)
 
+**Status: IMPLEMENTED (#323).** The build spec for work that has shipped. Accurate about what was built and why; the CODE is the authority on what it does now, and `docs/DECISIONS.md` on what it should do next.
+
 Product-owner spec for the full Calls feature. Billing shipped first as D36 (#128:
 fair-use metering, 1¢/min overage, spending-cap pause). This document binds the
 rest: capture → inbox → surface → notify → settings, desktop + mobile + PWA,

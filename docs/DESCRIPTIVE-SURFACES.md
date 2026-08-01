@@ -1,5 +1,7 @@
 # Descriptive surfaces: what a shipped feature has to tell (#434)
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 A feature is not finished when it works. It is finished when the artifacts that
 tell people it exists know about it.
 

@@ -1,5 +1,7 @@
 # Tasks V2 (BINDING) — edit, detail + discussion, thread interweaving, view fixes
 
+**Status: IMPLEMENTED (#323).** The build spec for work that has shipped. Accurate about what was built and why; the CODE is the authority on what it does now, and `docs/DECISIONS.md` on what it should do next.
+
 Task #22 shipped the tasks data model, the 4 views, and create-from-message, but left the
 day-to-day loop unfinished: you cannot edit a task after creating it, there is no place to open a
 task and keep working on it, task activity does not show in the conversation it belongs to, and

@@ -1,5 +1,7 @@
 # A number has been flagged (#235)
 
+**Status: CURRENT DIRECTION (#323).** Describes how the product works today. Where it disagrees with `docs/DECISIONS.md`, that file wins.
+
 We sell a phone number as the product. When a carrier or an analytics vendor
 (First Orion, Hiya, TNS) labels one, the customer's business stops working —
 and the labelling is invisible from our side unless we go looking.

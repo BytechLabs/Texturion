@@ -1,5 +1,7 @@
 # FEATURE-GAPS — compliance + platform-eng review
 
+**Status: HISTORICAL RESEARCH (#323).** Kept for the reasoning, not as direction. Some of it has been overtaken by what shipped. `docs/DECISIONS.md` outranks every line of it.
+
 Reviewer lens: compliance + platform engineer. Scope: verify, for every
 outbound-message feature in `FEATURE-GAPS.md`, that opt-out enforcement +
 10DLC/consent still hold and it does not create a spam/keyword-campaign problem;
