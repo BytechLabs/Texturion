@@ -47,8 +47,6 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 | `STRIPE_STARTER_OVERAGE_PRICE_ID` | yes | `stripe:setup` output | `price_xxxxxxxxxxxx` |
 | `STRIPE_PRO_OVERAGE_PRICE_ID` | yes | `stripe:setup` output | `price_xxxxxxxxxxxx` |
 | `STRIPE_US_FEE_PRICE_ID` | yes | `stripe:setup` output | `price_xxxxxxxxxxxx` |
-| `STRIPE_STARTER_YEAR_PRICE_ID` | no | `stripe:setup` output. #400/D106 prepaid year, one-time $290. **Unset = the offer does not exist** | `price_xxxxxxxxxxxx` |
-| `STRIPE_PRO_YEAR_PRICE_ID` | no | `stripe:setup` output. #400/D106 prepaid year, one-time $790. **Unset = the offer does not exist** | `price_xxxxxxxxxxxx` |
 | `STRIPE_SMS_METER_EVENT_NAME` | yes | `stripe:setup` output (always `sms_segments`) | `sms_segments` |
 | `STRIPE_VOICE_METER_EVENT_NAME` | yes — **launch-required** (schema-optional) | `stripe:setup` output (always `voice_seconds`) — D36 voice overage. Unset: forwarded seconds are stamped non-reportable at insert and go unbilled (never over-billed, no retroactive backlog). | `voice_seconds` |
 | `STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID` | yes — **launch-required** (schema-optional) | `stripe:setup` output — D36 voice metered price (2,500 min at $0, then 1¢/min) | `price_xxxxxxxxxxxx` |

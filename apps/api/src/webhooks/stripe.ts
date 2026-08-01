@@ -30,7 +30,6 @@ import {
   type LocalSubscriptionStatus,
   type PlanId,
 } from "../billing/plans";
-import { grantPrepayment, isPrepayCheckout } from "../billing/prepay";
 import { billingRecipients } from "../billing/recipients";
 import { getStripe, stripeCryptoProvider, type Stripe } from "../billing/stripe";
 import type { AppEnv } from "../context";
@@ -387,20 +386,6 @@ export async function handleCheckoutCompleted(
   session: Stripe.Checkout.Session,
 ): Promise<void> {
   if (!isProvisionableCheckout(session)) return; // §9 guard — ack as no-op
-
-  // #400/D106: a prepaid year is a one-time payment session, so it carries NO
-  // subscription reference and would fall into the throw below — which the
-  // sweeper would then retry every five minutes forever, with a Sentry alert
-  // each time. Branch before that, on the metadata rather than on `mode`: mode
-  // alone would also claim any future one-time session this product grows, and
-  // the failure of guessing wrong here is silent money movement.
-  if (isPrepayCheckout(session)) {
-    const outcome = await grantPrepayment(env, getDb(env), session);
-    if (outcome.outcome === "duplicate") {
-      console.log(`prepay ${session.id}: already granted, ignoring replay`);
-    }
-    return;
-  }
 
   const companyId = session.client_reference_id;
   if (!companyId) {

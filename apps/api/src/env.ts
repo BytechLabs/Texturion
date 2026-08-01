@@ -183,20 +183,6 @@ const envSchema = z.object({
   STRIPE_PRO_OVERAGE_PRICE_ID: z.string().min(1),
   STRIPE_US_FEE_PRICE_ID: z.string().min(1),
   /**
-   * #400/D106 — the prepaid year, as a ONE-TIME price rather than an annual
-   * recurring one. See D106 for why a twelve-month billing interval breaks a
-   * metered product; the short version is that the allowance and the overage
-   * cap are period-scoped, so an annual period lets a busy January throttle a
-   * workspace until December.
-   *
-   * OPTIONAL, and that is the feature flag: with the price unset the offer
-   * simply does not exist — the eligibility endpoint reports ineligible and
-   * the route 409s. A half-provisioned catalog must not sell something it
-   * cannot charge for.
-   */
-  STRIPE_STARTER_YEAR_PRICE_ID: z.string().min(1).optional(),
-  STRIPE_PRO_YEAR_PRICE_ID: z.string().min(1).optional(),
-  /**
    * #12 plan-builder module add-on prices (created by `pnpm stripe:setup`).
    * OPTIONAL so the Worker boots before the module catalog is provisioned;
    * checkout validates presence only when a customer actually selects the

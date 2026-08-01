@@ -127,8 +127,6 @@ const VARS = {
   STRIPE_STARTER_OVERAGE_PRICE_ID: "price_starter_overage_0001",
   STRIPE_PRO_OVERAGE_PRICE_ID: "price_pro_overage_0001",
   STRIPE_US_FEE_PRICE_ID: "price_us_registration_0001",
-  STRIPE_STARTER_YEAR_PRICE_ID: "price_starter_year_0001",
-  STRIPE_PRO_YEAR_PRICE_ID: "price_pro_year_0001",
   STRIPE_SMS_METER_EVENT_NAME: "sms_segments",
   // Generated per run rather than committed. A VAPID key in the repository is
   // how a test-only key ended up in a PUBLIC repo's history once already; the

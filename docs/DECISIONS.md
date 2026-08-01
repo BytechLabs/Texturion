@@ -5960,6 +5960,32 @@ of them can grow quietly.
 
 ## D106 — a year is a prepayment, not a billing interval (#400, 2026-07-31)
 
+> **SUPERSEDED IN PART, 2026-07-31, by D107.** The mechanism below — a year sold
+> as a one-time payment held as Stripe customer credit — is WRONG, and was
+> reverted before it could reach a customer. A credit is fungible dollars, not
+> twelve months of entitlement: crediting $290 and then invoicing $29 a month
+> funds exactly TEN invoices, so month eleven charges the card and the two free
+> months that are the entire offer never exist. Overage and add-ons draw the
+> same balance, so ten is the ceiling rather than the number. An adversarial
+> review confirmed it, and found a second defect in the same code: a claim that
+> commits without its response being seen leaves an ungranted row that makes
+> every retry report "already granted", losing the money silently.
+>
+> **What survives, and is still binding:** the analysis of why a twelve-month
+> BILLING INTERVAL breaks a metered product (the allowance and the overage cap
+> are period-scoped, so an annual period lets a busy January throttle a
+> workspace until December), the refund posture, and the tax finding. The
+> replacement mechanism is two subscriptions — annual for the flat plan fee,
+> monthly for the metered items — which keeps the monthly allowance window and
+> needs no credit arithmetic. See D107.
+>
+> **The tax question is now partly answered.** Stripe Tax is live on the account
+> with an active Canadian federal registration and a Calgary head office, so a
+> Checkout Session with `automatic_tax` enabled charges GST/HST at collection.
+> That removes the under-collection worry below. What replaces it under the
+> two-subscription model is making sure the same supply is not taxed twice.
+
+
 #400 asks for annual prices in the Stripe catalog: a twelve-month interval
 alongside the monthly one, priced at roughly ten months for twelve. The cash
 argument is right and the churn argument is right. **The mechanism is wrong for
