@@ -44,7 +44,12 @@ import androidx.compose.material.icons.outlined.MarkEmailRead
 import androidx.compose.material.icons.outlined.MarkEmailUnread
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
+import com.loonext.android.core.model.Capability
+import com.loonext.android.core.model.MemberRole
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
@@ -142,7 +147,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 
-private enum class InboxStatusTab(val label: String) {
+// #280: internal rather than file-private so SavedViews.kt can translate a
+// stored view into a tab selection. Same module, same package.
+internal enum class InboxStatusTab(val label: String) {
     Open("Open"), Mine("Mine"), All("All"), Closed("Closed")
 }
 
@@ -257,6 +264,18 @@ private class InboxController(
      * populations end up behaving differently.
      */
     var snoozedOnly by mutableStateOf(false)
+        private set
+
+    /**
+     * #280 — the member's saved views, which one they land on, and the bounded
+     * badges. Loaded alongside the other supporting lists: the inbox must paint
+     * whether or not this request has landed, so nothing here gates the list.
+     */
+    var savedViews by mutableStateOf<List<SavedView>>(emptyList())
+        private set
+    var defaultViewId by mutableStateOf<String?>(null)
+        private set
+    var viewCounts by mutableStateOf<Map<String, Int>>(emptyMap())
         private set
 
     var state by mutableStateOf<LoadState<Unit>>(LoadState.Loading)
@@ -398,6 +417,98 @@ private class InboxController(
         showPane()
     }
 
+    // --- #280 saved views -------------------------------------------------
+
+    /** The arrangement currently on screen, in the shape a view stores. */
+    internal val currentSelection: ViewSelection
+        get() = ViewSelection(
+            tab = tab,
+            assigneeUserId = if (tab == InboxStatusTab.Mine) null else assignee?.user_id,
+            assignedToMe = tab == InboxStatusTab.Mine,
+            tagId = tag?.id,
+            unreadOnly = unreadOnly,
+            spamOnly = spamOnly,
+            snoozedOnly = snoozedOnly,
+        )
+
+    /**
+     * Apply a saved view: every control at once, then ONE reload.
+     *
+     * Setting them one at a time would fire a request per filter and leave the
+     * list flickering through arrangements nobody asked for.
+     */
+    fun applyView(view: SavedView) {
+        val selection = viewToSelection(view.filters)
+        tab = selection.tab
+        assignee = selection.assigneeUserId?.let { id -> members.find { it.user_id == id } }
+        tag = selection.tagId?.let { id -> allTags.find { it.id == id } }
+        unreadOnly = selection.unreadOnly
+        spamOnly = selection.spamOnly
+        snoozedOnly = selection.snoozedOnly
+        showPane()
+    }
+
+    fun loadSavedViews(landIfUntouched: Boolean = false) {
+        scope.launch {
+            runCatching { repo.savedViews(companyId) }.onSuccess { page ->
+                savedViews = page.data
+                defaultViewId = page.defaults.conversations
+                // Land on the chosen view only from an untouched inbox. Somebody
+                // who has already filtered has said what they want to see, and a
+                // default that overrode that would be a screen that argues.
+                if (landIfUntouched && !hasFilterChips && tab == InboxStatusTab.Open) {
+                    page.data.find { it.id == page.defaults.conversations }?.let(::applyView)
+                }
+                loadViewCounts()
+            }
+        }
+    }
+
+    private fun loadViewCounts() {
+        val ids = savedViews.map { it.id }.take(SAVED_VIEW_COUNT_MAX_VIEWS)
+        if (ids.isEmpty()) return
+        scope.launch {
+            runCatching { repo.savedViewCounts(companyId, ids) }
+                .onSuccess { viewCounts = it.counts }
+        }
+    }
+
+    fun saveCurrentView(name: String, shared: Boolean, onDone: (String?) -> Unit) {
+        scope.launch {
+            runCatching {
+                repo.createSavedView(
+                    companyId = companyId,
+                    name = name.trim(),
+                    filters = selectionToView(currentSelection),
+                    shared = shared,
+                )
+            }.onSuccess {
+                loadSavedViews()
+                onDone(null)
+            }.onFailure { onDone(it.message ?: "Could not save that view.") }
+        }
+    }
+
+    fun renameView(id: String, name: String) {
+        scope.launch {
+            runCatching { repo.renameSavedView(companyId, id, name.trim()) }
+                .onSuccess { loadSavedViews() }
+        }
+    }
+
+    fun deleteView(id: String) {
+        scope.launch {
+            runCatching { repo.deleteSavedView(companyId, id) }.onSuccess { loadSavedViews() }
+        }
+    }
+
+    fun setDefaultView(id: String?) {
+        scope.launch {
+            runCatching { repo.setDefaultSavedView(companyId, id) }
+                .onSuccess { defaultViewId = id }
+        }
+    }
+
     /**
      * #176 cache-first filter switch: a previously-used filter paints its
      * cached pane in this frame and merge-revalidates silently (the merge —
@@ -459,6 +570,9 @@ private class InboxController(
     private fun loadSupportingLists() {
         if (supportLoaded) return
         supportLoaded = true
+        // #280: the landing view is only applied on this first load, so a later
+        // refresh never yanks somebody out of what they are looking at.
+        loadSavedViews(landIfUntouched = true)
         scope.launch {
             runCatching {
                 members = repo.members(companyId).data
@@ -950,6 +1064,15 @@ private fun InboxList(
                         )
                     }
                 }
+                SavedViewsRow(
+                    controller = controller,
+                    // Sharing a view is workspace configuration, so it rides
+                    // the same capability the server gates it on.
+                    canShare = MemberRole.has(
+                        me.memberships.firstOrNull { it.company_id == companyId }?.role,
+                        Capability.SETTINGS_MANAGE,
+                    ),
+                )
                 Spacer(Modifier.height(14.dp))
                 Box(Modifier.weight(1f)) {
                     when (val current = controller.state) {
@@ -1084,10 +1207,29 @@ private fun FilterPill(
     onClick: () -> Unit,
     outlined: Boolean = false,
     leading: (@Composable () -> Unit)? = null,
+    /**
+     * #280: a saved view's own actions. Null for the status pills, which have
+     * none, so a long press there stays the no-op it has always been.
+     */
+    onLongClick: (() -> Unit)? = null,
 ) {
     val solid = selected && !outlined
     val haptics = rememberHaptics()
     Surface(
+        modifier = if (onLongClick == null) {
+            Modifier
+        } else {
+            Modifier.combinedClickable(
+                onClick = {
+                    haptics.tap()
+                    onClick()
+                },
+                onLongClick = {
+                    haptics.tick()
+                    onLongClick()
+                },
+            )
+        },
         onClick = {
             haptics.tap()
             onClick()
@@ -2538,4 +2680,241 @@ private fun BulkSelectionBar(controller: InboxController) {
             }
         }
     }
+}
+
+
+// ---------------------------------------------------------------------------
+// #280 saved views
+// ---------------------------------------------------------------------------
+
+/**
+ * The row of saved views, and the one affordance for keeping the arrangement on
+ * screen.
+ *
+ * Applying: the Safety Principle (a horizontal strip of named queries directly
+ * under the status pills is where saved views live in every product that has
+ * them), Zen of Clarity (per-view actions are a long-press menu rather than
+ * three controls crowded onto a pill), Chunking (its own band, spaced away from
+ * the pills above and the list below), and Smart Defaults (the save sheet opens
+ * with a name already derived from the filters, because typing one is the whole
+ * friction between arranging a useful screen and keeping it).
+ *
+ * The row is absent until a view exists. A permanent empty rail on the busiest
+ * screen in the product would be an advertisement, and the save affordance sits
+ * where the arrangement being kept actually is.
+ */
+@Composable
+private fun SavedViewsRow(controller: InboxController, canShare: Boolean) {
+    var saveOpen by remember { mutableStateOf(false) }
+    var menuFor by remember { mutableStateOf<SavedView?>(null) }
+    val selection = controller.currentSelection
+
+    Spacer(Modifier.height(10.dp))
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        controller.savedViews.forEach { view ->
+            val count = controller.viewCounts[view.id] ?: 0
+            val label = if (count > 0) view.name + "  " + formatViewCount(count) else view.name
+            FilterPill(
+                text = label,
+                selected = viewMatchesSelection(view.filters, selection),
+                onClick = { controller.applyView(view) },
+                onLongClick = { menuFor = view },
+            )
+        }
+        TextButton(onClick = { saveOpen = true }) {
+            Text(
+                if (controller.savedViews.isEmpty()) "Save this view" else "Save",
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
+    }
+
+    if (saveOpen) {
+        SaveViewSheet(
+            controller = controller,
+            canShare = canShare,
+            onDismiss = { saveOpen = false },
+        )
+    }
+    menuFor?.let { view ->
+        SavedViewMenu(
+            view = view,
+            isDefault = view.id == controller.defaultViewId,
+            canManage = !view.shared || canShare,
+            controller = controller,
+            onDismiss = { menuFor = null },
+        )
+    }
+}
+
+@Composable
+private fun SaveViewSheet(
+    controller: InboxController,
+    canShare: Boolean,
+    onDismiss: () -> Unit,
+) {
+    // Smart Defaults: never an empty field. The person already said what the
+    // view is by building it, and "Open . Unread" beats what most would type.
+    var name by remember {
+        mutableStateOf(
+            suggestViewName(
+                controller.currentSelection,
+                assignee = controller.assignee,
+                tag = controller.tag,
+            ),
+        )
+    }
+    var shared by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Save this view") },
+        text = {
+            Column {
+                Text(
+                    "The filters you have on now, under a name, one tap away tomorrow.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { if (it.length <= SAVED_VIEW_NAME_MAX) name = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (canShare) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = shared, onCheckedChange = { shared = it })
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "Share it with the crew",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Text(
+                        "Everyone gets the same view, and each person sees only the numbers they already have access to.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                error?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(it, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = name.isNotBlank() && !saving,
+                onClick = {
+                    saving = true
+                    controller.saveCurrentView(name, shared) { failure ->
+                        saving = false
+                        if (failure == null) onDismiss() else error = failure
+                    }
+                },
+            ) { Text(if (saving) "Saving" else "Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+/**
+ * Per-view actions.
+ *
+ * Ethical Friction applied only where it is earned: deleting your own view goes
+ * immediately, because it is yours and rebuilding it is two taps. Deleting a
+ * shared one removes a screen the rest of the crew opens every morning, and the
+ * person doing it cannot see who that affects.
+ */
+@Composable
+private fun SavedViewMenu(
+    view: SavedView,
+    isDefault: Boolean,
+    canManage: Boolean,
+    controller: InboxController,
+    onDismiss: () -> Unit,
+) {
+    var confirmingDelete by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf(false) }
+    var draft by remember { mutableStateOf(view.name) }
+
+    if (confirmingDelete) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Delete this crew view?") },
+            text = {
+                Text(
+                    "The whole crew uses " + view.name + ". Anyone who opens the app there will land on the ordinary inbox instead.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    controller.deleteView(view.id)
+                    onDismiss()
+                }) { Text("Delete for everyone") }
+            },
+            dismissButton = { TextButton(onClick = onDismiss) { Text("Keep it") } },
+        )
+        return
+    }
+
+    if (renaming) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Rename view") },
+            text = {
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { if (it.length <= SAVED_VIEW_NAME_MAX) draft = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(enabled = draft.isNotBlank(), onClick = {
+                    controller.renameView(view.id, draft)
+                    onDismiss()
+                }) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        )
+        return
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(view.name) },
+        text = {
+            Column {
+                TextButton(onClick = {
+                    controller.setDefaultView(if (isDefault) null else view.id)
+                    onDismiss()
+                }) {
+                    Text(if (isDefault) "Stop opening here" else "Open here by default")
+                }
+                if (canManage) {
+                    TextButton(onClick = { renaming = true }) { Text("Rename") }
+                    TextButton(onClick = {
+                        if (view.shared) {
+                            confirmingDelete = true
+                        } else {
+                            controller.deleteView(view.id)
+                            onDismiss()
+                        }
+                    }) { Text("Delete") }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+    )
 }

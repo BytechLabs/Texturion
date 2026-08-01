@@ -1,6 +1,10 @@
 package com.loonext.android.features.thread
 
 import com.loonext.android.core.model.Attachment
+import com.loonext.android.features.inbox.SAVED_VIEW_COUNT_MAX_VIEWS
+import com.loonext.android.features.inbox.SavedView
+import com.loonext.android.features.inbox.SavedViewCounts
+import com.loonext.android.features.inbox.SavedViewPage
 import com.loonext.android.core.model.AttachmentReport
 import com.loonext.android.core.model.AttachmentUrl
 import com.loonext.android.core.model.ComposeResult
@@ -83,6 +87,24 @@ data class MentionableMember(
  * via [ApiClient], sends carry a client Idempotency-Key, cursor pagination is
  * opaque, and signed attachment URLs are minted per view — never cached.
  */
+/** #280 request bodies. Separate types so each PATCH sends exactly one field. */
+@Serializable
+internal data class CreateSavedViewBody(
+    val surface: String,
+    val name: String,
+    val filters: JsonObject,
+    val shared: Boolean,
+)
+
+@Serializable
+internal data class RenameSavedViewBody(val name: String)
+
+@Serializable
+internal data class ShareSavedViewBody(val shared: Boolean)
+
+@Serializable
+data class DefaultSavedViewBody(val surface: String, val view_id: String?)
+
 class MessagingRepository(private val api: ApiClient) {
 
     // --- Inbox list -------------------------------------------------------
@@ -118,6 +140,69 @@ class MessagingRepository(private val api: ApiClient) {
             "cursor" to cursor,
             "limit" to limit.toString(),
         ),
+        companyId = companyId,
+    )
+
+    // --- #280 saved views -------------------------------------------------
+
+    /**
+     * The views this member may see, in order, plus which one they land on.
+     *
+     * A view holds FILTER PARAMETERS, never conversation ids. Opening one
+     * replays them through [conversations] above, so #106 number access applies
+     * per viewer and a shared view grants nothing.
+     */
+    suspend fun savedViews(companyId: String, surface: String = "conversations"): SavedViewPage =
+        api.get("/v1/saved-views", query = mapOf("surface" to surface), companyId = companyId)
+
+    /**
+     * Queue badges, for at most [SAVED_VIEW_COUNT_MAX_VIEWS] views.
+     *
+     * Capped on this side as well as the server's, so the two ends agree about
+     * what was asked. A badge that silently never arrives looks like a bug.
+     */
+    suspend fun savedViewCounts(
+        companyId: String,
+        ids: List<String>,
+        surface: String = "conversations",
+    ): SavedViewCounts = api.get(
+        "/v1/saved-views/counts",
+        query = mapOf(
+            "surface" to surface,
+            "ids" to ids.take(SAVED_VIEW_COUNT_MAX_VIEWS).joinToString(","),
+        ),
+        companyId = companyId,
+    )
+
+    suspend fun createSavedView(
+        companyId: String,
+        name: String,
+        filters: JsonObject,
+        shared: Boolean,
+        surface: String = "conversations",
+    ): SavedView = api.post(
+        "/v1/saved-views",
+        body = CreateSavedViewBody(surface, name, filters, shared),
+        companyId = companyId,
+    )
+
+    suspend fun renameSavedView(companyId: String, id: String, name: String): SavedView =
+        api.patch("/v1/saved-views/$id", body = RenameSavedViewBody(name), companyId = companyId)
+
+    suspend fun shareSavedView(companyId: String, id: String, shared: Boolean): SavedView =
+        api.patch("/v1/saved-views/$id", body = ShareSavedViewBody(shared), companyId = companyId)
+
+    suspend fun deleteSavedView(companyId: String, id: String) =
+        api.delete("/v1/saved-views/$id", companyId = companyId)
+
+    /** Land on this view, or on nothing when [viewId] is null. */
+    suspend fun setDefaultSavedView(
+        companyId: String,
+        viewId: String?,
+        surface: String = "conversations",
+    ): DefaultSavedViewBody = api.put(
+        "/v1/saved-views/default",
+        body = DefaultSavedViewBody(surface, viewId),
         companyId = companyId,
     )
 
