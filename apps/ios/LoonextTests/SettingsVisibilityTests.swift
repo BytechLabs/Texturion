@@ -14,7 +14,9 @@ import XCTest
 final class SettingsVisibilityTests: XCTestCase {
 
     private let personal: Set<SettingsSection> = [
-        .profile, .notifications, .devices, .help, .diagnostics,
+        // #321: everybody paying for the product is entitled to know it
+        // got better, so What's new is personal like the rest.
+        .profile, .notifications, .devices, .help, .whatsNew, .diagnostics,
     ]
 
     /// The same rule `SettingsHome.visibleSections` applies, minus the

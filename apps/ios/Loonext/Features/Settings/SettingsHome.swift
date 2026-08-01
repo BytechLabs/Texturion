@@ -21,6 +21,11 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     /// #382: the route to a human. Last because it is what you go looking
     /// for when something is wrong, not a screen you pass through.
     case help
+    /// #321: improvement was invisible. The product ships almost daily and a
+    /// customer who signed up in June would never encounter reply drafting,
+    /// voicemail transcripts or saved views, because nothing pointed at them.
+    /// Beside Help because both are what you go looking for.
+    case whatsNew
     /// #337: hidden until seven taps on the version footer unlock it, the same
     /// gesture and the same copy as Android's. Below Help because that is the
     /// order of escalation: try the humans first.
@@ -41,7 +46,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     var needs: String {
         switch self {
         // Yours by being in the workspace at all.
-        case .profile, .notifications, .devices, .help, .diagnostics:
+        case .profile, .notifications, .devices, .help, .whatsNew, .diagnostics:
             Capability.workspaceAccess
         // The business's, each behind the axis that actually governs it.
         case .workspace, .hours, .calling, .templates, .ai:
@@ -67,6 +72,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .profile: "Profile & account"
         case .devices: "Signed-in devices"
         case .help: "Help"
+        case .whatsNew: "What's new"
         case .diagnostics: "Diagnostics"
         }
     }
@@ -86,6 +92,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .profile: "Your name, theme, email, and password"
         case .devices: "Every browser and phone with access right now"
         case .help: "Get in touch when something isn't right"
+        case .whatsNew: "What shipped recently, and where to find it"
         case .diagnostics: "Build, connection, and recent events on this phone"
         }
     }
@@ -106,6 +113,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .profile: "person.crop.circle"
         case .devices: "laptopcomputer.and.iphone"
         case .help: "lifepreserver"
+        case .whatsNew: "sparkles"
         case .diagnostics: "stethoscope"
         }
     }
@@ -263,7 +271,14 @@ struct SettingsHome: View {
                     ForEach(Array(visibleSections.enumerated()), id: \.element.id) { index, section in
                         if index > 0 { RowDivider() }
                         NavigationLink(value: section) {
-                            SettingsSectionRow(section: section)
+                            SettingsSectionRow(
+                                section: section,
+                                showMarker: section == .whatsNew
+                                    && hasUnseenWhatsNew(
+                                        lastSeen: readWhatsNewSeen(),
+                                        joinedAt: company.created_at
+                                    )
+                            )
                         }
                         .buttonStyle(.plain)
                     }
@@ -398,6 +413,8 @@ struct SettingsHome: View {
                     DevicesSectionView(scope: scope)
                 case .help:
                     HelpSectionView(scope: scope, company: company)
+                case .whatsNew:
+                    WhatsNewSectionView(joinedAt: company.created_at)
                 case .diagnostics:
                     DiagnosticsSectionView(graph: graph, companyId: companyId)
                 }
@@ -460,6 +477,8 @@ struct SettingsHome: View {
 /// grammar without the (heavily-defaulted) `CompanyView` the live screen loads.
 private struct SettingsSectionRow: View {
     let section: SettingsSection
+    /// #321: true only for the What's new row, and only when unseen.
+    var showMarker: Bool = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -481,6 +500,14 @@ private struct SettingsSectionRow: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
+            // #321: a dot, and nothing else. The audience is holding a phone on
+            // a job site, so this marks that there is something behind a row
+            // they choose to open, never anything that arrives over the top.
+            if showMarker {
+                Circle()
+                    .fill(BrandColor.ink)
+                    .frame(width: 8, height: 8)
+            }
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(BrandColor.muted250)
