@@ -352,3 +352,20 @@ export {
   filterDeviceContacts,
 } from "./device-contacts";
 export type { DeviceContactPage, DeviceContactListRow } from "./device-contacts";
+
+export {
+  REFERRAL_CODE_ALPHABET,
+  REFERRAL_CODE_LENGTH,
+  REFERRAL_REWARDS_PER_YEAR,
+  decideReferral,
+  isReferralCode,
+  mintReferralCode,
+  normalizeReferralCode,
+  referralStage,
+} from "./referrals";
+export type {
+  ReferralClaim,
+  ReferralDecision,
+  ReferralRefusal,
+  ReferralStage,
+} from "./referrals";
