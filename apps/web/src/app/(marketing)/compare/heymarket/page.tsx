@@ -34,6 +34,7 @@ import {
   HEYMARKET_COLUMNS,
   HEYMARKET_FOOTNOTE,
   HEYMARKET_ROWS,
+  HEYMARKET_SEAT_PRICING,
 } from "./page-data";
 
 const PATH = LIVE_ROUTES.compareHeymarket;
@@ -93,6 +94,8 @@ export default function CompareHeymarketPage() {
       <SliderBand
         heading="Per-user pricing climbs. Flat doesn't."
         lead="Heymarket's two-seat minimum puts its floor at $98 a month before a single text is sent. Slide your crew size and watch a typical per-user bill pull away from the flat line."
+        perUserMonthly={HEYMARKET_SEAT_PRICING.perUserMonthly}
+        minimumSeats={HEYMARKET_SEAT_PRICING.minimumSeats}
       />
 
       <HonestFit

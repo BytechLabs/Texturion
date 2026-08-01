@@ -24,6 +24,13 @@ export const QUO_COLUMNS: LedgerColumn[] = [
   { label: "Quo Starter", sub: COMPARE_AS_OF },
 ];
 
+/** #370: the seat figures the crew-size chart draws, from the same pass. */
+export const QUO_SEAT_PRICING = {
+  /** Their Starter on MONTHLY billing — the price without a year's commitment. */
+  perUserMonthly: 19,
+  minimumSeats: 1,
+} as const;
+
 export const QUO_ROWS: LedgerTableRow[] = [
   {
     label: "Seats (3 people)",

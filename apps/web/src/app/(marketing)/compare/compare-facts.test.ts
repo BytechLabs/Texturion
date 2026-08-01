@@ -9,8 +9,14 @@ import {
   HEYMARKET_COLUMNS,
   HEYMARKET_FOOTNOTE,
   HEYMARKET_ROWS,
+  HEYMARKET_SEAT_PRICING,
 } from "./heymarket/page-data";
-import { QUO_COLUMNS, QUO_FOOTNOTE, QUO_ROWS } from "./quo/page-data";
+import {
+  QUO_COLUMNS,
+  QUO_FOOTNOTE,
+  QUO_ROWS,
+  QUO_SEAT_PRICING,
+} from "./quo/page-data";
 import {
   COMPARE_AS_OF,
   COMPARE_RECHECK_AFTER,
@@ -207,5 +213,46 @@ describe("competitor claims stay fresh (#403)", () => {
     expect(asOfLabel("2026-07-29")).toBe("as of July 2026");
     expect(asOfLabel("2027-01-02")).toBe("as of January 2027");
     expect(COMPARE_AS_OF).toBe(asOfLabel(COMPARE_VERIFIED_ON));
+  });
+});
+
+describe("#370 the crew-size chart states THIS page's rival rate", () => {
+  // The bug this exists to stop, which shipped: the slider carried one
+  // hardcoded $19 rate and both comparison pages rendered it. On the Heymarket
+  // page that drew Quo's seat price under prose correctly saying "$98 floor" —
+  // the page argued against itself and understated a competitor by 2.6x.
+  //
+  // Understating a rival is the safe direction to be wrong in. It is still a
+  // dated, sourced, public claim about somebody else's price, which is the kind
+  // that gets expensive rather than merely wrong, and it is why every other
+  // figure on these pages is already guarded.
+  const cases = [
+    { name: "Heymarket", pricing: HEYMARKET_SEAT_PRICING, rows: HEYMARKET_ROWS },
+    { name: "Quo", pricing: QUO_SEAT_PRICING, rows: QUO_ROWS },
+  ];
+
+  it.each(cases)("$name's rate appears in its own ledger", ({ pricing, rows }) => {
+    // The ledger's seat row spells the arithmetic out in prose. If the chart's
+    // rate is right, that rate is a substring of it — which ties the two
+    // together without asking the test to re-derive the sentence.
+    const seatRow = rows.find((row) => /seat/i.test(row.label));
+    expect(seatRow).toBeDefined();
+    const prose = JSON.stringify(seatRow);
+    expect(prose).toContain(`$${pricing.perUserMonthly}`);
+  });
+
+  it.each(cases)("$name's seat minimum is at least one", ({ pricing }) => {
+    // A minimum below one is not a floor, it is a bug that would understate
+    // their entry price for a solo operator — the exact figure this section is
+    // most useful for.
+    expect(pricing.minimumSeats).toBeGreaterThanOrEqual(1);
+  });
+
+  it("does not give two different rivals the same seat price", () => {
+    // The shape of the original defect. If these ever match again it is far
+    // likelier to be a copied constant than a coincidence.
+    expect(HEYMARKET_SEAT_PRICING.perUserMonthly).not.toBe(
+      QUO_SEAT_PRICING.perUserMonthly,
+    );
   });
 });

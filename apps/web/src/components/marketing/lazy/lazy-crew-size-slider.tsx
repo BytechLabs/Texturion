@@ -11,10 +11,20 @@ import type { ReactNode } from "react";
 
 import { LazyIsland } from "@/components/marketing/ui/lazy-island";
 
-export function LazyCrewSizeSlider({ fallback }: { fallback: ReactNode }) {
+export function LazyCrewSizeSlider({
+  fallback,
+  perUserMonthly,
+  minimumSeats,
+}: {
+  fallback: ReactNode;
+  /** #370: the rival rate for THIS page, not a shared default. */
+  perUserMonthly?: number;
+  minimumSeats?: number;
+}) {
   return (
     <LazyIsland
       fallback={fallback}
+      componentProps={{ perUserMonthly, minimumSeats }}
       load={() =>
         import("@/components/marketing/interactive/crew-size-slider").then(
           (m) => ({ default: m.CrewSizeSlider }),

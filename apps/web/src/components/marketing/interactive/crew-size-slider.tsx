@@ -27,7 +27,27 @@ import { PLAN_PRICING } from "@/lib/api/types";
 import { COMPARE_AS_OF } from "@/app/(marketing)/compare/verification";
 
 /** The published monthly Starter seat price of a leading per-user tool (July 2026). */
-const PER_USER_MONTHLY = 19;
+/**
+ * #370 — the rival's seat rate is a PROP, not a constant.
+ *
+ * It was `const perUserMonthly = 19`, written for the Quo comparison where
+ * $19 is right, and then reused verbatim on the Heymarket page where the rate
+ * is $49 with a two-seat minimum. That page's prose correctly said "$98 floor"
+ * while the chart underneath drew $19/user — the page argued against itself,
+ * and it understated a competitor by 2.6x.
+ *
+ * Understating a rival is the safe direction to be wrong in legally, and it is
+ * still wrong: it is a dated, sourced, public claim about somebody else's
+ * price, and `compare-facts.test.ts` exists precisely because those rot. The
+ * rate now travels with the page that states it, and a test ties each page's
+ * slider to the ledger beside it.
+ *
+ * The MINIMUM matters as much as the rate. Heymarket will not sell one seat, so
+ * a solo operator pays for two — which is invisible in any comparison that
+ * starts at three people, and is the single most surprising number on the page.
+ */
+export const DEFAULT_PER_USER_MONTHLY = 19;
+export const DEFAULT_MINIMUM_SEATS = 1;
 
 /** Largest crew the slider illustrates. A fixed marketing range, decoupled from
  *  the plan seat caps (Starter 3, Pro 15) — the slider only shows the flat-vs-
@@ -53,16 +73,26 @@ function usd(n: number): string {
   return `$${n.toLocaleString("en-US")}`;
 }
 
-export function CrewSizeSlider() {
+export interface RivalSeatPricing {
+  /** Their published per-user monthly rate, as the ledger states it. */
+  perUserMonthly?: number;
+  /** The fewest seats they will sell. A floor, not a discount. */
+  minimumSeats?: number;
+}
+
+export function CrewSizeSlider({
+  perUserMonthly = DEFAULT_PER_USER_MONTHLY,
+  minimumSeats = DEFAULT_MINIMUM_SEATS,
+}: RivalSeatPricing = {}) {
   const [seats, setSeats] = useState(6);
   const sliderId = useId();
 
   const loonext = loonextPrice(seats);
-  const perUser = seats * PER_USER_MONTHLY;
+  const perUser = Math.max(seats, minimumSeats) * perUserMonthly;
   const savings = perUser - loonext.price;
 
   // Bar widths are relative to the max the per-user line reaches at full crew.
-  const maxPerUser = MAX_CREW * PER_USER_MONTHLY; // $190 at 10 seats
+  const maxPerUser = MAX_CREW * perUserMonthly;
   const loonextWidth = Math.max(6, (loonext.price / maxPerUser) * 100);
   const perUserWidth = Math.max(6, (perUser / maxPerUser) * 100);
 
@@ -119,7 +149,7 @@ export function CrewSizeSlider() {
         <div>
           <div className="flex items-baseline justify-between gap-3 text-[0.875rem]">
             <span className="font-medium text-[color:var(--fr-ink)]">
-              Typical per-user tool at {usd(PER_USER_MONTHLY)}/user/mo
+              Typical per-user tool at {usd(perUserMonthly)}/user/mo
             </span>
             <span className="whitespace-nowrap">
               <span className="fr-mono-data text-[color:var(--fr-ink)]">
@@ -146,7 +176,7 @@ export function CrewSizeSlider() {
             {usd(savings)} less a month
           </span>{" "}
           with Loonext, {usd(loonext.price)} flat instead of {seats} ×{" "}
-          {usd(PER_USER_MONTHLY)}.
+          {usd(perUserMonthly)}.
         </p>
       )}
 

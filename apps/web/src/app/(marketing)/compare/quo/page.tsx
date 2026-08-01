@@ -31,7 +31,12 @@ import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 
-import { QUO_COLUMNS, QUO_FOOTNOTE, QUO_ROWS } from "./page-data";
+import {
+  QUO_COLUMNS,
+  QUO_FOOTNOTE,
+  QUO_ROWS,
+  QUO_SEAT_PRICING,
+} from "./page-data";
 import { COMPARE_AS_OF } from "../verification";
 
 const PATH = LIVE_ROUTES.compareQuo;
@@ -91,6 +96,8 @@ export default function CompareQuoPage() {
       <SliderBand
         heading="This chart's $19 line is Quo's own seat price."
         lead="The per-user line in this chart is Quo Starter's published $19/user monthly price, and it doesn't include their metered texting. Slide your crew size and watch the gap."
+        perUserMonthly={QUO_SEAT_PRICING.perUserMonthly}
+        minimumSeats={QUO_SEAT_PRICING.minimumSeats}
       />
 
       <HonestFit

@@ -20,6 +20,18 @@ export const HEYMARKET_COLUMNS: LedgerColumn[] = [
   { label: "Heymarket Standard", sub: COMPARE_AS_OF },
 ];
 
+/**
+ * #370: the seat figures the crew-size chart draws, from the same verification
+ * pass as the ledger below. Stated here rather than inside the slider because
+ * the slider is shared — it previously carried ONE hardcoded rate, so this page
+ * drew Quo's $19 line under prose that correctly said $98.
+ */
+export const HEYMARKET_SEAT_PRICING = {
+  perUserMonthly: 49,
+  /** They will not sell one seat, so a solo operator pays for two. */
+  minimumSeats: 2,
+} as const;
+
 export const HEYMARKET_ROWS: LedgerTableRow[] = [
   {
     label: "Seats (3 people)",

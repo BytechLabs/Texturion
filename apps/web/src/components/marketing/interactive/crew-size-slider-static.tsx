@@ -17,22 +17,48 @@ import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
 import { PLAN_PRICING } from "@/lib/api/types";
 import { COMPARE_AS_OF } from "@/app/(marketing)/compare/verification";
 
-const PER_USER_MONTHLY = 19;
+/**
+ * #370 — the rival's seat rate is a PROP, not a constant.
+ *
+ * It was `const perUserMonthly = 19`, written for the Quo comparison where
+ * $19 is right, and then reused verbatim on the Heymarket page where the rate
+ * is $49 with a two-seat minimum. That page's prose correctly said "$98 floor"
+ * while the chart underneath drew $19/user — the page argued against itself,
+ * and it understated a competitor by 2.6x.
+ *
+ * Understating a rival is the safe direction to be wrong in legally, and it is
+ * still wrong: it is a dated, sourced, public claim about somebody else's
+ * price, and `compare-facts.test.ts` exists precisely because those rot. The
+ * rate now travels with the page that states it, and a test ties each page's
+ * slider to the ledger beside it.
+ *
+ * The MINIMUM matters as much as the rate. Heymarket will not sell one seat, so
+ * a solo operator pays for two — which is invisible in any comparison that
+ * starts at three people, and is the single most surprising number on the page.
+ */
+const DEFAULT_PER_USER_MONTHLY = 19;
 const SEATS = 6;
 // Largest crew the slider illustrates. Pro's seats are unlimited (#83), so this
 // is a fixed marketing range, mirroring the interactive slider's MAX_CREW.
 const MAX_CREW = 10;
 // 4 and up is Pro (SPEC §2) — sourced, never retyped.
 const LOONEXT_PRICE = PLAN_PRICING.pro.monthlyDollars; // $79
-const PER_USER = SEATS * PER_USER_MONTHLY; // $114
-const SAVINGS = PER_USER - LOONEXT_PRICE; // $35
-const MAX_PER_USER = MAX_CREW * PER_USER_MONTHLY; // $190 at 10 people
+
 
 function usd(n: number): string {
   return `$${n.toLocaleString("en-US")}`;
 }
 
-export function CrewSizeSliderStatic() {
+export function CrewSizeSliderStatic({
+  perUserMonthly = DEFAULT_PER_USER_MONTHLY,
+  minimumSeats = 1,
+}: { perUserMonthly?: number; minimumSeats?: number } = {}) {
+  // Derived per render rather than at module scope: the rate is now a prop, and
+  // a module constant would silently keep the default on every page that passes
+  // a different one — which is exactly the bug this is fixing.
+  const PER_USER = Math.max(SEATS, minimumSeats) * perUserMonthly;
+  const SAVINGS = PER_USER - LOONEXT_PRICE;
+  const MAX_PER_USER = MAX_CREW * perUserMonthly;
   const loonextWidth = Math.max(6, (LOONEXT_PRICE / MAX_PER_USER) * 100);
   const perUserWidth = Math.max(6, (PER_USER / MAX_PER_USER) * 100);
 
@@ -80,7 +106,7 @@ export function CrewSizeSliderStatic() {
         <div>
           <div className="flex items-baseline justify-between gap-3 text-[0.875rem]">
             <span className="font-medium text-[color:var(--fr-ink)]">
-              Typical per-user tool at {usd(PER_USER_MONTHLY)}/user/mo
+              Typical per-user tool at {usd(perUserMonthly)}/user/mo
             </span>
             <span className="whitespace-nowrap">
               <span className="fr-mono-data text-[color:var(--fr-ink)]">
@@ -106,7 +132,7 @@ export function CrewSizeSliderStatic() {
           {usd(SAVINGS)} less a month
         </span>{" "}
         with Loonext, {usd(LOONEXT_PRICE)} flat instead of {SEATS} ×{" "}
-        {usd(PER_USER_MONTHLY)}.
+        {usd(perUserMonthly)}.
       </p>
 
       <a

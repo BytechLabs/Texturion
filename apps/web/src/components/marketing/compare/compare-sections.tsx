@@ -108,9 +108,20 @@ export function LedgerBand({
 export function SliderBand({
   heading,
   lead,
+  perUserMonthly,
+  minimumSeats,
 }: {
   heading: string;
   lead: ReactNode;
+  /**
+   * #370: THIS page's rival seat rate, from the ledger beside it. Required in
+   * practice — it was a shared constant, so the Heymarket page drew Quo's $19
+   * line under prose that correctly said $98, understating a competitor by
+   * 2.6x while arguing against itself.
+   */
+  perUserMonthly?: number;
+  /** The fewest seats they will sell. A floor, not a discount. */
+  minimumSeats?: number;
 }) {
   return (
     <FrSection>
@@ -119,7 +130,16 @@ export function SliderBand({
         <p className="fr-body mt-4 text-[color:var(--fr-ink-70)]">{lead}</p>
       </div>
       <Reveal className="mx-auto mt-10 max-w-xl">
-        <LazyCrewSizeSlider fallback={<CrewSizeSliderStatic />} />
+        <LazyCrewSizeSlider
+          fallback={
+            <CrewSizeSliderStatic
+              perUserMonthly={perUserMonthly}
+              minimumSeats={minimumSeats}
+            />
+          }
+          perUserMonthly={perUserMonthly}
+          minimumSeats={minimumSeats}
+        />
       </Reveal>
     </FrSection>
   );
