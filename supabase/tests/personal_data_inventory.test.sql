@@ -37,6 +37,10 @@ declare
     'mfa_recovery_codes', 'mfa_recovery_attempts', 'audit_log',
     -- #293: a member's own deferral of a thread, and their own note about it.
     'conversation_snoozes',
+    -- #280: a member's own saved list filters, under a name they wrote. The
+    -- name is free text on a member's row, so it is classified here rather
+    -- than waved through as configuration.
+    'saved_views',
     -- §3 business data
     'companies', 'messaging_registrations', 'port_requests', 'phone_numbers',
     'number_access', 'number_health', 'company_ai_settings', 'templates', 'tags',

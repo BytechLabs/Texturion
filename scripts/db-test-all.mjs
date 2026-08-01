@@ -110,6 +110,7 @@ const SUITES = [
   "contact_timeline",
   "attachment_quarantine",
   "conversation_snooze",
+  "saved_views",
 ];
 
 const args = process.argv.slice(2);

@@ -42,7 +42,7 @@ declare
     'outbound_call_authorizations', 'outbound_dial_leases',
     'activation_stall_state',
     'call_silence_state', 'feature_flag_overrides', 'number_health',
-    'retention_notices', 'prepayments', 'referrals',
+    'retention_notices', 'prepayments', 'referrals', 'saved_views',
     'ownership_transfers', 'phone_numbers',
     'public_links',
     'port_requests', 'provider_costs', 'tags', 'task_map_rows', 'tasks',

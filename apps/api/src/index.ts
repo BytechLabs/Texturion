@@ -76,6 +76,7 @@ import { mfaRoutes } from "./routes/mfa";
 import { messageRoutes } from "./routes/messages";
 import { notificationsRoutes } from "./routes/notifications";
 import { referralRoutes } from "./routes/referrals";
+import { savedViewsRoutes } from "./routes/saved-views";
 import { numbersRoutes } from "./routes/numbers";
 import { ownershipRoutes } from "./routes/ownership";
 import { portingRoutes } from "./routes/porting";
@@ -196,6 +197,9 @@ app.route("/v1/port-requests", portingRoutes);
 app.route("/v1/text-enablements", textEnablementRoutes);
 app.route("/v1/registration", registrationRoutes);
 app.route("/v1", composeRoutes); // POST /v1/conversations — before conversationsRoutes
+// #280: before conversationsRoutes only for tidiness — the paths do not
+// overlap. Saved views are query parameters, never conversation rows.
+app.route("/v1", savedViewsRoutes);
 app.route("/v1", conversationsRoutes);
 app.route("/v1", tasksRoutes); // D17 tasks + GET /v1/conversations/:id/tasks
 app.route("/v1", messageRoutes);

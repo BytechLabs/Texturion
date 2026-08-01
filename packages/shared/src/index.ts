@@ -378,3 +378,20 @@ export {
   planFitForCrew,
 } from "./crew-size";
 export type { CrewSizeBucket } from "./crew-size";
+export {
+  SAVED_VIEW_COUNT_CEILING,
+  SAVED_VIEW_COUNT_MAX_VIEWS,
+  SAVED_VIEW_NAME_MAX,
+  SAVED_VIEW_SURFACES,
+  SAVED_VIEWS_PER_SURFACE,
+  filtersToQuery,
+  formatViewCount,
+  isEmptyView,
+  isSavedViewSurface,
+  isValidViewName,
+  resolveAssignee,
+  sanitizeFilters,
+  savedViewFilterKeys,
+  viewNamesCollide,
+} from "./saved-views";
+export type { SavedViewFilters, SavedViewSurface } from "./saved-views";
