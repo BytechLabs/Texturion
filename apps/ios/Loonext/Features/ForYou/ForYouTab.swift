@@ -700,6 +700,9 @@ private func previewCall(
         responseTime: nil,
         responseDays: 30,
         onResponseWindow: { _ in },
+        // #354: nil report — the preview shows the card's absent state, which
+        // is what a workspace with no quotes actually sees.
+        pipeline: nil,
         onOpenConversation: { _ in },
         onOpenCalls: {},
         onRefresh: {},
@@ -718,6 +721,9 @@ private func previewCall(
         responseTime: nil,
         responseDays: 30,
         onResponseWindow: { _ in },
+        // #354: nil report — the preview shows the card's absent state, which
+        // is what a workspace with no quotes actually sees.
+        pipeline: nil,
         onOpenConversation: { _ in },
         onOpenCalls: {},
         onRefresh: {},
@@ -755,6 +761,9 @@ private func previewCall(
         responseTime: nil,
         responseDays: 30,
         onResponseWindow: { _ in },
+        // #354: nil report — the preview shows the card's absent state, which
+        // is what a workspace with no quotes actually sees.
+        pipeline: nil,
         onOpenConversation: { _ in },
         onOpenCalls: {},
         onRefresh: {},
