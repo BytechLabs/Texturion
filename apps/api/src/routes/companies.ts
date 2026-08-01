@@ -31,6 +31,7 @@ import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
+import { CREW_SIZE_BUCKETS } from "@loonext/shared";
 import { attributeReferral } from "../referrals/referrals";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
@@ -72,6 +73,10 @@ const createSchema = z.object({
   // unconditionally); the field is accepted for back-compat but no longer gates
   // creation — the visible checkbox was removed as needless signup friction.
   aup_accepted: z.literal(true).optional(),
+  // #370: how big is the crew. A bucket rather than a number, and OPTIONAL —
+  // a signup that skips the question is a signup we still want, and "not
+  // asked" has to stay distinguishable from "solo" in the reporting.
+  crew_size: z.enum(CREW_SIZE_BUCKETS).optional(),
   // #399: the code from a ?ref= link, if the signup arrived through one.
   // Bounded rather than shaped — a wrong code must produce a workspace without
   // attribution, never a 422 that blocks a signup over eight characters.
@@ -325,6 +330,20 @@ companiesRoutes.post("/companies", async (c) => {
   // Stage the onboarding pick on the fresh company (the create RPC signature is
   // fixed, so it rides a follow-up update). provisionCompanyNumber drains it
   // onto the ordered number at checkout.
+  // #370: stamp the crew size alongside the chosen number, on the same
+  // follow-up update path — the create RPC's signature is fixed.
+  if (body.crew_size) {
+    const { error: crewError } = await db
+      .from("companies")
+      .update({ crew_size: body.crew_size })
+      .eq("id", company.id as string);
+    if (crewError) {
+      // Never fail the signup over a segmentation field. The workspace is more
+      // important than knowing how big its crew is.
+      console.error(`crew size persist skipped: ${crewError.message}`);
+    }
+  }
+
   // #399: attribute the signup, if it came through somebody's link. Best
   // effort by construction — attributeReferral returns every refusal rather
   // than raising, and this is wrapped besides, because a workspace that exists

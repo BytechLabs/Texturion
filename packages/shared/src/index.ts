@@ -369,3 +369,12 @@ export type {
   ReferralRefusal,
   ReferralStage,
 } from "./referrals";
+
+export {
+  CREW_SIZE_BUCKETS,
+  CREW_SIZE_LABELS,
+  isBeyondSupportedCrew,
+  isCrewSizeBucket,
+  planFitForCrew,
+} from "./crew-size";
+export type { CrewSizeBucket } from "./crew-size";

@@ -589,15 +589,26 @@ async function captureFirstOutboundSent(
     // workspace ever and only when analytics is on.
     const { data: companyRow } = await db
       .from("companies")
-      .select("country,us_texting_enabled")
+      .select("country,us_texting_enabled,crew_size")
       .eq("id", message.company_id)
       .limit(1);
     const company = (companyRow ?? [])[0] as
-      | { country?: string | null; us_texting_enabled?: boolean | null }
+      | {
+          country?: string | null;
+          us_texting_enabled?: boolean | null;
+          crew_size?: string | null;
+        }
       | undefined;
     await capture(env, "first_outbound_sent", message.company_id, {
       country: company?.country ?? "unknown",
       us_texting_enabled: company?.us_texting_enabled === true,
+      // #370: the segment our price story is strongest in. Every competitor
+      // bills per seat and we do not, so the advantage widens with crew size —
+      // and activation split by crew size is the first evidence of whether the
+      // segment we win hardest on actually converts. "not_asked" rather than a
+      // guess: every workspace from before the question exists has no answer,
+      // and inventing one would poison the first cohort comparison.
+      crew_size: company?.crew_size ?? "not_asked",
     });
   } catch (cause) {
     // Analytics never breaks a send that already succeeded.
