@@ -31,12 +31,22 @@ concurrency:
 jobs:
   schema:
     name: SQL tests (Supabase)
-    # #493: skip the release-please pull request. `branches-ignore` in the
-    # trigger CANNOT do this — it filters the BASE branch, and these PRs target
-    # `main` like any other. The head branch is only readable here.
+    # #493: skip the WORK for a release-please pull request.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this condition
-    # is true on every path except the one it exists to skip.
+    # This does NOT stop the parked `action_required` run appearing — that is a
+    # run-level gate GitHub applies before any job condition is evaluated, so
+    # nothing in this file can prevent it. Two attempts proved that: a
+    # `branches-ignore` on the trigger (which filters the BASE branch and never
+    # matched) and then this condition, after which a release PR still parked
+    # two runs fifteen minutes later. The lever is a repository Actions setting,
+    # not a workflow file.
+    #
+    # Kept because it is still correct and still cheap: if those runs are ever
+    # approved or the approval requirement is lifted, they skip instead of
+    # re-running a gate that already passed on the push that produced the PR.
+    #
+    # `github.head_ref` is empty for push and workflow_call, so this is true on
+    # every path except the one it exists to skip.
     if: "!startsWith(github.head_ref, 'release-please--')"
     runs-on: ubuntu-latest
     steps:
@@ -74,12 +84,22 @@ jobs:
 
   e2e:
     name: Launch-pass E2E (hermetic golden paths)
-    # #493: skip the release-please pull request. `branches-ignore` in the
-    # trigger CANNOT do this — it filters the BASE branch, and these PRs target
-    # `main` like any other. The head branch is only readable here.
+    # #493: skip the WORK for a release-please pull request.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this condition
-    # is true on every path except the one it exists to skip.
+    # This does NOT stop the parked `action_required` run appearing — that is a
+    # run-level gate GitHub applies before any job condition is evaluated, so
+    # nothing in this file can prevent it. Two attempts proved that: a
+    # `branches-ignore` on the trigger (which filters the BASE branch and never
+    # matched) and then this condition, after which a release PR still parked
+    # two runs fifteen minutes later. The lever is a repository Actions setting,
+    # not a workflow file.
+    #
+    # Kept because it is still correct and still cheap: if those runs are ever
+    # approved or the approval requirement is lifted, they skip instead of
+    # re-running a gate that already passed on the push that produced the PR.
+    #
+    # `github.head_ref` is empty for push and workflow_call, so this is true on
+    # every path except the one it exists to skip.
     if: "!startsWith(github.head_ref, 'release-please--')"
     runs-on: ubuntu-latest
     steps:
@@ -132,12 +152,22 @@ jobs:
   # a type error or failing test lands without waiting for a full build.
   verify:
     name: Typecheck, lint, test
-    # #493: skip the release-please pull request. `branches-ignore` in the
-    # trigger CANNOT do this — it filters the BASE branch, and these PRs target
-    # `main` like any other. The head branch is only readable here.
+    # #493: skip the WORK for a release-please pull request.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this condition
-    # is true on every path except the one it exists to skip.
+    # This does NOT stop the parked `action_required` run appearing — that is a
+    # run-level gate GitHub applies before any job condition is evaluated, so
+    # nothing in this file can prevent it. Two attempts proved that: a
+    # `branches-ignore` on the trigger (which filters the BASE branch and never
+    # matched) and then this condition, after which a release PR still parked
+    # two runs fifteen minutes later. The lever is a repository Actions setting,
+    # not a workflow file.
+    #
+    # Kept because it is still correct and still cheap: if those runs are ever
+    # approved or the approval requirement is lifted, they skip instead of
+    # re-running a gate that already passed on the push that produced the PR.
+    #
+    # `github.head_ref` is empty for push and workflow_call, so this is true on
+    # every path except the one it exists to skip.
     if: "!startsWith(github.head_ref, 'release-please--')"
     runs-on: ubuntu-latest
     steps:
@@ -278,12 +308,22 @@ jobs:
 
   build:
     name: Build (next + OpenNext + wrangler)
-    # #493: skip the release-please pull request. `branches-ignore` in the
-    # trigger CANNOT do this — it filters the BASE branch, and these PRs target
-    # `main` like any other. The head branch is only readable here.
+    # #493: skip the WORK for a release-please pull request.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this condition
-    # is true on every path except the one it exists to skip.
+    # This does NOT stop the parked `action_required` run appearing — that is a
+    # run-level gate GitHub applies before any job condition is evaluated, so
+    # nothing in this file can prevent it. Two attempts proved that: a
+    # `branches-ignore` on the trigger (which filters the BASE branch and never
+    # matched) and then this condition, after which a release PR still parked
+    # two runs fifteen minutes later. The lever is a repository Actions setting,
+    # not a workflow file.
+    #
+    # Kept because it is still correct and still cheap: if those runs are ever
+    # approved or the approval requirement is lifted, they skip instead of
+    # re-running a gate that already passed on the push that produced the PR.
+    #
+    # `github.head_ref` is empty for push and workflow_call, so this is true on
+    # every path except the one it exists to skip.
     if: "!startsWith(github.head_ref, 'release-please--')"
     runs-on: ubuntu-latest
     env:
@@ -382,12 +422,22 @@ jobs:
   # ---------------------------------------------------------------------------
   theme:
     name: Theme audit (authenticated surfaces, both schemes)
-    # #493: skip the release-please pull request. `branches-ignore` in the
-    # trigger CANNOT do this — it filters the BASE branch, and these PRs target
-    # `main` like any other. The head branch is only readable here.
+    # #493: skip the WORK for a release-please pull request.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this condition
-    # is true on every path except the one it exists to skip.
+    # This does NOT stop the parked `action_required` run appearing — that is a
+    # run-level gate GitHub applies before any job condition is evaluated, so
+    # nothing in this file can prevent it. Two attempts proved that: a
+    # `branches-ignore` on the trigger (which filters the BASE branch and never
+    # matched) and then this condition, after which a release PR still parked
+    # two runs fifteen minutes later. The lever is a repository Actions setting,
+    # not a workflow file.
+    #
+    # Kept because it is still correct and still cheap: if those runs are ever
+    # approved or the approval requirement is lifted, they skip instead of
+    # re-running a gate that already passed on the push that produced the PR.
+    #
+    # `github.head_ref` is empty for push and workflow_call, so this is true on
+    # every path except the one it exists to skip.
     if: "!startsWith(github.head_ref, 'release-please--')"
     runs-on: ubuntu-latest
     steps:
@@ -486,12 +536,22 @@ jobs:
 
   android:
     name: Android (assemble + unit tests)
-    # #493: skip the release-please pull request. `branches-ignore` in the
-    # trigger CANNOT do this — it filters the BASE branch, and these PRs target
-    # `main` like any other. The head branch is only readable here.
+    # #493: skip the WORK for a release-please pull request.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this condition
-    # is true on every path except the one it exists to skip.
+    # This does NOT stop the parked `action_required` run appearing — that is a
+    # run-level gate GitHub applies before any job condition is evaluated, so
+    # nothing in this file can prevent it. Two attempts proved that: a
+    # `branches-ignore` on the trigger (which filters the BASE branch and never
+    # matched) and then this condition, after which a release PR still parked
+    # two runs fifteen minutes later. The lever is a repository Actions setting,
+    # not a workflow file.
+    #
+    # Kept because it is still correct and still cheap: if those runs are ever
+    # approved or the approval requirement is lifted, they skip instead of
+    # re-running a gate that already passed on the push that produced the PR.
+    #
+    # `github.head_ref` is empty for push and workflow_call, so this is true on
+    # every path except the one it exists to skip.
     if: "!startsWith(github.head_ref, 'release-please--')"
     runs-on: ubuntu-latest
     defaults:
@@ -536,12 +596,22 @@ jobs:
 
   ios:
     name: iOS (build + unit tests)
-    # #493: skip the release-please pull request. `branches-ignore` in the
-    # trigger CANNOT do this — it filters the BASE branch, and these PRs target
-    # `main` like any other. The head branch is only readable here.
+    # #493: skip the WORK for a release-please pull request.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this condition
-    # is true on every path except the one it exists to skip.
+    # This does NOT stop the parked `action_required` run appearing — that is a
+    # run-level gate GitHub applies before any job condition is evaluated, so
+    # nothing in this file can prevent it. Two attempts proved that: a
+    # `branches-ignore` on the trigger (which filters the BASE branch and never
+    # matched) and then this condition, after which a release PR still parked
+    # two runs fifteen minutes later. The lever is a repository Actions setting,
+    # not a workflow file.
+    #
+    # Kept because it is still correct and still cheap: if those runs are ever
+    # approved or the approval requirement is lifted, they skip instead of
+    # re-running a gate that already passed on the push that produced the PR.
+    #
+    # `github.head_ref` is empty for push and workflow_call, so this is true on
+    # every path except the one it exists to skip.
     if: "!startsWith(github.head_ref, 'release-please--')"
     runs-on: macos-latest
     defaults:
