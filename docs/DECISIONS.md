@@ -6089,3 +6089,102 @@ implementation should use, so the answer changes a flag rather than the design.
 A flat-rate plan with no metered items. Every objection above comes from the
 subscription carrying usage; a product where a year is genuinely twelve
 identical months has no reason to avoid an annual interval.
+
+---
+
+## D107 — a prepaid year is a discount on the licensed line, and the row that grants it lives here (#400, 2026-08-01)
+
+Three mechanisms for an annual plan have been designed and rejected. This is the
+fourth, and the first that survived review. All four are recorded because the
+reasons are not obvious and the next person will otherwise re-propose one of the
+first three.
+
+| Mechanism | Why it failed |
+|---|---|
+| A twelve-month billing INTERVAL | The allowance and the overage cap are period-scoped, so a busy January exhausts the year and throttles the workspace until December (D106) |
+| A one-time payment held as CUSTOMER CREDIT | Built, reviewed, reverted (61855d03 → 09f9446b). A credit is fungible dollars: $290 of credit funds exactly ten $29 invoices, so month eleven charges the card and the two free months never exist |
+| TWO subscriptions (annual flat + monthly metered) | 26 confirmed defects. `claim_checkout_activation` is a single-slot writer that CANCELS the second subscription, and `sweepOrphanSubscriptions` cancels any live subscription that is not `companies.stripe_subscription_id` — an invariant that exists because of a real double-charge incident |
+
+**The mechanism: one subscription, unchanged, and a 100%-off item discount.**
+
+The customer buys a one-time price ($290 starter / $790 pro) through a
+`mode: "payment"` Checkout Session with `automatic_tax` on. We then apply a
+Stripe coupon — `percent_off: 100`, `duration: repeating`,
+`duration_in_months: 12` — as an **item-level** discount on the LICENSED
+subscription item only. The flat line invoices at $0 for twelve months; metered
+overage, modules and extra numbers keep billing normally at full price.
+
+Nothing about the subscription's topology changes, which is the whole point: the
+period stays monthly, so the allowance window and the overage cap are untouched,
+and there is no second subscription for the orphan sweep to cancel or for the
+webhooks to ignore.
+
+**The arithmetic is real, and was checked before the code this time.** $290 <
+12 × $29 = $348 (an effective $24.17/mo); $790 < 12 × $79 = $948 ($65.83/mo).
+That is the two-months-free frame the issue asked for, delivered through the
+price rather than through credit arithmetic.
+
+### The five things this design does NOT get for free
+
+A design review raised 21 defects and confirmed 12. None is structural, and all
+five clusters are requirements on the implementation rather than reasons to
+abandon it.
+
+**1. The Stripe discount must not be the record of the entitlement.** Re-applying
+the coupon RESTARTS its twelve months, and `confirm-checkout` lets a browser
+replay a session on demand — unbounded free service from one payment. A
+transient failure inside the handler does the same thing by accident, because
+the sweeper retries five times over ~25 minutes and the last write wins.
+
+So a `prepayments` row is taken FIRST, keyed on the checkout session id, holding
+company, plan, amount collected, the returned discount id, and a computed
+`granted_through`. The grant path reads the claim: a row that exists means verify
+the item still carries that discount and return without calling Stripe. This is
+**exactly the claim table reverted with the credit mechanism** — that shape was
+right, its economics were not.
+
+The discount then becomes a *derived projection* of the row, re-asserted on every
+mirror pass the way `ensureVoiceMeteredItem` converges the voice item — so a
+cancel-and-resubscribe, or any rewrite that drops it, self-heals instead of
+silently destroying months somebody paid for.
+
+**2. Item rewrites must carry `discounts` through.** The downgrade path rebuilds
+schedule phases from bare price ids, and a module toggle while a schedule exists
+does the same. Both would erase up to $711 of prepaid Pro year the instant a
+customer asks for a smaller plan — and nothing would detect it, because the only
+record was the object just overwritten. Phase items expose `discounts` on the
+retrieve shape; they must be re-emitted.
+
+**3. The sell is refused, not queued, when the subscription is schedule-managed.**
+Stripe rejects item writes while a schedule owns the items, so a grant issued
+during a pending downgrade fails after five retries with the money already taken.
+A 409 that says when the pending change lands is the honest answer, and it
+matches how extra-number buys are already refused.
+
+**4. A plan change during a prepaid window is an explicit branch, never an
+inherited default.** Left alone, an upgrade re-points the 100%-off item at the
+Pro price and hands over a free Pro year; if Stripe instead drops the discount on
+the swap, the customer silently loses the months they bought. Neither outcome is
+chosen by any code today. The implementation converts — revoke, value the unused
+months from the claim row, re-grant sized to what remains at the new price — or
+refuses. It does not shrug.
+
+**5. Money that is not collected must not count as revenue.** The cost-vs-revenue
+projection reads the plan's list price, so a prepaid tenant looks like it is
+paying $29 a month it is not paying, muting the underwater alert for exactly the
+cohort that has already paid everything it will ever pay. The base term comes
+from the claim row instead: amount collected ÷ months granted. The codebase has
+fixed this same class of defect twice before, for grandfathered modules and for
+phantom extra-number revenue.
+
+Refunds and won chargebacks revoke the coupon off the same row, which is also
+what makes D106's refund posture implementable again — "the unused portion"
+becomes remaining discounted months rather than a credit balance that no longer
+exists.
+
+### What would change this
+
+Stripe shipping a first-class "prepaid term on a metered subscription" primitive,
+or the product losing its metered items. Every objection across all four designs
+traces to one fact: this subscription bills usage monthly, and a year is not a
+unit it can express.
