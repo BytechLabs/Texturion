@@ -108,6 +108,24 @@ export const PLAN_NOTIFY_LIMITS: Record<
  */
 export const MAX_EMAIL_RECIPIENTS_PER_CLAIM = 3;
 
+/**
+ * #400/D106 — what a prepaid year costs, in cents.
+ *
+ * Ten months' money for twelve, which is the frame the founder asked for and
+ * the one a price-sensitive buyer recognises. $290 works out at 79 cents a day,
+ * which is the most favourable HONEST comparison this product can make against
+ * the $199+/mo receptionist tier it competes with.
+ *
+ * A year is NOT a billing interval here — see D106. The subscription stays
+ * monthly and this money lands as customer credit that each monthly invoice
+ * draws down, so the allowance, the overage cap and every plan-change path
+ * behave exactly as they do for a monthly customer.
+ */
+export const PLAN_PREPAY_YEAR_CENTS: Record<PlanId, number> = {
+  starter: 29_000,
+  pro: 79_000,
+};
+
 /** Overage price per extra outbound segment, in cents (SPEC 2). */
 export const PLAN_OVERAGE_CENTS_PER_SEGMENT: Record<PlanId, number> = {
   starter: 3,
@@ -209,6 +227,22 @@ export function planPrices(env: Env, plan: PlanId): PlanPrices {
         licensed: env.STRIPE_PRO_PRICE_ID,
         metered: env.STRIPE_PRO_OVERAGE_PRICE_ID,
       };
+}
+
+/**
+ * The one-time price id for a prepaid year, or null when this environment has
+ * no such price provisioned.
+ *
+ * Null is the feature flag: with the catalog id unset the offer does not exist
+ * anywhere, because a surface that sells something we cannot charge for is
+ * worse than no surface.
+ */
+export function prepayYearPrice(env: Env, plan: PlanId): string | null {
+  const id =
+    plan === "starter"
+      ? env.STRIPE_STARTER_YEAR_PRICE_ID
+      : env.STRIPE_PRO_YEAR_PRICE_ID;
+  return id && id.length > 0 ? id : null;
 }
 
 /** Which plan a licensed Stripe price id belongs to; null for foreign prices. */

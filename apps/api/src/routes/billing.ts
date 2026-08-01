@@ -10,6 +10,7 @@ import {
   PLAN_LIMITS,
   planForLicensedPrice,
   planPrices,
+  prepayYearPrice,
   type LocalSubscriptionStatus,
   type PlanId,
 } from "../billing/plans";
@@ -20,6 +21,12 @@ import {
   findExtraNumberItem,
 } from "../billing/extra-numbers";
 import { cartSignature, idempotencyKey } from "../billing/idempotency";
+import {
+  PREPAY_METADATA_FIELD,
+  PREPAY_METADATA_KIND,
+  prepayCreditCents,
+  prepayEligibility,
+} from "../billing/prepay";
 import {
   allVoiceOveragePrices,
   MODULE_CATALOG,
@@ -657,6 +664,125 @@ billingRoutes.post("/change-plan", async (c) => {
     effective: "period_end",
     effective_at: new Date(currentPeriodEnd * 1000).toISOString(),
   });
+});
+
+/**
+ * GET /v1/billing/prepay (#400/D106) — may this workspace buy a year up front,
+ * and how much credit is already sitting on it?
+ *
+ * One request answers both because the surface needs both: the offer only
+ * renders when eligible, and a workspace that has already prepaid should see
+ * what is left rather than the offer again.
+ *
+ * The remaining credit comes from STRIPE, not from our `prepayments` rows.
+ * Stripe is where the monthly drawdown happens, so it is the only place that
+ * knows what is left; our table records what was bought and must never be
+ * presented as what remains.
+ */
+billingRoutes.get("/prepay", async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const company = await fetchCompany(db, c.get("companyId"));
+
+  const eligibility = await prepayEligibility(env, db, company);
+  // A Stripe read costs a round trip, so it is skipped for a workspace that
+  // has no customer yet — which is every workspace that never checked out.
+  const creditCents = company.stripe_customer_id
+    ? await prepayCreditCents(env, company.stripe_customer_id)
+    : 0;
+
+  return c.json({
+    eligible: eligibility.eligible,
+    reason: eligibility.reason ?? null,
+    price_cents: eligibility.priceCents ?? null,
+    credit_cents: creditCents,
+  });
+});
+
+/**
+ * POST /v1/billing/prepay (#400/D106) — buy a year up front.
+ *
+ * A ONE-TIME Checkout Session, not a subscription one. The money lands as a
+ * credit on the Stripe customer (see billing/prepay.ts) and every existing
+ * monthly invoice draws it down; the subscription itself is untouched, which is
+ * the whole point of D106.
+ *
+ * `automatic_tax` is enabled here for the reason D106 states: whether tax is
+ * due on a prepayment at the moment it is collected is an accountant's
+ * question, and a Checkout Session that already computes tax means the answer
+ * changes a setting rather than the design.
+ */
+billingRoutes.post("/prepay", async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const company = await fetchCompany(db, c.get("companyId"));
+
+  const eligibility = await prepayEligibility(env, db, company);
+  if (!eligibility.eligible) {
+    // Each refusal says the thing the customer can act on, and no more. The
+    // ineligible reasons are not secrets, but they are also not all the
+    // customer's problem to solve — an unprovisioned catalog is ours.
+    const message =
+      eligibility.reason === "not_activated"
+        ? "Send your first message first — then you can pay for a year up front."
+        : eligibility.reason === "subscription_unhealthy"
+          ? "Sort out your payment method before paying for a year up front."
+          : eligibility.reason === "no_subscription"
+            ? "Subscribe first — a year up front pays for a plan you already have."
+            : "Paying for a year up front isn't available right now.";
+    return errorResponse(c, "conflict", message);
+  }
+
+  const plan = company.plan as PlanId;
+  const price = prepayYearPrice(env, plan);
+  if (!price) {
+    // Unreachable through the eligibility check above; kept because a null
+    // price reaching Stripe would be a 500 rather than a refusal.
+    return errorResponse(
+      c,
+      "conflict",
+      "Paying for a year up front isn't available right now.",
+    );
+  }
+  if (!company.stripe_customer_id) {
+    return errorResponse(
+      c,
+      "conflict",
+      "Subscribe first — a year up front pays for a plan you already have.",
+    );
+  }
+
+  const session = await getStripe(env).checkout.sessions.create(
+    {
+      mode: "payment",
+      client_reference_id: company.id,
+      // The SAME customer as the subscription, always. A prepayment credited to
+      // a second customer object would be money the invoices can never see.
+      customer: company.stripe_customer_id,
+      line_items: [{ price, quantity: 1 }],
+      automatic_tax: { enabled: true },
+      // How the webhook tells this apart from a subscription checkout. Checked
+      // rather than inferred from `mode`, because the failure of guessing wrong
+      // is silent money movement.
+      metadata: {
+        [PREPAY_METADATA_FIELD]: PREPAY_METADATA_KIND,
+        loonext_plan: plan,
+      },
+      success_url: `${env.APP_ORIGIN}/settings/billing?prepay=success`,
+      cancel_url: `${env.APP_ORIGIN}/settings/billing?prepay=canceled`,
+    },
+    {
+      // Keyed on the PLAN as well as the company: a workspace that upgrades
+      // between two attempts is buying a different thing at a different price,
+      // and reusing the key would replay the cheaper session.
+      idempotencyKey: idempotencyKey(company.id, "prepay", plan),
+    },
+  );
+
+  if (!session.url) {
+    throw new Error(`Stripe prepay session ${session.id} returned no URL.`);
+  }
+  return c.json({ url: session.url });
 });
 
 /**

@@ -226,6 +226,22 @@ try {
     tax_behavior: "exclusive",
   });
 
+  // #400/D106: the prepaid year. ONE-TIME prices (no `recurring`), exactly
+  // like the US registration fee above — a year is a prepayment held as
+  // customer credit, not a billing interval. Ten months' money for twelve.
+  const starterYear = await ensurePrice("loonext_starter_year", {
+    product: starterProduct.id,
+    currency: "usd",
+    unit_amount: 29000,
+    tax_behavior: "exclusive",
+  });
+  const proYear = await ensurePrice("loonext_pro_year", {
+    product: proProduct.id,
+    currency: "usd",
+    unit_amount: 79000,
+    tax_behavior: "exclusive",
+  });
+
   // #12 plan-builder module add-ons: a product + flat monthly licensed price
   // per module, idempotent by the same lookup_key/catalog-metadata scheme.
   const modulePriceIds: { envKey: string; id: string }[] = [];
@@ -298,6 +314,8 @@ try {
   console.log(`STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID=${starterVoiceOverage.id}`);
   console.log(`STRIPE_PRO_VOICE_OVERAGE_PRICE_ID=${proVoiceOverage.id}`);
   console.log(`STRIPE_US_FEE_PRICE_ID=${usFee.id}`);
+  console.log(`STRIPE_STARTER_YEAR_PRICE_ID=${starterYear.id}`);
+  console.log(`STRIPE_PRO_YEAR_PRICE_ID=${proYear.id}`);
   for (const { envKey, id } of modulePriceIds) {
     console.log(`${envKey}=${id}`);
   }
