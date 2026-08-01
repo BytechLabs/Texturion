@@ -104,6 +104,73 @@ export function fetchTask(
 // ---------------------------------------------------------------------------
 
 /**
+ * #478 — one action, every task matching either explicit ids or the CURRENT
+ * filter.
+ *
+ * The body deliberately mirrors `BulkConversationsBody`: the same selection
+ * primitives in `lib/inbox/bulk-selection.ts` produce both, and the same
+ * `bulkResultMessage` reads both results. A second selection implementation for
+ * tasks would be a second set of rules about what "select all" means, and the
+ * one that matters — never invent a count — is exactly the kind that drifts.
+ *
+ * There is no send action, and there never can be: the enum here is the third
+ * gate after the route's zod enum and the SQL one.
+ */
+export interface BulkTasksBody {
+  action: "mark_done" | "mark_undone" | "assign" | "delete";
+  /** Omit to act on everything matching `filter`. */
+  ids?: string[];
+  filter?: Pick<
+    TaskListFilters,
+    | "status"
+    | "assigned_user_id"
+    | "unassigned"
+    | "conversation_id"
+    | "due_before"
+    | "due_after"
+    | "overdue"
+  >;
+  target_user_id?: string | null;
+}
+
+/** Identical in shape to the conversations result, so one renderer reads both. */
+export interface BulkTasksResult {
+  action: string;
+  matched: number;
+  applied: { id: string; previous: Record<string, unknown> }[];
+  failed: { id: string; reason: string }[];
+  capped: boolean;
+}
+
+/**
+ * POST /v1/tasks/bulk.
+ *
+ * Every task list is invalidated rather than patched. A bulk action can move
+ * hundreds of rows across filters at once — marking done removes them from the
+ * Open view, assigning moves them out of Unassigned — and hand-reconciling that
+ * in the cache is how a list ends up showing a task the server no longer puts
+ * there.
+ */
+export function useBulkTasks() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: BulkTasksBody) =>
+      apiFetch<BulkTasksResult>("/v1/tasks/bulk", {
+        method: "POST",
+        companyId,
+        body,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: keys.tasks.lists(companyId),
+        refetchType: "active",
+      });
+    },
+  });
+}
+
+/**
  * GET /v1/tasks — the /tasks page's filtered, cursor-paginated list (T6.1).
  * Due-sorted views (overdue / due-range) key on (due_at NULLS LAST, id);
  * created-sorted otherwise — the route mints the matching cursor shape, so the

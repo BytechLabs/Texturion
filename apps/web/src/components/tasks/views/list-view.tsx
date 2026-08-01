@@ -4,7 +4,23 @@ import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 
 import { LoadError } from "@/components/settings/section";
+import { useState } from "react";
+import { toast } from "sonner";
+
+import { TaskBulkBar } from "@/components/tasks/task-bulk-bar";
 import { Button } from "@/components/ui/button";
+import { useBulkTasks, type BulkTasksBody } from "@/lib/api/tasks";
+import {
+  bulkResultMessage,
+  EMPTY_SELECTION,
+  isEmpty,
+  isRowSelected,
+  selectAllMatching,
+  selectionIds,
+  selectLoaded,
+  toggleRow,
+  type BulkSelection,
+} from "@/lib/inbox/bulk-selection";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAllTasks, useTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
@@ -43,6 +59,13 @@ export function ListView({ state }: { state: TaskPageState }) {
     { enabled: !hasStatus },
   );
 
+  // #478: selection lives here rather than in the bar, because the bar is
+  // hidden when nothing is selected and unmounting it would throw the selection
+  // away. The primitives are #275's, unchanged — a second implementation would
+  // be a second set of rules about what "select all" means.
+  const [selection, setSelection] = useState<BulkSelection>(EMPTY_SELECTION);
+  const bulk = useBulkTasks();
+
   const isPending = hasStatus
     ? single.isPending
     : openQuery.isPending || doneQuery.isPending;
@@ -61,6 +84,34 @@ export function ListView({ state }: { state: TaskPageState }) {
     for (const t of flattenPages(doneQuery.data)) if (!byId.has(t.id)) byId.set(t.id, t);
     const merged = [...byId.values()];
     tasks = [...merged.filter((t) => !t.done), ...merged.filter((t) => t.done)];
+  }
+
+  const loadedIds = tasks.map((task) => task.id);
+  const hasMore = hasStatus ? single.hasNextPage === true : false;
+
+  const BULK_VERB: Record<BulkTasksBody["action"], string> = {
+    mark_done: "Marked done",
+    mark_undone: "Marked not done",
+    assign: "Assigned",
+    delete: "Deleted",
+  };
+
+  function runBulk(body: Omit<BulkTasksBody, "ids" | "filter">) {
+    // `selectionIds` returns null for the filter mode, which is exactly the
+    // shape the route wants — ids OR filter, never both, never neither.
+    const ids = selectionIds(selection);
+    bulk.mutate(
+      ids === null ? { ...body, filter: filters } : { ...body, ids },
+      {
+        onSuccess: (result) => {
+          // The server's count, never one this component worked out. In filter
+          // mode the client genuinely does not know how many rows matched.
+          toast.success(bulkResultMessage(BULK_VERB[body.action], result));
+          setSelection(EMPTY_SELECTION);
+        },
+        onError: () => toast.error("That didn't go through. Nothing was changed."),
+      },
+    );
   }
 
   if (isPending) return <ListSkeleton />;
@@ -88,6 +139,21 @@ export function ListView({ state }: { state: TaskPageState }) {
 
   return (
     <div className="overflow-x-auto">
+      {!isEmpty(selection) && (
+        <TaskBulkBar
+          selection={selection}
+          loadedIds={loadedIds}
+          hasMore={hasMore}
+          pending={bulk.isPending}
+          onSelectLoaded={() => setSelection(selectLoaded(loadedIds))}
+          onSelectAllMatching={() => setSelection(selectAllMatching())}
+          onClear={() => setSelection(EMPTY_SELECTION)}
+          onMarkDone={() => runBulk({ action: "mark_done" })}
+          onMarkUndone={() => runBulk({ action: "mark_undone" })}
+          onAssign={(userId) => runBulk({ action: "assign", target_user_id: userId })}
+          onDelete={() => runBulk({ action: "delete" })}
+        />
+      )}
       {/* Column header — quiet stone labels, hidden on mobile (the row carries
           its own compact layout there). */}
       <div className="hidden min-w-[640px] grid-cols-[minmax(0,1fr)_160px_128px_96px] items-center gap-4 border-b border-border px-3 pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:grid">
@@ -98,7 +164,14 @@ export function ListView({ state }: { state: TaskPageState }) {
       </div>
       <ul>
         {tasks.map((task) => (
-          <TaskRow key={task.id} task={task} />
+          <TaskRow
+            key={task.id}
+            task={task}
+            selected={isRowSelected(selection, task.id)}
+            onToggleSelected={() =>
+              setSelection((current) => toggleRow(current, task.id, loadedIds))
+            }
+          />
         ))}
       </ul>
       {/* Only the pinned-status tabs paginate; the statusless union drains all
@@ -124,12 +197,34 @@ export function ListView({ state }: { state: TaskPageState }) {
  * detail drawer (TASKS-V2 D-A); assignee + due are inline quick-edits (D-B); a
  * quiet "Open conversation" link still deep-links to the source thread.
  */
-function TaskRow({ task }: { task: Task }) {
+function TaskRow({
+  task,
+  selected,
+  onToggleSelected,
+}: {
+  task: Task;
+  selected: boolean;
+  onToggleSelected: () => void;
+}) {
   const { openTask } = useTaskDrawer();
   return (
     <li className="group border-b border-border-subtle">
       <div className="flex items-center gap-3 px-3 py-3 transition-colors duration-150 ease-out hover:bg-app-hover md:grid md:min-w-[640px] md:grid-cols-[minmax(0,1fr)_160px_128px_96px] md:gap-4">
         <div className="flex min-w-0 flex-1 items-start gap-3 md:items-center">
+          {/* #478: the SELECTION box, distinct from the done box beside it. Two
+              checkboxes in a row is a real risk of confusion, so this one is
+              only offered on hover or once a selection exists — until then the
+              row looks exactly as it did, and the done box keeps its place as
+              the one people reach for. */}
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelected}
+            aria-label={`Select ${task.title}`}
+            className={`mt-0.5 size-4 shrink-0 accent-app-olive md:mt-0 ${
+              selected ? "" : "opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
+            }`}
+          />
           <TaskDoneCheckbox task={task} className="mt-0.5 md:mt-0" />
           <div className="min-w-0 flex-1">
             <button
