@@ -59,4 +59,4 @@ await runScript("version-distribution", async ({ args, db }) => {
     }
   }
   console.log("");
-});
+}, { readOnly: true });

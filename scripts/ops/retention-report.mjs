@@ -153,4 +153,4 @@ await runScript("retention-report", async ({ args, db }) => {
         "  approximation and is marked rather than smoothed over.\n",
     );
   }
-});
+}, { readOnly: true });

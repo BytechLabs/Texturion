@@ -175,13 +175,16 @@ export function opsClient() {
  * project, and the only reliable defence is the host being on screen next to
  * the word APPLY before anybody presses return.
  */
-export function announceTarget(apply) {
+export function announceTarget(apply, readOnly = false) {
   const host = new URL(process.env.SUPABASE_URL ?? "http://unset").host;
+  const mode = readOnly
+    ? "report — this script has no write path"
+    : apply
+      ? "APPLY — this will write"
+      : "dry run — nothing will be written";
   console.log("");
   console.log(`  target : ${host}`);
-  console.log(
-    `  mode   : ${apply ? "APPLY — this will write" : "dry run — nothing will be written"}`,
-  );
+  console.log(`  mode   : ${mode}`);
   console.log("");
 }
 
@@ -241,17 +244,26 @@ export async function recordPlatformAudit(db, entry) {
 /**
  * Wrap a script: parse args, announce the target, run, and turn any throw into
  * a readable failure rather than a stack trace nobody reads at 11pm.
+ *
+ * `readOnly` marks a script with no write path at all — a report. Without it
+ * every report ended by telling the reader to "re-run with --apply", which is
+ * an instruction to do something the script cannot do, on a surface where that
+ * flag otherwise means a real write to production. Advertising a flag that
+ * does nothing is how a flag that does something stops being read carefully.
  */
-export async function runScript(name, run) {
+export async function runScript(name, run, { readOnly = false } = {}) {
   const args = parseArgs();
   const apply = args.apply === true;
-  announceTarget(apply);
+  if (readOnly && apply) {
+    fail(`${name} is a report and writes nothing — drop --apply.`);
+  }
+  announceTarget(apply, readOnly);
   try {
     await run({ args, apply, db: opsClient(), script: name });
   } catch (cause) {
     fail(cause instanceof Error ? cause.message : String(cause));
   }
-  if (!apply) {
+  if (!apply && !readOnly) {
     console.log("  Nothing was written. Re-run with --apply to make it real.\n");
   }
 }

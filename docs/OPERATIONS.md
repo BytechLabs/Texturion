@@ -68,6 +68,8 @@ reliable defence.
 | `prod-dump-scale.mjs` | "How big is production, and how long does getting the data out take?" (#249) | Read-only against production, and **writes nothing to disk** — the dump is streamed to a byte counter and discarded, because a full production dump at rest is customer message bodies with no retention policy |
 | `legal-hold.mjs` | A workspace is in a dispute or under investigation (#284) | Suspends every retention deletion for it. Changes nothing else — a hold that degraded the product would punish somebody for being in a dispute |
 | `erase-contact.mjs` | A non-customer asks us to delete their contact-form data (#340) | They have no account, so no self-serve path reaches it. Prints what we hold **before** removing it, and returns a count |
+| `retention-report.mjs` | Is week-4 retention above D12's 85% floor? (#327) | Read-only. **Withholds the verdict** on a thin cohort rather than showing a rate nobody should act on |
+| `rcs-session-model.mjs` | Would RCS Conversational's per-session billing beat per-segment SMS? (#450) | Read-only. Folds real traffic into rolling 24h sessions and prints break-even across plausible multipliers. **Withholds the verdict** below 200 sessions |
 
 ### The one promise that needs saying out loud
 
