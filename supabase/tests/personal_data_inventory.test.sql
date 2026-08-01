@@ -54,6 +54,9 @@ declare
     'inbound_notification_days', 'liveness_heartbeats', 'message_mentions',
     'outbound_call_authorizations', 'outbound_dial_leases', 'ownership_transfers',
     'call_silence_state', 'retention_notices',
+    -- #477: probe name, pass/fail, latency, and a short failure CODE. In §6
+    -- only because the code is capped and never a message — see the note there.
+    'probe_results',
     -- #281: a company id and funnel timestamps. Names WHICH workspace is
     -- struggling, which is commercial rather than personal.
     'activation_stall_state'

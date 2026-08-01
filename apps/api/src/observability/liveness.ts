@@ -145,6 +145,11 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 10080,
     graceMinutes: 1440,
   },
+  "cron:5 */2 * * *": {
+    what: "The synthetic probes have not run — /status has no fresh evidence (#477).",
+    everyMinutes: 120,
+    graceMinutes: 60,
+  },
   "cron:35 14 1 * *": {
     what: "The monthly response-time recap has not run (#482).",
     // A month at its longest, so February never reads as an outage. The grace
@@ -344,6 +349,13 @@ export const LIVENESS_EXPECTATIONS = {
     what: "The weekly founder cost digest has stopped.",
     everyMinutes: 10080,
     graceMinutes: 1440,
+  },
+  "job:probes": {
+    what:
+      "The synthetic probes have stopped — nothing is checking that auth works " +
+      "or that carrier callbacks are still arriving (#477).",
+    everyMinutes: 120,
+    graceMinutes: 60,
   },
   "job:response-time-recap": {
     what:

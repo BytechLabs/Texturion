@@ -124,10 +124,16 @@ gets overlooked.
 `high_priority_push_budget`, `high_priority_push_days`,
 `inbound_notification_days`, `liveness_heartbeats`, `message_mentions`,
 `outbound_call_authorizations`, `outbound_dial_leases`, `ownership_transfers`,
-`call_silence_state`, `retention_notices`.
+`call_silence_state`, `probe_results`, `retention_notices`.
 
 Ids and counters. Listed rather than omitted, so "not in the document" always
 means "somebody forgot", never "deliberately excluded".
+
+`probe_results` (#477) is in this section CONDITIONALLY, and the condition is
+enforced in the schema: its `detail` column is a short failure code, capped at
+64 characters, never a message and never a body. A probe that recorded what it
+actually saw — a number it texted, a URL with a key in it — would move this
+table into section 5 on the first bad day. The cap is what keeps it here.
 
 ---
 

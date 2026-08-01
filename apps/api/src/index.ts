@@ -13,6 +13,7 @@ import { runSubscriptionReconcileJob } from "./billing/reconcile";
 import {
   runOverageDigestJob,
 } from "./billing/overage-warning";
+import { runProbes } from "./observability/probes";
 import { runResponseTimeRecapJob } from "./reports/monthly-recap";
 import {
   runOverageWarningJob,
@@ -467,6 +468,10 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // reports moves on that scale — a weekly one would mostly report noise, and
   // an email that mostly says nothing is one people stop opening.
   "35 14 1 * *": [job("job:response-time-recap", runResponseTimeRecapJob)],
+  // #477: does the product actually work, checked from outside itself. Sentry
+  // catches throws and the liveness ledger catches absences; this catches the
+  // third shape — a path that answers 200 and does nothing useful.
+  "5 */2 * * *": [job("job:probes", runProbes)],
   // #457: the carrier's own daily ceiling, warned about hourly. Hourly rather
   // than daily because the only useful advice ("spread the rest over
   // tomorrow") expires the moment the ceiling is hit, and a nightly sweep

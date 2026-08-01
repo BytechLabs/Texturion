@@ -52,6 +52,10 @@
       // #482 response-time recap (monthly, 1st). Its own minute so it never
       // shares a tick with the daily jobs above — this one fans out across
       // every active tenant, and a slow run must not delay grace & release.
+      // #477: the synthetic probes. Two-hourly rather than hourly — both are
+      // free, but a status page reads the same either way and half the rows is
+      // half the retention.
+      "5 */2 * * *",
       "35 14 1 * *"
     ]
   },
