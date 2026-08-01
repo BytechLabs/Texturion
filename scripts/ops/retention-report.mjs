@@ -4,6 +4,7 @@
  *   node scripts/ops/retention-report.mjs
  *   node scripts/ops/retention-report.mjs --weeks 26
  *   node scripts/ops/retention-report.mjs --segment activated
+ *   node scripts/ops/retention-report.mjs --segment module      # #55
  *
  * Read-only, so there is no --apply.
  *
@@ -82,7 +83,10 @@ await runScript("retention-report", async ({ args, db }) => {
 
   const segments = only
     ? [only]
-    : ["all", "activated", "plan", "country", "crew"];
+    // #255: `module` last, because it is the one most likely to be read as
+    // causal. Whether an add-on predicts survival or merely correlates with
+    // a customer who was staying anyway is not answerable at this base size.
+    : ["all", "activated", "plan", "country", "crew", "module"];
 
   for (const segment of segments) {
     const inSegment = rows.filter((r) => r.segment === segment);

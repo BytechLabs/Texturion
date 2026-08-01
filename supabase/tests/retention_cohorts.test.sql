@@ -287,4 +287,53 @@ begin
   end if;
 end $$;
 
+-- ===========================================================================
+-- RC-#255. The `module` segment splits the cohort, and splits it on EVER
+-- attached rather than attached now.
+--
+-- "Attached now" would mean "still here" — a churned workspace has its modules
+-- disabled on the way out — and the segment would prove itself.
+-- ===========================================================================
+do $$
+declare
+  v_attached integer;
+  v_without  integer;
+  v_company  uuid;
+begin
+  -- Give the first eligible workspace an add-on it has since DROPPED.
+  select c.id into v_company from public.companies c
+   where c.subscription_started_at is not null
+     and coalesce(c.is_internal, false) = false
+     and c.subscription_started_at + interval '28 days' <= now()
+   limit 1;
+  if v_company is null then
+    raise exception 'RC-255: no eligible workspace in the fixture';
+  end if;
+
+  insert into public.company_modules (company_id, module, enabled_at, disabled_at)
+  values (v_company, 'regions_ca', now() - interval '60 days', now() - interval '1 day')
+  on conflict (company_id, module) do update
+    set disabled_at = excluded.disabled_at;
+
+  select coalesce(sum(r.cohort_size), 0) into v_attached
+    from public.api_retention_cohorts(52, 20) r
+   where r.segment = 'module' and r.segment_value = 'attached an add-on';
+  select coalesce(sum(r.cohort_size), 0) into v_without
+    from public.api_retention_cohorts(52, 20) r
+   where r.segment = 'module' and r.segment_value = 'no add-on';
+
+  -- A DROPPED module still counts as attached: the question is whether the act
+  -- of attaching predicts survival, not what is enabled today.
+  if v_attached < 1 then
+    raise exception 'RC-255: a dropped add-on stopped counting as ever attached';
+  end if;
+
+  -- And the segment covers everybody exactly once.
+  if v_attached + v_without <> (
+      select coalesce(sum(r.cohort_size), 0) from public.api_retention_cohorts(52, 20) r
+       where r.segment = 'all') then
+    raise exception 'RC-255: the module segment does not cover the cohort exactly once';
+  end if;
+end $$;
+
 rollback;
