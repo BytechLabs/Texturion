@@ -11,12 +11,15 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
+import { completeEnv } from "../test/support";
 import {
   attributeReferral,
   ensureReferralCode,
   qualifyReferralForSender,
+  rewardQualifiedReferral,
 } from "./referrals";
 
+const env = completeEnv();
 const COMPANY = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const REFERRER = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
 
@@ -173,9 +176,11 @@ describe("#399 attributeReferral", () => {
 describe("#399 qualifyReferralForSender", () => {
   it("reports the transition so a reward is issued once", async () => {
     const db = fakeDb({
+      // No referral_id/referee id, so the payout leg is skipped and this test
+      // stays about the transition itself. The payout has its own coverage.
       qualify: { outcome: "qualified", referrer_company_id: REFERRER },
     });
-    await expect(qualifyReferralForSender(db, COMPANY)).resolves.toEqual({
+    await expect(qualifyReferralForSender(env, db, COMPANY)).resolves.toEqual({
       qualified: true,
       referrerCompanyId: REFERRER,
     });
@@ -183,7 +188,7 @@ describe("#399 qualifyReferralForSender", () => {
 
   it("is a no-op on every send after the first", async () => {
     const db = fakeDb({ qualify: { outcome: "noop" } });
-    await expect(qualifyReferralForSender(db, COMPANY)).resolves.toEqual({
+    await expect(qualifyReferralForSender(env, db, COMPANY)).resolves.toEqual({
       qualified: false,
     });
   });
@@ -194,10 +199,143 @@ describe("#399 qualifyReferralForSender", () => {
     // stands.
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const db = fakeDb({ qualifyError: "connection reset" });
-    await expect(qualifyReferralForSender(db, COMPANY)).resolves.toEqual({
+    await expect(qualifyReferralForSender(env, db, COMPANY)).resolves.toEqual({
       qualified: false,
     });
     expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});
+
+describe("#399 rewardQualifiedReferral", () => {
+  function stripeStub() {
+    const updates: { id: string; params: Record<string, unknown> }[] = [];
+    return {
+      updates,
+      api: {
+        subscriptions: {
+          retrieve: vi.fn(async () => ({
+            id: "sub_1",
+            items: {
+              data: [
+                {
+                  id: "si_licensed",
+                  price: { id: env.STRIPE_STARTER_PRICE_ID },
+                  discounts: [],
+                },
+                {
+                  id: "si_metered",
+                  price: { id: env.STRIPE_STARTER_OVERAGE_PRICE_ID },
+                },
+              ],
+            },
+          })),
+          update: vi.fn(async (id: string, params: Record<string, unknown>) => {
+            updates.push({ id, params });
+            return {};
+          }),
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any,
+    };
+  }
+
+  function subDb() {
+    const calls: RpcCall[] = [];
+    return {
+      calls,
+      rpc: vi.fn(async (fn: string, args: Record<string, unknown>) => {
+        calls.push({ fn, args });
+        return { data: { outcome: "stamped" }, error: null };
+      }),
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            limit: async () => ({
+              data: [{ stripe_subscription_id: "sub_1" }],
+              error: null,
+            }),
+          }),
+        }),
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+  }
+
+  async function withStripe<T>(stub: ReturnType<typeof stripeStub>, run: () => Promise<T>) {
+    const mod = await import("../billing/stripe");
+    const spy = vi.spyOn(mod, "getStripe").mockReturnValue(stub.api);
+    try {
+      return await run();
+    } finally {
+      spy.mockRestore();
+    }
+  }
+
+  it("discounts the LICENSED line only, for both sides", async () => {
+    // A subscription-level coupon would make the metered overage free too —
+    // and that overage is a carrier cost we have already paid. A free month
+    // covers the plan fee and nothing else.
+    const stub = stripeStub();
+    const db = subDb();
+    await withStripe(stub, () =>
+      rewardQualifiedReferral(env, db, {
+        referralId: "ref-1",
+        referrerCompanyId: REFERRER,
+        refereeCompanyId: COMPANY,
+      }),
+    );
+    expect(stub.updates).toHaveLength(2);
+    for (const update of stub.updates) {
+      const items = update.params.items as { id: string; discounts: unknown }[];
+      expect(items).toHaveLength(1);
+      expect(items[0].id).toBe("si_licensed");
+      expect(items[0].discounts).toEqual([
+        { coupon: env.STRIPE_REFERRAL_MONTH_COUPON_ID },
+      ]);
+    }
+    // Each side is stamped separately, so a half-completed payout is visible.
+    const sides = (db.calls as RpcCall[])
+      .filter((c) => c.fn === "stamp_referral_reward")
+      .map((c) => c.args.p_side);
+    expect(sides).toEqual(["referrer", "referee"]);
+  });
+
+  it("pays nobody when the coupon is not provisioned", async () => {
+    // The honest half-state: referrals record and display, but nothing pays out
+    // until the catalog is complete.
+    const stub = stripeStub();
+    const db = subDb();
+    await withStripe(stub, () =>
+      rewardQualifiedReferral(
+        { ...env, STRIPE_REFERRAL_MONTH_COUPON_ID: undefined },
+        db,
+        { referralId: "ref-1", referrerCompanyId: REFERRER, refereeCompanyId: COMPANY },
+      ),
+    );
+    expect(stub.updates).toHaveLength(0);
+  });
+
+  it("still pays the referee when the referrer's side fails", async () => {
+    // A referrer who has since cancelled must not cost the referee the month
+    // they earned by actually using the product.
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stub = stripeStub();
+    stub.api.subscriptions.retrieve
+      .mockRejectedValueOnce(new Error("no such subscription"));
+    const db = subDb();
+    await withStripe(stub, () =>
+      rewardQualifiedReferral(env, db, {
+        referralId: "ref-1",
+        referrerCompanyId: REFERRER,
+        refereeCompanyId: COMPANY,
+      }),
+    );
+    expect(stub.updates).toHaveLength(1);
+    expect(
+      (db.calls as RpcCall[]).filter((c) => c.fn === "stamp_referral_reward")
+        .map((c) => c.args.p_side),
+    ).toEqual(["referee"]);
     spy.mockRestore();
   });
 });

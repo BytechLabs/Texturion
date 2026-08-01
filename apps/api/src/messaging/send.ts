@@ -716,7 +716,7 @@ export async function dispatchOutbound(
     // set. The RPC is a single stamped update and every send after the first is
     // a no-op, and it swallows its own failures because referral bookkeeping
     // must never be able to fail a text that already went out.
-    await qualifyReferralForSender(db, row.company_id);
+    await qualifyReferralForSender(env, db, row.company_id);
   }
   return row;
 }

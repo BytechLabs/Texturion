@@ -130,6 +130,7 @@ const VARS = {
   STRIPE_STARTER_YEAR_PRICE_ID: "price_starter_year_0001",
   STRIPE_PRO_YEAR_PRICE_ID: "price_pro_year_0001",
   STRIPE_PREPAID_YEAR_COUPON_ID: "loonext_prepaid_year",
+  STRIPE_REFERRAL_MONTH_COUPON_ID: "loonext_referral_month",
   STRIPE_SMS_METER_EVENT_NAME: "sms_segments",
   // Generated per run rather than committed. A VAPID key in the repository is
   // how a test-only key ended up in a PUBLIC repo's history once already; the

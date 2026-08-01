@@ -197,6 +197,17 @@ const envSchema = z.object({
   STRIPE_PRO_YEAR_PRICE_ID: z.string().min(1).optional(),
   STRIPE_PREPAID_YEAR_COUPON_ID: z.string().min(1).optional(),
   /**
+   * #399 — the free month a referral earns, for each side. 100% off the
+   * LICENSED line once, exactly like the prepaid year but for a single month,
+   * so a free month covers the plan fee and never the metered overage the
+   * carrier already charged us for.
+   *
+   * OPTIONAL: unset means referrals still record and still show, but nothing
+   * pays out. That is the honest half-state for a feature whose accounting
+   * should exist before its money does.
+   */
+  STRIPE_REFERRAL_MONTH_COUPON_ID: z.string().min(1).optional(),
+  /**
    * #12 plan-builder module add-on prices (created by `pnpm stripe:setup`).
    * OPTIONAL so the Worker boots before the module catalog is provisioned;
    * checkout validates presence only when a customer actually selects the

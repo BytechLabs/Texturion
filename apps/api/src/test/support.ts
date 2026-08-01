@@ -50,6 +50,7 @@ export function completeEnv(): Env {
     STRIPE_STARTER_YEAR_PRICE_ID: "price_starter_year_0001",
     STRIPE_PRO_YEAR_PRICE_ID: "price_pro_year_0001",
     STRIPE_PREPAID_YEAR_COUPON_ID: "loonext_prepaid_year",
+    STRIPE_REFERRAL_MONTH_COUPON_ID: "loonext_referral_month",
     STRIPE_MODULE_MMS_PRICE_ID: "price_module_mms_0001",
     STRIPE_MODULE_VOICE_PRICE_ID: "price_module_voice_0001",
     STRIPE_MODULE_EXTRA_STORAGE_PRICE_ID: "price_module_extra_storage_0001",

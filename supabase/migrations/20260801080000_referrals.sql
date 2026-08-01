@@ -192,3 +192,56 @@ end $$;
 
 revoke execute on function public.qualify_referral(uuid) from public, anon, authenticated;
 grant execute on function public.qualify_referral(uuid) to service_role;
+-- #399 — stamping a reward, one side at a time.
+create or replace function public.stamp_referral_reward(
+  p_referral_id uuid,
+  p_side        text,
+  p_coupon_id   text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id uuid;
+begin
+  if p_side = 'referrer' then
+    update public.referrals
+       set referrer_rewarded_at = now(), referrer_coupon_id = p_coupon_id
+     where id = p_referral_id and referrer_rewarded_at is null and voided_at is null
+    returning id into v_id;
+  elsif p_side = 'referee' then
+    update public.referrals
+       set referee_rewarded_at = now(), referee_coupon_id = p_coupon_id
+     where id = p_referral_id and referee_rewarded_at is null and voided_at is null
+    returning id into v_id;
+  else
+    raise exception 'stamp_referral_reward: unknown side %', p_side;
+  end if;
+  return jsonb_build_object('outcome', case when v_id is null then 'noop' else 'stamped' end);
+end $$;
+
+revoke execute on function public.stamp_referral_reward(uuid, text, text)
+  from public, anon, authenticated;
+grant execute on function public.stamp_referral_reward(uuid, text, text) to service_role;
+
+-- What a referrer sees on their own screen: their referrals, newest first.
+create or replace function public.referrals_for_company(p_company_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'id', r.id,
+           'created_at', r.created_at,
+           'qualified_at', r.qualified_at,
+           'rewarded_at', r.referrer_rewarded_at,
+           'voided_at', r.voided_at) order by r.created_at desc), '[]'::jsonb)
+    from public.referrals r
+   where r.company_id = p_company_id
+$$;
+
+revoke execute on function public.referrals_for_company(uuid) from public, anon, authenticated;
+grant execute on function public.referrals_for_company(uuid) to service_role;

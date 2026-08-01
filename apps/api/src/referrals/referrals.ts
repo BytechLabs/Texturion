@@ -8,6 +8,10 @@ import {
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { itemHasDiscount, licensedItemOf } from "../billing/prepay";
+import { getStripe } from "../billing/stripe";
+import type { Env } from "../env";
+
 /**
  * #399 — referrals: minting a workspace's code, attributing a signup to one,
  * and noticing when the referee actually starts using the product.
@@ -161,6 +165,7 @@ export async function attributeReferral(
  * must never be able to fail a customer's text.
  */
 export async function qualifyReferralForSender(
+  env: Env,
   db: SupabaseClient,
   refereeCompanyId: string,
 ): Promise<{ qualified: boolean; referrerCompanyId?: string }> {
@@ -173,12 +178,114 @@ export async function qualifyReferralForSender(
       return { qualified: false };
     }
     const row = data as
-      | { outcome?: string; referrer_company_id?: string }
+      | {
+          outcome?: string;
+          referral_id?: string;
+          referrer_company_id?: string;
+          referee_company_id?: string;
+        }
       | null;
     if (row?.outcome !== "qualified") return { qualified: false };
+    // Only on the TRANSITION, which the RPC guarantees by stamping once. Both
+    // sides are paid here rather than by a cron, because the moment somebody
+    // earns a month is the moment to give it to them.
+    if (row.referral_id && row.referrer_company_id && row.referee_company_id) {
+      await rewardQualifiedReferral(env, db, {
+        referralId: row.referral_id,
+        referrerCompanyId: row.referrer_company_id,
+        refereeCompanyId: row.referee_company_id,
+      });
+    }
     return { qualified: true, referrerCompanyId: row.referrer_company_id };
   } catch (cause) {
     console.error(`qualify_referral threw: ${String(cause)}`);
     return { qualified: false };
+  }
+}
+
+/**
+ * Give one side of a qualified referral their free month.
+ *
+ * A 100%-off coupon on the LICENSED item, `duration: once` — the same shape the
+ * prepaid year uses, and for the same reason: a "free month" should cover the
+ * plan fee and never the metered overage, which is a carrier cost we have
+ * already paid. A subscription-level coupon would make somebody's texts free.
+ *
+ * The stamp comes AFTER Stripe, guarded in SQL on the timestamp being null, so
+ * a repeat call cannot issue a second month. It is the reverse order from the
+ * prepaid-year grant, and deliberately: there the hazard was re-applying a
+ * TWELVE-month coupon and restarting it, so the claim had to come first. Here
+ * the coupon is `once` and idempotent in effect — applying it twice before the
+ * stamp lands costs at most the month that was already owed, while stamping
+ * first would risk marking a reward that never arrived.
+ */
+async function rewardSide(
+  env: Env,
+  db: SupabaseClient,
+  args: { referralId: string; companyId: string; side: "referrer" | "referee" },
+): Promise<boolean> {
+  const coupon = env.STRIPE_REFERRAL_MONTH_COUPON_ID;
+  // Unset coupon = referrals record and display but never pay out. An honest
+  // half-state: the accounting should exist before the money does.
+  if (!coupon) return false;
+
+  const { data, error } = await db
+    .from("companies")
+    .select("stripe_subscription_id")
+    .eq("id", args.companyId)
+    .limit(1);
+  if (error) throw new Error(`companies lookup failed: ${error.message}`);
+  const subscriptionId = (
+    data?.[0] as { stripe_subscription_id: string | null } | undefined
+  )?.stripe_subscription_id;
+  // No subscription, nothing to discount. A referrer who has since cancelled
+  // earns nothing rather than erroring — they can come back and the row keeps
+  // its unstamped state.
+  if (!subscriptionId) return false;
+
+  const stripe = getStripe(env);
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  const licensed = licensedItemOf(env, subscription);
+  if (!licensed) return false;
+
+  if (!itemHasDiscount(licensed, coupon)) {
+    await stripe.subscriptions.update(
+      subscriptionId,
+      { items: [{ id: licensed.id, discounts: [{ coupon }] }] },
+      { idempotencyKey: `referral_reward:${args.referralId}:${args.side}` },
+    );
+  }
+  const { error: stampError } = await db.rpc("stamp_referral_reward", {
+    p_referral_id: args.referralId,
+    p_side: args.side,
+    p_coupon_id: coupon,
+  });
+  if (stampError) {
+    console.error(`stamp_referral_reward failed: ${stampError.message}`);
+  }
+  return true;
+}
+
+/**
+ * Pay both sides of a referral that has just qualified.
+ *
+ * Never throws. This runs behind a send, and one side failing must not stop the
+ * other: a referrer whose subscription lapsed should not cost the referee the
+ * month they earned by actually using the product.
+ */
+export async function rewardQualifiedReferral(
+  env: Env,
+  db: SupabaseClient,
+  args: { referralId: string; referrerCompanyId: string; refereeCompanyId: string },
+): Promise<void> {
+  for (const [side, companyId] of [
+    ["referrer", args.referrerCompanyId],
+    ["referee", args.refereeCompanyId],
+  ] as const) {
+    try {
+      await rewardSide(env, db, { referralId: args.referralId, companyId, side });
+    } catch (cause) {
+      console.error(`referral reward (${side}) failed: ${String(cause)}`);
+    }
   }
 }

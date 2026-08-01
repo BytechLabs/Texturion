@@ -262,6 +262,23 @@ try {
     console.log(`coupon ${PREPAID_COUPON_ID}: created`);
   }
 
+  // #399: the free month a referral earns each side. `duration: once` — one
+  // month off the licensed line, not a recurring discount.
+  const REFERRAL_COUPON_ID = "loonext_referral_month";
+  let referralCoupon: { id: string };
+  try {
+    referralCoupon = await stripe.coupons.retrieve(REFERRAL_COUPON_ID);
+    console.log(`coupon ${REFERRAL_COUPON_ID}: already exists`);
+  } catch {
+    referralCoupon = await stripe.coupons.create({
+      id: REFERRAL_COUPON_ID,
+      percent_off: 100,
+      duration: "once",
+      name: "Referral month",
+    });
+    console.log(`coupon ${REFERRAL_COUPON_ID}: created`);
+  }
+
   // #12 plan-builder module add-ons: a product + flat monthly licensed price
   // per module, idempotent by the same lookup_key/catalog-metadata scheme.
   const modulePriceIds: { envKey: string; id: string }[] = [];
@@ -337,6 +354,7 @@ try {
   console.log(`STRIPE_STARTER_YEAR_PRICE_ID=${starterYear.id}`);
   console.log(`STRIPE_PRO_YEAR_PRICE_ID=${proYear.id}`);
   console.log(`STRIPE_PREPAID_YEAR_COUPON_ID=${prepaidCoupon.id}`);
+  console.log(`STRIPE_REFERRAL_MONTH_COUPON_ID=${referralCoupon.id}`);
   for (const { envKey, id } of modulePriceIds) {
     console.log(`${envKey}=${id}`);
   }
