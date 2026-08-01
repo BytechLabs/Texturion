@@ -33,6 +33,7 @@
  *   DELETE /v1/conversations/:id/tags/:tag_id detach.
  */
 import type { BusinessHours, HoursException } from "@loonext/shared";
+import { roleHasCapability } from "@loonext/shared";
 import { runAiFeature } from "../ai/run";
 import { notifyNoteMention } from "../notifications/mention";
 import { Hono } from "hono";
@@ -1526,13 +1527,32 @@ conversationsRoutes.post(
       // matched the wrong tag or 500'd on the second attach — and it raced the
       // concurrent create/select. The RPC keys on (company_id, lower(name)).
       const name = body.name as string;
-      const rows = unwrap<TagRow[]>(
+
+      // #298: the optional tag lock, enforced INSIDE the RPC.
+      //
+      // The Worker decides WHO (this capability); the RPC decides WHETHER,
+      // because it already holds the lock and the existence check in one
+      // statement. Doing it here instead would put a companies read on the hot
+      // attach path of every workspace for a setting almost none of them
+      // enable, and would leave a window where a lock switched on between the
+      // check and the create did nothing.
+      const mayCreate = roleHasCapability(c.get("role"), "settings.manage");
+      const rows = unwrap<(TagRow & { refused: boolean })[]>(
         await db.rpc("api_find_or_create_tag", {
           p_company_id: companyId,
           p_name: name,
+          p_may_create: mayCreate,
         }),
         "tag find-or-create",
       );
+      if (rows[0]?.refused === true) {
+        return errorResponse(
+          c,
+          "forbidden",
+          "Your workspace keeps a set list of tags. Pick an existing one, or " +
+            "ask an owner or admin to add this.",
+        );
+      }
       if (!rows[0]) {
         throw new Error("tag find-or-create: no row returned");
       }

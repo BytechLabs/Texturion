@@ -169,3 +169,74 @@ comment on column public.companies.tags_locked is
   'thread does not categorise it elsewhere, it leaves it uncategorised. Off by '
   'default: most shops want no taxonomy at all, and forcing one on a '
   'two-person crew is friction for no benefit.';
+
+-- ---------------------------------------------------------------------------
+-- The lock is enforced INSIDE find-or-create, not around it.
+--
+-- The first attempt read `companies.tags_locked` in the Worker before calling
+-- this. That put a query on the hot attach path of every workspace, for a
+-- setting almost none of them enable, and it left a window: the check and the
+-- create were two statements, so a lock switched on between them did nothing.
+--
+-- Here it is one round trip and one statement. `p_may_create` is the caller's
+-- capability, passed in because SQL cannot see the role — the Worker still
+-- decides WHO, this decides WHETHER.
+--
+-- Returns the existing tag whenever there is one, whatever the lock says: the
+-- restriction is on INVENTING a tag, never on using one. A member attaching
+-- "Warranty" to a second thread must not be refused because somebody enabled a
+-- setting in between.
+-- ---------------------------------------------------------------------------
+create or replace function public.api_find_or_create_tag(
+  p_company_id uuid,
+  p_name       text,
+  -- Defaulted true so every existing caller keeps its behaviour exactly.
+  p_may_create boolean default true
+)
+returns table (id uuid, name text, color text, refused boolean)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+-- The OUT parameters above are named `id`, `name` and `color`, which are also
+-- column names on `tags`. Inside plpgsql that is ambiguous and fails at RETURN
+-- QUERY rather than at CREATE time, so it is only ever found by running the
+-- function. The directive belongs INSIDE the body, before `declare`.
+#variable_conflict use_column
+declare
+  v_locked boolean;
+  v_row    public.tags;
+begin
+  select t.* into v_row from public.tags t
+   where t.company_id = p_company_id and lower(t.name) = lower(btrim(p_name));
+
+  if v_row.id is not null then
+    return query select v_row.id, v_row.name, v_row.color, false;
+    return;
+  end if;
+
+  if not p_may_create then
+    select c.tags_locked into v_locked from public.companies c where c.id = p_company_id;
+    if coalesce(v_locked, false) then
+      return query select null::uuid, null::text, null::text, true;
+      return;
+    end if;
+  end if;
+
+  return query
+    insert into public.tags (company_id, name)
+    values (p_company_id, p_name)
+    on conflict (company_id, lower(name)) do update set name = public.tags.name
+    returning public.tags.id, public.tags.name, public.tags.color, false;
+end;
+$$;
+
+revoke execute on function public.api_find_or_create_tag(uuid, text, boolean)
+  from public, anon, authenticated;
+grant execute on function public.api_find_or_create_tag(uuid, text, boolean)
+  to service_role;
+
+-- The two-argument original is now ambiguous with the three-argument form when
+-- called positionally, and every caller moves to the new one.
+drop function if exists public.api_find_or_create_tag(uuid, text);
+

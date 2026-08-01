@@ -36,6 +36,8 @@ const patchSchema = z
     message: "Provide at least one field to update.",
   });
 
+const mergeSchema = z.object({ into_tag_id: z.uuid() });
+
 export const tagsRoutes = new Hono<AppEnv>();
 
 tagsRoutes.get("/tags", requireCapability("conversations.read"), async (c) => {
@@ -134,4 +136,80 @@ tagsRoutes.delete("/tags/:id", requireCapability("settings.manage"), async (c) =
     return errorResponse(c, "not_found", "No such tag.");
   }
   return c.body(null, 204);
+});
+
+/**
+ * #298 — GET /v1/tags/usage: how much each tag is actually used.
+ *
+ * "Cleanup is impossible without being able to see the problem." A count and a
+ * last-used date make the dead tags and the near-duplicates both obvious in one
+ * list, and neither is visible from the names alone.
+ *
+ * Member-readable rather than admin-only: seeing that "warranty" has 40 uses
+ * and "wrnty" has 2 is what stops somebody attaching the wrong one, and that is
+ * everybody's problem.
+ */
+tagsRoutes.get("/tags/usage", requireCapability("conversations.read"), async (c) => {
+  const db = getDb(getEnv(c.env));
+  const rows = unwrap<unknown[]>(
+    await db.rpc("api_tag_usage", { p_company_id: c.get("companyId") }),
+    "tag usage",
+  );
+  return c.json({ data: rows, next_cursor: null });
+});
+
+/**
+ * #298 — POST /v1/tags/:id/merge: fold this tag into another, losing nothing.
+ *
+ * The operation the system was missing. Delete was the only cleanup and delete
+ * loses every association, so an admin who found six variants could only ever
+ * destroy five.
+ *
+ * Owner/admin, matching delete: this rewrites how a workspace's history is
+ * categorised, and unlike a rename it cannot be undone by typing the old name
+ * back. `settings.manage` rather than a rank, per #315.
+ */
+tagsRoutes.post("/tags/:id/merge", requireCapability("settings.manage"), async (c) => {
+  const from = pathUuid(c, "id");
+  const body = await parseJsonBody(c, mergeSchema);
+  const db = getDb(getEnv(c.env));
+
+  const result = unwrap<{
+    outcome: string;
+    moved?: number;
+    already_both?: number;
+    stage_moved?: boolean;
+    from_stage?: string;
+    into_stage?: string;
+  }>(
+    await db.rpc("api_merge_tags", {
+      p_company_id: c.get("companyId"),
+      p_from_tag: from,
+      p_into_tag: body.into_tag_id,
+    }),
+    "tag merge",
+  );
+
+  if (result.outcome === "not_found") {
+    return errorResponse(c, "not_found", "No such tag.");
+  }
+  if (result.outcome === "same_tag") {
+    return errorResponse(c, "validation_failed", "Pick a different tag to merge into.");
+  }
+  if (result.outcome === "two_stages") {
+    // #354/D108: the survivor can carry one stage, and choosing silently would
+    // throw away the other's history — including every conversion it recorded.
+    return errorResponse(
+      c,
+      "conflict",
+      "Both of these are pipeline stages, so merging them would lose one of " +
+        "your win-rate categories. Rename one instead, or delete it deliberately.",
+    );
+  }
+  return c.json({
+    merged: true,
+    moved: result.moved ?? 0,
+    already_both: result.already_both ?? 0,
+    stage_moved: result.stage_moved ?? false,
+  });
 });

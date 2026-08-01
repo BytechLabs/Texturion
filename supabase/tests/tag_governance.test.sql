@@ -252,4 +252,47 @@ begin
   end if;
 end $$;
 
+-- ===========================================================================
+-- TG-8. The lock refuses a NEW tag and still returns an existing one.
+--
+-- The distinction the whole setting rests on: a tech who cannot categorise a
+-- thread does not categorise it in the notes instead, they leave it
+-- uncategorised. So the restriction is on INVENTING a tag, never on using one.
+-- ===========================================================================
+do $$
+declare r record;
+begin
+  update public.companies set tags_locked = true
+   where id = '53000000-0000-4000-8000-0000000000c1'::uuid;
+
+  -- A member (may_create false) inventing something new: refused.
+  select * into r from public.api_find_or_create_tag(
+    '53000000-0000-4000-8000-0000000000c1'::uuid, 'Brand new', false);
+  if not r.refused then
+    raise exception 'TG-8: a locked workspace let a member invent a tag';
+  end if;
+  if exists (select 1 from public.tags
+              where company_id = '53000000-0000-4000-8000-0000000000c1'::uuid
+                and lower(name) = 'brand new') then
+    raise exception 'TG-8: the refused tag was created anyway';
+  end if;
+
+  -- The same member attaching one that EXISTS: allowed, case-insensitively.
+  select * into r from public.api_find_or_create_tag(
+    '53000000-0000-4000-8000-0000000000c1'::uuid, 'warranty', false);
+  if r.refused then
+    raise exception 'TG-8: a locked workspace refused an EXISTING tag';
+  end if;
+  if r.id <> '53000000-0000-4000-8000-0000000000a1'::uuid then
+    raise exception 'TG-8: the existing tag was not returned';
+  end if;
+
+  -- An owner/admin (may_create true) is unaffected by the lock.
+  select * into r from public.api_find_or_create_tag(
+    '53000000-0000-4000-8000-0000000000c1'::uuid, 'Owner made this', true);
+  if r.refused then
+    raise exception 'TG-8: the lock applied to somebody who may create';
+  end if;
+end $$;
+
 rollback;

@@ -1231,7 +1231,12 @@ describe("POST /v1/conversations/:id/tags (create-on-attach)", () => {
     // The atomic RPC (keyed on lower(name)) replaces the find/insert/re-select
     // dance and its create/select race.
     const rpc = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag")[0];
-    expect(rpc.body).toEqual({ p_company_id: COMPANY_ID, p_name: "Follow up" });
+    // #298 added p_may_create; the name still reaches the RPC untouched,
+    // which is what this test has always been about.
+    expect(rpc.body).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_name: "Follow up",
+    });
   });
 
   it("attaches a tag whose name contains '*' — the raw name reaches the RPC (no escapeLike stripping)", async () => {
@@ -1257,7 +1262,10 @@ describe("POST /v1/conversations/:id/tags (create-on-attach)", () => {
     );
     expect(res.status).toBe(201);
     const rpc = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag")[0];
-    expect(rpc.body).toEqual({ p_company_id: COMPANY_ID, p_name: "VIP*" });
+    expect(rpc.body).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_name: "VIP*",
+    });
     expect(await res.json()).toMatchObject({ id: TAG_ID });
   });
 
@@ -1739,5 +1747,82 @@ describe("#293 snooze routes", () => {
       expect(res.status).toBe(404);
     }
     expect(writes).toHaveLength(0);
+  });
+});
+
+describe("#298 a locked tag list restricts CREATION, never attachment", () => {
+  it("refuses a member inventing a NEW tag", async () => {
+    // The RPC answers both questions in one statement: does this name already
+    // exist, and may this caller invent it. The Worker only supplies WHO.
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+    sb.on("POST", "/rest/v1/rpc/api_find_or_create_tag", () => [
+      { id: null, name: null, color: null, refused: true },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/tags`,
+      { method: "POST", companyId: COMPANY_ID, body: { name: "Wrnty" } },
+    );
+    expect(res.status).toBe(403);
+    // Nothing was attached on a refusal.
+    expect(sb.find("POST", "/rest/v1/conversation_tags")).toHaveLength(0);
+  });
+
+  it("still lets that member attach a tag that already EXISTS", async () => {
+    // The whole point of the setting: a tech who cannot categorise a thread
+    // does not categorise it in the notes instead, they leave it
+    // uncategorised. The lock is on inventing a tag, not on using one.
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+    sb.on("POST", "/rest/v1/rpc/api_find_or_create_tag", () => [
+      { id: TAG_ID, name: "Warranty", color: null, refused: false },
+    ]);
+    sb.on("POST", "/rest/v1/conversation_tags", () => [
+      { conversation_id: CONV_ID, tag_id: TAG_ID },
+    ]);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/tags`,
+      { method: "POST", companyId: COMPANY_ID, body: { name: "Warranty" } },
+    );
+    expect(res.status).toBe(201);
+  });
+
+  it("tells the RPC whether the caller may create, and costs no extra read", async () => {
+    // Off by default, and it must cost an open workspace nothing: a companies
+    // lookup on every attach for a setting almost nobody enables is a tax on
+    // the common path, which is why the check lives in the RPC.
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+    sb.on("POST", "/rest/v1/rpc/api_find_or_create_tag", () => [
+      { id: TAG_ID, name: "Roof", color: null, refused: false },
+    ]);
+    sb.on("POST", "/rest/v1/conversation_tags", () => [
+      { conversation_id: CONV_ID, tag_id: TAG_ID },
+    ]);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/tags`,
+      { method: "POST", companyId: COMPANY_ID, body: { name: "Roof" } },
+    );
+    expect(res.status).toBe(201);
+    const rpc = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag")[0];
+    expect(rpc.body).toMatchObject({ p_may_create: false });
+    expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(0);
   });
 });

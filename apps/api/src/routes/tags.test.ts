@@ -241,3 +241,106 @@ describe("#354 deleting a pipeline stage", () => {
     expect(await res.json()).toMatchObject({ pipeline_stage: "quote_sent" });
   });
 });
+
+describe("#298 GET /v1/tags/usage", () => {
+  it("reports the count and last-used date any member can act on", async () => {
+    // Seeing that "warranty" has 40 uses and "wrnty" has 2 is what stops
+    // somebody attaching the wrong one, and that is everybody's problem —
+    // hence member-readable rather than admin-only.
+    const sb = stubWithRole("member");
+    sb.on("POST", "/rest/v1/rpc/api_tag_usage", () => [
+      { tag_id: TAG_ID, name: "Warranty", uses: 40, last_used: "2026-08-01T00:00:00Z" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/tags/usage", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { uses: number }[] };
+    expect(body.data[0].uses).toBe(40);
+  });
+});
+
+describe("#298 POST /v1/tags/:id/merge", () => {
+  const INTO = "cccccccc-1111-4222-8333-444444444444";
+
+  it("403s a plain member", async () => {
+    // A merge rewrites how a workspace's history is categorised and, unlike a
+    // rename, cannot be undone by typing the old name back.
+    const sb = stubWithRole("member");
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/tags/${TAG_ID}/merge`,
+      { method: "POST", companyId: COMPANY_ID, body: { into_tag_id: INTO } },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("reports what moved, including the threads that carried both", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("POST", "/rest/v1/rpc/api_merge_tags", () => ({
+      outcome: "merged",
+      moved: 12,
+      already_both: 3,
+      stage_moved: false,
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/tags/${TAG_ID}/merge`,
+      { method: "POST", companyId: COMPANY_ID, body: { into_tag_id: INTO } },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ merged: true, moved: 12, already_both: 3 });
+  });
+
+  it("409s two pipeline stages, and says what would have been lost", async () => {
+    // #354/D108: the survivor can carry one stage, so merging two would throw
+    // away a win-rate category — the expensive direction to be wrong in.
+    const sb = stubWithRole("owner");
+    sb.on("POST", "/rest/v1/rpc/api_merge_tags", () => ({
+      outcome: "two_stages",
+      from_stage: "won",
+      into_stage: "lost",
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/tags/${TAG_ID}/merge`,
+      { method: "POST", companyId: COMPANY_ID, body: { into_tag_id: INTO } },
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("win-rate");
+  });
+
+  it("422s a merge into itself, and 404s an unknown tag", async () => {
+    for (const [outcome, status] of [
+      ["same_tag", 422],
+      ["not_found", 404],
+    ] as const) {
+      const sb = stubWithRole("owner");
+      sb.on("POST", "/rest/v1/rpc/api_merge_tags", () => ({ outcome }));
+      stubFetch(jwksRoute(auth), sb.route);
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        `/v1/tags/${TAG_ID}/merge`,
+        { method: "POST", companyId: COMPANY_ID, body: { into_tag_id: INTO } },
+      );
+      expect(res.status, outcome).toBe(status);
+      vi.unstubAllGlobals();
+    }
+  });
+});
