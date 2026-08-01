@@ -173,3 +173,59 @@ export function trackCheckoutCompleted(): void {
   if (!claimOnce("sessionStorage", CHECKOUT_COMPLETED_GUARD_KEY)) return;
   capture("checkout_completed");
 }
+
+/**
+ * #255 — the plan builder, opened.
+ *
+ * The funnel already brackets non-conversion: `signup_started` carries the
+ * intent, `plan_selected` and `checkout_started` record the commitment. What
+ * was missing is the DENOMINATOR for the builder itself — how many people
+ * arranged a plan and then did not commit one — and #255 asks for exactly that:
+ * "where people abandon the plan builder, and on which module".
+ *
+ * `surface` separates the two builders. The marketing one on /pricing is a
+ * stranger deciding whether to buy; the onboarding one is somebody who already
+ * signed up. They abandon for different reasons and mixing them would average
+ * the two into a number that describes neither.
+ */
+export function trackPlanBuilderViewed(
+  surface: "pricing" | "onboarding",
+  plan: PlanId,
+  modules: readonly PlanModule[],
+): void {
+  capture("plan_builder_viewed", { surface, plan, modules: [...modules] });
+}
+
+/**
+ * #255 — a module was switched on or off, and which one.
+ *
+ * The single event #255 names that nothing else can answer. A module toggled ON
+ * and then absent from `plan_selected` is somebody who considered it and
+ * decided against it at the price, which is the most useful pricing signal this
+ * product can collect — and it is invisible from the endpoints alone.
+ *
+ * Carries the module ENUM and nothing else. Per D8 and SPEC §10 no analytics
+ * event here identifies a workspace or a person; the question is which module
+ * loses people, not who.
+ */
+export function trackPlanModuleToggled(
+  surface: "pricing" | "onboarding",
+  module: PlanModule,
+  on: boolean,
+): void {
+  capture("plan_module_toggled", { surface, module, on });
+}
+
+/**
+ * #255 — the plan tier changed on a builder card.
+ *
+ * Distinct from `plan_selected`, which is the commitment. Somebody moving from
+ * Pro to Starter before committing is a price objection; the two events read
+ * identically without this one.
+ */
+export function trackPlanTierChanged(
+  surface: "pricing" | "onboarding",
+  plan: PlanId,
+): void {
+  capture("plan_tier_changed", { surface, plan });
+}

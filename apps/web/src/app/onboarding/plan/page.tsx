@@ -20,7 +20,10 @@ import {
 } from "@/components/ui/tooltip";
 import {
   trackCheckoutStarted,
+  trackPlanBuilderViewed,
+  trackPlanModuleToggled,
   trackPlanSelected,
+  trackPlanTierChanged,
 } from "@/lib/analytics/events";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
@@ -71,17 +74,34 @@ function PlanStep() {
   const [selectedPlan, setSelectedPlan] = useState<PlanId>("starter");
   useEffect(() => {
     const intent = consumePlanIntent(window.location.search);
+    // #255: the builder's denominator, with whatever arrived from /pricing.
+    // Reported once per mount, before the intent is applied, so the event says
+    // what the person was shown rather than what they later changed it to.
+    trackPlanBuilderViewed(
+      "onboarding",
+      intent?.plan ?? "starter",
+      intent?.modules ?? [],
+    );
     if (!intent) return;
     setSelectedPlan(intent.plan);
     setModules(intent.modules);
   }, []);
 
   function toggleModule(id: PlanModule) {
-    setModules((current) =>
-      current.includes(id)
-        ? current.filter((m) => m !== id)
-        : [...current, id],
-    );
+    setModules((current) => {
+      const on = !current.includes(id);
+      // #255: the same signal as the marketing builder, kept separate by
+      // surface. A stranger on /pricing and somebody who has already signed up
+      // abandon for different reasons, and averaging the two describes neither.
+      trackPlanModuleToggled("onboarding", id, on);
+      return on ? [...current, id] : current.filter((m) => m !== id);
+    });
+  }
+
+  /** Choosing a tier before committing. Moving down is a price objection. */
+  function selectPlan(next: PlanId) {
+    if (next !== selectedPlan) trackPlanTierChanged("onboarding", next);
+    setSelectedPlan(next);
   }
 
   if (state.status === "error") return <StepError onRetry={state.retry} />;
@@ -202,7 +222,7 @@ function PlanStep() {
                 type="button"
                 role="radio"
                 aria-checked={selected}
-                onClick={() => setSelectedPlan(plan.id)}
+                onClick={() => selectPlan(plan.id)}
                 disabled={choosing !== null}
                 className={cn(
                   "flex flex-col rounded-lg border bg-card p-5 text-left transition-colors",

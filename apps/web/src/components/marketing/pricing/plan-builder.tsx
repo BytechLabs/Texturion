@@ -25,7 +25,12 @@
  * buttons for the add-ons, and an aria-live receipt.
  */
 
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  trackPlanBuilderViewed,
+  trackPlanModuleToggled,
+  trackPlanTierChanged,
+} from "@/lib/analytics/events";
 
 import { CtaButton } from "@/components/marketing/fr";
 import { PRIMARY_CTA_LABEL } from "@/components/marketing/nav-links";
@@ -116,17 +121,35 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
     DEFAULT_SELECTION.addons,
   );
 
+  // #255: the builder's DENOMINATOR. Without it "arranged a plan and did not
+  // commit one" is unmeasurable, and that population is the whole question the
+  // issue asks. Once per mount — a re-render is not a fresh consideration.
+  useEffect(() => {
+    trackPlanBuilderViewed("pricing", DEFAULT_SELECTION.plan, DEFAULT_SELECTION.addons);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const selection = { plan, addons };
   const monthly = monthlyTotalDollars(selection);
   const firstMonth = firstMonthTotalDollars(selection);
   const chosenPlan = plans.find((p) => p.id === plan) ?? plans[0];
 
   function toggleAddon(id: PlanModule) {
-    setAddons((current) =>
-      current.includes(id)
-        ? current.filter((m) => m !== id)
-        : [...current, id],
-    );
+    setAddons((current) => {
+      const on = !current.includes(id);
+      // #255: which module, and which way. A module switched ON and then absent
+      // from `plan_selected` is somebody who considered it and decided against
+      // it at the price — the most useful pricing signal available, and one the
+      // endpoints alone cannot see.
+      trackPlanModuleToggled("pricing", id, on);
+      return on ? [...current, id] : current.filter((m) => m !== id);
+    });
+  }
+
+  /** Selecting a tier, which is a price objection when it moves down. */
+  function selectPlan(next: PlanId) {
+    if (next !== plan) trackPlanTierChanged("pricing", next);
+    setPlan(next);
   }
 
   /**
@@ -137,7 +160,7 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
       e.preventDefault();
       const next: PlanId = plan === "starter" ? "pro" : "starter";
-      setPlan(next);
+      selectPlan(next);
       planRefs.current[next]?.focus();
     }
   }
@@ -168,7 +191,7 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
                 role="radio"
                 aria-checked={selected}
                 tabIndex={selected ? 0 : -1}
-                onClick={() => setPlan(p.id)}
+                onClick={() => selectPlan(p.id)}
                 onKeyDown={onPlanKeyDown}
                 className={cn(
                   "fr-card flex h-full flex-col p-5 text-left transition-shadow duration-200 ease-out sm:p-6",

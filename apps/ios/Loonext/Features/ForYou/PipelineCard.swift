@@ -5,20 +5,25 @@ import SwiftUI
 /// Every figure is computed server-side: a win rate computed twice is a win rate
 /// that can disagree with itself, and this one is a claim about the customer's
 /// own business.
+/// Each wrapped property carries an initial value as well as its provider. The
+/// provider covers a MISSING key on the wire; the initial value is what gives
+/// the struct a zero-argument init, which `DefaultEmptyPipelineReport` below
+/// needs. Without it `PipelineReport()` resolves to `init(from:)` and the build
+/// fails on a missing `from:` argument — the shape that broke CI once here.
 struct PipelineReport: Codable, Sendable {
-    @Default<DefaultZero> var quoted: Int
-    @Default<DefaultZero> var won: Int
-    @Default<DefaultZero> var lost: Int
+    @Default<DefaultZero> var quoted: Int = 0
+    @Default<DefaultZero> var won: Int = 0
+    @Default<DefaultZero> var lost: Int = 0
     /// Quoted, and neither won nor lost yet. The money still outstanding.
-    @Default<DefaultZero> var open: Int
+    @Default<DefaultZero> var open: Int = 0
     var median_days_to_win: Double?
 }
 
 /// Which tag each stage currently IS, so a rename never breaks a link.
 struct PipelineStageTag: Codable, Sendable {
-    @Default<DefaultEmptyString> var stage: String
-    @Default<DefaultEmptyString> var tag_id: String
-    @Default<DefaultEmptyString> var name: String
+    @Default<DefaultEmptyString> var stage: String = ""
+    @Default<DefaultEmptyString> var tag_id: String = ""
+    @Default<DefaultEmptyString> var name: String = ""
 }
 
 enum DefaultEmptyPipelineReport: DefaultCodableProvider {
@@ -26,14 +31,14 @@ enum DefaultEmptyPipelineReport: DefaultCodableProvider {
 }
 
 struct PipelineReportResponse: Codable, Sendable {
-    @Default<DefaultZero> var days: Int
-    @Default<DefaultEmptyPipelineReport> var current: PipelineReport
-    @Default<DefaultEmptyPipelineReport> var previous: PipelineReport
+    @Default<DefaultZero> var days: Int = 30
+    @Default<DefaultEmptyPipelineReport> var current: PipelineReport = PipelineReport()
+    @Default<DefaultEmptyPipelineReport> var previous: PipelineReport = PipelineReport()
     var win_rate: Int?
     var previous_win_rate: Int?
     /// Nil when there is not enough decided work to say anything honest.
     var insight: String?
-    @Default<DefaultEmptyList<PipelineStageTag>> var stages: [PipelineStageTag]
+    @Default<DefaultEmptyList<PipelineStageTag>> var stages: [PipelineStageTag] = []
 }
 
 /// #354 — the pipeline panel on the home surface.
