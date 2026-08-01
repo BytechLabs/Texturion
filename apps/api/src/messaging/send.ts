@@ -12,6 +12,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { lookupAreaCode } from "@loonext/shared";
 
 import { capture } from "../analytics/posthog";
+import { qualifyReferralForSender } from "../referrals/referrals";
 import { GRACE_PERIOD_DAYS } from "../billing/grace";
 import { getDb } from "../db";
 import type { Env } from "../env";
@@ -708,6 +709,14 @@ export async function dispatchOutbound(
     // first-outbound probe stops after send one, this one after the second
     // member's first send.
     await captureSecondMemberSent(env, db, row);
+    // #399: a referral qualifies when the referee actually uses the product,
+    // which is this moment. Deliberately NOT folded into
+    // captureFirstOutboundSent, which returns immediately when analytics is
+    // off — a customer's earned month must not depend on POSTHOG_API_KEY being
+    // set. The RPC is a single stamped update and every send after the first is
+    // a no-op, and it swallows its own failures because referral bookkeeping
+    // must never be able to fail a text that already went out.
+    await qualifyReferralForSender(db, row.company_id);
   }
   return row;
 }

@@ -31,6 +31,7 @@ import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
+import { attributeReferral } from "../referrals/referrals";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import {
@@ -71,6 +72,10 @@ const createSchema = z.object({
   // unconditionally); the field is accepted for back-compat but no longer gates
   // creation — the visible checkbox was removed as needless signup friction.
   aup_accepted: z.literal(true).optional(),
+  // #399: the code from a ?ref= link, if the signup arrived through one.
+  // Bounded rather than shaped — a wrong code must produce a workspace without
+  // attribution, never a 422 that blocks a signup over eight characters.
+  referral_code: z.string().trim().max(64).optional(),
 });
 
 /** A weekday open/close window; both HH:MM. Full shape checked below. */
@@ -320,6 +325,22 @@ companiesRoutes.post("/companies", async (c) => {
   // Stage the onboarding pick on the fresh company (the create RPC signature is
   // fixed, so it rides a follow-up update). provisionCompanyNumber drains it
   // onto the ordered number at checkout.
+  // #399: attribute the signup, if it came through somebody's link. Best
+  // effort by construction — attributeReferral returns every refusal rather
+  // than raising, and this is wrapped besides, because a workspace that exists
+  // must not fail to be created over a referral that did not earn itself.
+  if (body.referral_code) {
+    try {
+      await attributeReferral(db, {
+        rawCode: body.referral_code,
+        refereeCompanyId: company.id as string,
+        refereeOwnerUserId: c.get("userId"),
+      });
+    } catch (cause) {
+      console.error(`referral attribution skipped: ${String(cause)}`);
+    }
+  }
+
   if (body.chosen_number_e164) {
     const { error: chosenError } = await db
       .from("companies")
