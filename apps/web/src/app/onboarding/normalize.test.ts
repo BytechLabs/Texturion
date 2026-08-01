@@ -55,6 +55,16 @@ describe("parseDraft", () => {
     );
     expect(parseDraft(null)).toEqual({});
   });
+  it("carries the #370 crew size, and only a real bucket", () => {
+    expect(parseDraft(JSON.stringify({ crewSize: "4_10" }))).toEqual({
+      crewSize: "4_10",
+    });
+    // A hand-edited or stale draft must not turn into a bucket the API's enum
+    // does not have: that would 422 the company create, and refusing a signup
+    // over a segmentation field is the one outcome this question is not worth.
+    expect(parseDraft(JSON.stringify({ crewSize: "12" }))).toEqual({});
+    expect(parseDraft(JSON.stringify({ crewSize: "SOLO" }))).toEqual({});
+  });
 });
 
 

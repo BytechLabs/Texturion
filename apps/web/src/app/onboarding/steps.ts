@@ -1,3 +1,5 @@
+import type { CrewSizeBucket } from "@loonext/shared";
+
 import type {
   CompanyView,
   RegistrationRow,
@@ -61,6 +63,16 @@ export interface PortDraft {
 export interface OnboardingDraft {
   name?: string;
   country?: "US" | "CA";
+  /**
+   * #370 — how big the crew is, asked on the name step.
+   *
+   * Optional the whole way down, and absent is a real answer: the column keeps
+   * "never asked" distinguishable from "solo", so a skipped question must not
+   * arrive as a bucket. Lives in the draft rather than going straight to the
+   * server because the question is asked before the company exists, and the
+   * three creation call sites (number, business, port) each carry it through.
+   */
+  crewSize?: CrewSizeBucket;
   areaCode?: string;
   /** Choose-your-number: the specific E.164 picked in the number step (new mode). */
   chosenNumber?: string;

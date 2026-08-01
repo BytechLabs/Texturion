@@ -1,3 +1,5 @@
+import { isCrewSizeBucket } from "@loonext/shared";
+
 import type { OnboardingDraft, PortDraft } from "./steps";
 
 /**
@@ -36,6 +38,13 @@ export function parseDraft(raw: string | null): OnboardingDraft {
     if (typeof obj.name === "string") draft.name = obj.name;
     if (obj.country === "US" || obj.country === "CA") {
       draft.country = obj.country;
+    }
+    // #370: validated on the way OUT of storage, not just on the way in. A
+    // hand-edited or stale draft must not turn into a bucket the enum does not
+    // have, which the API would 422 — and refusing the whole signup over a
+    // segmentation field is the one outcome this question is not worth.
+    if (typeof obj.crewSize === "string" && isCrewSizeBucket(obj.crewSize)) {
+      draft.crewSize = obj.crewSize;
     }
     if (typeof obj.areaCode === "string" && /^\d{3}$/.test(obj.areaCode)) {
       draft.areaCode = obj.areaCode;
