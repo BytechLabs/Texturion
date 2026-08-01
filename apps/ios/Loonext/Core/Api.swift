@@ -117,6 +117,52 @@ struct TasksApi: Sendable {
         )
     }
 
+    /// #478: one action, every task matching either explicit ids or the
+    /// CURRENT filter.
+    ///
+    /// The filter branch sends the SAME field names GET /v1/tasks takes,
+    /// because the server resolves them with the same query builder the list
+    /// uses — "everything I am looking at" cannot mean something different
+    /// here.
+    ///
+    /// There is no send action and there never can be: the server's zod enum
+    /// and the SQL enum are the two gates, and this method cannot express one.
+    func bulk(
+        companyId: String,
+        action: String,
+        ids: [String]? = nil,
+        filters: TaskListFilters? = nil,
+        targetUserId: String? = nil,
+        /// True when the caller means "unassign", which is a null the server needs.
+        unassign: Bool = false
+    ) async throws -> BulkTasksResult {
+        var body: [String: JSONValue] = ["action": .string(action)]
+        if let ids {
+            body["ids"] = .array(ids.map { .string($0) })
+        } else if let filters {
+            var filter: [String: JSONValue] = [:]
+            if let status = filters.status { filter["status"] = .string(status) }
+            if let assignee = filters.assignedUserId {
+                filter["assigned_user_id"] = .string(assignee)
+            }
+            if filters.unassigned { filter["unassigned"] = .bool(true) }
+            if filters.overdue { filter["overdue"] = .bool(true) }
+            body["filter"] = .object(filter)
+        }
+        // Explicit null is meaningful (unassign), so it is only written when the
+        // caller says so rather than whenever the id is absent.
+        if let targetUserId {
+            body["target_user_id"] = .string(targetUserId)
+        } else if unassign {
+            body["target_user_id"] = .null
+        }
+        return try await api.post(
+            "/v1/tasks/bulk",
+            body: JSONValue.object(body),
+            companyId: companyId
+        )
+    }
+
     /// THE one completion path (D14/T2): flip done on the SOURCE MESSAGE.
     /// Idempotent server-side; derived task done updates ride message.status.
     func setDone(companyId: String, messageId: String, done: Bool) async throws -> Message {
