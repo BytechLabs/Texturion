@@ -24,6 +24,7 @@ import type Stripe from "stripe";
 
 import { recordAudit } from "../audit/log";
 import { getDb } from "../db";
+import { revokePrepaidYearForPaymentIntent } from "./prepay";
 import { emailLayout } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
@@ -82,6 +83,32 @@ export async function handleChargeDispute(
     p_closed_at: closed ? new Date().toISOString() : null,
   });
   if (error) throw new Error(`record_billing_dispute failed: ${error.message}`);
+
+  // #400/D107: a chargeback the customer WON takes our money back. If a prepaid
+  // year was bought with that payment, leaving its 100%-off coupon running
+  // would deliver up to ten more free months on top of the clawback and the
+  // dispute fee — the largest single loss any of these paths can produce.
+  //
+  // Only on `lost`: an ongoing dispute may still be won, and revoking a year
+  // somebody paid for while we are still arguing about it would punish a
+  // customer who turns out to be right.
+  if (closed && dispute.status === "lost" && paymentIntent) {
+    try {
+      const revoked = await revokePrepaidYearForPaymentIntent(
+        env,
+        db,
+        paymentIntent,
+        `chargeback_lost:${dispute.id}`,
+      );
+      if (revoked.outcome === "revoked") {
+        console.log(`prepaid year revoked after lost dispute ${dispute.id}`);
+      }
+    } catch (cause) {
+      // Never let this fail the dispute record itself — that row is the alarm,
+      // and losing it to a revocation error would hide the chargeback too.
+      console.error(`prepaid-year revocation failed for ${dispute.id}: ${String(cause)}`);
+    }
+  }
 
   // #345: audited ONLY when the company resolved. `audit_log.company_id` is
   // NOT NULL with a foreign key, and `recordAudit` swallows its own failures

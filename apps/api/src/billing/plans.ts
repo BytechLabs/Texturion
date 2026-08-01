@@ -108,6 +108,36 @@ export const PLAN_NOTIFY_LIMITS: Record<
  */
 export const MAX_EMAIL_RECIPIENTS_PER_CLAIM = 3;
 
+/**
+ * #400/D107 — what a prepaid year costs, in cents. Ten months for twelve.
+ *
+ * $290 against 12 x $29 = $348, an effective $24.17/mo. $790 against 12 x $79 =
+ * $948, an effective $65.83/mo. The discount is real and delivered through the
+ * PRICE — an earlier design delivered it through a customer-balance credit,
+ * which funds ten invoices rather than twelve and was reverted for it.
+ */
+export const PLAN_PREPAY_YEAR_CENTS: Record<PlanId, number> = {
+  starter: 29_000,
+  pro: 79_000,
+};
+
+/** How many monthly invoices a prepaid year covers. Matches the coupon. */
+export const PREPAY_MONTHS = 12;
+
+/**
+ * The one-time price id for a prepaid year, or null when unprovisioned.
+ *
+ * Null is the feature flag: with no price the offer exists nowhere, because a
+ * surface that sells something we cannot deliver is worse than no surface.
+ */
+export function prepayYearPrice(env: Env, plan: PlanId): string | null {
+  const id =
+    plan === "starter"
+      ? env.STRIPE_STARTER_YEAR_PRICE_ID
+      : env.STRIPE_PRO_YEAR_PRICE_ID;
+  return id && id.length > 0 ? id : null;
+}
+
 /** Overage price per extra outbound segment, in cents (SPEC 2). */
 export const PLAN_OVERAGE_CENTS_PER_SEGMENT: Record<PlanId, number> = {
   starter: 3,

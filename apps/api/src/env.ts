@@ -183,6 +183,20 @@ const envSchema = z.object({
   STRIPE_PRO_OVERAGE_PRICE_ID: z.string().min(1),
   STRIPE_US_FEE_PRICE_ID: z.string().min(1),
   /**
+   * #400/D107 — the prepaid year. A ONE-TIME price plus a 100%-off coupon
+   * applied to the licensed subscription item for twelve months; see D107 for
+   * why the three obvious alternatives (an annual interval, a customer-balance
+   * credit, two subscriptions) are each wrong for a metered subscription.
+   *
+   * ALL THREE OPTIONAL, and that is the feature flag: with any of them unset
+   * the offer does not exist — eligibility reports not_provisioned and the
+   * route 409s. A half-provisioned catalog must not sell a year it cannot
+   * deliver, and the coupon is as load-bearing as the price.
+   */
+  STRIPE_STARTER_YEAR_PRICE_ID: z.string().min(1).optional(),
+  STRIPE_PRO_YEAR_PRICE_ID: z.string().min(1).optional(),
+  STRIPE_PREPAID_YEAR_COUPON_ID: z.string().min(1).optional(),
+  /**
    * #12 plan-builder module add-on prices (created by `pnpm stripe:setup`).
    * OPTIONAL so the Worker boots before the module catalog is provisioned;
    * checkout validates presence only when a customer actually selects the

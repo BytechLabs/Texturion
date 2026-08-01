@@ -10,6 +10,8 @@ import {
   PLAN_LIMITS,
   planForLicensedPrice,
   planPrices,
+  PREPAY_MONTHS,
+  prepayYearPrice,
   type LocalSubscriptionStatus,
   type PlanId,
 } from "../billing/plans";
@@ -20,6 +22,12 @@ import {
   findExtraNumberItem,
 } from "../billing/extra-numbers";
 import { cartSignature, idempotencyKey } from "../billing/idempotency";
+import {
+  PREPAY_METADATA_FIELD,
+  PREPAY_METADATA_KIND,
+  PREPAY_PLAN_FIELD,
+  prepayEligibility,
+} from "../billing/prepay";
 import {
   allVoiceOveragePrices,
   MODULE_CATALOG,
@@ -434,6 +442,32 @@ billingRoutes.post("/portal", async (c) => {
  * period end via a subscription schedule and are blocked (409) until extra
  * numbers are released and active members fit the Starter seat limit.
  */
+/**
+ * The item-level discounts on a subscription item, in the shape a SCHEDULE
+ * PHASE takes — or nothing when there are none.
+ *
+ * #400/D107. Rebuilding a phase from a bare price id silently drops every
+ * discount on that line, and the discount on the licensed line is a prepaid
+ * year somebody paid for. Spread rather than always-set so a subscription with
+ * no discounts produces exactly the payload it produced before.
+ */
+function phaseDiscounts(
+  item: Stripe.SubscriptionItem,
+): { discounts?: { coupon: string }[] } {
+  const raw = (item as unknown as { discounts?: unknown[] }).discounts ?? [];
+  const coupons = raw
+    .map((d) =>
+      typeof d === "string"
+        ? d
+        : ((d as { coupon?: string | { id?: string } })?.coupon as string | undefined) ??
+          ((d as { coupon?: { id?: string } })?.coupon?.id ?? undefined),
+    )
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+  return coupons.length > 0
+    ? { discounts: coupons.map((coupon) => ({ coupon })) }
+    : {};
+}
+
 billingRoutes.post("/change-plan", async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
@@ -604,19 +638,37 @@ billingRoutes.post("/change-plan", async (c) => {
     phases: [
       {
         // Current phase: today's items, unchanged, through the period end.
+        //
+        // #400/D107: `discounts` is carried through explicitly. A phase is
+        // rebuilt from a bare item LIST, so anything not re-emitted here is
+        // dropped — and the thing that would be dropped is the 100%-off coupon
+        // that IS somebody's prepaid year. Up to $711 of paid Pro service would
+        // evaporate the instant they asked for a smaller plan, and nothing
+        // would notice, because the only record was the object being replaced.
         items: subscription.items.data
           .filter((item) => !staleExtraPrices.has(item.price.id))
           .map((item) =>
             isMeteredItem(item)
               ? { price: item.price.id }
-              : { price: item.price.id, quantity: item.quantity ?? 1 },
+              : {
+                  price: item.price.id,
+                  quantity: item.quantity ?? 1,
+                  ...phaseDiscounts(item),
+                },
           ),
         start_date: phaseStart,
         end_date: currentPeriodEnd,
       },
       {
         items: [
-          { price: starterPrices.licensed, quantity: 1 },
+          // #400/D107: the prepaid discount rides the licensed line into the
+          // NEW phase too. Without this the coupon simply stops at rollover and
+          // the customer starts paying again for months they already bought.
+          {
+            price: starterPrices.licensed,
+            quantity: 1,
+            ...phaseDiscounts(licensedItem),
+          },
           { price: starterPrices.metered },
           // #12: carry the company's purchased add-on modules through the
           // downgrade. Modules are plan-agnostic, so without this Stripe would
@@ -657,6 +709,131 @@ billingRoutes.post("/change-plan", async (c) => {
     effective: "period_end",
     effective_at: new Date(currentPeriodEnd * 1000).toISOString(),
   });
+});
+
+/**
+ * GET /v1/billing/prepay (#400/D107) — may this workspace buy a year, and is
+ * one already running?
+ *
+ * One request answers both, because the surface needs both: the offer renders
+ * only when eligible, and a workspace already inside a window should see when
+ * it ends rather than the offer again.
+ */
+billingRoutes.get("/prepay", async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const company = await fetchCompany(db, c.get("companyId"));
+
+  // The schedule gate needs the live subscription. Skipped entirely for a
+  // company that has none — that is the no_subscription answer anyway, and it
+  // saves a Stripe round trip on the surface that polls this.
+  let subscription: Stripe.Subscription | null = null;
+  if (company.stripe_subscription_id) {
+    subscription = await getStripe(env).subscriptions.retrieve(
+      company.stripe_subscription_id,
+    );
+  }
+  const eligibility = await prepayEligibility(env, db, company, subscription);
+
+  return c.json({
+    eligible: eligibility.eligible,
+    reason: eligibility.reason ?? null,
+    price_cents: eligibility.priceCents ?? null,
+    months: PREPAY_MONTHS,
+    open: eligibility.open
+      ? {
+          plan: eligibility.open.plan,
+          amount_cents: eligibility.open.amount_cents,
+          granted_through: eligibility.open.granted_through,
+        }
+      : null,
+  });
+});
+
+/**
+ * POST /v1/billing/prepay (#400/D107) — buy a year up front.
+ *
+ * A ONE-TIME Checkout Session. The money buys a 100%-off coupon on the licensed
+ * subscription item for twelve months (see billing/prepay.ts); the subscription
+ * itself is never touched here, which is the whole point of D107.
+ *
+ * `automatic_tax` is on because Stripe Tax is live with a Canadian registration,
+ * so GST/HST is charged at collection — the monthly licensed line is then $0 and
+ * carries no tax, and no supply is taxed twice.
+ */
+billingRoutes.post("/prepay", async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const company = await fetchCompany(db, c.get("companyId"));
+
+  let subscription: Stripe.Subscription | null = null;
+  if (company.stripe_subscription_id) {
+    subscription = await getStripe(env).subscriptions.retrieve(
+      company.stripe_subscription_id,
+    );
+  }
+  const eligibility = await prepayEligibility(env, db, company, subscription);
+  if (!eligibility.eligible) {
+    // Each refusal says the thing the customer can act on, and no more. An
+    // unprovisioned catalog is our problem, not theirs.
+    const message =
+      eligibility.reason === "not_activated"
+        ? "Send your first message first, then you can pay for a year up front."
+        : eligibility.reason === "subscription_unhealthy"
+          ? "Sort out your payment method before paying for a year up front."
+          : eligibility.reason === "no_subscription"
+            ? "Subscribe first — a year up front pays for a plan you already have."
+            : eligibility.reason === "already_prepaid"
+              ? "You have already paid for a year. It runs until " +
+                new Date(eligibility.open?.granted_through ?? "").toISOString().slice(0, 10) +
+                "."
+              : eligibility.reason === "plan_change_pending"
+                ? "You have a plan change waiting to take effect. Once it lands you can pay for a year."
+                : "Paying for a year up front isn't available right now.";
+    return errorResponse(c, "conflict", message);
+  }
+
+  const plan = company.plan as PlanId;
+  const price = prepayYearPrice(env, plan);
+  if (!price || !company.stripe_customer_id) {
+    return errorResponse(
+      c,
+      "conflict",
+      "Paying for a year up front isn't available right now.",
+    );
+  }
+
+  const session = await getStripe(env).checkout.sessions.create(
+    {
+      mode: "payment",
+      client_reference_id: company.id,
+      // The SAME customer as the subscription, always: the discount lands on
+      // that customer's subscription, so a payment on a second customer object
+      // would buy nothing.
+      customer: company.stripe_customer_id,
+      line_items: [{ price, quantity: 1 }],
+      automatic_tax: { enabled: true },
+      // How the webhook tells this from a subscription checkout. Checked rather
+      // than inferred from `mode`, because guessing wrong moves money silently.
+      metadata: {
+        [PREPAY_METADATA_FIELD]: PREPAY_METADATA_KIND,
+        [PREPAY_PLAN_FIELD]: plan,
+      },
+      success_url: `${env.APP_ORIGIN}/settings/billing?prepay=success`,
+      cancel_url: `${env.APP_ORIGIN}/settings/billing?prepay=canceled`,
+    },
+    {
+      // Keyed on the plan too: a workspace that upgrades between two attempts is
+      // buying a different thing at a different price, and reusing the key would
+      // replay the cheaper session.
+      idempotencyKey: idempotencyKey(company.id, "prepaid_year", plan),
+    },
+  );
+
+  if (!session.url) {
+    throw new Error(`Stripe prepay session ${session.id} returned no URL.`);
+  }
+  return c.json({ url: session.url });
 });
 
 /**

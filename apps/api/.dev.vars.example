@@ -31,6 +31,10 @@ STRIPE_PRO_PRICE_ID=
 STRIPE_STARTER_OVERAGE_PRICE_ID=
 STRIPE_PRO_OVERAGE_PRICE_ID=
 STRIPE_US_FEE_PRICE_ID=
+# #400/D107 prepaid year. Unset = the offer does not exist.
+STRIPE_STARTER_YEAR_PRICE_ID=
+STRIPE_PRO_YEAR_PRICE_ID=
+STRIPE_PREPAID_YEAR_COUPON_ID=
 # Module add-on price ids — also printed by `stripe:setup`; schema-optional (the
 # Worker boots without them) but required to sell the add-ons (#12 plan builder).
 # MMS is RETIRED (#103): never provisioned anew. Keep it SET wherever the price

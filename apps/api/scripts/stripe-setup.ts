@@ -226,6 +226,42 @@ try {
     tax_behavior: "exclusive",
   });
 
+  // #400/D107: the prepaid year. ONE-TIME prices (no `recurring`), exactly like
+  // the US registration fee above — a year is a discount on the licensed line,
+  // not a billing interval. Ten months' money for twelve.
+  const starterYear = await ensurePrice("loonext_starter_year", {
+    product: starterProduct.id,
+    currency: "usd",
+    unit_amount: 29000,
+    tax_behavior: "exclusive",
+  });
+  const proYear = await ensurePrice("loonext_pro_year", {
+    product: proProduct.id,
+    currency: "usd",
+    unit_amount: 79000,
+    tax_behavior: "exclusive",
+  });
+
+  // The coupon that actually delivers the year: 100% off the LICENSED item for
+  // twelve months. One coupon serves both plans — it is a percentage, so it
+  // does not care which price it lands on. Created with an explicit id so the
+  // env var is stable across re-runs.
+  const PREPAID_COUPON_ID = "loonext_prepaid_year";
+  let prepaidCoupon: { id: string };
+  try {
+    prepaidCoupon = await stripe.coupons.retrieve(PREPAID_COUPON_ID);
+    console.log(`coupon ${PREPAID_COUPON_ID}: already exists`);
+  } catch {
+    prepaidCoupon = await stripe.coupons.create({
+      id: PREPAID_COUPON_ID,
+      percent_off: 100,
+      duration: "repeating",
+      duration_in_months: 12,
+      name: "Prepaid year",
+    });
+    console.log(`coupon ${PREPAID_COUPON_ID}: created`);
+  }
+
   // #12 plan-builder module add-ons: a product + flat monthly licensed price
   // per module, idempotent by the same lookup_key/catalog-metadata scheme.
   const modulePriceIds: { envKey: string; id: string }[] = [];
@@ -298,6 +334,9 @@ try {
   console.log(`STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID=${starterVoiceOverage.id}`);
   console.log(`STRIPE_PRO_VOICE_OVERAGE_PRICE_ID=${proVoiceOverage.id}`);
   console.log(`STRIPE_US_FEE_PRICE_ID=${usFee.id}`);
+  console.log(`STRIPE_STARTER_YEAR_PRICE_ID=${starterYear.id}`);
+  console.log(`STRIPE_PRO_YEAR_PRICE_ID=${proYear.id}`);
+  console.log(`STRIPE_PREPAID_YEAR_COUPON_ID=${prepaidCoupon.id}`);
   for (const { envKey, id } of modulePriceIds) {
     console.log(`${envKey}=${id}`);
   }
