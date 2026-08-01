@@ -8,6 +8,7 @@ import com.loonext.android.core.model.ForYou
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.NotificationItem
 import com.loonext.android.core.model.Page
+import com.loonext.android.core.model.PipelineReportResponse
 import com.loonext.android.core.model.ResponseTimeReport
 import com.loonext.android.core.model.SearchResult
 import com.loonext.android.core.model.SpamReviewPage
@@ -49,6 +50,14 @@ class ForYouRepository(private val api: ApiClient) {
      */
     suspend fun responseTime(companyId: String, days: Int): ResponseTimeReport =
         api.get("/v1/reports/response-time?days=$days", companyId = companyId)
+
+    /**
+     * #354: quoted, won, still out. Its own read for the same reason the
+     * response time above is — it answers "how are we doing" rather than "what
+     * needs doing", and folding it into the queue would refetch everything.
+     */
+    suspend fun pipeline(companyId: String, days: Int = 30): PipelineReportResponse =
+        api.get("/v1/reports/pipeline?days=$days", companyId = companyId)
 
     /**
      * #342: spam marks that do not look like spam. Its own call rather than a

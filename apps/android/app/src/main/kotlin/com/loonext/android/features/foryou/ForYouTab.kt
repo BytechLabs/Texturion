@@ -57,6 +57,7 @@ import com.loonext.android.AppGraph
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.ForYou
 import com.loonext.android.core.model.Me
+import com.loonext.android.core.model.PipelineReportResponse
 import com.loonext.android.core.model.ResponseTimeReport
 import com.loonext.android.features.tasks.formatDue
 import com.loonext.android.features.calls.CallsRepository
@@ -148,6 +149,16 @@ fun ForYouTab(
         key = CacheKeys.responseTime(companyId, responseDays),
         refreshKey = refreshKey,
     ) { graph.forYouRepo.responseTime(companyId, responseDays) }
+
+    // #354: quoted, won, still out. Its own cache-first read for the same
+    // reason as the response time above, and fixed at 30 days — the pipeline
+    // question is "how did this month's quotes do", not a window somebody
+    // tunes.
+    val pipeline = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.pipeline(companyId, 30),
+        refreshKey = refreshKey,
+    ) { graph.forYouRepo.pipeline(companyId) }
 
     // #342: spam marks that do not look like spam. Empty on nearly every day,
     // and deliberately NOT a badge or a push — a signal you find, not one that
@@ -251,6 +262,8 @@ fun ForYouTab(
                 responseTime = (responseTime as? LoadState.Ready)?.value,
                 responseDays = responseDays,
                 onResponseWindow = { responseDays = it },
+                // #354: null while it loads, and the card says nothing.
+                pipeline = (pipeline as? LoadState.Ready)?.value,
                 unreadNotifications = unreadNotifications,
                 me = me,
                 onOpenConversation = { onOpenThread?.invoke(it) },
@@ -273,6 +286,8 @@ private fun ForYouList(
     responseTime: ResponseTimeReport?,
     responseDays: Int,
     onResponseWindow: (Int) -> Unit,
+    /** #354: null while it loads — the card renders nothing rather than zeroes. */
+    pipeline: PipelineReportResponse?,
     unreadNotifications: Int,
     me: Me,
     onOpenConversation: (String) -> Unit,
@@ -339,6 +354,12 @@ private fun ForYouList(
                 days = responseDays,
                 onWindow = onResponseWindow,
             )
+        }
+
+        // #354: beside its neighbour, and absent entirely until there is
+        // something true to say.
+        item(key = "pipeline") {
+            PipelineCard(report = pipeline)
         }
 
         item(key = "title") {

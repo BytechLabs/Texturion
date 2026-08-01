@@ -34,6 +34,13 @@ struct ForYouApi: Sendable {
         try await api.get("/v1/reports/response-time?days=\(days)", companyId: companyId)
     }
 
+    /// #354: quoted, won, still out. Its own read for the same reason the
+    /// response time above is — it answers "how are we doing" rather than "what
+    /// needs doing", and folding it into the queue would refetch everything.
+    func pipeline(companyId: String, days: Int = 30) async throws -> PipelineReportResponse {
+        try await api.get("/v1/reports/pipeline?days=\(days)", companyId: companyId)
+    }
+
     /// #342: spam marks that do not look like spam. Its own call rather than a
     /// section of /v1/for-you — it answers a different question and is empty
     /// on nearly every day.

@@ -34,6 +34,9 @@ struct ForYouTab: View {
     /// it in would make the queue refetch on every 7/30/90 switch.
     @State private var responseTime: ResponseTimeReport?
     @State private var responseDays = 30
+    /// #354: the pipeline report. Fixed at 30 days — the pipeline question is
+    /// "how did this month's quotes do", not a window somebody tunes.
+    @State private var pipeline: PipelineReportResponse?
 
     var body: some View {
         Group {
@@ -64,11 +67,14 @@ struct ForYouTab: View {
                     responseTime: responseTime,
                     responseDays: responseDays,
                     onResponseWindow: { responseDays = $0 },
+                    // #354: nil while it loads, and the card says nothing.
+                    pipeline: pipeline,
                     onOpenConversation: { AppRouter.shared.openConversationId = $0 },
                     onOpenCalls: onOpenCalls,
                     onRefresh: {
                         await reload()
                         await reloadRecentCalls()
+                        await reloadPipeline()
                     },
                     company: me.company,
                     onOpenSettings: nil
@@ -78,6 +84,7 @@ struct ForYouTab: View {
         .task(id: "\(companyId)#\(refreshKey)") { await reload() }
         .task(id: "\(companyId)#\(refreshKey)") { await reloadSpamReview() }
         .task(id: "\(companyId)#\(refreshKey)") { await reloadRecentCalls() }
+        .task(id: "\(companyId)#\(refreshKey)") { await reloadPipeline() }
         .task(id: "\(companyId)#\(refreshKey)#\(responseDays)") {
             await reloadResponseTime()
         }
@@ -146,6 +153,15 @@ struct ForYouTab: View {
         }
     }
 
+    /// #354. Same failure posture as the response time above: a failure leaves
+    /// whatever was on screen, because this panel is a result to read rather
+    /// than an action to take.
+    private func reloadPipeline() async {
+        if let fresh = try? await graph.forYouApi.pipeline(companyId: companyId) {
+            pipeline = fresh
+        }
+    }
+
     private func reloadRecentCalls() async {
         do {
             recentCalls = .ready(
@@ -171,6 +187,8 @@ private struct ForYouList: View {
     let responseTime: ResponseTimeReport?
     let responseDays: Int
     let onResponseWindow: @MainActor (Int) -> Void
+    /// #354: nil while it loads — the card renders nothing rather than zeroes.
+    let pipeline: PipelineReportResponse?
     let onOpenConversation: @MainActor (String) -> Void
     let onOpenCalls: (() -> Void)?
     /// Both loaders, awaited together, so the pull-to-refresh spinner settles
@@ -226,6 +244,9 @@ private struct ForYouList: View {
                     days: responseDays,
                     onWindow: onResponseWindow
                 )
+                // #354: beside its neighbour, and absent entirely until there
+                // is something true to say.
+                PipelineCard(report: pipeline)
                 // #342: above the queue, because "you're all caught up" is not
                 // true if somebody has been texting a thread nobody can see.
                 spamReviewSection

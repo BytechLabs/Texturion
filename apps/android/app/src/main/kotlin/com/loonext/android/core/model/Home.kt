@@ -324,3 +324,40 @@ data class NotificationPrefs(
     val email_enabled: Boolean,
     val push_enabled: Boolean,
 )
+
+/**
+ * #354 — one period's pipeline, as GET /v1/reports/pipeline returns it.
+ *
+ * Every figure is computed server-side: a win rate computed twice is a win rate
+ * that can disagree with itself, and this one is a claim about the customer's
+ * own business.
+ */
+@Serializable
+data class PipelineReport(
+    val quoted: Int = 0,
+    val won: Int = 0,
+    val lost: Int = 0,
+    /** Quoted, and neither won nor lost yet. The money still outstanding. */
+    val open: Int = 0,
+    val median_days_to_win: Double? = null,
+)
+
+/** Which tag each stage currently IS, so a rename never breaks a link. */
+@Serializable
+data class PipelineStageTag(
+    val stage: String = "",
+    val tag_id: String = "",
+    val name: String = "",
+)
+
+@Serializable
+data class PipelineReportResponse(
+    val days: Int = 30,
+    val current: PipelineReport = PipelineReport(),
+    val previous: PipelineReport = PipelineReport(),
+    val win_rate: Int? = null,
+    val previous_win_rate: Int? = null,
+    /** Null when there is not enough decided work to say anything honest. */
+    val insight: String? = null,
+    val stages: List<PipelineStageTag> = emptyList(),
+)

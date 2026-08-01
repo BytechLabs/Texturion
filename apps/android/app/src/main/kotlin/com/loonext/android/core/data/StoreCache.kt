@@ -61,6 +61,8 @@ object CacheKeys {
      * reasonably believe.
      */
     fun responseTime(companyId: String, days: Int) = "responseTime/$companyId/$days"
+    /** #354: the pipeline report, keyed like its neighbour. */
+    fun pipeline(companyId: String, days: Int) = "pipeline/$companyId/$days"
     fun team(companyId: String) = "team/$companyId"
     fun numbers(companyId: String) = "numbers/$companyId"
     fun billing(companyId: String) = "billing/$companyId"
