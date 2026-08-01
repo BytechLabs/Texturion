@@ -14,6 +14,7 @@
  */
 import { CountryOnly } from "@/components/marketing/country";
 import { FrCard, FrSection } from "@/components/marketing/fr";
+import { StatusSubscribeCard } from "@/components/marketing/status-subscribe-card";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
 import { breadcrumbJsonLd } from "@/lib/marketing/seo";
@@ -50,7 +51,21 @@ const inlineLink =
  * cannot assert the failure direction, and the failure direction is the entire
  * point of this page.
  */
-export function StatusContent({ feed }: { feed: StatusFeed }) {
+export function StatusContent({
+  feed,
+  canSubscribe = false,
+}: {
+  feed: StatusFeed;
+  /**
+   * #477: whether this worker can actually send the emails. False everywhere
+   * the mailer or the KV binding is missing — local dev, a preview build, or
+   * production before the secrets are set — and the card then does not render
+   * at all. Defaulting to false is the same rule the rest of this page follows:
+   * an affordance nothing backs must not appear, and a subscribe form that
+   * silently drops addresses is the same lie as a green dot with no probe.
+   */
+  canSubscribe?: boolean;
+}) {
   return (
     <>
       <JsonLd
@@ -163,6 +178,11 @@ export function StatusContent({ feed }: { feed: StatusFeed }) {
               )}
             </p>
           </FrCard>
+
+          {/* #477: below the reports, not above them. Somebody who opened this
+              page during an incident came for the incident; the offer to be
+              told next time is worth making, and worth making second. */}
+          {canSubscribe ? <StatusSubscribeCard /> : null}
 
           <div className="mt-12">
             <h2 className="fr-h3 text-[color:var(--fr-ink)]">

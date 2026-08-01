@@ -178,3 +178,47 @@ describe("/status — #242: the live feed, and which way it fails", () => {
     expect(out).toContain("&lt;script&gt;");
   });
 });
+
+/**
+ * #477 — the subscribe card, and the rule that decides whether it exists.
+ *
+ * A form that accepts an address the worker can never mail is the same lie as a
+ * green dot with no probe behind it, so the card is gated on the worker
+ * actually being able to send. That gate defaults to off, which means every
+ * environment that has not been configured — local dev, a preview build,
+ * production before the secrets are set — shows no form rather than a broken
+ * one.
+ */
+describe("/status — #477: subscribe renders only when it is backed", () => {
+  const withCard = renderToStaticMarkup(
+    <StatusContent feed={EMPTY_STATUS_FEED} canSubscribe />,
+  );
+
+  it("shows nothing about email by default", () => {
+    expect(html).not.toContain("Get told instead of checking");
+    expect(html).not.toContain("status-subscribe-email");
+  });
+
+  it("offers one field and one action when the worker can send", () => {
+    expect(withCard).toContain("Get told instead of checking");
+    expect(withCard).toContain('id="status-subscribe-email"');
+    expect(withCard).toContain("Email me");
+  });
+
+  it("promises only incidents, and says unsubscribe is one click", () => {
+    // The copy is the contract. Anything vaguer here is how a status list turns
+    // into a marketing list.
+    expect(withCard).toContain("no newsletter");
+    expect(withCard).toMatch(/one-click\s+unsubscribe/);
+  });
+
+  it("still renders no operational indicator with the card up", () => {
+    expect(withCard).not.toContain("var(--fr-green)");
+    expect(withCard).not.toContain("var(--fr-flare)");
+    expect(withCard).not.toMatch(/OPERATIONAL|ALL SYSTEMS/);
+  });
+
+  it("keeps Law 6 (no em/en dash) in the card", () => {
+    expect(withCard).not.toMatch(/—|–/);
+  });
+});

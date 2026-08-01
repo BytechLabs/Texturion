@@ -43,12 +43,26 @@ the longest. **Say something while you still do not know.**
    **Clear it the same way when it is over** (`--remote` delete, or empty the
    value in the dashboard). An empty or absent value renders nothing at all.
 
-2. **Direct email to affected owners.** Still the channel that matters most,
+   **Then open `/status` once.** That page load is what mails the subscriber
+   list (#477) — there is no cron, because the OpenNext worker entry is
+   generated and has nowhere to hang one. The load also sends the "resolved"
+   email when you clear the line, so do it both times. If you forget, the next
+   visitor triggers it; opening the page yourself just means it does not wait
+   for one.
+
+2. **The status email list.** Anyone can subscribe from `/status`, including
+   people who are not customers, and they are mailed once when the live line
+   appears and once when it clears. Transitions only: re-wording the same
+   incident does not re-mail anybody. Capped at two fan-outs a day and 1000
+   status emails a month, and it stops rather than overspending, so during a
+   long flapping incident assume the second wording did not go out.
+
+3. **Direct email to affected owners.** Still the channel that matters most,
    because it does not depend on anybody remembering to check a page. Recipients:
    the owner addresses of affected workspaces (`billingRecipients` gives you the
    shape). If the blast radius is unclear, all owners.
 
-3. **The written report in `INCIDENTS`** (`apps/web/src/app/(marketing)/status/page.tsx`)
+4. **The written report in `INCIDENTS`** (`apps/web/src/app/(marketing)/status/page.tsx`)
    — the considered record, added afterward through a normal deploy, with a date
    and a full write-up. This one does need CI and a deploy, and that is fine: you
    are writing it when the incident is over.
@@ -147,10 +161,38 @@ feed goes down with the incident it exists to report.
 
 So KV buys the whole acceptance criterion for zero new vendors, zero
 subscriptions, and zero recurring cost, on infrastructure already in the critical
-path. An external provider remains the right answer for **subscribe-by-email**,
-which is a separate scope item in #242 and is not covered by any of this: the live
-line still requires a customer to look at the page. That is worth a provider on its
-own merits, when it is worth doing.
+path.
+
+**Subscribe-by-email: the provider recommendation above was withdrawn on
+2026-07-31** (#477, D105). It rested on one claim — that a provider brings
+subscribe-by-email along with it, so it is cheaper than building — and the claim
+is true while the conclusion is not, because the build turned out to be a list in
+the KV namespace we already have plus two plain-text emails. Buying would have
+meant a recurring bill and a fourth vendor holding our customers' addresses, to
+avoid roughly three hundred lines.
+
+What matters more than the cost is *where it runs*. The API worker already has
+Resend, rate limiting, suppressions and a database, so subscribing there would
+have been a fraction of the code — and the notifier would then share a failure
+domain with the product. A bad migration, a Supabase outage or a broken API
+deploy would take the announcement down with the thing it was announcing, which
+is the same mistake a Postgres-backed feed would have made. So the list lives in
+KV beside the live line and the mail goes out from the worker that serves the
+page.
+
+**One setup step, and it is not done automatically.** The web worker needs its
+own `RESEND_API_KEY` and `RESEND_FROM` secrets — separate from the API worker's,
+because the point is that it does not depend on the API worker for anything:
+
+```bash
+pnpm --filter @loonext/web exec wrangler secret put RESEND_API_KEY
+```
+
+Until both are set the subscribe form does not render at all and the fan-out is a
+no-op. That is deliberate and it is the same rule as everywhere else on this
+page: nothing renders that isn't backed by something real, and a form that
+accepts an address it can never mail is the same lie as a green dot with no probe
+behind it.
 
 **A KV read per request would be a cost center** on a page that gets linked around
 during an incident, so the page caches at the edge for 60 seconds

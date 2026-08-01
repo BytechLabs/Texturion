@@ -5892,3 +5892,66 @@ which #478 already notes it overlaps.
 
 This unblocks the half of #478 that is real engineering — bulk actions on TASKS —
 without spending a schema decision to get there.
+
+---
+
+## D105 — the status mailing list is ours, and it lives outside the product (#477, 2026-07-31)
+
+`docs/INCIDENT-COMMS.md` §5 previously recorded that an external status provider
+(Statuspage, Instatus, Better Stack) was the right answer for subscribe-by-email
+specifically, on the grounds that a provider brings the mailing list along with
+it rather than as a separate build. **That recommendation is withdrawn.** We
+build it, we own the list, and it runs on the marketing worker.
+
+**The cost argument was real and it was smaller than it looked.** The provider
+recommendation was made before anybody had scoped the build. Scoped, it is a set
+of keys in the KV namespace the live incident line already uses, two plain-text
+emails, and a fan-out that runs on a page render. Against that: a recurring bill
+forever, and a fourth vendor holding the email addresses of people who trusted us
+with them for one purpose.
+
+**The decisive argument is not cost, it is where the notifier runs.** The API
+worker already has Resend wired, rate limiting, a suppression list and a
+database, so building subscribe there would have taken a fraction of this code.
+It would also have put the announcement inside the failure domain of the thing
+being announced. A bad migration, a Supabase outage, or a broken API deploy are
+three of the worst incident classes we have, and in all three the mail would not
+go out. The incidents it could still report are the ones customers were least
+hurt by.
+
+That is the same reasoning §5 used to reject a Postgres-backed feed and choose
+KV: the page is served by Cloudflare, so depending on Cloudflare adds no failure
+domain the page did not already have, while depending on Postgres would ADD one.
+The list obeys the same rule as the feed, and for the same reason.
+
+**What we accept in exchange.**
+
+- **No cron.** The OpenNext worker entry is generated and has no `scheduled`
+  handler to hang one on, so the fan-out rides on a `/status` page render inside
+  `waitUntil`. `revalidate = 60` bounds how often that check can run no matter
+  how hard the page is hit, and the runbook now says to open the page once after
+  editing KV. If nobody does, the next visitor triggers it.
+- **Under-notify, never double-notify.** KV has no compare-and-set, so two
+  isolates can reach the fan-out at once and one of the two orderings has to be
+  picked. The marker is written BEFORE the send: a crash halfway loses an
+  announcement, where the other order would mail the list twice. A duplicate
+  outage notice at 3am is how a list loses the subscribers it exists to serve,
+  and the page still carries the incident either way.
+- **Capped, and it stops rather than overspending.** 200 subscribers, 50
+  confirmation emails a day, 2 fan-outs a day, 1000 status emails a month. The
+  monthly ceiling is the one that binds and it is claimed for the whole fan-out
+  at once — a partial send is worse than none, because it tells some customers
+  and silently does not tell others.
+- **Double opt-in, because the form is public.** Anyone can type anyone's
+  address into it. Without the confirmation step this is a way to make our
+  sending domain mail strangers, and the mail in question announces our outages.
+- **It does not render until it can send.** The web worker needs its own
+  `RESEND_API_KEY` and `RESEND_FROM`. Until they exist the card is absent and the
+  fan-out is a no-op, which is the same rule as QA gate 6: a subscribe form that
+  drops addresses is the same lie as a green dot with no probe behind it.
+
+**What would change this.** A support burden we cannot carry — deliverability
+complaints, an address that will not unsubscribe, our sending domain damaged by
+abuse of the public form. Those are provider problems worth paying to make
+somebody else's. None of them exist yet, and the list is capped at 200 so none
+of them can grow quietly.
