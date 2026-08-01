@@ -6251,3 +6251,73 @@ A crew wanting more than four stages, or wanting stages per number or per trade.
 The column is a single nullable text value on `tags`; a second axis would want a
 real table, and at that point the state machine D7 rejected is worth
 re-examining rather than worked around.
+
+## D109 — pricing is reviewed on a schedule, and a change never reaches an existing customer (#255, 2026-08-01)
+
+#255 asks for instrumentation and then, in its own acceptance list, for
+something instrumentation cannot supply: "a written pricing review cadence...
+Data nobody has agreed to act on is a dashboard, not a decision."
+
+### When we look
+
+**Quarterly**, and on two triggers between quarters:
+
+- **A workspace goes gross-margin negative for two consecutive periods.**
+  `scripts/ops/pricing-report.mjs` names them. One bad month is a busy month;
+  two is a price that does not cover the work.
+- **A provider price changes.** Carriage and AI are the variable costs, and a
+  rate change upstream moves every margin at once.
+
+A quarter is chosen against the alternative of "when it feels wrong". Pricing is
+the highest-leverage variable a solo founder has and also the easiest to
+postpone, because nothing breaks when it is ignored.
+
+### What we look at
+
+`node scripts/ops/pricing-report.mjs --workspaces`, plus the plan-builder funnel
+in PostHog (`plan_builder_viewed`, `plan_module_toggled`, `plan_tier_changed`,
+`plan_selected`). Between them they answer the five questions #255 lists.
+
+### What would make us change a price
+
+Any of: a tier where most workspaces sit under 20% of every limit (drawn too
+generously), a tier where most sit above 90% (drawn too tightly), a module
+switched on in the builder and absent from checkout more often than not (priced
+above what it is worth), or a persistent negative margin cohort.
+
+**None of these is acted on below five workspaces in the cohort.** The report
+withholds the distribution entirely under that, and this decision withholds the
+change. A price moved on four data points is taste wearing a chart.
+
+### Grandfathering is the default, and it is not a courtesy
+
+**An existing customer keeps the price they signed up at, indefinitely, unless
+they change plans themselves.** Not a migration window, not a year's notice: the
+price they agreed to is the price.
+
+Two reasons, and the second is the load-bearing one. The obvious reason is
+fairness to a trade business whose margins are thinner than ours. The real one
+is that this product is sold to people who talk to each other — the referral
+programme (#399) exists because that is how contractors buy — and a price rise
+on an existing customer is the single most repeatable negative story a small
+business can tell about a supplier. The revenue from re-pricing an installed
+base is bounded; the damage is not.
+
+The mechanism already exists: `company_modules.grandfathered` is set, honoured
+by the reconcile sweep, and the codebase has already been bitten once by
+counting grandfathered revenue that was not being collected.
+
+### What this rules out
+
+Price experiments across the customer base. #255's devil's advocate is right and
+this settles it: on a base this size an A/B test is statistically meaningless
+before it is a fairness problem, and two near-identical crews on different
+prices is a support conversation nobody can win. Prices change for NEW customers
+or not at all.
+
+### What would change this
+
+A base large enough for a cohort to mean something — call it several hundred
+paying workspaces — at which point a holdout on new signups becomes both
+measurable and fair, since nobody is being re-priced. The grandfathering posture
+does not change with size; it is not a scale decision.
