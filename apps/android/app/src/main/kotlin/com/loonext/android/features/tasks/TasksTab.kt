@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,9 +33,12 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Undo
 import androidx.compose.material.icons.outlined.ViewKanban
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -44,6 +48,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ToggleButton
@@ -76,6 +81,15 @@ import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Task
+import com.loonext.android.features.inbox.BulkSelection
+import com.loonext.android.features.inbox.bulkResultMessage
+import com.loonext.android.features.inbox.canEscalate
+import com.loonext.android.features.inbox.idsOrNull
+import com.loonext.android.features.inbox.isEmpty
+import com.loonext.android.features.inbox.isRowSelected
+import com.loonext.android.features.inbox.label
+import com.loonext.android.features.inbox.selectLoaded
+import com.loonext.android.features.inbox.toggleRow
 import com.loonext.android.features.shell.LocalShellPagerBlocker
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
@@ -513,6 +527,8 @@ private fun TaskListScreen(
                             refreshKey = refreshKey,
                             filtersActive = filtersActive,
                             memberName = ::memberName,
+                            members = members,
+                            onMessage = { scope.launch { snackbar.showSnackbar(it) } },
                             onRetry = { refreshKey++ },
                             onOpenTask = onOpenTask,
                             onToggleDone = onToggleDone,
@@ -656,6 +672,10 @@ private fun TaskList(
     refreshKey: Int,
     filtersActive: Boolean,
     memberName: (String?) -> String?,
+    /** #478: the assign targets the bulk bar offers. */
+    members: List<Member>,
+    /** #478: what to say after a bulk action — the screen owns the snackbar. */
+    onMessage: (String) -> Unit,
     onRetry: () -> Unit,
     onOpenTask: (String) -> Unit,
     onToggleDone: (Task, Boolean) -> Unit,
@@ -663,6 +683,15 @@ private fun TaskList(
     var loadingMore by remember(companyId) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
+
+    // #478 multi-select. The state and every rule about it come from
+    // BulkSelection.kt — the same module the inbox uses — so "select all"
+    // cannot come to mean two different things on two screens.
+    var selection by remember(companyId) { mutableStateOf(BulkSelection.EMPTY) }
+    var bulkRunning by remember(companyId) { mutableStateOf(false) }
+    // NOT local state: a message nobody renders is a bulk action that looks
+    // like it did nothing. This goes to the screen's snackbar, which is the
+    // one place this app tells somebody what just happened.
 
     // #176 cache-first: every filter combination is its own key, so a revisit
     // (or a return to a previously-used filter) paints instantly from
@@ -705,6 +734,74 @@ private fun TaskList(
                 // before done), so the status partition preserves order.
                 val openRows = rows.filter { !it.done }
                 val doneRows = rows.filter { it.done }
+                val loadedIds = rows.map { it.id }
+
+                fun runBulk(action: String, verb: String, targetUserId: String? = null, unassign: Boolean = false) {
+                    if (bulkRunning) return
+                    bulkRunning = true
+                    scope.launch {
+                        try {
+                            val result = mutations.bulk(
+                                companyId = companyId,
+                                action = action,
+                                ids = selection.idsOrNull(),
+                                // The SAME arms the list fetched with, so
+                                // "everything I am looking at" cannot mean
+                                // something different here. The first arm is
+                                // the one that carries the user's filters —
+                                // the second exists only to union open+done on
+                                // the statusless tabs, and the server's bulk
+                                // route has no cursor to union across.
+                                filters = if (selection.idsOrNull() == null) {
+                                    taskListArms(tab, assigneeChip, unassignedChip, dueChip, q).first()
+                                } else {
+                                    null
+                                },
+                                targetUserId = targetUserId,
+                                unassign = unassign,
+                            )
+                            // The SERVER's numbers. In filter mode this client
+                            // does not know how many rows matched, and a count
+                            // it guessed would be a count somebody trusted.
+                            onMessage(
+                                bulkResultMessage(
+                                    verb = verb,
+                                    applied = result.applied.size,
+                                    failed = result.failed.size,
+                                    matched = result.matched,
+                                    capped = result.capped,
+                                    nounOne = "task",
+                                    nounMany = "tasks",
+                                ),
+                            )
+                            selection = BulkSelection.EMPTY
+                            onRetry()
+                        } catch (_: Exception) {
+                            onMessage("That didn't go through. Nothing was changed.")
+                        } finally {
+                            bulkRunning = false
+                        }
+                    }
+                }
+
+                if (!selection.isEmpty()) {
+                    TaskBulkBar(
+                        selection = selection,
+                        loadedIds = loadedIds,
+                        hasMore = current.value.hasMore,
+                        running = bulkRunning,
+                        members = members,
+                        onSelectLoaded = { selection = selectLoaded(loadedIds) },
+                        onSelectAllMatching = { selection = BulkSelection.Filter },
+                        onClear = { selection = BulkSelection.EMPTY },
+                        onMarkDone = { runBulk("mark_done", "Marked done") },
+                        onMarkUndone = { runBulk("mark_undone", "Marked not done") },
+                        onAssign = { userId -> runBulk("assign", "Assigned", targetUserId = userId) },
+                        onUnassign = { runBulk("assign", "Unassigned", unassign = true) },
+                        onDelete = { runBulk("delete", "Deleted") },
+                    )
+                }
+
                 LazyColumn(
                     Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 24.dp),
@@ -715,6 +812,10 @@ private fun TaskList(
                         memberName = memberName,
                         onOpenTask = onOpenTask,
                         onToggleDone = onToggleDone,
+                        selection = selection,
+                        onToggleSelected = { id ->
+                            selection = selection.toggleRow(id, loadedIds)
+                        },
                     )
                     taskSection(
                         label = "Done",
@@ -722,6 +823,10 @@ private fun TaskList(
                         memberName = memberName,
                         onOpenTask = onOpenTask,
                         onToggleDone = onToggleDone,
+                        selection = selection,
+                        onToggleSelected = { id ->
+                            selection = selection.toggleRow(id, loadedIds)
+                        },
                     )
                     if (current.value.hasMore) {
                         item(key = "load-more") {
@@ -779,6 +884,9 @@ private fun LazyListScope.taskSection(
     memberName: (String?) -> String?,
     onOpenTask: (String) -> Unit,
     onToggleDone: (Task, Boolean) -> Unit,
+    /** #478: null when this list does not offer multi-select (board, map). */
+    selection: BulkSelection? = null,
+    onToggleSelected: ((String) -> Unit)? = null,
 ) {
     if (tasks.isEmpty()) return
     item(key = "hdr-$label") {
@@ -834,8 +942,20 @@ private fun LazyListScope.taskSection(
                 TaskListRow(
                     task = task,
                     assigneeName = memberName(task.assigned_user_id),
-                    onClick = { onOpenTask(task.id) },
+                    onClick = {
+                        // #478: while a selection is live, a tap TOGGLES rather
+                        // than opens. Opening a task mid-selection would lose
+                        // the selection and land somewhere nobody asked for —
+                        // the same rule the inbox follows.
+                        if (selection != null && !selection.isEmpty()) {
+                            onToggleSelected?.invoke(task.id)
+                        } else {
+                            onOpenTask(task.id)
+                        }
+                    },
                     onToggleDone = { done -> onToggleDone(task, done) },
+                    selected = selection?.isRowSelected(task.id) == true,
+                    onLongPress = onToggleSelected?.let { toggle -> { toggle(task.id) } },
                 )
             }
             if (index < tasks.lastIndex) RowDivider()
@@ -854,6 +974,14 @@ internal fun TaskListRow(
     assigneeName: String?,
     onClick: () -> Unit,
     onToggleDone: (Boolean) -> Unit,
+    /** #478: true when this row is in the current bulk selection. */
+    selected: Boolean = false,
+    /**
+     * #478: long-press starts (or extends) a selection. Null on the surfaces
+     * that do not offer multi-select — the calendar reuses this row and a
+     * selection there would have no bar to act on it.
+     */
+    onLongPress: (() -> Unit)? = null,
 ) {
     // The done settle: rows ease to the 62% fade instead of snapping — the
     // spring is calm (medium-low stiffness), and because the row keeps its
@@ -863,10 +991,30 @@ internal fun TaskListRow(
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "doneSettle",
     )
+    val haptics = rememberHaptics()
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            // #478: the selected tint rather than a second checkbox. This row
+            // already has one — the done circle — and putting another beside it
+            // is two round targets a thumb has to tell apart on the one control
+            // people use constantly.
+            .then(
+                if (selected) {
+                    Modifier.background(MaterialTheme.colorScheme.secondaryContainer)
+                } else {
+                    Modifier
+                },
+            )
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongPress?.let { press ->
+                    {
+                        haptics.tap()
+                        press()
+                    }
+                },
+            )
             .padding(start = 9.dp, end = 15.dp, top = 7.dp, bottom = 7.dp)
             .alpha(doneAlpha),
         verticalAlignment = Alignment.CenterVertically,
@@ -975,6 +1123,104 @@ private fun TaskListSkeleton() {
                         Spacer(Modifier.width(12.dp))
                         SkeletonBlock(28.dp, 28.dp, shape = CircleShape)
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * #478 — the selection bar over the task list.
+ *
+ * Every rule is #275's, reused rather than restated: the selection type, the
+ * escalation ladder, the label and the result sentence all come from
+ * BulkSelection.kt. What differs is only which actions a task can take, which
+ * is why this is its own composable rather than a parameter on the inbox bar —
+ * a bar that took an action list would be one branch away from offering "mark
+ * read" on a task.
+ *
+ * NEVER SHOWS A NUMBER IT WAS NOT TOLD. `label()` says "all matching" rather
+ * than a count when the selection is filter-wide, because the client does not
+ * know how many rows the server will find.
+ */
+@Composable
+private fun TaskBulkBar(
+    selection: BulkSelection,
+    loadedIds: List<String>,
+    hasMore: Boolean,
+    running: Boolean,
+    members: List<Member>,
+    onSelectLoaded: () -> Unit,
+    onSelectAllMatching: () -> Unit,
+    onClear: () -> Unit,
+    onMarkDone: () -> Unit,
+    onMarkUndone: () -> Unit,
+    onAssign: (String) -> Unit,
+    onUnassign: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val showSelectLoaded = selection is BulkSelection.Ids &&
+        loadedIds.isNotEmpty() &&
+        !loadedIds.all { it in selection.ids }
+
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onClear, enabled = !running) {
+                    Icon(Icons.Outlined.Close, contentDescription = "Clear selection")
+                }
+                Text(
+                    selection.label(),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onMarkDone, enabled = !running) { Text("Done") }
+                Box {
+                    IconButton(onClick = { menuOpen = true }, enabled = !running) {
+                        Icon(Icons.Outlined.MoreVert, contentDescription = "More bulk actions")
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        for (member in members) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text("Assign to ${member.display_name.ifBlank { "Teammate" }}")
+                                },
+                                onClick = {
+                                    menuOpen = false
+                                    onAssign(member.user_id)
+                                },
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("Unassign") },
+                            onClick = { menuOpen = false; onUnassign() },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Mark not done") },
+                            onClick = { menuOpen = false; onMarkUndone() },
+                        )
+                        // Destructive, and last: a delete adjacent to the
+                        // assign items is a delete somebody hits by momentum.
+                        DropdownMenuItem(
+                            text = { Text("Delete") },
+                            onClick = { menuOpen = false; onDelete() },
+                        )
+                    }
+                }
+            }
+
+            // The escalation ladder: the page first, then the filter. Never one
+            // "select all" that quietly means whichever of the two it feels like.
+            if (showSelectLoaded) {
+                TextButton(onClick = onSelectLoaded, enabled = !running) {
+                    Text("Select these ${loadedIds.size}")
+                }
+            }
+            if (selection.canEscalate(loadedIds, hasMore)) {
+                TextButton(onClick = onSelectAllMatching, enabled = !running) {
+                    Text("Select all matching")
                 }
             }
         }
