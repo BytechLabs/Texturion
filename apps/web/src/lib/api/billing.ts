@@ -75,6 +75,32 @@ export function useBuyPrepaidYear() {
   });
 }
 
+export type ReferralStage =
+  | "invited"
+  | "signed_up"
+  | "active"
+  | "rewarded"
+  | "voided";
+
+export interface ReferralsView {
+  code: string;
+  /** Null when the site origin is not configured; the code alone still works. */
+  link: string | null;
+  referrals: { id: string; created_at: string; stage: ReferralStage }[];
+  rewarded_this_year: number;
+  reward_cap_per_year: number;
+}
+
+/** GET /v1/referrals (#399) — this workspace's link and what it has done. */
+export function useReferrals(enabled: boolean) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: [companyId, "referrals"],
+    queryFn: () => apiFetch<ReferralsView>("/v1/referrals", { companyId }),
+    enabled,
+  });
+}
+
 /** GET /v1/billing/modules — the add-on catalog with each module's state. */
 export function useModules() {
   const companyId = useCompanyId();

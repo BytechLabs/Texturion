@@ -9,6 +9,7 @@ import { MissedWhileOff } from "@/components/settings/missed-while-off";
 import { OffRampCard } from "@/components/settings/off-ramp-card";
 import { PlanModulesCard } from "@/components/settings/plan-modules-card";
 import { PrepaidYearCard } from "@/components/settings/prepaid-year-card";
+import { ReferralCard } from "@/components/settings/referral-card";
 import {
   LoadError,
   SettingsCard,
@@ -254,6 +255,15 @@ export default function BillingSettingsPage() {
             company.data.plan !== null &&
             company.data.subscription_status === "active" && (
               <PrepaidYearCard plan={company.data.plan} show />
+            )}
+
+          {/* #399: the referral link. On the billing screen because the reward
+              is a month off the invoice, and behind the same owner/admin gate
+              for the same reason. */}
+          {canManage &&
+            company.data.plan !== null &&
+            company.data.subscription_status === "active" && (
+              <ReferralCard plan={company.data.plan} show />
             )}
 
           {canManage &&

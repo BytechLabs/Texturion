@@ -75,6 +75,7 @@ import { meRoutes } from "./routes/me";
 import { mfaRoutes } from "./routes/mfa";
 import { messageRoutes } from "./routes/messages";
 import { notificationsRoutes } from "./routes/notifications";
+import { referralRoutes } from "./routes/referrals";
 import { numbersRoutes } from "./routes/numbers";
 import { ownershipRoutes } from "./routes/ownership";
 import { portingRoutes } from "./routes/porting";
@@ -188,6 +189,7 @@ app.route("/v1", companiesRoutes);
 app.route("/v1/billing", billingRoutes);
 app.route("/v1", usageRoutes);
 app.route("/v1", reportsRoutes); // #239 GET /v1/reports/response-time
+app.route("/v1/referrals", referralRoutes);
 app.route("/v1/numbers", numbersRoutes);
 app.route("/v1/available-numbers", availableNumbersRoutes);
 app.route("/v1/port-requests", portingRoutes);
