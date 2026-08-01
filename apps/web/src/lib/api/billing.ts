@@ -39,6 +39,42 @@ export function useCheckout() {
   });
 }
 
+export interface PrepayOffer {
+  eligible: boolean;
+  /** Why not, when not. The card never shows this; the copy is server-side. */
+  reason: string | null;
+  price_cents: number | null;
+  months: number;
+  /** The year already running, when there is one. */
+  open: { plan: PlanId; amount_cents: number; granted_through: string } | null;
+}
+
+/**
+ * GET /v1/billing/prepay (#400/D107) — may this workspace buy a year, and is
+ * one already running?
+ *
+ * `enabled` is passed by the caller so the request never fires on a screen that
+ * would not render the answer — this costs a Stripe round trip server-side to
+ * check for a pending plan change.
+ */
+export function usePrepayOffer(enabled: boolean) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: [...keys.modules(companyId), "prepay"],
+    queryFn: () => apiFetch<PrepayOffer>("/v1/billing/prepay", { companyId }),
+    enabled,
+  });
+}
+
+/** POST /v1/billing/prepay — buy a year, via hosted Stripe Checkout. */
+export function useBuyPrepaidYear() {
+  const companyId = useCompanyId();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<HostedUrl>("/v1/billing/prepay", { method: "POST", companyId }),
+  });
+}
+
 /** GET /v1/billing/modules — the add-on catalog with each module's state. */
 export function useModules() {
   const companyId = useCompanyId();

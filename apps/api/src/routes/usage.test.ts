@@ -70,6 +70,9 @@ function usageStub(
   );
   sb.on("GET", "/rest/v1/companies", () => [company]);
   sb.on("POST", "/rest/v1/rpc/api_period_segments", () => used);
+  // #400/D107: null = no prepaid year. A year zeroes the licensed line, so
+  // the projection asks before counting the list price as revenue.
+  sb.on("POST", "/rest/v1/rpc/open_prepayment", () => null);
   // #426: the carrier-reported delivery read. Empty by default — the
   // delivery card simply does not render, which is what every existing
   // assertion here expects.

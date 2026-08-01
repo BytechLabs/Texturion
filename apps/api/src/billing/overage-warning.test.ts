@@ -49,6 +49,9 @@ function endpoints(state: State): StubEndpoint[] {
         paid_extra_numbers: 0,
       },
     ]),
+    // #400/D107: null = no prepaid year. A year zeroes the licensed line,
+    // so the projection asks before counting the list price as revenue.
+    endpoint("POST", /\/rpc\/open_prepayment/, () => null),
     endpoint("POST", /\/rpc\/api_period_segments/, () => 0),
     endpoint("POST", /\/rpc\/api_period_inbound_segments/, () => state.inbound),
     endpoint("POST", /\/rpc\/api_period_forward_seconds/, () => 0),

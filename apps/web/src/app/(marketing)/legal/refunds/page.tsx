@@ -47,6 +47,18 @@ export default function RefundsPage() {
           reset if you cancel and come back later. It is also part of our{" "}
           <LegalLink href="/legal/terms">terms of service</LegalLink>.
         </p>
+        <p>
+          If you paid for a year up front, the same 30 days cover the whole
+          amount. A guarantee that gets smaller the more you commit is not a
+          guarantee, so we refund the year in full on the same one email.
+        </p>
+        <p>
+          After 30 days, a prepaid year is refundable for the months you
+          haven&apos;t used, and we don&apos;t claw back the discount to do the
+          arithmetic: the months you did use are charged at what you actually
+          paid for them, not at the monthly rate. Months already used aren&apos;t
+          refunded, because you used them.
+        </p>
       </LegalSectionBlock>
 
       <LegalSectionBlock

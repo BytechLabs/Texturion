@@ -18,6 +18,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { amortisedMonthlyCents, openPrepayment } from "./prepay";
+
 import { enabledModules } from "./company-modules";
 import { MODULE_CATALOG, type PlanModule } from "./modules";
 import type { PlanId } from "./plans";
@@ -266,10 +268,25 @@ export function stripeNetCents(grossCents: number): number {
 export function companyRevenueCents(
   plan: PlanId,
   modules: readonly PlanModule[],
+  /**
+   * #400/D107 — what the PLAN part is actually worth this month, when the
+   * workspace has prepaid a year and its licensed line invoices at $0.
+   *
+   * Without this the projection counts $29 a month that is not being collected,
+   * muting the one alert that catches a tenant costing more than it pays — for
+   * exactly the cohort that has already paid everything it is ever going to
+   * pay. Modules keep their list price: they are still billed monthly and the
+   * prepaid discount never touched them.
+   *
+   * This codebase has fixed the same class of defect twice before, for
+   * grandfathered modules and for phantom extra-number revenue, which is why
+   * it is a parameter rather than something a caller is trusted to remember.
+   */
+  planCentsOverride?: number,
 ): number {
   return modules.reduce(
     (sum, module) => sum + MODULE_CATALOG[module].monthlyCents,
-    PLAN_MONTHLY_REVENUE_CENTS[plan],
+    planCentsOverride ?? PLAN_MONTHLY_REVENUE_CENTS[plan],
   );
 }
 
@@ -285,5 +302,13 @@ export async function companyMonthlyRevenueCents(
   plan: PlanId,
 ): Promise<number> {
   const modules = await enabledModules(db, companyId);
-  return companyRevenueCents(plan, modules);
+  // #400/D107: a prepaid year zeroes the licensed line, so the plan part is
+  // worth what was collected spread over the months it bought — not the list
+  // price nobody is paying this month.
+  const open = await openPrepayment(db, companyId);
+  return companyRevenueCents(
+    plan,
+    modules,
+    open ? amortisedMonthlyCents(open, PLAN_MONTHLY_REVENUE_CENTS[plan]) : undefined,
+  );
 }

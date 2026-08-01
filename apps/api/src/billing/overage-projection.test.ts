@@ -363,6 +363,9 @@ describe("decideOverage (DB orchestrator)", () => {
   ): StubEndpoint[] {
     const u = usage(over);
     return [
+      // #400/D107: null = no prepaid year. A year zeroes the licensed line,
+      // so the projection asks before counting the list price as revenue.
+      endpoint("POST", /\/rpc\/open_prepayment/, () => null),
       endpoint("POST", /\/rpc\/api_period_segments/, () => u.outboundSegments),
       endpoint(
         "POST",

@@ -63,12 +63,14 @@ import {
   type AiCostFeature,
   companyRevenueCents,
   FIXED_MONTHLY_COST_CENTS,
+  PLAN_MONTHLY_REVENUE_CENTS,
   stripeNetCents,
   UNIT_COST_CENTS,
 } from "./costs";
 import { enabledModuleFlags } from "./company-modules";
 import { periodProviderCostCents } from "./provider-costs";
 import { EXTRA_NUMBER_MONTHLY_CENTS } from "./extra-numbers";
+import { amortisedMonthlyCents, openPrepayment } from "./prepay";
 import {
   dialCeilings,
   PLAN_INCLUDED_SEGMENTS,
@@ -496,8 +498,19 @@ export async function decideOverage(
   // actually charges (mid-change, released-but-unsynced), which would inflate
   // revenue with phantom dollars and mute the loss warning. `numbers` stays the
   // COST/rent term below (what we actually pay Telnyx for).
+  // #400/D107: a prepaid year invoices the licensed line at $0, so counting the
+  // list price here would mute the underwater alert for twelve months — for the
+  // one cohort that has already paid everything it will ever pay. Same class of
+  // defect as the grandfathered-module and phantom-extra-number cases above.
+  const openPrepaid = await openPrepayment(db, company.id);
   const baseRevenueGrossCents =
-    companyRevenueCents(company.plan, paidModules) +
+    companyRevenueCents(
+      company.plan,
+      paidModules,
+      openPrepaid
+        ? amortisedMonthlyCents(openPrepaid, PLAN_MONTHLY_REVENUE_CENTS[company.plan])
+        : undefined,
+    ) +
     company.paid_extra_numbers * EXTRA_NUMBER_MONTHLY_CENTS[company.plan];
   return overageDecision(
     {

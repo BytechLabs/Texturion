@@ -8,6 +8,7 @@ import { ChangePlanDialog } from "@/components/settings/change-plan-dialog";
 import { MissedWhileOff } from "@/components/settings/missed-while-off";
 import { OffRampCard } from "@/components/settings/off-ramp-card";
 import { PlanModulesCard } from "@/components/settings/plan-modules-card";
+import { PrepaidYearCard } from "@/components/settings/prepaid-year-card";
 import {
   LoadError,
   SettingsCard,
@@ -244,7 +245,18 @@ export default function BillingSettingsPage() {
                     {fullDate(company.data.current_period_end)}.
                   </p>
                 )}
-                {canManage &&
+                {/* #400/D107: the prepaid year, below the plan it applies to. Gated
+              on an owner/admin with a healthy subscription — the server checks
+              the rest (activated, no plan change pending, no year already
+              running, catalog provisioned) and the card renders nothing until
+              all of it says yes. */}
+          {canManage &&
+            company.data.plan !== null &&
+            company.data.subscription_status === "active" && (
+              <PrepaidYearCard plan={company.data.plan} show />
+            )}
+
+          {canManage &&
                   company.data.subscription_status === "active" && (
                     <ChangePlanDialog company={company.data} />
                   )}

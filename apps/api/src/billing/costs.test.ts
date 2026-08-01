@@ -99,7 +99,10 @@ describe("companyMonthlyRevenueCents (DB helper)", () => {
       enabledModules: vi.fn().mockResolvedValue(["regions_ca"]),
     }));
     const { companyMonthlyRevenueCents } = await import("./costs");
-    const db = {} as never;
+    // #400/D107: the helper now also asks whether a prepaid year is running,
+    // because a year zeroes the licensed line and the list price would be
+    // revenue nobody is paying. null = no year, which is every case here.
+    const db = { rpc: async () => ({ data: null, error: null }) } as never;
     await expect(companyMonthlyRevenueCents(db, "company-1", "pro")).resolves.toBe(
       7900 + MODULE_CATALOG.regions_ca.monthlyCents,
     );
