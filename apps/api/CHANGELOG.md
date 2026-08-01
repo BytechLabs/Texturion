@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.9.0](https://github.com/BytechLabs/Texturion/compare/api-v0.8.0...api-v0.9.0) (2026-08-01)
+
+
+### Features
+
+* **api:** billing is gated on the axis it means, not a rung on a ladder ([91fb03f](https://github.com/BytechLabs/Texturion/commit/91fb03f2db7f7530554a6e6ce857154b75014235)), closes [#315](https://github.com/BytechLabs/Texturion/issues/315)
+* **api:** mark, assign or delete a whole filtered task list in one call ([3fc2736](https://github.com/BytechLabs/Texturion/commit/3fc27362b6e7e295d63ab4031023029d1e42a19f))
+* **api:** synthetic probes start checking auth and carrier callbacks ([c258278](https://github.com/BytechLabs/Texturion/commit/c2582781c23543fdc5cd447a4c61c19c3c18cd12))
+* **billing:** a workspace can buy a year up front once it has sent something ([61855d0](https://github.com/BytechLabs/Texturion/commit/61855d03f4e8002ae69965dbccc1a9670fc51052))
+* **billing:** tell the owner how many customers rang while their number was off ([29ee30f](https://github.com/BytechLabs/Texturion/commit/29ee30f5394a91f75001840e10c4532a4ee2fe41))
+* **calls:** a caller on a suspended line hears one honest sentence ([8ebfbd7](https://github.com/BytechLabs/Texturion/commit/8ebfbd7d1067105ba34f664a8b323c73a1251dad))
+* **clients:** add a view-only role for people who should see the work, not change it ([fc87232](https://github.com/BytechLabs/Texturion/commit/fc87232b2a780da17005b7139378ed5e7fec6bc7)), closes [#315](https://github.com/BytechLabs/Texturion/issues/315)
+* **clients:** only an owner or admin can change the crew's saved replies ([733b877](https://github.com/BytechLabs/Texturion/commit/733b87702ff1aa950f47190fce0646378ff306c3)), closes [#315](https://github.com/BytechLabs/Texturion/issues/315) [#461](https://github.com/BytechLabs/Texturion/issues/461)
+* **dialer:** the keypad finds people by name, and can text them ([cdc149b](https://github.com/BytechLabs/Texturion/commit/cdc149b98f937682110075709b17355b3b9b31e1))
+* **messaging:** a departing crew's customers hear where the business went ([23b5c17](https://github.com/BytechLabs/Texturion/commit/23b5c1729a2ccf9f87cdb32efdbd1bfbc0d49358))
+* **reports:** the monthly response-time recap, and [#482](https://github.com/BytechLabs/Texturion/issues/482) is done ([eee896a](https://github.com/BytechLabs/Texturion/commit/eee896aaa07b152f92aa30355a91845f0f1e55c2))
+* **reports:** the per-number response times finally have a reader ([4265c6e](https://github.com/BytechLabs/Texturion/commit/4265c6ee67d6530e564b31abaf9a591ed6493307))
+* **settings:** a departing owner writes what their customers will hear ([5849489](https://github.com/BytechLabs/Texturion/commit/5849489d87eecce630f9f1c3232a016877124463))
+* **web:** add a bookkeeper role that gets billing without the inbox ([27f133e](https://github.com/BytechLabs/Texturion/commit/27f133e1c6b67d7554426a895cfcadfc42b60eaa)), closes [#315](https://github.com/BytechLabs/Texturion/issues/315)
+
+
+### Bug Fixes
+
+* **api:** an audit row now says which setting moved, and what it was ([b046b8b](https://github.com/BytechLabs/Texturion/commit/b046b8bc050f17e59cad1dbc72d02009c372c500)), closes [#461](https://github.com/BytechLabs/Texturion/issues/461)
+* **api:** tell the owner when someone exports the whole workspace ([75e6355](https://github.com/BytechLabs/Texturion/commit/75e635509325a93f954fa615e6c0a97217de262f)), closes [#497](https://github.com/BytechLabs/Texturion/issues/497)
+* **auth:** a second factor you turned on is now actually required ([f0f4946](https://github.com/BytechLabs/Texturion/commit/f0f49469a6f220b1b50ede39cd330c2bd012d3e4))
+* **ios:** a view-only observer is not offered a call they cannot place ([53e4ffd](https://github.com/BytechLabs/Texturion/commit/53e4ffd82c9c53be2fd680ce6877b65037e82d24)), closes [#315](https://github.com/BytechLabs/Texturion/issues/315)
+
+
+### Reverts
+
+* **billing:** the prepaid year funded ten months, not twelve ([09f9446](https://github.com/BytechLabs/Texturion/commit/09f9446bd39bec28cd95c0b6d84dfca7be7be879))
+
 ## [0.8.0](https://github.com/BytechLabs/Texturion/compare/api-v0.7.0...api-v0.8.0) (2026-07-31)
 
 

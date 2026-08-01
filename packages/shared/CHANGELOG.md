@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.6.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.5.0...shared-v0.6.0) (2026-08-01)
+
+
+### Features
+
+* **api:** billing is gated on the axis it means, not a rung on a ladder ([91fb03f](https://github.com/BytechLabs/Texturion/commit/91fb03f2db7f7530554a6e6ce857154b75014235)), closes [#315](https://github.com/BytechLabs/Texturion/issues/315)
+* **clients:** add a view-only role for people who should see the work, not change it ([fc87232](https://github.com/BytechLabs/Texturion/commit/fc87232b2a780da17005b7139378ed5e7fec6bc7)), closes [#315](https://github.com/BytechLabs/Texturion/issues/315)
+* **clients:** only an owner or admin can change the crew's saved replies ([733b877](https://github.com/BytechLabs/Texturion/commit/733b87702ff1aa950f47190fce0646378ff306c3)), closes [#315](https://github.com/BytechLabs/Texturion/issues/315) [#461](https://github.com/BytechLabs/Texturion/issues/461)
+* **clients:** settings lists what is yours, not what you cannot touch ([ccc91bb](https://github.com/BytechLabs/Texturion/commit/ccc91bb2ad71cd6de9f4f5004e47bcc7cc8db12a)), closes [#461](https://github.com/BytechLabs/Texturion/issues/461)
+* **contacts:** the phone's own address book shows up beside the crew's ([fbf00b3](https://github.com/BytechLabs/Texturion/commit/fbf00b384ff8b21ab66855eb63d9e14ad7fbe9c0))
+* **dialer:** the keypad finds people by name, and can text them ([cdc149b](https://github.com/BytechLabs/Texturion/commit/cdc149b98f937682110075709b17355b3b9b31e1))
+* **mobile:** the bookkeeper and view-only roles reach both phones ([87d563c](https://github.com/BytechLabs/Texturion/commit/87d563c0ab0c69322cce78d64b446fd2b283fac4))
+* **web:** add a bookkeeper role that gets billing without the inbox ([27f133e](https://github.com/BytechLabs/Texturion/commit/27f133e1c6b67d7554426a895cfcadfc42b60eaa)), closes [#315](https://github.com/BytechLabs/Texturion/issues/315)
+
+
+### Bug Fixes
+
+* **auth:** a second factor you turned on is now actually required ([f0f4946](https://github.com/BytechLabs/Texturion/commit/f0f49469a6f220b1b50ede39cd330c2bd012d3e4))
+
 ## [0.5.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.4.0...shared-v0.5.0) (2026-07-31)
 
 
