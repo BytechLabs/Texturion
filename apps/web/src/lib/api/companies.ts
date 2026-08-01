@@ -6,7 +6,7 @@ import {
 
 import { useCompanyId } from "@/lib/company/provider";
 
-import type { HoursException } from "@loonext/shared";
+import type { CrewSizeBucket, HoursException } from "@loonext/shared";
 
 import { apiFetch } from "./client";
 import { keys } from "./keys";
@@ -36,6 +36,17 @@ export interface CreateCompanyInput {
   us_texting_enabled?: boolean;
   /** D15: the creating browser's IANA zone, captured silently at onboarding. */
   timezone?: string;
+  /**
+   * #370: how big the crew is, as answered on the name step. Omitted when the
+   * question was skipped — "not asked" and "solo" are different answers and the
+   * reporting depends on telling them apart.
+   */
+  crew_size?: CrewSizeBucket;
+  /**
+   * #501: the code from the `?ref=` link this signup arrived through, if any.
+   * Read from storage at the call site, never typed.
+   */
+  referral_code?: string;
 }
 
 /**

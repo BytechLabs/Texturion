@@ -16,6 +16,10 @@ import type { PortabilityCheck } from "@/lib/api/types";
 import { writeCompanyCookie } from "@/lib/company/cookie";
 import { browserTimezone } from "@/lib/format/time";
 import { formatPhone } from "@/lib/format/phone";
+import {
+  clearReferralCode,
+  referralCodeForCreate,
+} from "@/lib/referral/capture";
 
 import { writeOnboardingPortDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
@@ -86,8 +90,13 @@ export default function PortNumberPage() {
           requested_area_code: areaCodeOf(e164),
           us_texting_enabled: country === "CA" ? draft.usTexting !== false : true,
           ...(timezone ? { timezone } : {}),
+          // #370: the crew size answered back on the name step.
+          ...(draft.crewSize ? { crew_size: draft.crewSize } : {}),
+          // #501: the link this signup arrived through, if it arrived through one.
+          ...referralCodeForCreate(),
         });
         writeCompanyCookie(company.id);
+        clearReferralCode();
         await queryClient.invalidateQueries({ queryKey: keys.me });
         activeCompanyId = company.id;
       }

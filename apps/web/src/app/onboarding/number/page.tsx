@@ -16,6 +16,10 @@ import { useCreateCompany } from "@/lib/api/companies";
 import { useOnboardingUpdateCompany } from "@/lib/api/onboarding";
 import { writeCompanyCookie } from "@/lib/company/cookie";
 import { browserTimezone } from "@/lib/format/time";
+import {
+  clearReferralCode,
+  referralCodeForCreate,
+} from "@/lib/referral/capture";
 import { cn } from "@/lib/utils";
 
 import { clearOnboardingDraft, writeOnboardingDraft } from "../local-draft";
@@ -192,8 +196,13 @@ export default function NumberStepPage() {
         ...(full ? { chosen_number_e164: chosenNumber } : {}),
         us_texting_enabled: false,
         ...(timezone ? { timezone } : {}),
+        // #370: the crew size answered back on the name step.
+        ...(draft.crewSize ? { crew_size: draft.crewSize } : {}),
+        // #501: the link this signup arrived through, if it arrived through one.
+        ...referralCodeForCreate(),
       });
       writeCompanyCookie(created.id);
+      clearReferralCode();
       // The next step's guard resolves the company through GET /v1/me —
       // wait for the membership to be visible before navigating.
       await queryClient.invalidateQueries({ queryKey: keys.me });

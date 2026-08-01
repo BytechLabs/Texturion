@@ -6,6 +6,8 @@ import "./globals.css";
 // fails `next dev` and `next build` loudly (SPEC §3, §10).
 import "@/env";
 
+import { ReferralCapture } from "@/components/referral-capture";
+
 import { Providers } from "./providers";
 
 // Inter variable, self-hosted via next/font (DESIGN.md G2: "latin subset"). The
@@ -108,6 +110,9 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         {/* Global providers = ThemeProvider only (app-providers.tsx carries the
             Query/tooltip/toaster/service-worker weight for signed-in routes). */}
+        {/* #501: remembers ?ref= before the visitor walks away from the
+            landing page. Renders nothing. */}
+        <ReferralCapture />
         <Providers>{children}</Providers>
       </body>
     </html>

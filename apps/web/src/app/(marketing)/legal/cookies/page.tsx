@@ -10,7 +10,7 @@ import { SUPPORT_EMAIL } from "@/lib/marketing/business";
 import { buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/legal/cookies";
-const LAST_UPDATED = "July 10, 2026";
+const LAST_UPDATED = "August 1, 2026";
 
 export const metadata: Metadata = buildMetadata({
   title: "Cookie policy",
@@ -35,7 +35,7 @@ export default function CookiesPage() {
       title="Cookie policy"
       summary="Loonext sets only a small number of essential, first-party cookies: one keeps you signed in, one remembers which workspace you are viewing, and one remembers your answer to the cookie banner. On the public marketing pages we use Google Tag Manager, and it may set analytics or advertising cookies only if you say yes to that banner; say no, or say nothing, and it sets none. The signed-in app never uses tracking cookies, we do not sell data, and our product analytics is cookieless (it stores anonymous, event-level usage in your browser's local storage, never message content, names, or phone numbers)."
       lastUpdated={LAST_UPDATED}
-      lastUpdatedIso="2026-07-10"
+      lastUpdatedIso="2026-08-01"
       breadcrumbLabel="Cookies"
       path={PATH}
       sections={sections}
@@ -150,6 +150,14 @@ export default function CookiesPage() {
           not lose your place, and the cookieless analytics state above. Clearing
           your browser&apos;s site data removes all of it. None of it contains
           message content or contact details.
+        </p>
+        <p>
+          One more, only if you arrive through somebody&apos;s referral link: we
+          keep the code from that link so the person who introduced you is
+          credited if you sign up. The code identifies their workspace, not you,
+          it is not an advertising identifier, no ad network can read it, and it
+          is forgotten after 30 days or as soon as you create a workspace,
+          whichever comes first.
         </p>
       </LegalSectionBlock>
 
