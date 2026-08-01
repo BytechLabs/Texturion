@@ -4,6 +4,35 @@ Binding decisions for SPEC v2 and the build. Each decision resolves findings fro
 spec-review team (7 reviewers, 56 verified findings) and 5 web-verified research briefs
 (mid-2026 facts). Where reviewers disagreed, the resolution below is final.
 
+**Status: CURRENT DIRECTION.** This file is binding. Where it disagrees with any
+research or analysis document, this file wins.
+
+---
+
+## Do not build (#323)
+
+The list a new issue should be checked against before it is filed. #229 was
+filed to rebuild schema D32 had deliberately deleted — the decision was
+recorded, the migrations were named, and none of it was visible to whoever
+filed it, because nothing collected the refusals in one place.
+
+`scripts/check-do-not-build.mjs` reads THIS TABLE and fails when an open issue
+matches one. The table is the data; the script is only the reader. Adding a
+refusal means adding a row.
+
+| Do not build | Decided by | Because |
+|---|---|---|
+| Review requests, review links, a reviews settings page, a `{review_link}` merge field | D32, re-affirmed by D47 | Removed entirely on owner direction, twice. The schema was dropped by migration |
+| Mass texting: broadcasts, blasts, campaigns to a contact list, "invite your contacts" | D4, D11, #399 | The AUP forbids it and it is the behaviour that gets a number blocked. The referral programme supplies a link and never the distribution |
+| Collecting payment on a customer's behalf: Stripe Connect, connected accounts, platform-of-record money movement | D110 | We are the messaging layer. Sending the crew's OWN payment link is the supported shape |
+| An IVR, call trees, extensions, a hunt group as a product surface | D36-D43 scope | Calls shipped as a shared line, not a phone system. #244 covers routing without becoming a PBX |
+| A second status machine for the job pipeline, or stages as a table rather than tags | D7, D108 | Stages are TAGS carrying a stage KEY. A status machine is the rigidity that decision rejected |
+| Storage tiers, storage add-ons, charging a customer for attachments | D34, #121 | Storage is free to the customer. The cost is capped, not billed |
+
+An entry here is not "never". It is "not without a new numbered decision that
+supersedes the one named", and the Because column is what such a decision would
+have to answer.
+
 ---
 
 ## D1. Hosting: Cloudflare Workers, not Pages
@@ -6321,3 +6350,69 @@ A base large enough for a cohort to mean something — call it several hundred
 paying workspaces — at which point a holdout on new signups becomes both
 measurable and fair, since nobody is being re-priced. The grandfathering posture
 does not change with size; it is not a scale decision.
+
+## D110 — we do not move other people's money; we make sending your own payment link one tap (#224, #323, 2026-08-01)
+
+`docs/customer-gap-analysis.md` calls getting paid "the one load-bearing gap
+with zero coverage", and #224 filed it correctly: collecting on a
+tradesperson's behalf means Stripe Connect, onboarding their legal entity and
+bank details, and platform liability for disputes, chargebacks and refunds
+between two other parties.
+
+#323 is why this is written down here rather than left in that research
+document: a blocker that exists only as a sentence in an analysis file is a
+blocker the next person cannot find.
+
+### The decision
+
+**Loonext does not become a payment platform. It makes a crew's OWN payment
+link a first-class thing in the product** — stored in settings, available as a
+merge token in a saved reply, one tap to send in a thread.
+
+The money moves between the tradesperson and their customer, through whatever
+they already use: a Stripe payment link, a Square link, an e-transfer request,
+an invoice from their accounting software. We are the messaging layer, which is
+what we already are.
+
+### Why this and not Connect
+
+The customer's job is "get paid without chasing", and a link they already have
+does that job today. Connect would do it slightly better and would make us the
+platform of record for money movement — KYC on every workspace, dispute
+liability, and a tax and reporting surface that follows from facilitating
+payments. For a solo founder that is not a feature, it is a second business.
+
+It is also the same shape as two decisions this product has already made and
+been right about. The referral programme (#399) supplies a link and never the
+distribution, because becoming the distributor would have meant mass texting a
+crew's consented customer list. Reviews (D32, re-affirmed by D47) were removed
+entirely rather than half-built. The pattern is: do the part that is ours, name
+the part that is not, and refuse to be a worse version of somebody else's
+product.
+
+### What this makes buildable now
+
+#224's acceptance survives almost intact with "a link the workspace stored"
+substituted for "a payment link on the connected account":
+
+- The link lives in workspace settings, with the honest empty state.
+- Sending it is an ordinary outbound message and passes every pre-send gate —
+  an opted-out contact must not receive a payment request, and that follows for
+  free because it IS an ordinary message.
+- The amount and the business name are the crew's, never ours, which was
+  already the requirement.
+
+What it does NOT deliver: automatic "marked paid" against the conversation.
+That needs a webhook from an account we do not own. Recording it is a manual
+tap, and saying so is better than inventing a status we cannot observe.
+
+### What would change this
+
+Revenue evidence that the gap is costing signups — crews saying they chose a
+competitor for collection specifically — plus enough scale that Connect's
+compliance surface is worth one person's time. Neither is true today, and both
+are measurable: the funnel events from #255 and the churn reasons from #277.
+
+**The Connect question stays genuinely open.** This decision declines exposure,
+which is the direction that needs no risk appetite to take; accepting it is the
+owner's call and is not made here.

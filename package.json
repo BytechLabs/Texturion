@@ -86,6 +86,7 @@
     "check:env-doc": "node scripts/check-env-doc.mjs",
     "check:doc-citations": "node scripts/check-doc-citations.mjs",
     "check:client-parity": "node scripts/check-client-parity.mjs",
+    "check:do-not-build": "node scripts/check-do-not-build.mjs",
     "check:open-lists": "node scripts/check-open-lists.mjs",
     "check:action-pins": "node scripts/check-action-pins.mjs"
   },
