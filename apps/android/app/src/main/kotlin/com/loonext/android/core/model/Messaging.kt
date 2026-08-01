@@ -349,6 +349,20 @@ data class OutboundMedia(
  * added. `applied.size` is the only count that describes reality — `matched` can
  * be larger (the cap) and both can exceed it (rows that could not be reached).
  */
+/**
+ * #478 — what POST /v1/tasks/bulk returns. Identical in shape to the
+ * conversations result on purpose: one renderer reads both, and the selection
+ * module's `bulkResultMessage` takes either.
+ */
+@Serializable
+data class BulkTasksResult(
+    val action: String = "",
+    val matched: Int = 0,
+    val applied: List<BulkAppliedRow> = emptyList(),
+    val failed: List<BulkFailedRow> = emptyList(),
+    val capped: Boolean = false,
+)
+
 @Serializable
 data class BulkAppliedRow(
     val id: String,

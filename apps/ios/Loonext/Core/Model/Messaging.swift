@@ -379,6 +379,13 @@ struct BulkFailedRow: Decodable, Sendable, Equatable {
     }
 }
 
+/// #478 — what POST /v1/tasks/bulk returns.
+///
+/// A typealias rather than a second struct: the shape is identical by design,
+/// so one renderer reads both and `bulkResultMessage` takes either. Declaring
+/// it separately would be a second place for the contract to drift.
+typealias BulkTasksResult = BulkConversationsResult
+
 struct BulkConversationsResult: Decodable, Sendable {
     let action: String
     let matched: Int

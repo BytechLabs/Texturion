@@ -109,8 +109,11 @@ fun bulkResultMessage(
     failed: Int,
     matched: Int,
     capped: Boolean,
+    /** #478: what was acted on. Defaulted so every existing call is unchanged. */
+    nounOne: String = "conversation",
+    nounMany: String = "conversations",
 ): String {
-    val thing = if (applied == 1) "conversation" else "conversations"
+    val thing = if (applied == 1) nounOne else nounMany
     val message = StringBuilder("$verb $applied $thing")
     // The cap is where "it worked" and "it finished" are different answers, so
     // the remainder is named rather than left to be discovered.

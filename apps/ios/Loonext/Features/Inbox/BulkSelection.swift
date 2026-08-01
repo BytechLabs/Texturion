@@ -107,9 +107,12 @@ func bulkResultMessage(
     applied: Int,
     failed: Int,
     matched: Int,
-    capped: Bool
+    capped: Bool,
+    /// #478: what was acted on. Defaulted so every existing call is unchanged.
+    nounOne: String = "conversation",
+    nounMany: String = "conversations"
 ) -> String {
-    let thing = applied == 1 ? "conversation" : "conversations"
+    let thing = applied == 1 ? nounOne : nounMany
     var message = "\(verb) \(applied) \(thing)"
     // The cap is where "it worked" and "it finished" are different answers, so the
     // remainder is named rather than left to be discovered.

@@ -135,12 +135,17 @@ export function selectionIds(selection: BulkSelection): string[] | null {
 export function bulkResultMessage(
   verb: string,
   result: { applied?: unknown[]; failed?: unknown[]; matched?: number; capped?: boolean },
+  /** #478: what was acted on. Defaulted so every existing call is unchanged. */
+  noun: { one: string; many: string } = {
+    one: "conversation",
+    many: "conversations",
+  },
 ): string {
   const applied = result.applied?.length ?? 0;
   const failed = result.failed?.length ?? 0;
   const matched = result.matched ?? applied;
 
-  const thing = applied === 1 ? "conversation" : "conversations";
+  const thing = applied === 1 ? noun.one : noun.many;
   let message = `${verb} ${applied} ${thing}`;
 
   // The cap is the case where "it worked" and "it finished" are different

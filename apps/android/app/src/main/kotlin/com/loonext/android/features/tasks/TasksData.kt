@@ -2,6 +2,7 @@ package com.loonext.android.features.tasks
 
 import com.loonext.android.core.data.taskAddressJson
 import com.loonext.android.core.model.AttachmentUrl
+import com.loonext.android.core.model.BulkTasksResult
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.Page
@@ -11,8 +12,11 @@ import com.loonext.android.core.model.TaskDetail
 import com.loonext.android.core.net.ApiClient
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 
 /**
  * Tasks feature data access. Mutations honor the binding invariants:
@@ -30,6 +34,47 @@ class TaskMutations(private val api: ApiClient) {
     ): Page<Task> = api.get(
         "/v1/tasks",
         query = taskQueryParams(filters, cursor, limit),
+        companyId = companyId,
+    )
+
+    /**
+     * #478: one action, every task matching either explicit ids or the CURRENT
+     * filter.
+     *
+     * The filter branch sends the SAME field names GET /v1/tasks takes, because
+     * the server resolves them with the same query builder the list uses —
+     * "everything I am looking at" cannot mean something different here.
+     *
+     * There is no send action and there never can be: the server's zod enum and
+     * the SQL enum are the two gates, and this method has no way to express one.
+     */
+    suspend fun bulk(
+        companyId: String,
+        action: String,
+        ids: List<String>? = null,
+        filters: TaskListFilters? = null,
+        targetUserId: String? = null,
+        /** True when the caller means "unassign", which is a null the server needs. */
+        unassign: Boolean = false,
+    ): BulkTasksResult = api.post(
+        "/v1/tasks/bulk",
+        buildJsonObject {
+            put("action", action)
+            if (ids != null) {
+                putJsonArray("ids") { ids.forEach { add(it) } }
+            } else if (filters != null) {
+                putJsonObject("filter") {
+                    filters.status?.let { put("status", it) }
+                    filters.assignedUserId?.let { put("assigned_user_id", it) }
+                    if (filters.unassigned) put("unassigned", true)
+                    if (filters.overdue) put("overdue", true)
+                }
+            }
+            // Explicit null is meaningful (unassign), so it is only written when
+            // the caller says so rather than whenever the id is absent.
+            if (targetUserId != null) put("target_user_id", targetUserId)
+            else if (unassign) put("target_user_id", JsonNull)
+        },
         companyId = companyId,
     )
 

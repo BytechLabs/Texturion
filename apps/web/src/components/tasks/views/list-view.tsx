@@ -106,7 +106,7 @@ export function ListView({ state }: { state: TaskPageState }) {
         onSuccess: (result) => {
           // The server's count, never one this component worked out. In filter
           // mode the client genuinely does not know how many rows matched.
-          toast.success(bulkResultMessage(BULK_VERB[body.action], result));
+          toast.success(bulkResultMessage(BULK_VERB[body.action], result, { one: "task", many: "tasks" }));
           setSelection(EMPTY_SELECTION);
         },
         onError: () => toast.error("That didn't go through. Nothing was changed."),
