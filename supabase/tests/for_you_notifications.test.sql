@@ -108,7 +108,7 @@ do $$
 declare r jsonb;
 begin
   r := public.api_for_you('c0000000-0000-4000-8000-000000000001',
-                          'a0000000-0000-4000-8000-000000000002', false, now(), 20);
+                          'a0000000-0000-4000-8000-000000000002', now(), 20);
 
   -- Both assigned open|waiting threads surface; W is FIRST by urgency (0 <2).
   if jsonb_array_length(r->'waiting_on_you') <> 2 then
@@ -164,7 +164,7 @@ do $$
 declare r jsonb;
 begin
   r := public.api_for_you('c0000000-0000-4000-8000-000000000001',
-                          'a0000000-0000-4000-8000-000000000001', true, now(), 20);
+                          'a0000000-0000-4000-8000-000000000001', now(), 20);
 
   if r->'triage' = 'null'::jsonb then
     raise exception 'FY2 FAILED: lead did not receive a triage section';
@@ -206,7 +206,7 @@ do $$
 declare r jsonb;
 begin
   r := public.api_for_you('c0000000-0000-4000-8000-000000000001',
-                          'a0000000-0000-4000-8000-000000000002', false, now(), 20);
+                          'a0000000-0000-4000-8000-000000000002', now(), 20);
 
   if not (r ? 'totals') then
     raise exception 'FY2b FAILED: no totals key at all: %', r;
@@ -265,7 +265,7 @@ do $$
 declare r jsonb;
 begin
   r := public.api_for_you('c0000000-0000-4000-8000-000000000001',
-                          'a0000000-0000-4000-8000-000000000002', false, now(), 1);
+                          'a0000000-0000-4000-8000-000000000002', now(), 1);
 
   if jsonb_array_length(r->'waiting_on_you') <> 1 then
     raise exception 'FY2c FAILED: the cap stopped working: %', r->'waiting_on_you';
@@ -292,7 +292,7 @@ do $$
 declare r jsonb;
 begin
   r := public.api_for_you('c0000000-0000-4000-8000-000000000001',
-                          'a0000000-0000-4000-8000-000000000001', true, now(), 20);
+                          'a0000000-0000-4000-8000-000000000001', now(), 20);
 
   if (r->'totals'->>'triage_conversations')::int is distinct from
      jsonb_array_length(r->'triage'->'conversations') then
@@ -335,7 +335,7 @@ begin
    where id = '10000000-0000-4000-8000-00000000000a';
 
   r := public.api_for_you('c0000000-0000-4000-8000-000000000001',
-                          'a0000000-0000-4000-8000-000000000002', false, now(), 20);
+                          'a0000000-0000-4000-8000-000000000002', now(), 20);
 
   if jsonb_array_length(r->'my_tasks') <> 0 then
     raise exception 'FY3 FAILED: a done task still appears in my_tasks: %', r->'my_tasks';
@@ -654,7 +654,7 @@ begin
   end if;
 
   r := public.api_for_you('c0000000-0000-4000-8000-000000000099',
-                          'a0000000-0000-4000-8000-000000000002', true, now(), 20);
+                          'a0000000-0000-4000-8000-000000000002', now(), 20);
   if jsonb_array_length(r->'waiting_on_you') <> 0
      or jsonb_array_length(r->'unread') <> 0
      or jsonb_array_length(r->'triage'->'conversations') <> 0 then
@@ -678,9 +678,9 @@ declare
   badge_open bigint; badge_hidden bigint;
 begin
   r_open := public.api_for_you('c0000000-0000-4000-8000-000000000001',
-    'a0000000-0000-4000-8000-000000000002', false, now(), 20, null);
+    'a0000000-0000-4000-8000-000000000002', now(), 20, null);
   r_hidden := public.api_for_you('c0000000-0000-4000-8000-000000000001',
-    'a0000000-0000-4000-8000-000000000002', false, now(), 20, hidden);
+    'a0000000-0000-4000-8000-000000000002', now(), 20, hidden);
 
   if jsonb_array_length(r_open->'waiting_on_you') = 0
      or jsonb_array_length(r_open->'my_tasks') = 0 then
@@ -914,7 +914,7 @@ declare
 begin
   -- Unrestricted first: the member's own task title is their own message.
   r := public.api_for_you('c0000000-0000-4000-8000-000000000001',
-                          'a0000000-0000-4000-8000-000000000002', false, now(), 20,
+                          'a0000000-0000-4000-8000-000000000002', now(), 20,
                           null);
   n_tasks := jsonb_array_length(r->'my_tasks');
   if n_tasks < 1 then
@@ -927,7 +927,7 @@ begin
 
   -- Now deny the number the task's conversation sits on.
   r := public.api_for_you('c0000000-0000-4000-8000-000000000001',
-                          'a0000000-0000-4000-8000-000000000002', false, now(), 20,
+                          'a0000000-0000-4000-8000-000000000002', now(), 20,
                           array['d0000000-0000-4000-8000-000000000001']::uuid[]);
 
   -- #107 intact: the task is STILL listed. Hiding a task assigned TO someone
@@ -971,7 +971,7 @@ declare
 begin
   -- A plain MEMBER now gets the triage strip.
   r_member := public.api_for_you('c0000000-0000-4000-8000-000000000001',
-                                 'a0000000-0000-4000-8000-000000000002', false, now(), 20);
+                                 'a0000000-0000-4000-8000-000000000002', now(), 20);
   if r_member->'triage' = 'null'::jsonb or r_member->'triage' is null then
     raise exception 'FY-416 FAILED: member still has no triage strip: %', r_member->'triage';
   end if;
@@ -979,7 +979,7 @@ begin
   -- And sees the same unclaimed conversation a lead does. If these two ever
   -- differ, somebody has re-introduced the split this test exists to close.
   r_lead := public.api_for_you('c0000000-0000-4000-8000-000000000001',
-                               'a0000000-0000-4000-8000-000000000001', true, now(), 20);
+                               'a0000000-0000-4000-8000-000000000001', now(), 20);
   if jsonb_array_length(r_member->'triage'->'conversations')
      <> jsonb_array_length(r_lead->'triage'->'conversations') then
     raise exception 'FY-416 FAILED: member sees % unclaimed, lead sees % -- the audiences disagree',
@@ -994,7 +994,7 @@ begin
   -- triage carried no number filter because "leads are always unrestricted",
   -- which was only true while triage was owner/admin-only.
   r_denied := public.api_for_you('c0000000-0000-4000-8000-000000000001',
-                                 'a0000000-0000-4000-8000-000000000002', false, now(), 20,
+                                 'a0000000-0000-4000-8000-000000000002', now(), 20,
                                  array['d0000000-0000-4000-8000-000000000001']::uuid[]);
   if jsonb_array_length(r_denied->'triage'->'conversations') <> 0 then
     raise exception 'FY-416 FAILED: denied member sees unclaimed work on a hidden number: %',
@@ -1010,44 +1010,52 @@ end $$;
 
 
 -- ===========================================================================
--- FY-454. While both signatures exist, they must answer identically.
+-- FY-454. The six-argument signature is GONE.
 --
--- #454 drops `p_is_lead`, which #416/D53 left accepted-and-ignored. The drop
--- cannot happen in the same release as the Worker change: ship.yml runs
--- `supabase db push` BEFORE `wrangler deploy`, so removing the 6-arg function
--- would 500 every /v1/for-you for the length of the Worker deploy.
+-- This guard used to assert the opposite: that while both signatures existed
+-- the deprecated 6-arg shim could not answer differently from the 5-arg. That
+-- was the right assertion for the expand half, and the wrong one to keep — a
+-- guard that pins a shim in place becomes the reason nobody removes it.
 --
--- So the 6-arg survives one release as a forwarding shim. The only way that is
--- safe is if it cannot answer differently from the 5-arg — which is what this
--- asserts, in both directions of the boolean it discards.
+-- The Worker stopped sending `p_is_lead` and that change is deployed, so the
+-- contract half is safe and has landed. What matters now is that the overload
+-- does not come back: `create or replace function` with a different signature
+-- creates a SECOND function rather than replacing anything, so a future edit
+-- that restores the old parameter list would silently resurrect it, and a
+-- boolean named `p_is_lead` on a security-definer RPC reads as though it still
+-- scopes something it has not scoped since #416/D53.
 -- ===========================================================================
 do $$
 declare
   v_five  jsonb;
-  v_true  jsonb;
-  v_false jsonb;
+  v_count int;
 begin
+  -- The surviving signature still answers.
   v_five := public.api_for_you(
     '11111111-1111-4111-8111-111111111111'::uuid,
     '22222222-2222-4222-8222-222222222222'::uuid,
     now());
-  v_true := public.api_for_you(
-    '11111111-1111-4111-8111-111111111111'::uuid,
-    '22222222-2222-4222-8222-222222222222'::uuid,
-    true, now());
-  v_false := public.api_for_you(
-    '11111111-1111-4111-8111-111111111111'::uuid,
-    '22222222-2222-4222-8222-222222222222'::uuid,
-    false, now());
-
-  if v_five is distinct from v_true then
-    raise exception 'FY-454 FAILED: the shim answered differently with p_is_lead=true';
-  end if;
-  if v_five is distinct from v_false then
-    raise exception 'FY-454 FAILED: the shim answered differently with p_is_lead=false';
+  if v_five is null then
+    raise exception 'FY-454 FAILED: the 5-arg api_for_you returned null';
   end if;
 
-  raise notice 'FY-454 PASSED: the deprecated 6-arg shim cannot disagree with the 5-arg';
+  -- And it is the ONLY one.
+  select count(*) into v_count
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public'
+     and p.proname = 'api_for_you';
+
+  if v_count <> 1 then
+    raise exception
+      'FY-454 FAILED: expected exactly one api_for_you, found %. The 6-arg '
+      'overload carrying p_is_lead was dropped by #454 and must not come back — '
+      'CREATE OR REPLACE with a different signature adds a function rather than '
+      'replacing one, so an overload is easy to reintroduce by accident.',
+      v_count;
+  end if;
+
+  raise notice 'FY-454 PASSED: one api_for_you, and it takes no p_is_lead';
 end $$;
 
 rollback;

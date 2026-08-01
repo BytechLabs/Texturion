@@ -300,9 +300,9 @@ begin
 
   -- api_for_you
   if jsonb_array_length(
-       public.api_for_you(co, usr, true, now(), 20, hidden)->'unread')
+       public.api_for_you(co, usr, now(), 20, hidden)->'unread')
      > jsonb_array_length(
-       public.api_for_you(co, usr, true, now(), 20)->'unread') then
+       public.api_for_you(co, usr, now(), 20)->'unread') then
     raise exception 'NA-3 FAILED: denying a number ADDED for-you rows';
   end if;
 end $$;
