@@ -6611,9 +6611,15 @@ is the posture, not a reason to take on an exposure we have decided against.
 
 ### Open, and tracked elsewhere
 
-- **#507** — AI call summaries: the value this decision preserved, on the
-  existing transcript pipeline with the audio discarded. Named in prose here
-  before it had a number; #427's convention is what turned it into one.
+- ~~**#507**~~ — CLOSED 2026-08-02, and not in the shape this section
+  described. The premise it inherited from the decision above — that discarding
+  the audio removes the consent obligation — did not survive checking, because
+  every interception statute attaches to the ACQUISITION rather than to how
+  long the file is kept. **D117** records the correction in full.
+  What shipped instead is a crew-dictated wrap-up: the member speaks into their
+  own handset after hanging up, and the customer's voice is never acquired at
+  all. The live-call version is **#509**, which needs the consent architecture
+  this decision was trying to avoid.
 
 ## D113 — no toll-free pipeline yet, and the reason is not the one SPEC recorded (#329, 2026-08-02)
 
