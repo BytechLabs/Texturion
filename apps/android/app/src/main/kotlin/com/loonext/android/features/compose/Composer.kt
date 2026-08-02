@@ -339,6 +339,8 @@ fun ThreadComposer(
      * number would be refused by the API).
      */
     onCallInstead: (() -> Unit)? = null,
+    /** #253: report THIS failure. Null withholds the offer entirely. */
+    onReportBanner: ((ComposerBanner) -> Unit)? = null,
     /**
      * Who may be named on a note here. Null withholds mentions entirely rather
      * than opening a picker with nothing behind it.
@@ -552,14 +554,24 @@ fun ThreadComposer(
     if (readOnly) {
         Column(modifier.fillMaxWidth()) {
             if (banner != null) {
-                ComposerBannerCard(banner, onCallInstead = onCallInstead)
+                ComposerBannerCard(
+                    banner,
+                    onCallInstead = onCallInstead,
+                    onReport = onReportBanner?.let { report -> { report(banner) } },
+                )
             }
         }
         return
     }
 
     Column(modifier.fillMaxWidth()) {
-        if (banner != null) ComposerBannerCard(banner, onCallInstead = onCallInstead)
+        if (banner != null) {
+            ComposerBannerCard(
+                banner,
+                onCallInstead = onCallInstead,
+                onReport = onReportBanner?.let { report -> { report(banner) } },
+            )
+        }
 
         // #225: above the box, below any banner. Never shown for a notes-only
         // member — an internal note has no recipient to wake up.

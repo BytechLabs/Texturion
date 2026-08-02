@@ -98,6 +98,34 @@ enum DiagnosticsLog {
         return loadLocked().reversed()
     }
 
+    /// #253 — the last few failures, formatted for a support email.
+    ///
+    /// Capped at `reportedLines` because some mail clients truncate a mailto
+    /// body around 2000 characters, and a truncated body carries NO diagnostics
+    /// rather than fewer. Six is what a person needed anyway: the failure that
+    /// made them write in is always at the top.
+    ///
+    /// Safe to put in an email by construction — every entry is already an
+    /// event code plus a short detail, never content. That is the whole reason
+    /// this ring's API refuses message text (see the type comment above).
+    static func recentLines(limit: Int = reportedLines) -> [String] {
+        entries().prefix(limit).map { entry in
+            let clock = clockFormatter.string(from: entry.at)
+            let detail = entry.detail.map { " \($0)" } ?? ""
+            return "\(clock) \(entry.category.rawValue) \(entry.event)\(detail)"
+        }
+    }
+
+    /// Mirror of SUPPORT_ERROR_LINES in packages/shared.
+    static let reportedLines = 6
+
+    private static let clockFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        return formatter
+    }()
+
     static func clear() {
         lock.lock()
         defer { lock.unlock() }

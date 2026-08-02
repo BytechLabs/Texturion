@@ -281,10 +281,16 @@ export type { EffectiveAwayMessage } from "./away";
 
 export {
   SUPPORT_EMAIL,
+  SUPPORT_ERROR_LINES,
+  SUPPORT_RESPONSE_TIME,
+  SUPPORT_TOPICS,
+  feedbackMailto,
   supportBody,
   supportMailto,
+  supportSituation,
+  supportSubjectFor,
 } from "./support";
-export type { SupportContext } from "./support";
+export type { SupportContext, SupportTopic } from "./support";
 
 export { looksLikeOptOut } from "./opt-out-language";
 

@@ -822,6 +822,24 @@ private struct ThreadBody: View {
         // type is implicitly @Sendable, and a ternary does not carry that
         // contextual type into the closure literal: the literal is inferred as
         // a plain `() -> ()` and then will not convert.
+        // #253: assigned as a local for the same type-checker reason as
+        // `onCallInstead` below — a @MainActor closure literal needs its
+        // contextual type, and this call site has exhausted the budget before.
+        let companyName = controller.company?.name
+        let companyPlan = controller.company?.plan
+        let reportBanner: @MainActor (ComposerBanner) -> Void = { banner in
+            let kind = bannerKind(banner)
+            guard let url = supportMailto(
+                companyId: companyId,
+                companyName: companyName,
+                plan: companyPlan,
+                appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+                subject: supportSubjectFor(kind),
+                situation: supportSituation(kind),
+                recentErrors: DiagnosticsLog.recentLines()
+            ) else { return }
+            openURL(url)
+        }
         var onCallInstead: (@MainActor () -> Void)?
         if detail.viewer_level == "text" {
             let callContactName = detail.contact.name
@@ -898,6 +916,11 @@ private struct ThreadBody: View {
                 controller.reportAiOutcome(feature: feature, outcome: outcome)
             },
             onCallInstead: onCallInstead,
+            // #253: the honest banner named exactly what is wrong; without
+            // this it is still a dead end. The diagnostics ring is read at
+            // TAP time, not here — the useful errors are the ones that
+            // happened while the person was staring at the banner.
+            onReportBanner: reportBanner,
             onTyping: {
                 // #302: throttled — the keystroke rate is not the broadcast rate.
                 let now = Int(Date().timeIntervalSince1970 * 1000)

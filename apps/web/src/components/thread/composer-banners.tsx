@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  supportMailto,
+  supportSituation,
+  supportSubjectFor,
+} from "@loonext/shared";
 import { toast } from "sonner";
 
 import { CallButton } from "@/components/calls/call-button";
@@ -8,6 +13,7 @@ import { ApiError } from "@/lib/api/error";
 import { useBillingPortal } from "@/lib/api/billing";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { useActiveCompany } from "@/lib/company/provider";
+import { recentClientErrors } from "@/lib/observability/recent-errors";
 import { cn } from "@/lib/utils";
 
 import type { ComposerBanner } from "./composer-banner";
@@ -198,12 +204,68 @@ export function ComposerBannerCard({
       // A legal obligation, not a status line — announced rather than polled.
       role={banner.kind === "opt_out_hint" ? "alert" : "status"}
       className={cn(
-        "flex items-center justify-between gap-3 border-t px-4 py-3",
+        "flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t px-4 py-3",
         tone,
       )}
     >
       <p className="text-sm">{sentence}</p>
-      {action}
+      <div className="flex items-center gap-3">
+        {action}
+        <ReportThis kind={banner.kind} company={company.data ?? null} />
+      </div>
     </div>
+  );
+}
+
+/**
+ * #253 — one tap from the banner that just said something failed, to telling us.
+ *
+ * # Why every banner gets this, not only the ones we cannot fix
+ *
+ * The tempting rule is "no report link where the reader already has a remedy" —
+ * no point mailing support about a cap an owner can raise in one click. But
+ * deciding which failures deserve a voice is precisely the asymmetry #253 is
+ * about. A report we did not need costs one read. A report we never got costs a
+ * customer, and we record it as churn rather than as the bug it was.
+ *
+ * # It never competes with the remedy
+ *
+ * Rendered as a quiet text link after the action button, never as a second
+ * button. Where "Raise cap" exists, raising the cap is the right thing to do and
+ * the layout should say so — this is the door for the person that did not work
+ * for.
+ *
+ * *Applying: Zen of Clarity — secondary actions stay visually secondary. G10 —
+ * the subject line names the exact state, so the reader is never asked to
+ * describe a screen they did not write.*
+ */
+function ReportThis({
+  kind,
+  company,
+}: {
+  kind: string;
+  company: { id: string; name: string; plan: string | null } | null;
+}) {
+  // A situation we have no sentence for would send a support email that says
+  // nothing the customer did not already have to type — worse than no link.
+  if (company === null || supportSituation(kind) === null) return null;
+
+  return (
+    <a
+      className="shrink-0 text-xs underline underline-offset-2 opacity-70 transition-opacity hover:opacity-100"
+      href={supportMailto({
+        companyId: company.id,
+        companyName: company.name,
+        plan: company.plan,
+        platform: "web",
+        subject: supportSubjectFor(kind),
+        situation: supportSituation(kind),
+        // Read at click time, not at render: the useful errors are the ones
+        // that happened while the person was staring at this banner.
+        recentErrors: recentClientErrors(),
+      })}
+    >
+      Report this
+    </a>
   );
 }

@@ -229,10 +229,35 @@ func offersCallInstead(_ banner: ComposerBanner) -> Bool {
 }
 
 /// The card that stands in for the text composer (notes remain below it).
+/// #253 — the stable key for a banner, so one failure reported from three
+/// platforms lands in the support inbox under one name.
+///
+/// Mirrors the shared `ComposerBanner` kind strings exactly (web's
+/// discriminant, `supportSituation`'s keys). A key invented here would make the
+/// pattern that matters most — five reports of the same carrier suspension in
+/// one morning — invisible.
+func bannerKind(_ banner: ComposerBanner) -> String {
+    switch banner {
+    case .optedOut: "opted_out"
+    case .subscription: "subscription"
+    case .registrationPending: "registration_pending"
+    case .registrationSuspended: "registration_suspended"
+    case .usTextingOff: "us_texting_off"
+    case .usageCap: "usage_cap"
+    case .optOutHint: "opt_out_hint"
+    case .numberAccess: "number_access"
+    case .readOnly: "read_only"
+    }
+}
+
 struct ComposerBannerCard: View {
     let banner: ComposerBanner
     /// Place a call to this customer. Nil withholds the offer entirely.
     var onCallInstead: (@MainActor () -> Void)?
+    /// #253: tell us about THIS failure. Nil withholds the offer — used where
+    /// no workspace context is loaded yet, because a report with no workspace
+    /// in it costs a round trip before anyone can act on it.
+    var onReport: (@MainActor () -> Void)?
 
     var body: some View {
         let copy = bannerCopy(banner)
@@ -247,6 +272,21 @@ struct ComposerBannerCard: View {
                 Button("Call them instead", action: onCallInstead)
                     .font(.golos(12, weight: .semibold))
                     .foregroundStyle(BrandColor.olive)
+                    .buttonStyle(.plain)
+                    .padding(.top, 6)
+            }
+            // #253 — one tap from the banner that just said something failed,
+            // to telling us. Every case gets it, including the ones the reader
+            // can fix: deciding which failures deserve a voice is exactly the
+            // asymmetry #253 is about. A report we did not need costs one read;
+            // one we never got costs a customer we then record as churn.
+            //
+            // Deliberately quieter than "Call them instead" — where a remedy
+            // exists, taking it is the right move and the layout must say so.
+            if let onReport {
+                Button("Report this", action: onReport)
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted500)
                     .buttonStyle(.plain)
                     .padding(.top, 6)
             }

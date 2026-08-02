@@ -109,6 +109,7 @@ import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.model.Attachment
 import com.loonext.android.core.model.AttachmentSummary
+import com.loonext.android.core.diag.RecentErrors
 import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.ConversationStatus
 import com.loonext.android.core.model.Me
@@ -118,6 +119,11 @@ import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.net.ApiErrorCode
+import com.loonext.android.features.compose.bannerKind
+import com.loonext.android.features.settings.openExternal
+import com.loonext.android.features.settings.supportMailto
+import com.loonext.android.features.settings.supportSituation
+import com.loonext.android.features.settings.supportSubjectFor
 import com.loonext.android.core.realtime.PRESENCE_HEARTBEAT_MS
 import com.loonext.android.core.realtime.RealtimeState
 import com.loonext.android.core.realtime.TYPING_THROTTLE_MS
@@ -947,6 +953,25 @@ private fun ThreadLoaded(
             // #106: calling is outreach like texting, so a notes-only member
             // gets no control the API would refuse.
             onCallInstead = if (detail.viewer_level == "text") ({ placeCall() }) else null,
+            // #253: the honest banner told them exactly what is wrong; without
+            // this it is still a dead end. Reads the recent-failure ring at TAP
+            // time, not at render — the useful errors are the ones that happened
+            // while the person was staring at the banner.
+            onReportBanner = { banner ->
+                val kind = bannerKind(banner)
+                openExternal(
+                    context,
+                    supportMailto(
+                        companyId = companyId,
+                        companyName = controller.company?.name,
+                        plan = controller.company?.plan,
+                        appVersion = BuildConfig.VERSION_NAME,
+                        subject = supportSubjectFor(kind),
+                        situation = supportSituation(kind),
+                        recentErrors = RecentErrors.recentLines(),
+                    ),
+                )
+            },
             onSendText = { body, photos ->
                 controller.sendText(body, photos) {
                     composer.restore(body, photos, emptyList())

@@ -168,6 +168,8 @@ struct ThreadComposerView: View {
     /// but not calling. Nil withholds it (a member without text level on the
     /// number would be refused by the API).
     var onCallInstead: (@MainActor () -> Void)?
+    /// #253: report THIS failure. Nil withholds the offer entirely.
+    var onReportBanner: (@MainActor (ComposerBanner) -> Void)?
     /// #302: called on each keystroke of a REPLY so teammates on this thread
     /// see somebody is answering. Throttled by the caller — the keystroke rate
     /// is not the broadcast rate. Notes deliberately do not signal: a note goes
@@ -216,7 +218,11 @@ struct ThreadComposerView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let banner {
-                ComposerBannerCard(banner: banner, onCallInstead: onCallInstead)
+                ComposerBannerCard(
+                    banner: banner,
+                    onCallInstead: onCallInstead,
+                    onReport: onReportBanner.map { report in { report(banner) } }
+                )
             }
 
             if !readOnly {

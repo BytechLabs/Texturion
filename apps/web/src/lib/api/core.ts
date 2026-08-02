@@ -1,3 +1,5 @@
+import { recordClientError } from "@/lib/observability/recent-errors";
+
 import { ApiError, parseErrorBody } from "./error";
 
 /**
@@ -102,7 +104,16 @@ export function createApiClient(config: ApiClientConfig): ApiRequest {
     }
 
     if (!response.ok) {
-      throw parseErrorBody(response.status, payload);
+      const error = parseErrorBody(response.status, payload);
+      // #253: every API failure the app ever sees passes through here, which
+      // makes this the one place a recent-errors ring can be filled without
+      // asking three hundred call sites to remember. The method and path go in
+      // with it — "500" alone cannot be looked up, and `/v1/messages/send 500`
+      // can be found in the logs in one search.
+      recordClientError(
+        `${options.method ?? "GET"} ${path} ${response.status} ${error.code}`,
+      );
+      throw error;
     }
     return payload as T;
   };

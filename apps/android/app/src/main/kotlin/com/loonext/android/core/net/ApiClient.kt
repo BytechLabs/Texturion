@@ -5,6 +5,7 @@ import com.loonext.android.core.auth.Session
 import com.loonext.android.core.auth.SessionSource
 import com.loonext.android.core.auth.SupabaseAuth
 import com.loonext.android.core.auth.await
+import com.loonext.android.core.diag.RecentErrors
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -233,7 +234,12 @@ class ApiClient(
         }
     }
 
-    class RawResponse(val status: Int, val bodyText: String) {
+    class RawResponse(
+        val status: Int,
+        val bodyText: String,
+        /** #253: what was being called, so a recorded failure can be looked up. */
+        private val label: String = "",
+    ) {
         fun expectSuccess(json: Json): String {
             if (status in 200..299) return bodyText
             val parsed = try {
@@ -241,8 +247,14 @@ class ApiClient(
             } catch (_: Exception) {
                 null
             }
+            val code = parsed?.error?.code ?: ApiErrorCode.INTERNAL_ERROR
+            // #253: every API failure the app ever sees passes through here,
+            // which makes it the one place a recent-errors ring can be filled
+            // without asking three hundred call sites to remember. The path
+            // goes in with the status: "500" alone cannot be looked up.
+            RecentErrors.record("$label $status $code".trim())
             throw ApiException(
-                code = parsed?.error?.code ?: ApiErrorCode.INTERNAL_ERROR,
+                code = code,
                 message = parsed?.error?.message ?: "Something went wrong ($status).",
                 httpStatus = status,
             )
@@ -285,12 +297,18 @@ class ApiClient(
         val response = try {
             client.newCall(request).await()
         } catch (cause: IOException) {
+            // "The server said no" and "the server was never reached" are the
+            // two answers a support conversation is actually trying to tell
+            // apart, so they are recorded as different lines.
+            RecentErrors.record("$method $path unreachable")
             throw ApiException(
                 ApiErrorCode.NETWORK,
                 "Can't reach Loonext. Check your connection.",
                 0,
             )
         }
-        return response.use { RawResponse(it.code, it.body?.string().orEmpty()) }
+        return response.use {
+            RawResponse(it.code, it.body?.string().orEmpty(), label = "$method $path")
+        }
     }
 }

@@ -263,6 +263,12 @@ fun ComposerBannerCard(
     modifier: Modifier = Modifier,
     /** Place a call to this customer. Null withholds the offer entirely. */
     onCallInstead: (() -> Unit)? = null,
+    /**
+     * #253: tell us about THIS failure. Null withholds the offer — used where
+     * no workspace context is loaded yet, because a report with no workspace in
+     * it costs a round trip before anyone can act on it.
+     */
+    onReport: (() -> Unit)? = null,
 ) {
     val (title, body) = bannerCopy(banner)
     Column(
@@ -293,5 +299,44 @@ fun ComposerBannerCard(
                     .clickable(onClick = onCallInstead),
             )
         }
+        // #253 — one tap from the banner that just said something failed, to
+        // telling us. Every kind gets it, including the ones the reader can fix
+        // themselves: deciding which failures deserve a voice is exactly the
+        // asymmetry #253 is about. A report we did not need costs one read; one
+        // we never got costs a customer we then record as churn.
+        //
+        // Deliberately quieter than "Call them instead" — where a remedy
+        // exists, taking it is the right move and the layout has to say so.
+        if (onReport != null) {
+            Text(
+                "Report this",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .clickable(onClick = onReport),
+            )
+        }
     }
+}
+
+/**
+ * #253 — the stable key for a banner, so one failure reported from three
+ * platforms lands in the support inbox under one name.
+ *
+ * Mirrors the shared `ComposerBanner` kind strings exactly (web's discriminant,
+ * `supportSituation`'s keys). A key invented here would make the pattern that
+ * matters most — five reports of the same carrier suspension in one morning —
+ * invisible.
+ */
+fun bannerKind(banner: ComposerBanner): String = when (banner) {
+    is ComposerBanner.OptedOut -> "opted_out"
+    is ComposerBanner.Subscription -> "subscription"
+    ComposerBanner.RegistrationPending -> "registration_pending"
+    ComposerBanner.RegistrationSuspended -> "registration_suspended"
+    ComposerBanner.UsTextingOff -> "us_texting_off"
+    ComposerBanner.UsageCap -> "usage_cap"
+    ComposerBanner.OptOutHint -> "opt_out_hint"
+    ComposerBanner.NumberAccess -> "number_access"
+    ComposerBanner.ReadOnly -> "read_only"
 }
