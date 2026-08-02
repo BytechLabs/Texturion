@@ -116,6 +116,7 @@ const SUITES = [
   "tag_governance",
   "template_uses",
   "contact_merge",
+  "usage_events_channel",
 ];
 
 const args = process.argv.slice(2);

@@ -137,6 +137,12 @@ async function finalize(
       company_id: message.company_id,
       message_id: message.id,
       type: isMms ? "mms_outbound" : "sms_outbound",
+      // #506: which stream this belongs to, and what `quantity` counts.
+      // Written alongside `type` rather than derived from it later, because a
+      // row that lands without a channel can never be reclassified — the fact
+      // of what it was is simply absent, and no backfill invents it.
+      channel: isMms ? "mms" : "sms",
+      unit: "segment",
       quantity,
       meter_identifier: telnyxMessageId,
     })
