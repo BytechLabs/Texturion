@@ -92,7 +92,12 @@ function ledgerStubs() {
 }
 
 function serve(...routes: (Stub | { route: FetchRoute })[]) {
-  stubFetch(...routes.map((stub) => stub.route));
+  // #250: classification runs on every inbound now. Appended LAST so a test
+  // that wants a blocked sender can still stub one ahead of this. Only the
+  // block lookup is needed — these fixtures are ordinary customer texts, which
+  // score no content signals and so never reach the relationship queries.
+  const blockedSenders = stubRoute(restMatch(env, "GET", "blocked_senders"), () => []);
+  stubFetch(...[...routes, blockedSenders].map((stub) => stub.route));
 }
 
 async function deliver(event: unknown, options?: { timestamp?: number; tamper?: boolean }) {

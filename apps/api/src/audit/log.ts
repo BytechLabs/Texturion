@@ -112,6 +112,14 @@ export type AuditAction =
   // a `platform-ops/<script>` agent, so a reader can tell a support edit from
   // a background job.
   | "spam.cleared"
+  // #250: the inbound classifier, and the manual block that outranks it. All
+  // three carry a null actor for the arrival cases — nobody pressed anything
+  // when a robotext landed — while `spam.sender_blocked` names the member who
+  // decided, because that one is a person refusing a number.
+  | "spam.suspected"
+  | "spam.blocked_sender_arrived"
+  | "spam.sender_blocked"
+  | "spam.sender_unblocked"
   | "registration.reset"
   // Who this business may still contact (#331). The one kind of change
   // nobody on the crew can undo, and the first thing anyone reaches for when

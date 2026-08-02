@@ -29,7 +29,8 @@ begin;
 do $$
 declare
   known text[] := array[
-    'attachments', 'audit_log', 'billing_disputes', 'call_member_legs',
+    'attachments', 'audit_log', 'billing_disputes', 'blocked_senders',
+    'call_member_legs',
     'call_records', 'calls', 'company_ai_settings', 'company_ai_usage',
     'company_members', 'company_modules', 'contact_consent_events',
     'contacts', 'conversation_events', 'conversation_snoozes',

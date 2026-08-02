@@ -27,6 +27,7 @@ import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { notifyInboundMessage } from "../notifications/inbound";
+import { classifyInbound } from "./spam-flag";
 import { scanAttachment } from "../attachments/scan";
 import { bytesMatchDeclaredType } from "../routes/core/attachments";
 import { insertConversationEvents } from "../routes/core/events";
@@ -302,6 +303,18 @@ export async function handleInboundMessage(
       effectiveEmergencyKeywords(company?.emergency_keywords),
     );
 
+  // #250: does this look like a robotext, or did somebody block this sender?
+  // Runs before the notification decision below and after the message is
+  // durable, so a classifier failure can only cost a badge.
+  const spam = threaded.created
+    ? await classifyInbound(db, {
+        companyId: number.company_id,
+        conversationId: threaded.conversation_id,
+        fromE164,
+        body: payload.text,
+      })
+    : { blocked: false, suspected: false };
+
   // #396: a plain-English opt-out is legally binding and only the KEYWORD was
   // ever detected. "Please stop texting me" is not an exact STOP, so Telnyx
   // does not block it, `stop_keyword` never fires, and no 40300 is produced for
@@ -480,7 +493,19 @@ export async function handleInboundMessage(
   //   the #343 daily budget — a cost ceiling dropping a no-heat call in
   //   January is not a trade-off anybody would choose. An emergency is not
   //   metered.
-  if (threaded.created && (emergency || allowEmail || allowPush)) {
+  // #250: an emergency keyword still bypasses everything, deliberately. A
+  // customer typing URGENT is the one case that must never be silent, and a
+  // classifier is not confident enough to overrule it — the whole posture here
+  // is that the machine badges and never decides.
+  if (threaded.created && !emergency && spam.suspected) {
+    console.log(
+      `inbound spam suspected on conversation ${threaded.conversation_id}: ` +
+        `notification suppressed, thread left in the inbox`,
+    );
+  }
+  const spamSilences = !emergency && (spam.suspected || spam.blocked);
+
+  if (threaded.created && !spamSilences && (emergency || allowEmail || allowPush)) {
     await notifyInboundMessage(
       env,
       {

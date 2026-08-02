@@ -48,7 +48,8 @@ const SRC = fileURLToPath(new URL(".", import.meta.url));
  * is the failure mode a hardcoded list normally has.
  */
 const TENANT_TABLES = new Set([
-  "attachments", "audit_log", "billing_disputes", "call_member_legs",
+  "attachments", "audit_log", "billing_disputes", "blocked_senders",
+  "call_member_legs",
   "call_records", "calls", "company_ai_settings", "company_ai_usage",
   "company_members", "company_modules", "contact_consent_events",
   "contacts", "conversation_events", "conversation_snoozes",

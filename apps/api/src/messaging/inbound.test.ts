@@ -40,8 +40,29 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+/**
+ * #250: the classifier's reads, appended AFTER every test's own stubs so a
+ * test that cares can still override them.
+ *
+ * They are defaults rather than per-test setup because classification now runs
+ * on every inbound and answers "is this a robotext" for a suite whose fixtures
+ * are all ordinary customer texts from ordinary mobiles. Without them each of
+ * these tests pays an unstubbed-fetch timeout for a question none of them is
+ * asking.
+ */
+function spamDefaults(): Stub[] {
+  return [
+    // Nobody blocked this sender. Nothing else is needed: an ordinary
+    // customer text scores no content signals, so the classifier never
+    // reaches its relationship queries.
+    stubRoute(restMatch(env, "GET", "blocked_senders"), () => []),
+  ];
+}
+
 function serve(...stubs: Stub[]) {
-  stubFetch(...(stubs.map((s) => s.route) as FetchRoute[]));
+  stubFetch(
+    ...([...stubs, ...spamDefaults()].map((s) => s.route) as FetchRoute[]),
+  );
 }
 
 function numberStub(): Stub {

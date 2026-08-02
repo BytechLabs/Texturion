@@ -57,6 +57,7 @@ The most sensitive category, because the person never chose us.
 | `calls` | **caller name (CNAM)**, voicemail audio path, **voicemail transcript** | Same |
 | `call_member_legs` | which member took which leg | Same |
 | `opt_outs` | phone number | **Outlives the workspace.** A do-not-text record belongs to the person who sent the STOP, not the business that received it |
+| `blocked_senders` | phone number, plus a free-text reason a member typed (#250) | Life of the workspace; purged with it. Deliberately NOT like `opt_outs`: a block is one business refusing one number, which says nothing about what any other business may do, so it must not outlive the workspace that made it |
 | `contact_consent_events` | consent attestations, stripped | **3 years**, names and message contents removed — CASL requires the record, not the content |
 | `tasks` | free-text description, **job address** | Life of the workspace |
 | `number_port_outs`, `text_enablement_orders` | phone numbers | Life of the workspace |

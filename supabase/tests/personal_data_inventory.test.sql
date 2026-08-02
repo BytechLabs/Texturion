@@ -28,7 +28,8 @@ declare
     -- §1 contact data (the customer's customer)
     'contacts', 'messages', 'conversations', 'conversation_events',
     'attachments', 'message_attachments', 'calls', 'call_member_legs',
-    'opt_outs', 'contact_consent_events', 'tasks', 'number_port_outs',
+    'opt_outs', 'blocked_senders', 'contact_consent_events', 'tasks',
+    'number_port_outs',
     'text_enablement_orders',
     -- §2 user data (our own customers)
     'profiles', 'company_members', 'invites', 'user_sessions',
