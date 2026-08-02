@@ -148,7 +148,9 @@ struct ThreadComposerView: View {
     let contactName: String?
     let businessName: String?
     let loadTemplates: @MainActor () async throws -> [Template]
-    let onSendText: @MainActor (String, [StagedPhoto]) -> Void
+    /// #475: the body, the photos, the saved reply it came from (if any),
+    /// and whether the words changed after it was inserted (#274).
+    let onSendText: @MainActor (String, [StagedPhoto], String?, Bool) -> Void
     let onSaveNote: @MainActor (String, [StagedFile], [String]) -> Void
     /// Who may be named on a note here. Nil withholds mentions entirely rather
     /// than opening a picker with nothing behind it.
@@ -186,6 +188,12 @@ struct ThreadComposerView: View {
 
     @State private var templatePickerOpen = false
     @State private var mentionPickerOpen = false
+    /// #475: which saved reply is in the box, and what it said on arrival.
+    ///
+    /// Compared at SEND time rather than tracked per keystroke: the question
+    /// #274 asks is "did this go out different from the template", and
+    /// somebody who types a word and deletes it did not edit anything.
+    @State private var templateUse: (id: String, body: String)?
     // Drafts live only while the composer is looking at this thread: they are a
     // momentary offer, never cached state.
     @State private var suggestions: [String] = []
@@ -345,9 +353,9 @@ struct ThreadComposerView: View {
             }
         }
         .sheet(isPresented: $templatePickerOpen) {
-            TemplatePickerSheet(loadTemplates: loadTemplates) { body in
+            TemplatePickerSheet(loadTemplates: loadTemplates) { body, templateId in
                 templatePickerOpen = false
-                insertTemplate(body)
+                insertTemplate(body, templateId)
             }
         }
         .sheet(isPresented: $mentionPickerOpen) {
@@ -658,13 +666,15 @@ struct ThreadComposerView: View {
         }
     }
 
-    private func insertTemplate(_ body: String) {
+    private func insertTemplate(_ body: String, _ templateId: String) {
         let current = state.text
-        state.onTextChange(
-            current.isEmpty
-                ? body
-                : current + (current.hasSuffix(" ") ? "" : " ") + body
-        )
+        let next = current.isEmpty
+            ? body
+            : current + (current.hasSuffix(" ") ? "" : " ") + body
+        // #475: what the box holds AFTER the insert, so an append onto existing
+        // words is not later read as an edit of the template.
+        templateUse = (id: templateId, body: next)
+        state.onTextChange(next)
     }
 
     /// #408: the send boundary. A teammate answering this customer while the
@@ -744,7 +754,18 @@ struct ThreadComposerView: View {
         } else {
             let photos = state.photos
             state.clearForSend()
-            onSendText(body, photos)
+            // #475/#274: what it came from, and whether it was changed.
+            let used = templateUse
+            onSendText(
+                body,
+                photos,
+                used?.id,
+                used != nil && used!.body.trimmingCharacters(in: .whitespacesAndNewlines)
+                    != body.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+            // The box is empty again, so whatever was inserted is spent. A
+            // template left attached would tag the NEXT message too.
+            templateUse = nil
         }
     }
 
@@ -1008,7 +1029,10 @@ struct FileChipsRow: View {
 @MainActor
 struct TemplatePickerSheet: View {
     let loadTemplates: @MainActor () async throws -> [Template]
-    let onPick: @MainActor (String) -> Void
+    /// #475: the body AND which saved reply it came from. Nothing downstream
+    /// can recover the second from the first — by send time the words have
+    /// been merged and possibly edited.
+    let onPick: @MainActor (String, String) -> Void
 
     @State private var state: LoadState<[Template]> = .loading
     @State private var query = ""
@@ -1071,7 +1095,7 @@ struct TemplatePickerSheet: View {
                         PaperCard {
                             ForEach(matches, id: \.id) { template in
                                 Button {
-                                    onPick(template.body)
+                                    onPick(template.body, template.id)
                                 } label: {
                                     HStack(alignment: .top, spacing: 11) {
                                         VStack(alignment: .leading, spacing: 2) {
@@ -1144,7 +1168,7 @@ struct TemplatePickerSheet: View {
             contactName: "Dana Whitcomb",
             businessName: "Loonext Fencing",
             loadTemplates: { [] },
-            onSendText: { _, _ in },
+            onSendText: { _, _, _, _ in },
             onSaveNote: { _, _, _ in },
             onNotice: { _ in }
         )
@@ -1161,7 +1185,7 @@ struct TemplatePickerSheet: View {
             contactName: "Dana Whitcomb",
             businessName: "Loonext Fencing",
             loadTemplates: { [] },
-            onSendText: { _, _ in },
+            onSendText: { _, _, _, _ in },
             onSaveNote: { _, _, _ in },
             onNotice: { _ in }
         )

@@ -87,6 +87,15 @@ const composeSchema = z
     // the field is accepted for back-compat but no longer gates the send.
     consent_attested: z.literal(true).optional(),
     quiet_hours_confirmed: z.boolean().optional(),
+    /**
+     * #475: the saved reply this message was built from, if any. Same contract
+     * as POST /v1/messages/send — client-declared, because by the time the body
+     * arrives it has been merged and possibly edited and the template cannot be
+     * recovered from the text.
+     */
+    template_id: z.uuid().optional(),
+    /** #274: whether the words changed after the template was inserted. */
+    template_edited: z.boolean().optional(),
     // #97 outbound MMS: same shape/limits as POST /v1/messages/send — ≤3
     // items from the #189 deliverable set (images/audio/video/vCard/PDF/
     // text), ≤1 MB each (decoded + byte-checked server-side). Ungated
@@ -678,6 +687,22 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
   // never received.
   if (identify) {
     await stampIdentificationSent(db, { companyId, contactId: contact.id });
+  }
+
+  // #475: a first message to a new customer is one of the likeliest templated
+  // sends there is, so this path counts too. After the dispatch and swallowing
+  // its own failure, for the same reason as the reply path: a delivered message
+  // must never be reported as failed because a counter did not increment.
+  if (body.template_id) {
+    try {
+      await db.rpc("api_record_template_use", {
+        p_company_id: companyId,
+        p_template_id: body.template_id,
+        p_edited: body.template_edited ?? false,
+      });
+    } catch (cause) {
+      console.warn(`template use not recorded: ${String(cause)}`);
+    }
   }
 
   return c.json(

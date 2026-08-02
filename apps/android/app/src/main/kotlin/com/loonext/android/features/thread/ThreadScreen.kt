@@ -972,8 +972,8 @@ private fun ThreadLoaded(
                     ),
                 )
             },
-            onSendText = { body, photos ->
-                controller.sendText(body, photos) {
+            onSendText = { body, photos, templateId, templateEdited ->
+                controller.sendText(body, photos, templateId, templateEdited) {
                     composer.restore(body, photos, emptyList())
                 }
             },

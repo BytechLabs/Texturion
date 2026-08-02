@@ -114,6 +114,16 @@ export function useSendMessage(conversationId: string) {
        * retry affordance keep the old behaviour.
        */
       idempotencyKey?: string;
+      /**
+       * #475: the saved reply this message was built from, if any.
+       *
+       * Declared by the client because it is the only thing that knows. By the
+       * time the body reaches the server it has been merged and possibly
+       * edited, so the template cannot be recovered by comparing strings.
+       */
+      templateId?: string;
+      /** #274: whether the words changed after the template was inserted. */
+      templateEdited?: boolean;
     }) =>
       apiFetch<Message>("/v1/messages/send", {
         method: "POST",
@@ -124,6 +134,12 @@ export function useSendMessage(conversationId: string) {
           body: input.body,
           ...(input.media && input.media.length > 0
             ? { media: input.media }
+            : {}),
+          ...(input.templateId
+            ? {
+                template_id: input.templateId,
+                template_edited: input.templateEdited ?? false,
+              }
             : {}),
         },
       }),

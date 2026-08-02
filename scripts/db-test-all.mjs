@@ -114,6 +114,7 @@ const SUITES = [
   "pipeline_stages",
   "pricing_snapshot",
   "tag_governance",
+  "template_uses",
 ];
 
 const args = process.argv.slice(2);

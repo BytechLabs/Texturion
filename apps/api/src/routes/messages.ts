@@ -116,6 +116,24 @@ const sendSchema = z
       .min(1)
       .max(MAX_OUTBOUND_MEDIA_ITEMS)
       .optional(),
+    /**
+     * #475: the saved reply this message was built from, if any.
+     *
+     * Client-declared, and that is the only place it CAN come from — the body
+     * that arrives has already had merge fields resolved and may have been
+     * edited, so the server cannot recover which template it started as by
+     * comparing strings. A wrong value costs a wrong counter and nothing else,
+     * which is the right amount of trust for bookkeeping.
+     */
+    template_id: z.uuid().optional(),
+    /**
+     * #274 item 3: whether the sender changed the words before sending.
+     *
+     * The more valuable half of the signal. "A template edited every single
+     * time is a defect report nobody filed, and it is the cheapest possible
+     * input to writing better default copy."
+     */
+    template_edited: z.boolean().optional(),
   })
   .refine(
     (value) => value.body.trim().length > 0 || (value.media?.length ?? 0) > 0,
@@ -372,6 +390,26 @@ messageRoutes.post("/messages/send", requireCapability("conversations.send"), as
     mediaUrls,
     clearance,
   });
+
+  // #475: record that a saved reply produced this message.
+  //
+  // AFTER the dispatch and deliberately unawaited-on-failure: this is
+  // bookkeeping for a picker's sort order, and a send that succeeded must never
+  // be reported as failed because a counter did not increment. The RPC verifies
+  // the template belongs to this workspace, so a client naming somebody else's
+  // id writes nothing rather than corrupting their count.
+  if (body.template_id) {
+    try {
+      await db.rpc("api_record_template_use", {
+        p_company_id: companyId,
+        p_template_id: body.template_id,
+        p_edited: body.template_edited ?? false,
+      });
+    } catch (cause) {
+      console.warn(`template use not recorded: ${String(cause)}`);
+    }
+  }
+
   return c.json(messageJson(sent, attachments), 201);
 });
 

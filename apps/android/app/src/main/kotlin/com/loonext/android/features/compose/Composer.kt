@@ -304,7 +304,14 @@ fun ThreadComposer(
     contactName: String?,
     businessName: String?,
     loadTemplates: suspend () -> List<Template>,
-    onSendText: (body: String, photos: List<StagedPhoto>) -> Unit,
+    onSendText: (
+        body: String,
+        photos: List<StagedPhoto>,
+        /** #475: the saved reply this was built from, if any. */
+        templateId: String?,
+        /** #274: whether the words changed after it was inserted. */
+        templateEdited: Boolean,
+    ) -> Unit,
     /**
      * #408: the newest outbound in this thread, so the send boundary can ask
      * before landing on top of a colleague's answer. Null means "nothing to
@@ -367,6 +374,15 @@ fun ThreadComposer(
 
     var templatePickerOpen by remember { mutableStateOf(false) }
     var mentionPickerOpen by remember { mutableStateOf(false) }
+
+    /**
+     * #475: which saved reply is in the box, and what it said when it arrived.
+     *
+     * Compared at SEND time rather than tracked per keystroke: the question
+     * #274 asks is "did this go out different from the template", and somebody
+     * who types a word and deletes it did not edit anything.
+     */
+    var templateUse by remember { mutableStateOf<TemplateUse?>(null) }
     var mentionRows by remember { mutableStateOf(listOf<MentionableMember>()) }
     var attachMenuOpen by remember { mutableStateOf(false) }
     // Drafts are kept per conversation until it moves: asking costs a real AI
@@ -490,7 +506,17 @@ fun ThreadComposer(
         } else {
             val photos = state.photos
             state.clearForSend()
-            onSendText(body, photos)
+            // #475/#274: what it came from, and whether the crew changed it.
+            val used = templateUse
+            onSendText(
+                body,
+                photos,
+                used?.templateId,
+                used != null && used.body.trim() != body.trim(),
+            )
+            // The box is empty again, so whatever was inserted is spent. A
+            // template left attached would tag the NEXT message too.
+            templateUse = null
         }
     }
 
@@ -850,14 +876,17 @@ fun ThreadComposer(
     if (templatePickerOpen) {
         TemplatePickerSheet(
             loadTemplates = loadTemplates,
-            onPick = { body ->
+            onPick = { body, templateId ->
                 haptics.tap()
                 templatePickerOpen = false
                 val current = state.text
-                state.onTextChange(
+                val next =
                     if (current.isEmpty()) body
-                    else current + (if (current.endsWith(" ")) "" else " ") + body,
-                )
+                    else current + (if (current.endsWith(" ")) "" else " ") + body
+                // #475: remember what the box holds AFTER the insert, so an
+                // append onto existing words is not later read as an edit.
+                templateUse = TemplateUse(templateId, next)
+                state.onTextChange(next)
             },
             onDismiss = { templatePickerOpen = false },
         )
@@ -1301,6 +1330,9 @@ fun FileChipsRow(
     }
 }
 
+/** #475: a saved reply sitting in the composer, and the text it produced. */
+data class TemplateUse(val templateId: String, val body: String)
+
 /**
  * Saved-replies picker (spec 09): radius-30 canvas sheet, Bricolage header,
  * paper search pill, template rows in a PaperCard with Insert pills.
@@ -1309,7 +1341,12 @@ fun FileChipsRow(
 @Composable
 fun TemplatePickerSheet(
     loadTemplates: suspend () -> List<Template>,
-    onPick: (body: String) -> Unit,
+    /**
+     * #475: the body AND which saved reply it came from. Nothing downstream can
+     * recover the second from the first — by send time the words have been
+     * merged and possibly edited.
+     */
+    onPick: (body: String, templateId: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var state by remember { mutableStateOf<LoadState<List<Template>>>(LoadState.Loading) }
@@ -1402,7 +1439,7 @@ fun TemplatePickerSheet(
                                     if (index > 0) RowDivider()
                                     TemplateRow(
                                         template = template,
-                                        onPick = { onPick(template.body) },
+                                        onPick = { onPick(template.body, template.id) },
                                     )
                                 }
                                 if (matches.isEmpty()) {

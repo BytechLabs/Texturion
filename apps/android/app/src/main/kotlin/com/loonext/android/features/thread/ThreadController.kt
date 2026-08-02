@@ -515,7 +515,15 @@ class ThreadController(
      * onto its Idempotency-Key — retrying the SAME body+photos reuses the key,
      * so an airplane-mode double-send lands exactly one message.
      */
-    fun sendText(body: String, photos: List<StagedPhoto>, onRestore: () -> Unit) {
+    fun sendText(
+        body: String,
+        photos: List<StagedPhoto>,
+        /** #475: the saved reply this was built from, if any. */
+        templateId: String? = null,
+        /** #274: whether the words changed after it was inserted. */
+        templateEdited: Boolean = false,
+        onRestore: () -> Unit,
+    ) {
         val photoIds = photos.map { it.id }
         val failed = lastFailedIntent
         val key = if (failed != null && failed.body == body && failed.photoIds == photoIds) {
@@ -539,6 +547,8 @@ class ThreadController(
                     body = body,
                     media = photos.takeIf { it.isNotEmpty() }?.map { it.toOutboundMedia() },
                     idempotencyKey = key,
+                    templateId = templateId,
+                    templateEdited = templateEdited,
                 )
                 lastFailedIntent = null
                 pendingSends = pendingSends - pendingRow

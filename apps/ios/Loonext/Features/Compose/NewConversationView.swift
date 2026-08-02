@@ -101,6 +101,8 @@ private struct NewConversationLoaded: View {
     @State private var sending = false
     @State private var quietHoursPrompt: ComposeBody?
     @State private var templatePickerOpen = false
+    /// #475: which saved reply is in the box, and what it said on arrival.
+    @State private var templateUse: (id: String, body: String)?
     @State private var photosPickerOpen = false
     @State private var fileImporterOpen = false
     @State private var photoSelection: [PhotosPickerItem] = []
@@ -207,15 +209,17 @@ private struct NewConversationLoaded: View {
                 loadTemplates: { [repo, companyId] in
                     try await repo.templates(companyId: companyId).data
                 },
-                onPick: { body in
+                onPick: { body, templateId in
                     templatePickerOpen = false
                     guard let composer else { return }
                     let current = composer.text
-                    composer.onTextChange(
-                        current.isEmpty
-                            ? body
-                            : current + (current.hasSuffix(" ") ? "" : " ") + body
-                    )
+                    let next = current.isEmpty
+                        ? body
+                        : current + (current.hasSuffix(" ") ? "" : " ") + body
+                    // #475: what the box holds AFTER the insert, so an append
+                    // onto existing words is not later read as an edit.
+                    templateUse = (id: templateId, body: next)
+                    composer.onTextChange(next)
                 }
             )
         }
@@ -654,13 +658,21 @@ private struct NewConversationLoaded: View {
             request = resend.confirmed()
         } else {
             guard let fromNumberId else { return }
+            // #475/#274: what it came from, and whether the crew changed it.
+            // Compared once here rather than watched per keystroke.
+            let used = templateUse
             request = ComposeBody(
                 contact_id: selectedContact?.id,
                 phone_e164: selectedContact == nil ? rawE164 : nil,
                 phone_number_id: fromNumberId,
                 body: bodyText,
                 quiet_hours_confirmed: nil,
-                media: photos.isEmpty ? nil : photos.map { $0.toOutboundMedia() }
+                media: photos.isEmpty ? nil : photos.map { $0.toOutboundMedia() },
+                template_id: used?.id,
+                template_edited: used.map {
+                    $0.body.trimmingCharacters(in: .whitespacesAndNewlines)
+                        != bodyText.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
             )
         }
         dispatch(request, key: key)

@@ -5,6 +5,12 @@ struct SendBody: Codable, Sendable {
     let conversation_id: String
     let body: String
     let media: [OutboundMedia]?
+    /// #475: the saved reply this was built from, if any.
+    var template_id: String?
+    /// #274: whether the words changed after it was inserted. Omitted entirely
+    /// without a template, so an ordinary typed send carries exactly the
+    /// payload it always did.
+    var template_edited: Bool?
 }
 
 /// POST /v1/conversations (outbound-first compose) request body.
@@ -15,6 +21,10 @@ struct ComposeBody: Codable, Sendable {
     let body: String
     let quiet_hours_confirmed: Bool?
     let media: [OutboundMedia]?
+    /// #475: the saved reply this was built from, if any.
+    var template_id: String?
+    /// #274: whether the words changed after it was inserted.
+    var template_edited: Bool?
 
     /// The quiet-hours 409 resend: the SAME body with the confirmation set.
     func confirmed() -> ComposeBody {
@@ -24,7 +34,12 @@ struct ComposeBody: Codable, Sendable {
             phone_number_id: phone_number_id,
             body: body,
             quiet_hours_confirmed: true,
-            media: media
+            media: media,
+            // #475: the resend is the SAME message, so it came from the same
+            // saved reply. Dropping these would undercount every template a
+            // quiet-hours confirmation happened to touch.
+            template_id: template_id,
+            template_edited: template_edited
         )
     }
 }
@@ -298,11 +313,19 @@ struct MessagingRepository: Sendable {
         conversationId: String,
         body: String,
         media: [OutboundMedia]?,
-        idempotencyKey: String
+        idempotencyKey: String,
+        templateId: String? = nil,
+        templateEdited: Bool = false
     ) async throws -> Message {
         try await api.post(
             "/v1/messages/send",
-            body: SendBody(conversation_id: conversationId, body: body, media: media),
+            body: SendBody(
+                conversation_id: conversationId,
+                body: body,
+                media: media,
+                template_id: templateId,
+                template_edited: templateId == nil ? nil : templateEdited
+            ),
             companyId: companyId,
             idempotencyKey: idempotencyKey
         )

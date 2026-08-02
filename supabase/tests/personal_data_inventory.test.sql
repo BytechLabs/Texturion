@@ -59,6 +59,11 @@ declare
     'inbound_notification_days', 'liveness_heartbeats', 'message_mentions',
     'outbound_call_authorizations', 'outbound_dial_leases', 'ownership_transfers',
     'call_silence_state', 'retention_notices',
+    -- #475: a template id, a count and a timestamp. Deliberately carries no
+    -- contact and no conversation — "which reply did you send this person"
+    -- is a per-contact fact and no feature in scope needs it, so the table
+    -- stays here rather than becoming a new personal-data surface.
+    'template_uses',
     -- #477: probe name, pass/fail, latency, and a short failure CODE. In §6
     -- only because the code is capped and never a message — see the note there.
     'probe_results',

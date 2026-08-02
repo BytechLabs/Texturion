@@ -415,7 +415,15 @@ final class ThreadController {
     /// queued insert replaces it. A failed attempt restores the draft and holds
     /// onto its Idempotency-Key — retrying the SAME body+photos reuses the key,
     /// so an airplane-mode double-send lands exactly one message.
-    func sendText(body: String, photos: [StagedPhoto], onRestore: @escaping @MainActor () -> Void) {
+    func sendText(
+        body: String,
+        photos: [StagedPhoto],
+        /// #475: the saved reply this was built from, if any.
+        templateId: String? = nil,
+        /// #274: whether the words changed after it was inserted.
+        templateEdited: Bool = false,
+        onRestore: @escaping @MainActor () -> Void
+    ) {
         let photoIds = photos.map(\.id)
         let key: String
         if let failed = lastFailedIntent, failed.body == body, failed.photoIds == photoIds {
@@ -438,7 +446,9 @@ final class ThreadController {
                     conversationId: conversationId,
                     body: body,
                     media: photos.isEmpty ? nil : photos.map { $0.toOutboundMedia() },
-                    idempotencyKey: key
+                    idempotencyKey: key,
+                    templateId: templateId,
+                    templateEdited: templateEdited
                 )
                 lastFailedIntent = nil
                 pendingSends.removeAll { $0.localId == pendingRow.localId }

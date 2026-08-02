@@ -220,10 +220,19 @@ export function NewConversation() {
   // Insert a saved reply's body into the draft (one space if the draft doesn't
   // already end in one), then refocus the field. Merge tokens resolve
   // server-side at send, so the raw body is inserted as-is.
-  const insertTemplate = (templateBody: string) => {
+  /**
+   * #475: which saved reply is in the box, and what it said when it arrived.
+   * A first message to a new customer is one of the likeliest templated sends
+   * there is, so this path records too.
+   */
+  const templateUse = useRef<{ id: string; body: string } | null>(null);
+
+  const insertTemplate = (templateBody: string, templateId: string) => {
     setBody((current) => {
       const sep = current.length === 0 || current.endsWith(" ") ? "" : " ";
-      return `${current}${sep}${templateBody}`;
+      const next = `${current}${sep}${templateBody}`;
+      templateUse.current = { id: templateId, body: next };
+      return next;
     });
     requestAnimationFrame(() => textareaRef.current?.focus());
   };
@@ -369,6 +378,14 @@ export function NewConversation() {
       body,
       ...(quietConfirmed ? { quiet_hours_confirmed: true } : {}),
       ...(media ? { media } : {}),
+      // #475/#274: compared once at send rather than watched per keystroke —
+      // the question is whether this went out different from the template.
+      ...(templateUse.current !== null
+        ? {
+            template_id: templateUse.current.id,
+            template_edited: templateUse.current.body.trim() !== body.trim(),
+          }
+        : {}),
       idempotencyKey,
     };
     start.mutate(inputBody, {

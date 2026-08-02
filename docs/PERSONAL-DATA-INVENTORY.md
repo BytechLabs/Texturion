@@ -127,10 +127,19 @@ gets overlooked.
 `high_priority_push_budget`, `high_priority_push_days`,
 `inbound_notification_days`, `liveness_heartbeats`, `message_mentions`,
 `outbound_call_authorizations`, `outbound_dial_leases`, `ownership_transfers`,
-`call_silence_state`, `probe_results`, `retention_notices`.
+`call_silence_state`, `probe_results`, `retention_notices`, `template_uses`.
 
 Ids and counters. Listed rather than omitted, so "not in the document" always
 means "somebody forgot", never "deliberately excluded".
+
+`template_uses` (#475) is here for the same conditional reason, and the
+condition is the shape of the table: it holds a template id, a boolean, and a
+timestamp. There is no `contact_id` and no `conversation_id`, deliberately — a
+usage counter is aggregate, but *which reply did you send this person* is a
+per-contact fact, and nothing that needed the ledger (sorting a picker, finding
+dead templates, gating a delete confirmation) needed that. Adding either column
+would move this row to section 5 and is its own decision, which is exactly why
+they were left out rather than added "in case".
 
 `probe_results` (#477) is in this section CONDITIONALLY, and the condition is
 enforced in the schema: its `detail` column is a short failure code, capped at

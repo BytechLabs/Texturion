@@ -218,6 +218,8 @@ private fun NewConversationLoaded(
     var sending by remember { mutableStateOf(false) }
     var quietHoursPrompt by remember { mutableStateOf<ComposeBody?>(null) }
     var templatePickerOpen by remember { mutableStateOf(false) }
+    /** #475: which saved reply is in the box, and what it said on arrival. */
+    var templateUse by remember { mutableStateOf<TemplateUse?>(null) }
     var lastIntent by remember { mutableStateOf<Pair<ComposeIntentKey, String>?>(null) }
 
     // Contact search over the recipient input (debounced, ≥2 chars).
@@ -288,6 +290,9 @@ private fun NewConversationLoaded(
         else UUID.randomUUID().toString()
         lastIntent = intentKey to key
 
+        // #475/#274: what it came from, and whether the crew changed it.
+        // Compared once here rather than watched per keystroke.
+        val used = templateUse
         val request = resend?.copy(quiet_hours_confirmed = true) ?: ComposeBody(
             contact_id = selectedContact?.id,
             phone_e164 = if (selectedContact == null) rawE164 else null,
@@ -295,6 +300,8 @@ private fun NewConversationLoaded(
             body = bodyText,
             quiet_hours_confirmed = if (confirmedQuietHours) true else null,
             media = photos.takeIf { it.isNotEmpty() }?.map { it.toOutboundMedia() },
+            template_id = used?.templateId,
+            template_edited = if (used != null) used.body.trim() != bodyText.trim() else null,
         )
         dispatch(request, key)
     }
@@ -650,13 +657,16 @@ private fun NewConversationLoaded(
     if (templatePickerOpen) {
         TemplatePickerSheet(
             loadTemplates = { repo.templates(companyId).data },
-            onPick = { body ->
+            onPick = { body, templateId ->
                 templatePickerOpen = false
                 val current = composer.text
-                composer.onTextChange(
+                val next =
                     if (current.isEmpty()) body
-                    else current + (if (current.endsWith(" ")) "" else " ") + body,
-                )
+                    else current + (if (current.endsWith(" ")) "" else " ") + body
+                // #475: what the box holds AFTER the insert, so an append onto
+                // existing words is not later read as an edit.
+                templateUse = TemplateUse(templateId, next)
+                composer.onTextChange(next)
             },
             onDismiss = { templatePickerOpen = false },
         )

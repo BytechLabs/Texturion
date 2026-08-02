@@ -40,6 +40,8 @@ import { messageRoutes } from "./messages";
 
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
 const CONVERSATION_ID = "bbbbbbbb-0000-4000-8000-00000000000b";
+/** #475: the saved reply a send can say it came from. */
+const TEMPLATE_ID = "cccccccc-0000-4000-8000-00000000000c";
 const CONTACT_ID = "eeeeeeee-0000-4000-8000-00000000000e";
 const NUMBER_ID = "dddddddd-0000-4000-8000-00000000000d";
 const MESSAGE_ID = "aaaaaaaa-0000-4000-8000-00000000000a";
@@ -111,6 +113,8 @@ interface SendStubs {
   sign: Stub;
   companyPlan: Stub;
   optOuts: Stub;
+  /** #475: the template-use ledger RPC. */
+  templateUse: Stub;
   all: FetchRoute[];
 }
 
@@ -203,8 +207,12 @@ function sendStubs(options: {
   const numberAccess = stubRoute(rpcMatch(env, "member_number_levels"), () => []);
   // The pre-send gates end with the opt-out check; these fixtures are opted in.
   const optOuts = stubRoute(restMatch(env, "GET", "opt_outs"), () => []);
+  // #475: the template-use ledger. Stubbed for every send so the assertions
+  // below can count calls rather than infer them from an absence.
+  const templateUse = stubRoute(rpcMatch(env, "api_record_template_use"), () => null);
 
   return {
+    templateUse,
     conversationView,
     gateRpc,
     telnyx,
@@ -235,6 +243,7 @@ function sendStubs(options: {
       companyPlan.route,
       numberAccess.route,
       optOuts.route,
+      templateUse.route,
     ],
   };
 }
@@ -1661,5 +1670,86 @@ describe("GET /v1/conversations/:id/messages (§7)", () => {
       env,
     );
     expect(response.status).toBe(404);
+  });
+});
+
+describe("POST /v1/messages/send — #475 which saved reply produced this", () => {
+  it("records the use when the send names a template", async () => {
+    const stubs = sendStubs();
+    stubFetch(...stubs.all);
+
+    const response = await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "On our way!",
+      template_id: TEMPLATE_ID,
+    });
+    expect(response.status).toBe(201);
+    expect(stubs.templateUse.calls[0].body).toMatchObject({
+      p_template_id: TEMPLATE_ID,
+      p_edited: false,
+    });
+  });
+
+  it("carries whether the words were changed before sending", async () => {
+    // The more valuable half of the signal: a template edited every single
+    // time is a defect report nobody filed.
+    const stubs = sendStubs();
+    stubFetch(...stubs.all);
+
+    await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "On our way, about 25 minutes",
+      template_id: TEMPLATE_ID,
+      template_edited: true,
+    });
+    expect(stubs.templateUse.calls[0].body).toMatchObject({ p_edited: true });
+  });
+
+  it("writes nothing for an ordinary typed message", async () => {
+    // The common path, and it must cost nothing: no template, no ledger row,
+    // no round trip.
+    const stubs = sendStubs();
+    stubFetch(...stubs.all);
+
+    await postSend({ conversation_id: CONVERSATION_ID, body: "typed by hand" });
+    expect(stubs.templateUse.calls).toHaveLength(0);
+  });
+
+  it("still returns 201 when the bookkeeping itself fails", async () => {
+    // The line that matters. A send that reached the carrier must never be
+    // reported as failed because a counter did not increment — the customer
+    // got the message either way, and a 500 here would have the crew send it
+    // twice.
+    const stubs = sendStubs();
+    stubFetch(
+      ...stubs.all.filter((route) => route !== stubs.templateUse.route),
+      stubRoute(rpcMatch(env, "api_record_template_use"), () => {
+        throw new Error("ledger down");
+      }).route,
+    );
+
+    const response = await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "On our way!",
+      template_id: TEMPLATE_ID,
+    });
+    expect(response.status).toBe(201);
+    // And it really did send: the carrier call happened before the ledger.
+    expect(stubs.telnyx.calls).toHaveLength(1);
+  });
+
+  it("records only after the carrier accepted it", async () => {
+    // A use recorded for a message that never went would inflate the count of
+    // a template that is failing, which is exactly backwards.
+    const stubs = sendStubs();
+    stubFetch(...stubs.all);
+
+    await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "On our way!",
+      template_id: TEMPLATE_ID,
+    });
+    expect(stubs.telnyx.calls).toHaveLength(1);
+    expect(stubs.templateUse.calls).toHaveLength(1);
   });
 });

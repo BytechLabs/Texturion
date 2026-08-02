@@ -891,8 +891,13 @@ private struct ThreadBody: View {
             loadTemplates: { [repo = controller.repo, companyId = detail.company_id] in
                 try await repo.templates(companyId: companyId).data
             },
-            onSendText: { body, photos in
-                controller.sendText(body: body, photos: photos) {
+            onSendText: { body, photos, templateId, templateEdited in
+                controller.sendText(
+                    body: body,
+                    photos: photos,
+                    templateId: templateId,
+                    templateEdited: templateEdited
+                ) {
                     composer.restore(body: body, photos: photos, files: [])
                 }
             },

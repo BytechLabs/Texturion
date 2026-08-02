@@ -29,6 +29,10 @@ export interface ComposeInput {
    * FIRST-EVER text from this business twice — and billed twice.
    */
   idempotencyKey?: string;
+  /** #475: the saved reply this message was built from, if any. */
+  template_id?: string;
+  /** #274: whether the words changed after it was inserted. */
+  template_edited?: boolean;
 }
 
 export function useStartConversation() {

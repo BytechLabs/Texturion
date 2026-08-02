@@ -68,6 +68,7 @@ whatever the company-level policy says.
 | 10 | `port_requests`, `text_enablement_orders` | `restrict` → `phone_numbers` |
 | 11 | `contacts` | freed by step 8 |
 | 12 | `phone_numbers` | freed by steps 8 and 10 |
+| 13 | `template_uses` | cascades from `templates` and `companies`; batched explicitly (#475) so a high-volume ledger cannot stall the erasure inside one cascade |
 | 13 | `tags` | `conversation_tags` cascades from both sides |
 | 14 | `templates`, `invites`, `messaging_registrations`, `grace_notices`, `inbound_notification_days`, `usage_alerts`, `egress_events`, `audit_log`, `company_members`, and the 13 `cascade` tables | independent children; any order |
 | 15 | `companies` — **anonymised, not deleted** | see below |

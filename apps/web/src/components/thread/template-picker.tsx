@@ -49,7 +49,9 @@ export function TemplatePicker({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onInsert: (body: string) => void;
+  /** #475: the body AND which saved reply it came from, so the send can
+   *  say so. Nothing downstream can recover it from the text. */
+  onInsert: (body: string, templateId: string) => void;
   /** Anchor element the desktop popover positions against (the composer pill). */
   children?: React.ReactNode;
 }) {
@@ -91,7 +93,9 @@ export function TemplatePicker({
                 key={template.id}
                 value={`${template.name} ${template.body}`}
                 onSelect={() => {
-                  onInsert(template.body);
+                  // #475: the id rides along with the words, because after the
+                  // insert nothing can tell this body from a typed one.
+                  onInsert(template.body, template.id);
                   onOpenChange(false);
                 }}
               >

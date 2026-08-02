@@ -181,6 +181,30 @@ templatesRoutes.patch("/templates/:id", requireCapability("settings.manage"), as
   return c.json(rows[0]);
 });
 
+/**
+ * #475 — GET /v1/templates/usage: how much each saved reply is actually used.
+ *
+ * One query, which is what the issue asks for: the count, the edit count and
+ * the last-used date per template, deleted ones excluded. Everything the
+ * picker's sort and the "which of these is dead" question need.
+ *
+ * Member-readable rather than admin-only, matching the list itself. The sort
+ * order of somebody's own picker is not a permission, and a member who can see
+ * the templates can already see how many there are.
+ */
+templatesRoutes.get(
+  "/templates/usage",
+  requireCapability("conversations.read"),
+  async (c) => {
+    const db = getDb(getEnv(c.env));
+    const rows = unwrap<unknown[]>(
+      await db.rpc("api_template_usage", { p_company_id: c.get("companyId") }),
+      "template usage",
+    );
+    return c.json({ data: rows, next_cursor: null });
+  },
+);
+
 templatesRoutes.delete("/templates/:id", requireCapability("settings.manage"), async (c) => {
   const id = pathUuid(c, "id");
   const db = getDb(getEnv(c.env));

@@ -618,12 +618,30 @@ export function Composer({
     suggestionsWereShown.current = false;
     if (outcome) reportAiOutcome(companyId, "suggest_reply", outcome);
   };
-  const insertTemplate = (body: string) => {
-    setText((current) =>
-      current === ""
-        ? body
-        : `${current}${current.endsWith(" ") ? "" : " "}${body}`,
-    );
+  /**
+   * #475: which saved reply is in the box, and what it said when it arrived.
+   *
+   * The text is compared at SEND time rather than tracked on every keystroke:
+   * "did this end up different from the template" is the question #274 asks,
+   * and a keystroke listener would answer a noisier one (somebody who types a
+   * word and deletes it did not edit anything).
+   *
+   * Cleared when the box is emptied, because a template inserted, deleted, and
+   * replaced by typing did not produce the message that goes out.
+   */
+  const templateUse = useRef<{ id: string; body: string } | null>(null);
+
+  const insertTemplate = (body: string, templateId: string) => {
+    setText((current) => {
+      const next =
+        current === ""
+          ? body
+          : `${current}${current.endsWith(" ") ? "" : " "}${body}`;
+      // Record what the box holds AFTER the insert, so an append onto existing
+      // words is not later mistaken for an edit of the template.
+      templateUse.current = { id: templateId, body: next };
+      return next;
+    });
     textareaRef.current?.focus();
   };
 
@@ -744,11 +762,22 @@ export function Composer({
       signature,
     );
 
+    // #475/#274: what the send is, and whether the crew changed it. Compared
+    // once, here, rather than watched on every keystroke — the question is
+    // "did this go out different from the template", and somebody who typed a
+    // word and deleted it did not edit anything.
+    const used = templateUse.current;
+    const templateId = used !== null ? used.id : undefined;
+    const templateEdited = used !== null && used.body.trim() !== draftText.trim();
+
     send.mutate(
-      { body: draftText, media, idempotencyKey },
+      { body: draftText, media, idempotencyKey, templateId, templateEdited },
       {
         onSuccess: () => {
           lastFailedSendRef.current = null;
+          // The box is empty again, so whatever was inserted is spent. A
+          // template left attached would tag the NEXT message too.
+          templateUse.current = null;
           // #431: on success only. A draft that failed to send tells us nothing
           // about whether the crew found it useful, and counting it either way
           // would put network trouble into a quality measurement.

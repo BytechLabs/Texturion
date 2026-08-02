@@ -46,6 +46,10 @@ data class SendBody(
     val conversation_id: String,
     val body: String,
     val media: List<OutboundMedia>? = null,
+    /** #475: the saved reply this was built from, if any. */
+    val template_id: String? = null,
+    /** #274: whether the words changed after it was inserted. */
+    val template_edited: Boolean? = null,
 )
 
 /** POST /v1/conversations (outbound-first compose) request body. */
@@ -57,6 +61,10 @@ data class ComposeBody(
     val body: String,
     val quiet_hours_confirmed: Boolean? = null,
     val media: List<OutboundMedia>? = null,
+    /** #475: the saved reply this was built from, if any. */
+    val template_id: String? = null,
+    /** #274: whether the words changed after it was inserted. */
+    val template_edited: Boolean? = null,
 )
 
 /** POST /v1/conversations/:id/notes request body. */
@@ -408,9 +416,19 @@ class MessagingRepository(private val api: ApiClient) {
         body: String,
         media: List<OutboundMedia>?,
         idempotencyKey: String,
+        templateId: String? = null,
+        templateEdited: Boolean = false,
     ): Message = api.post(
         "/v1/messages/send",
-        SendBody(conversation_id = conversationId, body = body, media = media),
+        SendBody(
+            conversation_id = conversationId,
+            body = body,
+            media = media,
+            template_id = templateId,
+            // Omitted entirely without a template, so an ordinary typed send
+            // carries exactly the payload it always did.
+            template_edited = if (templateId != null) templateEdited else null,
+        ),
         companyId = companyId,
         idempotencyKey = idempotencyKey,
     )
