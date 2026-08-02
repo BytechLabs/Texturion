@@ -825,12 +825,16 @@ private struct ThreadBody: View {
         // #253: assigned as a local for the same type-checker reason as
         // `onCallInstead` below — a @MainActor closure literal needs its
         // contextual type, and this call site has exhausted the budget before.
+        // `detail.company_id` rather than a `companyId` of its own: this
+        // function has no such binding, and the conversation already carries
+        // the only workspace the report could possibly be about.
+        let reportCompanyId = detail.company_id
         let companyName = controller.company?.name
         let companyPlan = controller.company?.plan
         let reportBanner: @MainActor (ComposerBanner) -> Void = { banner in
             let kind = bannerKind(banner)
             guard let url = supportMailto(
-                companyId: companyId,
+                companyId: reportCompanyId,
                 companyName: companyName,
                 plan: companyPlan,
                 appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,

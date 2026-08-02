@@ -215,13 +215,26 @@ struct ThreadComposerView: View {
         return !state.text.isBlank || !state.photos.isEmpty
     }
 
+    /// #253: the report closure for one banner, built OUTSIDE the ViewBuilder.
+    ///
+    /// Two reasons it is a method rather than an inline `.map { … }`. A
+    /// @MainActor function type is implicitly @Sendable and inference through
+    /// `Optional.map` does not carry that contextual type into the closure
+    /// literal — the same trap ThreadView documents on `onCallInstead`. And a
+    /// `var` plus an `if` inside a ViewBuilder block is not a view, so the
+    /// obvious local-variable spelling does not compile at all.
+    private func reporter(for banner: ComposerBanner) -> (@MainActor () -> Void)? {
+        guard let onReportBanner else { return nil }
+        return { onReportBanner(banner) }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if let banner {
                 ComposerBannerCard(
                     banner: banner,
                     onCallInstead: onCallInstead,
-                    onReport: onReportBanner.map { report in { report(banner) } }
+                    onReport: reporter(for: banner)
                 )
             }
 
