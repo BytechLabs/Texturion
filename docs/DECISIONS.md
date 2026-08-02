@@ -6907,3 +6907,112 @@ character-filtered, and a landing path is stripped of any query string smuggled
 into it. This is the single enumerated exception to the web scrubber's rule that
 query strings are cut entirely — that rule exists because a query string can
 carry a contact's name or number, and the exception does not widen it.
+
+## D117 — D112's conclusion stands, its stated reasoning does not: capture is the trigger, not retention (#507, 2026-08-02)
+
+D112 declined live-call recording and named an AI call summary as the shape
+worth pursuing instead, on this reasoning, quoted verbatim:
+
+> No retained recording, so no consent announcement, no retention window, no
+> playback audit, and no new category of breach.
+
+**The conclusion survives. That sentence does not.** Four of its five clauses
+are wrong or already contradicted by our own published policy, and the one that
+matters most — "so no consent announcement" — is the clause the whole design
+rested on.
+
+### Capture is the trigger
+
+Every interception statute checked attaches its prohibition to the moment the
+contents are acquired. Retention is a separate, later duty that arises
+*because* an acquisition happened; it does not decide whether the acquisition
+was lawful.
+
+- 18 U.S.C. §2510(4) — "'intercept' means the **aural or other acquisition** of
+  the contents". Every state act is modelled on this definition.
+- RCW 9.73.030(1)(a) (Washington) — "to **intercept, or record**". Disjunctive.
+- M.G.L. c.272 §99(B)(4) (Massachusetts) — "'Interception' means to **secretly
+  hear**, secretly record." Hearing is the offence.
+- 720 ILCS 5/14-1(a) — the regulated device is one capable of "intercept, or
+  **transcribe**". Illinois names transcription in the definition itself.
+- Cal. Penal Code §631(a) — "**learn the contents or meaning** … while the same
+  is in transit".
+
+**Canada is worse for the claim than the US, not better.** Criminal Code s.183
+defines "intercept" to include "**acquire the substance, meaning or purport
+thereof**". A transcript and a summary *are* the substance and meaning, so
+discarding the audio does not move the artifact out of the definition — the
+thing we keep is squarely inside it.
+
+And the transient-processing argument has already been rejected on the record:
+PIPEDA Findings #2020-004 (Cadillac Fairview, 2020) ¶63 — "while we agree that
+the captured images were held in memory for a very short period, **that
+practice did represent a collection of personal information**."
+
+### Two further errors in the same sentence
+
+**"No retention window" was already false when it was written.**
+`legal/privacy/page.tsx` keeps call records for **seven years** and voicemail
+recordings for one, on the stated reasoning that "the transcript keeps what was
+said, while the recording is somebody's actual voice in their home". A
+live-call summary therefore discards a one-year artifact and creates a
+seven-year one covering the same conversation. Of the obligations D112 lists as
+avoided — export, deletion, retention, access, subprocessor disclosure — only
+the playback audit genuinely disappears. The rest attach to the transcript.
+
+**We are not a party to the call**, which D112 does not account for. That is the
+third-party-eavesdropper posture that survived motions to dismiss in *Ambriz v.
+Google* (N.D. Cal. 2025) and *Taylor v. ConverseNow* (N.D. Cal. 2025). Cal.
+Penal Code §637.2 provides $5,000 per violation without requiring actual
+damages. The feature may expose *us* to a category that a tradesperson
+recording their own call would not.
+
+### The announcement runs the opposite way to how D112 counted it
+
+D112 treated the consent announcement as an undisableable cost: "consent has to
+be an undisableable announcement on every call in both directions — which
+degrades the product for the 100% of calls that never become a dispute".
+
+**An undisableable announcement is the non-compliant design.** The OPC's
+*Recording of Customer Telephone Calls* guidance requires that a caller who
+objects be offered an alternative, and PIPEDA Sch. 1 cl. 4.3.3 bars
+conditioning service on consent beyond the legitimate purpose. There must be a
+route that reaches the crew with capture off.
+
+The area-code problem, conversely, dissolves. Once the answer is "announce
+everywhere", no location inference is required — the unreliability of area
+codes stops being a reason not to build and becomes the reason the announcement
+must be universal.
+
+### What we build, and it is the other way round
+
+**Phase 1 — the crew-dictated wrap-up.** After the call ends, the crew member
+speaks twenty seconds into their own device and Lou structures it into the
+thread: the quote, the commitment, the next step. One party, speaking
+knowingly, into their own handset, about a call that has ended. The customer's
+voice is never acquired, so none of the above applies. It reuses `runAiFeature`
+and the existing Whisper path, and it answers the dispute question D112
+correctly identifies as the real want.
+
+This ships first, and it may be enough — which is the same test #279 asked D112
+to apply to recording, applied one level down.
+
+**Phase 2 — the live-call summary — is a different feature with a different
+risk profile**, and is not authorised here. It needs a consent-to-intercept
+clause in the Terms (there is none today), per-leg announcement gated on
+`call.speak.ended` reusing the invariant at `calls/transitions.ts:821`,
+re-announcement on transfer, a genuine decline path, retained announcement
+evidence (RCW 9.73.030(3) names it explicitly), and no speaker diarization
+until the BIPA/CUBI voiceprint question is answered. Those are engineering.
+What is *not* engineering, and must be confirmed before it is enabled for one
+real company, is tracked on its issue.
+
+### What does not change
+
+Voicemail. `telnyx-record-start` still fires only on `speak-ended`, after our
+own greeting, with `play_beep: true` — a caller leaving a message at a machine,
+after being spoken to, is consenting by the plainest available conduct. That
+carve-out was well-founded and is untouched.
+
+D112's refusal to build a recordings library also stands, on its own terms and
+now on firmer ones.
