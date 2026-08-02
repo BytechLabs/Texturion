@@ -6426,6 +6426,13 @@ are measurable: the funnel events from #255 and the churn reasons from #277.
 which is the direction that needs no risk appetite to take; accepting it is the
 owner's call and is not made here.
 
+## Accepted risks carry a trigger
+
+A decision that knowingly accepts a risk records **what would make us look
+again** in `docs/ACCEPTED-RISKS.md`, not only what was accepted. Documentation
+makes a stale decision look deliberate, which is worse than an undocumented
+one — an undocumented one at least invites the question (#326).
+
 ## D111 — RCS is a change, not a rewrite, so we do not build the abstraction until there is a reason (#230, #450, 2026-08-02)
 
 **We do not abstract the message channel now.** #230 asked whether adding RCS
