@@ -33,7 +33,10 @@
  *        (created_at, id) DESC, default 50 max 100; message objects carry
  *        `attachments: [{ id, content_type, size_bytes }]`.
  */
-import { estimateSegments } from "@loonext/shared";
+import {
+  estimateSegments,
+  formatNanpNumber,
+} from "@loonext/shared";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
@@ -57,7 +60,10 @@ import {
   signedMediaUrls,
   uploadOutboundMedia,
 } from "../messaging/media";
-import { applySendMergeFields } from "../messaging/merge";
+import {
+  applySendMergeFields,
+  resolveSendMergeFields,
+} from "../messaging/merge";
 import {
   claimMessageRetry,
   dispatchOutbound,
@@ -163,6 +169,10 @@ interface ConversationSendView {
     id: string;
     phone_e164: string;
     name: string | null;
+    /** #274: the service address, for {address}. */
+    address: string | null;
+    /** #274: the contact's zone, so {job_day}/{job_time} read in THEIR day. */
+    timezone: string | null;
   };
   phone_numbers: { id: string; number_e164: string | null; status: string };
   companies: { id: string; name: string };
@@ -181,7 +191,9 @@ async function loadSendView(
       .from("conversations")
       .select(
         "id,contact_id,phone_number_id," +
-          "contacts(id,phone_e164,name)," +
+          // #274: address + timezone on a query already running, so
+          // {address} and the visit day/time cost nothing extra.
+          "contacts(id,phone_e164,name,address,timezone)," +
           "phone_numbers(id,number_e164,status)," +
           "companies(id,name)",
       )
@@ -324,9 +336,23 @@ messageRoutes.post("/messages/send", requireCapability("conversations.send"), as
   // (and to any saved-reply text the composer pasted in), reusing the contact +
   // company already loaded here — no extra query. Unknown/empty tokens degrade
   // cleanly. Runs BEFORE the segment estimate so it sees the substituted text.
+  //
+  // #274: the address and the reply-to number come free from what is already
+  // loaded here. {my_name} and the visit day/time each cost a read, so
+  // resolveSendMergeFields fetches them ONLY when the text asks — a message
+  // with no tokens, which is almost all of them, does no work at all.
+  const resolved = await resolveSendMergeFields(db, body.body, {
+    companyId,
+    conversationId: view.id,
+    userId: c.get("userId"),
+    timeZone: view.contacts.timezone ?? null,
+  });
   const merged = applySendMergeFields(body.body, {
     contactName: view.contacts.name,
     businessName: view.companies.name,
+    contactAddress: view.contacts.address,
+    ourNumber: formatNanpNumber(fromNumber),
+    ...resolved,
   });
 
   const text = merged;

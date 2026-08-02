@@ -65,6 +65,7 @@ export {
   lookupAreaCode,
   isUsCaDestination,
   destinationLocalHour,
+  formatNanpNumber,
   localHourInZone,
   NANP_TIMEZONES,
   type NanpCountry,
@@ -86,6 +87,7 @@ export {
 export {
   applyMergeFields,
   hasMergeFields,
+  mergeFieldsNeeded,
   MERGE_FIELD_TOKENS,
   type MergeFieldToken,
   type MergeFieldValues,

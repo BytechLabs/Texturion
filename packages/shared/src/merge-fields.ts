@@ -6,9 +6,24 @@
  *  - the WEB composer/template preview (so what the owner sees is exactly what
  *    ships).
  *
- * Supported tokens (case-sensitive, curly-brace delimited):
+ * Supported tokens (curly-brace delimited, matched case-insensitively):
  *   {first_name}     — the first whitespace-delimited token of the contact name.
  *   {business_name}  — the company name.
+ *   {address}        — the contact's service address (#274).
+ *   {my_name}        — the crew member sending it (#274).
+ *   {our_number}     — the workspace number to reply to, formatted (#274).
+ *   {job_day}        — the day of the next scheduled visit, e.g. "Tuesday".
+ *   {job_time}       — the time of it, e.g. "2:00 PM".
+ *
+ * #274 added the last five. The two originals covered the greeting and nothing
+ * else, so a crew's most-repeated messages — "on my way to {address}",
+ * "confirming {job_day} at {job_time}" — were still typed by hand every time.
+ *
+ * WHY THESE FIVE AND NOT MORE. Every one resolves from something the product
+ * already holds. A token whose value does not exist yet would render as nothing
+ * forever, which is worse than its absence: the picker would promise a
+ * substitution that never happens, and the graceful-degradation contract would
+ * hide the fact that it never happens.
  *
  * DEGRADE GRACEFULLY (Step 0a): an unknown token, or a supported token whose
  * value is null/empty, is dropped CLEANLY — the literal `{first_name}` never
@@ -23,12 +38,35 @@ export interface MergeFieldValues {
   contactName?: string | null;
   /** Company name → {business_name}. */
   businessName?: string | null;
+  /** #274: the contact's service address → {address}. */
+  contactAddress?: string | null;
+  /** #274: the sending crew member's display name → {my_name}. */
+  senderName?: string | null;
+  /**
+   * #274: the workspace number to reply to → {our_number}.
+   *
+   * Pre-formatted by the caller, through `formatNanpNumber` in this same
+   * package. It is pre-formatted rather than formatted here so this module
+   * stays a pure substituter — but it goes through ONE shared function,
+   * because the number lands inside a customer's message and a preview
+   * formatted differently from the wire defeats the point of previewing.
+   */
+  ourNumber?: string | null;
+  /** #274: the day of the next scheduled visit → {job_day}, e.g. "Tuesday". */
+  jobDay?: string | null;
+  /** #274: the time of it → {job_time}, e.g. "2:00 PM". */
+  jobTime?: string | null;
 }
 
 /** The literal tokens this substituter understands. */
 export const MERGE_FIELD_TOKENS = [
   "first_name",
   "business_name",
+  "address",
+  "my_name",
+  "our_number",
+  "job_day",
+  "job_time",
 ] as const;
 
 export type MergeFieldToken = (typeof MERGE_FIELD_TOKENS)[number];
@@ -56,6 +94,19 @@ function resolveToken(token: string, values: MergeFieldValues): string {
       return firstName(values.contactName);
     case "business_name":
       return (values.businessName ?? "").trim();
+    case "address":
+      // #274: one line, whatever the contact stored. Newlines are collapsed
+      // because this lands mid-sentence ("on my way to {address}") and a
+      // multi-line address there would break the message in two.
+      return (values.contactAddress ?? "").replace(/\s*\n+\s*/g, ", ").trim();
+    case "my_name":
+      return firstName(values.senderName);
+    case "our_number":
+      return (values.ourNumber ?? "").trim();
+    case "job_day":
+      return (values.jobDay ?? "").trim();
+    case "job_time":
+      return (values.jobTime ?? "").trim();
     default:
       // Unknown token: drop it (never render the literal braces).
       return "";
@@ -118,4 +169,31 @@ export function hasMergeFields(text: string): boolean {
   const result = TOKEN_PATTERN.test(text);
   TOKEN_PATTERN.lastIndex = 0;
   return result;
+}
+
+/**
+ * #274 — which supported tokens `text` actually uses.
+ *
+ * Exists so a caller can resolve ONLY what a message asks for. Three of the new
+ * tokens cost a read to resolve ({my_name} needs the member, {job_day} and
+ * {job_time} need the conversation's next visit), and paying for those on every
+ * send — the overwhelming majority of which carry no tokens at all — would be a
+ * tax on the common path for a feature used by a minority of messages.
+ *
+ * Returns supported tokens only. An unknown token is dropped by
+ * applyMergeFields and needs nothing fetched for it.
+ */
+export function mergeFieldsNeeded(text: string): Set<MergeFieldToken> {
+  const found = new Set<MergeFieldToken>();
+  if (!text.includes("{")) return found;
+  const supported = new Set<string>(MERGE_FIELD_TOKENS);
+  TOKEN_PATTERN.lastIndex = 0;
+  let match = TOKEN_PATTERN.exec(text);
+  while (match !== null) {
+    const token = match[1].toLowerCase();
+    if (supported.has(token)) found.add(token as MergeFieldToken);
+    match = TOKEN_PATTERN.exec(text);
+  }
+  TOKEN_PATTERN.lastIndex = 0;
+  return found;
 }

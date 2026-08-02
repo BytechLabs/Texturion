@@ -612,3 +612,22 @@ export function destinationLocalHour(e164: string, atUtc: Date): number | null {
   if (!entry || !entry.geographic) return null;
   return localHourInZone(entry.timezone, atUtc);
 }
+
+/**
+ * #274 — a NANP number as a person reads it: "(415) 555-0142".
+ *
+ * Lives here because {our_number} puts a phone number INSIDE a customer's text
+ * message, which makes its formatting a product fact rather than a display
+ * choice. The clients preview that message and the server sends it; if they
+ * formatted it separately the preview would eventually stop matching the wire,
+ * and the whole point of previewing a merge field is that it does not.
+ *
+ * Anything that is not a +1 ten-digit number is returned untouched. A number we
+ * cannot parse is still a number somebody can dial, and mangling it would be
+ * worse than leaving it plain.
+ */
+export function formatNanpNumber(e164: string): string {
+  const match = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(e164);
+  if (!match) return e164;
+  return `(${match[1]}) ${match[2]}-${match[3]}`;
+}

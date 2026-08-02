@@ -27,6 +27,7 @@
 import {
   appendIdentification,
   estimateSegments,
+  formatNanpNumber,
   shouldIdentify,
 } from "@loonext/shared";
 import { Hono } from "hono";
@@ -47,7 +48,10 @@ import {
   uploadOutboundMedia,
 } from "../messaging/media";
 import { resolveDestinationClock } from "../messaging/destination-clock";
-import { applySendMergeFields } from "../messaging/merge";
+import {
+  applySendMergeFields,
+  resolveSendMergeFields,
+} from "../messaging/merge";
 import {
   dispatchOutbound,
   gateOutboundSend,
@@ -122,6 +126,10 @@ interface ContactRow {
   consent_source: string | null;
   /** #393: non-null means this contact has already been identified to. */
   first_identification_sent_at: string | null;
+  /** #274: the service address, for {address}. */
+  address: string | null;
+  /** #274: the contact's zone, so {job_day}/{job_time} read in THEIR day. */
+  timezone: string | null;
 }
 
 type Db = ReturnType<typeof getDb>;
@@ -144,8 +152,12 @@ async function resolveComposeContact(
     phoneE164?: string;
   },
 ): Promise<ContactRow> {
+  // #274: address + timezone ride along on a query already running, so
+  // {address} and the visit day/time cost nothing extra here. ONE string
+  // literal, not a concatenation — PostgREST infers the row shape from the
+  // literal type, and joining two pieces widens it to `string` and loses it.
   const columns =
-    "id,phone_e164,name,consent_source,first_identification_sent_at";
+    "id,phone_e164,name,consent_source,first_identification_sent_at,address,timezone";
 
   if (args.contactId) {
     const rows = unwrap<ContactRow[]>(
@@ -542,9 +554,24 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
   // Step 0a merge-fields: applied server-side at SEND time, reusing the contact
   // + company already loaded here (no extra query). Unknown/empty tokens degrade
   // cleanly. Runs BEFORE the estimate.
+  //
+  // #274: same contract as the reply path. A brand-new conversation has no
+  // tasks yet, so {job_day}/{job_time} will resolve to nothing and drop — which
+  // is correct and is exactly what graceful degradation is for.
+  const resolved = await resolveSendMergeFields(db, body.body, {
+    companyId,
+    // The row is a Record<string, unknown> here, like every other read of
+    // it in this handler (see the `as string` casts below).
+    conversationId: conversation.id as string,
+    userId: c.get("userId"),
+    timeZone: contact.timezone ?? null,
+  });
   const merged = applySendMergeFields(body.body, {
     contactName: contact.name,
     businessName: company.name,
+    contactAddress: contact.address ?? null,
+    ourNumber: formatNanpNumber(number.number_e164),
+    ...resolved,
   });
 
   // #393 first-message identification: appended HERE, after merge fields and

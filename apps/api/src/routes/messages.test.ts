@@ -79,6 +79,8 @@ function sendView(overrides: Partial<{
   phone_e164: string;
   number_status: string;
   contact_name: string | null;
+  /** #274: the service address behind {address}. */
+  contactAddress: string | null;
 }> = {}) {
   return {
     id: CONVERSATION_ID,
@@ -88,6 +90,11 @@ function sendView(overrides: Partial<{
       id: CONTACT_ID,
       phone_e164: overrides.phone_e164 ?? "+16135551000",
       name: overrides.contact_name ?? null,
+      address:
+        "contactAddress" in overrides
+          ? overrides.contactAddress
+          : "18 Rosewood Ave",
+      timezone: "America/Toronto",
     },
     phone_numbers: {
       id: NUMBER_ID,
@@ -115,6 +122,10 @@ interface SendStubs {
   optOuts: Stub;
   /** #475: the template-use ledger RPC. */
   templateUse: Stub;
+  /** #274: the member read behind {my_name}. */
+  memberLookup: Stub;
+  /** #274: the next-visit read behind {job_day}/{job_time}. */
+  taskLookup: Stub;
   all: FetchRoute[];
 }
 
@@ -210,9 +221,20 @@ function sendStubs(options: {
   // #475: the template-use ledger. Stubbed for every send so the assertions
   // below can count calls rather than infer them from an absence.
   const templateUse = stubRoute(rpcMatch(env, "api_record_template_use"), () => null);
+  // #274: the two reads {my_name} and {job_day}/{job_time} need. Counted, so a
+  // test can assert they DID NOT happen for an ordinary message.
+  const memberLookup = stubRoute(
+    restMatch(env, "GET", "company_members"),
+    () => [{ display_name: "Sam Okafor" }],
+  );
+  const taskLookup = stubRoute(restMatch(env, "GET", "tasks"), () => [
+    { due_at: "2026-08-04T18:00:00.000Z" },
+  ]);
 
   return {
     templateUse,
+    memberLookup,
+    taskLookup,
     conversationView,
     gateRpc,
     telnyx,
@@ -244,6 +266,8 @@ function sendStubs(options: {
       numberAccess.route,
       optOuts.route,
       templateUse.route,
+      memberLookup.route,
+      taskLookup.route,
     ],
   };
 }
@@ -1751,5 +1775,109 @@ describe("POST /v1/messages/send — #475 which saved reply produced this", () =
     });
     expect(stubs.telnyx.calls).toHaveLength(1);
     expect(stubs.templateUse.calls).toHaveLength(1);
+  });
+});
+
+describe("POST /v1/messages/send — #274 the tokens that do real work", () => {
+  it("resolves the address and the reply-to number from what is already loaded", async () => {
+    const stubs = sendStubs();
+    stubFetch(...stubs.all);
+
+    await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "On my way to {address}. Reply here or call {our_number}.",
+    });
+
+    // The substituted text is what reaches the gate, the meter and the carrier.
+    const sent = stubs.telnyx.calls[0].body as { text: string };
+    expect(sent.text).toContain("18 Rosewood Ave");
+    // The fixture number, through the ONE shared formatter both the
+    // preview and the wire use.
+    expect(sent.text).toContain("(613) 555-0100");
+    expect(sent.text).not.toContain("{");
+  });
+
+  it("costs nothing extra for a message with no tokens", async () => {
+    // The whole design of resolveSendMergeFields. Three of the new tokens need
+    // a read, and the overwhelming majority of sends carry no tokens at all —
+    // paying for them on every send would tax the common path for a minority
+    // feature.
+    const stubs = sendStubs();
+    stubFetch(...stubs.all);
+
+    await postSend({ conversation_id: CONVERSATION_ID, body: "On our way!" });
+    expect(stubs.memberLookup.calls).toHaveLength(0);
+    expect(stubs.taskLookup.calls).toHaveLength(0);
+  });
+
+  it("reads the member ONLY when the text signs off with {my_name}", async () => {
+    const stubs = sendStubs();
+    stubFetch(...stubs.all);
+
+    await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "On our way - {my_name}",
+    });
+    expect(stubs.memberLookup.calls).toHaveLength(1);
+    // Still no visit lookup: that token was not asked for.
+    expect(stubs.taskLookup.calls).toHaveLength(0);
+    expect((stubs.telnyx.calls[0].body as { text: string }).text).toBe(
+      "On our way - Sam",
+    );
+  });
+
+  it("reads the next visit ONLY when the text asks when we are coming", async () => {
+    const stubs = sendStubs();
+    stubFetch(...stubs.all);
+
+    await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "Confirming {job_day} at {job_time}",
+    });
+    expect(stubs.taskLookup.calls).toHaveLength(1);
+    const sent = (stubs.telnyx.calls[0].body as { text: string }).text;
+    expect(sent).not.toContain("{");
+    expect(sent.startsWith("Confirming ")).toBe(true);
+  });
+
+  it("sends the message even when a token lookup fails", async () => {
+    // A merge field that cannot be resolved drops cleanly by design, so a
+    // failed read must cost a token and never a send.
+    const stubs = sendStubs();
+    // A 500 from PostgREST rather than a thrown stub: that is what the failure
+    // actually looks like from the Worker's side, and it is the path `unwrap`
+    // turns into the error resolveSendMergeFields swallows.
+    stubFetch(
+      ...stubs.all.filter((route) => route !== stubs.memberLookup.route),
+      stubRoute(
+        restMatch(env, "GET", "company_members"),
+        () => new Response("members down", { status: 500 }),
+      ).route,
+    );
+
+    const response = await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "On our way - {my_name}",
+    });
+    expect(response.status).toBe(201);
+    // The token dropped, and the punctuation closed up behind it.
+    expect((stubs.telnyx.calls[0].body as { text: string }).text).toBe(
+      "On our way -",
+    );
+  });
+
+  it("drops a token whose value the workspace simply does not have", async () => {
+    // A contact with no address on file. The customer must never see a literal
+    // brace, and the sentence has to still read.
+    const stubs = sendStubs({ view: sendView({ contactAddress: null }) });
+    stubFetch(...stubs.all);
+
+    await postSend({
+      conversation_id: CONVERSATION_ID,
+      body: "On my way to {address}.",
+    });
+    expect((stubs.telnyx.calls[0].body as { text: string }).text).toBe(
+      "On my way to.",
+    );
   });
 });
