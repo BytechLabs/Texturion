@@ -1,5 +1,6 @@
 package com.loonext.android.features.notifications
 
+import com.loonext.android.ui.common.RefreshBox
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -36,9 +37,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -113,7 +111,6 @@ fun NotificationsScreen(
     var loadingMore by remember(companyId) { mutableStateOf(false) }
     var refreshKey by remember(companyId) { mutableStateOf(0) }
     var refreshing by remember(companyId) { mutableStateOf(false) }
-    val pullState = rememberPullToRefreshState()
 
     // #201: the mark bookkeeping (in-flight POSTs, per-item reads, watermark)
     // lives on the graph, not in composition. Tapping a row navigates away
@@ -367,18 +364,10 @@ fun NotificationsScreen(
                 onRetry = { refreshKey++ },
             )
 
-            is LoadState.Ready -> PullToRefreshBox(
+            is LoadState.Ready -> RefreshBox(
                 isRefreshing = refreshing,
                 onRefresh = ::manualRefresh,
-                state = pullState,
                 modifier = Modifier.fillMaxSize(),
-                indicator = {
-                    PullToRefreshDefaults.LoadingIndicator(
-                        state = pullState,
-                        isRefreshing = refreshing,
-                        modifier = Modifier.align(Alignment.TopCenter),
-                    )
-                },
             ) {
                 Column(
                     Modifier

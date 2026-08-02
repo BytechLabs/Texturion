@@ -1,5 +1,6 @@
 package com.loonext.android.features.contacts
 
+import com.loonext.android.ui.common.RefreshBox
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -52,9 +53,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -200,7 +198,6 @@ private fun ContactListScreen(
     var debouncedQ by remember(companyId) { mutableStateOf("") }
     var loadingMore by remember(companyId) { mutableStateOf(false) }
     var refreshing by remember(companyId) { mutableStateOf(false) }
-    val pullState = rememberPullToRefreshState()
 
     var createOpen by remember { mutableStateOf(false) }
     // #459: the phone's own address book, shown as its own group below the
@@ -543,18 +540,10 @@ private fun ContactListScreen(
                             )
                         }
                     } else {
-                        PullToRefreshBox(
+                        RefreshBox(
                             isRefreshing = refreshing,
                             onRefresh = ::manualRefresh,
-                            state = pullState,
                             modifier = Modifier.fillMaxSize(),
-                            indicator = {
-                                PullToRefreshDefaults.LoadingIndicator(
-                                    state = pullState,
-                                    isRefreshing = refreshing,
-                                    modifier = Modifier.align(Alignment.TopCenter),
-                                )
-                            },
                         ) {
                             LazyColumn(
                                 Modifier.fillMaxSize(),

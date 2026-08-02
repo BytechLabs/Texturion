@@ -1,5 +1,6 @@
 package com.loonext.android.features.foryou
 
+import com.loonext.android.ui.common.RefreshBox
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -30,7 +31,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -245,7 +245,7 @@ fun ForYouTab(
         // queue-card grammar, not a spinner.
         is LoadState.Loading -> ForYouSkeleton(modifier)
         is LoadState.Failed -> CenteredError(current.message, onRetry = { refreshKey++ }, modifier)
-        is LoadState.Ready -> PullToRefreshBox(
+        is LoadState.Ready -> RefreshBox(
             isRefreshing = pullRefreshing,
             onRefresh = {
                 haptics.tick()

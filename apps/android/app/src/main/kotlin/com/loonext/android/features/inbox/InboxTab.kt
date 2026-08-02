@@ -1,5 +1,6 @@
 package com.loonext.android.features.inbox
 
+import com.loonext.android.ui.common.RefreshBox
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.BorderStroke
@@ -62,7 +63,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -1124,7 +1124,7 @@ private fun InboxList(
                             onRetry = { controller.reload(showLoading = true) },
                         )
 
-                        is LoadState.Ready -> PullToRefreshBox(
+                        is LoadState.Ready -> RefreshBox(
                             isRefreshing = controller.refreshing,
                             onRefresh = {
                                 haptics.tick()

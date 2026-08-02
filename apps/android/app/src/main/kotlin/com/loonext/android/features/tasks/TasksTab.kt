@@ -1,5 +1,6 @@
 package com.loonext.android.features.tasks
 
+import com.loonext.android.ui.common.RefreshBox
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -53,7 +54,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -476,7 +476,7 @@ private fun TaskListScreen(
             } else {
                 // Pull-to-refresh IS the refreshKey bump — the manual refresh
                 // affordance for list, board, and calendar.
-                PullToRefreshBox(
+                RefreshBox(
                     isRefreshing = pullRefreshing,
                     onRefresh = {
                         haptics.tick()

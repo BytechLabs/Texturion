@@ -1,5 +1,6 @@
 package com.loonext.android.features.calls
 
+import com.loonext.android.ui.common.RefreshBox
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import androidx.compose.animation.AnimatedContent
@@ -40,9 +41,6 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -364,21 +362,11 @@ fun CallsScreen(
                     )
                 }
             }
-
-            val pullState = rememberPullToRefreshState()
-            PullToRefreshBox(
+            RefreshBox(
                 isRefreshing = refreshing,
                 onRefresh = {
                     refreshing = true
                     refreshKey++
-                },
-                state = pullState,
-                indicator = {
-                    PullToRefreshDefaults.LoadingIndicator(
-                        state = pullState,
-                        isRefreshing = refreshing,
-                        modifier = Modifier.align(Alignment.TopCenter),
-                    )
                 },
                 modifier = Modifier
                     .fillMaxWidth()
