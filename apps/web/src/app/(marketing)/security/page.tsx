@@ -212,6 +212,51 @@ export default function SecurityPage() {
         </div>
       </FrSection>
 
+      {/* #285 items 2 and 5. Both are things a procurement form asks by name,
+          and both were absent — which for a buyer is indistinguishable from a
+          bad answer. What we hold and what we do not are stated together on
+          purpose: a clear "no certification" next to a real commitment is
+          something buyers routinely accept, and the failure mode is not the
+          gap itself but discovering it after assuming otherwise.
+          *Applying: G10 — system states must be precise.* */}
+      <FrSection ground="white">
+        <div className="grid max-w-3xl gap-6 sm:grid-cols-2">
+          <FrCard className="p-6">
+            <h2 className="fr-h3 text-[color:var(--fr-ink)]">
+              If there is ever a breach
+            </h2>
+            <p className="fr-body mt-3 text-[color:var(--fr-ink-70)]">
+              We will tell you. If a breach of security safeguards creates a
+              real risk of significant harm, PIPEDA and Law&nbsp;25 require us
+              to notify the affected people and the regulators as soon as
+              feasible, and we treat that as a floor rather than a target: our
+              commitment is to notify affected workspaces{" "}
+              <strong>within 72 hours of confirming</strong> a breach, with what
+              we know at that point rather than waiting for a complete picture.
+              Where we are a processor for your data, we notify you and you
+              notify your own customers. The timeline above is when you hear
+              from us.
+            </p>
+          </FrCard>
+          <FrCard className="p-6">
+            <h2 className="fr-h3 text-[color:var(--fr-ink)]">
+              What we do not have
+            </h2>
+            <p className="fr-body mt-3 text-[color:var(--fr-ink-70)]">
+              No SOC&nbsp;2, no ISO&nbsp;27001, and no third-party penetration
+              test. Saying so is the point: those take a company larger than
+              this one, and a page that implied otherwise would be the least
+              trustworthy thing on it. What stands in their place is everything
+              above, specific and checkable and true today, plus a public
+              sub-processor list and a repository anybody can read. If a
+              certification is a hard requirement for you, we are not there yet,
+              and we would rather you learn that here than three weeks into a
+              procurement.
+            </p>
+          </FrCard>
+        </div>
+      </FrSection>
+
       <FrSection ground="white">
         <FrCard well className="max-w-3xl p-6 sm:p-8">
           <h2 className="fr-h3 text-[color:var(--fr-ink)]">
@@ -224,8 +269,12 @@ export default function SecurityPage() {
             </SecLink>{" "}
             with the details and steps to reproduce. Please give us a reasonable
             chance to fix the issue before disclosing it publicly, and don&apos;t
-            access or modify data that isn&apos;t yours while testing.
-            We&apos;ll acknowledge your report and keep you posted on the fix.
+            access or modify data that isn&apos;t yours while testing. We
+            acknowledge every report{" "}
+            <strong>within two business days</strong> and tell you what we
+            intend to do about it; you will hear from a person, not a form.
+            There is no bounty. Saying so up front is fairer than letting you
+            find out after the work.
           </p>
         </FrCard>
       </FrSection>
