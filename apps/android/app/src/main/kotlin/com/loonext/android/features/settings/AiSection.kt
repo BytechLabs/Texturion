@@ -190,6 +190,32 @@ fun AiSection(scope: SettingsScope) {
                     )
                 }
                 Spacer(Modifier.height(12.dp))
+                // #507. Its own card, between replying and voicemail, because
+                // that is where it falls in a day: the customer was answered,
+                // the phone call happened, and this is the minute after it.
+                SettingsCard(title = "After you hang up") {
+                    LabeledSwitchRow(
+                        label = "Let Lou write down your wrap-up",
+                        // Says exactly whose voice and for how long, because
+                        // that is the question a crew asks about a microphone
+                        // in a work app, and because it is the honest answer
+                        // (D117): the call itself is never recorded, and the
+                        // phone-call audio never reaches us at all.
+                        supporting = "Hold the microphone in the note box and say what was " +
+                            "agreed — the quote, the promise, the next step. Lou writes your " +
+                            "words down for you to check and post as an internal note. It " +
+                            "hears only you, on your own phone, after the call has ended: " +
+                            "never the call and never the customer. The recording is deleted " +
+                            "as soon as the words come back, and nothing is posted until you " +
+                            "post it.",
+                        checked = settings.call_wrapup,
+                        enabled = canEdit,
+                        onCheckedChange = { checked ->
+                            toggle(settings, settings.copy(call_wrapup = checked))
+                        },
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
                 SettingsCard(title = "When someone leaves a voicemail") {
                     LabeledSwitchRow(
                         label = "Let Lou write voicemails down",

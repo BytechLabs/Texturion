@@ -58,6 +58,7 @@ struct SettingsRepository: Sendable {
         suggestReplies: Bool,
         transcribeVoicemail: Bool,
         voicemailIntake: Bool,
+        callWrapup: Bool,
         businessDescription: String? = nil
     ) async throws -> CompanyAiSettings {
         var body: [String: JSONValue] = [
@@ -69,6 +70,11 @@ struct SettingsRepository: Sendable {
             // "leave it alone", so a client that dropped this could turn the
             // greeting on and never be able to turn it back off.
             "voicemail_intake": .bool(voicemailIntake),
+            // #507: same argument — absent means "leave it alone", so a save
+            // that dropped this could turn dictation off and never turn it on.
+            // Required rather than defaulted for the same reason: a new call
+            // site has to say what it means to do with it.
+            "call_wrapup": .bool(callWrapup),
         ]
         // Omitted leaves whatever is stored; an empty string clears it. A
         // toggle save must never wipe the description as a side effect.

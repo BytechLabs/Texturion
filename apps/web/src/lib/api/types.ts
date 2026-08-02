@@ -783,6 +783,16 @@ export interface CompanyAiSettings {
    * reads.
    */
   voicemail_intake: boolean;
+  /**
+   * #507: whether a crew member can DICTATE a post-call wrap-up instead of
+   * typing it. Off leaves the note composer exactly as it is — the words were
+   * always typeable, this only decides whether they can be spoken.
+   *
+   * Their own voice, about a call that has ENDED. Never the customer's, never
+   * the call itself; D117 is why that distinction is load-bearing rather than
+   * decorative, and no copy attached to this flag may blur it.
+   */
+  call_wrapup: boolean;
 }
 
 /** POST /v1/conversations/:id/reply-suggestions — up to three reviewed drafts. */

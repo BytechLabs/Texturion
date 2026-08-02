@@ -245,6 +245,51 @@ export default function AiSettingsPage() {
               />
             </div>
           </SettingsCard>
+          {/* #507/D117. Placed directly after the voicemail card on purpose:
+              that one IS the caller's voice, and this one is emphatically not.
+              Read together the difference is obvious; read apart, "Lou and
+              phone calls" blurs into one thing, and the blurred version is a
+              claim we listen to calls — which is false.
+              *Applying: Chunking — the call-adjacent toggles read as one group,
+              and the group is where the distinction has to be legible.* */}
+          <SettingsCard title="After a call ends">
+            <div className="flex items-start justify-between gap-4">
+              {/* Two rungs, not one: the label and what it does are a heading
+                  and its subheading (0.5), and the sentence about whose voice
+                  it is stands apart (2) because it is a different KIND of
+                  claim — a boundary, not a description.
+                  *Applying: Relationship Strength — spacing carries the
+                  grouping, and neither gap is eyeballed.* */}
+              <div className="space-y-2">
+                <div className="space-y-0.5">
+                  <Label htmlFor="ai-wrapup" className="text-sm font-medium">
+                    Let Lou write down your wrap-up
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Press the mic in the note box and say what happened &mdash;
+                    &ldquo;quoted him $2,400 for the tank, parts Thursday,
+                    he&rsquo;s confirming with his wife&rdquo;. Lou writes your
+                    words down exactly as you said them, for you to check and
+                    post as an internal note.
+                  </p>
+                </div>
+                {/* Scoped, not absolute — voicemail does record a caller's
+                    voice, so "never records a customer" would be false. */}
+                <p className="text-sm text-muted-foreground">
+                  It records <strong className="font-medium">your</strong>{" "}
+                  voice, after the call has ended. The call itself is never
+                  recorded — voicemail a caller leaves at the beep is a separate
+                  thing, covered in Privacy.
+                </p>
+              </div>
+              <Switch
+                id="ai-wrapup"
+                checked={settings.data.call_wrapup}
+                disabled={!canEdit || update.isPending}
+                onCheckedChange={(checked) => toggle("call_wrapup", checked)}
+              />
+            </div>
+          </SettingsCard>
           {!canEdit && (
             <p className="text-sm text-muted-foreground">
               Only owners and admins can change these.

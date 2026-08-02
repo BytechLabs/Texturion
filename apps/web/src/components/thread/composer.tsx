@@ -58,6 +58,13 @@ import {
   suggestionFailureMessage,
   useReplySuggestions,
 } from "@/lib/api/reply-suggestions";
+import {
+  useWrapUpTranscript,
+  wrapUpFailureMessage,
+  wrapUpOutcome,
+  WRAP_UP_MAX_BYTES,
+  WRAP_UP_MAX_SECONDS,
+} from "@/lib/api/wrap-up-transcript";
 import { AiOrb } from "@/components/ui/ai-orb";
 import {
   Dialog,
@@ -108,6 +115,8 @@ import {
   type PickedMention,
 } from "./mentions";
 import { TemplatePicker } from "./template-picker";
+import { useWrapUpRecorder } from "./use-wrap-up-recorder";
+import { WrapUpButton, WrapUpStrip } from "./wrap-up-dictation";
 
 export interface DraftAttachment {
   id: string;
@@ -516,6 +525,10 @@ export function Composer({
   // nothing about this one.
   useEffect(() => {
     setDraftStartedAt(null);
+    // #507: likewise a dictation. Carrying the snapshot across would report an
+    // outcome for THIS thread's note about words spoken into another one.
+    wrapUpInsert.current = null;
+    setWrapUpError(null);
   }, [conversationId]);
   const textareaRef = useAutoGrow(text);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -671,6 +684,107 @@ export function Composer({
   };
 
   /**
+   * #507 Phase 1 — the wrap-up a crew member speaks after hanging up.
+   *
+   * They press the mic, say "quoted him $2,400 for the tank, parts Thursday,
+   * he's confirming with his wife", and those words land HERE, in the note box,
+   * for them to check and post. It is their own voice about a call that has
+   * ended — never the call, never the customer (D117).
+   *
+   * The transcript is a suggestion like every other AI output in this product:
+   * it goes into the existing note composer and out through the existing note
+   * route, so mentions, permissions, search and push all keep working and there
+   * is no second way to write a note.
+   *
+   * NOT GATED ON THE COMPANY TOGGLE HERE, deliberately. Reading
+   * /company/ai-settings would put a request on every thread open (queries go
+   * stale in 30s) to pre-hide a control that is on by default. The server
+   * answers `disabled` and the strip says so in a sentence — the same shape
+   * reply drafting already uses.
+   */
+  const wrapUp = useWrapUpTranscript(conversationId);
+  const [wrapUpError, setWrapUpError] = useState<string | null>(null);
+  /**
+   * What the box held either side of the dictation, so #431 can tell "posted as
+   * written" from "corrected first" from "thrown away". Two snapshots rather
+   * than the transcript text, because a wrap-up is appended to whatever was
+   * already typed — see wrapUpOutcome.
+   */
+  const wrapUpInsert = useRef<{ before: string; after: string } | null>(null);
+
+  const recorder = useWrapUpRecorder({
+    maxSeconds: WRAP_UP_MAX_SECONDS,
+    maxBytes: WRAP_UP_MAX_BYTES,
+    onAudio: (audio, seconds) => {
+      setWrapUpError(null);
+      wrapUp.mutate(
+        { audio, seconds },
+        {
+          onSuccess: (result) => {
+            // Every failure below leaves them exactly where they were: this
+            // composer, with a keyboard and whatever they had already typed.
+            if (result.text === null) {
+              setWrapUpError(wrapUpFailureMessage(result.reason));
+              textareaRef.current?.focus();
+              return;
+            }
+            const transcript = result.text;
+            // Somebody can flip to Text while the words are coming back, and
+            // the draft box is shared between the two modes — so land them back
+            // where the dictation belongs rather than dropping a private
+            // wrap-up into a message addressed to the customer.
+            setMode("note");
+            setText((current) => {
+              // Appended on a new line rather than joined with a space: a
+              // wrap-up is two or three sentences, and running them onto the
+              // end of a half-typed line produces something nobody meant.
+              const next =
+                current.trim() === ""
+                  ? transcript
+                  : `${current.replace(/[ \t]+$/, "")}\n${transcript}`;
+              // Written from inside the updater so the snapshot is of what the
+              // box ACTUALLY held: transcription takes seconds, and people keep
+              // typing while it runs.
+              wrapUpInsert.current = { before: current, after: next };
+              return next;
+            });
+            textareaRef.current?.focus();
+          },
+          onError: (error) => {
+            setWrapUpError(
+              error instanceof ApiError
+                ? error.message
+                : "Couldn't send that recording. Check your connection, or type the note.",
+            );
+            textareaRef.current?.focus();
+          },
+        },
+      );
+    },
+  });
+
+  const { recording: isRecording, cancel: cancelRecording } = recorder;
+  // The mic belongs to note mode. Flipping to a customer reply while it is open
+  // would leave a recording running with nothing on screen saying so, and an
+  // invisible open microphone is the exact impression this feature can never
+  // give. Cancelling costs nothing: no upload, no spend.
+  useEffect(() => {
+    if (!isNote && isRecording) cancelRecording();
+  }, [isNote, isRecording, cancelRecording]);
+
+  const startDictation = () => {
+    setWrapUpError(null);
+    void recorder.start();
+  };
+
+  const cancelDictation = () => {
+    recorder.cancel();
+    recorder.clearError();
+    setWrapUpError(null);
+    textareaRef.current?.focus();
+  };
+
+  /**
    * #408: has a teammate answered this customer since the draft was begun?
    *
    * Derived from the cached thread rather than a new subscription. The
@@ -735,6 +849,14 @@ export function Composer({
         );
         return;
       }
+
+      // #431: only on success, and only once — same rule as the reply drafts
+      // above. A note that failed to save says nothing about whether the words
+      // Lou wrote down were any good, and counting it either way would put
+      // network trouble into a quality measurement.
+      const dictated = wrapUpOutcome(wrapUpInsert.current, draftText);
+      wrapUpInsert.current = null;
+      if (dictated) reportAiOutcome(companyId, "call_wrapup", dictated);
 
       // Pure-UI bit — safe to skip after unmount (ref is null then).
       textareaRef.current?.focus();
@@ -834,6 +956,8 @@ export function Composer({
     createNote,
     noteStage,
     uploadNoteFiles,
+    // #507: the wrap-up outcome is reported against this company.
+    companyId,
   ]);
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1021,6 +1145,22 @@ export function Composer({
           className="mx-auto max-w-[42rem] px-1 pb-2"
         />
       )}
+      {/* #507: the same slot Lou's reply drafts use in text mode, so the
+          composer swaps what is in one region rather than growing another.
+          Renders nothing at rest. */}
+      {isNote && (
+        <WrapUpStrip
+          recording={recorder.recording}
+          transcribing={wrapUp.isPending}
+          seconds={recorder.seconds}
+          maxSeconds={WRAP_UP_MAX_SECONDS}
+          // The recorder's own failures (no MediaRecorder, a blocked mic, a
+          // dead device) and the server's (off, over cap, nothing usable) read
+          // the same way to the person: one sentence, one place.
+          error={recorder.error ?? wrapUpError}
+          onCancel={cancelDictation}
+        />
+      )}
       {/* The elevated composer CARD (mockup .composer): a white card with the
           panel shadow + hairline, constrained to the 42rem reading track. */}
       <div
@@ -1182,6 +1322,15 @@ export function Composer({
                   Attach up to {MAX_ATTACHMENTS_PER_OWNER} files, 25 MB each
                 </TooltipContent>
               </Tooltip>
+              {/* #507: dictating the wrap-up sits beside attaching a photo of
+                  it — the same cluster, the same weight, both "add what just
+                  happened to this note". */}
+              <WrapUpButton
+                recording={recorder.recording}
+                transcribing={wrapUp.isPending}
+                onStart={startDictation}
+                onStop={recorder.stop}
+              />
             </div>
             <input
               ref={noteFileRef}

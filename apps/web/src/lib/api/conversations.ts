@@ -719,7 +719,15 @@ export type AiOutcome = "used" | "edited" | "discarded";
  * spend does, so "enrich_task" — which reads better than the ledger's "enrich" —
  * would open a second row and separate cost from value permanently.
  */
-export type AiOutcomeFeature = "suggest_reply" | "enrich" | "voicemail_transcript";
+export type AiOutcomeFeature =
+  | "suggest_reply"
+  | "enrich"
+  | "voicemail_transcript"
+  // #507: the crew member's dictated wrap-up. It is here — and the voicemail
+  // transcript above it reports nothing from a client — for one reason: this
+  // one is HANDED OVER for review, so what a person did with it is visible.
+  // That is the argument for returning text instead of posting the note.
+  | "call_wrapup";
 
 export function reportAiOutcome(
   companyId: string,

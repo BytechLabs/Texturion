@@ -152,6 +152,9 @@ final class AiEnrichmentTests: XCTestCase {
         XCTAssertTrue(settings.enrich_task_address)
         XCTAssertTrue(settings.enrich_task_due)
         XCTAssertTrue(settings.suggest_replies)
+        // #507: the wrap-up switch follows the same rule (the voicemail intake
+        // is the one deliberate exception, pinned in VoicemailIntakeTests).
+        XCTAssertTrue(settings.call_wrapup)
         XCTAssertTrue(settings.anyEnabled)
     }
 

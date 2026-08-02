@@ -139,6 +139,7 @@ import com.loonext.android.features.compose.DraftSuggestionsCache
 import com.loonext.android.features.compose.Nanp
 import com.loonext.android.features.compose.NoteFileUploader
 import com.loonext.android.features.compose.ThreadComposer
+import com.loonext.android.features.compose.WrapUpTranscriber
 import com.loonext.android.features.compose.rememberComposerState
 import com.loonext.android.features.compose.selectComposerBanner
 import com.loonext.android.features.compose.usSendApproved
@@ -377,6 +378,13 @@ private fun ThreadLoaded(
     val detail = controller.conversation ?: return
     val names = remember(controller.members) { memberNames(controller.members) }
     val contactName = detail.contact.name ?: formatPhone(detail.contact.phone_e164)
+
+    // #507: the wrap-up a crew member speaks into their own phone after a call
+    // has ended. Multipart, so it goes through its own small client for the
+    // same reason NoteFileUploader above does — ApiClient speaks JSON bodies.
+    val wrapUpTranscriber = remember(graph) {
+        WrapUpTranscriber(graph.api, BuildConfig.API_URL)
+    }
 
     // #234: deleting a queued message throws away words the person wrote and
     // that nothing else holds — the draft is long gone by then. Confirming is
@@ -1033,6 +1041,12 @@ private fun ThreadLoaded(
             onNotice = onNotice,
             suggestReplies = { draft ->
                 graph.aiRepo.suggestReplies(companyId, detail.id, draft)
+            },
+            // #507: the words come back for the member to read and edit; the
+            // note itself is still written by the Save button below, through
+            // the one note route that owns mentions, permissions and search.
+            transcribeWrapUp = { audio, seconds ->
+                wrapUpTranscriber.transcribe(companyId, detail.id, audio, seconds)
             },
             // #431: fire-and-forget on its own coroutine. A slow or failed
             // outcome report must never delay or fail the send it describes.

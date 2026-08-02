@@ -144,6 +144,7 @@ class AiRepositoryTest {
                 suggest_replies = true,
                 transcribe_voicemail = false,
                 voicemail_intake = true,
+                call_wrapup = false,
             ),
         )
         val recorded = server.takeRequest()
@@ -156,11 +157,28 @@ class AiRepositoryTest {
         // the one where the omission would be worst — the server reads an absent
         // field as "leave it alone", so a client that dropped it could never
         // turn the greeting back off.
+        //
+        // #507: call_wrapup joins them, and it is the same trap — it defaults
+        // to ON, so a client that dropped the field could never turn dictation
+        // off for a workspace that asked for it off.
         assertEquals(
             """{"enrich_task_address":true,"enrich_task_due":true,"suggest_replies":true,""" +
-                """"transcribe_voicemail":false,"voicemail_intake":true}""",
+                """"transcribe_voicemail":false,"voicemail_intake":true,"call_wrapup":false}""",
             recorded.body?.utf8(),
         )
+    }
+
+    @Test
+    fun `call wrapup defaults on when the server has never said otherwise`() = runTest {
+        // #507: the server's DEFAULT_AI_SETTINGS has call_wrapup true, and a row
+        // that predates the column decodes with the field absent. An absent
+        // field must resolve the same way the server would resolve it —
+        // defaulting to false here would silently hide the microphone from
+        // every workspace that never touched the setting.
+        server.enqueue(
+            MockResponse(body = """{"enrich_task_address":true,"enrich_task_due":true}"""),
+        )
+        assertTrue(aiRepo.getAiSettings("c1").call_wrapup)
     }
 
     @Test

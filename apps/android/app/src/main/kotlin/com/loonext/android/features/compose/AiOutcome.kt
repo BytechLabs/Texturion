@@ -23,6 +23,28 @@ object AiOutcome {
     const val FEATURE_SUGGEST_REPLY = "suggest_reply"
     const val FEATURE_ENRICH = "enrich"
     const val FEATURE_VOICEMAIL_TRANSCRIPT = "voicemail_transcript"
+    const val FEATURE_CALL_WRAPUP = "call_wrapup"
+
+    /**
+     * What happened to a dictated wrap-up.
+     *
+     * The server's own spec says this is the whole reason the route hands back
+     * text instead of writing the note itself — a suggestion somebody reads can
+     * be measured, and a note written straight to the thread cannot. Not
+     * reporting it would leave the ledger recording what the feature COST with
+     * nothing about whether it was worth anything.
+     *
+     * `posted` is false when the member threw the words away without saving,
+     * which is the discard case. Otherwise it is whether the text that was
+     * saved still matches what came back.
+     */
+    fun forWrapUp(dictated: String, posted: Boolean, saved: String): String {
+        if (!posted) return DISCARDED
+        // Same whitespace-insensitivity as forDraft: the composer trims on
+        // save, and counting a trailing newline as an edit would inflate
+        // "corrected first" with a difference nobody made.
+        return if (saved.trim() == dictated.trim()) USED else EDITED
+    }
 
     /**
      * What happened to a reply Lou drafted.

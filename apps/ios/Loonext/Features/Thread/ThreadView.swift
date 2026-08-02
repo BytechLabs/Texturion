@@ -891,6 +891,42 @@ private struct ThreadBody: View {
             else { return nil }
             return match.display_name
         }
+        // #507: hold the mic in the note box, say what was agreed, get the
+        // words back to check and post. Offered to anyone who reaches this
+        // composer at all — both number levels may post a note, and #315
+        // read-only never gets a composer.
+        //
+        // Whether the WORKSPACE wants it is left to the server: it answers
+        // `disabled` with copy that names the setting, which beats a client
+        // that hides the control and explains nothing (and beats fetching AI
+        // settings on every thread open to decide).
+        //
+        // Built as a LOCAL with an explicit type before the view expression,
+        // for the reason `onCallInstead` gives above — this call site has run
+        // the Swift type checker out of budget before.
+        let wrapUpUploader = MultipartClient(
+            api: graph.api,
+            sessionStore: graph.sessionStore
+        )
+        let wrapUpCompanyId = detail.company_id
+        let wrapUpConversationId = detail.id
+        let wrapUpDictation = WrapUpDictationContext(
+            // D117: never while a call still holds the line. `peek` rather
+            // than `get` — a member who has never opened a calls surface has
+            // no softphone, and asking the question must not build one.
+            callInProgress: {
+                guard let manager = CallsManager.peek() else { return false }
+                return !manager.state.liveCalls.isEmpty
+            },
+            transcribe: { audio, seconds in
+                await wrapUpUploader.wrapUpTranscript(
+                    companyId: wrapUpCompanyId,
+                    conversationId: wrapUpConversationId,
+                    audio: audio,
+                    seconds: seconds
+                )
+            }
+        )
         let duplicateReply = DuplicateReplyContext(
             // A note reaches no customer, so it is not a collision: the whole
             // harm here is the CUSTOMER receiving two answers.
@@ -974,7 +1010,10 @@ private struct ThreadBody: View {
                 conversationId: detail.id,
                 lastActivityAt: detail.last_message_at
             ),
-            destinationClock: detail.destination_clock
+            destinationClock: detail.destination_clock,
+            // Last, matching its declaration position on the view — a SwiftUI
+            // memberwise initialiser takes its arguments in that order.
+            wrapUp: wrapUpDictation
         )
     }
 }

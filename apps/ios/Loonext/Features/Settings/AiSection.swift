@@ -66,7 +66,8 @@ struct AiSectionView: View {
                                 due: settings.enrich_task_due,
                                 replies: settings.suggest_replies,
                                 transcribe: settings.transcribe_voicemail,
-                                intake: settings.voicemail_intake
+                                intake: settings.voicemail_intake,
+                                wrapup: settings.call_wrapup
                             )
                         }
                     )
@@ -84,7 +85,8 @@ struct AiSectionView: View {
                                 due: $0,
                                 replies: settings.suggest_replies,
                                 transcribe: settings.transcribe_voicemail,
-                                intake: settings.voicemail_intake
+                                intake: settings.voicemail_intake,
+                                wrapup: settings.call_wrapup
                             )
                         }
                     )
@@ -148,7 +150,8 @@ struct AiSectionView: View {
                             due: settings.enrich_task_due,
                             replies: $0,
                             transcribe: settings.transcribe_voicemail,
-                            intake: settings.voicemail_intake
+                            intake: settings.voicemail_intake,
+                            wrapup: settings.call_wrapup
                         )
                     }
                 )
@@ -168,7 +171,8 @@ struct AiSectionView: View {
                             due: settings.enrich_task_due,
                             replies: settings.suggest_replies,
                             transcribe: $0,
-                            intake: settings.voicemail_intake
+                            intake: settings.voicemail_intake,
+                            wrapup: settings.call_wrapup
                         )
                     }
                 )
@@ -194,7 +198,43 @@ struct AiSectionView: View {
                             due: settings.enrich_task_due,
                             replies: settings.suggest_replies,
                             transcribe: settings.transcribe_voicemail,
-                            intake: $0
+                            intake: $0,
+                            wrapup: settings.call_wrapup
+                        )
+                    }
+                )
+            }
+
+            // #507/D117. Its own card rather than a row under voicemail: the
+            // two share a microphone and nothing else, and filing them together
+            // is the arrangement most likely to leave somebody thinking this
+            // one reaches the caller.
+            //
+            // The supporting copy is doing real work. It names the moment (the
+            // call is over), whose voice it is (yours), what starts it (a
+            // button you hold) and what it will not do (the call itself). Any
+            // of those left out is a sentence a member could read as "Loonext
+            // hears my calls", which would be false — and this card is exactly
+            // where somebody who believed that would come looking.
+            SettingsCard(title: "After you hang up") {
+                LabeledToggleRow(
+                    label: "Let Lou write down your wrap-up",
+                    supporting: "Hold the mic in the note box and say what was "
+                        + "agreed \u{2014} \u{201C}quoted him $2,400 for the tank, "
+                        + "parts Thursday\u{201D}. Lou writes your words down as you "
+                        + "said them, for you to check and post as an internal note. "
+                        + "It hears only you, only when you hold the button, and "
+                        + "never the call itself.",
+                    isOn: settings.call_wrapup,
+                    enabled: canEdit && !saving,
+                    onChange: {
+                        save(
+                            address: settings.enrich_task_address,
+                            due: settings.enrich_task_due,
+                            replies: settings.suggest_replies,
+                            transcribe: settings.transcribe_voicemail,
+                            intake: settings.voicemail_intake,
+                            wrapup: $0
                         )
                     }
                 )
@@ -241,6 +281,7 @@ struct AiSectionView: View {
                     suggestReplies: previous.suggest_replies,
                     transcribeVoicemail: previous.transcribe_voicemail,
                     voicemailIntake: previous.voicemail_intake,
+                    callWrapup: previous.call_wrapup,
                     businessDescription: next
                 )
                 state = .ready(saved)
@@ -258,7 +299,8 @@ struct AiSectionView: View {
         due: Bool,
         replies: Bool,
         transcribe: Bool,
-        intake: Bool
+        intake: Bool,
+        wrapup: Bool
     ) {
         guard case .ready(let previous) = state else { return }
         state = .ready(
@@ -268,7 +310,8 @@ struct AiSectionView: View {
                 suggest_replies: replies,
                 business_description: previous.business_description,
                 transcribe_voicemail: transcribe,
-                voicemail_intake: intake
+                voicemail_intake: intake,
+                call_wrapup: wrapup
             )
         )
         saving = true
@@ -280,7 +323,8 @@ struct AiSectionView: View {
                     enrichDue: due,
                     suggestReplies: replies,
                     transcribeVoicemail: transcribe,
-                    voicemailIntake: intake
+                    voicemailIntake: intake,
+                    callWrapup: wrapup
                 )
                 state = .ready(saved)
             } catch {

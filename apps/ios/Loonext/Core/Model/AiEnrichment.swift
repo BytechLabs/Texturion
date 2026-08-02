@@ -83,6 +83,19 @@ struct CompanyAiSettings: Codable, Sendable {
     /// own name. So an absent or lagging field must decode to OFF — the opposite
     /// of the rule the rest of this struct follows, and deliberately.
     @Default<DefaultFalse> var voicemail_intake: Bool
+    /// #507/D117: write down the wrap-up a crew member SPEAKS after hanging up
+    /// — their own voice, about a call that has already ended.
+    ///
+    /// Back to the true default the rest of this struct follows, and for the
+    /// reason D89 gives for making the intake the exception: nothing here
+    /// reaches a stranger. The words are the member's own, and they read and
+    /// edit them before they become a note.
+    ///
+    /// The `@Default` wrapper only supplies a DECODING fallback, so the
+    /// memberwise init below carries the `true` a second time. Both are load
+    /// bearing: one for a lagging server, one for a caller building a settings
+    /// value by hand.
+    @Default<DefaultTrue> var call_wrapup: Bool
 
     init(
         enrich_task_address: Bool,
@@ -90,7 +103,8 @@ struct CompanyAiSettings: Codable, Sendable {
         suggest_replies: Bool = true,
         business_description: String? = nil,
         transcribe_voicemail: Bool = true,
-        voicemail_intake: Bool = false
+        voicemail_intake: Bool = false,
+        call_wrapup: Bool = true
     ) {
         self.enrich_task_address = enrich_task_address
         self.enrich_task_due = enrich_task_due
@@ -98,6 +112,7 @@ struct CompanyAiSettings: Codable, Sendable {
         self.business_description = business_description
         self.transcribe_voicemail = transcribe_voicemail
         self.voicemail_intake = voicemail_intake
+        self.call_wrapup = call_wrapup
     }
 
     /// Any enrichment on → the make-task sheet should call /tasks/enrich.

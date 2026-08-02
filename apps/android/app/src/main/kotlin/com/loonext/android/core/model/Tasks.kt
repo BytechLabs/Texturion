@@ -238,6 +238,15 @@ data class CompanyAiSettings(
      * what a stranger hears when they ring, in the business's own name.
      */
     val voicemail_intake: Boolean = false,
+    /**
+     * #507: after a call ends, the crew member holds a button on their own
+     * phone and says what was agreed; Lou writes their words down for them to
+     * check and post as a note.
+     *
+     * Their own voice, about a call that has ENDED — never the call, never the
+     * customer. D117 is why that line is the whole design and not a detail.
+     */
+    val call_wrapup: Boolean = true,
 )
 
 /** Matches the column's CHECK constraint (migration 20260724120000). */

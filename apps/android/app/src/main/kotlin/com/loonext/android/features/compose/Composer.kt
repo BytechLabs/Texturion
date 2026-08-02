@@ -1,6 +1,8 @@
 package com.loonext.android.features.compose
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -12,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -41,6 +44,7 @@ import androidx.compose.material.icons.outlined.ContactPage
 import androidx.compose.material.icons.outlined.Description as DescriptionOutlined
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.InsertDriveFile
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Videocam
@@ -56,21 +60,26 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -99,6 +108,7 @@ import com.loonext.android.ui.theme.BrandColor
 import java.io.ByteArrayOutputStream
 import java.util.Locale
 import kotlin.math.abs
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -334,6 +344,17 @@ fun ThreadComposer(
     /** Ask for AI-drafted replies. Null hides the affordance entirely. */
     suggestReplies: (suspend (draft: String) -> ReplySuggestions)? = null,
     /**
+     * #507: write down a wrap-up the member speaks after a call has ended, so
+     * the words can be checked and posted as an internal note. Their own voice,
+     * on their own phone, about a call that is over — never the call, never the
+     * customer (D117).
+     *
+     * Null hides the microphone entirely: a compose screen with no conversation
+     * behind it yet has nowhere to send the audio, and an affordance that only
+     * ever fails is worse than no affordance.
+     */
+    transcribeWrapUp: (suspend (audio: ByteArray, seconds: Int) -> WrapUpTranscript)? = null,
+    /**
      * #431: report what happened to one of Lou's drafts — sent as written, sent
      * after changes, or shown and not used. Enum only; the draft's words never
      * leave the device for this. Null skips the measurement (a screen with no
@@ -407,6 +428,149 @@ fun ThreadComposer(
      */
     var pickedSuggestion by remember { mutableStateOf<String?>(null) }
     var suggestionsWereShown by remember { mutableStateOf(false) }
+
+    // ----------------------------------------------------------------------
+    // #507: the dictated wrap-up.
+    //
+    // Hoisted here rather than kept inside the button because two places show
+    // it — the counter line above the pill and the microphone inside it — and
+    // a member holding a button needs to see the clock, not just the icon
+    // under their thumb.
+    // ----------------------------------------------------------------------
+    var wrapUpPhase by remember { mutableStateOf(WrapUpPhase.Idle) }
+    var wrapUpElapsed by remember { mutableIntStateOf(0) }
+    /** The last words Lou wrote down, until the note carrying them is saved. */
+    var wrapUpDictated by remember { mutableStateOf<String?>(null) }
+    val wrapUpRecorder = remember(context) { WrapUpRecorder(context) }
+    // The one teardown the gesture cannot do for itself: a back press or a
+    // rotation mid-hold cancels the pointer coroutine before it ever reaches
+    // its release, and the whole promise of this feature is that no audio is
+    // left behind. Deleting here covers every way out of the composition.
+    DisposableEffect(wrapUpRecorder) {
+        onDispose { wrapUpRecorder.discard() }
+    }
+
+    // Leaving note mode mid-hold. The mic button and the recording counter both
+    // live inside the note branch, so when `isNote` flips false they leave the
+    // composition — taking away the only control that stops the recording AND
+    // the only thing on screen saying one is running. The microphone stays
+    // open with nothing to show for it, which is precisely the impression this
+    // feature cannot afford to give.
+    //
+    // `isNote` is not only the mode pill: `textBlocked` forces it true while a
+    // banner is up, so a banner clearing underneath a member who is mid-hold
+    // flips it with no gesture at all.
+    LaunchedEffect(isNote) {
+        if (!isNote && wrapUpPhase != WrapUpPhase.Idle) {
+            withContext(Dispatchers.IO) { wrapUpRecorder.discard() }
+            wrapUpPhase = WrapUpPhase.Idle
+            wrapUpElapsed = 0
+        }
+    }
+
+    val finishWrapUp: () -> Unit = {
+        if (wrapUpPhase == WrapUpPhase.Recording) {
+            // Moved out of Recording before the disk work rather than after, so
+            // a second press cannot start a recording on top of this one. A
+            // hold too short to be a wrap-up passes through this state in a few
+            // milliseconds, which is below the threshold of anything visible.
+            wrapUpPhase = WrapUpPhase.Sending
+            scope.launch {
+                // stop() and the read both touch the disk, and this runs the
+                // instant a finger lifts — off the main thread so the release
+                // does not stutter.
+                val finished = withContext(Dispatchers.IO) { wrapUpRecorder.finish() }
+                if (finished !is WrapUpFinish.Ready) {
+                    // A brush of the button is silent on purpose — a sentence
+                    // after every mis-tap is noise, and nothing was spent. A
+                    // recorder that BROKE is not the same event: somebody
+                    // watched the counter tick and is owed an explanation.
+                    if (finished is WrapUpFinish.Failed) {
+                        onNotice(
+                            "That recording was lost — something else may have " +
+                                "taken the microphone. Try again, or type the note.",
+                        )
+                    }
+                    wrapUpPhase = WrapUpPhase.Idle
+                } else {
+                    val recording = finished.recording
+                    val written = try {
+                        transcribeWrapUp?.invoke(recording.audio, recording.seconds)
+                    } catch (e: CancellationException) {
+                        throw e // the screen went away; nothing to say to nobody
+                    } catch (cause: Exception) {
+                        // The server's own sentence, not a reason string: a
+                        // refused capability or a dead session says something
+                        // truer than "couldn't write that down".
+                        onNotice(cause.userMessage())
+                        null
+                    }
+                    wrapUpPhase = WrapUpPhase.Idle
+                    val words = written?.text?.trim().orEmpty()
+                    if (written != null && words.isEmpty()) {
+                        onNotice(wrapUpDictationMessage(written.reason))
+                    } else if (words.isNotEmpty()) {
+                        // The draft is shared between the two modes, and a
+                        // wrap-up dictated into the note box must never surface
+                        // in a box addressed to the customer — so if the mode
+                        // moved while Lou was writing, it moves back. The words
+                        // were spoken for a note.
+                        if (state.mode != ComposerMode.Note) state.mode = ComposerMode.Note
+                        // Remembered so the save can say whether these words
+                        // went out as spoken or were corrected first.
+                        wrapUpDictated = words
+                        // Into the box, NEVER straight onto the thread. Every
+                        // AI output in this product is a suggestion somebody
+                        // reads and edits first, and the note route the Save
+                        // button already uses stays the only way a note is
+                        // written. Appended, so words typed while it was
+                        // thinking survive.
+                        val current = state.text
+                        val joiner =
+                            if (current.isEmpty() ||
+                                current.endsWith(" ") ||
+                                current.endsWith("\n")
+                            ) "" else " "
+                        state.onTextChange(current + joiner + words)
+                        haptics.tap()
+                    }
+                }
+            }
+        }
+    }
+
+    // The cap, enforced where the member can see it: the counter stops at two
+    // minutes and the recording is sent rather than thrown away, because two
+    // minutes of somebody talking is content. MediaRecorder holds the same
+    // ceiling itself — a missed tick must not leave a microphone open.
+    LaunchedEffect(wrapUpPhase) {
+        if (wrapUpPhase != WrapUpPhase.Recording) return@LaunchedEffect
+        while (wrapUpPhase == WrapUpPhase.Recording) {
+            wrapUpElapsed = wrapUpRecorder.elapsedSeconds()
+            if (wrapUpElapsed >= WrapUpDictation.MAX_SECONDS) {
+                finishWrapUp()
+                break
+            }
+            delay(WRAP_UP_TICK_MS)
+        }
+    }
+
+    val micPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        // Nothing is recorded either way: answering a system dialog means the
+        // button was released, and there is no hold left to record. Both
+        // sentences therefore say what to do next, and both leave the member in
+        // the note box with a keyboard.
+        onNotice(
+            if (granted) {
+                "Microphone allowed. Hold it and say what the call was about."
+            } else {
+                "Loonext needs the microphone to write down a spoken wrap-up. Type the " +
+                    "note instead, or allow it in Settings › Apps › Loonext › Permissions."
+            },
+        )
+    }
 
     val askForSuggestions: () -> Unit = {
         val ask = suggestReplies
@@ -507,6 +671,20 @@ fun ThreadComposer(
         if (isNote) {
             val files = state.files
             val mentionIds = MentionLogic.resolveMentions(body, state.picked)
+            // #431/#507: what became of the dictation. The server's spec says
+            // this is the whole reason the route hands back text rather than
+            // writing the note itself — a suggestion somebody reads can be
+            // measured. Reported only when there WAS one, so an ordinary typed
+            // note is not counted as a rejection of a wrap-up that never
+            // happened.
+            val dictated = wrapUpDictated
+            if (dictated != null) {
+                reportAiOutcome?.invoke(
+                    AiOutcome.FEATURE_CALL_WRAPUP,
+                    AiOutcome.forWrapUp(dictated, posted = true, saved = body),
+                )
+                wrapUpDictated = null
+            }
             state.clearForSend()
             onSaveNote(body, files, mentionIds)
         } else {
@@ -698,6 +876,30 @@ fun ThreadComposer(
             )
         }
 
+        // #507: the clock, where the words will land rather than under the
+        // thumb that is covering the button. Present ONLY while something is
+        // happening — a line that sat there all day would be furniture, which
+        // is the same reasoning theirTimeLine above it follows.
+        if (isNote && wrapUpPhase != WrapUpPhase.Idle) {
+            val recording = wrapUpPhase == WrapUpPhase.Recording
+            Text(
+                if (recording) {
+                    "Say what the call was about — " +
+                        "${WrapUpDictation.elapsedLabel(wrapUpElapsed)}. " +
+                        "Let go when you're done."
+                } else {
+                    "Writing your words down…"
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = if (recording) {
+                    NoteAmber.ink()
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp),
+            )
+        }
+
         // Mode colors crossfade (#185) so a swipe reads as one smooth turn of
         // the pill, not a hard repaint.
         val pillBg by animateColorAsState(
@@ -810,6 +1012,54 @@ fun ThreadComposer(
                         Icons.Filled.AttachFile,
                         contentDescription = "Attach files to this note",
                         tint = NoteAmber.ink(),
+                    )
+                }
+
+                // #507. In the row beside the paperclip rather than behind a
+                // menu, for the reason Lou's orb is: somebody who has just hung
+                // up and is standing at a truck will type the note before they
+                // will find a two-tap affordance.
+                if (transcribeWrapUp != null) {
+                    WrapUpMicButton(
+                        phase = wrapUpPhase,
+                        onStart = suspend {
+                            val granted = context.checkSelfPermission(
+                                Manifest.permission.RECORD_AUDIO,
+                            ) == PackageManager.PERMISSION_GRANTED
+                            when {
+                                // Asked at the point of use, never on arrival:
+                                // the microphone makes sense here and nowhere
+                                // else in a messaging screen.
+                                !granted -> {
+                                    micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                                    false
+                                }
+                                // A mic held by a live call, or an OEM that
+                                // refuses the encoder. Says so and stops —
+                                // there is still a keyboard.
+                                //
+                                // Off the main thread: prepare() writes a file
+                                // header and start() blocks until the audio
+                                // source opens, which is a couple of hundred
+                                // milliseconds on a mid-range phone and would
+                                // otherwise be a stutter under the finger.
+                                !withContext(Dispatchers.IO) { wrapUpRecorder.start() } -> {
+                                    onNotice(
+                                        "Couldn't start the microphone. Something else may be " +
+                                            "using it — type the note instead.",
+                                    )
+                                    false
+                                }
+
+                                else -> {
+                                    haptics.tap()
+                                    wrapUpElapsed = 0
+                                    wrapUpPhase = WrapUpPhase.Recording
+                                    true
+                                }
+                            }
+                        },
+                        onFinish = finishWrapUp,
                     )
                 }
             }
@@ -1205,6 +1455,79 @@ private fun ModePill(
             .padding(horizontal = 12.dp, vertical = 6.dp),
     )
 }
+
+/** #507: what the microphone in the note box is doing right now. */
+private enum class WrapUpPhase { Idle, Recording, Sending }
+
+/** How often the held-button counter redraws. Four ticks a second reads as live. */
+private const val WRAP_UP_TICK_MS = 250L
+
+/**
+ * #507: hold to say what the call was about.
+ *
+ * HOLD, not tap-to-start/tap-to-stop, and the reason is not taste. The cost
+ * posture in `apps/api/src/ai/call-wrapup.ts` rests on this feature being
+ * "bounded by a person deliberately holding a button" — a toggle can be left
+ * running in a pocket, and that is exactly the runaway the two-minute cap
+ * exists to catch rather than to rely on.
+ *
+ * Built from a Box rather than an IconButton because IconButton owns its own
+ * tap gesture, and a press/release pair has to reach us instead of being
+ * consumed. The size is Material's minimum touch target, which is also what the
+ * paperclip beside it measures, so the two read as one row.
+ */
+@Composable
+private fun WrapUpMicButton(
+    phase: WrapUpPhase,
+    /** Begin. False means nothing started (permission asked for, mic refused). */
+    onStart: suspend () -> Boolean,
+    onFinish: () -> Unit,
+) {
+    val sending = phase == WrapUpPhase.Sending
+    Box(
+        modifier = Modifier
+            .size(WRAP_UP_TOUCH_TARGET)
+            .clip(CircleShape)
+            .pointerInput(sending) {
+                // Nothing to hold while Lou is still writing the last one down.
+                if (sending) return@pointerInput
+                detectTapGestures(
+                    onPress = {
+                        if (!onStart()) return@detectTapGestures
+                        // False here is a cancelled gesture (a scroll stole the
+                        // pointer), which still has to end the recording — the
+                        // audio must never outlive the finger.
+                        tryAwaitRelease()
+                        onFinish()
+                    },
+                )
+            }
+            // One description for the control in every phase: TalkBack reads
+            // the instruction, and the counter line above the pill carries the
+            // state in words rather than in a colour.
+            .semantics { contentDescription = "Hold to say what the call was about" },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (sending) {
+            // THE AI mark, and only here: the microphone is a recorder, but
+            // turning speech into words is Lou.
+            AiOrb(state = AiOrbState.Thinking)
+        } else {
+            Icon(
+                Icons.Outlined.Mic,
+                contentDescription = null,
+                tint = if (phase == WrapUpPhase.Recording) {
+                    NoteAmber.ink()
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+    }
+}
+
+/** Material's minimum touch target — the size IconButton lays itself out at. */
+private val WRAP_UP_TOUCH_TARGET = 48.dp
 
 /**
  * Removable staged-media previews above the pill (#189): images keep their

@@ -16,6 +16,11 @@ struct LoonextApp: App {
         // delivers a pending crash payload shortly after launch, so a
         // subscriber registered late is a payload nobody receives.
         CrashDiagnostics.start()
+        // #507: delete any wrap-up audio a killed run left in the temporary
+        // directory. Every in-process path deletes its own file; none of them
+        // runs if the app dies mid-hold, and audio nobody promised to keep must
+        // not outlive the process that recorded it.
+        WrapUpRecorder.sweepOrphans()
         let graph = AppGraph()
         _graph = State(initialValue: graph)
         // Construct the softphone at launch (#161): the PushKit delegate must

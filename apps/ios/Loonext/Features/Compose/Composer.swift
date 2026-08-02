@@ -191,6 +191,15 @@ struct ThreadComposerView: View {
     /// shows nothing — the line exists only for the hour that would change
     /// what somebody does, and a clock on screen all day is furniture.
     var destinationClock: DestinationClock?
+    /// #507: dictate a wrap-up after a call and get the words back to check and
+    /// post as a note. Nil hides the affordance entirely (a compose screen with
+    /// no conversation behind it has nothing to post a note to, and a member
+    /// without note level on the number would be refused by the API).
+    ///
+    /// DECLARED LAST on purpose. A SwiftUI view's memberwise initialiser takes
+    /// its arguments in declaration order, so the newest optional going at the
+    /// end is the one shape that cannot reorder an existing call site.
+    var wrapUp: WrapUpDictationContext?
 
     @State private var templatePickerOpen = false
     @State private var mentionPickerOpen = false
@@ -218,6 +227,20 @@ struct ThreadComposerView: View {
     @State private var photosPickerOpen = false
     @State private var fileImporterOpen = false
     @State private var photoSelection: [PhotosPickerItem] = []
+    /// #507: what the dictation is doing, and for how long.
+    ///
+    /// Held as plain view state rather than read off the recorder, which owns
+    /// only what SwiftUI cannot (the live AVAudioRecorder and its file). Two
+    /// owners of one truth is how a button ends up drawn as recording after the
+    /// recorder has stopped.
+    @State private var wrapUpPhase = WrapUpPhase.idle
+    @State private var wrapUpSeconds = 0
+    /// Created on the first press rather than with the view: most threads are
+    /// opened, read and left without anyone dictating anything, and an audio
+    /// object built for every one of them is a cost with no reader. Mirrors how
+    /// ThreadView builds its controller.
+    @State private var wrapUpRecorder: WrapUpRecorder?
+    @State private var wrapUpTicker: Task<Void, Never>?
 
     private var textBlocked: Bool { noteOnly || banner != nil }
     private var isNote: Bool { textBlocked || state.mode == .note }
@@ -311,6 +334,13 @@ struct ThreadComposerView: View {
                 }
             }
 
+            // #507: above the pill, where the drafts strip sits in text mode.
+            // Only while something is actually happening — a control that
+            // announces itself when idle is furniture.
+            if isNote, wrapUpPhase != .idle {
+                wrapUpStatusLine
+            }
+
             composerPill
 
             if !isNote {
@@ -373,6 +403,18 @@ struct ThreadComposerView: View {
                     mentionPickerOpen = false
                     insertMention(member)
                 }
+            }
+        }
+        // #507: a recording must not outlive the composer that started it.
+        .onDisappear { cancelWrapUp() }
+        // Leaving note mode mid-hold. The mic control and the "we are
+        // listening" line both live inside the note branch, so switching to
+        // Text takes away the only stop button AND the only thing on screen
+        // saying a recording is running — an open microphone with nothing to
+        // show for it, which is the one impression this feature cannot give.
+        .onChange(of: isNote) { _, nowNote in
+            if !nowNote, wrapUpPhase != .idle {
+                cancelWrapUp()
             }
         }
     }
@@ -576,6 +618,14 @@ struct ThreadComposerView: View {
                 }
                 .disabled(state.files.count >= maxNoteFiles)
                 .accessibilityLabel("Attach files to this note")
+
+                // #507: in the pill beside the paperclip rather than behind a
+                // menu, for the same reason Lou's orb is in text mode — this is
+                // used in the thirty seconds after hanging up, and two taps and
+                // a menu is more work than typing the sentence.
+                if wrapUp != nil {
+                    wrapUpButton
+                }
             }
 
             TextField(
@@ -627,6 +677,223 @@ struct ThreadComposerView: View {
         )
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    // MARK: - #507 wrap-up dictation
+
+    /// Hold to dictate a wrap-up.
+    ///
+    /// PRESS-AND-HOLD, NOT A LATCH, and that is the design rather than a
+    /// styling choice. D117 makes "when is this listening?" the question the
+    /// whole feature has to answer, and a finger on a button is the plainest
+    /// answer there is: it hears the member for exactly as long as they hold
+    /// it, and it is physically impossible for it to be doing so while the
+    /// phone is in a pocket. A latched recorder would need a second story about
+    /// when it stops.
+    ///
+    /// Note mode only, for the same reason. A wrap-up becomes an internal note
+    /// — never a text — so the control does not exist on the side of the
+    /// composer that reaches a customer.
+    private var wrapUpButton: some View {
+        let recording = wrapUpPhase == .recording
+        return Group {
+            if wrapUpPhase == .transcribing {
+                // Lou wears one mark everywhere it appears (AiOrb.swift).
+                AiOrb(state: .thinking, size: 20)
+            } else {
+                Image(systemName: recording ? "mic.fill" : "mic")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(recording ? BrandColor.destructive : NoteAmber.ink)
+            }
+        }
+        // The paperclip's frame, so the two controls sit on one baseline
+        // without a spacing decision being made by eye.
+        .frame(width: 36, height: 36)
+        .contentShape(Circle())
+        // `minimumDuration` is a ceiling nobody can reach, and that is the
+        // whole trick. `onPressingChanged` reports false the moment the long
+        // press SUCCEEDS — not when the finger lifts — so an ordinary 0.5s
+        // duration would stop the recording half a second in. A duration no
+        // press outlives means the gesture never succeeds, `perform` never
+        // runs, and `pressing` tracks the finger exactly. A plain large number
+        // rather than `.infinity` so nothing downstream does arithmetic on it.
+        //
+        // The ticker's 120s auto-stop is the backstop for the other direction:
+        // if a release is ever swallowed, recording still ends and still sends.
+        .onLongPressGesture(minimumDuration: 600, maximumDistance: 44) {
+            // Unreachable by design — see above.
+        } onPressingChanged: { pressing in
+            if pressing {
+                beginWrapUp()
+            } else {
+                finishWrapUp()
+            }
+        }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("Hold to dictate a wrap-up")
+        .accessibilityHint(
+            "Say what was agreed after the call. Lou writes your words down for "
+                + "you to check before you post the note."
+        )
+    }
+
+    /// What is happening, while it is happening.
+    ///
+    /// A recording control with no elapsed feedback is the one that produces a
+    /// two-minute file — the member cannot tell a held button from a stuck one.
+    /// The countdown appears only in the last stretch, the same rule the
+    /// destination clock above follows: a number on screen the whole time is
+    /// furniture, and this one exists for the moment it changes what somebody
+    /// does.
+    private var wrapUpStatusLine: some View {
+        let remaining = max(0, WrapUpLimits.maxSeconds - wrapUpSeconds)
+        let transcribing = wrapUpPhase == .transcribing
+        let label: String
+        if transcribing {
+            label = "Writing down what you said\u{2026}"
+        } else if remaining <= 15 {
+            label = "Go ahead \u{2014} \(remaining)s left"
+        } else {
+            label = "Go ahead \u{2014} let go when you're done"
+        }
+        return HStack(spacing: 5) {
+            AiOrb(state: transcribing ? .thinking : .working, size: 12)
+            Text(label)
+                .font(.golos(11))
+                .foregroundStyle(BrandColor.muted600)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 6)
+    }
+
+    /// Press-down: permission, then the call check, then record.
+    ///
+    /// Both refusals are one plain sentence on the existing notice surface and
+    /// nothing else — the member is left in the composer with a keyboard, which
+    /// is the whole failure posture of this feature.
+    private func beginWrapUp() {
+        guard let wrapUp, wrapUpPhase == .idle else { return }
+        let recorder = wrapUpRecorder ?? WrapUpRecorder()
+        wrapUpRecorder = recorder
+
+        switch recorder.micPermission {
+        case .granted:
+            break
+        case .denied:
+            onNotice(WrapUpStartRefusal.micDenied.message)
+            return
+        case .unasked:
+            // Asked at the point of use. The answer cannot rescue THIS press —
+            // the system sheet was up while they were talking — so the honest
+            // reply is "say it again", never a silently empty note.
+            Task {
+                let granted = await recorder.requestMic()
+                onNotice(
+                    granted
+                        ? WrapUpStartRefusal.micJustGranted.message
+                        : WrapUpStartRefusal.micDenied.message
+                )
+            }
+            return
+        }
+
+        // D117: the one arrangement that could pick up the customer through the
+        // earpiece. Checked at press time rather than baked into a disabled
+        // state, because a member can dismiss the in-call screen and land back
+        // here with the call still up.
+        if let refusal = recorder.start(callInProgress: wrapUp.callInProgress()) {
+            onNotice(refusal.message)
+            return
+        }
+        wrapUpSeconds = 0
+        wrapUpPhase = .recording
+        wrapUpTicker?.cancel()
+        // Counts in a LOCAL and publishes it, rather than reading the state
+        // back and adding one. Cancellation is the only stop signal this loop
+        // trusts — `finishWrapUp` cancels it on every path — so a counter that
+        // never reads shared state cannot run away on a stale read.
+        wrapUpTicker = Task {
+            var elapsed = 0
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                if Task.isCancelled { return }
+                elapsed += 1
+                wrapUpSeconds = elapsed
+                // A stuck finger must not buy two minutes of pocket audio: stop
+                // at the server's own ceiling and send what was actually said.
+                if elapsed >= WrapUpLimits.maxSeconds {
+                    finishWrapUp()
+                    return
+                }
+            }
+        }
+    }
+
+    /// Release: stop, upload the bytes, and put the words in the box.
+    ///
+    /// The transcript lands in the field the member already types in — not a
+    /// sheet, and never straight onto the thread. They read it, fix whatever
+    /// was misheard, and press send, which is the same note path a typed note
+    /// takes. There is deliberately no second way to write a note.
+    private func finishWrapUp() {
+        guard wrapUpPhase == .recording else { return }
+        wrapUpTicker?.cancel()
+        wrapUpTicker = nil
+        guard let wrapUp, let recorder = wrapUpRecorder else {
+            wrapUpPhase = .idle
+            wrapUpSeconds = 0
+            return
+        }
+        // The recording is read and DELETED inside `finish()` — before the
+        // upload, not after — so an upload that never happens still leaves no
+        // audio on the device.
+        guard let taken = recorder.finish() else {
+            wrapUpPhase = .idle
+            wrapUpSeconds = 0
+            onNotice("Hold the mic while you talk \u{2014} that was too short to write down.")
+            return
+        }
+        wrapUpPhase = .transcribing
+        Task {
+            let outcome = await wrapUp.transcribe(taken.audio, taken.seconds)
+            wrapUpPhase = .idle
+            wrapUpSeconds = 0
+            switch outcome {
+            case .text(let words):
+                // `state.text` is SHARED between the two modes, so a member who
+                // tapped Text while this was in flight would have a private
+                // wrap-up appear in the message addressed to the customer. Snap
+                // back to Note before writing a single character.
+                if state.mode != .note {
+                    state.mode = .note
+                }
+                // Appended, never replacing: somebody who typed "call back re
+                // permit" before dictating still has it. Parenthesised because
+                // `||` inside a ternary is exactly the expression this file's
+                // comments say has run the type checker out of budget.
+                let current = state.text
+                let spaced = (current.hasSuffix(" ") || current.hasSuffix("\n"))
+                let joiner = spaced ? "" : " "
+                // `onTextChange` rather than a raw assignment: it is the writer
+                // that queues the draft save and starts the #408 draft clock.
+                state.onTextChange(current.isBlank ? words : current + joiner + words)
+            case .failed(let message):
+                onNotice(message)
+            }
+        }
+    }
+
+    /// Leaving the thread mid-sentence throws the recording away rather than
+    /// leaving a file behind for a view that no longer exists.
+    private func cancelWrapUp() {
+        wrapUpTicker?.cancel()
+        wrapUpTicker = nil
+        wrapUpRecorder?.discard()
+        if wrapUpPhase == .recording {
+            wrapUpPhase = .idle
+            wrapUpSeconds = 0
+        }
     }
 
     private func modePill(
