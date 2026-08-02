@@ -230,4 +230,57 @@ begin
   raise notice 'voicemail audio retention: all assertions passed';
 end $$;
 
+-- ------------------------------------------------------------- call records
+-- Calls follow the WORKSPACE window (they are the business's own record of its
+-- own work), while the recording keeps its fixed year. Same table, two clocks.
+do $$
+declare
+  v_ids uuid[];
+  v_count bigint;
+begin
+  -- c1 is on a 120-day window by now, and its calls are 400 days old, so both
+  -- are overdue. c1's notice is for window 90, not 120 — so it is still not
+  -- eligible, which is the precondition doing its job across a widened sweep.
+  select array_agg(call_id) into v_ids
+    from public.api_retention_overdue_calls(
+      'ce000000-0000-4000-8000-0000000000c1'::uuid, 500
+    );
+  if not ('ce000000-0000-4000-8000-0000000000a1'::uuid = any(v_ids)) then
+    raise exception 'a call past the workspace window must be in the batch';
+  end if;
+  if 'ce000000-0000-4000-8000-0000000000a2'::uuid = any(v_ids) then
+    raise exception 'a call inside the window must never be in the batch';
+  end if;
+
+  -- Held workspaces keep their calls, like everything else they hold.
+  select array_agg(call_id) into v_ids
+    from public.api_retention_overdue_calls(
+      'ce000000-0000-4000-8000-0000000000c3'::uuid, 500
+    );
+  if v_ids is not null then
+    raise exception 'a held workspace must never yield a call batch';
+  end if;
+
+  -- THE WIDENED WARNING. It has to count calls, or a workspace is told about
+  -- messages and quietly loses call history it was never warned about — and a
+  -- calls-only workspace, never warned, would never be swept at all.
+  update public.companies
+     set retention_days = 90
+   where id = 'ce000000-0000-4000-8000-0000000000c1'::uuid;
+
+  select message_count into v_count
+    from public.api_retention_due(30)
+   where company_id = 'ce000000-0000-4000-8000-0000000000c1'::uuid;
+  -- Inside the 30-day band before a 90-day window: the 200-day message and
+  -- the 400-day call. The 2-day message and the 10-day call are both well
+  -- inside. So TWO — and ONE is the number this assertion exists to catch,
+  -- because one means the count went back to messages only.
+  if v_count is distinct from 2 then
+    raise exception
+      'the warning must count calls as well as messages, got %', v_count;
+  end if;
+
+  raise notice 'call record retention: all assertions passed';
+end $$;
+
 rollback;

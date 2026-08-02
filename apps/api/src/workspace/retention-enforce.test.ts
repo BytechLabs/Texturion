@@ -51,6 +51,7 @@ function world(options: { removeFails?: boolean } = {}) {
   ]);
   sb.on("GET", "/rest/v1/attachments", () => []);
   sb.on("POST", "/rest/v1/rpc/api_voicemail_audio_overdue", () => []);
+  sb.on("POST", "/rest/v1/rpc/api_retention_overdue_calls", () => []);
   sb.on("DELETE", "/rest/v1/messages", () => {
     order.push("delete:messages");
     return [];
@@ -135,6 +136,7 @@ describe("retention enforcement", () => {
     const sb = supabaseStub(env);
     sb.on("POST", "/rest/v1/rpc/api_retention_overdue_companies", () => []);
     sb.on("POST", "/rest/v1/rpc/api_voicemail_audio_overdue", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_retention_overdue_calls", () => []);
     stubFetch(sb.route);
 
     const summary = await runRetentionEnforceJob(env, new Date(), undefined);
@@ -144,6 +146,7 @@ describe("retention enforcement", () => {
       messagesDeleted: 0,
       objectsRemoved: 0,
       voicemailsCleared: 0,
+      callsDeleted: 0,
     });
   });
 });
@@ -159,6 +162,7 @@ describe("voicemail audio retention", () => {
     const order: string[] = [];
     let scans = 0;
 
+    sb.on("POST", "/rest/v1/rpc/api_retention_overdue_calls", () => []);
     sb.on("POST", "/rest/v1/rpc/api_retention_overdue_companies", () => []);
     sb.on("POST", "/rest/v1/rpc/api_voicemail_audio_overdue", () => {
       scans += 1;
@@ -219,5 +223,80 @@ describe("voicemail audio retention", () => {
     expect(summary.companies).toBe(0);
     expect(summary.messagesDeleted).toBe(0);
     expect(summary.voicemailsCleared).toBe(1);
+  });
+});
+
+describe("call record retention", () => {
+  /**
+   * Calls follow the WORKSPACE window — they are the business's own record of
+   * its own work — while the recording keeps its fixed year. Same table, two
+   * clocks, which is the thing most likely to get collapsed by a later
+   * refactor.
+   */
+  function callWorld(voicemailPath: string | null = null) {
+    const sb = supabaseStub(env);
+    const order: string[] = [];
+    let scans = 0;
+
+    sb.on("POST", "/rest/v1/rpc/api_retention_overdue_companies", () => [
+      { company_id: COMPANY, window_days: 2555, message_count: 1, oldest_at: "2019-01-01T00:00:00Z" },
+    ]);
+    sb.on("POST", "/rest/v1/rpc/api_retention_overdue_messages", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_voicemail_audio_overdue", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_retention_overdue_calls", () => {
+      scans += 1;
+      return scans === 1
+        ? [{ call_id: "call-1", call_session_id: "sess-1", voicemail_path: voicemailPath }]
+        : [];
+    });
+    for (const table of [
+      "call_records",
+      "call_member_legs",
+      "outbound_call_authorizations",
+      "calls",
+    ]) {
+      sb.on("DELETE", `/rest/v1/${table}`, () => {
+        order.push(table);
+        return [];
+      });
+    }
+    return { sb, order };
+  }
+
+  it("deletes every sibling row before the call they hang off", async () => {
+    // Nothing carries a foreign key to `calls`, so nothing cascades. Taking the
+    // parent first would leave a customer's call legs behind forever — present,
+    // unreachable, and counted by no retention policy.
+    const w = callWorld();
+    stubFetch(w.sb.route);
+
+    const summary = await runRetentionEnforceJob(env, new Date(), undefined);
+
+    expect(summary.callsDeleted).toBe(1);
+    expect(w.order).toEqual([
+      "call_records",
+      "call_member_legs",
+      "outbound_call_authorizations",
+      "calls",
+    ]);
+  });
+
+  it("takes a recording the one-year sweep never managed to clear", async () => {
+    // Normally already null — seven years is well past one — so this only
+    // fires when that sweep has been failing. Leaving it would strand the most
+    // sensitive object in the product with its row gone.
+    // Passed in rather than re-registered: the stub harness is first-match-
+    // wins, so a second `on()` for a path already registered never runs.
+    const w = callWorld("vm/stuck.mp3");
+    let removed: unknown = null;
+    stubFetch(async (url, request) => {
+      if (!url.pathname.includes("/storage/v1/object/")) return undefined;
+      removed = await request.clone().json();
+      return Response.json([]);
+    }, w.sb.route);
+
+    await runRetentionEnforceJob(env, new Date(), undefined);
+
+    expect(removed).toEqual({ prefixes: ["vm/stuck.mp3"] });
   });
 });

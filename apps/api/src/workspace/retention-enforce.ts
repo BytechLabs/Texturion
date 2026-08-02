@@ -101,6 +101,8 @@ export interface RetentionEnforceSummary {
   objectsRemoved: number;
   /** #284: voicemail recordings cleared on their own published one-year clock. */
   voicemailsCleared: number;
+  /** #284: call records past the workspace's window, with their transcripts. */
+  callsDeleted: number;
 }
 
 interface OverdueCompany {
@@ -125,6 +127,7 @@ export async function runRetentionEnforceJob(
     messagesDeleted: 0,
     objectsRemoved: 0,
     voicemailsCleared: 0,
+    callsDeleted: 0,
   };
 
   const { data, error } = await db.rpc("api_retention_overdue_companies", {
@@ -139,6 +142,7 @@ export async function runRetentionEnforceJob(
       summary.companies += 1;
       summary.messagesDeleted += result.messages;
       summary.objectsRemoved += result.objects;
+      summary.callsDeleted += result.calls;
     } catch (cause) {
       // Named in the run's own logs, because an AggregateError serializes only
       // its top-level message on this platform and "1 of 5 failed" is not
@@ -232,7 +236,7 @@ async function clearOverdueVoicemailAudio(db: SupabaseClient): Promise<number> {
 async function enforceCompany(
   db: SupabaseClient,
   companyId: string,
-): Promise<{ messages: number; objects: number }> {
+): Promise<{ messages: number; objects: number; calls: number }> {
   let messages = 0;
   let objects = 0;
 
@@ -265,7 +269,98 @@ async function enforceCompany(
     messages += ids.length;
   }
 
-  return { messages, objects };
+  const calls = await deleteOverdueCalls(db, companyId);
+  return { messages, objects, calls };
+}
+
+/**
+ * The sibling tables a call's rows live in, keyed by `call_session_id`.
+ *
+ * NOTHING CASCADES. None of these carries a foreign key to `calls`, so a delete
+ * that took only the parent would leave a customer's call legs and per-call
+ * records behind forever — present, unreachable, and counted by no retention
+ * policy. The workspace purge lists the same tables for the same reason
+ * (DELETION.md); this is the per-call subset of that list.
+ */
+const CALL_SIBLING_TABLES = [
+  "call_records",
+  "call_member_legs",
+  "outbound_call_authorizations",
+] as const;
+
+/**
+ * Delete call records past the workspace's window, with their transcripts.
+ *
+ * The transcript goes here rather than earlier, and that is the published
+ * promise: the recording lasts a year, the words last as long as the call
+ * record does. Deleting the row IS deleting the transcript, because it is a
+ * column on it.
+ */
+async function deleteOverdueCalls(
+  db: SupabaseClient,
+  companyId: string,
+): Promise<number> {
+  let deleted = 0;
+
+  for (let pass = 0; pass < MAX_BATCHES_PER_COMPANY; pass += 1) {
+    const { data, error } = await db.rpc("api_retention_overdue_calls", {
+      p_company_id: companyId,
+      p_limit: BATCH,
+    });
+    if (error) throw new Error(`retention call scan failed: ${error.message}`);
+    const rows = (data ?? []) as {
+      call_id: string;
+      call_session_id: string;
+      voicemail_path: string | null;
+    }[];
+    if (rows.length === 0) break;
+
+    // Any recording the one-year sweep could not clear goes with its row rather
+    // than outliving it. Normally already null — seven years is well past one —
+    // so this only fires when that sweep has been failing.
+    const paths = rows
+      .map((row) => row.voicemail_path)
+      .filter((path): path is string => typeof path === "string" && path !== "");
+    if (paths.length > 0) {
+      const { error: removeError } = await db.storage
+        .from(VOICEMAILS_BUCKET)
+        .remove(paths);
+      if (removeError) {
+        throw new Error(
+          `retention call audio remove failed: ${removeError.message}`,
+        );
+      }
+    }
+
+    // Children before the parent, so an interrupted pass never leaves a
+    // sibling row whose call is gone and which nothing will ever find again.
+    const sessionIds = rows.map((row) => row.call_session_id);
+    for (const table of CALL_SIBLING_TABLES) {
+      const { error: siblingError } = await db
+        .from(table)
+        .delete()
+        .in("call_session_id", sessionIds);
+      if (siblingError) {
+        throw new Error(
+          `retention ${table} delete failed: ${siblingError.message}`,
+        );
+      }
+    }
+
+    const { error: callError } = await db
+      .from("calls")
+      .delete()
+      .in(
+        "id",
+        rows.map((row) => row.call_id),
+      );
+    if (callError) {
+      throw new Error(`retention call delete failed: ${callError.message}`);
+    }
+    deleted += rows.length;
+  }
+
+  return deleted;
 }
 
 /**
