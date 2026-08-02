@@ -23,6 +23,17 @@ object ChannelIds {
      * silencing one silences the other.
      */
     const val TASK_REMINDERS = "task_reminders"
+
+    /**
+     * Being HANDED work, as distinct from being reminded about work you
+     * already had (#515). Its own channel for the same reason task reminders
+     * have one: the inbox is the first thing a busy crew mutes, and somebody
+     * putting a job on your name is the message that must survive that. It is
+     * also the only channel here a crew member can silence without losing a
+     * customer's text, which is what "notifications for other things" has to
+     * mean if it is going to be kept switched on.
+     */
+    const val ASSIGNMENTS = "assignments"
 }
 
 /**
@@ -63,6 +74,14 @@ fun ensureChannels(context: Context) {
         description = "Jobs you are assigned, shortly before they are due."
     }
 
+    val assignments = NotificationChannel(
+        ChannelIds.ASSIGNMENTS,
+        "Assigned to you",
+        NotificationManager.IMPORTANCE_DEFAULT,
+    ).apply {
+        description = "Conversations and jobs a teammate puts on your name."
+    }
+
     val incomingCalls = NotificationChannel(
         ChannelIds.INCOMING_CALLS,
         "Incoming calls",
@@ -81,6 +100,6 @@ fun ensureChannels(context: Context) {
     }
 
     manager.createNotificationChannels(
-        listOf(messages, missedCalls, taskReminders, incomingCalls),
+        listOf(messages, missedCalls, taskReminders, assignments, incomingCalls),
     )
 }

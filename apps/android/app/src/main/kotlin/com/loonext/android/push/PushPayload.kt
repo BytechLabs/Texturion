@@ -38,6 +38,16 @@ object PushKind {
     const val TASK_DUE = "task_due"
 
     /**
+     * A teammate handed the reader a conversation, or a whole selection of
+     * them at once (#515). One value for both: the reader's next move is
+     * identical either way, and the link already says which it was.
+     */
+    const val CONVERSATION_ASSIGNED = "conversation_assigned"
+
+    /** A teammate put a job on the reader's name (#515). */
+    const val TASK_ASSIGNED = "task_assigned"
+
+    /**
      * Ring revocation on every exit from `ringing` (calls-v3 §9.2). Android
      * FCM sends are data-only with NO collapse key, so the ONLY dismissal
      * mechanism is this client's explicit cancel-by-tag (`call:<session>`).
@@ -101,6 +111,8 @@ fun parsePush(data: Map<String, String>): PushContent {
         channelId = when (kind) {
             PushKind.MISSED_CALL -> ChannelIds.MISSED_CALLS
             PushKind.TASK_DUE -> ChannelIds.TASK_REMINDERS
+            PushKind.CONVERSATION_ASSIGNED, PushKind.TASK_ASSIGNED ->
+                ChannelIds.ASSIGNMENTS
             // An unknown kind is a newer server than this build: render it on
             // the general channel rather than dropping it.
             else -> ChannelIds.MESSAGES

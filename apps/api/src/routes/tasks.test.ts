@@ -1083,6 +1083,17 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
               : [{ user_id: OTHER_USER }],
           )
         : undefined;
+    // #515: handing a job over now wakes its new owner, and outside a Worker
+    // there is no execution context to defer that to — so the alert's own
+    // lookups run inline here. Answering "the thread is gone" makes it a silent
+    // no-op, which is what these tests want: they are about which RPC ran with
+    // which arguments, and the alert has its own suite
+    // (notifications/assignment.test.ts).
+    const alertRoute: FetchRoute = (url) =>
+      url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/conversations`) &&
+      url.searchParams.get("select") === "phone_number_id"
+        ? Response.json([])
+        : undefined;
     return {
       update,
       assign,
@@ -1090,6 +1101,7 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
         jwksRoute(auth),
         membersRoute(),
         assigneeRoute,
+        alertRoute,
         update.route,
         assign.route,
       ],

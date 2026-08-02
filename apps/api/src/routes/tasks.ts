@@ -49,6 +49,7 @@
  * sources). There is no task-specific attachment route here.
  */
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { runAiFeature } from "../ai/run";
 import { z } from "zod";
 
@@ -65,6 +66,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
+import { notifyAssigned } from "../notifications/assignment";
 import { decodeCursor, encodeCursor } from "../http/pagination";
 import {
   buildEnrichmentMessages,
@@ -78,6 +80,7 @@ import {
 } from "../tasks/enrichment";
 import {
   escapeLike,
+  executionCtxOf,
   keysetFilter,
   parseJsonBody,
   parseLimit,
@@ -466,8 +469,60 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
     throw new ApiError("conflict", "This message is already a task.");
   }
   if (!result.task) throw new Error("create_task returned no row");
+
+  // #515: a task created already pointed at somebody is a hand-off like any
+  // other. Creating one for yourself notifies nobody — `notifyAssigned` drops
+  // a self-assignment before it queries anything.
+  if (body.assigned_user_id) {
+    await notifyAssignedTask(c, {
+      companyId,
+      actorUserId: userId,
+      assigneeUserId: body.assigned_user_id,
+      task: result.task,
+      taskId: result.task.id as string,
+    });
+  }
+
   return c.json(result.task, 201);
 });
+
+/**
+ * Fire the #515 hand-off alert without letting it touch the response.
+ *
+ * Best-effort on purpose, and shared by both write paths: a dead push
+ * subscription must never turn a saved task into an error for the person who
+ * saved it. `waitUntil` where the runtime offers one, awaited otherwise (tests
+ * and any host without an execution context), so nothing is silently dropped.
+ */
+function notifyAssignedTask(
+  c: Context<AppEnv>,
+  input: {
+    companyId: string;
+    actorUserId: string;
+    assigneeUserId: string;
+    task: Record<string, unknown> | null;
+    taskId: string;
+  },
+): Promise<void> {
+  const notify = notifyAssigned(getEnv(c.env), {
+    kind: "task",
+    companyId: input.companyId,
+    taskId: input.taskId,
+    title: (input.task?.title as string | null | undefined) ?? null,
+    conversationId:
+      (input.task?.conversation_id as string | null | undefined) ?? null,
+    actorUserId: input.actorUserId,
+    assigneeUserId: input.assigneeUserId,
+  }).catch((cause: unknown) => {
+    console.error("task assignment alert failed:", cause);
+  });
+  const ctx = executionCtxOf(c);
+  if (ctx) {
+    ctx.waitUntil(notify);
+    return Promise.resolve();
+  }
+  return notify;
+}
 
 // --------------------------------------------------------------------------
 // #214 — task enrichment (Cloudflare Workers AI). A pure SUGGESTION endpoint:
@@ -1695,6 +1750,18 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
     }
     found = true;
     if (result.task) latest = result.task;
+    // #515: only `updated` means the assignee actually moved — `unchanged` is
+    // the RPC saying it was already theirs, and re-pushing that would make a
+    // duplicate save wake somebody for nothing.
+    if (result.outcome === "updated" && body.assigned_user_id) {
+      await notifyAssignedTask(c, {
+        companyId,
+        actorUserId: userId,
+        assigneeUserId: body.assigned_user_id,
+        task: result.task ?? latest,
+        taskId: id,
+      });
+    }
   }
 
   // Every RPC that ran returned the row (created/updated/unchanged/not_found);

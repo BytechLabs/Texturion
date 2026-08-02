@@ -468,6 +468,20 @@ describe("PATCH /v1/conversations/:id (events per changed field)", () => {
       { ...current, ...(call.body as Record<string, unknown>) },
     ]);
     sb.on("POST", "/rest/v1/conversation_events", () => []);
+    // #515: a hand-off now wakes the new owner, and outside a Worker there is
+    // no execution context to defer that to — so the alert's own lookups run
+    // inline here. Answering "nobody" makes it a silent no-op, which is what
+    // these tests want: they are about the event row and the patch, and the
+    // alert has its own suite (notifications/assignment.test.ts).
+    //
+    // Narrowed to the alert's own roster read and returning undefined
+    // otherwise, so the route's `select=id` assignee probe still falls through
+    // to whatever the individual test registered.
+    sb.on("GET", "/rest/v1/company_members", (call) =>
+      call.url.searchParams.get("select") === "user_id,role" ? [] : undefined,
+    );
+    sb.on("GET", "/rest/v1/notification_prefs", () => []);
+    sb.on("GET", "/rest/v1/push_subscriptions", () => []);
     return sb;
   }
 

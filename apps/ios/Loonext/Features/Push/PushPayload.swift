@@ -27,6 +27,14 @@ enum PushKind {
     static let missedCall = "missed_call"
     /// A task the reader is assigned, shortly before (or after) its due date.
     static let taskDue = "task_due"
+
+    /// A teammate handed the reader a conversation, or a whole selection of
+    /// them at once (#515). One value for both: the reader's next move is
+    /// identical either way, and the link already says which it was.
+    static let conversationAssigned = "conversation_assigned"
+
+    /// A teammate put a job on the reader's name (#515).
+    static let taskAssigned = "task_assigned"
 }
 
 /// Category identifiers — the iOS analogue of the Android notification
@@ -37,6 +45,13 @@ enum PushCategory {
     static let messages = "messages"
     static let missedCalls = "missed_calls"
     static let incomingCalls = "incoming_calls"
+
+    /// Being HANDED work, as distinct from being reminded about work you
+    /// already had (#515). Separate from `messages` for the same reason the
+    /// Android channel is: the inbox is the first thing a busy crew silences,
+    /// and somebody putting a job on your name is the alert that must survive
+    /// that.
+    static let assignments = "assignments"
 }
 
 /// One parsed, display-ready push.
@@ -86,8 +101,21 @@ func parsePush(_ data: [String: String]) -> PushContent {
         body: body.isEmpty ? "You have a new notification." : body,
         url: url,
         tag: tag,
-        category: kind == PushKind.missedCall ? PushCategory.missedCalls : PushCategory.messages
+        category: pushCategory(for: kind)
     )
+}
+
+/// Which category a parsed push belongs to. An unknown `kind` is a newer
+/// server than this build, so it lands in Messages rather than being dropped.
+func pushCategory(for kind: String?) -> String {
+    switch kind {
+    case PushKind.missedCall:
+        return PushCategory.missedCalls
+    case PushKind.conversationAssigned, PushKind.taskAssigned:
+        return PushCategory.assignments
+    default:
+        return PushCategory.messages
+    }
 }
 
 /// Normalize a push deep link (web sw.js + Android parity):

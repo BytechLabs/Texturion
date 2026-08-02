@@ -48,6 +48,7 @@ import {
   transcriptInput,
   transcriptText,
 } from "../calls/voicemail-transcript";
+import { notifyAssigned } from "../notifications/assignment";
 import { notifyNoteMention } from "../notifications/mention";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -409,6 +410,26 @@ conversationsRoutes.post(
       );
     }
 
+    // #515: one alert for the whole selection, sized by what actually applied
+    // rather than by what was requested — a filter arm can match rows the RPC
+    // then refuses, and telling somebody they were given 40 threads when they
+    // were given 6 is worse than saying nothing.
+    if (body.action === "assign" && body.target_user_id) {
+      const applied = result?.applied?.length ?? 0;
+      const notify = notifyAssigned(getEnv(c.env), {
+        kind: "conversation_bulk",
+        companyId: c.get("companyId"),
+        count: applied,
+        actorUserId: c.get("userId"),
+        assigneeUserId: body.target_user_id,
+      }).catch((cause: unknown) => {
+        console.error("bulk assignment alert failed:", cause);
+      });
+      const ctx = executionCtxOf(c);
+      if (ctx) ctx.waitUntil(notify);
+      else await notify;
+    }
+
     return c.json(result);
   },
 );
@@ -644,6 +665,8 @@ conversationsRoutes.patch(
 
     const now = new Date().toISOString();
     const patch: Record<string, unknown> = {};
+    /** #515: who this thread was just handed to, if anybody. */
+    let handedTo: string | null = null;
     const events: ConversationEventRow[] = [];
     const event = (
       type: ConversationEventRow["type"],
@@ -722,6 +745,9 @@ conversationsRoutes.patch(
         }
       }
       patch.assigned_user_id = body.assigned_user_id ?? null;
+      // #515: and remember it, so the new owner can be told once the write has
+      // actually landed. Unassigning notifies nobody — there is no new owner.
+      handedTo = (body.assigned_user_id as string | null) ?? null;
       event("assigned", {
         from: current.assigned_user_id,
         to: body.assigned_user_id ?? null,
@@ -757,6 +783,25 @@ conversationsRoutes.patch(
     }
 
     await insertConversationEvents(db, events);
+
+    // #515: tell the new owner. AFTER the update, so nobody is woken for a
+    // hand-off that did not land — and best-effort, because a dead push
+    // subscription is not a reason to tell the assigner their change failed.
+    if (handedTo !== null) {
+      const notify = notifyAssigned(getEnv(c.env), {
+        kind: "conversation",
+        companyId,
+        conversationId: id,
+        actorUserId: userId,
+        assigneeUserId: handedTo,
+      }).catch((cause: unknown) => {
+        console.error("conversation assignment alert failed:", cause);
+      });
+      const ctx = executionCtxOf(c);
+      if (ctx) ctx.waitUntil(notify);
+      else await notify;
+    }
+
     return c.json(updated);
   },
 );

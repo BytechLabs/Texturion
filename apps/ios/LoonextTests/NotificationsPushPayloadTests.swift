@@ -71,6 +71,27 @@ final class NotificationsPushPayloadTests: XCTestCase {
         XCTAssertEqual(content.tag, "conversation:conv-9")
     }
 
+    func testBeingHandedWorkRoutesToTheAssignmentsCategory() {
+        // #515. Separate from Messages for the same reason the Android channel
+        // is: the inbox is the first thing a busy crew silences, and somebody
+        // putting a job on your name is the alert that must survive that.
+        let thread = parsePush([
+            "kind": "conversation_assigned",
+            "title": "Sam assigned you a conversation",
+            "body": "Dana Reyes",
+            "url": "/inbox/conv-4",
+        ])
+        let task = parsePush([
+            "kind": "task_assigned",
+            "title": "Sam assigned you a task",
+            "body": "Re-pipe the basement",
+            "url": "/tasks/task-2",
+        ])
+
+        XCTAssertEqual(thread.category, PushCategory.assignments)
+        XCTAssertEqual(task.category, PushCategory.assignments)
+    }
+
     func testEmptyPayloadDegradesToACalmGenericNoticeNeverDropped() {
         let content = parsePush([:])
 

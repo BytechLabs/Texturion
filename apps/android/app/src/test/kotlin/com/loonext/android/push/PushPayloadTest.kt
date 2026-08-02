@@ -111,6 +111,51 @@ class PushPayloadTest {
     }
 
     @Test
+    fun `being handed work routes to the assignments channel`() {
+        // #515. Separate from Messages for the same reason task reminders are:
+        // the inbox is the first thing a busy crew silences, and somebody
+        // putting a job on your name is the alert that must survive that.
+        val thread = parsePush(
+            mapOf(
+                "kind" to "conversation_assigned",
+                "title" to "Sam assigned you a conversation",
+                "body" to "Dana Reyes",
+                "url" to "/inbox/conv-4",
+            ),
+        )
+        val task = parsePush(
+            mapOf(
+                "kind" to "task_assigned",
+                "title" to "Sam assigned you a task",
+                "body" to "Re-pipe the basement",
+                "url" to "/tasks/task-2",
+            ),
+        )
+
+        assertEquals(ChannelIds.ASSIGNMENTS, thread.channelId)
+        assertEquals(ChannelIds.ASSIGNMENTS, task.channelId)
+    }
+
+    @Test
+    fun `a hand-off keeps the server's collapse identity, not the url's`() {
+        // The server keys a hand-off per THING (`assigned:conversation:<id>`)
+        // so a re-assignment replaces its own earlier alert — and, critically,
+        // so it never collides with an incoming text on the same thread, whose
+        // tag is `conversation:<id>`.
+        val handoff = parsePush(
+            mapOf(
+                "kind" to "conversation_assigned",
+                "url" to "/inbox/conv-7",
+                "tag" to "assigned:conversation:conv-7",
+            ),
+        )
+        val text = parsePush(mapOf("title" to "Dana", "url" to "/inbox/conv-7"))
+
+        assertEquals("assigned:conversation:conv-7", handoff.tag)
+        assertEquals("conversation:conv-7", text.tag)
+    }
+
+    @Test
     fun `a task reminder never replaces a text from the same customer`() {
         // The reminder deep-links to the job over its customer's thread, so a
         // conversation-keyed tag would let the two cancel each other out.
