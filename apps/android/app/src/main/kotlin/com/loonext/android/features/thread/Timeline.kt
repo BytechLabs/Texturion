@@ -431,9 +431,16 @@ private fun callCompletedLine(
 
     if (outcome == "voicemail") return "Call went to voicemail"
     if (outcome == "missed") return "Missed call"
+    // #517: WHO picked up. On a crew, "Call answered" leaves out the one thing
+    // the rest of them wanted to know. Falls back to the bare line when the
+    // answerer is unknown (a call answered before the server started reporting
+    // it) or has left the roster — "Call answered by " with nothing after it
+    // would be worse than the line it replaced.
+    val answeredBy = event.payloadString("answered_by_user_id")?.let { memberNames[it] }
+    val answered = if (answeredBy != null) "Call answered by $answeredBy" else "Call answered"
     return if (seconds > 0) {
-        "Call answered · ${formatCallDuration(seconds)}"
+        "$answered · ${formatCallDuration(seconds)}"
     } else {
-        "Call answered"
+        answered
     }
 }

@@ -18,6 +18,16 @@ vi.mock("next/link", () => ({
 
 const state: { entries: unknown[] } = { entries: [] };
 
+// #517: the row can now name who answered a call, so the component reads the
+// roster. Mocked with a real member so the naming path is exercised rather
+// than silently skipped — an empty roster would make every assertion below
+// pass against the fallback.
+vi.mock("@/lib/api/team", () => ({
+  useMembers: () => ({
+    data: { data: [{ user_id: "u1", display_name: "Sam Ortiz" }] },
+  }),
+}));
+
 vi.mock("@/lib/api/contact-timeline", () => ({
   useContactTimeline: () => ({
     data: { pages: [{ entries: state.entries, next_cursor: null }] },

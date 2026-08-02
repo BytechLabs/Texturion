@@ -11,6 +11,7 @@ import {
   useContactTimeline,
   type TimelineEntry,
 } from "@/lib/api/contact-timeline";
+import { useMembers } from "@/lib/api/team";
 
 /**
  * #324 — "what have we done for this customer?", answered by scrolling once.
@@ -39,10 +40,19 @@ import {
  */
 export function ContactTimeline({ contactId }: { contactId: string }) {
   const timeline = useContactTimeline(contactId);
+  // #517: the roster, so an answered call can say who took it. Read here and
+  // passed down rather than per row — one query for the page, not one per
+  // call, and every early return below leaves the hook order intact.
+  const members = useMembers();
   const entries = useMemo(
     () => (timeline.data?.pages ?? []).flatMap((page) => page.entries),
     [timeline.data],
   );
+  const memberName = (userId: string | null): string | null =>
+    userId
+      ? (members.data?.data.find((m) => m.user_id === userId)?.display_name ??
+        null)
+      : null;
 
   if (timeline.isPending) {
     return (
@@ -106,7 +116,11 @@ export function ContactTimeline({ contactId }: { contactId: string }) {
             </h3>
             <ol className="divide-y divide-app-line-soft">
               {rows.map((entry) => (
-                <TimelineRow key={`${entry.kind}:${entry.id}`} entry={entry} />
+                <TimelineRow
+                  key={`${entry.kind}:${entry.id}`}
+                  entry={entry}
+                  memberName={memberName}
+                />
               ))}
             </ol>
           </li>
@@ -177,14 +191,22 @@ function JumpToDate() {
   );
 }
 
-function TimelineRow({ entry }: { entry: TimelineEntry }) {
+function TimelineRow({
+  entry,
+  memberName,
+}: {
+  entry: TimelineEntry;
+  memberName: (userId: string | null) => string | null;
+}) {
   const body = (
     <div className="flex items-center gap-[11px] p-[11px]">
       <span className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-app-tint text-app-muted-2">
         <RowIcon entry={entry} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm text-app-ink">{rowTitle(entry)}</p>
+        <p className="truncate text-sm text-app-ink">
+          {rowTitle(entry, memberName)}
+        </p>
         <p className="truncate text-xs text-app-muted-2">{rowDetail(entry)}</p>
       </div>
       <time
@@ -228,10 +250,20 @@ function RowIcon({ entry }: { entry: TimelineEntry }) {
   return <MessageSquare className="size-4" strokeWidth={1.75} />;
 }
 
-function rowTitle(entry: TimelineEntry): string {
+function rowTitle(
+  entry: TimelineEntry,
+  memberName: (userId: string | null) => string | null,
+): string {
   if (entry.kind === "task") return entry.detail ?? "Job";
   if (entry.kind === "call") {
-    if (entry.status === "answered") return "Call answered";
+    if (entry.status === "answered") {
+      // #517: the same line the thread shows, so the two surfaces describing
+      // one call never disagree. Falls back to the bare label when the
+      // answerer is unknown or has left the crew — "Call answered by " with
+      // nothing after it is worse than the label it replaced.
+      const who = memberName(entry.answered_by_user_id ?? null);
+      return who ? `Call answered by ${who}` : "Call answered";
+    }
     if (entry.status === "voicemail") return "Voicemail";
     return "Missed call";
   }

@@ -18,7 +18,8 @@ final class ContactTimelineTests: XCTestCase {
         talk: Int? = nil,
         due: String? = nil,
         done: Bool? = nil,
-        conversationId: String? = "conv-1"
+        conversationId: String? = "conv-1",
+        answeredBy: String? = nil
     ) -> TimelineEntry {
         TimelineEntry(
             kind: kind,
@@ -29,7 +30,8 @@ final class ContactTimelineTests: XCTestCase {
             detail: detail,
             talk_seconds: talk,
             due_at: due,
-            done: done
+            done: done,
+            answered_by_user_id: answeredBy
         )
     }
 
@@ -178,5 +180,28 @@ final class ContactTimelineTests: XCTestCase {
     func testTalkTimeDropsTheMinutesWhenThereAreNone() {
         XCTAssertEqual(timelineTalkTime(45), "45s")
         XCTAssertEqual(timelineTalkTime(60), "1m 0s")
+    }
+
+    /// #517 — the row says WHO took the call, or falls back rather than
+    /// trailing off. Mirrors ContactTimelineLogicTest.kt case for case,
+    /// because the two are hand-ported.
+    func testAnsweredCallNamesWhoPickedItUp() {
+        let call = entry(kind: "call", status: "answered", answeredBy: "u1")
+        XCTAssertEqual(
+            timelineTitle(call, memberNames: ["u1": "Sam Ortiz"]),
+            "Call answered by Sam Ortiz"
+        )
+        // Left the crew, or a call answered before the server reported it:
+        // "Call answered by " with nothing after it is worse than the label.
+        XCTAssertEqual(timelineTitle(call, memberNames: [:]), "Call answered")
+        XCTAssertEqual(
+            timelineTitle(entry(kind: "call", status: "answered")),
+            "Call answered"
+        )
+        // The other outcomes never carry a name.
+        XCTAssertEqual(
+            timelineTitle(entry(kind: "call", status: "voicemail"), memberNames: ["u1": "Sam"]),
+            "Voicemail"
+        )
     }
 }

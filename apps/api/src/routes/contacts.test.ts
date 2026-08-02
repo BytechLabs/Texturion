@@ -560,6 +560,13 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
         occurred_at: "2026-07-19T09:00:00.000Z",
       }),
     ]);
+    // #517: a page carrying a call row now reads back who answered it.
+    sb.on("GET", "/rest/v1/calls", () => [
+      {
+        id: "0bbb0bbb-1111-4222-8333-444444444444",
+        answered_by_user_id: "0ccc0ccc-1111-4222-8333-444444444444",
+      },
+    ]);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -571,10 +578,15 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      entries: { kind: string }[];
+      entries: { kind: string; answered_by_user_id?: string }[];
       next_cursor: string | null;
     };
     expect(body.entries.map((e) => e.kind)).toEqual(["conversation", "call"]);
+    // #517: the call row carries its answerer; the conversation row does not
+    // grow a field it has no meaning for.
+    const [conversation, call] = body.entries;
+    expect(call.answered_by_user_id).toBe("0ccc0ccc-1111-4222-8333-444444444444");
+    expect(conversation).not.toHaveProperty("answered_by_user_id");
     // SPEC §7/D10: base64url of the full (ts, id) sort key, not a raw
     // timestamp. A raw timestamptz carries a `+`, which URLComponents does not
     // escape and Hono decodes as a space — a 422 on every iOS "Show earlier".

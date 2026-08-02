@@ -37,6 +37,13 @@ internal data class TimelineEntry(
     val talk_seconds: Int? = null,
     val due_at: String? = null,
     val done: Boolean? = null,
+    /**
+     * #517: who picked the call up. Absent on a job, a conversation, an
+     * unanswered call, and on any call answered before the server started
+     * reporting it — so the row falls back to the bare label rather than
+     * carrying a name-shaped hole.
+     */
+    val answered_by_user_id: String? = null,
 )
 
 @Serializable
@@ -116,11 +123,23 @@ internal fun timelineDayLabel(
     else -> DAY_LABEL.format(day)
 }
 
-/** The headline for a row: what happened. */
-internal fun timelineTitle(entry: TimelineEntry): String = when (entry.kind) {
+/**
+ * The headline for a row: what happened.
+ *
+ * #517: [memberNames] resolves an answered call's picker-upper, so this page
+ * and the thread describe one call the same way. Defaulted empty because the
+ * name is a decoration on a line that already reads correctly without it.
+ */
+internal fun timelineTitle(
+    entry: TimelineEntry,
+    memberNames: Map<String, String> = emptyMap(),
+): String = when (entry.kind) {
     "task" -> entry.detail ?: "Job"
     "call" -> when (entry.status) {
-        "answered" -> "Call answered"
+        "answered" -> entry.answered_by_user_id
+            ?.let { memberNames[it] }
+            ?.let { "Call answered by $it" }
+            ?: "Call answered"
         "voicemail" -> "Voicemail"
         else -> "Missed call"
     }

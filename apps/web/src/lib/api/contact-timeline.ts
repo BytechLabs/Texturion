@@ -31,6 +31,13 @@ export interface TimelineEntry {
   talk_seconds: number | null;
   due_at: string | null;
   done: boolean | null;
+  /**
+   * #517: who picked the call up. Absent on a task, a conversation, an
+   * unanswered call, and on any call answered before the server started
+   * reporting it — so the row falls back to the bare label rather than
+   * carrying a name-shaped hole.
+   */
+  answered_by_user_id?: string | null;
 }
 
 interface TimelinePage {

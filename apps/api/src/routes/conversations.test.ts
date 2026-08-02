@@ -1188,6 +1188,91 @@ describe("GET /v1/conversations/:id/events", () => {
     );
     expect(eventsCall.url.searchParams.get("limit")).toBe("11");
   });
+
+  /**
+   * #517 — "Call answered" left out the one thing the rest of the crew wanted
+   * to know. The answerer is joined in at READ time rather than stamped into
+   * the payload at insert, so calls ALREADY in the product gain the name too.
+   */
+  it("names who answered each call line, from the calls row", async () => {
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+    sb.on("GET", "/rest/v1/conversation_events", () => [
+      {
+        id: "12121212-1111-4222-8333-444444444444",
+        conversation_id: CONV_ID,
+        actor_user_id: null,
+        type: "call_completed",
+        payload: { call_session_id: "sess-1", outcome: "answered" },
+        created_at: "2026-07-01T09:00:00+00:00",
+      },
+      {
+        id: "13131313-1111-4222-8333-444444444444",
+        conversation_id: CONV_ID,
+        actor_user_id: null,
+        type: "status_changed",
+        payload: {},
+        created_at: "2026-07-01T08:00:00+00:00",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/calls", () => [
+      { call_session_id: "sess-1", answered_by_user_id: ASSIGNEE },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/events`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { type: string; payload: Record<string, unknown> }[];
+    };
+    const call = body.data.find((row) => row.type === "call_completed");
+    expect(call?.payload.answered_by_user_id).toBe(ASSIGNEE);
+    // The rest of the payload survives the rewrite untouched.
+    expect(call?.payload.outcome).toBe("answered");
+    // And a non-call line is not given a field that means nothing on it.
+    const status = body.data.find((row) => row.type === "status_changed");
+    expect(status?.payload).not.toHaveProperty("answered_by_user_id");
+  });
+
+  it("still serves the thread when the answerer lookup fails", async () => {
+    // The name decorates a line that already reads correctly without it, so a
+    // failed join must degrade to "Call answered" — never 500 a thread
+    // somebody is trying to read.
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+    sb.on("GET", "/rest/v1/conversation_events", () => [
+      {
+        id: "12121212-1111-4222-8333-444444444444",
+        conversation_id: CONV_ID,
+        actor_user_id: null,
+        type: "call_completed",
+        payload: { call_session_id: "sess-1", outcome: "answered" },
+        created_at: "2026-07-01T09:00:00+00:00",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/calls", () => new Response("boom", { status: 500 }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/events`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { payload: Record<string, unknown> }[];
+    };
+    expect(body.data[0].payload).not.toHaveProperty("answered_by_user_id");
+    expect(body.data[0].payload.outcome).toBe("answered");
+  });
 });
 
 describe("POST /v1/conversations/:id/tags (create-on-attach)", () => {

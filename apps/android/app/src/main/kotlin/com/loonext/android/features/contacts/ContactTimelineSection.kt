@@ -39,6 +39,7 @@ import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonListRow
+import com.loonext.android.features.thread.memberNames
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import java.time.Instant
@@ -109,6 +110,16 @@ internal fun ContactTimelineSection(
         graph.realtime.reconnected.collect { refreshKey++ }
     }
 
+    // #517: the roster, so an answered call can say who took it. Best-effort
+    // and out of band — the history must still render if this fails, because
+    // the name is a decoration on a line that already reads correctly.
+    var memberNames by remember(companyId) { mutableStateOf(emptyMap<String, String>()) }
+    LaunchedEffect(companyId) {
+        runCatching { mutations.members(companyId) }
+            .getOrNull()
+            ?.let { page -> memberNames = memberNames(page.data) }
+    }
+
     ContactSection("History", modifier) {
         when (val current = state) {
             is LoadState.Loading -> PaperCard(Modifier.fillMaxWidth()) {
@@ -154,6 +165,7 @@ internal fun ContactTimelineSection(
                                 key("${entry.kind}:${entry.id}") {
                                     TimelineRow(
                                         entry = entry,
+                                        memberNames = memberNames,
                                         onOpen = entry.conversation_id
                                             ?.takeIf { onOpenConversation != null }
                                             ?.let { id -> { onOpenConversation?.invoke(id) } },
@@ -213,7 +225,11 @@ internal fun ContactTimelineSection(
 private val TIME_LABEL: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
 
 @Composable
-private fun TimelineRow(entry: TimelineEntry, onOpen: (() -> Unit)?) {
+private fun TimelineRow(
+    entry: TimelineEntry,
+    memberNames: Map<String, String>,
+    onOpen: (() -> Unit)?,
+) {
     val haptics = rememberHaptics()
     Row(
         Modifier
@@ -247,7 +263,7 @@ private fun TimelineRow(entry: TimelineEntry, onOpen: (() -> Unit)?) {
         )
         Column(Modifier.weight(1f)) {
             Text(
-                timelineTitle(entry),
+                timelineTitle(entry, memberNames),
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
             )

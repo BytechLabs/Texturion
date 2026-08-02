@@ -36,6 +36,7 @@ import { resolveDestinationClock } from "../messaging/destination-clock";
 import { requireCapability } from "../auth/company";
 import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
+import { answerersByCall } from "../calls/answerers";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
@@ -622,7 +623,11 @@ contactsRoutes.get("/contacts/:id/timeline", requireCapability("conversations.re
   });
   if (error) throw new Error(`contact timeline failed: ${error.message}`);
 
-  const entries = (data ?? []) as { occurred_at: string; id: string }[];
+  const entries = await withCallAnswerers(
+    db,
+    companyId,
+    (data ?? []) as { occurred_at: string; id: string; kind?: string }[],
+  );
   const last = entries[entries.length - 1];
   return c.json({
     entries,
@@ -633,6 +638,38 @@ contactsRoutes.get("/contacts/:id/timeline", requireCapability("conversations.re
         : null,
   });
 });
+
+/**
+ * #517 — name the answerer on this chronology's call rows too.
+ *
+ * The thread and the contact page render the same call, and a product that
+ * says "Call answered by Sam" in one and "Call answered" in the other has only
+ * half-answered the question. A `call` entry's own `id` IS the call id (the
+ * read-model's call arm selects `k.id`), so the same read-time join works here
+ * with no change to `api_contact_timeline` — which is a fixed-arity union and
+ * would otherwise need every arm widened to carry one nullable column.
+ */
+async function withCallAnswerers<
+  T extends { id: string; kind?: string },
+>(
+  db: ReturnType<typeof getDb>,
+  companyId: string,
+  entries: T[],
+): Promise<T[]> {
+  const callIds = entries
+    .filter((entry) => entry.kind === "call")
+    .map((entry) => entry.id);
+  if (callIds.length === 0) return entries;
+
+  const answerers = await answerersByCall(db, companyId, "id", callIds);
+  if (answerers.size === 0) return entries;
+
+  return entries.map((entry) => {
+    const answeredBy =
+      entry.kind === "call" ? answerers.get(entry.id) : undefined;
+    return answeredBy ? { ...entry, answered_by_user_id: answeredBy } : entry;
+  });
+}
 
 /**
  * #410 — two facts about the relationship, derived rather than stored.

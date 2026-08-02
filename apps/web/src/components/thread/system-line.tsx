@@ -196,9 +196,22 @@ export function eventSentence(
       }
       if (outcome === "voicemail") return "Call went to voicemail";
       if (outcome === "missed") return "Missed call";
+      // #517: WHO picked up. On a crew, "Call answered" leaves out the one
+      // thing the rest of them wanted to know — and the name is what turns the
+      // line from a log entry into an answer to "did anyone deal with this?".
+      // Falls back to the bare line when the answerer is unknown (a call from
+      // before the server started reporting it) or is somebody no longer on
+      // the roster: "Call answered by " with nothing after it would be worse
+      // than the line it replaced.
+      const answeredBy = memberName(
+        typeof event.payload.answered_by_user_id === "string"
+          ? event.payload.answered_by_user_id
+          : null,
+      );
+      const answered = answeredBy ? `Call answered by ${answeredBy}` : "Call answered";
       return seconds > 0
-        ? `Call answered · ${formatCallDuration(seconds)}`
-        : "Call answered";
+        ? `${answered} · ${formatCallDuration(seconds)}`
+        : answered;
     }
   }
 }

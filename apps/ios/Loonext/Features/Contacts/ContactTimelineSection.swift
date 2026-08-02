@@ -39,12 +39,23 @@ struct ContactTimelineSection: View {
     @State private var state: LoadState<TimelineLog> = .loading
     @State private var loadingMore = false
     @State private var refreshKey = 0
+    /// #517: the roster, so an answered call can say who took it. Best-effort
+    /// and out of band — the history must still render if this fails, because
+    /// the name is a decoration on a line that already reads correctly.
+    @State private var answererNames: [String: String] = [:]
 
     var body: some View {
         ContactSection(title: "History") {
             content
         }
         .task(id: "\(contactId)|\(refreshKey)") { await reload() }
+        .task(id: companyId) {
+            if let page = try? await mutations.members(companyId: companyId) {
+                // Named `answererNames` so the property cannot shadow the
+                // free `memberNames(_:)` this line calls.
+                answererNames = memberNames(page.data)
+            }
+        }
         // The history changes when a text lands, a call ends, or a job moves,
         // so it revalidates on the broadcasts those surfaces already send
         // rather than inventing a fourth event.
@@ -110,7 +121,11 @@ struct ContactTimelineSection: View {
                     // tables have independent id spaces, so identity by id
                     // alone could collide across kinds.
                     ForEach(group.entries, id: \.dedupeKey) { entry in
-                        TimelineRow(entry: entry, onOpen: openAction(for: entry))
+                        TimelineRow(
+                            entry: entry,
+                            memberNames: answererNames,
+                            onOpen: openAction(for: entry)
+                        )
                         if entry.dedupeKey != group.entries.last?.dedupeKey {
                             RowDivider().padding(.leading, 42)
                         }
@@ -186,6 +201,7 @@ struct ContactTimelineSection: View {
 
 private struct TimelineRow: View {
     let entry: TimelineEntry
+    let memberNames: [String: String]
     let onOpen: (@MainActor () -> Void)?
 
     var body: some View {
@@ -195,7 +211,7 @@ private struct TimelineRow: View {
                 .foregroundStyle(BrandColor.muted500)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 2) {
-                Text(timelineTitle(entry))
+                Text(timelineTitle(entry, memberNames: memberNames))
                     .font(.golos(14))
                     .lineLimit(1)
                 Text(timelineDetail(entry))

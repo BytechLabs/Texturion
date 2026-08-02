@@ -50,6 +50,39 @@ describe("eventSentence — #129 call lines", () => {
     ).toBe("Call answered");
   });
 
+  it("names who picked the call up (#517)", () => {
+    // "Call answered" left out the one thing the rest of the crew wanted to
+    // know: whether anyone actually dealt with it, and which of them.
+    const named = (userId: string | null) =>
+      userId === "u1" ? "Sam Ortiz" : null;
+    expect(
+      eventSentence(
+        event("call_completed", {
+          outcome: "answered",
+          forward_seconds: 272,
+          answered_by_user_id: "u1",
+        }),
+        named,
+      ),
+    ).toBe("Call answered by Sam Ortiz · 4m 32s");
+  });
+
+  it("falls back to the bare line when the answerer cannot be named", () => {
+    // A call answered before the server started reporting it, or answered by
+    // somebody since off the roster. "Call answered by " with nothing after it
+    // is worse than the line it replaced.
+    expect(
+      eventSentence(
+        event("call_completed", {
+          outcome: "answered",
+          forward_seconds: 0,
+          answered_by_user_id: "gone",
+        }),
+        noMember,
+      ),
+    ).toBe("Call answered");
+  });
+
   it("narrates voicemail and missed outcomes", () => {
     expect(
       eventSentence(

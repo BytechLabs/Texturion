@@ -48,6 +48,7 @@ import {
   transcriptInput,
   transcriptText,
 } from "../calls/voicemail-transcript";
+import { answerersByCall } from "../calls/answerers";
 import { notifyAssigned } from "../notifications/assignment";
 import { notifyNoteMention } from "../notifications/mention";
 import { Hono } from "hono";
@@ -1679,9 +1680,58 @@ conversationsRoutes.get(
         .limit(limit + 1),
       "conversation events page",
     );
-    return c.json(buildPage(rows, limit, "created_at"));
+    return c.json(
+      buildPage(await withAnswerers(db, companyId, rows), limit, "created_at"),
+    );
   },
 );
+
+/**
+ * #517 — stamp WHO answered onto each call line in the page.
+ *
+ * The reasoning for resolving this at read time rather than at insert lives on
+ * `answerersByCall`. One extra query per page, and only when the page contains
+ * call lines: a thread of pure texts pays nothing.
+ */
+async function withAnswerers(
+  db: ReturnType<typeof getDb>,
+  companyId: string,
+  rows: { id: string; created_at: string }[],
+): Promise<{ id: string; created_at: string }[]> {
+  type EventRow = {
+    type?: string;
+    payload?: Record<string, unknown> | null;
+  } & { id: string; created_at: string };
+  const events = rows as EventRow[];
+  const sessionIdOf = (row: EventRow): string | null =>
+    row.type === "call_completed" && typeof row.payload?.call_session_id === "string"
+      ? row.payload.call_session_id
+      : null;
+
+  const sessionIds = events
+    .map(sessionIdOf)
+    .filter((value): value is string => value !== null);
+  if (sessionIds.length === 0) return rows;
+
+  const answerers = await answerersByCall(
+    db,
+    companyId,
+    "call_session_id",
+    sessionIds,
+  );
+  if (answerers.size === 0) return rows;
+
+  return events.map((row) => {
+    const sessionId = sessionIdOf(row);
+    const answeredBy = sessionId === null ? undefined : answerers.get(sessionId);
+    // Absent rather than null when unknown, matching how the voicemail line
+    // omits its transcript: an older call and an unanswered one then look
+    // identical to every client, so none of them needs a third branch.
+    return answeredBy
+      ? { ...row, payload: { ...row.payload, answered_by_user_id: answeredBy } }
+      : row;
+  });
+}
 
 conversationsRoutes.post(
   "/conversations/:id/tags",

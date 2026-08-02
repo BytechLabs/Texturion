@@ -23,11 +23,13 @@ class ContactTimelineLogicTest {
         talk: Int? = null,
         due: String? = null,
         done: Boolean? = null,
+        answeredBy: String? = null,
     ) = TimelineEntry(
         kind = kind,
         id = id,
         occurred_at = at,
         conversation_id = "conv-1",
+        answered_by_user_id = answeredBy,
         status = status,
         detail = detail,
         talk_seconds = talk,
@@ -137,6 +139,26 @@ class ContactTimelineLogicTest {
         assertEquals("Call answered", timelineTitle(entry(kind = "call", status = "answered")))
         assertEquals("Voicemail", timelineTitle(entry(kind = "call", status = "voicemail")))
         assertEquals("Missed call", timelineTitle(entry(kind = "call", status = "missed")))
+    }
+
+    @Test
+    fun `an answered call names who picked it up`() {
+        // #517: "Call answered" left out the one thing the rest of the crew
+        // wanted to know.
+        val call = entry(kind = "call", status = "answered", answeredBy = "u1")
+        assertEquals(
+            "Call answered by Sam Ortiz",
+            timelineTitle(call, mapOf("u1" to "Sam Ortiz")),
+        )
+        // Left the crew, or a call answered before the server reported it:
+        // "Call answered by " with nothing after it is worse than the label.
+        assertEquals("Call answered", timelineTitle(call, emptyMap()))
+        assertEquals("Call answered", timelineTitle(entry(kind = "call", status = "answered")))
+        // The other outcomes never carry a name.
+        assertEquals(
+            "Voicemail",
+            timelineTitle(entry(kind = "call", status = "voicemail"), mapOf("u1" to "Sam")),
+        )
     }
 
     @Test

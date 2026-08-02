@@ -25,6 +25,11 @@ struct TimelineEntry: Decodable, Identifiable, Equatable, Sendable {
     let talk_seconds: Int?
     let due_at: String?
     let done: Bool?
+    /// #517: who picked the call up. Nil on a job, a conversation, an
+    /// unanswered call, and on any call answered before the server started
+    /// reporting it — so the row falls back to the bare label rather than
+    /// carrying a name-shaped hole.
+    let answered_by_user_id: String?
 
     /// The two source tables have independent id spaces, so a conversation and
     /// a job could share an id. Dedup on both or one silently vanishes.
@@ -44,13 +49,23 @@ struct ContactTimelinePage: Decodable, Sendable {
 }
 
 /// The headline for a row: what happened.
-func timelineTitle(_ entry: TimelineEntry) -> String {
+///
+/// #517: `memberNames` resolves an answered call's picker-upper, so this page
+/// and the thread describe one call the same way. Defaulted empty because the
+/// name is a decoration on a line that already reads correctly without it.
+func timelineTitle(
+    _ entry: TimelineEntry,
+    memberNames: [String: String] = [:]
+) -> String {
     switch entry.kind {
     case "task":
         return entry.detail ?? "Job"
     case "call":
         switch entry.status {
-        case "answered": return "Call answered"
+        case "answered":
+            guard let who = entry.answered_by_user_id.flatMap({ memberNames[$0] })
+            else { return "Call answered" }
+            return "Call answered by \(who)"
         case "voicemail": return "Voicemail"
         default: return "Missed call"
         }
