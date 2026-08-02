@@ -24,6 +24,14 @@
 
 begin;
 
+-- `topics_for` below promises "in this transaction" and cannot deliver it on its
+-- own: realtime.messages is a committed table, so every row any earlier work
+-- published is still there. Clearing it here is what makes the docstring true,
+-- and it keeps NT-1's real teeth — the assertion is set EQUALITY, so it still
+-- catches an event reaching a topic it should not, including another tenant's.
+-- Scoping the helper to this company would have silently dropped that (#474).
+delete from realtime.messages;
+
 insert into auth.users (id, email) values
   ('7c000000-0000-4000-8000-00000000000a'::uuid, 'nt-owner@test.local');
 

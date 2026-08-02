@@ -27,6 +27,14 @@ const USERS = [
   { email: "sam@loonext.local", displayName: "Sam Rivera" },
 ];
 
+// PHONE NUMBERS HERE ARE RESERVED: +1 415 556-01xx belongs to this seed alone.
+//
+// `phone_numbers_e164_uq` is GLOBAL, not per-company, so a seeded workspace and
+// a SQL fixture claiming the same number collide on any database both have run
+// against — and the error names a unique constraint rather than the cause. The
+// suite in supabase/tests owns 415/212/213/214/303/416/613-555-xxxx; this file
+// stays out of all of it. Never move the seed into a 555 block (#474).
+
 // Fixed ids so reruns hit ON CONFLICT instead of duplicating.
 const COMPANY = "11111111-1111-4111-8111-111111111111";
 const NUMBER = "22222222-2222-4222-8222-222222222222";
@@ -121,7 +129,7 @@ insert into public.phone_numbers
    number_e164, telnyx_phone_number_id, source)
 values
   ('${NUMBER}', '${COMPANY}', 'active', 'dev-seed-primary', '415', 'US',
-   '+14155550100', 'dev-tpn-1', 'provisioned')
+   '+14155560100', 'dev-tpn-1', 'provisioned')
 on conflict (id) do nothing;
 
 -- Approved 10DLC brand + campaign so the composer renders real send mode
@@ -149,18 +157,18 @@ insert into public.contacts
   (id, company_id, phone_e164, name, address, notes,
    consent_source, consent_at, consent_attested_by)
 values
-  ('${C(1)}', '${COMPANY}', '+14155550111', 'Maria Alvarez',
+  ('${C(1)}', '${COMPANY}', '+14155560111', 'Maria Alvarez',
    '1214 Cypress Ave, San Rafael, CA',
    'Prefers morning appointments. Gate code 4482. Two labs in the yard - friendly.',
    'attested', now() - interval '3 days', '${sam}'),
-  ('${C(2)}', '${COMPANY}', '+14155550122', 'Jake Thompson', null, null,
+  ('${C(2)}', '${COMPANY}', '+14155560122', 'Jake Thompson', null, null,
    'inbound_sms', now() - interval '1 day', null),
-  ('${C(3)}', '${COMPANY}', '+14155550133', null, null, null,
+  ('${C(3)}', '${COMPANY}', '+14155560133', null, null, null,
    'inbound_sms', now() - interval '20 minutes', null),
-  ('${C(4)}', '${COMPANY}', '+14155550144', 'Priya Natarajan',
+  ('${C(4)}', '${COMPANY}', '+14155560144', 'Priya Natarajan',
    '88 Marine View Dr, Mill Valley, CA', 'Repipe estimate sent 6/30. Decision by Friday.',
    'attested', now() - interval '8 days', '${dana}'),
-  ('${C(5)}', '${COMPANY}', '+14155550155', 'Leo Martin', null, null,
+  ('${C(5)}', '${COMPANY}', '+14155560155', 'Leo Martin', null, null,
    'inbound_sms', now() - interval '5 days', null)
 on conflict (id) do nothing;
 
@@ -248,10 +256,10 @@ values
 on conflict (id) do nothing;
 
 insert into public.opt_outs (company_id, phone_e164, source)
-select '${COMPANY}', '+14155550155', 'stop_keyword'
+select '${COMPANY}', '+14155560155', 'stop_keyword'
 where not exists (
   select 1 from public.opt_outs
-  where company_id = '${COMPANY}' and phone_e164 = '+14155550155'
+  where company_id = '${COMPANY}' and phone_e164 = '+14155560155'
 );
 
 insert into public.conversation_tags (conversation_id, tag_id) values
@@ -321,13 +329,13 @@ insert into public.calls
    conversation_id, outcome, forward_seconds, started_at, ended_at)
 values
   ('88888888-0000-4000-8000-000000000001', '${COMPANY}', '${NUMBER}',
-   'seed-call-1', '+14155550133', '${C(3)}', '${V(4)}', 'missed', 0,
+   'seed-call-1', '+14155560133', '${C(3)}', '${V(4)}', 'missed', 0,
    now() - interval '25 minutes', now() - interval '24 minutes'),
   ('88888888-0000-4000-8000-000000000002', '${COMPANY}', '${NUMBER}',
-   'seed-call-2', '+14155550111', '${C(1)}', '${V(1)}', 'answered', 272,
+   'seed-call-2', '+14155560111', '${C(1)}', '${V(1)}', 'answered', 272,
    now() - interval '3 hours', now() - interval '3 hours' + interval '272 seconds'),
   ('88888888-0000-4000-8000-000000000003', '${COMPANY}', '${NUMBER}',
-   'seed-call-3', '+14155550144', '${C(4)}', '${V(5)}', 'voicemail', 31,
+   'seed-call-3', '+14155560144', '${C(4)}', '${V(5)}', 'voicemail', 31,
    now() - interval '1 day', now() - interval '1 day' + interval '31 seconds'),
   ('88888888-0000-4000-8000-000000000004', '${COMPANY}', '${NUMBER}',
    'seed-call-4', null, null, null, 'answered', 58,
@@ -340,10 +348,10 @@ insert into public.calls
    conversation_id, outcome, direction, forward_seconds, started_at, ended_at)
 values
   ('88888888-0000-4000-8000-000000000005', '${COMPANY}', '${NUMBER}',
-   'seed-call-5', '+14155550111', '${C(1)}', '${V(1)}', 'answered', 'outbound', 192,
+   'seed-call-5', '+14155560111', '${C(1)}', '${V(1)}', 'answered', 'outbound', 192,
    now() - interval '50 minutes', now() - interval '50 minutes' + interval '192 seconds'),
   ('88888888-0000-4000-8000-000000000006', '${COMPANY}', '${NUMBER}',
-   'seed-call-6', '+14155550122', '${C(2)}', '${V(3)}', 'missed', 'outbound', 0,
+   'seed-call-6', '+14155560122', '${C(2)}', '${V(3)}', 'missed', 'outbound', 0,
    now() - interval '5 hours', now() - interval '5 hours' + interval '20 seconds')
 on conflict (id) do nothing;
 
@@ -353,28 +361,28 @@ values
   ('f0000000-0000-4000-8000-000000000091', '${COMPANY}', '${V(4)}', null,
    'call_completed',
    jsonb_build_object('call_session_id', 'seed-call-1', 'outcome', 'missed',
-                      'forward_seconds', 0, 'caller', '+14155550133'),
+                      'forward_seconds', 0, 'caller', '+14155560133'),
    now() - interval '24 minutes'),
   ('f0000000-0000-4000-8000-000000000092', '${COMPANY}', '${V(1)}', null,
    'call_completed',
    jsonb_build_object('call_session_id', 'seed-call-2', 'outcome', 'answered',
-                      'forward_seconds', 272, 'caller', '+14155550111'),
+                      'forward_seconds', 272, 'caller', '+14155560111'),
    now() - interval '3 hours'),
   ('f0000000-0000-4000-8000-000000000093', '${COMPANY}', '${V(5)}', null,
    'call_completed',
    jsonb_build_object('call_session_id', 'seed-call-3', 'outcome', 'voicemail',
-                      'forward_seconds', 31, 'caller', '+14155550144'),
+                      'forward_seconds', 31, 'caller', '+14155560144'),
    now() - interval '1 day'),
   ('f0000000-0000-4000-8000-000000000094', '${COMPANY}', '${V(1)}', null,
    'call_completed',
    jsonb_build_object('call_session_id', 'seed-call-5', 'outcome', 'answered',
-                      'forward_seconds', 192, 'caller', '+14155550111',
+                      'forward_seconds', 192, 'caller', '+14155560111',
                       'direction', 'outbound'),
    now() - interval '50 minutes'),
   ('f0000000-0000-4000-8000-000000000095', '${COMPANY}', '${V(3)}', null,
    'call_completed',
    jsonb_build_object('call_session_id', 'seed-call-6', 'outcome', 'missed',
-                      'forward_seconds', 0, 'caller', '+14155550122',
+                      'forward_seconds', 0, 'caller', '+14155560122',
                       'direction', 'outbound'),
    now() - interval '5 hours')
 on conflict (id) do nothing;

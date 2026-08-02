@@ -23,9 +23,20 @@
 begin;
 
 -- Only these numbers exist for the duration, so counts are about the fixtures.
+--
+-- The dependents come first because their foreign keys are ON DELETE RESTRICT,
+-- not CASCADE: tasks and usage_events hold messages down, tasks also holds
+-- conversations, and port_requests/text_enablement_orders hold phone_numbers.
+-- Without these the wipe fails the moment the database contains anything at
+-- all — which is what `node scripts/dev-seed.mjs && npm run db:test:all` does
+-- (#474). Everything here is inside the transaction this file rolls back.
+delete from public.tasks;
+delete from public.usage_events;
 delete from public.messages;
 delete from public.conversations;
 delete from public.number_health;
+delete from public.port_requests;
+delete from public.text_enablement_orders;
 delete from public.phone_numbers;
 
 insert into auth.users (id, email) values
