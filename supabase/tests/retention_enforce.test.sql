@@ -1,5 +1,5 @@
 -- [#284] Retention ENFORCEMENT — assertion suite for
--- supabase/migrations/20260802040000_retention_enforce.sql.
+-- supabase/migrations/20260802100000_retention_enforce.sql.
 --
 -- The two guards are the whole feature, and both live in SQL precisely so a
 -- bug in the Worker cannot route around them:

@@ -1,6 +1,6 @@
 -- #284 — voicemail audio ages out on the year we PUBLISH for it.
 --
--- Split into its own migration rather than appended to 20260802040000, which
+-- Split into its own migration rather than appended to 20260802100000, which
 -- had already shipped. A migration that has been applied never runs again, so
 -- editing one in place is a function that exists on every machine that has not
 -- yet applied it and on no machine that has — the worst kind of drift, because
