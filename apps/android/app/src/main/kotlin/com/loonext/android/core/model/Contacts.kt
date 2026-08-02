@@ -34,6 +34,14 @@ fun isCarrierEnforcedOptOut(source: String?): Boolean =
 data class Contact(
     val id: String,
     val phone_e164: String,
+    /**
+     * #410: how many conversations this contact has had, and when the first
+     * one was. Derived server-side so three clients cannot each count
+     * differently, and scoped to the numbers the caller may see. Defaults
+     * because a lagging build must not fail a decode over a summary.
+     */
+    val conversation_count: Int = 0,
+    val first_conversation_at: String? = null,
     val name: String? = null,
     val address: String? = null,
     val notes: String? = null,

@@ -35,6 +35,13 @@ struct Contact: Codable, Sendable {
     let deleted_at: String?
     let created_at: String
     let updated_at: String
+    /// #410: how many conversations this contact has had, and when the first
+    /// one was. Derived server-side so three clients cannot each count
+    /// differently, and scoped to the numbers the caller may see. `var … = nil`
+    /// so neither becomes a required memberwise-init parameter at the existing
+    /// construction sites.
+    var conversation_count: Int? = nil
+    var first_conversation_at: String? = nil
     @Default<DefaultFalse> var opted_out: Bool
     /// Which kind of opt-out this is, because only some of them can be undone
     /// from inside the app. "stop_keyword" and "carrier" are both CARRIER

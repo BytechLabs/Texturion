@@ -296,6 +296,19 @@ struct ContactDetailView: View {
                         .foregroundStyle(BrandColor.destructive)
                 }
             }
+            // #410: how long they have been a customer, and how often. Quiet
+            // metadata under the number rather than a section of its own —
+            // two facts do not earn a heading.
+            if let line = contactRelationshipLine(
+                contact.conversation_count,
+                contact.first_conversation_at
+            ) {
+                Text(line)
+                    .font(.golos(11.5))
+                    .foregroundStyle(BrandColor.muted500)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 3)
+            }
             actionPills(contact)
                 .padding(.top, 10)
         }

@@ -435,3 +435,8 @@ export {
   tagNameDistance,
 } from "./tag-similarity";
 export type { TagLike, TagSuggestion } from "./tag-similarity";
+export {
+  CONTACT_RELATIONSHIP_CASES,
+  contactRelationshipLine,
+  monthYear,
+} from "./contact-relationship";

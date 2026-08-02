@@ -364,6 +364,20 @@ private fun ContactDetailBody(
                     )
                 }
             }
+            // #410: how long they have been a customer, and how often.
+            // Quiet metadata under the number rather than a section of its
+            // own — two facts do not earn a heading.
+            contactRelationshipLine(
+                contact.conversation_count,
+                contact.first_conversation_at,
+            )?.let { line ->
+                Text(
+                    line,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
             if (contact.opted_out) {
                 DsChip(
                     "Opted out",

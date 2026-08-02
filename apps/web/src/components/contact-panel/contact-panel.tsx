@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { contactRelationshipLine } from "@loonext/shared";
+
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import { StatusPill } from "@/components/inbox/status-pill";
 import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
@@ -203,6 +205,11 @@ export function ContactPanel({
     </span>
   );
 
+  const relationship = contactRelationshipLine(
+    contact.conversation_count,
+    contact.first_conversation_at,
+  );
+
   const nameAndPhone = (
     <div className="min-w-0 flex-1">
       <InlineTextField
@@ -230,6 +237,15 @@ export function ContactPanel({
           )}
         </Button>
       </div>
+      {/* #410: how long they have been a customer, and how often. Quiet
+          metadata inside the identity block rather than a group of its own —
+          the panel's doc calls it a calm core, and two facts do not earn a
+          heading. Absent entirely when there is no history to summarise. */}
+      {relationship !== null && (
+        <p className="px-2 pt-0.5 text-[13px] text-muted-foreground">
+          {relationship}
+        </p>
+      )}
     </div>
   );
 

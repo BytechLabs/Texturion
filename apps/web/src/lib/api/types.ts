@@ -1023,6 +1023,14 @@ export interface ContactDetail extends Contact {
    */
   opt_out_source: OptOutSource | null;
   /**
+   * #410: how many conversations this contact has had, and when the first one
+   * was. Derived server-side so three clients cannot each count differently,
+   * and scoped to the numbers the caller may see. Optional: the fixtures that
+   * predate it omit both, and a missing count reads as no history.
+   */
+  conversation_count?: number | null;
+  first_conversation_at?: string | null;
+  /**
    * #292/D49: what time it is where they are, resolved the same way a send
    * resolves it — a person's correction, else the area code, else the shop's
    * own clock. `timezone_source` says which rung answered, so a screen can be
