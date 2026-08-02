@@ -110,6 +110,9 @@ export const keys = {
 
   contacts: {
     lists: (companyId: string) => [companyId, "contacts", "list"] as const,
+    /** #246: the likely duplicates. Under `contacts` so a merge clears both. */
+    duplicates: (companyId: string) =>
+      [companyId, "contacts", "duplicates"] as const,
     list: (companyId: string, q: string) =>
       [companyId, "contacts", "list", q] as const,
     detail: (companyId: string, contactId: string) =>

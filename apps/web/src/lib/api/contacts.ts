@@ -269,3 +269,63 @@ export function useRevokeOptOut() {
     },
   });
 }
+
+/**
+ * #246 — the likely duplicates in this workspace.
+ *
+ * Two signals the server can explain: the same name, or the same ten digits
+ * reached by different prefix habits. Read on the contacts page rather than
+ * behind its own route — somebody finds out they have duplicates by being
+ * shown them, not by going looking.
+ */
+export interface DuplicatePair {
+  contact_a: string;
+  name_a: string | null;
+  phone_a: string;
+  contact_b: string;
+  name_b: string | null;
+  phone_b: string;
+  reason: string;
+}
+
+export function useDuplicateContacts() {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: keys.contacts.duplicates(companyId),
+    queryFn: () =>
+      apiFetch<Page<DuplicatePair>>("/v1/contacts/duplicates", { companyId }),
+  });
+}
+
+/**
+ * #246 — POST /v1/contacts/:id/merge.
+ *
+ * Invalidates every contact query AND the conversation lists: a merge moves
+ * whole threads onto a different contact, so a cached inbox would keep showing
+ * them under a record that no longer owns them.
+ */
+export function useMergeContacts() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { fromContactId: string; intoContactId: string }) =>
+      apiFetch<{
+        merged: true;
+        moved: number;
+        closed: number;
+        opted_out: boolean;
+      }>(`/v1/contacts/${input.fromContactId}/merge`, {
+        method: "POST",
+        companyId,
+        body: { into_contact_id: input.intoContactId },
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: [companyId, "contacts"],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.lists(companyId),
+      });
+    },
+  });
+}

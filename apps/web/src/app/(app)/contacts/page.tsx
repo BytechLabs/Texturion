@@ -9,6 +9,7 @@ import {
 } from "@/components/contacts/contacts-actions";
 import { ContactsTable } from "@/components/contacts/contacts-table";
 import { Button } from "@/components/ui/button";
+import { DuplicateContactsCard } from "@/components/contacts/duplicate-contacts-card";
 import { useActiveCompany } from "@/lib/company/provider";
 
 /**
@@ -45,6 +46,10 @@ export default function ContactsPage() {
           onImportSourceChange={setImportSource}
         />
       </div>
+      {/* #246: above the table, and only when there is something to act on.
+          Somebody who does not know they have duplicates will not navigate to
+          a page about them — being shown is the whole mechanism. */}
+      <DuplicateContactsCard canMerge={canImport} />
       <ContactsTable
         emptyAction={emptyImportButton}
         onQueryChange={handleQueryChange}
