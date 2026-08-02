@@ -50,6 +50,7 @@ function world(options: { removeFails?: boolean } = {}) {
     { storage_path: "mms-media/co/msg/photo.jpg" },
   ]);
   sb.on("GET", "/rest/v1/attachments", () => []);
+  sb.on("POST", "/rest/v1/rpc/api_voicemail_audio_overdue", () => []);
   sb.on("DELETE", "/rest/v1/messages", () => {
     order.push("delete:messages");
     return [];
@@ -133,6 +134,7 @@ describe("retention enforcement", () => {
     // the RPC, so an empty answer means no reads and no deletes.
     const sb = supabaseStub(env);
     sb.on("POST", "/rest/v1/rpc/api_retention_overdue_companies", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_voicemail_audio_overdue", () => []);
     stubFetch(sb.route);
 
     const summary = await runRetentionEnforceJob(env, new Date(), undefined);
@@ -141,6 +143,81 @@ describe("retention enforcement", () => {
       companies: 0,
       messagesDeleted: 0,
       objectsRemoved: 0,
+      voicemailsCleared: 0,
     });
+  });
+});
+
+describe("voicemail audio retention", () => {
+  /**
+   * The one-year window legal/privacy publishes for recordings, which nothing
+   * enforced. It runs on its OWN clock — independent of the workspace's message
+   * window — because the promise is to the caller who left the message.
+   */
+  function voicemailWorld(options: { removeFails?: boolean } = {}) {
+    const sb = supabaseStub(env);
+    const order: string[] = [];
+    let scans = 0;
+
+    sb.on("POST", "/rest/v1/rpc/api_retention_overdue_companies", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_voicemail_audio_overdue", () => {
+      scans += 1;
+      return scans === 1
+        ? [{ call_id: "call-1", company_id: COMPANY, voicemail_path: "vm/old.mp3" }]
+        : [];
+    });
+    sb.on("PATCH", "/rest/v1/calls", (call) => {
+      order.push(`clear:${JSON.stringify(call.body)}`);
+      return [];
+    });
+
+    const storage = async (url: URL) => {
+      if (!url.pathname.includes("/storage/v1/object/")) return undefined;
+      order.push("remove:audio");
+      return options.removeFails
+        ? Response.json({ message: "gone" }, { status: 500 })
+        : Response.json([{ name: "old.mp3" }]);
+    };
+    return { sb, order, routes: [storage, sb.route] };
+  }
+
+  it("removes the audio and then nulls the column that pointed at it", async () => {
+    // Leaving the path set would leave a player aimed at a file that is gone —
+    // which reads as a bug rather than a policy — and would make every later
+    // run try to remove it again.
+    const w = voicemailWorld();
+    stubFetch(...w.routes);
+
+    const summary = await runRetentionEnforceJob(env, new Date(), undefined);
+
+    expect(summary.voicemailsCleared).toBe(1);
+    expect(w.order[0]).toBe("remove:audio");
+    expect(w.order[1]).toContain('"voicemail_path":null');
+  });
+
+  it("keeps the path when Storage refuses, so the audio is never stranded", async () => {
+    const w = voicemailWorld({ removeFails: true });
+    stubFetch(...w.routes);
+
+    await expect(
+      runRetentionEnforceJob(env, new Date(), undefined),
+    ).rejects.toThrow(/failed/);
+
+    expect(w.order.some((step) => step.startsWith("clear:"))).toBe(false);
+  });
+
+  it("ages audio out even when no workspace has overdue messages", async () => {
+    // The two clocks are independent: a workspace inside its seven-year message
+    // window still has recordings past their year. Sharing one eligibility
+    // query would have silently tied the published promise to the configurable
+    // one.
+    const w = voicemailWorld();
+    stubFetch(...w.routes);
+
+    const summary = await runRetentionEnforceJob(env, new Date(), undefined);
+
+    expect(summary.companies).toBe(0);
+    expect(summary.messagesDeleted).toBe(0);
+    expect(summary.voicemailsCleared).toBe(1);
   });
 });

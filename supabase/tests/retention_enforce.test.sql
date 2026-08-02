@@ -178,4 +178,56 @@ begin
   raise notice 'retention enforcement: all assertions passed';
 end $$;
 
+-- ---------------------------------------------------------------- voicemail
+-- The one-year audio window legal/privacy publishes, which is FIXED rather
+-- than the workspace's choice: the promise is to the caller who left the
+-- message, not to the business that received it.
+insert into public.calls
+  (id, company_id, call_session_id, voicemail_path, voicemail_transcript,
+   started_at)
+values
+  -- Old enough to go, in a workspace with a 120-day MESSAGE window: the two
+  -- clocks are independent, and this is the row that proves it.
+  ('ce000000-0000-4000-8000-0000000000a1'::uuid,
+   'ce000000-0000-4000-8000-0000000000c1'::uuid, 'sess-old',
+   'vm/old.mp3', 'the boiler is leaking', now() - interval '400 days'),
+  -- Inside the year.
+  ('ce000000-0000-4000-8000-0000000000a2'::uuid,
+   'ce000000-0000-4000-8000-0000000000c1'::uuid, 'sess-new',
+   'vm/new.mp3', 'call me back', now() - interval '10 days'),
+  -- Old, but held.
+  ('ce000000-0000-4000-8000-0000000000a3'::uuid,
+   'ce000000-0000-4000-8000-0000000000c3'::uuid, 'sess-held',
+   'vm/held.mp3', 'held', now() - interval '400 days');
+
+do $$
+declare
+  v_ids uuid[];
+begin
+  select array_agg(call_id) into v_ids
+    from public.api_voicemail_audio_overdue(500);
+
+  if not ('ce000000-0000-4000-8000-0000000000a1'::uuid = any(v_ids)) then
+    raise exception 'a recording past one year must be swept';
+  end if;
+  if 'ce000000-0000-4000-8000-0000000000a2'::uuid = any(v_ids) then
+    raise exception 'a recording inside the year must never be swept';
+  end if;
+  if 'ce000000-0000-4000-8000-0000000000a3'::uuid = any(v_ids) then
+    raise exception 'a held workspace keeps its audio like everything else';
+  end if;
+
+  -- The transcript is what makes deleting the audio safe without a warning.
+  -- A sweep that took it too would be losing what was said, silently.
+  if not exists (
+    select 1 from public.calls
+     where id = 'ce000000-0000-4000-8000-0000000000a1'::uuid
+       and voicemail_transcript is not null
+  ) then
+    raise exception 'the transcript must outlive the recording';
+  end if;
+
+  raise notice 'voicemail audio retention: all assertions passed';
+end $$;
+
 rollback;

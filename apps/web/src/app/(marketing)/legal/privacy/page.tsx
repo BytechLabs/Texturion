@@ -265,7 +265,9 @@ export default function PrivacyPage() {
           <em>recordings</em> are the exception and are kept for{" "}
           <strong>one year</strong>: the transcript keeps what was said, while
           the recording is somebody&rsquo;s actual voice in their home and is
-          worth far less after the first few weeks. Audit logs are kept for 12
+          worth far less after the first few weeks. The transcript itself stays
+          with the call record for the full seven years, which is what makes
+          deleting the audio safe rather than lossy. Audit logs are kept for 12
           months. Do-not-text records are kept indefinitely, because they belong
           to the person who sent the STOP.
         </p>

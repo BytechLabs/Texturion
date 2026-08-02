@@ -42,6 +42,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { VOICEMAILS_BUCKET } from "../messaging/inbound-ring";
 import { MMS_BUCKET } from "../messaging/media";
 import { ATTACHMENTS_BUCKET } from "../routes/core/attachments";
 
@@ -98,6 +99,8 @@ export interface RetentionEnforceSummary {
   companies: number;
   messagesDeleted: number;
   objectsRemoved: number;
+  /** #284: voicemail recordings cleared on their own published one-year clock. */
+  voicemailsCleared: number;
 }
 
 interface OverdueCompany {
@@ -121,6 +124,7 @@ export async function runRetentionEnforceJob(
     companies: 0,
     messagesDeleted: 0,
     objectsRemoved: 0,
+    voicemailsCleared: 0,
   };
 
   const { data, error } = await db.rpc("api_retention_overdue_companies", {
@@ -147,6 +151,19 @@ export async function runRetentionEnforceJob(
     }
   }
 
+  // The voicemail sweep runs on its OWN clock and its own failure budget: it
+  // is platform-wide rather than per-workspace, so a tenant whose messages
+  // failed above must not also stop every other tenant's audio from ageing out.
+  try {
+    summary.voicemailsCleared = await clearOverdueVoicemailAudio(db);
+  } catch (cause) {
+    console.error(
+      "voicemail audio retention failed:",
+      cause instanceof Error ? (cause.stack ?? cause.message) : String(cause),
+    );
+    failures.push(cause);
+  }
+
   if (failures.length > 0) {
     throw new AggregateError(
       failures,
@@ -154,6 +171,62 @@ export async function runRetentionEnforceJob(
     );
   }
   return summary;
+}
+
+/**
+ * Delete voicemail recordings past the ONE YEAR legal/privacy publishes for
+ * them, keeping the call row and its transcript.
+ *
+ * That asymmetry is the point, and it is the page's own reasoning: "the
+ * transcript keeps what was said, while the recording is somebody's actual
+ * voice in their home". It is also why this needs no warning, unlike the
+ * message sweep — nothing is discovered by loss, because what was said is
+ * still there to read. A crew that never noticed the audio go can still search
+ * the words.
+ *
+ * The PATH IS NULLED IN THE SAME PASS that removed the object. Leaving it set
+ * would leave a player pointing at a file that is gone, which reads as a bug
+ * rather than as a policy — and would make the next run try to remove it
+ * again, forever.
+ */
+async function clearOverdueVoicemailAudio(db: SupabaseClient): Promise<number> {
+  let cleared = 0;
+
+  for (let pass = 0; pass < MAX_BATCHES_PER_COMPANY; pass += 1) {
+    const { data, error } = await db.rpc("api_voicemail_audio_overdue", {
+      p_limit: BATCH,
+    });
+    if (error) {
+      throw new Error(`voicemail audio scan failed: ${error.message}`);
+    }
+    const rows = (data ?? []) as { call_id: string; voicemail_path: string }[];
+    if (rows.length === 0) break;
+
+    const { error: removeError } = await db.storage
+      .from(VOICEMAILS_BUCKET)
+      .remove(rows.map((row) => row.voicemail_path));
+    if (removeError) {
+      // Same posture as the message objects: the column is the only pointer
+      // left, so nulling it after a failed remove strands the audio for good.
+      throw new Error(
+        `voicemail audio remove failed: ${removeError.message}`,
+      );
+    }
+
+    const { error: clearError } = await db
+      .from("calls")
+      .update({ voicemail_path: null })
+      .in(
+        "id",
+        rows.map((row) => row.call_id),
+      );
+    if (clearError) {
+      throw new Error(`voicemail path clear failed: ${clearError.message}`);
+    }
+    cleared += rows.length;
+  }
+
+  return cleared;
 }
 
 async function enforceCompany(
