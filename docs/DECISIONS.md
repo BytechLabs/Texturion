@@ -6744,3 +6744,57 @@ speculation, and one real instance carries more than any amount of modelling.
 
 **Not a trigger:** the architecture being interesting. It is, and that is the
 danger.
+
+## D115 — NANP-only, deliberately, and the next market is a different product rather than a config change (#305, 2026-08-02)
+
+**We serve the US and Canada, and nothing else.** #305 asked for a written no
+with a number attached rather than an unexamined maybe. `docs/MARKET-CEILING.md`
+is the number: **23 sites assume a North American number — 2 XL, 8 L, 10 M,
+3 S** — and the two XL entries are the workspace's own `country` CHECK and the
+NANP regex every destination decision reads through.
+
+### The finding that makes this a decision rather than an estimate
+
+Costing one more market turned up something a price would have hidden.
+**Telnyx's UK, Australian and Irish LOCAL numbers cannot text.** Sampling 25
+available numbers in each returns `voice, emergency, local_calling, fax` and
+zero SMS capability. The SMS-capable international inventory is all
+`phone_number_type: mobile`.
+
+So the next market is not "the same product, further away". It is **selling a
+mobile number instead of a local business line**, which contradicts the
+proposition on every marketing page — a local number your customers recognise —
+and collides with our own porting code, which already treats wireless numbers
+as a special case.
+
+Telnyx publishes no GB or AU messaging rates, so the per-segment cost is
+**unestablished**, and is recorded as a gap rather than guessed. A guessed rate
+would quietly break the never-under-count invariant `UNIT_COST_CENTS` rests on.
+
+### The trap, recorded because it is cheap now and expensive later
+
+`runPreSendGates` rejects any destination `lookupAreaCode` cannot resolve, then
+branches on `US` and `CA` with **no `else`**. Unreachable today, because the
+resolver refuses everything else first. The moment somebody widens the resolver
+for a third country, that country's traffic falls through both gates and
+dispatches with no registration check — and unregistered A2P filtering returns
+no error, so it is accepted, billed, marked sent, and never arrives.
+
+**Widening the resolver and adding a country gate are one change.** Whoever
+internationalises reads this sentence first.
+
+### The trigger
+
+**A customer, not a question.** A paying workspace with a business in another
+market, or a lost deal where this was the diagnosed reason. #305 is explicit
+that speculative internationalisation is "one of the most reliable ways for a
+small team to spend a quarter on customers who do not exist", and its own
+devil's advocate says that concluding "stay NANP-only for two years" is a
+successful outcome. It is this one.
+
+**Not a trigger:** somebody asking whether we support the UK. That question is
+answered by the ceiling statement, not by a project.
+
+**Also not a trigger:** #228 shipping French. Localising *language* for a
+market we already serve is not the same as entering one, and conflating them is
+the specific optimism #305 was filed to prevent.
