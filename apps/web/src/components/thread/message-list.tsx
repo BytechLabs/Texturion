@@ -362,7 +362,11 @@ export function MessageList({
   if (messagesQuery.isPending) {
     return <ThreadSkeleton />;
   }
-  if (messagesQuery.isError) {
+  // #299: same rule as the inbox list. A failed refetch on an open thread used
+  // to blank the conversation the member was reading mid-sentence; the messages
+  // are still in the cache and still true, they are just not the newest. Only
+  // an empty thread with an error has nothing better to show.
+  if (messagesQuery.isError && items.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center p-8">
         <p className="text-sm text-muted-foreground">

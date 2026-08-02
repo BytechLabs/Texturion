@@ -241,7 +241,16 @@ export function ConversationList({
   // Skeleton on FIRST load only (G4) — realtime updates never skeleton.
   if (query.isPending) return <ListSkeleton />;
 
-  if (query.isError) {
+  // #299: DATA OUTRANKS THE ERROR CARD. React Query keeps the last successful
+  // pages when a refetch fails, and this branch threw them away — so a network
+  // blip replaced a fully-populated inbox with "we couldn't load your
+  // conversations", which is both false (they are loaded) and alarming. The
+  // card is for having nothing to show, which is the only time it is true.
+  //
+  // The stale rows stay put and the shell's connection banner explains why they
+  // may be behind; a per-list marker on top of that would be the same sentence
+  // twice on a surface a crew reads all day.
+  if (query.isError && rows.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
         <p className="text-sm text-muted-foreground">
