@@ -167,6 +167,28 @@ struct ContactMutations: Sendable {
         )
         return try JSONDecoder().decode(ImportResult.self, from: data)
     }
+
+    /// #246: the pairs that look like one customer.
+    func duplicates(companyId: String) async throws -> Page<DuplicatePair> {
+        try await api.get("/v1/contacts/duplicates", companyId: companyId)
+    }
+
+    /// #246: fold `from` into `into`.
+    ///
+    /// Everything from both ends up under the survivor and both numbers keep
+    /// working. A STOP on either side holds for the merged contact — the server
+    /// writes that union, and it is never undone by an unmerge.
+    func merge(
+        companyId: String,
+        fromContactId: String,
+        intoContactId: String
+    ) async throws -> ContactMergeResult {
+        try await api.post(
+            "/v1/contacts/\(fromContactId)/merge",
+            body: JSONValue.object(["into_contact_id": .string(intoContactId)]),
+            companyId: companyId
+        )
+    }
 }
 
 // MARK: - Consent
@@ -210,27 +232,4 @@ func consentLine(
         return "Consent recorded by \(attester)\(suffix)"
     }
     return "Consent recorded\(suffix)"
-
-    /// #246: the pairs that look like one customer.
-    func duplicates(companyId: String) async throws -> Page<DuplicatePair> {
-        try await api.get("/v1/contacts/duplicates", companyId: companyId)
-    }
-
-    /// #246: fold `from` into `into`.
-    ///
-    /// Everything from both ends up under the survivor and both numbers keep
-    /// working. A STOP on either side holds for the merged contact — the server
-    /// writes that union, and it is never undone by an unmerge.
-    func merge(
-        companyId: String,
-        fromContactId: String,
-        intoContactId: String
-    ) async throws -> ContactMergeResult {
-        try await api.post(
-            "/v1/contacts/\(fromContactId)/merge",
-            body: JSONValue.object(["into_contact_id": .string(intoContactId)]),
-            companyId: companyId
-        )
-    }
-
 }
