@@ -26,6 +26,7 @@
  *   POST   /v1/contacts/:id/opt-out/revoke  M — revoke + event.
  *   DELETE /v1/contacts/:id/opt-out         M — alias of revoke.
  */
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 
@@ -33,6 +34,7 @@ import { recordAuditFromRequest } from "../audit/log";
 import { alarmOnBulkContactAccess } from "../audit/bulk-contact-alarm";
 import { resolveDestinationClock } from "../messaging/destination-clock";
 import { requireCapability } from "../auth/company";
+import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -632,6 +634,87 @@ contactsRoutes.get("/contacts/:id/timeline", requireCapability("conversations.re
   });
 });
 
+/**
+ * #410 — two facts about the relationship, derived rather than stored.
+ *
+ * A count and a first date, and deliberately nothing else. The issue is
+ * explicit that scores, segments and lifetime value are judgements the product
+ * refuses to make, while "how long have they been a customer" is an
+ * observation the data already contains.
+ *
+ * CONVERSATIONS, NOT MESSAGES. A chatty customer is not a loyal one, and a
+ * message count would mislead in exactly the situation this exists to inform.
+ *
+ * Derived server-side so all three clients agree. Four surfaces each counting
+ * for themselves is four counts that will eventually disagree (#392, #376).
+ *
+ * Number access applies: a member who cannot see a number must not learn the
+ * customer's history through a count that includes it (#106/D88). The deny
+ * list is the same one the conversation list filters on.
+ */
+async function contactRelationship(
+  db: SupabaseClient,
+  args: { companyId: string; contactId: string; hiddenNumberIds: string[] | null },
+): Promise<{ conversation_count: number; first_conversation_at: string | null }> {
+  // The deny list, as a PostgREST filter value. Empty means unrestricted, and
+  // the filter is simply not applied.
+  const hidden = args.hiddenNumberIds ?? [];
+  const denied = hidden.length > 0 ? `(${hidden.join(",")})` : null;
+
+  try {
+    // Both scopes are written out at each call site rather than shared through
+    // a helper, deliberately: #347's scope checker reads the statement text,
+    // and a query whose company_id arrives via a closure is one it cannot see
+    // and would exempt silently.
+    //
+    // A head count and one row, rather than reading every conversation to
+    // length an array — a long-standing customer is exactly the case that
+    // would make that expensive, and they are the case this exists for.
+    let countQuery = db
+      .from("conversations")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", args.companyId)
+      .eq("contact_id", args.contactId);
+    if (denied) countQuery = countQuery.not("phone_number_id", "in", denied);
+
+    let firstQuery = db
+      .from("conversations")
+      .select("created_at")
+      .eq("company_id", args.companyId)
+      .eq("contact_id", args.contactId)
+      .order("created_at", { ascending: true })
+      .limit(1);
+    if (denied) firstQuery = firstQuery.not("phone_number_id", "in", denied);
+
+    const [counted, earliest] = await Promise.all([countQuery, firstQuery]);
+    if (counted.error) {
+      throw new Error(`contact conversation count failed: ${counted.error.message}`);
+    }
+    const firstRows = unwrap<{ created_at: string }[]>(
+      earliest,
+      "contact first conversation",
+    );
+
+    return {
+      conversation_count: counted.count ?? 0,
+      first_conversation_at: firstRows[0]?.created_at ?? null,
+    };
+  } catch (cause) {
+    // A summary is decoration. The contact panel failing to open because a
+    // count query failed would be a bad trade, and "no history" reads as a
+    // first-time caller — which is the safe direction to be wrong in.
+    //
+    // Number access is resolved OUTSIDE this, on purpose: if that fails the
+    // request must fail loudly, because the alternative is a count that
+    // silently includes numbers the member is kept off.
+    console.error(
+      `contact relationship for ${args.contactId} failed:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+    return { conversation_count: 0, first_conversation_at: null };
+  }
+}
+
 contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), async (c) => {
   const id = pathUuid(c, "id");
   const companyId = c.get("companyId");
@@ -655,7 +738,12 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
   // actor-less rows — the UI shows the attribution line only when it resolves).
   const createdBy = contact.created_by_user_id as string | null;
   const updatedBy = contact.updated_by_user_id as string | null;
-  const [actorNames, clock] = await Promise.all([
+  const access = await resolveNumberAccess(db, {
+    companyId,
+    userId: c.get("userId"),
+    role: c.get("role"),
+  });
+  const [actorNames, clock, relationship] = await Promise.all([
     resolveActorNames(db, [createdBy, updatedBy]),
     // #292/D49: what time it is where they are, resolved the same way a send
     // resolves it. The screen showing "9:00 AM their time" and the gate that
@@ -664,6 +752,13 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
       companyId,
       phoneE164: contact.phone_e164 as string,
       contactTimezone: (contact.timezone as string | null) ?? null,
+    }),
+    // #410: how long they have been a customer, and how often. Two facts,
+    // not a profile.
+    contactRelationship(db, {
+      companyId,
+      contactId: id,
+      hiddenNumberIds: access.hiddenNumberIds,
     }),
   ]);
   return c.json({
@@ -679,6 +774,10 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
     // in here: 'stop_keyword' is a carrier-level block the customer created and
     // only the customer can clear. Null when they are not opted out.
     opt_out_source: (optOuts[0]?.source as string | undefined) ?? null,
+    // #410: the relationship, summarised. Absent history reads as a
+    // first-time caller, which is what it is.
+    conversation_count: relationship.conversation_count,
+    first_conversation_at: relationship.first_conversation_at,
     created_by_name: createdBy ? actorNames.get(createdBy) ?? null : null,
     updated_by_name: updatedBy ? actorNames.get(updatedBy) ?? null : null,
   });

@@ -119,6 +119,33 @@ export function supabaseStub(env: Env): SupabaseStub {
     },
     { method: "GET", matcher: "/rest/v1/email_suppressions", respond: () => [] },
     {
+      // #106/D88: number access is resolved on any route that must not leak
+      // across numbers, which since #410 includes the contact detail. The
+      // ambient answer is UNRESTRICTED — no rules in the company — which is
+      // what every test written before those rules existed was asserting
+      // against. A suite that needs a denied number registers this itself and
+      // wins. Failing to resolve access must still be loud, so this is a
+      // default rather than a swallow.
+      method: "POST",
+      matcher: "/rest/v1/rpc/member_number_levels",
+      respond: () => [],
+    },
+    {
+      // #410: the contact detail summarises the relationship with a head
+      // count and one row. Narrowed to THAT read and returning undefined
+      // otherwise, so an unstubbed conversation list stays a loud failure
+      // rather than quietly answering empty.
+      method: "GET",
+      matcher: "/rest/v1/conversations",
+      respond: (call: SbCall) =>
+        call.url.searchParams.get("select") === "created_at" ? [] : undefined,
+    },
+    {
+      method: "HEAD",
+      matcher: "/rest/v1/conversations",
+      respond: () => new Response(null, { headers: { "content-range": "*/0" } }),
+    },
+    {
       // #430: every push carrying a person's words reads the workspace's
       // answer first, so it hangs off the notification paths the way the flags
       // do. The ambient answer is the default — content INCLUDED — which is

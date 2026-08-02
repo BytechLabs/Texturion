@@ -355,6 +355,81 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     });
   });
 
+  it("summarises the relationship: how many, and since when (#410)", async () => {
+    // Two facts, derived server-side so three clients cannot disagree. The
+    // count is CONVERSATIONS, not messages — a chatty customer is not a loyal
+    // one, and a message count would mislead in exactly the case this informs.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    // Both reads hit the same table; the head-count ignores the body.
+    sb.on("GET", "/rest/v1/conversations", () => [
+      { created_at: "2026-03-04T10:00:00+00:00" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.first_conversation_at).toBe("2026-03-04T10:00:00+00:00");
+    expect(body).toHaveProperty("conversation_count");
+
+    // Both reads are scoped to the company AND the contact. A count that
+    // leaked across either boundary would be a privacy failure wearing a
+    // feature's clothes.
+    // The count is a HEAD (postgrest `head: true`), the first date a GET.
+    const reads = [
+      ...sb.find("GET", "/rest/v1/conversations"),
+      ...sb.find("HEAD", "/rest/v1/conversations"),
+    ];
+    expect(reads).toHaveLength(2);
+    for (const read of reads) {
+      expect(read.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+      expect(read.url.searchParams.get("contact_id")).toBe(`eq.${CONTACT_ID}`);
+    }
+  });
+
+  it("never counts a conversation on a number the member cannot see (#106, #410)", async () => {
+    // #106/D88: a member kept off a number must not learn the customer's
+    // history through a count that silently includes it. The deny list is the
+    // same one the conversation list filters on.
+    const hidden = "eeeeeeee-9999-4222-8333-444444444444";
+    const sb = stubWithRole("member");
+    // An explicit handler beats the ambient unrestricted default.
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: hidden, level: "none" },
+    ]);
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const reads = [
+      ...sb.find("GET", "/rest/v1/conversations"),
+      ...sb.find("HEAD", "/rest/v1/conversations"),
+    ];
+    // BOTH reads carry the deny list. A count that skipped it would leak the
+    // size of a history the member is not allowed to see.
+    expect(reads).toHaveLength(2);
+    for (const read of reads) {
+      expect(read.url.searchParams.get("phone_number_id")).toBe(`not.in.(${hidden})`);
+    }
+  });
+
   it("an edit answers with the opt-out state, so a client cache cannot lose it", async () => {
     // Android writes this response into the cache its detail screen renders
     // from (deliberately, so a reopen never shows the pre-edit value). When the
