@@ -1,3 +1,4 @@
+import { ATTRIBUTION_PARAMS, sanitizeAttributionValue } from "@loonext/shared";
 import type { ErrorEvent } from "@sentry/browser";
 import { describe, expect, it } from "vitest";
 
@@ -212,6 +213,24 @@ describe("scrubBreadcrumb (beforeBreadcrumb defense-in-depth)", () => {
       data: { from: "/inbox?q=Jane+Doe", to: "/inbox?q=Jane+Doe&page=2" },
     });
     expect(navCrumb.data).toEqual({ from: "/inbox", to: "/inbox" });
+  });
+});
+
+describe("#296 the duplicated allow-list cannot drift", () => {
+  it("matches @loonext/shared exactly", () => {
+    // scrub.ts cannot IMPORT the shared list: it is reached from
+    // instrumentation-client.ts, which Next bundles without a TypeScript
+    // loader for workspace sources, so the import fails the production build
+    // on the first `type` keyword — and only in the build, which is why it
+    // reached main. The copy is deliberate; this is what keeps it honest.
+    for (const key of ATTRIBUTION_PARAMS) {
+      expect(stripQueryAndHash(`/x?${key}=abc`), key).toBe(`/x?${key}=abc`);
+    }
+    // And the value rule agrees too, not just the key list.
+    for (const bad of ["Jane Doe", "a".repeat(65), ""]) {
+      expect(sanitizeAttributionValue(bad)).toBeNull();
+      expect(stripQueryAndHash(`/x?utm_source=${encodeURIComponent(bad)}`)).toBe("/x");
+    }
   });
 });
 

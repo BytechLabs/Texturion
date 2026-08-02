@@ -1,5 +1,3 @@
-import { ATTRIBUTION_PARAMS, sanitizeAttributionValue } from "@loonext/shared";
-
 /**
  * PII scrubbing for browser telemetry (SPEC §10, D8): message bodies, contact
  * names, and phone numbers never reach Sentry or PostHog.
@@ -51,6 +49,36 @@ export const URL_KEY_PATTERN = /url|referr?er|pathname|^(?:from|to)$/i;
  * through URLs), which no digit-shaped redaction pattern can catch, so the
  * only safe move is to cut the URL at `?`/`#` entirely (D8/§10).
  */
+/**
+ * #296 — the campaign allow-list, DUPLICATED from `@loonext/shared` on purpose.
+ *
+ * This file is reached from `instrumentation-client.ts`, which Next bundles
+ * WITHOUT a TypeScript loader for workspace sources: importing the shared
+ * package here fails the production build on the first `type` keyword in its
+ * barrel, and only in the build — vitest and tsc both resolve it happily, so
+ * nothing local catches it.
+ *
+ * `scrub.test.ts` imports both and asserts they are identical, so the copy
+ * cannot drift even though the import cannot exist.
+ */
+const ATTRIBUTION_PARAMS = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "gclid",
+  "fbclid",
+] as const;
+
+/** The shared sanitiser's rule, same duplication and same guard. */
+function sanitizeAttributionValue(raw: string | null): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (trimmed === "" || trimmed.length > 64) return null;
+  return /^[A-Za-z0-9._~%+-]+$/.test(trimmed) ? trimmed : null;
+}
+
 export function stripQueryAndHash(url: string): string {
   const cut = url.search(/[?#]/);
   if (cut === -1) return url;
