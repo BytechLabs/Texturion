@@ -1,4 +1,4 @@
-import { billingCurrencyOf } from "@loonext/shared";
+import { checkoutCurrency } from "../billing/checkout-currency";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -279,20 +279,28 @@ billingRoutes.post("/checkout", async (c) => {
     if (voiceMetered) lineItems.push({ price: voiceMetered });
   }
 
+  // #328: what the workspace should be charged in, reconciled against what the
+  // catalog can presently honour. Read once, before the session, because a
+  // currency the price does not carry gets the whole session refused.
+  const sessionCurrency = await checkoutCurrency(getStripe(env), {
+    wanted: company.billing_currency,
+    licensedPriceId: planPrices(env, plan).licensed,
+  });
+
   const session = await getStripe(env).checkout.sessions.create(
     {
     mode: "subscription",
-    // #328: which of the price's `currency_options` this session charges in.
+    // #328: the currency this session charges in — see checkout-currency.ts.
     //
     // Stripe pins the currency on the SUBSCRIPTION, which is why the company
-    // row is the source rather than a request field: a session must never be
-    // able to charge in a currency the workspace did not choose, and the row
-    // stops moving the moment this succeeds.
+    // row is the source rather than a request field: a session must never
+    // charge in a currency the workspace did not choose.
     //
-    // Falls back to USD for any value this build does not price, matching the
-    // column default — an unrecognised currency has to mean "the one everybody
-    // was already on", never a session Stripe refuses.
-    currency: billingCurrencyOf(company.billing_currency),
+    // Resolved against the CATALOG rather than taken on trust, because a
+    // session asking for a currency the price does not carry is refused
+    // outright — and the CAD price book shipped before the Stripe catalog
+    // could be updated.
+    currency: sessionCurrency,
     client_reference_id: company.id,
     // Let customers enter a Stripe promo code at checkout (marketing promos and
     // comp accounts). A 100%-off code makes a $0 session that reports
