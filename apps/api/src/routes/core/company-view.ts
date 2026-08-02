@@ -24,6 +24,10 @@ import type { MemberRole } from "../../context";
 /** Customer-visible company columns (SPEC §10: internals stay server-side). */
 export const COMPANY_COLUMNS =
   "id,name,country,us_texting_enabled,requested_area_code,timezone,plan," +
+  // #328: what this workspace is charged in. Every price surface reads it —
+  // a screen that renders the wrong currency is the credibility wobble this
+  // whole change exists to remove.
+  "billing_currency," +
   "subscription_status,current_period_start,current_period_end," +
   "overage_cap_multiplier,registration_fee_paid_at,canceled_at," +
   "cancel_at_period_end," +

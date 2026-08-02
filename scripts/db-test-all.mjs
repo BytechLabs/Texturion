@@ -118,6 +118,7 @@ const SUITES = [
   "contact_merge",
   "usage_events_channel",
   "signup_attribution",
+  "billing_currency",
 ];
 
 const args = process.argv.slice(2);

@@ -146,9 +146,37 @@ async function ensurePrice(
   const existing = await stripe.prices.list({
     lookup_keys: [lookupKey],
     limit: 1,
+    // #328: without this the field comes back undefined and the reconcile
+    // below would re-add CAD on every run.
+    expand: ["data.currency_options"],
   });
   const found = existing.data[0];
   if (found) {
+    // #328: a price created before CAD existed carries no `currency_options`,
+    // and plain "reusing" would leave every Canadian on USD while this script
+    // reported success. A price is the one catalog object that gains a
+    // currency AFTER it exists, so idempotent has to mean reconciled, not
+    // merely present.
+    //
+    // An amount already filed for a currency is NEVER overwritten. Changing a
+    // live price is a pricing decision, and it must not happen as a side
+    // effect of somebody re-running setup.
+    const wanted = params.currency_options;
+    const missing =
+      wanted !== undefined &&
+      Object.keys(wanted).filter((code) => !found.currency_options?.[code]);
+    if (missing && missing.length > 0) {
+      const added = Object.fromEntries(
+        missing.map((code) => [code, wanted[code]]),
+      ) as NonNullable<Stripe.PriceUpdateParams["currency_options"]>;
+      const updated = await stripe.prices.update(found.id, {
+        currency_options: added,
+      });
+      console.error(
+        `price: added ${missing.join(", ")} to ${found.id} (${lookupKey})`,
+      );
+      return updated;
+    }
     console.error(`price: reusing ${found.id} (${lookupKey})`);
     return found;
   }
@@ -175,6 +203,14 @@ try {
     product: starterProduct.id,
     currency: "usd",
     unit_amount: 2900,
+    // #328: the CAD figure rides on the SAME price object rather than a second
+    // price book — one product, one set of prices, a second currency option.
+    currency_options: {
+      cad: {
+        unit_amount: 3900,
+        tax_behavior: "exclusive",
+      },
+    },
     recurring: { interval: "month" },
     tax_behavior: "exclusive",
   });
@@ -190,6 +226,20 @@ try {
       { up_to: 500, unit_amount: 0 },
       { up_to: "inf", unit_amount: 3 },
     ],
+    // A tiered price needs its tiers restated per currency — the allowance is
+    // the same, only the per-segment price past it changes.
+    currency_options: {
+      cad: {
+        tiers: [
+          { up_to: 500, unit_amount: 0 },
+          {
+            up_to: "inf",
+            unit_amount: 4,
+          },
+        ],
+        tax_behavior: "exclusive",
+      },
+    },
     tax_behavior: "exclusive",
   });
 
@@ -198,6 +248,12 @@ try {
     product: proProduct.id,
     currency: "usd",
     unit_amount: 7900,
+    currency_options: {
+      cad: {
+        unit_amount: 10900,
+        tax_behavior: "exclusive",
+      },
+    },
     recurring: { interval: "month" },
     tax_behavior: "exclusive",
   });
@@ -213,8 +269,23 @@ try {
     tiers_mode: "graduated",
     tiers: [
       { up_to: 2500, unit_amount: 0 },
-      { up_to: "inf", unit_amount_decimal: Stripe.Decimal.from("2.5") },
+      {
+        up_to: "inf",
+        unit_amount_decimal: Stripe.Decimal.from("2.5"),
+      },
     ],
+    currency_options: {
+      cad: {
+        tiers: [
+          { up_to: 2500, unit_amount: 0 },
+          {
+            up_to: "inf",
+            unit_amount_decimal: Stripe.Decimal.from("3.5"),
+          },
+        ],
+        tax_behavior: "exclusive",
+      },
+    },
     tax_behavior: "exclusive",
   });
 
@@ -223,6 +294,14 @@ try {
     product: registrationProduct.id,
     currency: "usd",
     unit_amount: 2900,
+    // A Canadian workspace CAN enable US texting, and when it does it pays
+    // this once — in its own currency, like everything else on the invoice.
+    currency_options: {
+      cad: {
+        unit_amount: 3900,
+        tax_behavior: "exclusive",
+      },
+    },
     tax_behavior: "exclusive",
   });
 

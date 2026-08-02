@@ -1,3 +1,4 @@
+import { billingCurrencyOf } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -86,6 +87,8 @@ interface BillingCompany {
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   registration_fee_paid_at: string | null;
+  /** #328: what this workspace is charged in. */
+  billing_currency: string | null;
 }
 
 async function fetchCompany(
@@ -96,7 +99,9 @@ async function fetchCompany(
     .from("companies")
     .select(
       "id,plan,country,us_texting_enabled,subscription_status," +
-        "stripe_customer_id,stripe_subscription_id,registration_fee_paid_at",
+        "stripe_customer_id,stripe_subscription_id,registration_fee_paid_at," +
+        // #328: the currency every line item on this session is charged in.
+        "billing_currency",
     )
     .eq("id", companyId)
     // A soft-deleted company is not billable — match usage.ts + the billing
@@ -277,6 +282,17 @@ billingRoutes.post("/checkout", async (c) => {
   const session = await getStripe(env).checkout.sessions.create(
     {
     mode: "subscription",
+    // #328: which of the price's `currency_options` this session charges in.
+    //
+    // Stripe pins the currency on the SUBSCRIPTION, which is why the company
+    // row is the source rather than a request field: a session must never be
+    // able to charge in a currency the workspace did not choose, and the row
+    // stops moving the moment this succeeds.
+    //
+    // Falls back to USD for any value this build does not price, matching the
+    // column default — an unrecognised currency has to mean "the one everybody
+    // was already on", never a session Stripe refuses.
+    currency: billingCurrencyOf(company.billing_currency),
     client_reference_id: company.id,
     // Let customers enter a Stripe promo code at checkout (marketing promos and
     // comp accounts). A 100%-off code makes a $0 session that reports

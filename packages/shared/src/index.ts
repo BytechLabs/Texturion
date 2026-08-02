@@ -454,3 +454,21 @@ export {
   sanitizeLandingPath,
 } from "./attribution";
 export type { AttributionParam, FirstTouch } from "./attribution";
+
+// #328 — the currency a workspace is billed in, and the price book behind it.
+export {
+  ASSUMED_USD_PER_CAD,
+  BILLING_CURRENCIES,
+  billingCurrencyOf,
+  currencyForCountry,
+  DEFAULT_BILLING_CURRENCY,
+  formatMoney,
+  isBillingCurrency,
+  MAX_FX_ABSORPTION,
+  OVERAGE_CENTS_PER_SEGMENT,
+  PLAN_PRICE_CENTS,
+  planRevenueUsdCents,
+  US_REGISTRATION_FEE_CENTS,
+  VOICE_OVERAGE_CENTS_PER_MINUTE,
+  type BillingCurrency,
+} from "./billing-currency";
