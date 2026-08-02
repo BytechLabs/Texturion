@@ -88,8 +88,11 @@ export {
   applyMergeFields,
   hasMergeFields,
   mergeFieldsNeeded,
+  MERGE_FIELD_SAMPLES,
   MERGE_FIELD_TOKENS,
+  MERGE_FIELD_VARIABLES,
   type MergeFieldToken,
+  type MergeFieldVariable,
   type MergeFieldValues,
 } from "./merge-fields";
 

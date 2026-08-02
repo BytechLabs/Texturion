@@ -131,4 +131,106 @@ class MergeFieldsTest {
         assertFalse(MergeFields.hasMergeFields("plain text"))
         assertFalse(MergeFields.hasMergeFields("a { b } c"))
     }
+
+    // ---- #274: the tokens that make a template do real work -----------------
+
+    @Test
+    fun `expresses the two messages a crew actually repeats`() {
+        val values = MergeFields.MergeValues(
+            contactAddress = "18 Rosewood Ave",
+            jobDay = "Tuesday",
+            jobTime = "2:00 PM",
+        )
+        assertEquals(
+            "On my way to 18 Rosewood Ave",
+            MergeFields.applyMergeFields("On my way to {address}", values),
+        )
+        assertEquals(
+            "Confirming Tuesday at 2:00 PM",
+            MergeFields.applyMergeFields("Confirming {job_day} at {job_time}", values),
+        )
+    }
+
+    @Test
+    fun `signs with the person, not the company`() {
+        // A FIRST name, like {first_name}: "Sam" is how a tech signs a text.
+        assertEquals(
+            "- Sam",
+            MergeFields.applyMergeFields(
+                "- {my_name}",
+                MergeFields.MergeValues(senderName = "Sam Okafor"),
+            ),
+        )
+    }
+
+    @Test
+    fun `keeps a multi-line address on one line`() {
+        assertEquals(
+            "On my way to 18 Rosewood Ave, Unit 4",
+            MergeFields.applyMergeFields(
+                "On my way to {address}",
+                MergeFields.MergeValues(contactAddress = "18 Rosewood Ave\nUnit 4"),
+            ),
+        )
+    }
+
+    @Test
+    fun `degrades exactly as the original two did`() {
+        // The contract that must not change: a missing value drops the token
+        // and the punctuation closes up behind it.
+        assertEquals(
+            "On my way to",
+            MergeFields.applyMergeFields("On my way to {address}", MergeFields.MergeValues()),
+        )
+        assertEquals(
+            "Hi, we're at.",
+            MergeFields.applyMergeFields(
+                "Hi {first_name}, we're at {address}.",
+                MergeFields.MergeValues(),
+            ),
+        )
+    }
+
+    @Test
+    fun `formats the reply-to number the way the server does`() {
+        assertEquals("(415) 555-0142", MergeFields.formatNanpNumber("+14155550142"))
+        // Anything unparseable comes back untouched: it is still dialable.
+        assertEquals("+442071838750", MergeFields.formatNanpNumber("+442071838750"))
+    }
+
+    @Test
+    fun `the editor offers the same seven variables the other clients do`() {
+        // A token offered on the phone and not the laptop means a template
+        // somebody writes here and then cannot maintain there.
+        assertEquals(
+            listOf(
+                "first_name", "address", "job_day", "job_time",
+                "my_name", "business_name", "our_number",
+            ),
+            MergeFields.VARIABLES.map { it.first },
+        )
+        // And every one of them actually resolves.
+        for ((token, _, _) in MergeFields.VARIABLES) {
+            assertTrue("$token is offered but not supported", token in MergeFields.TOKENS)
+        }
+    }
+
+    @Test
+    fun `the template preview shows every token working`() {
+        // An unresolved token renders as nothing, which is exactly what a
+        // BROKEN token looks like — so the preview must resolve all of them.
+        val preview = MergeFields.previewTemplate(
+            "{first_name} {address} {job_day} {job_time} {my_name} {business_name} {our_number}",
+            businessName = "Ace Plumbing",
+            ourNumberE164 = "+14155550142",
+        )
+        assertTrue(preview, preview.contains("Dana"))
+        assertTrue(preview, preview.contains("18 Rosewood Ave"))
+        assertTrue(preview, preview.contains("Tuesday"))
+        assertTrue(preview, preview.contains("2:00 PM"))
+        assertTrue(preview, preview.contains("Sam"))
+        assertTrue(preview, preview.contains("Ace Plumbing"))
+        assertTrue(preview, preview.contains("(415) 555-0142"))
+    }
+
 }

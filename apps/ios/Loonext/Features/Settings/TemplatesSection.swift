@@ -4,20 +4,14 @@ import SwiftUI
 private let templateNameMax = 120
 private let templateBodyMax = 2000
 
-/// The merge variables the editor offers. They resolve server-side at send time
-/// (apps/api merge.ts → @loonext/shared applyMergeFields), so a saved body keeps
-/// the raw {token}; the preview below the field shows what actually ships.
-private struct TemplateVariable: Identifiable, Sendable {
-    let token: String
-    let label: String
-
-    var id: String { token }
-}
-
-private let templateVariables: [TemplateVariable] = [
-    TemplateVariable(token: "first_name", label: "First name"),
-    TemplateVariable(token: "business_name", label: "Business name"),
-]
+/// The merge variables the editor offers come from the shared port (#274).
+///
+/// They resolve server-side at send time (apps/api merge.ts →
+/// applyMergeFields), so a saved body keeps the raw {token} and the preview
+/// below the field shows what actually ships. The list was duplicated in three
+/// editors before; a token offered here and not on the laptop meant a template
+/// somebody could write on a phone and then not maintain.
+private let templateVariables = MergeFields.variables
 
 /// Append a {token}, keeping one space between it and whatever came before.
 private func appendToken(_ body: String, _ token: String) -> String {
@@ -339,12 +333,16 @@ private struct TemplateEditorSheet: View {
                         // Exactly the send-time substitution (sample first name
                         // + the real company name), so what you see is what
                         // ships.
+                        // #274: every token resolved, because an unresolved
+                        // {address} renders as nothing — which is exactly what
+                        // a broken token looks like.
                         PreviewBubble(
                             label: "Preview for \(sampleFirstName)",
-                            text: applyMergeFields(
+                            text: MergeFields.previewTemplate(
                                 trimmedBody,
-                                contactName: sampleFirstName,
-                                businessName: company.name
+                                businessName: company.name,
+                                ourNumberE164: company.numbers
+                                    .first { $0.status == "active" }?.number_e164
                             )
                         )
                     }
@@ -406,13 +404,24 @@ private struct TemplateEditorSheet: View {
     private var variablesRow: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionHeader(label: "Variables")
-            HStack(spacing: 8) {
+            // #274: seven variables now, so they WRAP. A single row would
+            // push the last ones off an iPhone, and a variable you cannot see
+            // is a variable that does not exist.
+            // An adaptive grid rather than a custom Layout: plain SwiftUI that
+            // wraps on every width, and nothing exotic to go wrong on a device
+            // this codebase can only compile in CI.
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 104), spacing: 8, alignment: .leading)],
+                alignment: .leading,
+                spacing: 8
+            ) {
                 ForEach(templateVariables) { variable in
                     Button(variable.label) { draft = appendToken(draft, variable.token) }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                         .tint(BrandColor.olive)
                         .disabled(saving)
+                        .accessibilityHint(variable.hint)
                 }
             }
             Text("Tap to insert. Each one fills in per contact when the message sends.")

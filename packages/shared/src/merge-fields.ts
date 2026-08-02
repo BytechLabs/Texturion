@@ -197,3 +197,63 @@ export function mergeFieldsNeeded(text: string): Set<MergeFieldToken> {
   TOKEN_PATTERN.lastIndex = 0;
   return found;
 }
+
+/**
+ * #274 — the tokens an editor offers, in the order it offers them.
+ *
+ * # Why the list lives here and not in each editor
+ *
+ * It was duplicated in three template editors, and duplicated lists drift. The
+ * failure is not cosmetic: a token offered on one client and not another means
+ * a crew member writes a template on a phone that the laptop cannot maintain,
+ * and a token whose LABEL differs across clients means two people describing
+ * the same field to each other do not realise they mean the same thing.
+ *
+ * Order is deliberate: greeting first, because that is what most templates
+ * start with; then the two facts about the job; then the two about us.
+ */
+export interface MergeFieldVariable {
+  token: MergeFieldToken;
+  /** What the chip says. Short — it sits on a button. */
+  label: string;
+  /**
+   * What it becomes, for somebody deciding whether they want it. An editor can
+   * show this on a long-press or a title; it is not required chrome.
+   */
+  hint: string;
+}
+
+export const MERGE_FIELD_VARIABLES: readonly MergeFieldVariable[] = [
+  { token: "first_name", label: "First name", hint: "The customer's first name" },
+  { token: "address", label: "Address", hint: "The address on their contact" },
+  { token: "job_day", label: "Day", hint: "The day of their next booked visit" },
+  { token: "job_time", label: "Time", hint: "The time of it" },
+  { token: "my_name", label: "My name", hint: "Your first name" },
+  { token: "business_name", label: "Business", hint: "Your business name" },
+  { token: "our_number", label: "Our number", hint: "The number they reply to" },
+];
+
+/**
+ * #274 — stand-in values so a preview SHOWS each token working.
+ *
+ * A preview is the only place somebody finds out what a token does. Left
+ * unresolved, {address} would render as nothing — which is exactly what a
+ * broken token looks like, and the graceful-degradation contract means it
+ * would look broken in precisely the same way as a token that genuinely has no
+ * value. So the editor's preview supplies samples, and every client uses THESE
+ * samples: a preview that differs per client is a preview that is teaching two
+ * different things about one message.
+ *
+ * Obvious placeholders, not plausible data. "18 Rosewood Ave" reads as an
+ * example; a real-looking address in a preview gets mistaken for the
+ * customer's own and shipped without a second look.
+ */
+export const MERGE_FIELD_SAMPLES: Readonly<
+  Omit<MergeFieldValues, "businessName" | "ourNumber">
+> = {
+  contactName: "Dana",
+  contactAddress: "18 Rosewood Ave",
+  senderName: "Sam",
+  jobDay: "Tuesday",
+  jobTime: "2:00 PM",
+};

@@ -2,6 +2,7 @@ package com.loonext.android.features.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Template
+import com.loonext.android.features.compose.MergeFields
 import com.loonext.android.features.compose.estimateSegments
 import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.ui.common.CenteredError
@@ -63,14 +65,15 @@ private const val TEMPLATE_NAME_MAX = 120
 private const val TEMPLATE_BODY_MAX = 2000
 
 /**
- * The merge variables the editor offers. They resolve server-side at send time
- * (apps/api merge.ts → @loonext/shared applyMergeFields), so a saved body keeps
- * the raw {token}; the preview below the field shows what actually ships.
+ * The merge variables the editor offers come from the shared port (#274).
+ *
+ * They resolve server-side at send time (apps/api merge.ts →
+ * applyMergeFields), so a saved body keeps the raw {token} and the preview
+ * below the field shows what actually ships. The list was duplicated in three
+ * editors before; a token offered here and not on the laptop meant a template
+ * somebody could write on a phone and then not maintain.
  */
-private val TEMPLATE_VARIABLES = listOf(
-    "first_name" to "First name",
-    "business_name" to "Business name",
-)
+private val TEMPLATE_VARIABLES = MergeFields.VARIABLES
 
 @Composable
 fun TemplatesSection(
@@ -331,8 +334,14 @@ private fun TemplateEditorDialog(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TEMPLATE_VARIABLES.forEach { (token, label) ->
+                // #274: seven chips, so they WRAP. A single row would push the
+                // last ones off a phone, and a variable you cannot see is a
+                // variable that does not exist.
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    TEMPLATE_VARIABLES.forEach { (token, label, _) ->
                         AssistChip(
                             onClick = {
                                 haptics.tap()
@@ -344,14 +353,18 @@ private fun TemplateEditorDialog(
                     }
                 }
                 if (trimmedBody.isNotEmpty()) {
-                    // Exactly the send-time substitution (sample first name +
-                    // the real company name), so what you see is what ships.
+                    // Exactly the send-time substitution, so what you see is
+                    // what ships. #274: every token resolved, because an
+                    // unresolved {address} renders as nothing — which is
+                    // exactly what a broken token looks like.
                     PreviewBubble(
                         label = "Preview for $SAMPLE_FIRST_NAME",
-                        text = applyMergeFields(
+                        text = MergeFields.previewTemplate(
                             text = trimmedBody,
-                            contactName = SAMPLE_FIRST_NAME,
                             businessName = company.name,
+                            ourNumberE164 = company.numbers
+                                .firstOrNull { it.status == "active" }
+                                ?.number_e164,
                         ),
                     )
                 }

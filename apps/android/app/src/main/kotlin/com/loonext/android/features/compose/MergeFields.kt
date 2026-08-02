@@ -9,6 +9,11 @@ package com.loonext.android.features.compose
  * Supported tokens (curly-brace delimited, case-insensitive name):
  *   {first_name}     — the first whitespace-delimited token of the contact name.
  *   {business_name}  — the company name.
+ *   {address}        — the contact's service address (#274).
+ *   {my_name}        — the crew member sending it (#274).
+ *   {our_number}     — the workspace number to reply to, formatted (#274).
+ *   {job_day}        — the day of the next scheduled visit, e.g. "Tuesday".
+ *   {job_time}       — the time of it, e.g. "2:00 PM".
  *
  * An unknown token, or a supported token whose value is null/empty, is dropped
  * CLEANLY — the literal never reaches the preview and no stray double-spaces
@@ -16,7 +21,59 @@ package com.loonext.android.features.compose
  */
 object MergeFields {
     /** The literal tokens this substituter understands. */
-    val TOKENS = listOf("first_name", "business_name")
+    val TOKENS = listOf(
+        "first_name",
+        "business_name",
+        "address",
+        "my_name",
+        "our_number",
+        "job_day",
+        "job_time",
+    )
+
+    /**
+     * #274 — the tokens the template editor offers, in order. MIRROR of
+     * MERGE_FIELD_VARIABLES in packages/shared.
+     *
+     * The list was duplicated in three editors before, and duplicated lists
+     * drift: a token offered on the phone and not the laptop means a template
+     * somebody writes here and then cannot maintain there.
+     */
+    val VARIABLES: List<Triple<String, String, String>> = listOf(
+        Triple("first_name", "First name", "The customer's first name"),
+        Triple("address", "Address", "The address on their contact"),
+        Triple("job_day", "Day", "The day of their next booked visit"),
+        Triple("job_time", "Time", "The time of it"),
+        Triple("my_name", "My name", "Your first name"),
+        Triple("business_name", "Business", "Your business name"),
+        Triple("our_number", "Our number", "The number they reply to"),
+    )
+
+    /**
+     * #274 — stand-in values so a preview SHOWS each token working. MIRROR of
+     * MERGE_FIELD_SAMPLES in packages/shared.
+     *
+     * Obvious placeholders, not plausible data: a real-looking address in a
+     * preview gets mistaken for the customer's own and shipped unread.
+     */
+    const val SAMPLE_CONTACT = "Dana"
+    const val SAMPLE_ADDRESS = "18 Rosewood Ave"
+    const val SAMPLE_SENDER = "Sam"
+    const val SAMPLE_JOB_DAY = "Tuesday"
+    const val SAMPLE_JOB_TIME = "2:00 PM"
+
+    /**
+     * #274 — a NANP number as a person reads it. MIRROR of formatNanpNumber in
+     * packages/shared. The number lands inside a customer's message, so its
+     * formatting is a product fact rather than a display choice, and a preview
+     * formatted differently from the wire defeats the point of previewing.
+     */
+    fun formatNanpNumber(e164: String): String {
+        val match = Regex("""^\+1(\d{3})(\d{3})(\d{4})$""").find(e164)
+            ?: return e164
+        val (a, b, c) = match.destructured
+        return "($a) $b-$c"
+    }
 
     /** {token} where token is one of the supported names OR any [a-z_] word. */
     private val TOKEN_PATTERN =
@@ -31,14 +88,33 @@ object MergeFields {
 
     private fun resolveToken(
         token: String,
-        contactName: String?,
-        businessName: String?,
+        values: MergeValues,
     ): String = when (token) {
-        "first_name" -> firstName(contactName)
-        "business_name" -> businessName?.trim().orEmpty()
+        "first_name" -> firstName(values.contactName)
+        "business_name" -> values.businessName?.trim().orEmpty()
+        // #274: one line, whatever the contact stored. Newlines are collapsed
+        // because this lands mid-sentence ("on my way to {address}") and a
+        // multi-line address there would break the message in two.
+        "address" ->
+            values.contactAddress?.replace(Regex("""\s*\n+\s*"""), ", ")?.trim().orEmpty()
+        "my_name" -> firstName(values.senderName)
+        "our_number" -> values.ourNumber?.trim().orEmpty()
+        "job_day" -> values.jobDay?.trim().orEmpty()
+        "job_time" -> values.jobTime?.trim().orEmpty()
         // Unknown token: drop it (never render the literal braces).
         else -> ""
     }
+
+    /** The values a caller supplies. All optional — absent means "drop it". */
+    data class MergeValues(
+        val contactName: String? = null,
+        val businessName: String? = null,
+        val contactAddress: String? = null,
+        val senderName: String? = null,
+        val ourNumber: String? = null,
+        val jobDay: String? = null,
+        val jobTime: String? = null,
+    )
 
     /**
      * Collapse the whitespace/punctuation artifacts left when a token resolves
@@ -60,22 +136,54 @@ object MergeFields {
      * Substitute all {tokens} from the given values. Pure and side-effect
      * free; unknown or empty tokens are dropped and whitespace tidied.
      */
-    fun applyMergeFields(
-        text: String,
-        contactName: String? = null,
-        businessName: String? = null,
-    ): String {
+    fun applyMergeFields(text: String, values: MergeValues): String {
         if (!text.contains('{')) return text
 
         var anyDropped = false
         val substituted = TOKEN_PATTERN.replace(text) { match ->
             val token = match.groupValues[1].lowercase()
-            val replacement = resolveToken(token, contactName, businessName)
+            val replacement = resolveToken(token, values)
             if (replacement.isEmpty()) anyDropped = true
             replacement
         }
         return if (anyDropped) tidyDroppedTokens(substituted) else substituted
     }
+
+    /**
+     * The two-token call every existing caller already makes. Kept so the
+     * composer's preview and the away/MCTB previews are untouched by #274 —
+     * those messages genuinely cannot carry the other five.
+     */
+    fun applyMergeFields(
+        text: String,
+        contactName: String? = null,
+        businessName: String? = null,
+    ): String = applyMergeFields(
+        text,
+        MergeValues(contactName = contactName, businessName = businessName),
+    )
+
+    /**
+     * #274 — the TEMPLATE preview: every token resolved, so each one is seen
+     * working. An unresolved {address} renders as nothing, which is exactly
+     * what a broken token looks like.
+     */
+    fun previewTemplate(
+        text: String,
+        businessName: String?,
+        ourNumberE164: String?,
+    ): String = applyMergeFields(
+        text,
+        MergeValues(
+            contactName = SAMPLE_CONTACT,
+            businessName = businessName,
+            contactAddress = SAMPLE_ADDRESS,
+            senderName = SAMPLE_SENDER,
+            ourNumber = ourNumberE164?.let { formatNanpNumber(it) },
+            jobDay = SAMPLE_JOB_DAY,
+            jobTime = SAMPLE_JOB_TIME,
+        ),
+    )
 
     /** True when `text` contains at least one {token} this substituter handles. */
     fun hasMergeFields(text: String): Boolean {

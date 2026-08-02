@@ -27,10 +27,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompany } from "@/lib/api/companies";
+import { MERGE_FIELD_VARIABLES } from "@loonext/shared";
 import { ApiError } from "@/lib/api/error";
 import { useCreateTemplate, useUpdateTemplate } from "@/lib/api/templates";
 import type { Template } from "@/lib/api/types";
-import { previewAwayMessage, SAMPLE_FIRST_NAME } from "@/lib/settings/away-preview";
+import { previewTemplate, SAMPLE_FIRST_NAME } from "@/lib/settings/away-preview";
 import { cn } from "@/lib/utils";
 
 // Mirrors the API template schema (apps/api/src/routes/templates.ts):
@@ -51,14 +52,15 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 /**
- * The merge variables offered in the editor. These resolve server-side at send
- * time (apps/api merge.ts → @loonext/shared applyMergeFields), so a saved body
- * stores the raw {token}; the preview below shows what actually ships.
+ * The merge variables offered in the editor come from @loonext/shared (#274).
+ *
+ * They resolve server-side at send time (apps/api merge.ts →
+ * applyMergeFields), so a saved body stores the raw {token} and the preview
+ * below shows what actually ships. The list was duplicated in three template
+ * editors before; a token offered on the phone and not the laptop meant a
+ * template a crew member could write and then not maintain.
  */
-const TEMPLATE_VARIABLES: { token: string; label: string }[] = [
-  { token: "first_name", label: "First name" },
-  { token: "business_name", label: "Business name" },
-];
+const TEMPLATE_VARIABLES = MERGE_FIELD_VARIABLES;
 
 /** Create/edit dialog for saved replies (G8 Templates; RHF + zod per G12). */
 export function TemplateDialog({
@@ -102,9 +104,15 @@ export function TemplateDialog({
     });
   }
 
-  // Exactly the send-time substitution, with a sample first name + the real
-  // company name, so the preview equals what the customer receives.
-  const preview = previewAwayMessage(body, company.data?.name ?? "your business");
+  // Exactly the send-time substitution, so the preview equals what the customer
+  // receives. #274: the template preview, not the away one — a saved reply can
+  // carry all seven tokens, and each needs to be SEEN resolving or it looks
+  // broken in the same way a token with no value does.
+  const preview = previewTemplate(
+    body,
+    company.data?.name ?? "your business",
+    company.data?.numbers?.find((n) => n.status === "active")?.number_e164 ?? null,
+  );
 
   function onSubmit(values: FormValues) {
     const onError = (cause: unknown) =>
