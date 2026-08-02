@@ -118,3 +118,27 @@ func northAmericanTimeZoneIdentifiers() -> [String] {
         .filter { $0.hasPrefix("America/") || $0 == "Pacific/Honolulu" }
         .sorted()
 }
+
+/// #246 — two contact records that look like the same customer.
+///
+/// The `reason` is the server's, in its own words, and it is rendered
+/// verbatim: a suggestion somebody cannot verify is one they learn to dismiss.
+struct DuplicatePair: Codable, Sendable, Identifiable {
+    let contact_a: String
+    let name_a: String?
+    let phone_a: String
+    let contact_b: String
+    let name_b: String?
+    let phone_b: String
+    let reason: String
+
+    var id: String { "\(contact_a):\(contact_b)" }
+}
+
+/// #246: what a merge actually did, so the confirmation can say it back.
+struct ContactMergeResult: Codable, Sendable {
+    @Default<DefaultFalse> var merged: Bool
+    @Default<DefaultZero> var moved: Int
+    @Default<DefaultZero> var closed: Int
+    @Default<DefaultFalse> var opted_out: Bool
+}

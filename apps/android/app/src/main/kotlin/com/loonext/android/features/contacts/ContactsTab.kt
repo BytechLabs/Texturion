@@ -560,6 +560,18 @@ private fun ContactListScreen(
                                 Modifier.fillMaxSize(),
                                 contentPadding = PaddingValues(bottom = 24.dp),
                             ) {
+                                // #246: above the list, and only when there is
+                                // something to act on. Somebody who does not
+                                // know they have duplicates will not go looking
+                                // for a screen about them.
+                                item(key = "duplicates") {
+                                    DuplicateContactsCard(
+                                        repo = mutations,
+                                        companyId = companyId,
+                                        canMerge = canImport,
+                                        onMerged = onRefresh,
+                                    )
+                                }
                                 itemsIndexed(rows, key = { _, contact -> contact.id }) { index, contact ->
                                     // Rows share one paper card: round only the
                                     // outer corners so dividers read as hairlines.

@@ -2,6 +2,8 @@ package com.loonext.android.features.contacts
 
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.Contact
+import com.loonext.android.core.model.ContactMergeResult
+import com.loonext.android.core.model.DuplicatePair
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.ImportResult
 import com.loonext.android.core.model.Member
@@ -174,6 +176,27 @@ class ContactMutations(private val api: ApiClient, baseUrl: String) {
             ),
         )
 
+
+    /** #246: the pairs that look like one customer, newest signal first. */
+    suspend fun duplicates(companyId: String): Page<DuplicatePair> =
+        api.get("/v1/contacts/duplicates", companyId = companyId)
+
+    /**
+     * #246: fold [fromContactId] into [intoContactId].
+     *
+     * Everything from both ends up under the survivor and both numbers keep
+     * working. A STOP on either side holds for the merged contact — the server
+     * writes that union, and it is never undone by an unmerge.
+     */
+    suspend fun merge(
+        companyId: String,
+        fromContactId: String,
+        intoContactId: String,
+    ): ContactMergeResult = api.post(
+        "/v1/contacts/$fromContactId/merge",
+        buildJsonObject { put("into_contact_id", intoContactId) },
+        companyId = companyId,
+    )
 }
 
 /**
@@ -260,4 +283,5 @@ fun consentLine(
     val attester = memberName(consentAttestedBy)
     return if (attester != null) "Consent recorded by $attester$suffix"
     else "Consent recorded$suffix"
+
 }

@@ -127,3 +127,29 @@ fun northAmericanTimeZoneIds(): List<String> =
         .filter { it.startsWith("America/") || it.startsWith("Pacific/Honolulu") }
         .distinct()
         .sorted()
+
+/**
+ * #246 — two contact records that look like the same customer.
+ *
+ * The `reason` is the server's, in its own words, and it is rendered verbatim:
+ * a suggestion somebody cannot verify is one they learn to dismiss.
+ */
+@Serializable
+data class DuplicatePair(
+    val contact_a: String,
+    val name_a: String? = null,
+    val phone_a: String,
+    val contact_b: String,
+    val name_b: String? = null,
+    val phone_b: String,
+    val reason: String,
+)
+
+/** #246: what a merge actually did, so the confirmation can say it back. */
+@Serializable
+data class ContactMergeResult(
+    val merged: Boolean = false,
+    val moved: Int = 0,
+    val closed: Int = 0,
+    val opted_out: Boolean = false,
+)
