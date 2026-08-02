@@ -142,3 +142,46 @@ describe("searchInventory (number-picker feed)", () => {
     ).rejects.toThrow();
   });
 });
+
+/**
+ * #513 — the search honours what was typed.
+ *
+ * Reported as: the digit filter "applies to numbers already fetched which is
+ * nice, but when refresh is clicked to ask for a new batch, we should include
+ * that filter in the request". Exactly right — the picker was narrowing a list
+ * it already held, so asking for a fresh batch quietly discarded the search and
+ * handed back twenty numbers chosen without reference to it.
+ *
+ * `filter[phone_number][contains]` was verified against the live Telnyx API
+ * before this was built: it is accepted and it narrows the result set.
+ */
+describe("searchInventory digit filter (#513)", () => {
+  it("asks Telnyx for numbers containing the digits, not just the batch", async () => {
+    const env = completeEnv();
+    const telnyx = new TelnyxMock();
+    telnyx.on("GET", /^\/v2\/available_phone_numbers$/, () => ({ data: [] }));
+    stubFetch(telnyx.route());
+
+    await searchInventory(env, { country: "US", areaCode: "212", contains: "777" });
+
+    const call = telnyx.callsTo("GET", /available_phone_numbers/)[0];
+    expect(call.query.get("filter[phone_number][contains]")).toBe("777");
+    // ...and the area code still applies, so the two narrow together rather
+    // than one replacing the other.
+    expect(call.query.get("filter[national_destination_code]")).toBe("212");
+  });
+
+  it("sends no digit filter when nothing was typed", async () => {
+    const env = completeEnv();
+    const telnyx = new TelnyxMock();
+    telnyx.on("GET", /^\/v2\/available_phone_numbers$/, () => ({ data: [] }));
+    stubFetch(telnyx.route());
+
+    await searchInventory(env, { country: "US" });
+
+    // The negative control for the test above: an unconditional parameter
+    // would make that assertion pass while proving nothing.
+    const call = telnyx.callsTo("GET", /available_phone_numbers/)[0];
+    expect(call.query.get("filter[phone_number][contains]")).toBeNull();
+  });
+});

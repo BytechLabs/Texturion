@@ -168,6 +168,23 @@
         "type": "ratelimit",
         "namespace_id": "1008",
         "simple": { "limit": 30, "period": 60 }
+      },
+      {
+        // #513: the number picker's own limiter.
+        //
+        // It used to borrow VERIFY_RATE_LIMITER, which is 3 per minute. That
+        // number is right for what it was built for — an OTP send costs money
+        // and a resend loop is an attack — and completely wrong here. Browsing
+        // for a phone number is a person reading a list and asking for another
+        // one; three refreshes is a normal thirty seconds of shopping, and the
+        // fourth told them to come back later.
+        //
+        // A search costs us nothing but a Telnyx read, so this is sized to
+        // stop a script rather than to ration a customer. Keyed per caller.
+        "name": "NUMBER_SEARCH_RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1009",
+        "simple": { "limit": 30, "period": 60 }
       }
     ]
   },

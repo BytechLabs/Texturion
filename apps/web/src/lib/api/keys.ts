@@ -20,7 +20,11 @@ export const keys = {
     country: string,
     areaCode: string | null,
     bestEffort: boolean,
-  ) => ["available-numbers", country, areaCode, bestEffort] as const,
+    // #513: part of the key, or typing digits would keep serving the cached
+    // unfiltered batch and the search would look broken all over again.
+    contains?: string,
+  ) =>
+    ["available-numbers", country, areaCode, bestEffort, contains ?? null] as const,
 
   company: (companyId: string) => [companyId, "company"] as const,
   usage: (companyId: string) => [companyId, "usage"] as const,

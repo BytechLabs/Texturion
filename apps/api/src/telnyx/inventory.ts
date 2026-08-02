@@ -73,6 +73,8 @@ export async function searchInventory(
     areaCode?: string;
     bestEffort?: boolean;
     limit?: number;
+    /** #513: digits the number must contain, honoured by the SEARCH. */
+    contains?: string;
   },
 ): Promise<InventoryResult> {
   const query: Record<string, string> = {
@@ -82,6 +84,11 @@ export async function searchInventory(
     "filter[limit]": String(opts.limit ?? 20),
   };
   if (opts.areaCode) query["filter[national_destination_code]"] = opts.areaCode;
+  // #513: Telnyx's own digit filter, so a fresh batch honours what was typed.
+  // Verified against the live API: the parameter is accepted and narrows the
+  // result set. Previously the picker filtered only the numbers it already
+  // held, so "Refresh" silently discarded the search.
+  if (opts.contains) query["filter[phone_number][contains]"] = opts.contains;
   // best_effort widens the search to nearby numbers when the exact area code is
   // dry — an explicit, user-triggered "show nearby numbers", never automatic.
   if (opts.bestEffort) query["filter[best_effort]"] = "true";

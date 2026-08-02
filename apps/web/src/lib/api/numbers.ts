@@ -39,12 +39,15 @@ export function useAvailableNumbers(params: {
   country: "US" | "CA";
   areaCode: string | null;
   bestEffort: boolean;
+  /** #513: digits the number must contain, honoured by the SEARCH. */
+  contains?: string;
 }) {
   return useQuery({
     queryKey: keys.availableNumbers(
       params.country,
       params.areaCode,
       params.bestEffort,
+      params.contains,
     ),
     queryFn: () =>
       apiFetch<AvailableNumbersResult>("/v1/available-numbers", {
@@ -52,8 +55,14 @@ export function useAvailableNumbers(params: {
           country: params.country,
           area_code: params.areaCode ?? undefined,
           best_effort: params.bestEffort ? "true" : undefined,
-          // Fetch a fuller batch — the picker filters it client-side by digits
-          // (Telnyx's own digit filters are silently ignored on this endpoint).
+          // #513: the digits go to Telnyx. The old comment here said its digit
+          // filters were "silently ignored on this endpoint" — checked against
+          // the live API on 2026-08-02 and that is false. It works, and the
+          // picker was throwing away most of every batch because of a belief
+          // nobody had rechecked.
+          contains: params.contains,
+          // A fuller batch still helps: the visible list filters instantly on
+          // every keystroke, before any round trip.
           limit: 50,
         },
       }),

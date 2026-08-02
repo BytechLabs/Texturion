@@ -24,7 +24,23 @@ const querySchema = z.object({
     .regex(/^[2-9]\d{2}$/)
     .optional(),
   best_effort: z.enum(["true", "false"]).optional(),
-  limit: z.coerce.number().int().min(1).max(50).optional(),
+  /**
+   * #513: digits the number must contain, passed THROUGH to Telnyx.
+   *
+   * The picker used to filter the batch it already had, so asking for a fresh
+   * batch quietly ignored what you had typed — you got another twenty numbers
+   * chosen without reference to it. Telnyx supports
+   * `filter[phone_number][contains]`, so the search itself can honour it.
+   *
+   * Two to seven digits: one digit matches nearly everything and is not a
+   * search, and past seven there is nothing left of a ten-digit number to
+   * choose from.
+   */
+  contains: z
+    .string()
+    .regex(/^\d{2,7}$/)
+    .optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
 availableNumbersRoutes.get("/", async (c) => {
@@ -42,7 +58,7 @@ availableNumbersRoutes.get("/", async (c) => {
       "country is required (US or CA); area_code must be a 3-digit NANP code.",
     );
   }
-  const { country, area_code, best_effort, limit } = parsed.data;
+  const { country, area_code, best_effort, contains, limit } = parsed.data;
 
   // An area code, when supplied, must be a geographic NANP code in that country
   // — reject a mismatch rather than returning a foreign country's numbers.
@@ -61,8 +77,13 @@ availableNumbersRoutes.get("/", async (c) => {
   // inventory search per request, so any signed-in account (even one owning no
   // company) could hammer it. Rate-limit per caller — binding absent in
   // dev/tests → skipped, exactly like every other VERIFY_RATE_LIMITER site.
-  if (env.VERIFY_RATE_LIMITER) {
-    const { success } = await env.VERIFY_RATE_LIMITER.limit({
+  // #513: its OWN limiter, not VERIFY's. That one is 3/minute because an OTP
+  // send costs money and a resend loop is an attack. A number search is a read,
+  // and three refreshes is a normal half-minute of shopping — the fourth used
+  // to tell a customer to come back later, mid-purchase.
+  const limiter = env.NUMBER_SEARCH_RATE_LIMITER ?? env.VERIFY_RATE_LIMITER;
+  if (limiter) {
+    const { success } = await limiter.limit({
       key: `available-numbers:${c.get("userId")}`,
     });
     if (!success) {
@@ -78,6 +99,7 @@ availableNumbersRoutes.get("/", async (c) => {
     country,
     areaCode: area_code,
     bestEffort: best_effort === "true",
+    contains,
     limit,
   });
   return c.json(result);

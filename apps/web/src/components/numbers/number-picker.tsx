@@ -24,10 +24,26 @@ export function isFullNumber(value: string): boolean {
 }
 
 /**
- * Client-side digit filter over the fetched batch. Telnyx's server-side digit
- * filters (contains/starts_with/ends_with) are silently ignored on this
- * endpoint, so we filter the numbers we already have — instant, honest, and
- * "Refresh"/"nearby" pull a different batch when a pattern is rare.
+ * Digit filter over the batch already on screen.
+ *
+ * #513 — AND THE COMMENT THAT USED TO BE HERE WAS WRONG. It said Telnyx
+ * "silently ignores" the server-side digit filters, which is why this was
+ * built as a client-side pass in the first place. Checked against the live API
+ * on 2026-08-02: `filter[phone_number][contains]` is honoured, and every
+ * number it returns really does contain the pattern (10 of 10, for two
+ * different patterns). The belief was false and it had hardened into a
+ * comment, so the search kept discarding what somebody typed.
+ *
+ * This still runs, and still earns its place: it is INSTANT. A person typing
+ * digits sees the visible list narrow on every keystroke without a round trip.
+ * What changed is that the fetch now carries the pattern too, so asking for
+ * another batch returns numbers chosen WITH it rather than twenty more picked
+ * at random and then mostly thrown away.
+ *
+ * `start` and `end` remain client-only. Telnyx has `starts_with`/`ends_with`,
+ * but a NANP number's first three digits are the area code — which this picker
+ * already asks for separately — so sending both would be two filters fighting
+ * over the same digits.
  */
 function matchesDigits(e164: string, digits: string, match: DigitMatch): boolean {
   if (!digits) return true;
@@ -98,7 +114,17 @@ export function NumberPicker({
   // Fires immediately with a broad country search; an area code, when set,
   // narrows it (the server treats area_code as optional). The digit filter runs
   // client-side over whatever batch comes back.
-  const list = useAvailableNumbers({ country, areaCode, bestEffort });
+  // #513: the pattern goes to the SEARCH, not only to the list. Only for
+  // "anywhere" — see the note above on why the other two stay local. Below two
+  // digits there is nothing to narrow, and the API refuses it.
+  const searchDigits =
+    match === "anywhere" && digits.length >= 2 ? digits : undefined;
+  const list = useAvailableNumbers({
+    country,
+    areaCode,
+    bestEffort,
+    contains: searchDigits,
+  });
 
   const hint = areaCode ? areaCodeHint(areaCode, country) : null;
   const numbers = list.data?.data ?? [];

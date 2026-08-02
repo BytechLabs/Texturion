@@ -284,6 +284,13 @@ const envSchema = z.object({
    */
   VERIFY_RATE_LIMITER: rateLimiterSchema.optional(),
   /**
+   * #513: the number picker's own limiter, separate from VERIFY's 3/minute.
+   *
+   * Browsing for a number is a read; an OTP send is money. Sharing one budget
+   * meant three refreshes locked somebody out mid-purchase.
+   */
+  NUMBER_SEARCH_RATE_LIMITER: rateLimiterSchema.optional(),
+  /**
    * OPTIONAL vendor base-URL overrides — production leaves them UNSET so the
    * clients hit the real vendor hosts (Telnyx `api.telnyx.com`, Stripe
    * `api.stripe.com`). The hermetic E2E launch-pass harness (SPEC §12 step 19,
