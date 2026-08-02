@@ -27,6 +27,8 @@ const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const MEMBER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
 const CONTACT_ID = "dddddddd-1111-4222-8333-444444444444";
+/** #246: the second record for the same customer. */
+const OTHER_ID = "dddddddd-2222-4222-8333-444444444444";
 
 let auth: TestAuth;
 const app = buildTestApp(contactsRoutes);
@@ -1978,5 +1980,169 @@ describe("geocode cache reset on address writes (D25)", () => {
     >[];
     expect(upsert[0]).not.toHaveProperty("geocode_status");
     expect(upsert[0]).not.toHaveProperty("address");
+  });
+});
+
+describe("#246 merging two contacts for the same customer", () => {
+  it("folds one into the other and reports what moved", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("POST", "/rest/v1/rpc/api_merge_contacts", () => ({
+      outcome: "merged",
+      moved: 3,
+      closed: 1,
+      opted_out: true,
+      from_phone: "+14155550501",
+      into_phone: "+14155550502",
+    }));
+    sb.on("POST", "/rest/v1/audit_log", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/merge`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { into_contact_id: OTHER_ID },
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      merged: true,
+      moved: 3,
+      closed: 1,
+      opted_out: true,
+    });
+  });
+
+  it("records what the merge actually did, including both numbers", async () => {
+    // #246 asks for undo OR a full record. Both — and after the merge one of
+    // these numbers is the only way to say which record was folded in.
+    const sb = stubWithRole("admin");
+    sb.on("POST", "/rest/v1/rpc/api_merge_contacts", () => ({
+      outcome: "merged",
+      moved: 2,
+      closed: 0,
+      opted_out: false,
+      from_phone: "+14155550501",
+      into_phone: "+14155550502",
+    }));
+    sb.on("POST", "/rest/v1/audit_log", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(app, env, await auth.token(), `/v1/contacts/${CONTACT_ID}/merge`, {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { into_contact_id: OTHER_ID },
+    });
+    expect(sb.find("POST", "/rest/v1/audit_log")[0].body).toMatchObject({
+      action: "contact.merged",
+      after: {
+        merged_contact_id: CONTACT_ID,
+        from_phone: "+14155550501",
+        conversations_moved: 2,
+      },
+    });
+  });
+
+  it("refuses to build a chain, and says where to go instead", async () => {
+    // Every reader follows merged_into exactly one hop, so a chain would make
+    // that depth unknown. The message has to name the recovery, or somebody
+    // retries the same thing.
+    const sb = stubWithRole("admin");
+    sb.on("POST", "/rest/v1/rpc/api_merge_contacts", () => ({
+      outcome: "already_merged",
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/merge`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { into_contact_id: OTHER_ID },
+      },
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("surviving contact");
+  });
+
+  it("is not a member's call", async () => {
+    // A merge rewrites whose history is whose and cannot be fully undone —
+    // the row comes back, but which thread came from which record does not.
+    const sb = stubWithRole("member");
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/merge`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { into_contact_id: OTHER_ID },
+      },
+    );
+    expect(res.status).toBe(403);
+    expect(sb.find("POST", "/rest/v1/rpc/api_merge_contacts")).toHaveLength(0);
+  });
+
+  it("undoes a merge without undoing the opt-out", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("POST", "/rest/v1/rpc/api_unmerge_contact", () => ({
+      outcome: "unmerged",
+      phone: "+14155550501",
+    }));
+    sb.on("POST", "/rest/v1/audit_log", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/unmerge`,
+      { method: "POST", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(sb.find("POST", "/rest/v1/audit_log")[0].body).toMatchObject({
+      action: "contact.unmerged",
+    });
+  });
+
+  it("lists likely duplicates rather than treating the word as a contact id", async () => {
+    // Hono matches in REGISTRATION order. Registered after `/contacts/:id`,
+    // this path is swallowed by the pattern and "duplicates" is parsed as a
+    // uuid — which is exactly what happened on the first attempt.
+    const sb = stubWithRole("member");
+    sb.on("POST", "/rest/v1/rpc/api_duplicate_contacts", () => [
+      {
+        contact_a: CONTACT_ID,
+        name_a: "Mike",
+        phone_a: "+14155550501",
+        contact_b: OTHER_ID,
+        name_b: "Michael Chen",
+        phone_b: "+14155550502",
+        reason: "same digits",
+      },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/duplicates",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { reason: string }[] };
+    expect(body.data[0].reason).toBe("same digits");
   });
 });

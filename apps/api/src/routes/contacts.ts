@@ -180,6 +180,9 @@ async function findContact(
   return rows[0] ?? null;
 }
 
+/** #246: which contact survives the merge. */
+const mergeSchema = z.object({ into_contact_id: z.uuid() });
+
 export const contactsRoutes = new Hono<AppEnv>();
 
 /**
@@ -565,6 +568,34 @@ contactsRoutes.post("/contacts", requireCapability("conversations.note"), async 
  * `URLComponents` does not escape and Hono decodes as a space, so every iOS
  * "Show earlier" came back 422. base64url exists to avoid exactly that.
  */
+/**
+ * #246 — GET /v1/contacts/duplicates: the likely duplicates, without anybody
+ * having to know they exist.
+ *
+ * Two signals, both explainable to the person reading the result: the same
+ * name, or the same ten digits reached by different prefix habits. Anything
+ * cleverer produces pairs a crew cannot judge, and a suggestion somebody cannot
+ * verify is one they learn to dismiss.
+ *
+ * Member-readable, matching the contact list itself: seeing that two records
+ * are one customer is not a privileged fact, and the crew member who notices is
+ * usually the one who caused it.
+ */
+contactsRoutes.get(
+  "/contacts/duplicates",
+  requireCapability("conversations.read"),
+  async (c) => {
+    const db = getDb(getEnv(c.env));
+    const rows = unwrap<unknown[]>(
+      await db.rpc("api_duplicate_contacts", {
+        p_company_id: c.get("companyId"),
+      }),
+      "duplicate contacts",
+    );
+    return c.json({ data: rows, next_cursor: null });
+  },
+);
+
 contactsRoutes.get("/contacts/:id/timeline", requireCapability("conversations.read"), async (c) => {
   const id = pathUuid(c, "id");
   const companyId = c.get("companyId");
@@ -1471,4 +1502,130 @@ contactsRoutes.delete(
   "/contacts/:id/opt-out",
   requireCapability("conversations.note"),
   revokeOptOut,
+);
+
+/**
+ * #246 — POST /v1/contacts/:id/merge: fold this contact into another.
+ *
+ * `settings.manage` rather than the member level the rest of this file uses.
+ * A merge rewrites whose history is whose and cannot be fully undone — the row
+ * comes back, but which thread came from which record does not. That is the
+ * same class of decision as merging tags (#298), and it is the one contact
+ * operation where getting it wrong costs more than doing nothing.
+ */
+contactsRoutes.post(
+  "/contacts/:id/merge",
+  requireCapability("settings.manage"),
+  async (c) => {
+    const from = pathUuid(c, "id");
+    const body = await parseJsonBody(c, mergeSchema);
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+
+    const result = unwrap<{
+      outcome: string;
+      moved?: number;
+      closed?: number;
+      opted_out?: boolean;
+      from_phone?: string;
+      into_phone?: string;
+    }>(
+      await db.rpc("api_merge_contacts", {
+        p_company_id: companyId,
+        p_from: from,
+        p_into: body.into_contact_id,
+        p_actor: c.get("userId"),
+      }),
+      "contact merge",
+    );
+
+    if (result.outcome === "not_found") {
+      return errorResponse(c, "not_found", "No such contact.");
+    }
+    if (result.outcome === "same_contact") {
+      return errorResponse(
+        c,
+        "validation_failed",
+        "Pick a different contact to merge into.",
+      );
+    }
+    if (result.outcome === "already_merged") {
+      return errorResponse(
+        c,
+        "conflict",
+        "One of these has already been merged. Open the surviving contact and " +
+          "merge from there.",
+      );
+    }
+
+    // #246 asks for undo OR a full record. Both: the tombstone is the undo and
+    // this is the record. It carries both numbers because after the merge one
+    // of them is the only way to say which record was folded in.
+    await recordAuditFromRequest(db, c, {
+      companyId,
+      action: "contact.merged",
+      targetType: "contact",
+      targetId: body.into_contact_id,
+      after: {
+        merged_contact_id: from,
+        from_phone: result.from_phone ?? null,
+        into_phone: result.into_phone ?? null,
+        conversations_moved: result.moved ?? 0,
+        conversations_closed: result.closed ?? 0,
+        opted_out: result.opted_out ?? false,
+      },
+    });
+
+    return c.json({
+      merged: true,
+      moved: result.moved ?? 0,
+      closed: result.closed ?? 0,
+      opted_out: result.opted_out ?? false,
+    });
+  },
+);
+
+/**
+ * #246 — POST /v1/contacts/:id/unmerge: put the second record back.
+ *
+ * Restores the contact and its number. It does NOT move the conversations
+ * back: which thread came from which record is not recoverable once they are
+ * under one contact, and a guess would be worse than the honest limit.
+ *
+ * The opt-out union is never undone either. If the customer said stop, they
+ * said stop — an undo of a bookkeeping mistake is not consent to text them.
+ */
+contactsRoutes.post(
+  "/contacts/:id/unmerge",
+  requireCapability("settings.manage"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+
+    const result = unwrap<{ outcome: string; phone?: string }>(
+      await db.rpc("api_unmerge_contact", {
+        p_company_id: companyId,
+        p_contact_id: id,
+      }),
+      "contact unmerge",
+    );
+
+    if (result.outcome === "not_found") {
+      return errorResponse(c, "not_found", "No such contact.");
+    }
+    if (result.outcome === "not_merged") {
+      return errorResponse(c, "conflict", "That contact was not merged.");
+    }
+
+    await recordAuditFromRequest(db, c, {
+      companyId,
+      action: "contact.unmerged",
+      targetType: "contact",
+      targetId: id,
+      after: { phone: result.phone ?? null },
+    });
+
+    return c.json({ unmerged: true });
+  },
 );

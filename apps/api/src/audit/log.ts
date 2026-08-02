@@ -78,6 +78,17 @@ export type AuditAction =
   | "template.created"
   | "template.updated"
   | "template.deleted"
+  /**
+   * #246: two customer records folded into one.
+   *
+   * Recorded because a merge is destructive in a way nothing else on a contact
+   * is — it moves somebody's whole history under a different record, and the
+   * undo restores the row but cannot restore which thread came from which. The
+   * entry carries both numbers and the counts, so "what did that merge
+   * actually do" has an answer months later.
+   */
+  | "contact.merged"
+  | "contact.unmerged"
   // Billing — the plan, the modules, the seats
   | "billing.plan_changed"
   | "billing.module_changed"
