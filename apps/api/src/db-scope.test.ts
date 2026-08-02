@@ -172,11 +172,15 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
       "of our traffic as a whole",
   },
   "observability/liveness-check.ts::messages": {
-    count: 1,
+    count: 2,
     why:
       "#387 outbound-SMS probe: asks whether ANY workspace got a text to the " +
       "carrier in the window. Per-tenant it would be noise — one plumber " +
-      "having a quiet afternoon is not an outage; every inbox silent is",
+      "having a quiet afternoon is not an outage; every inbox silent is. " +
+      "#510 adds the second: the same question over a WEEK, because 'every " +
+      "inbox silent' is also what a platform with three customers looks like " +
+      "on a Sunday, and an alert that cannot tell that from an outage fires " +
+      "forever and teaches its reader to delete it",
   },
   "observability/inbound-canary.ts::phone_numbers": {
     count: 1,

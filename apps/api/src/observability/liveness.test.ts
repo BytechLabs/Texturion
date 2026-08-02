@@ -100,10 +100,22 @@ describe("recording a heartbeat", () => {
   });
 });
 
+/** The instant every check in this file runs at. */
+const CHECK_NOW = new Date("2026-07-28T12:00:00Z");
+
 /** A world where the RPCs answer, and every outbound call is captured. */
 function checkWorld(options: {
   overdue?: Record<string, unknown>[];
   smsRows?: Record<string, unknown>[];
+  /**
+   * #510 — what the WEEK-long baseline read returns, as distinct from the hour.
+   *
+   * The probe now asks two questions: "has anything sent in the last hour?"
+   * and, only if not, "has this platform ever sent anything?". They hit the
+   * same table with different `created_at` floors, so the stub tells them
+   * apart by that floor rather than by call order.
+   */
+  smsBaselineRows?: Record<string, unknown>[];
   /** #308 — what `api_webhook_inbound_probe` reports. Default: all quiet. */
   inbound?: Record<string, unknown>;
   /** #308 — fail the probe RPC itself with this HTTP status. */
@@ -111,7 +123,21 @@ function checkWorld(options: {
 }) {
   const sb = supabaseStub(env);
   const beats: string[] = [];
-  sb.on("GET", "/rest/v1/messages", () => options.smsRows ?? []);
+  sb.on("GET", "/rest/v1/messages", (call) => {
+    // The hourly probe floors at now-60m; the baseline at now-7d. Anything
+    // older than a day back is the baseline read.
+    const gte = call.url.searchParams.get("created_at") ?? "";
+    const floor = gte.replace(/^gte\./, "");
+    // Anchored to the CHECK's clock, not the wall clock: every test here
+    // passes a fixed `now`, and comparing against Date.now() classified both
+    // reads as the baseline.
+    const isBaseline =
+      floor !== "" &&
+      CHECK_NOW.getTime() - new Date(floor).getTime() > 24 * 60 * 60_000;
+    return isBaseline
+      ? (options.smsBaselineRows ?? [])
+      : (options.smsRows ?? []);
+  });
   // Registered here rather than overridden by the caller: stub handlers run in
   // REGISTRATION order and the first non-undefined wins, so a later `on()` for
   // the same path would never be reached.
@@ -150,7 +176,7 @@ describe("the checker", () => {
     const world = checkWorld({});
     stubFetch(...world.routes);
 
-    const result = await runLivenessCheckJob(env, new Date("2026-07-28T12:00:00Z"));
+    const result = await runLivenessCheckJob(env, CHECK_NOW);
 
     expect(result.overdue).toBe(0);
     expect(world.emails).toHaveLength(0);
@@ -170,7 +196,7 @@ describe("the checker", () => {
     });
     stubFetch(...world.routes);
 
-    await runLivenessCheckJob(env, new Date("2026-07-28T12:00:00Z"));
+    await runLivenessCheckJob(env, CHECK_NOW);
 
     expect(world.emails).toHaveLength(1);
     const email = world.emails[0] as { subject: string; text: string };
@@ -188,19 +214,45 @@ describe("the outbound-SMS probe", () => {
     const world = checkWorld({ smsRows: [{ id: "m1" }] });
     stubFetch(...world.routes);
 
-    await runLivenessCheckJob(env, new Date("2026-07-28T12:00:00Z"));
+    await runLivenessCheckJob(env, CHECK_NOW);
 
     expect(world.beats).toContain("channel:sms-outbound");
   });
 
-  it("stays silent when nothing got through", async () => {
-    // No heartbeat means the key ages toward its own alert. The probe never
-    // asserts an outage itself — it only declines to say the channel is alive.
-    const world = checkWorld({ smsRows: [] });
+  /**
+   * #510 — THE ONE THE FOUNDER REPORTED.
+   *
+   * "I keep getting emails like this but what do I do?? there is nothing
+   * actionable?" — about an alert whose own text read "Either nobody is
+   * texting, or sending is broken and every workspace is silent."
+   *
+   * A platform with a handful of workspaces is silent most evenings, so this
+   * fired every six hours forever and taught its only reader to delete it.
+   */
+  it("says nothing when the platform has never been busy", async () => {
+    const world = checkWorld({ smsRows: [], smsBaselineRows: [] });
     stubFetch(...world.routes);
 
-    await runLivenessCheckJob(env, new Date("2026-07-28T12:00:00Z"));
+    await runLivenessCheckJob(env, CHECK_NOW);
 
+    // Heartbeat, so the expectation stays satisfied: nothing has STOPPED that
+    // ever started. Not a snooze — one real text makes the hourly window
+    // meaningful again by itself.
+    expect(world.beats).toContain("channel:sms-outbound");
+  });
+
+  /**
+   * ...and the negative control, which is the whole point. Without this, the
+   * fix above would read identically to switching the alert off.
+   */
+  it("still goes quiet when a BUSY platform stops sending", async () => {
+    const world = checkWorld({ smsRows: [], smsBaselineRows: [{ id: "old" }] });
+    stubFetch(...world.routes);
+
+    await runLivenessCheckJob(env, CHECK_NOW);
+
+    // No heartbeat means the key ages toward its own alert. The probe never
+    // asserts an outage itself — it only declines to say the channel is alive.
     expect(world.beats).not.toContain("channel:sms-outbound");
   });
 
@@ -210,7 +262,7 @@ describe("the outbound-SMS probe", () => {
     const world = checkWorld({ smsRows: [{ id: "m1" }] });
     stubFetch(...world.routes);
 
-    await runLivenessCheckJob(env, new Date("2026-07-28T12:00:00Z"));
+    await runLivenessCheckJob(env, CHECK_NOW);
 
     const probe = world.sb.calls.find((call) => call.path === "/rest/v1/messages");
     expect(probe?.url.href).toContain("sent");
@@ -232,7 +284,7 @@ describe("per-job heartbeats (#333)", () => {
     return { sb, beats };
   }
 
-  const at = new Date("2026-07-28T12:00:00Z");
+  const at = CHECK_NOW;
 
   it("beats for a job that succeeded", async () => {
     const world = beatWorld();
@@ -293,7 +345,7 @@ describe("per-job heartbeats (#333)", () => {
 });
 
 describe("the inbound-webhook probe (#308)", () => {
-  const AT = new Date("2026-07-28T12:00:00Z");
+  const AT = CHECK_NOW;
 
   it("beats each event class independently", async () => {
     // The whole reason there are three keys: "message webhooks fine, call

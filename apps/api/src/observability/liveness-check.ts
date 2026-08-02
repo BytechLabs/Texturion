@@ -29,6 +29,29 @@ const REALERT_AFTER_MINUTES = 360;
  */
 const SMS_PROBE_WINDOW_MINUTES = 60;
 
+/**
+ * #510 — how far back we look to decide the platform is normally BUSY.
+ *
+ * Reported by the founder: "I keep getting emails like this but what do I
+ * do?? there is nothing actionable?" — about this exact expectation, whose own
+ * text reads "Either nobody is texting, or sending is broken and every
+ * workspace is silent."
+ *
+ * That sentence is the bug. An alarm that cannot tell the benign cause from the
+ * emergency is not an alarm, and on a platform with a handful of workspaces the
+ * benign cause is the ordinary state of a weekday evening. It fired every six
+ * hours, forever, and taught its only reader to delete it — which is the
+ * failure `activation-stall.ts` names in its own comments: "an alarm that fires
+ * on the normal case is an alarm nobody reads".
+ *
+ * So silence is only news if the platform is usually noisy. If nothing has been
+ * sent in a WEEK either, there is no anomaly to report: this is a quiet
+ * platform, not a broken one, and the founder already knows how many customers
+ * they have. The moment real traffic exists, an hour of silence becomes
+ * meaningful again on its own — with no flag to remember to flip.
+ */
+const SMS_BASELINE_WINDOW_DAYS = 7;
+
 interface OverdueRow {
   key: string;
   what: string;
@@ -163,6 +186,37 @@ async function probeOutboundSms(
     return;
   }
   if ((data ?? []).length > 0) {
+    await recordHeartbeatBestEffort(env, "channel:sms-outbound", now, db);
+    return;
+  }
+
+  // #510: nothing in the last hour. Before calling that an outage, ask whether
+  // this platform sends anything at all.
+  const baselineSince = new Date(
+    now.getTime() - SMS_BASELINE_WINDOW_DAYS * 24 * 60 * 60_000,
+  );
+  const baseline = await db
+    .from("messages")
+    .select("id")
+    .eq("direction", "outbound")
+    .in("status", ["sent", "delivered"])
+    .gte("created_at", baselineSince.toISOString())
+    .limit(1);
+  if (baseline.error) {
+    // Same posture as the probe above: a failed read is not proof of anything,
+    // so leave the ledger alone and let the next cadence decide.
+    console.error(
+      `liveness: outbound SMS baseline failed: ${baseline.error.message}`,
+    );
+    return;
+  }
+  if ((baseline.data ?? []).length === 0) {
+    // A week of silence means the platform is quiet, not broken. Heartbeat it
+    // so the expectation stays satisfied — the alert exists to catch sending
+    // STOPPING, and nothing has stopped that ever started.
+    //
+    // This is not a snooze. The instant one text goes out, the hourly window
+    // becomes meaningful again by itself.
     await recordHeartbeatBestEffort(env, "channel:sms-outbound", now, db);
   }
 }
