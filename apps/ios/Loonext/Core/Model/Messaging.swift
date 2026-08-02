@@ -261,6 +261,31 @@ struct ConversationDetail: Codable, Sendable {
     /// gate's decision cannot disagree. `var … = nil` so it does not become a
     /// required memberwise-init parameter in every fixture.
     var destination_clock: DestinationClock? = nil
+    /// #250: when the inbound classifier last scored this thread above the
+    /// threshold. Never set by a person, and never a reason to hide the
+    /// thread — it suppressed the notification and nothing else.
+    /// `var … = nil` so it does not become a required memberwise-init
+    /// parameter in every fixture.
+    var spam_suspected_at: String? = nil
+    /// #250: the reasons behind it, so the badge can say WHY. Optional, not
+    /// `@Default`: a property wrapper supplies a DECODING fallback but not a
+    /// memberwise default, so it would become a required parameter at all six
+    /// existing ConversationDetail construction sites.
+    var spam_signals: [SpamSignal]? = nil
+}
+
+/// #250 — one reason the classifier scored a thread.
+///
+/// Hand-copied across the wire boundary from
+/// apps/api/src/messaging/spam-signals.ts: the scoring never runs on a
+/// client, so only the shape travels.
+struct SpamSignal: Codable, Sendable, Identifiable {
+    @Default<DefaultEmptyString> var key: String
+    @Default<DefaultZero> var weight: Int
+    /// A full sentence, rendered verbatim.
+    @Default<DefaultEmptyString> var why: String
+
+    var id: String { key + why }
 }
 
 /// #225 / D49 — the destination's clock, and which rung of the ladder answered.

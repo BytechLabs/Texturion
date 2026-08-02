@@ -71,6 +71,22 @@ data class TagMergeResult(
     val stage_moved: Boolean = false,
 )
 
+/**
+ * #250: one reason the classifier scored a thread.
+ *
+ * Hand-copied across the wire boundary from
+ * apps/api/src/messaging/spam-signals.ts — the scoring never runs on a
+ * client, so only the shape travels. Every field defaults, because a
+ * badge is never worth failing a decode over.
+ */
+@Serializable
+data class SpamSignal(
+    val key: String = "",
+    val weight: Int = 0,
+    /** A full sentence, rendered verbatim. */
+    val why: String = "",
+)
+
 @Serializable
 data class Conversation(
     val id: String,
@@ -236,6 +252,14 @@ data class ConversationDetail(
      * can opt out, and only they can lift it.
      */
     val opt_out_hint_at: String? = null,
+    /**
+     * #250: when the inbound classifier last scored this thread above the
+     * threshold. Never set by a person, and never a reason to hide the
+     * thread — it suppressed the notification and nothing else.
+     */
+    val spam_suspected_at: String? = null,
+    /** #250: the reasons behind it, so the badge can say WHY. */
+    val spam_signals: List<SpamSignal> = emptyList(),
     val created_at: String,
     val updated_at: String,
     val contact: ConversationDetailContact,

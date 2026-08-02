@@ -279,6 +279,13 @@ export interface ConversationPatch {
    * lifting the mark. Only literal true has meaning.
    */
   spam_reviewed?: true;
+  /**
+   * #250: "this is not spam" against the CLASSIFIER, which is a different
+   * sentence from is_spam:false against a person's own mark. Only literal
+   * false has meaning — nothing may set a suspicion from outside, or it
+   * stops being the machine's own opinion.
+   */
+  spam_suspected?: false;
 }
 
 /** PATCH /v1/conversations/:id — status / assignee / spam. */

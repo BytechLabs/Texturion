@@ -950,6 +950,24 @@ class ThreadController(
     }
 
     /**
+     * #250 — the crew looked, and it is a real customer.
+     *
+     * No undo offered, unlike [setSpam]: the server accepts only false, so
+     * there would be nothing for an Undo to call. An action that cannot be
+     * reversed should not advertise that it can.
+     */
+    fun clearSpamSuspicion() {
+        scope.launch {
+            try {
+                applyConversationRow(repo.clearSpamSuspicion(companyId, conversationId))
+                notify("Thanks. We won't flag this one.")
+            } catch (cause: Exception) {
+                notify(cause.userMessage())
+            }
+        }
+    }
+
+    /**
      * #293 — defer this thread out of MY inbox until [untilIso].
      *
      * Reversible in one tap and cancelled outright by a customer reply, so the

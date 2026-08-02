@@ -327,6 +327,19 @@ class MessagingRepository(private val api: ApiClient) {
     suspend fun setSpam(companyId: String, conversationId: String, spam: Boolean): Conversation =
         patchConversation(companyId, conversationId, buildJsonObject { put("is_spam", spam) })
 
+    /**
+     * #250: "this is not spam" against the CLASSIFIER, which is a different
+     * sentence from [setSpam] against a person's own mark. The server accepts
+     * only false — nothing may set a suspicion from outside, or it stops
+     * being the machine's own opinion.
+     */
+    suspend fun clearSpamSuspicion(companyId: String, conversationId: String): Conversation =
+        patchConversation(
+            companyId,
+            conversationId,
+            buildJsonObject { put("spam_suspected", false) },
+        )
+
     suspend fun setConversationPinned(
         companyId: String,
         conversationId: String,

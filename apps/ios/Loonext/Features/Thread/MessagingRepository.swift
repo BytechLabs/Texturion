@@ -208,6 +208,22 @@ struct MessagingRepository: Sendable {
         )
     }
 
+    /// #250: "this is not spam" against the CLASSIFIER, which is a
+    /// different sentence from `setSpam` against a person's own mark. No
+    /// Bool parameter, because the server accepts only false — nothing may
+    /// set a suspicion from outside, or it stops being the machine's own
+    /// opinion.
+    func clearSpamSuspicion(
+        companyId: String,
+        conversationId: String
+    ) async throws -> Conversation {
+        try await patchConversation(
+            companyId: companyId,
+            conversationId: conversationId,
+            body: .object(["spam_suspected": .bool(false)])
+        )
+    }
+
     func setConversationPinned(
         companyId: String,
         conversationId: String,

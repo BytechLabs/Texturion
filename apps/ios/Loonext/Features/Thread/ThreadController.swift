@@ -892,6 +892,27 @@ final class ThreadController {
         }
     }
 
+    /// #250 — the crew looked, and it is a real customer.
+    ///
+    /// No undo offered, unlike `setSpam`: the server accepts only false, so
+    /// there would be nothing for an Undo to call. An action that cannot be
+    /// reversed should not advertise that it can.
+    func clearSpamSuspicion() {
+        Task {
+            do {
+                applyConversationRow(
+                    try await repo.clearSpamSuspicion(
+                        companyId: companyId,
+                        conversationId: conversationId
+                    )
+                )
+                notify("Thanks. We won't flag this one.")
+            } catch {
+                notify(error.userMessage)
+            }
+        }
+    }
+
     /// #293 — defer this thread out of MY inbox until `untilISO`.
     ///
     /// Reversible in one tap and cancelled outright by a customer reply, so the
@@ -1179,6 +1200,7 @@ extension ConversationDetail {
             pinned_by_user_id: pinned_by_user_id,
             last_message_at: last_message_at,
             closed_at: closed_at,
+            opt_out_hint_at: opt_out_hint_at,
             created_at: created_at,
             updated_at: updated_at,
             contact: contact,
@@ -1191,7 +1213,10 @@ extension ConversationDetail {
             snooze_note: snooze_note,
             snooze_kind: snooze_kind,
             messages: messages,
-            viewer_level: viewer_level
+            viewer_level: viewer_level,
+            destination_clock: destination_clock,
+            spam_suspected_at: spam_suspected_at,
+            spam_signals: spam_signals
         )
     }
 
@@ -1209,6 +1234,7 @@ extension ConversationDetail {
             pinned_by_user_id: row.pinned_by_user_id,
             last_message_at: last_message_at,
             closed_at: row.closed_at,
+            opt_out_hint_at: opt_out_hint_at,
             created_at: created_at,
             updated_at: row.updated_at,
             contact: contact,
@@ -1219,8 +1245,17 @@ extension ConversationDetail {
             // banner vanish while the server still had it deferred.
             snoozed_until: snoozed_until,
             snooze_note: snooze_note,
+            // Carried for the same reason, and each of these was being
+            // silently cleared until #250 went looking: a status, assign,
+            // spam or pin PATCH rebuilt the struct without them, so the
+            // opt-out warning, the follow-up kind and the customer's clock
+            // all vanished from a thread the server still had them on.
+            snooze_kind: snooze_kind,
             messages: messages,
-            viewer_level: viewer_level
+            viewer_level: viewer_level,
+            destination_clock: destination_clock,
+            spam_suspected_at: spam_suspected_at,
+            spam_signals: spam_signals
         )
     }
 }

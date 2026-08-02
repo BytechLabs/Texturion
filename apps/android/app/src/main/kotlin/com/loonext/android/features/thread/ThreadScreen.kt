@@ -564,6 +564,25 @@ private fun ThreadLoaded(
             },
         )
 
+        // #250: the classifier's only visible effect. It suppressed a push
+        // and nothing else, so without this the thread simply went quiet for
+        // a reason nobody could see. Above the snooze banner: "is this even
+        // a customer" outranks "when does this come back".
+        if (detail.spam_suspected_at != null) {
+            SpamSuspectedBanner(
+                reasons = detail.spam_signals.map { it.why },
+                // Clearing it PATCHes the thread, which read_only cannot do.
+                // Same resolution as viewerReadOnly further down; computed
+                // here because that val is declared below this point.
+                canAct = me.memberships.firstOrNull { it.company_id == companyId }?.role !=
+                    MemberRole.READ_ONLY,
+                onNotSpam = {
+                    haptics.tap()
+                    controller.clearSpamSuspicion()
+                },
+            )
+        }
+
         // #293: a deferred thread says so IN PLACE, with a one-tap way back.
         // The alternative is opening a thread you snoozed, seeing nothing, and
         // finding it gone from the inbox again an hour later — a state the app
@@ -1545,6 +1564,74 @@ private fun AssigneePickerSheet(
                 }
             }
             Spacer(Modifier.size(24.dp))
+        }
+    }
+}
+
+/**
+ * #250 — "this looks like a robotext", said out loud rather than acted on.
+ *
+ * Every genuine new customer is an unknown sender with no prior outbound,
+ * because that is what a new lead IS. So the classifier never hides a
+ * thread; it suppresses one push and shows this. The reasons are the
+ * server's own sentences, rendered verbatim — a verdict somebody cannot
+ * check is one they learn to dismiss.
+ */
+@Composable
+private fun SpamSuspectedBanner(
+    reasons: List<String>,
+    canAct: Boolean,
+    onNotSpam: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 5.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Outlined.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(14.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "This looks like spam",
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            if (canAct) {
+                Text(
+                    "Not spam",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable(onClick = onNotSpam),
+                )
+            }
+        }
+        Text(
+            "We didn't send a notification for it. Nothing is hidden, and you " +
+                "can reply as normal.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        reasons.forEach { why ->
+            Text(
+                why,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
+            )
         }
     }
 }

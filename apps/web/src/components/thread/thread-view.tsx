@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ContactPanel } from "@/components/contact-panel/contact-panel";
+import { SpamSuspectedBanner } from "@/components/thread/spam-suspected-banner";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -309,6 +310,17 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           filter={threadFilter}
           onFilterChange={setThreadFilter}
         />
+        {/* #250: above the list and above the filter bar, because a
+            thread-level verdict outranks a view filter. shrink-0 or the
+            flex column compresses it to nothing. */}
+        <div className="shrink-0 px-4 pt-2 md:px-6">
+          <div className="mx-auto w-full max-w-[42rem]">
+            <SpamSuspectedBanner
+              conversation={conversation}
+              canAct={role !== "read_only"}
+            />
+          </div>
+        </div>
         <MessageList
           key={`messages-${conversationId}`}
           conversationId={conversationId}

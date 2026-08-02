@@ -506,8 +506,30 @@ export interface Conversation {
    * behalf — a wrong guess would silence a real lead permanently.
    */
   opt_out_hint_at?: string | null;
+  /**
+   * #250: when the inbound classifier last scored this thread above the
+   * threshold. Never set by a person, and never a reason to hide the
+   * thread — it suppressed the notification and nothing else.
+   */
+  spam_suspected_at?: string | null;
+  /** #250: the reasons behind it, so the badge can say WHY. */
+  spam_signals?: SpamSignal[] | null;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * #250: one reason the classifier scored a thread.
+ *
+ * Hand-copied across the wire boundary from
+ * apps/api/src/messaging/spam-signals.ts — it is not in @loonext/shared,
+ * because the scoring itself never runs on a client.
+ */
+export interface SpamSignal {
+  key: string;
+  weight: number;
+  /** A full sentence, rendered verbatim. */
+  why: string;
 }
 
 /**

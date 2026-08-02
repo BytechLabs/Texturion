@@ -211,6 +211,23 @@ private struct ThreadBody: View {
                     onRemove: { controller.detachTag($0) }
                 )
 
+                // #250: the classifier's only visible effect. It suppressed
+                // a push and nothing else, so without this the thread simply
+                // went quiet for a reason nobody could see. Above the snooze
+                // banner: "is this even a customer" outranks "when does this
+                // come back".
+                if detail.spam_suspected_at != nil {
+                    SpamSuspectedBanner(
+                        reasons: (detail.spam_signals ?? []).map(\.why),
+                        // Clearing it PATCHes the thread, which read_only
+                        // cannot do. The reasons stay readable either way.
+                        canAct: me.memberships
+                            .first { $0.company_id == detail.company_id }?.role
+                            != MemberRole.readOnly,
+                        onNotSpam: { controller.clearSpamSuspicion() }
+                    )
+                }
+
                 // #293: a deferred thread says so IN PLACE, with a one-tap
                 // way back. The alternative is opening a thread you snoozed,
                 // seeing nothing, and finding it gone from the inbox again an
