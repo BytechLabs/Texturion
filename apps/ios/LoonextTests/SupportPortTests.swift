@@ -102,6 +102,14 @@ final class SupportPortTests: XCTestCase {
         XCTAssertFalse(supportResponseTime.contains("hour"))
     }
 
+    func testTheFixPromiseSaysTheSameThingAsTheOtherClients() {
+        // #321: the loop, and it must promise a reply on the FIX rather than on
+        // receipt — a report that vanishes after an acknowledgement teaches the
+        // same lesson as one that vanishes immediately.
+        XCTAssertTrue(supportFixPromise.contains("fixed"))
+        XCTAssertTrue(supportFixPromise.contains("not just when"))
+    }
+
     func testTheAnswersCoverTheConfusionsTheIssueNames() {
         let all = supportTopics
             .map { "\($0.question) \($0.answer)" }

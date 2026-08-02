@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   SUPPORT_EMAIL,
   SUPPORT_ERROR_LINES,
+  SUPPORT_FIX_PROMISE,
   SUPPORT_RESPONSE_TIME,
   SUPPORT_TOPICS,
   feedbackMailto,
@@ -195,5 +196,20 @@ describe("#253 the answers people go looking for", () => {
     );
     expect(registration).toBeDefined();
     expect(registration?.answer).not.toMatch(/guarantee|always takes|will take exactly/i);
+  });
+});
+
+describe("#321 telling the reporter when it ships", () => {
+  it("states the loop rather than implying it", () => {
+    // The reason to bother writing in is knowing you will hear back. A promise
+    // nobody is told about changes nobody's behaviour.
+    expect(SUPPORT_FIX_PROMISE).toMatch(/fixed/i);
+  });
+
+  it("promises a reply on the FIX, not merely on receipt", () => {
+    // "We read everything that comes in" is not the loop #321 asks for — a
+    // report that vanishes after an acknowledgement teaches the same lesson as
+    // one that vanishes immediately.
+    expect(SUPPORT_FIX_PROMISE).toMatch(/not just when/i);
   });
 });

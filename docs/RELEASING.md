@@ -87,6 +87,37 @@ anything ships.
 from the Actions tab. It requires a written reason and records it on the run.
 That door exists precisely so "no release PR" can never mean "no way to ship".
 
+## Tell the people who reported it (#321)
+
+**After merging, before you close the tab: reply to the reports this release
+fixed.** It is one search and a handful of replies, and it is the cheapest
+loyalty moment a company this size gets. Skipping it is not neutral — a report
+that vanishes teaches somebody not to report the next one, and the next one is
+the bug we would otherwise never hear about.
+
+The mechanics are already laid out for you, and deliberately so:
+
+1. Every in-product report arrives with a subject built by `supportSubjectFor`
+   (`packages/shared/src/support.ts`), so all the reporters of one failure share
+   an exact subject line — `Problem: the carrier suspended our US registration`.
+   Search the inbox for it and you have everybody, not just whoever you
+   remember.
+2. Each report carries the workspace id and the app build it came from, so you
+   can tell who is already on a build that has the fix and who has to update.
+3. Reply on the original thread. There is no ticket id to quote because there
+   are no tickets — #253 chose a mailto precisely so no queue, vendor or SLA
+   exists, and the email thread IS the record.
+
+This step is written down here rather than left to memory because the product
+now promises it out loud: the Help screen on all three clients says we write
+back when a fix ships. That sentence is only honest if this happens on every
+release.
+
+**What is NOT news.** Not every fix in a release is worth a reply — only the
+ones somebody actually wrote in about. The changelog covers the rest, and
+mailing people about repairs they never noticed is how a channel they trust
+becomes one they filter.
+
 ## What is automatic and never needs thinking about
 
 **Build numbers.** Android `versionCode` and iOS `CURRENT_PROJECT_VERSION` come

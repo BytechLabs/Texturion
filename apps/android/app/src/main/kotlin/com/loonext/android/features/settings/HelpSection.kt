@@ -43,6 +43,19 @@ const val SUPPORT_EMAIL = "support@loonext.com"
  */
 const val SUPPORT_RESPONSE_TIME = "within two business days, usually sooner"
 
+/**
+ * #321 acceptance 4 — the loop, stated out loud.
+ *
+ * The mechanism is a reply on the same email thread, made reliable rather than
+ * heroic: `supportSubjectFor` gives every reporter of one failure the identical
+ * subject, so one inbox search finds all of them, and docs/RELEASING.md makes
+ * the reply a step of every release. MIRROR of SUPPORT_FIX_PROMISE in
+ * packages/shared.
+ */
+const val SUPPORT_FIX_PROMISE =
+    "If you tell us something's broken, we write back when it's fixed, not just " +
+        "when we've read it."
+
 /** Mirror of SUPPORT_ERROR_LINES: a truncated mailto body carries NO diagnostics. */
 private const val SUPPORT_ERROR_LINES = 6
 
@@ -268,5 +281,10 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
                 "If your texts have stopped arriving, say so in the subject line " +
                 "and we'll start there.",
         )
+        Spacer(Modifier.height(8.dp))
+        // #321: the loop, stated. The reason to bother writing in is knowing
+        // you will hear back — which makes the release step in
+        // docs/RELEASING.md load-bearing, not optional.
+        Text(SUPPORT_FIX_PROMISE, style = MaterialTheme.typography.bodyMedium)
     }
 }

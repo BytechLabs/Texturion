@@ -108,6 +108,15 @@ class SupportPortTest {
     }
 
     @Test
+    fun `the fix promise says the same thing as the other clients`() {
+        // #321: the loop, and it must promise a reply on the FIX rather than on
+        // receipt — a report that vanishes after an acknowledgement teaches the
+        // same lesson as one that vanishes immediately.
+        assertTrue(SUPPORT_FIX_PROMISE.contains("fixed"))
+        assertTrue(SUPPORT_FIX_PROMISE.contains("not just when"))
+    }
+
+    @Test
     fun `the answers cover the confusions the issue names`() {
         val all = SUPPORT_TOPICS.joinToString(" ") { "${it.first} ${it.second}" }.lowercase()
         for (subject in listOf("registration", "spending cap", "stop", "port")) {

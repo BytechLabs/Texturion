@@ -282,6 +282,7 @@ export type { EffectiveAwayMessage } from "./away";
 export {
   SUPPORT_EMAIL,
   SUPPORT_ERROR_LINES,
+  SUPPORT_FIX_PROMISE,
   SUPPORT_RESPONSE_TIME,
   SUPPORT_TOPICS,
   feedbackMailto,

@@ -5,6 +5,7 @@ import {
   supportBody,
   supportMailto,
   SUPPORT_EMAIL,
+  SUPPORT_FIX_PROMISE,
   SUPPORT_RESPONSE_TIME,
   SUPPORT_TOPICS,
 } from "@loonext/shared";
@@ -166,6 +167,12 @@ export default function HelpPage() {
                 this is email rather than a chat window, and we read everything
                 that comes in. If your texts have stopped arriving, say so in
                 the subject line and we&rsquo;ll start there.
+                {/* #321: the loop, stated. The reason to bother writing in is
+                    knowing you will hear back — which makes the release step
+                    in docs/RELEASING.md load-bearing, not optional. */}
+                <span className="mt-2 block font-medium text-foreground">
+                  {SUPPORT_FIX_PROMISE}
+                </span>
               </span>
             </p>
           </SettingsCard>

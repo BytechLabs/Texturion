@@ -40,6 +40,26 @@ export const SUPPORT_EMAIL = "support@loonext.com";
 export const SUPPORT_RESPONSE_TIME = "within two business days, usually sooner";
 
 /**
+ * #321 acceptance 4 — the loop, stated out loud.
+ *
+ * "When a reported issue ships, tell the person who reported it. That is the
+ * single cheapest loyalty moment available to a small company, and we discard
+ * it every time." The mechanism is not a ticket system — #253 chose a mailto
+ * precisely so no queue, vendor or SLA exists — it is a reply on the same email
+ * thread, made reliable rather than heroic by two things: `supportSubjectFor`
+ * gives every reporter of one failure the identical subject line, so a single
+ * inbox search finds all of them, and docs/RELEASING.md makes the reply a step
+ * of every release rather than something remembered.
+ *
+ * Stated in the product because a promise nobody knows about changes nobody's
+ * behaviour: the reason to bother writing in is knowing you will hear back.
+ * Which makes the release step load-bearing — this sentence is a lie the first
+ * time it is skipped.
+ */
+export const SUPPORT_FIX_PROMISE =
+  "If you tell us something's broken, we write back when it's fixed, not just when we've read it.";
+
+/**
  * How many recent client errors travel with a report.
  *
  * Six because a mailto body has real length limits in some mail clients (the
