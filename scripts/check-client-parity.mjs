@@ -82,6 +82,25 @@ const SURFACES = [
 
   // ---- deliberate asymmetries, each with its reason -----------------------
   {
+    key: "ownership",
+    // #515: a nominated backup owner has to be able to ACCEPT, and the
+    // confirmation used to live inside Settings > Team — a section that
+    // requires team.manage, which a nominee frequently does not hold. They
+    // were being asked to walk through a door locked against them.
+    //
+    // Web gives it its own route because a URL is how somebody arrives from
+    // the email we send, and that URL must not be one the nav refuses. The
+    // phones keep the prompt inside their existing settings surface: they
+    // have no address bar, the nominee arrives by tapping a notification, and
+    // a whole feature package for one card would be more structure than the
+    // capability has.
+    web: "ownership",
+    android: null,
+    androidReason: "the prompt lives in features/settings/OwnershipPrompt.kt — no address bar to arrive from",
+    ios: null,
+    iosReason: "the prompt lives in Features/Settings/OwnershipPrompt.swift — no address bar to arrive from",
+  },
+  {
     key: "compose",
     // The mobile clients give the message composer its own feature package
     // because it is a full screen there. On web it is a component inside the
