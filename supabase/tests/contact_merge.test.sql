@@ -309,4 +309,64 @@ begin
   end if;
 end $$;
 
+-- ===========================================================================
+-- CM-9: an inbound message from the MERGED number lands on the survivor.
+--
+-- The assertion the tombstone exists for. Without the follow trigger the
+-- merge quietly undoes itself: the customer's next text from the old number
+-- threads onto the tombstone, a conversation appears under a contact nobody
+-- can see, and the history splits again.
+--
+-- Exercised through a raw insert rather than thread_inbound_message, because
+-- what is being pinned is the TRIGGER — any present or future threading path
+-- inherits it, and testing one caller would prove the least of it.
+-- ===========================================================================
+do $$
+declare v_landed uuid;
+begin
+  -- Close the survivor's open thread first, so what this block measures is the
+  -- REDIRECT rather than the one-open-thread index. (That the redirect makes
+  -- the index fire at all is itself proof it happened, but a test should assert
+  -- the thing it names.)
+  update public.conversations
+     set status = 'closed', closed_at = now()
+   where contact_id = '55000000-0000-4000-8000-0000000000d2'::uuid
+     and closed_at is null;
+
+  insert into public.conversations (company_id, contact_id, phone_number_id)
+  values (
+    '55000000-0000-4000-8000-0000000000c1'::uuid,
+    -- The TOMBSTONE's id, exactly as an upsert by number would return it.
+    '55000000-0000-4000-8000-0000000000d1'::uuid,
+    '55000000-0000-4000-8000-0000000000f1'::uuid)
+  returning contact_id into v_landed;
+
+  if v_landed <> '55000000-0000-4000-8000-0000000000d2'::uuid then
+    raise exception 'CM-9: an inbound from a merged number resurrected the duplicate';
+  end if;
+end $$;
+
+-- ===========================================================================
+-- CM-10: a call from the merged number lands on the survivor too.
+--
+-- Calls carry their own contact_id rather than hanging off a conversation, so
+-- they are the second table the rule has to cover.
+-- ===========================================================================
+do $$
+declare v_landed uuid;
+begin
+  insert into public.calls
+    (company_id, contact_id, phone_number_id, call_session_id, direction)
+  values (
+    '55000000-0000-4000-8000-0000000000c1'::uuid,
+    '55000000-0000-4000-8000-0000000000d1'::uuid,
+    '55000000-0000-4000-8000-0000000000f1'::uuid,
+    'test-merge-call', 'inbound')
+  returning contact_id into v_landed;
+
+  if v_landed <> '55000000-0000-4000-8000-0000000000d2'::uuid then
+    raise exception 'CM-10: a call from a merged number resurrected the duplicate';
+  end if;
+end $$;
+
 rollback;
