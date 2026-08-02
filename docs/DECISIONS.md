@@ -4892,6 +4892,44 @@ all numbers).
 
 ## D89 — the receptionist asks; it does not converse (#367/#397, extends D46, 2026-07-30)
 
+> **SUPERSEDED IN PART, 2026-08-02, by #518.** The GREETING HALF below is
+> removed. Everything about the extraction half — depth (1) only, extraction
+> never judgement, the absent urgency field, the cost arithmetic, off by
+> default — stands unchanged.
+>
+> The reasoning that fails is the sentence "most of the value here is in the
+> greeting, and the greeting is copy". Copy is exactly what the owner already
+> controls: #307/#309 make the voicemail greeting their own words, so a crew
+> that wants callers prompted for the address can write that prompt themselves,
+> in their own voice, better than we can. Ours arrived bolted onto the end of
+> theirs, on every call, announcing a machine. The founder's objection is the
+> whole argument: *"what's the point of the AI tail at the voicemail, when the
+> user can just set the voicemail to whatever they want anyway"*.
+>
+> **The disclosure paragraph below does not survive as an obligation, and it is
+> worth being precise about why, because "we removed a disclosure" is the wrong
+> reading.** Voicemail audio was already sent to a model to be transcribed
+> before any of this shipped, and no spoken sentence ever announced THAT. The
+> privacy policy discloses both, and still does. Reading words a caller chose
+> to leave is the same processing it was before the sentence existed; what the
+> sentence added was a PROMPT, and the prompt is what is gone. Had the ask been
+> the only thing making the processing lawful, the transcript feature would
+> have needed it first and never had it.
+>
+> The extraction now runs on whatever the caller actually said, rather than on
+> what we told them to say. It is a weaker input and a smaller feature, and
+> that is the trade the founder made knowingly.
+>
+> **The off-by-default REASON below is now false, and the default is
+> deliberately unchanged anyway.** "It is the only AI feature that changes what
+> a stranger hears" was the whole argument for the exception to D46, and
+> nothing a stranger hears changes any more — by that reasoning it should now
+> be default-on like every other read-only extraction. It is left OFF because
+> flipping it would switch a paid model on for every workspace that looked at
+> this toggle and deliberately declined it, and "the reason we cited stopped
+> applying" is not consent. Whoever revisits this should decide it as a fresh
+> question rather than inherit an argument that no longer holds.
+
 **Decision.** We answer with AI at **depth (1) only**: the voicemail greeting asks
 the caller what the problem is and where, discloses that a machine writes the
 answer down, and the transcript is then broken out into four fields the crew can

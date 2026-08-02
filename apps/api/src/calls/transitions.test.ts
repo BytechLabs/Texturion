@@ -40,7 +40,6 @@ function initCtx(overrides: Partial<InitiatedContext> = {}): InitiatedContext {
     phoneNumberId: "pn1",
     companyName: "Acme",
     greeting: null,
-    intake: false,
     callerE164: "+15551000",
     businessNumberE164: "+19995000",
     lineBusy: false,

@@ -199,18 +199,6 @@ export interface SessionMachine {
   phoneNumberId: string | null;
   companyName: string;
   greeting: string | null;
-  /**
-   * #367 depth (1): whether this company's voicemail greeting asks the caller
-   * for the problem and the address (D89).
-   *
-   * Resolved ONCE, at initiation, and carried on the machine rather than read
-   * when the greeting is spoken. A toggle flipped mid-call must not change what
-   * this caller hears halfway through, and the speak effect executes inside the
-   * DO where a settings read would be an I/O call on the terminal path — the
-   * one path §13 exempts from the command cap precisely because it must never
-   * fail.
-   */
-  intake: boolean;
   callerE164: string | null;
   businessNumberE164: string | null;
   /** #211 (D6): the far-party PSTN leg, BOTH directions. Inbound: the
@@ -263,8 +251,6 @@ export interface InitiatedContext {
   phoneNumberId: string;
   companyName: string;
   greeting: string | null;
-  /** #367/D89: whether the greeting asks for the problem and the address. */
-  intake: boolean;
   callerE164: string | null;
   businessNumberE164: string;
   lineBusy: boolean;
@@ -1142,7 +1128,6 @@ function reduceInitiated(
     phoneNumberId: context.phoneNumberId,
     companyName: context.companyName,
     greeting: context.greeting,
-    intake: context.intake,
     callerE164: context.callerE164,
     businessNumberE164: context.businessNumberE164,
     customerCcid: context.inboundCcid,
@@ -1306,7 +1291,6 @@ function reduceOutboundInitiated(
     // Voicemail-only fields are unused for outbound (no greeting path).
     companyName: "",
     greeting: null,
-    intake: false,
     callerE164: context.customer,
     businessNumberE164: context.businessNumberE164,
     customerCcid: context.customerCcid,

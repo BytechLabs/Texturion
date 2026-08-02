@@ -1,84 +1,31 @@
 /**
- * #367 depth (1) — the parts that must not drift.
+ * #367 depth (1) — the part that must not drift.
  *
- * Two properties carry the whole design, and both are pinned here rather than
- * left to a reviewer's memory:
+ * **Nothing is stored that the model was not asked for.** The schema has four
+ * fields and none of them is a judgement. A model that helpfully adds
+ * `"urgency": "emergency"` must have it dropped on the floor, because the one
+ * objection #367 raises that would sink this feature is an AI that mishandles
+ * an emergency.
  *
- *   - **The disclosure survives.** #367's acceptance is that every caller is
- *     told. That is one sentence at the end of a string built by concatenation
- *     from an owner-authored greeting of arbitrary length, which is exactly the
- *     shape of thing that gets silently truncated one refactor later.
- *   - **Nothing is stored that the model was not asked for.** The schema has
- *     four fields and none of them is a judgement. A model that helpfully adds
- *     `"urgency": "emergency"` must have it dropped on the floor, because the
- *     one objection #367 raises that would sink this feature is an AI that
- *     mishandles an emergency.
+ * The other half of this file used to pin a sentence appended to every
+ * voicemail greeting. #518 removed it — the owner writes their own greeting,
+ * so ours was a prompt bolted onto theirs, in our voice, on every call — and
+ * the tests for it went with the code. What is left is the reading half, which
+ * runs on whatever the caller chose to say.
  */
 import { describe, expect, it } from "vitest";
 
 import {
   buildIntake,
   buildIntakeMessages,
-  composeIntakeGreeting,
   intakeFromRaw,
   isEmptyIntake,
   parseIntakeOutput,
   shouldExtractIntake,
-  VOICEMAIL_INTAKE_ASK,
   VOICEMAIL_INTAKE_FEATURE_SPEC,
   VOICEMAIL_INTAKE_MIN_TRANSCRIPT_CHARS,
 } from "./voicemail-intake";
 import { AI_UNIT_COST_CENTS } from "../billing/costs";
-
-describe("the greeting", () => {
-  it("leaves the greeting untouched when intake is off", () => {
-    const base = "You've reached Acme. Leave a message after the beep.";
-    expect(composeIntakeGreeting(base, false)).toBe(base);
-  });
-
-  it("appends the ask rather than replacing the owner's words", () => {
-    const owner = "Hi, you've got Dave at Dave's Plumbing.";
-    const spoken = composeIntakeGreeting(owner, true);
-    expect(spoken.startsWith(owner)).toBe(true);
-    expect(spoken).toContain(VOICEMAIL_INTAKE_ASK);
-  });
-
-  it("keeps the disclosure even behind a maximum-length greeting", () => {
-    // The failure this exists for: bounding the composed string instead of the
-    // base would cut the automation disclosure off the end of exactly the
-    // greetings most likely to be real — a chatty owner's.
-    const spoken = composeIntakeGreeting("g".repeat(500), true);
-    expect(spoken).toContain("automated assistant");
-    expect(spoken.endsWith(VOICEMAIL_INTAKE_ASK)).toBe(true);
-  });
-
-  it("punctuates a greeting that does not end in a stop", () => {
-    const spoken = composeIntakeGreeting("Acme Plumbing", true);
-    expect(spoken).toBe(`Acme Plumbing. ${VOICEMAIL_INTAKE_ASK}`);
-  });
-
-  it("does not double-punctuate one that does", () => {
-    expect(composeIntakeGreeting("Acme here!", true)).toBe(
-      `Acme here! ${VOICEMAIL_INTAKE_ASK}`,
-    );
-  });
-
-  it("asks both of #367's questions and discloses the automation", () => {
-    // The sentence is the feature's entire promise to a stranger, so its three
-    // jobs are asserted rather than assumed: the problem, the address, and that
-    // a machine is involved.
-    expect(VOICEMAIL_INTAKE_ASK).toContain("problem");
-    expect(VOICEMAIL_INTAKE_ASK).toContain("address");
-    expect(VOICEMAIL_INTAKE_ASK).toContain("automated assistant");
-  });
-
-  it("never claims the caller is talking to something", () => {
-    // They are leaving a recording. Claiming a conversation that is not
-    // happening, to a stranger, to make the feature sound better, is the one
-    // thing this greeting must not do.
-    expect(VOICEMAIL_INTAKE_ASK).not.toMatch(/speaking (to|with)/i);
-  });
-});
 
 describe("the pre-filter", () => {
   it("skips a transcript with nothing in it to break out", () => {

@@ -77,4 +77,31 @@ describe("#432 — the voicemail notice cannot be silent", () => {
     // apology — it tells the caller their voice is about to be captured.
     expect(text).toMatch(/after the beep/i);
   });
+
+  /**
+   * #518 — the owner's greeting is spoken as written, with nothing appended.
+   *
+   * D89 used to bolt a sentence onto the end of every greeting asking the
+   * caller for the problem and the address. The founder's objection was that
+   * the owner already controls this text (#307/#309), so our prompt was a
+   * second voice talking over theirs on every call.
+   *
+   * A guard rather than a comment because the pressure to re-add it is real
+   * and will feel reasonable at the time — the extraction downstream reads
+   * better input when callers are prompted, so "just one sentence" is exactly
+   * the shape the next change takes. If a caller should be asked something,
+   * the owner types it into their own greeting.
+   */
+  it("speaks the owner's greeting verbatim, appending nothing of ours", () => {
+    const owner = "Hi, you've got Dave at Dave's Plumbing. Leave a message.";
+    expect(sanitizeGreeting(owner, COMPANY)).toBe(owner);
+  });
+
+  it("does not ask the caller for anything the owner did not ask for", () => {
+    for (const raw of [null, "", "Acme Plumbing", "Back Monday, leave a message"]) {
+      const spoken = sanitizeGreeting(raw, COMPANY);
+      expect(spoken, JSON.stringify(raw)).not.toMatch(/automated assistant/i);
+      expect(spoken, JSON.stringify(raw)).not.toMatch(/what the problem is/i);
+    }
+  });
 });

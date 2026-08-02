@@ -234,12 +234,12 @@ fun AiSection(scope: SettingsScope) {
                     // what a STRANGER hears and the copy has to be read first.
                     RowDivider()
                     LabeledSwitchRow(
-                        label = "Ask callers what the job is",
-                        supporting = "Your greeting adds one line asking for the problem " +
-                            "and the address, and says a machine writes the answer down. " +
-                            "Lou then shows what they said above the recording. Nothing " +
-                            "books anything and nobody is put through a menu — it is " +
-                            "still a voicemail, with a better question in front of it.",
+                        label = "Pull the job out of a voicemail",
+                        supporting = "Lou reads the transcript and shows what the caller " +
+                            "wanted and where, above the recording. Your greeting is " +
+                            "untouched — if you want callers to say the address, ask " +
+                            "them for it in your own greeting. Nothing books anything " +
+                            "and nobody is put through a menu.",
                         checked = settings.voicemail_intake,
                         enabled = canEdit,
                         onCheckedChange = { checked ->

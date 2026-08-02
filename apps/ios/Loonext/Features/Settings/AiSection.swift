@@ -183,13 +183,12 @@ struct AiSectionView: View {
                 // flipped.
                 RowDivider()
                 LabeledToggleRow(
-                    label: "Ask callers what the job is",
-                    supporting: "Your greeting adds one line asking for the problem "
-                        + "and the address, and says a machine writes the answer "
-                        + "down. Lou then shows what they said above the recording. "
-                        + "Nothing books anything and nobody is put through a menu "
-                        + "\u{2014} it is still a voicemail, with a better question "
-                        + "in front of it.",
+                    label: "Pull the job out of a voicemail",
+                    supporting: "Lou reads the transcript and shows what the caller "
+                        + "wanted and where, above the recording. Your greeting is "
+                        + "untouched \u{2014} if you want callers to say the address, "
+                        + "ask them for it in your own greeting. Nothing books "
+                        + "anything and nobody is put through a menu.",
                     isOn: settings.voicemail_intake,
                     enabled: canEdit && !saving,
                     onChange: {

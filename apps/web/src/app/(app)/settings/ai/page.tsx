@@ -227,14 +227,14 @@ export default function AiSettingsPage() {
             <div className="mt-4 flex items-start justify-between gap-4 border-t border-border pt-4">
               <div className="space-y-0.5">
                 <Label htmlFor="ai-intake" className="text-sm font-medium">
-                  Ask callers what the job is
+                  Pull the job out of a voicemail
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Your greeting adds one line asking for the problem and the
-                  address, and says a machine writes the answer down. Lou then
-                  shows what they said above the recording. Nothing books
-                  anything and nobody is put through a menu &mdash; it is still a
-                  voicemail, with a better question in front of it.
+                  Lou reads the transcript and shows what the caller wanted and
+                  where, above the recording. Your greeting is untouched
+                  &mdash; if you want callers to say the address, ask them for
+                  it in your own greeting. Nothing books anything and nobody is
+                  put through a menu.
                 </p>
               </div>
               <Switch

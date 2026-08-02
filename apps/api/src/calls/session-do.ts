@@ -1228,7 +1228,6 @@ export class CallSessionDO extends DurableObject<Env> {
       // adopted session can still be in `ringing` — its greeting has NOT been
       // spoken yet, and defaulting to false here would silently drop the ask
       // for exactly the calls a cutover touches.
-      intake: row.intake,
       callerE164: row.callerE164,
       businessNumberE164: row.businessNumberE164,
       customerCcid: row.customerCallControlId,
@@ -1298,13 +1297,10 @@ export class CallSessionDO extends DurableObject<Env> {
       if (legacy.direction === undefined) {
         machine.direction = "inbound";
       }
-      // #367 in-flight deploy compat: a machine minted before the intake
-      // greeting has no `intake`. False is the right alias in both readings —
-      // it is the product's default, and a call whose greeting was already
-      // resolved without the ask must not have it appear mid-session.
-      if (legacy.intake === undefined) {
-        machine.intake = false;
-      }
+      // #518: a machine persisted while the intake ask still existed carries
+      // a stale `intake` key. Nothing reads it any more, so it is left where
+      // it is rather than deleted — an in-flight call must not be rewritten
+      // mid-session to prove a point about a field nobody looks at.
     }
     this.cachedMachine = machine;
     return machine;

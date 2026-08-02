@@ -114,8 +114,8 @@ export default function AssistantPage() {
             body: "Promote a text to a task and Lou pulls the address and the due date out of what the customer wrote. Two separate switches, so a crew that wants the address but not the date can have exactly that.",
           },
           {
-            title: "Asks what the job is",
-            body: "Off by default. Your greeting adds one line asking for the problem and the address, says plainly that a machine writes the answer down, and Lou breaks the transcript out into those fields above the recording. Nothing is booked and nobody meets a menu.",
+            title: "Pulls the job out of a voicemail",
+            body: "Off by default. Lou reads the transcript and shows what the caller wanted and where, above the recording. Your greeting is yours — we do not add a line to it. Nothing is booked and nobody meets a menu.",
           },
         ]}
       />

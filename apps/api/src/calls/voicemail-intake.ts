@@ -126,46 +126,27 @@ export const VOICEMAIL_INTAKE_FEATURE_SPEC: AiFeatureSpec = {
 };
 
 /**
- * The sentence appended to the voicemail greeting when intake is on.
+ * #518 — THE GREETING NO LONGER ASKS. This feature is now the reading half
+ * only, and the reason is a better argument than the one that added the ask.
  *
- * Three things it has to do at once, which is why it is one carefully-built
- * sentence and not a paragraph:
+ * The original design appended a sentence to every voicemail greeting telling
+ * the caller to state the problem and the address. The founder's objection:
+ * "what's the point of the AI tail at the voicemail, when the user can just
+ * set the voicemail to whatever they want anyway". Exactly — #307/#309 make
+ * the greeting the owner's own words, and an owner who wants callers prompted
+ * for the address can write that prompt better than we can. Ours arrived
+ * bolted onto the end of theirs, in our voice, saying a machine was involved,
+ * on every single call.
  *
- *   - **Ask #367's two questions**, in the order a tradesperson wants them.
- *   - **Disclose the automation, in the same breath.** #367's acceptance is
- *     that every caller is told. Note what it does NOT say: not "you are
- *     speaking to an assistant", because they are not — they are leaving a
- *     recording, and a machine reads it afterwards. Claiming a conversation
- *     that is not happening would be a lie told to a stranger to make a
- *     feature sound better, which is the one thing this greeting cannot do.
- *   - **Stay in the product's voice.** DESIGN.md G1 is calm plainness. No
- *     "AI-powered", no name for a machine that is not a character here.
+ * The disclosure it carried is not lost with it. Voicemail audio already goes
+ * to a model to be transcribed, and no spoken sentence ever announced THAT;
+ * the privacy policy is where both are disclosed, and it still says so. This
+ * removes a prompt, not a disclosure — reading words the caller chose to leave
+ * is the same processing it was before the sentence existed.
+ *
+ * The extraction below is unchanged and still runs on whatever the caller
+ * actually said. It simply no longer assumes we told them what to say.
  */
-export const VOICEMAIL_INTAKE_ASK =
-  "Please say what the problem is and the address it's at — an automated " +
-  "assistant writes your message down so the crew can act on it.";
-
-/**
- * The greeting the caller actually hears.
- *
- * Appends rather than replaces, because the base greeting may be the owner's
- * own words (#307/#309 are about making that greeting theirs, and this must not
- * quietly overwrite it). The ask goes last: the business identifies itself
- * first, and the instruction is the thing you want freshest when the beep comes.
- *
- * Composed AFTER the base has been bounded and cleaned, so a pathological
- * 500-character greeting cannot truncate the disclosure off the end — the one
- * part of this string that is not optional.
- */
-export function composeIntakeGreeting(base: string, intakeEnabled: boolean): string {
-  if (!intakeEnabled) return base;
-  const trimmed = base.trim();
-  if (trimmed === "") return VOICEMAIL_INTAKE_ASK;
-  // A greeting that already ends mid-sentence gets a full stop, so the two do
-  // not run together into one unreadable line for the TTS voice.
-  const joined = /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
-  return `${joined} ${VOICEMAIL_INTAKE_ASK}`;
-}
 
 /**
  * Shortest transcript worth reading. Below this there is nothing to break out —
