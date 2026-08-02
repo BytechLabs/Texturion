@@ -1,6 +1,13 @@
 import { Check } from "lucide-react";
 import Link from "next/link";
 
+import {
+  formatMoney,
+  PLAN_PRICE_CENTS,
+  US_REGISTRATION_FEE_CENTS,
+  type BillingCurrency,
+} from "@loonext/shared";
+
 import { CountryOnly, CountryText } from "@/components/marketing/country";
 import {
   CtaButton,
@@ -13,6 +20,7 @@ import { CrewSizeSliderStatic } from "@/components/marketing/interactive/crew-si
 import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-slider";
 import { SIGNUP_HREF } from "@/components/marketing/nav-links";
 import { AppSurface } from "@/components/marketing/thread-demo/app-surface";
+import type { PlanId } from "@/lib/api/types";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 
 import { TruthStrip } from "./truth-strip";
@@ -31,6 +39,14 @@ import { UsageMeterEmbed } from "./usage-meter";
  * Plan line items are segment arrays so every countable truth renders in the
  * mono voice (the mono law) while the tests read the same plain string
  * (`planItemText`), one source, no retyped facts.
+ *
+ * #328: and the prices are no longer facts this file knows. A card carries the
+ * plan's ID and the price is read from the shared book at render, in the
+ * currency the reader's country is billed in; the truth-strip arithmetic below
+ * is derived the same way. The country branch IS the currency branch here (the
+ * band already renders the US story and the Canada story as separate subtrees),
+ * so no new control appears on the page and there is nothing a second one could
+ * disagree with.
  */
 
 /** A plan line item: plain segments render in the body face, `{ m }` segments
@@ -39,24 +55,47 @@ export type PlanItemSegment = string | { m: string };
 export type PlanItem = readonly PlanItemSegment[];
 
 export interface HomePlan {
+  /** The plan the card sells; its price is read from the book, never typed. */
+  id: PlanId;
   name: string;
-  price: string;
   badge?: string;
   audience: string;
   items: readonly PlanItem[];
   cta: string;
 }
 
+/** "$29" / "$39", from the price book. */
+const price = (plan: PlanId, currency: BillingCurrency) =>
+  formatMoney(PLAN_PRICE_CENTS[currency][plan], currency);
+
+/** The one-time US registration fee, on the invoice it actually lands on. */
+const registrationFee = (currency: BillingCurrency) =>
+  formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency);
+
+/**
+ * Plan plus the one-time fee: what a US shop pays in month one.
+ *
+ * Added rather than written. It is the only figure in the band that is a SUM,
+ * so it is the only one that can go wrong while both of its parts stay right,
+ * and "$58 your first month" is the sentence a reader checks against their
+ * first statement.
+ */
+const firstMonth = (plan: PlanId, currency: BillingCurrency) =>
+  formatMoney(
+    PLAN_PRICE_CENTS[currency][plan] + US_REGISTRATION_FEE_CENTS[currency],
+    currency,
+  );
+
 /** The plain string a line item spells (what a lawyer would read). */
 export function planItemText(item: PlanItem): string {
   return item.map((s) => (typeof s === "string" ? s : s.m)).join("");
 }
 
-/** COPY-DECK v2 §S9, verbatim. */
+/** COPY-DECK v2 §S9, verbatim: the words. The price is not one of them. */
 export const HOME_PLANS: readonly HomePlan[] = [
   {
+    id: "starter",
     name: "Starter",
-    price: "$29",
     audience: "For crews of one to three.",
     items: [
       [{ m: "3" }, " teammates included"],
@@ -66,8 +105,8 @@ export const HOME_PLANS: readonly HomePlan[] = [
     cta: "Start with Starter",
   },
   {
+    id: "pro",
     name: "Pro",
-    price: "$79",
     badge: "For bigger crews",
     audience: "For crews up to fifteen, and a second number.",
     items: [
@@ -92,11 +131,12 @@ export const GUARANTEE_MICROCOPY_CA =
 
 /** The Truth Strip lines branch on the site-wide country: a US visitor reads
  *  the one-time registration fee and the carrier wait; a Canadian visitor reads
- *  the flat $29, same-day story. Never both together (owner ruling v1). The
- *  closing USD line is shared, so it stays in each set. */
+ *  the flat monthly price, same-day story. Never both together (owner ruling
+ *  v1). Each set is built with the currency its country is billed in, so the
+ *  closing currency line is no longer the same sentence in both. */
 export const DEAL_TRUTH_LINES_US = [
   {
-    text: "US shops: $29 a month plus a one-time $29 to register with the phone companies. That's $58 your first month, then $29 every month after. The registration fee is charged once, ever.",
+    text: `US shops: ${price("starter", "usd")} a month plus a one-time ${registrationFee("usd")} to register with the phone companies. That's ${firstMonth("starter", "usd")} your first month, then ${price("starter", "usd")} every month after. The registration fee is charged once, ever.`,
   },
   {
     text: "Day one you're not idle: receiving texts works right away. Texting US customers turns on in about a week, 3 to 7 business days, once the phone companies approve you.",
@@ -109,14 +149,18 @@ export const DEAL_TRUTH_LINES_US = [
 
 export const DEAL_TRUTH_LINES_CA = [
   {
-    text: "Canadian shops: $29 a month, flat. No registration, no setup fee, no first-month bump; $29 is $29 from month one.",
+    text: `Canadian shops: ${price("starter", "cad")} a month, flat. No registration, no setup fee, no first-month bump; ${price("starter", "cad")} is ${price("starter", "cad")} from month one.`,
   },
   {
     text: "Day one you're texting: your number is active and you can text Canadian customers the same day, usually a minute or two after signup. No waiting.",
     tick: true,
   },
   {
-    text: "Prices in USD, plus sales tax where it applies. That's the whole list.",
+    // #328 rewrote this line rather than reprinting it. A strip that quoted a
+    // Canadian price and then said "prices in USD" would be the same four
+    // inches of the page contradicting itself, and the USD sentence is the half
+    // that stopped being true when CAD billing shipped.
+    text: "Prices in Canadian dollars, plus tax where it applies. That's the whole list.",
   },
 ] as const;
 
@@ -132,8 +176,26 @@ function PlanCard({ plan }: { plan: HomePlan }) {
         ) : null}
       </div>
 
+      {/* The price-as-art figure, in the reader's own money. The two branches
+          are the same figure at the same scale, never both, and the qualifier
+          that has to travel with a price (#385) is the audience line directly
+          under it. A PlanCard is a server component, so the currency crosses
+          the boundary as a branch rather than as a hook. */}
       <p className="mt-3">
-        <MonoFigure value={plan.price} suffix="/mo" size="display" />
+        <CountryOnly country="us">
+          <MonoFigure
+            value={price(plan.id, "usd")}
+            suffix="/mo"
+            size="display"
+          />
+        </CountryOnly>
+        <CountryOnly country="ca">
+          <MonoFigure
+            value={price(plan.id, "cad")}
+            suffix="/mo"
+            size="display"
+          />
+        </CountryOnly>
       </p>
       <p className="font-body-mkt mt-2 text-[15px] text-[color:var(--fr-ink-70)]">
         {plan.audience}
@@ -248,8 +310,24 @@ export function TheDeal() {
             Slide from 1 to 10 people and watch a typical per-user tool climb
             past Loonext&apos;s flat line.
           </p>
+          {/* #328: the slider's figures stay USD — the rival's rate is a
+              published US price, and converting our half would subtract two
+              currencies and print a saving nobody gets. What changes for a
+              Canadian is the LABEL: an unlabelled "$79" sitting under a $109
+              plan card made our own price look self-contradictory. The
+              interactive twin reads the country itself; the static fallback
+              cannot, so it is told. */}
           <div className="mt-5">
-            <LazyCrewSizeSlider fallback={<CrewSizeSliderStatic />} />
+            <CountryOnly country="us">
+              <LazyCrewSizeSlider
+                fallback={<CrewSizeSliderStatic audience="usd" />}
+              />
+            </CountryOnly>
+            <CountryOnly country="ca">
+              <LazyCrewSizeSlider
+                fallback={<CrewSizeSliderStatic audience="cad" />}
+              />
+            </CountryOnly>
           </div>
         </div>
 

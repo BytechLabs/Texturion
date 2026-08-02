@@ -1,7 +1,13 @@
+import { type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { MERGE_FIELD_TOKENS } from "@loonext/shared";
+import {
+  formatMoney,
+  MERGE_FIELD_TOKENS,
+  PLAN_PRICE_CENTS,
+  US_REGISTRATION_FEE_CENTS,
+} from "@loonext/shared";
 
 import CleanersPage from "@/app/(marketing)/for/cleaners/page";
 import ContractorsPage from "@/app/(marketing)/for/contractors/page";
@@ -36,6 +42,30 @@ import { TradeThread } from "./trade-thread";
  * Laws 1, 2, 6, and 11; and the billing facts render on every page.
  */
 
+/**
+ * #328 — the figures a trade page must quote, per currency, from the one book.
+ *
+ * Six pages carried "$29" as a literal, including one sentence that promised a
+ * Canadian reader same-day Canadian texting and then quoted a US price. Typing
+ * the figures here would rebuild that problem inside the test: the assertions
+ * would keep passing after a price moved, and a Canadian branch could go on
+ * showing the US number with nothing to notice.
+ */
+function money(currency: "usd" | "cad") {
+  return {
+    starter: formatMoney(PLAN_PRICE_CENTS[currency].starter, currency),
+    pro: formatMoney(PLAN_PRICE_CENTS[currency].pro, currency),
+    fee: formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency),
+    /** Plan plus the one-time US fee: the only figure here that is a sum. */
+    firstMonth: formatMoney(
+      PLAN_PRICE_CENTS[currency].starter + US_REGISTRATION_FEE_CENTS[currency],
+      currency,
+    ),
+  };
+}
+const USD = money("usd");
+const CAD = money("cad");
+
 /** React's static-markup escaping, so deck strings compare verbatim. */
 function esc(s: string): string {
   return s
@@ -46,9 +76,10 @@ function esc(s: string): string {
     .replace(/'/g, "&#x27;");
 }
 
-interface PageUnderTest {
+interface TradePageCase {
   name: string;
-  html: string;
+  /** The page element, kept so a test can re-render it under another country. */
+  node: ReactNode;
   /** Coverage-map dateline, verbatim. */
   dateline: string;
   /** COPY-DECK v2 H1, verbatim. */
@@ -56,50 +87,60 @@ interface PageUnderTest {
   script: TradeScript;
 }
 
-const PAGES: PageUnderTest[] = [
+interface PageUnderTest extends TradePageCase {
+  /** The SSR markup: no provider, so the site-wide "us" default. */
+  html: string;
+}
+
+const CASES: TradePageCase[] = [
   {
     name: "plumbers",
-    html: renderToStaticMarkup(<PlumbersPage />),
+    node: <PlumbersPage />,
     dateline: "9:04 PM · BASEMENT DRAIN",
     h1: "One line for the whole plumbing crew.",
     script: PLUMBERS_SCRIPT,
   },
   {
     name: "hvac",
-    html: renderToStaticMarkup(<HvacPage />),
+    node: <HvacPage />,
     dateline: "6:48 AM · NO HEAT",
     h1: "One line for the whole HVAC crew.",
     script: HVAC_SCRIPT,
   },
   {
     name: "landscapers",
-    html: renderToStaticMarkup(<LandscapersPage />),
+    node: <LandscapersPage />,
     dateline: "7:15 AM · GATE LOCKED",
     h1: "One line for the whole landscaping crew.",
     script: LANDSCAPERS_SCRIPT,
   },
   {
     name: "cleaners",
-    html: renderToStaticMarkup(<CleanersPage />),
+    node: <CleanersPage />,
     dateline: "5:56 PM · KEY UNDER MAT?",
     h1: "One line for the whole cleaning crew.",
     script: CLEANERS_SCRIPT,
   },
   {
     name: "salons",
-    html: renderToStaticMarkup(<SalonsPage />),
+    node: <SalonsPage />,
     dateline: "11:20 AM · RUNNING LATE",
     h1: "A front desk, even if you don't have one.",
     script: SALONS_SCRIPT,
   },
   {
     name: "contractors",
-    html: renderToStaticMarkup(<ContractorsPage />),
+    node: <ContractorsPage />,
     dateline: "8:02 AM · CHANGE ORDER",
     h1: "One line for the whole contracting crew.",
     script: CONTRACTORS_SCRIPT,
   },
 ];
+
+const PAGES: PageUnderTest[] = CASES.map((page) => ({
+  ...page,
+  html: renderToStaticMarkup(page.node),
+}));
 
 describe("coverage map + deck copy (each trade's own worst minute)", () => {
   it.each(PAGES)("$name opens with its dateline and deck H1", (page) => {
@@ -216,7 +257,8 @@ describe("factual claims (Law 7): the billing truths render on every page", () =
     // ONLY the US registration arithmetic, never the paired Canada+US line and
     // never the Canada-only line.
     expect(page.html).toContain(
-      "US shops register once with the phone companies before US texting turns on, usually 3 to 7 business days. The fee is a one-time $29, so $58 your first month, then $29 after.",
+      "US shops register once with the phone companies before US texting turns on, usually 3 to 7 business days. The fee is a one-time " +
+        `${USD.fee}, so ${USD.firstMonth} your first month, then ${USD.starter} after.`,
     );
     expect(page.html).not.toContain(
       "In Canada you text customers the same day, with no registration and no fee.",
@@ -227,8 +269,9 @@ describe("factual claims (Law 7): the billing truths render on every page", () =
     // The pricing snippet figure and the deck's pricing link line. #96/#121:
     // the pricing body speaks fair use, never a pinned per-plan message count,
     // never a per-text ¢ rate, and links the policy where the numbers live.
-    expect(page.html).toContain("$29");
-    expect(page.html).toContain("$79");
+    // The SSR default country is "us", so these are the US figures.
+    expect(page.html).toContain(USD.starter);
+    expect(page.html).toContain(USD.pro);
     expect(page.html).toContain("fair-use basis");
     expect(page.html).not.toContain("500 texts a month");
     expect(page.html).not.toMatch(/\b500\b|\b2,500\b/);
@@ -249,15 +292,41 @@ describe("factual claims (Law 7): the billing truths render on every page", () =
       </CountryProvider>,
     );
     expect(html).toContain(
-      "Text your Canadian customers the same day your number is active. No registration, no fee, no wait, just a flat $29 a month.",
+      "Text your Canadian customers the same day your number is active. No registration, no fee, no wait, just a flat " +
+        `${CAD.starter} a month.`,
     );
-    // The US registration wait and the one-time fee never reach a Canadian.
+    // The US registration wait and the one-time fee never reach a Canadian, in
+    // either currency: not the USD sum (a leaked literal) and not the CAD one
+    // (a US-only sentence that escaped its CountryOnly and got localised on the
+    // way out, which is the more convincing failure of the two).
     expect(html).not.toContain("3 to 7 business days");
-    expect(html).not.toContain("$58");
+    expect(html).not.toContain(USD.firstMonth);
+    expect(html).not.toContain(CAD.firstMonth);
     expect(html).not.toContain("EIN");
     // Still dash-free in the Canada branch.
     expect(html).not.toContain("—");
     expect(html).not.toContain("–");
+  });
+
+  it("every page quotes the Canadian price to a Canadian, never the US one", () => {
+    // The failure this closes was invisible by construction: a literal cannot
+    // disagree with itself, so the six pages looked consistent right up until
+    // the invoice. Rendering both branches is what makes it visible here.
+    for (const page of PAGES) {
+      const html = renderToStaticMarkup(
+        <CountryProvider initialCountry="ca">{page.node}</CountryProvider>,
+      );
+      expect(html, `${page.name}: shows the CAD Starter price`).toContain(
+        CAD.starter,
+      );
+      expect(html, `${page.name}: shows the CAD Pro price`).toContain(CAD.pro);
+      expect(html, `${page.name}: leaks the USD Starter price`).not.toContain(
+        USD.starter,
+      );
+      expect(html, `${page.name}: leaks the USD Pro price`).not.toContain(
+        USD.pro,
+      );
+    }
   });
 
   it.each(PAGES)("$name uses the deck CTA labels and real hrefs", (page) => {

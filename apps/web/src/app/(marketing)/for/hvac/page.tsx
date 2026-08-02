@@ -13,6 +13,7 @@ import type { Metadata } from "next";
 
 import { CountryText } from "@/components/marketing/country";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
 import { HVAC_SCRIPT } from "@/components/marketing/trades/scripts";
@@ -21,10 +22,18 @@ import { ACTIVATION_CHIP, ACTIVATION_CLAIM } from "@/lib/marketing/activation";
 
 const PATH = "/for/hvac";
 
+/**
+ * #328 — the snippet keeps the claim and drops the figure. A
+ * `metadata.description` is one string per URL, baked at build time, and the
+ * visitor's country is a client-side choice, so it cannot say $29 to an
+ * American and $39 to a Canadian. Everything in `CONTENT` below can, and does.
+ * Same call `lib/marketing/activation.ts` made for the same class of string;
+ * the reasoning is written out in full on `/for/plumbers`, the master page.
+ */
 export const metadata: Metadata = buildMetadata({
   title: "Customer texting for HVAC companies",
   description:
-    "One business line for HVAC contractors: triage no-heat mornings from one shared inbox, answer the calls as a crew, follow up on install quotes. Texts, calls and voicemail, flat $29/mo.",
+    "One business line for HVAC contractors: triage no-heat mornings from one shared inbox, answer the calls as a crew, follow up on install quotes. Texts, calls and voicemail, one flat price for the shop.",
   path: PATH,
 });
 
@@ -34,8 +43,13 @@ const CONTENT: TradeContent = {
 
   dateline: "6:48 AM · NO HEAT",
   h1: "One line for the whole HVAC crew.",
-  heroSub:
-    "It's 6:48 in the morning, the house is cold, and the customer used the only number they had. Whether they texted it or rang it, whoever is up answers, the right part rides the van, and the no-heat call is booked before the shop opens. A local business number for texts and calls, $29 a month for the whole crew.",
+  heroSub: (
+    <>
+      {"It's 6:48 in the morning, the house is cold, and the customer used the only number they had. Whether they texted it or rang it, whoever is up answers, the right part rides the van, and the no-heat call is booked before the shop opens. A local business number for texts and calls, "}
+      <PlanPrice plan="starter" />
+      {" a month for the whole crew."}
+    </>
+  ),
   heroTruth:
     `Works on the phones your techs already carry · ${ACTIVATION_CHIP} · No busy-season contract`,
 
@@ -124,9 +138,19 @@ const CONTENT: TradeContent = {
     },
   ],
 
-  pricingH2: "$29 a month, flat. Cold snap or slow week.",
-  pricingBody:
-    "Starter covers 3 people, 1 local number, and texting sized for a small service shop on a fair-use basis, not a hard cap. A surge week is fine: past your included texting, extra texts bill at a small per-text rate up to a cap you set, and the composer shows the count before you send. Want to split the service line from the install line? Pro is $79, covers up to 15 people, and includes a second number for exactly that.",
+  pricingH2: (
+    <>
+      <PlanPrice plan="starter" />
+      {" a month, flat. Cold snap or slow week."}
+    </>
+  ),
+  pricingBody: (
+    <>
+      {"Starter covers 3 people, 1 local number, and texting sized for a small service shop on a fair-use basis, not a hard cap. A surge week is fine: past your included texting, extra texts bill at a small per-text rate up to a cap you set, and the composer shows the count before you send. Want to split the service line from the install line? Pro is "}
+      <PlanPrice plan="pro" />
+      {", covers up to 15 people, and includes a second number for exactly that."}
+    </>
+  ),
 
   faqH2: "HVAC questions, straight answers.",
   faqs: [
@@ -144,7 +168,15 @@ const CONTENT: TradeContent = {
     },
     {
       q: "We add techs for the busy season. Do we pay per person?",
-      a: "No per-user fees. Starter is $29 for 3 people; scale to Pro at $79 for up to 15 during the surge, then drop back when it quiets down. It's month to month.",
+      a: (
+        <>
+          {"No per-user fees. Starter is "}
+          <PlanPrice plan="starter" />
+          {" for 3 people; scale to Pro at "}
+          <PlanPrice plan="pro" />
+          {" for up to 15 during the surge, then drop back when it quiets down. It's month to month."}
+        </>
+      ),
     },
     {
       q: "How do we keep install quotes from going cold?",

@@ -12,6 +12,7 @@
  */
 
 import { MonoFigure } from "@/components/marketing/fr";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 
 const MISSED = 5;
 const RATE_PCT = 25;
@@ -21,12 +22,21 @@ const MONTHLY = Math.round(
   MISSED * (RATE_PCT / 100) * JOB_VALUE * WEEKS_PER_MONTH,
 );
 
-function usd(n: number): string {
-  return n.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  });
+/**
+ * The visitor's own dollars, in whatever currency they think in.
+ *
+ * It used to say `currency: "USD"`, which was a claim about somebody else's
+ * money: the job value is a number the reader recognises as theirs, not a price
+ * of ours. A bare "$" is what `formatMoney` gives a reader looking at their own
+ * currency, and at these figures the two render character for character, so the
+ * island swap stays seamless for a Canadian too.
+ *
+ * The one figure on this card that IS ours is the plan price, and a server
+ * component cannot read the country — so it crosses the boundary as
+ * <PlanPrice/> rather than as a string (#328).
+ */
+function money(n: number): string {
+  return `$${n.toLocaleString("en-US")}`;
 }
 
 function StaticField({ label, display }: { label: string; display: string }) {
@@ -51,9 +61,17 @@ export function MissedTextCalculatorStatic() {
   return (
     <div className="fr-card p-6">
       <div className="grid gap-5">
-        <StaticField label="Calls or texts you miss in a week" display="5" />
-        <StaticField label="How many of those would've booked" display="25%" />
-        <StaticField label="Average job value" display="$250" />
+        {/* Derived from the constants above, so the resting frame cannot drift
+            from the formula printed under it. */}
+        <StaticField
+          label="Calls or texts you miss in a week"
+          display={String(MISSED)}
+        />
+        <StaticField
+          label="How many of those would've booked"
+          display={`${RATE_PCT}%`}
+        />
+        <StaticField label="Average job value" display={money(JOB_VALUE)} />
       </div>
 
       <div className="mt-6 rounded-[10px] bg-[color:var(--fr-frost)] p-5">
@@ -63,7 +81,7 @@ export function MissedTextCalculatorStatic() {
           </span>
           {/* The one Flare display element (§3.4.3): 48px+, bold, mono. */}
           <MonoFigure
-            value={usd(MONTHLY)}
+            value={money(MONTHLY)}
             suffix="a month"
             tone="flare"
             className="mt-1"
@@ -73,15 +91,17 @@ export function MissedTextCalculatorStatic() {
           </span>
         </p>
         <p className="fr-mono-data mt-3 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
-          {MISSED} × {RATE_PCT}% × {usd(JOB_VALUE)} × 4.33 weeks
+          {MISSED} × {RATE_PCT}% × {money(JOB_VALUE)} × 4.33 weeks
         </p>
       </div>
 
       <p className="mt-4 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
         This is arithmetic on your numbers, not a claim of ours. Change any of
         them. We only multiply what you type. That&apos;s{" "}
-        <span className="fr-mono-data text-[color:var(--fr-ink)]">$29</span> a
-        month against the figure above.
+        <span className="fr-mono-data text-[color:var(--fr-ink)]">
+          <PlanPrice plan="starter" />
+        </span>{" "}
+        a month against the figure above.
       </p>
     </div>
   );

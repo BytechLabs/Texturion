@@ -1,3 +1,10 @@
+import {
+  billingCurrencyOf,
+  formatMoney,
+  PLAN_PRICE_CENTS,
+  type BillingCurrency,
+} from "@loonext/shared";
+
 import { PLAN_PRICING } from "@/lib/api/types";
 import type { PlanId } from "@/lib/api/types";
 
@@ -20,11 +27,22 @@ export interface PlanFacts {
  * in the fair-use policy the billing page links to. Only the human plan name is
  * a literal — there is no name constant to source.
  */
-function planFacts(id: PlanId, name: string): PlanFacts {
+function planFacts(
+  id: PlanId,
+  name: string,
+  currency: BillingCurrency,
+): PlanFacts {
   const p = PLAN_PRICING[id];
   return {
     name,
-    price: `$${p.monthlyDollars}/mo`,
+    // #328: the currency this workspace is actually charged in, not a
+    // hardcoded dollar sign. A Canadian owner reading "$29/mo" beside a
+    // Canadian invoice for $39 has caught us in a contradiction, on the one
+    // screen where the number IS the content.
+    //
+    // Unprefixed: it is their own money, and "CA$39" to a Canadian reads as
+    // though we expect them to be confused about it.
+    price: `${formatMoney(PLAN_PRICE_CENTS[currency][id], currency)}/mo`,
     // #85: the plan card no longer leads with a hard message-count ceiling. The
     // allowance is a fair-use line (the exact figure lives in the fair-use
     // policy the billing page links to), and the usage screen shows real usage.
@@ -36,7 +54,24 @@ function planFacts(id: PlanId, name: string): PlanFacts {
   };
 }
 
-export const PLAN_FACTS: Record<PlanId, PlanFacts> = {
-  starter: planFacts("starter", "Starter"),
-  pro: planFacts("pro", "Pro"),
-};
+/**
+ * The plan facts, in the currency a workspace is billed in.
+ *
+ * A function rather than a constant because the currency is a property of the
+ * workspace reading the screen, and there is no such thing as "the" price any
+ * more. Callers have the company loaded — that is where the currency comes
+ * from, and passing anything unrecognised falls back to USD, which is what
+ * every existing workspace is on.
+ */
+export function planFactsFor(
+  currency: unknown,
+): Record<PlanId, PlanFacts> {
+  const c = billingCurrencyOf(currency);
+  return {
+    starter: planFacts("starter", "Starter", c),
+    pro: planFacts("pro", "Pro", c),
+  };
+}
+
+/** The USD facts, for surfaces that have no company in hand. */
+export const PLAN_FACTS: Record<PlanId, PlanFacts> = planFactsFor("usd");

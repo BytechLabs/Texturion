@@ -19,10 +19,20 @@
  *
  * SoftwareApplication + BreadcrumbList JSON-LD only, NO FAQPage (dead rich
  * result). No em-dashes anywhere in rendered text (Law 6).
+ *
+ * #328 CURRENCY RULE, which the figures quoted above now obey: every US figure
+ * on this page is USD and every Canada figure is CAD, and neither is typed. The
+ * country branch IS the currency branch (pricing-data.ts explains why that is a
+ * fact about the page rather than an assumption about the reader), and prose
+ * that sits outside a branch uses <PlanPrice>, which reads the same site-wide
+ * country signal. The one exception is `metadata`, which cannot follow a reader
+ * it is resolved before; the note on STARTER_USD says so out loud.
  */
 
 import Link from "next/link";
 import type { Metadata } from "next";
+
+import { formatMoney, PLAN_PRICE_CENTS, US_REGISTRATION_FEE_CENTS } from "@loonext/shared";
 
 import {
   ConvergedField,
@@ -42,6 +52,7 @@ import { CountryToggle } from "@/components/marketing/pricing/country-toggle";
 import { FirstWeekTimeline } from "@/components/marketing/pricing/first-week-timeline";
 import { HonestyLedger } from "@/components/marketing/pricing/honesty-ledger";
 import { PlanBuilder } from "@/components/marketing/pricing/plan-builder";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import { TruthStrip } from "@/components/marketing/pricing/truth-strip";
 import { UsageMeterEmbed } from "@/components/marketing/pricing/usage-meter-embed";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
@@ -73,20 +84,40 @@ import { ACTIVATION_CHIP } from "@/lib/marketing/activation";
 
 const PATH = LIVE_ROUTES.pricing;
 
-const OG_TITLE = "Pricing: $29/mo flat for the whole crew";
+/**
+ * #328 — the figures in `metadata` are derived, and they are USD.
+ *
+ * Derived because a retyped price in a <title> is the same defect as a retyped
+ * price in the body: it just takes longer for anybody to notice, because nobody
+ * reads their own meta description.
+ *
+ * USD because this is the one part of the page that CANNOT follow the reader.
+ * The site-wide country lives in localStorage and is adopted after hydration
+ * (country-context.tsx), which is deliberately too late for the document head;
+ * `metadata` is one string per URL, resolved on the server before any of that
+ * exists. Rather than invent a cookie so a search snippet can disagree with a
+ * cached one, the head states the US price and the PAGE states the reader's,
+ * from the dateline down. The same reasoning is written out in
+ * lib/marketing/activation.ts for the activation claim.
+ */
+const STARTER_USD = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd");
+const PRO_USD = formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd");
+const REGISTRATION_USD = formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd");
+
+const OG_TITLE = `Pricing: ${STARTER_USD}/mo flat for the whole crew`;
 const OG_DESCRIPTION =
-  "Starter $29/mo for up to 3 people, Pro $79/mo for up to 15. Texting, pictures, and calling included under automated fair use, storage free. No per-user fees, no quote calls.";
+  `Starter ${STARTER_USD}/mo for up to 3 people, Pro ${PRO_USD}/mo for up to 15. Texting, pictures, and calling included under automated fair use, storage free. No per-user fees, no quote calls.`;
 
 export const metadata: Metadata = {
   ...buildMetadata({
-    title: "Pricing, $29/mo flat for the whole crew",
+    title: `Pricing, ${STARTER_USD}/mo flat for the whole crew`,
     description:
-      "Build your plan and see the total before you pay: Starter $29/mo for up to 3 people, Pro $79/mo for up to 15. Texting, pictures, and calling included under automated fair use, storage free. One-time $29 US registration fee. No per-user fees, no quote calls.",
+      `Build your plan and see the total before you pay: Starter ${STARTER_USD}/mo for up to 3 people, Pro ${PRO_USD}/mo for up to 15. Texting, pictures, and calling included under automated fair use, storage free. One-time ${REGISTRATION_USD} US registration fee. No per-user fees, no quote calls.`,
     path: PATH,
   }),
   // Override openGraph WITHOUT `images` so Next serves the page's own
-  // file-convention card (pricing/opengraph-image.tsx — the "$29/mo flat"
-  // truth chip). buildMetadata always injects the generic default card, which
+  // file-convention card (pricing/opengraph-image.tsx — the flat-price truth
+  // chip). buildMetadata always injects the generic default card, which
   // SHADOWS the file convention (seo.ts precedence note); omitting images here
   // is exactly how the home page wires its own card.
   openGraph: {
@@ -396,7 +427,8 @@ export default function PricingPage() {
                   ca="the whole subscription included"
                 />
                 . No &quot;minus credits used&quot;, no forms, no retention
-                call. We&apos;d rather have your trust than your $29.
+                call. We&apos;d rather have your trust than your{" "}
+                <PlanPrice plan="starter" />.
               </p>
               <p className="mt-4">
                 <Link
@@ -512,8 +544,14 @@ export default function PricingPage() {
               {PRIMARY_CTA_LABEL}
             </CtaButton>
           </div>
+          {/* #328 sweep, found while removing price literals: this line read
+              "$Set up today". The `$` is a leftover from the "$29/mo" chip that
+              ACTIVATION_CHIP replaced in #437, and it survived because a stray
+              dollar sign in front of an interpolation looks like part of the
+              interpolation. On a pricing page it is worse than a typo: it is a
+              price mark attached to no price. */}
           <p className="fr-mono-data mt-5 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
-            ${ACTIVATION_CHIP} · Month to month · 30-day money-back guarantee
+            {ACTIVATION_CHIP} · Month to month · 30-day money-back guarantee
           </p>
         </div>
       </FrSection>

@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  billingCurrencyOf,
+  formatMoney,
+  US_REGISTRATION_FEE_CENTS,
+  type BillingCurrency,
+} from "@loonext/shared";
 import { Check, CircleDashed } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -178,11 +184,17 @@ function OtpRow({ brand }: { brand: RegistrationRow }) {
 }
 
 /** CA companies with US texting off: the owner's enable-US flow (SPEC §4.2). */
-function EnableUsCard() {
+function EnableUsCard({ currency }: { currency: BillingCurrency }) {
   const { role } = useActiveCompany();
   const enable = useEnableUsTexting();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // #328: quoted in the currency the invoice will arrive in. Stripe prices the
+  // fee with a CAD currency option, so a CA workspace billed in CAD is charged
+  // the CAD figure — naming the US one here would be a price the owner can
+  // check against their statement and find wrong.
+  const fee = formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency);
 
   return (
     <SettingsCard
@@ -192,14 +204,14 @@ function EnableUsCard() {
       {role === "owner" ? (
         <>
           <Button onClick={() => setConfirming(true)}>
-            Enable US texting: $29 one-time
+            Enable US texting: {fee} one-time
           </Button>
           <Dialog open={confirming} onOpenChange={setConfirming}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Enable US texting?</DialogTitle>
                 <DialogDescription>
-                  A one-time $29 registration fee is charged to your card on
+                  A one-time {fee} registration fee is charged to your card on
                   file, and we register your business with US carriers.
                   Approval usually takes 3 to 7 business days. We handle it and
                   email you when it&apos;s live.
@@ -242,8 +254,8 @@ function EnableUsCard() {
         </>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Ask your account owner to enable US texting; it&apos;s a one-time
-          $29 carrier registration.
+          Ask your account owner to enable US texting; it&apos;s a one-time{" "}
+          {fee} carrier registration.
         </p>
       )}
     </SettingsCard>
@@ -262,7 +274,11 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
 
   // No registration owed: CA company that hasn't enabled US texting.
   if (company.country === "CA" && !company.us_texting_enabled) {
-    return <EnableUsCard />;
+    // #328: signed in, so the currency is the company's own, not the visitor
+    // country signal the marketing pages read.
+    return (
+      <EnableUsCard currency={billingCurrencyOf(company.billing_currency)} />
+    );
   }
 
   if (registration.isPending) {

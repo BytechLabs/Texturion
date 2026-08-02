@@ -1,17 +1,23 @@
 import { CtaButton, Eyebrow, FrSection } from "@/components/marketing/fr";
 import { MissedTextCalculatorStatic } from "@/components/marketing/interactive/missed-text-calculator-static";
 import { PRIMARY_CTA_LABEL, SIGNUP_HREF } from "@/components/marketing/nav-links";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 
 import { LazyMissedTextCalculator } from "./lazy-islands";
 
 /**
  * S8 · DO THE MATH (COPY-DECK v2). Conversion job: convert the pain into a
- * dollar figure the owner computes himself, then anchor $29 against it.
+ * dollar figure the owner computes himself, then anchor the monthly price
+ * against it.
  *
  * The calculator's output figure is the band's ONE display-scale accent (the
  * sanctioned Flare use, whitelist §3.4.3; Law 5: no cobalt display element
  * shares this band, the CTA button is standard size). The server ships the
  * resting state; the draggable island swaps in on viewport approach.
+ *
+ * #328: the anchor is the whole point of the band, so it has to be the price
+ * the reader would actually be charged. <PlanPrice> reads the site-wide
+ * country; this stays a server component and renders it as a child.
  */
 export function DoTheMath() {
   return (
@@ -32,7 +38,9 @@ export function DoTheMath() {
             voicemail when nobody can pick up, and puts every text where
             whoever&apos;s free answers it, not whoever&apos;s phone it is.
             That&apos;s{" "}
-            <span className="fr-mono-data text-[color:var(--fr-ink)]">$29</span>{" "}
+            <span className="fr-mono-data text-[color:var(--fr-ink)]">
+              <PlanPrice plan="starter" />
+            </span>{" "}
             a month against the number above.
           </p>
           <div className="mt-8">

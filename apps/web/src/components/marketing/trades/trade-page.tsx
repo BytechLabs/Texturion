@@ -25,6 +25,7 @@
  *  - Fully static: zero client islands, zero tab stops added by the demos.
  */
 
+import { HeadlinePriceFigure } from "@/components/marketing/pricing/headline-price-figure";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -35,7 +36,6 @@ import {
   Dateline,
   FrCard,
   FrSection,
-  MonoFigure,
   PanelFrame,
 } from "@/components/marketing/fr";
 import {
@@ -50,9 +50,10 @@ import { SavedRepliesPicker } from "./saved-replies-picker";
 import type { TradeScript } from "./scripts";
 import { TradeThread } from "./trade-thread";
 import {
-  HEADLINE_PRICE,
-  HEADLINE_PRICE_SUFFIX,
-} from "@/lib/marketing/headline-price";
+  FirstMonthTotal,
+  PlanPrice,
+  RegistrationFee,
+} from "@/components/marketing/pricing/plan-price";
 
 /* -------------------------------------------------------------------------- */
 /* The template API, the ONLY thing the six pages differ by.                   */
@@ -98,7 +99,15 @@ export interface TradeContent {
   dateline: string;
   /** COPY-DECK v2 H1 for this trade. */
   h1: string;
-  heroSub: string;
+  /**
+   * The hero paragraph.
+   *
+   * #328: a node rather than a string. Every trade page quotes the plan price
+   * mid-sentence, and the figure is now `<PlanPrice>` so a Canadian reader sees
+   * the CAD price their card will actually be charged. A plain string still
+   * assigns, so a trade page with no figure in its hero writes one.
+   */
+  heroSub: ReactNode;
   /** Mono truth line under the CTA row (trade-flavored, factual). */
   heroTruth: string;
 
@@ -123,8 +132,13 @@ export interface TradeContent {
   featuresH2: string;
   features: TradeFeature[];
 
-  pricingH2: string;
-  pricingBody: string;
+  /**
+   * The pricing snippet's heading and body. Nodes for the same #328 reason as
+   * `heroSub`: both carry the Starter figure, and `pricingBody` carries Pro's
+   * as well, so both are rendered from the shared price book rather than typed.
+   */
+  pricingH2: ReactNode;
+  pricingBody: ReactNode;
   /**
    * Extra Truth Strip lines under the pricing card (§5.4). Two standard lines
    * render on every trade page: receiving is always free, plus a
@@ -155,7 +169,12 @@ export interface TradeContent {
 export const THREAD_CAPTION =
   "Tap any message to mark it done. The whole crew sees what's handled.";
 
-const FINAL_MICROCOPY = "$29/mo flat · Month to month · 30-day money-back";
+const FINAL_MICROCOPY = (
+  <>
+    <PlanPrice plan="starter" />
+    {"/mo flat · Month to month · 30-day money-back"}
+  </>
+);
 
 /* -------------------------------------------------------------------------- */
 /* §5.4 TRUTH STRIP: Frost ground, 3px cobalt left edge, mono text, green      */
@@ -324,11 +343,7 @@ export function TradePage({ content }: { content: TradeContent }) {
       {/* PRICING SNIPPET: the price as art (mono law), then Truth Strips. */}
       <FrSection ground="white">
         <FrCard className="mx-auto max-w-3xl p-7 sm:p-12">
-          <MonoFigure
-            value={HEADLINE_PRICE}
-            suffix={HEADLINE_PRICE_SUFFIX}
-            size="display"
-          />
+          <HeadlinePriceFigure size="display" />
           <h2 className="fr-h3 mt-7 text-[color:var(--fr-ink)]">
             {content.pricingH2}
           </h2>
@@ -345,14 +360,34 @@ export function TradePage({ content }: { content: TradeContent }) {
             <CountryOnly country="us">
               <TruthStrip
                 line={{
-                  text: "US shops register once with the phone companies before US texting turns on, usually 3 to 7 business days. The fee is a one-time $29, so $58 your first month, then $29 after.",
+                  text: (
+                    <>
+                      {"US shops register once with the phone companies before US texting turns on, usually 3 to 7 business days. The fee is a one-time "}
+                      <RegistrationFee />
+                      {", so "}
+                      <FirstMonthTotal plan="starter" />
+                      {" your first month, then "}
+                      <PlanPrice plan="starter" />
+                      {" after."}
+                    </>
+                  ),
                 }}
               />
             </CountryOnly>
             <CountryOnly country="ca">
               <TruthStrip
                 line={{
-                  text: "Text your Canadian customers the same day your number is active. No registration, no fee, no wait, just a flat $29 a month.",
+                  // #328: this strip is rendered ONLY to Canadian visitors and
+                  // quoted the US price. The single worst instance of the
+                  // problem this issue exists to fix — a Canada-first promise
+                  // and a foreign figure, in the same sentence.
+                  text: (
+                    <>
+                      {"Text your Canadian customers the same day your number is active. No registration, no fee, no wait, just a flat "}
+                      <PlanPrice plan="starter" />
+                      {" a month."}
+                    </>
+                  ),
                   good: true,
                 }}
               />

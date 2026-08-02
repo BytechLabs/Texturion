@@ -29,6 +29,20 @@ import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
  * standalone route (zero dead links). Rows are typographic (label + one
  * plain-English line): v4 tolerates zero decoration that is not information,
  * so the old icon chips and the promo cell are gone.
+ *
+ * #328 — NO ROW NAMES OUR PRICE, and there is no way to make one that could.
+ * These are plain strings in a plain module: they are built once at import,
+ * with no visitor and therefore no country, so the only figure they could carry
+ * is a US one. The mobile sheet renders the CountrySelector among these very
+ * rows, so a typed "$29" would be a US price sitting directly above the control
+ * a Canadian just used to say otherwise — and HEADLINE_PRICE is the fallback
+ * for surfaces where no country signal CAN exist (an OG image), not for a
+ * string rendered inside the provider. So the rows say what the shape of the
+ * price is, which is the part that does not move, and the figure itself lives
+ * one tap away on /pricing in the reader's own currency.
+ *
+ * The rivals' per-seat rates stay literal. Those are dated, sourced claims
+ * about somebody else's price, verified on the comparison pages they link to.
  */
 
 export interface NavItem {
@@ -162,7 +176,7 @@ export const compareMenu: NavMenu = {
     {
       label: "Loonext vs Heymarket",
       href: LIVE_ROUTES.compareHeymarket,
-      description: "Flat $29 for the crew vs $49 a person.",
+      description: "One flat price for the crew vs $49 a person.",
       icon: Scale,
     },
     {
@@ -183,7 +197,7 @@ export const NAV_MENUS: NavMenu[] = [productMenu, tradesMenu, compareMenu];
 export const PRICING_LINK: NavItem = {
   label: "Pricing",
   href: LIVE_ROUTES.pricing,
-  description: "One flat $29 a month for the whole crew.",
+  description: "One flat price a month for the whole crew.",
   icon: BadgeDollarSign,
 };
 

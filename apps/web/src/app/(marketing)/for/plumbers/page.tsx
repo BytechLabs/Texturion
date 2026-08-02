@@ -12,6 +12,7 @@ import type { Metadata } from "next";
 
 import { CountryText } from "@/components/marketing/country";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
 import { PLUMBERS_SCRIPT } from "@/components/marketing/trades/scripts";
@@ -24,10 +25,27 @@ import {
 
 const PATH = "/for/plumbers";
 
+/**
+ * #328 — why the search snippet names no figure, when the page does.
+ *
+ * Everything in `CONTENT` renders the price through `<PlanPrice>`, so a
+ * Canadian reader sees the CAD figure their card will be charged. A
+ * `metadata.description` cannot do that: it is one string per URL, baked at
+ * build time, and the country is a client-side choice. "flat $29/mo" in a
+ * Google result for a Hamilton plumber is exactly the promise #328 exists to
+ * stop, and there is no wording that is true at both $29 and $39.
+ *
+ * So the snippet keeps the CLAIM and drops the FIGURE. This is the call
+ * `lib/marketing/activation.ts` already made for the same class of string
+ * ("erring toward the sentence that is true for everybody"), and flat-versus-
+ * per-seat is the stronger hook anyway: it is what the reader is comparing us
+ * on, and it survives a second currency. The figure is one scroll away, in the
+ * hero, in the currency they actually pay in.
+ */
 export const metadata: Metadata = buildMetadata({
   title: "Texting software for plumbers",
   description:
-    `One business line for your plumbing crew: customers text photos or call, anyone on the team answers, nothing gets missed. Texts, calls and voicemail, flat $29/mo, ${ACTIVATION_CLAIM_SHORT}.`,
+    `One business line for your plumbing crew: customers text photos or call, anyone on the team answers, nothing gets missed. Texts, calls and voicemail, one flat monthly price for the whole crew, ${ACTIVATION_CLAIM_SHORT}.`,
   path: PATH,
 });
 
@@ -37,8 +55,13 @@ const CONTENT: TradeContent = {
 
   dateline: "9:04 PM · BASEMENT DRAIN",
   h1: "One line for the whole plumbing crew.",
-  heroSub:
-    "Customers text a photo of the leak, or they call. Either way it reaches every tech at once and whoever is free answers, and the calls nobody can take leave a voicemail you can read between jobs. The owner's personal cell goes back to being a personal cell. A local business number, one shared inbox, $29 a month for the whole crew.",
+  heroSub: (
+    <>
+      {"Customers text a photo of the leak, or they call. Either way it reaches every tech at once and whoever is free answers, and the calls nobody can take leave a voicemail you can read between jobs. The owner's personal cell goes back to being a personal cell. A local business number, one shared inbox, "}
+      <PlanPrice plan="starter" />
+      {" a month for the whole crew."}
+    </>
+  ),
   heroTruth:
     `Works on the phones your techs already carry · ${ACTIVATION_CHIP} · Month to month`,
 
@@ -127,9 +150,19 @@ const CONTENT: TradeContent = {
     },
   ],
 
-  pricingH2: "$29 a month. The whole crew.",
-  pricingBody:
-    "Starter covers 3 people, 1 local number, and texting included on a fair-use basis, not a hard cap: almost every 2 or 3 person shop stays comfortably inside it, and the composer shows the count before you send. Bigger crew? Pro runs $79, fits up to 15 people, and adds a second number. Month to month, no contracts.",
+  pricingH2: (
+    <>
+      <PlanPrice plan="starter" />
+      {" a month. The whole crew."}
+    </>
+  ),
+  pricingBody: (
+    <>
+      {"Starter covers 3 people, 1 local number, and texting included on a fair-use basis, not a hard cap: almost every 2 or 3 person shop stays comfortably inside it, and the composer shows the count before you send. Bigger crew? Pro runs "}
+      <PlanPrice plan="pro" />
+      {", fits up to 15 people, and adds a second number. Month to month, no contracts."}
+    </>
+  ),
 
   faqH2: "Plumber questions, straight answers.",
   faqs: [
@@ -147,7 +180,13 @@ const CONTENT: TradeContent = {
     },
     {
       q: "We're two guys and a van. Is this overkill?",
-      a: "Starter is $29 for up to 3 people. It's built for exactly two guys and a van. You get the business number, the shared history, and the saved replies; when you hire, they're in with a link.",
+      a: (
+        <>
+          {"Starter is "}
+          <PlanPrice plan="starter" />
+          {" for up to 3 people. It's built for exactly two guys and a van. You get the business number, the shared history, and the saved replies; when you hire, they're in with a link."}
+        </>
+      ),
     },
     {
       q: "Do “on my way” texts eat into our included texting?",

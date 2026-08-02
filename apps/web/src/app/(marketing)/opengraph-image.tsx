@@ -1,3 +1,4 @@
+import { formatMoney, PLAN_PRICE_CENTS } from "@loonext/shared";
 import { ImageResponse } from "next/og";
 
 /**
@@ -6,7 +7,7 @@ import { ImageResponse } from "next/og";
  * 1200×630, olive dark ground #141610 (never neutral black, spec §9), ONE
  * amber-lit inbound bubble carrying the deck's verbatim bubble text, a petrol
  * reply on its way back (the alt text's promise), the Loonext wordmark, the
- * 9:04 PM clock stamp, and the footer line "One inbox. The whole crew. $29
+ * 9:04 PM clock stamp, and the footer line "One inbox. The whole crew. [price]
  * flat."
  *
  * Built with next/og's ImageResponse (Satori: inline flexbox only). We do NOT
@@ -26,6 +27,24 @@ export const alt =
   "A text message glowing warm out of a dark petrol screen at 9:04 pm, with a reply on its way back.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
+
+/**
+ * #328 — the footer figure, pinned to USD and DERIVED rather than typed.
+ *
+ * This file renders to a PNG at build time. There is no request, no visitor and
+ * no country: one image is baked and then served to every scraper, cached by
+ * Facebook, Slack, iMessage and X, and re-fetched on their schedule rather than
+ * ours. A country-aware price is not merely hard here, it is meaningless — the
+ * card a Canadian sees in a Slack unfurl was rendered before anyone knew they
+ * existed, and may have been rendered for somebody else entirely.
+ *
+ * So the card keeps the USD figure, which is what it always showed. What
+ * changes is that it can no longer disagree with the price book: when the USD
+ * Starter price moves, the next build moves this with it. That is the whole of
+ * what #328 can buy on a static image, and it is worth buying — a stale share
+ * card is the one price surface nobody thinks to re-check.
+ */
+const STARTER_USD = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd");
 
 // Night-act palette (hex literals: Satori doesn't evaluate CSS variables).
 const INK_11PM = "#141610"; // #362: the olive dark ground
@@ -215,9 +234,10 @@ export default function OpengraphImage() {
             </div>
           </div>
 
-          {/* Footer line verbatim from the copy deck's OG image copy. */}
+          {/* Footer line verbatim from the copy deck's OG image copy; the
+              figure comes from the shared price book (see STARTER_USD). */}
           <div style={{ color: MOONLIGHT, fontSize: 29 }}>
-            One inbox. The whole crew. $29 flat.
+            {`One inbox. The whole crew. ${STARTER_USD} flat.`}
           </div>
         </div>
       </div>

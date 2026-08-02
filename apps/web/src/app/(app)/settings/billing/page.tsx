@@ -24,7 +24,7 @@ import { ApiError } from "@/lib/api/error";
 import type { CompanyView, PlanId } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 
-import { PLAN_FACTS } from "./plan-facts";
+import { planFactsFor } from "./plan-facts";
 
 function fullDate(iso: string | null): string | null {
   if (!iso) return null;
@@ -162,6 +162,14 @@ export default function BillingSettingsPage() {
   const { role } = useActiveCompany();
   const company = useCompany();
   const canManage = role === "owner" || role === "admin";
+  // #328: the plan card quotes the currency this workspace is actually
+  // charged in. Reading "$29/mo" beside a Canadian invoice for $39 is a
+  // contradiction on the one screen where the number is the whole content.
+  // Falls back to USD while the company is still loading, which is also what
+  // every workspace that predates the column is on.
+  const planFacts = planFactsFor(company.data?.billing_currency)[
+    company.data?.plan ?? "starter"
+  ];
 
   return (
     <SettingsPage title="Billing" description="Your plan and payment details.">
@@ -210,10 +218,10 @@ export default function BillingSettingsPage() {
               <div className="space-y-4">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <p className="text-lg font-semibold">
-                    {PLAN_FACTS[company.data.plan].name}
+                    {planFacts.name}
                   </p>
                   <p className="text-lg font-semibold tabular-nums">
-                    {PLAN_FACTS[company.data.plan].price}
+                    {planFacts.price}
                   </p>
                   {company.data.subscription_status === "active" &&
                     !company.data.cancel_at_period_end && (
@@ -223,10 +231,10 @@ export default function BillingSettingsPage() {
                     )}
                 </div>
                 <ul className="space-y-1 text-sm text-muted-foreground">
-                  <li>{PLAN_FACTS[company.data.plan].included}</li>
-                  <li>{PLAN_FACTS[company.data.plan].overage}</li>
-                  <li>{PLAN_FACTS[company.data.plan].seats}</li>
-                  <li>{PLAN_FACTS[company.data.plan].numbers}</li>
+                  <li>{planFacts.included}</li>
+                  <li>{planFacts.overage}</li>
+                  <li>{planFacts.seats}</li>
+                  <li>{planFacts.numbers}</li>
                 </ul>
                 {/* #85: the exact allowances live in the fair-use policy, not on
                     the plan card. */}

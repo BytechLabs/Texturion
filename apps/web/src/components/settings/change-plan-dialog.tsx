@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  billingCurrencyOf,
+  formatMoney,
+  PLAN_PRICE_CENTS,
+} from "@loonext/shared";
 import { Check, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -155,6 +160,13 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
 
   const target = company.plan === "pro" ? "starter" : "pro";
   const upgrading = target === "pro";
+  // #328: the price of the plan they're moving TO, in the currency this
+  // workspace is actually charged in. Both branches quote the target, so
+  // there is one figure rather than two that can drift apart. A Canadian
+  // owner reading a US price here would be reading it beside a Canadian
+  // invoice, on the screen where the number is the whole decision.
+  const currency = billingCurrencyOf(company.billing_currency);
+  const targetPrice = formatMoney(PLAN_PRICE_CENTS[currency][target], currency);
 
   function reset(next: boolean) {
     if (!next) setError(null);
@@ -175,14 +187,15 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
           </DialogTitle>
           {upgrading ? (
             <DialogDescription>
-              Pro is $79/mo: a bigger fair-use texting allowance,{" "}
+              Pro is {targetPrice}/mo: a bigger fair-use texting allowance,{" "}
               {PLAN_PRICING.pro.seats} seats, and a second phone number.
               You&apos;re charged the prorated difference for the rest of this
               period today.
             </DialogDescription>
           ) : (
             <DialogDescription>
-              Starter is $29/mo: texting for a small crew under fair use,{" "}
+              Starter is {targetPrice}/mo: texting for a small crew under fair
+              use,{" "}
               {STARTER_LIMITS.seats} seats, 1 number.
             </DialogDescription>
           )}

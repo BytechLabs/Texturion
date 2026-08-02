@@ -21,6 +21,12 @@ import { type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import {
+  formatMoney,
+  PLAN_PRICE_CENTS,
+  US_REGISTRATION_FEE_CENTS,
+} from "@loonext/shared";
+
 // next/font/local needs the Next build plugin; in vitest we only need the
 // stable variable/class contract (AppSurface mounts --font-golos).
 vi.mock("next/font/local", () => ({
@@ -56,6 +62,39 @@ import { TruthBar } from "./truth-bar";
 import { UsageMeterEmbed } from "./usage-meter";
 
 const PAGE = renderToStaticMarkup(<HomePage />);
+
+/**
+ * #328 — the figures the home page must quote, per currency, from one book.
+ *
+ * Law 7 says the factual claims survive the restage, and a price is one of
+ * them; #328 says WHOSE money it is stated in. A typed "$29" here would pin
+ * this file to the US figure forever, which is the failure it is supposed to
+ * catch, one level up.
+ */
+function money(currency: "usd" | "cad") {
+  return {
+    starter: formatMoney(PLAN_PRICE_CENTS[currency].starter, currency),
+    pro: formatMoney(PLAN_PRICE_CENTS[currency].pro, currency),
+    fee: formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency),
+    /** Plan plus the one-time US fee: the only figure here that is a sum. */
+    firstMonth: formatMoney(
+      PLAN_PRICE_CENTS[currency].starter + US_REGISTRATION_FEE_CENTS[currency],
+      currency,
+    ),
+  };
+}
+const USD = money("usd");
+const CAD = money("cad");
+
+/** A component rendered inside the site-wide provider, pinned to a country. */
+const ca = (node: ReactNode) =>
+  renderToStaticMarkup(
+    <CountryProvider initialCountry="ca">{node}</CountryProvider>,
+  );
+const us = (node: ReactNode) =>
+  renderToStaticMarkup(
+    <CountryProvider initialCountry="us">{node}</CountryProvider>,
+  );
 
 const EMBEDS: Record<string, string> = {
   assignTrack: renderToStaticMarkup(<AssignTrackEmbed />),
@@ -160,8 +199,12 @@ describe("plan cards (#70 unit-language guard, ported from night/pricing.test.ts
   });
 
   it("prices and the first-month arithmetic per the deck", () => {
-    expect(HOME_PLANS.map((p) => p.price)).toEqual(["$29", "$79"]);
-    expect(PAGE).toContain("$58 your first month");
+    // Asserted through the markup rather than off HOME_PLANS, because the
+    // figure a card shows is now a function of the reader's country and the
+    // plan data no longer owns it. SSR default is "us".
+    expect(PAGE).toContain(USD.starter);
+    expect(PAGE).toContain(USD.pro);
+    expect(PAGE).toContain(`${USD.firstMonth} your first month`);
     expect(PAGE).toContain("3 to 7 business days");
     expect(PAGE).toContain("That&#x27;s the whole list.");
     expect(PAGE).toContain(
@@ -310,7 +353,11 @@ describe("the one cobalt band (Laws 3 and 5)", () => {
     expect(finalCta).toContain("<svg"); // the static converged derivative
     expect(finalCta).not.toContain("<canvas");
     expect(finalCta).toContain(
-      "$29/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK",
+      `${USD.starter}/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK`,
+    );
+    // The same eyebrow, in the money a Canadian reader is actually charged.
+    expect(ca(<FinalCta />)).toContain(
+      `${CAD.starter}/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK`,
     );
     // No live canvas anywhere in the server markup (the p5 layer is a lazy
     // client chunk that only ever mounts on the hero).
@@ -319,16 +366,6 @@ describe("the one cobalt band (Laws 3 and 5)", () => {
 });
 
 describe("country branching: the home never pairs the two stories (owner ruling v1)", () => {
-  // A component rendered inside the site-wide provider, pinned to a country.
-  const ca = (node: ReactNode) =>
-    renderToStaticMarkup(
-      <CountryProvider initialCountry="ca">{node}</CountryProvider>,
-    );
-  const us = (node: ReactNode) =>
-    renderToStaticMarkup(
-      <CountryProvider initialCountry="us">{node}</CountryProvider>,
-    );
-
   it("hero truth line: US reads the carrier wait, CA reads same-day, never both", () => {
     const usHero = renderToStaticMarkup(<Hero />); // SSR default is us
     expect(usHero).toContain("Texting US customers turns on in about a week");
@@ -354,31 +391,70 @@ describe("country branching: the home never pairs the two stories (owner ruling 
     expect(caT).toContain("live and texting the same day");
   });
 
-  it("the deal: US carries the $58/registration story, CA is $29 flat", () => {
+  it("the deal: US carries the first-month/registration story, CA is flat", () => {
     const usD = us(<TheDeal />);
-    expect(usD).toContain("$58 your first month");
-    expect(usD).toContain("one-time $29 to register");
+    expect(usD).toContain(`${USD.firstMonth} your first month`);
+    expect(usD).toContain(`one-time ${USD.fee} to register`);
     expect(usD).toContain("including the registration fee");
 
     const caD = ca(<TheDeal />);
-    expect(caD).not.toContain("$58");
-    expect(caD).not.toContain("one-time $29 to register");
+    // Neither currency's version of the US story reaches a Canadian: not the
+    // USD figures (a leaked literal), and not the CAD ones (a US-only sentence
+    // that escaped its CountryOnly and got localised on the way out).
+    expect(caD).not.toContain(USD.firstMonth);
+    expect(caD).not.toContain(CAD.firstMonth);
+    expect(caD).not.toContain(`one-time ${USD.fee} to register`);
+    expect(caD).not.toContain(`one-time ${CAD.fee} to register`);
     expect(caD).not.toContain("including the registration fee");
-    expect(caD).toContain("$29 a month, flat");
+    expect(caD).toContain(`${CAD.starter} a month, flat`);
+  });
+
+  it("the deal: the plan cards quote the price the reader will be charged", () => {
+    // #328. Both cards, both countries. This is the surface the whole issue is
+    // about: a Canadian read "$29" here and was charged something else, and
+    // nothing on the page could disagree with itself to make that visible.
+    const usD = us(<TheDeal />);
+    expect(usD).toContain(USD.starter);
+    expect(usD).toContain(USD.pro);
+
+    const caD = ca(<TheDeal />);
+    expect(caD).toContain(CAD.starter);
+    expect(caD).toContain(CAD.pro);
+    expect(caD).not.toContain(`${USD.starter}/mo`);
+    expect(caD).not.toContain(`${USD.starter} a month`);
   });
 
   it("FAQ: US answers the carrier wait and the fee; CA answers neither as a default", () => {
     const usF = renderToStaticMarkup(<Faq />);
     expect(usF).toContain("Why does texting US customers take about a week?");
-    expect(usF).toContain("What&#x27;s the one-time $29 fee?");
+    // Presence is matched without the figure and the figure is matched
+    // separately: whether the question keeps its number is a copy call, but
+    // whichever way it goes, the one a US reader sees must be the US one.
+    expect(usF).toMatch(/What&#x27;s the one-time [^<]*fee\?/);
+    expect(usF).toContain(`one-time ${USD.fee}`);
+    expect(usF).toContain(`your first month is ${USD.firstMonth}`);
     expect(usF).not.toContain("When can I start texting customers?");
 
     const caF = ca(<Faq />);
     expect(caF).toContain("When can I start texting customers?");
     expect(caF).toContain("Can we also text US customers?");
     expect(caF).not.toContain("Why does texting US customers take about a week?");
-    expect(caF).not.toContain("What&#x27;s the one-time $29 fee?");
-    expect(caF).not.toContain("your first month is $58");
+    expect(caF).not.toMatch(/What&#x27;s the one-time [^<]*fee\?/);
+    expect(caF).not.toContain(`your first month is ${USD.firstMonth}`);
+    expect(caF).not.toContain(`your first month is ${CAD.firstMonth}`);
+  });
+
+  it("FAQ: a Canadian reads Canadian figures, in every answer that names one", () => {
+    // The plan answer ("is it really X for the whole team?") quotes both plans
+    // and is the most-read money sentence on the page. The later-US-texting
+    // answer legitimately names the registration fee, so it is quoted in the
+    // currency a Canadian workspace would be charged it in, not skipped.
+    const caF = ca(<Faq />);
+    expect(caF).toContain(CAD.starter);
+    expect(caF).toContain(CAD.pro);
+    expect(caF).not.toContain(USD.starter);
+    expect(caF).not.toContain(USD.pro);
+    expect(caF).toContain(`one-time ${CAD.fee}`);
   });
 
   it("rules band: US shows the carrier proof + registration-tracked card; CA shows CASL + the day-one card, never the other's", () => {
@@ -407,7 +483,8 @@ describe("country branching: the home never pairs the two stories (owner ruling 
     expect(caR).not.toContain("3 to 7 business days");
     expect(caR).not.toContain("about a week");
     expect(caR).not.toContain("carrier approval");
-    expect(caR).not.toContain("one-time $29");
+    expect(caR).not.toContain(`one-time ${USD.fee}`);
+    expect(caR).not.toContain(`one-time ${CAD.fee}`);
     expect(caR).not.toContain("10DLC");
   });
 

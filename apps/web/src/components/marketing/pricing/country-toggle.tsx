@@ -2,10 +2,15 @@
 
 /**
  * The COUNTRY TOGGLE for the /pricing plan section: United States (default) or
- * Canada, one clean tap. It branches only the country-specific facts through
- * the country context (see country-context.tsx): the registration-fee line,
- * the "first month" math, and the activation-timeline card. Base and add-on
- * prices are identical for both (USD, plus tax) and never move.
+ * Canada, one clean tap. It branches the country-specific facts through the
+ * country context (see country-context.tsx): the registration-fee line, the
+ * "first month" math, and the activation-timeline card.
+ *
+ * Since #328 the same signal also picks the billing currency, so every figure
+ * that reads it (<PlanPrice/>, and the fee in the helper below) moves with this
+ * control. That is why there is still only one control: a currency selector
+ * beside a country selector is a second thing that can disagree with the first,
+ * and the visitor has already told us where they are.
  *
  * A real segmented radiogroup: arrow keys move the selection, the active
  * segment is a cobalt pill (marketing chrome, §2), and a short helper line
@@ -15,21 +20,37 @@
 
 import { type KeyboardEvent } from "react";
 
+import { formatMoney, US_REGISTRATION_FEE_CENTS } from "@loonext/shared";
+
 import { cn } from "@/lib/utils";
 
+import { useMarketingCurrency } from "./plan-price";
 import {
   COUNTRY_OPTIONS,
   useCountry,
   type Country,
 } from "./country-context";
 
-const HELPER: Record<Country, string> = {
-  us: "One-time $29 registration, then US texting turns on in about a week.",
-  ca: "No registration fee, and texting Canadian customers works the same day.",
+/**
+ * The one fact that actually changes with the choice.
+ *
+ * The fee is READ, not typed (#328). It only ever renders on the US branch,
+ * where the figure has not moved in a year — which is exactly how a literal
+ * survives a repricing and goes on contradicting the checkout underneath it.
+ * A record of functions rather than a ternary so a third country cannot be
+ * added without answering this question for it.
+ */
+const HELPER: Record<Country, (fee: string) => string> = {
+  us: (fee) =>
+    `One-time ${fee} registration, then US texting turns on in about a week.`,
+  ca: () =>
+    "No registration fee, and texting Canadian customers works the same day.",
 };
 
 export function CountryToggle({ className }: { className?: string }) {
   const { country, setCountry } = useCountry();
+  const currency = useMarketingCurrency();
+  const fee = formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency);
 
   function onKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
@@ -72,7 +93,7 @@ export function CountryToggle({ className }: { className?: string }) {
         })}
       </div>
       <p className="fr-mono-data mt-3 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
-        {HELPER[country]}
+        {HELPER[country](fee)}
       </p>
     </div>
   );

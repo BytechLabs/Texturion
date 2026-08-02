@@ -1,3 +1,4 @@
+import { type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -22,7 +23,14 @@ import SubprocessorsPage, {
   metadata as subprocessorsMetadata,
 } from "./subprocessors/page";
 import TermsPage, { metadata as termsMetadata } from "./terms/page";
-import { DELETION_GAPS, DELETION_GRACE_DAYS } from "@loonext/shared";
+import { CountryProvider } from "@/components/marketing/country";
+import {
+  DELETION_GAPS,
+  DELETION_GRACE_DAYS,
+  formatMoney,
+  PLAN_PRICE_CENTS,
+  US_REGISTRATION_FEE_CENTS,
+} from "@loonext/shared";
 
 /**
  * The seven legal pages (COPY-DECK v2, V4 coverage map): quiet register,
@@ -30,6 +38,38 @@ import { DELETION_GAPS, DELETION_GRACE_DAYS } from "@loonext/shared";
  * Plain English summary atop each, and the load-bearing billing/policy facts
  * intact.
  */
+
+/**
+ * #328 — the figures these pages must show, computed the way the pages compute
+ * them.
+ *
+ * These assertions used to spell "$29/mo" out. That made the test a SECOND
+ * hand-kept copy of the price, so it could only ever confirm that two literals
+ * matched each other — and the day the price moved it would fail for the right
+ * reason and be "fixed" by editing the literal, which is how the guarantee
+ * quietly dies. Deriving them means the test asks the only question worth
+ * asking: does the page show what the price book says?
+ *
+ * The PAGES array above renders without a CountryProvider, which is exactly the
+ * "us" default the provider ships (see country-context.tsx), so USD is the
+ * right expectation there. The CAD half is asserted in its own block below.
+ */
+const USD = {
+  starter: formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd"),
+  pro: formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd"),
+  fee: formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd"),
+};
+const CAD = {
+  starter: formatMoney(PLAN_PRICE_CENTS.cad.starter, "cad"),
+  pro: formatMoney(PLAN_PRICE_CENTS.cad.pro, "cad"),
+  fee: formatMoney(US_REGISTRATION_FEE_CENTS.cad, "cad"),
+};
+
+/** Render a legal page under the site-wide country pinned to Canada. */
+const ca = (node: ReactNode) =>
+  renderToStaticMarkup(
+    <CountryProvider initialCountry="ca">{node}</CountryProvider>,
+  );
 
 const PAGES = [
   { name: "terms", html: renderToStaticMarkup(<TermsPage />), meta: termsMetadata },
@@ -80,10 +120,17 @@ describe("legal pages — Laws 1 and 6 across all seven", () => {
 describe("terms — billing and cancellation facts survive", () => {
   const html = PAGES[0].html;
   it("keeps the plan prices, the one-time fee, and the alert thresholds", () => {
-    expect(html).toContain("$29/mo");
-    expect(html).toContain("$79/mo");
-    expect(html).toContain("one-time $29 fee");
+    expect(html).toContain(`${USD.starter}/mo`);
+    expect(html).toContain(`${USD.pro}/mo`);
+    expect(html).toContain(`one-time ${USD.fee} fee`);
     expect(html).toContain("80% and 100%");
+  });
+  it("names the currency the quoted prices are actually in (#328)", () => {
+    // The prices and the currency sentence sit in the same paragraph, so a
+    // page that showed one country's figures under the other's currency line
+    // would be worse than either alone.
+    expect(html).toContain("US dollars");
+    expect(html).not.toContain("Canadian dollars");
   });
   it("keeps the carrier wait and porting windows in 'to' phrasing", () => {
     expect(html).toContain("3 to 7 business");
@@ -158,7 +205,7 @@ describe("refunds — the guarantee promise survives, word for word where it cou
   const html = PAGES[5].html;
   it("keeps the full-refund-including-registration-fee language", () => {
     expect(html).toContain("refund your first invoice in full");
-    expect(html).toContain("one-time $29 registration fee");
+    expect(html).toContain(`one-time ${USD.fee} registration fee`);
   });
   it("keeps the no-deductions and single-email process", () => {
     expect(html).toContain("minus credits used");
@@ -223,6 +270,55 @@ describe("fair-use — the plain limits survive", () => {
   it("frames the allowances as a fair-use line and states the dynamic watch (#85)", () => {
     expect(html).toContain("fair-use line");
     expect(html).toContain("reach out early");
+  });
+});
+
+/**
+ * #328 — the legal pages follow the visitor's country, like every other price
+ * surface on the site.
+ *
+ * These three pages are the ones a customer reads when the invoice does not
+ * match the pitch, which makes them the last place a stale figure should
+ * survive. /legal/fair-use matters most: D34 names it the canonical home of the
+ * allowance figures, so every other surface points here to be checked.
+ *
+ * They are server components rendering client ones (PlanPrice, RegistrationFee,
+ * CountryText). That composition is the thing worth guarding — if a refactor
+ * ever moves the country read to something a server component cannot see, these
+ * fail with the CAD figures missing rather than silently reverting to USD.
+ */
+describe("#328 — the legal pages quote the reader's own currency", () => {
+  const terms = ca(<TermsPage />);
+  const refunds = ca(<RefundsPage />);
+  const fairUse = ca(<FairUsePage />);
+
+  it("shows a Canadian the CAD plan prices on terms and fair-use", () => {
+    expect(terms).toContain(`${CAD.starter}/mo`);
+    expect(terms).toContain(`${CAD.pro}/mo`);
+    expect(fairUse).toContain(`${CAD.starter}/mo`);
+    expect(fairUse).toContain(`${CAD.pro}/mo`);
+  });
+
+  it("shows a Canadian NO USD plan price on those pages", () => {
+    // The failure this catches is the quiet one: a page that renders the CAD
+    // figure in one sentence and a leftover literal in the next.
+    for (const html of [terms, fairUse, refunds]) {
+      expect(html).not.toContain(`${USD.starter}/mo`);
+      expect(html).not.toContain(`${USD.pro}/mo`);
+    }
+  });
+
+  it("prices the US registration fee in the currency it is charged in", () => {
+    // A Canadian workspace CAN enable US texting, and then the fee lands on a
+    // Canadian invoice — which is why US_REGISTRATION_FEE_CENTS has a cad key
+    // at all, and why "if you paid it" is the only branch this needs.
+    expect(terms).toContain(`one-time ${CAD.fee} fee`);
+    expect(refunds).toContain(`one-time ${CAD.fee} registration fee`);
+  });
+
+  it("names Canadian dollars on the terms page, and drops the USD line", () => {
+    expect(terms).toContain("Canadian dollars");
+    expect(terms).not.toContain("US dollars");
   });
 });
 

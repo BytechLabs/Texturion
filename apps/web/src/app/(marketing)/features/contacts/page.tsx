@@ -24,6 +24,7 @@ import type { Metadata } from "next";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { PanelFrame } from "@/components/marketing/fr";
 import { ContactTimelineVisual } from "@/components/marketing/features/contact-timeline-visual";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import {
   FeatureCta,
   FeatureFaq,
@@ -42,7 +43,10 @@ const PATH = "/features/contacts";
 export const metadata: Metadata = buildMetadata({
   title: "One history for every customer",
   description:
-    "Every text, call, voicemail and photo you have exchanged with a customer, on one timeline, with their address and your private notes. Import your list with a CSV. $29/mo flat for the crew.",
+    // #328: no figure. A description is one string per URL and the price a
+    // reader should see depends on their country, so quoting either one would
+    // put a number in the search snippet that the page itself may contradict.
+    "Every text, call, voicemail and photo you have exchanged with a customer, on one timeline, with their address and your private notes. Import your list with a CSV. One flat price for the crew.",
   path: PATH,
 });
 
@@ -141,8 +145,9 @@ export default function ContactsPage() {
 
       <PricingSnippet>
         <p>
-          Contacts come with the inbox: $29/mo on Starter for up to 3 people,
-          $79/mo on Pro for up to 15. There is no per-contact pricing, no
+          Contacts come with the inbox: <PlanPrice plan="starter" />/mo on
+          Starter for up to 3 people, <PlanPrice plan="pro" />/mo on Pro for up
+          to 15. There is no per-contact pricing, no
           contact cap and no CRM tier. Photos and files attached to a customer
           are stored free with no caps, which is set out with everything else in
           our{" "}

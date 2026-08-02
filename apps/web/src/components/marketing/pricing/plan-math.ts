@@ -27,9 +27,13 @@
  */
 
 import {
+  formatMoney,
+  PLAN_PRICE_CENTS,
+  US_REGISTRATION_FEE_CENTS,
+  type BillingCurrency,
+} from "@loonext/shared";
+import {
   PLAN_MODULE_CARDS,
-  PLAN_PRICING,
-  US_REGISTRATION_FEE_DOLLARS,
   type PlanId,
   type PlanModule,
   type PlanModuleCard,
@@ -80,12 +84,15 @@ export interface PlanSelection {
 export const DEFAULT_SELECTION: PlanSelection = { plan: "starter", addons: [] };
 
 /** The recurring monthly total for a selection, in whole USD. */
-export function monthlyTotalDollars(selection: PlanSelection): number {
+export function monthlyTotalDollars(
+  selection: PlanSelection,
+  currency: BillingCurrency = "usd",
+): number {
   return SELLABLE_ADDON_CARDS.filter((card) =>
     selection.addons.includes(card.id),
   ).reduce(
     (sum, card) => sum + addonMonthlyDollars(card),
-    PLAN_PRICING[selection.plan].monthlyDollars,
+    PLAN_PRICE_CENTS[currency][selection.plan] / 100,
   );
 }
 
@@ -94,13 +101,25 @@ export function monthlyTotalDollars(selection: PlanSelection): number {
  * registration fee. ALWAYS presented as a separate line next to the monthly
  * figure, never rolled into it (owner ruling).
  */
-export function firstMonthTotalDollars(selection: PlanSelection): number {
-  return monthlyTotalDollars(selection) + US_REGISTRATION_FEE_DOLLARS;
+export function firstMonthTotalDollars(
+  selection: PlanSelection,
+  currency: BillingCurrency = "usd",
+): number {
+  return (
+    monthlyTotalDollars(selection, currency) +
+    US_REGISTRATION_FEE_CENTS[currency] / 100
+  );
 }
 
 /** "$29" / "$1,234" (whole-dollar USD; totals here are always whole). */
-export function usd(n: number): string {
-  return `$${n.toLocaleString("en-US")}`;
+/**
+ * #328 — money in the reader's own currency.
+ *
+ * Still named `usd` at call sites it has not reached yet; the default keeps
+ * those correct while the currency threads through.
+ */
+export function usd(n: number, currency: BillingCurrency = "usd"): string {
+  return formatMoney(Math.round(n * 100), currency);
 }
 
 /**

@@ -13,6 +13,33 @@
  *
  * "Helps you follow CASL", never "CASL-compliant". US data residency stated,
  * not buried. Every number is a verified product/billing fact.
+ *
+ * # #328: this page does NOT force CAD, and the figures are not typed
+ *
+ * Every price here renders through `<PlanPrice>` / `<RegistrationFee>`, which
+ * read the ONE site-wide country context. That context is what the nav
+ * selector moves, and it is deliberately not overridden here even though this
+ * page's reader is definitionally Canadian.
+ *
+ * The reason is that the nav CountrySelector is on screen while this page is.
+ * Pinning the body to CAD would put a page-local currency in plain view of a
+ * control reading "US", and the shared `PricingSnippet` around the CTAs would
+ * still branch its guarantee microcopy on the context, so a single card would
+ * carry Canadian figures beside the US registration-fee sentence. Owner ruling
+ * v1 is one country for the whole marketing app, and a second, page-local
+ * source of truth is the exact disagreement that ruling exists to prevent.
+ *
+ * A visitor who arrived by typing /canada has told us something the context
+ * does not know, and the home for that is the country signal itself (adopting
+ * "ca" for a visitor who has not chosen yet), not a currency override in this
+ * file. That is a change to site-wide behaviour and belongs to whoever owns
+ * the context.
+ *
+ * The billing STATEMENTS below are therefore worded as facts about Canadian
+ * workspaces rather than about "you", so they read true in either branch and
+ * need no CountryText split. That also fixes what was here before: this page
+ * said "Billing is in USD for now, CAD billing is coming", in three places,
+ * which #328 has now made false.
  */
 
 import { Check } from "lucide-react";
@@ -32,6 +59,10 @@ import {
   TruthStripSection,
 } from "@/components/marketing/features/feature-page";
 import { ConsentVisual } from "@/components/marketing/features/consent-visual";
+import {
+  PlanPrice,
+  RegistrationFee,
+} from "@/components/marketing/pricing/plan-price";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 
 const PATH = "/canada";
@@ -39,7 +70,12 @@ const PATH = "/canada";
 export const metadata: Metadata = buildMetadata({
   title: "Business texting in Canada: text customers today",
   description:
-    "Canadian crews text customers the day they sign up. No US carrier registration to wait on, local numbers in every province, CASL-aware consent records. $29/mo flat.",
+    // #328: no figure. A description is one string per URL, and the rendered
+    // page follows the site-wide country toggle, so a typed number here would
+    // be the one price a reader could see in the search snippet and not on the
+    // page. The currency itself IS worth saying: it is the differentiator this
+    // URL exists for, and it is true of a Canadian workspace whoever reads it.
+    "Canadian crews text customers the day they sign up. No US carrier registration to wait on, local numbers in every province, CASL-aware consent records. Billed in Canadian dollars, one flat price for the crew.",
   path: PATH,
 });
 
@@ -172,7 +208,16 @@ export default function CanadaPage() {
       <FeatureHero
         dateline="DAY ONE · NO WAIT"
         title="In Canada? You can text customers today."
-        sub="The US phone-company registration that makes American shops wait about a week doesn't apply to a Canadian business texting Canadian customers. So on Loonext, you pick a local number, invite the crew, and start texting the same day you sign up. One shared inbox, $29 a month for the whole team, flat."
+        sub={
+          <>
+            The US phone-company registration that makes American shops wait
+            about a week doesn&apos;t apply to a Canadian business texting
+            Canadian customers. So on Loonext, you pick a local number, invite
+            the crew, and start texting the same day you sign up. One shared
+            inbox, <PlanPrice plan="starter" /> a month for the whole team,
+            flat.
+          </>
+        }
         panel={<FlippedTimeline />}
       />
 
@@ -262,10 +307,10 @@ export default function CanadaPage() {
         <p>
           Plenty of Canadian shops have customers, suppliers, or a second
           location across the border. When you&apos;re ready, enable US
-          texting from settings: the one-time $29 registration fee and the
-          3 to 7 business day carrier approval apply then, the same wait US
-          shops have. Until you enable it, you never pay the fee and never
-          wait, and everything you&apos;ve built stays exactly as it is.
+          texting from settings: the one-time <RegistrationFee /> registration
+          fee and the 3 to 7 business day carrier approval apply then, the same
+          wait US shops have. Until you enable it, you never pay the fee and
+          never wait, and everything you&apos;ve built stays exactly as it is.
         </p>
         <p>
           And a plain word about where your data lives: it&apos;s stored and
@@ -283,7 +328,12 @@ export default function CanadaPage() {
             good: true,
           },
           {
-            text: "Billing is in USD for now, plus tax. CAD billing is coming; until it's real, we won't pretend otherwise.",
+            // #328 replaced the "billing is in USD for now, CAD is coming"
+            // line this strip used to carry. It is stated about a Canadian
+            // workspace rather than about "you", so it stays true whichever
+            // branch the site-wide country toggle is on.
+            text: "A Canadian workspace is billed in Canadian dollars, plus tax. The price doesn't move with the exchange rate, and a Canadian card picks up no foreign-transaction fee.",
+            good: true,
           },
           {
             text: "Your data is stored in the United States, and the privacy policy says so plainly.",
@@ -293,16 +343,18 @@ export default function CanadaPage() {
 
       <PricingSnippet>
         <p>
-          Same flat price as everyone: $29/mo on Starter for up to 3 people
-          and one local number, $79/mo on Pro for up to 15 people and two
+          The same flat plans as everyone: <PlanPrice plan="starter" />/mo on
+          Starter for up to 3 people and one local number,{" "}
+          <PlanPrice plan="pro" />/mo on Pro for up to 15 people and two
           numbers. Receiving texts is always free and unlimited, month to
           month.
         </p>
         <p>
           A Canadian business texting Canadian customers pays no registration
-          fee and waits for nothing. The one-time $29 fee and the 3 to 7
-          business day approval only ever apply if you choose to enable US
-          texting later. Prices in USD, plus sales tax where it applies.
+          fee and waits for nothing. The one-time <RegistrationFee /> fee and
+          the 3 to 7 business day approval only ever apply if you choose to
+          enable US texting later. A Canadian workspace is billed in Canadian
+          dollars, plus sales tax where it applies.
         </p>
       </PricingSnippet>
 
@@ -354,7 +406,7 @@ export default function CanadaPage() {
           },
           {
             q: "I bill in Canada. Can I pay in Canadian dollars?",
-            a: "Not yet. Prices are in USD for now, so your card is charged in US dollars and your bank handles the conversion. CAD billing is coming, and we'd rather tell you that now than surprise you at checkout.",
+            a: "Yes. A Canadian workspace is billed in Canadian dollars, so the amount on your statement is the amount on the page, your bank isn't converting anything, and the bill doesn't drift up and down with the exchange rate. The currency comes from your country when you subscribe and is fixed on the subscription from then on, so switching it later is a support conversation rather than a setting.",
           },
         ]}
       />

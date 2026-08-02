@@ -25,6 +25,11 @@
  * buttons for the add-ons, and an aria-live receipt.
  */
 
+import { PLAN_PRICE_CENTS } from "@loonext/shared";
+import {
+  currencyForCountry,
+  US_REGISTRATION_FEE_CENTS,
+} from "@loonext/shared";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
   trackPlanBuilderViewed,
@@ -36,7 +41,6 @@ import { CtaButton } from "@/components/marketing/fr";
 import { PRIMARY_CTA_LABEL } from "@/components/marketing/nav-links";
 import type { Plan } from "@/app/(marketing)/pricing/pricing-data";
 import {
-  US_REGISTRATION_FEE_DOLLARS,
   type PlanId,
   type PlanModule,
 } from "@/lib/api/types";
@@ -113,7 +117,7 @@ function Switch({ on }: { on: boolean }) {
   );
 }
 
-export function PlanBuilder({ plans }: { plans: Plan[] }) {
+export function PlanBuilder({ plans: plansProp }: { plans: Plan[] }) {
   const { country } = useCountry();
   const [plan, setPlan] = useState<PlanId>(DEFAULT_SELECTION.plan);
   const planRefs = useRef<Partial<Record<PlanId, HTMLButtonElement | null>>>({});
@@ -129,8 +133,21 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
   }, []);
 
   const selection = { plan, addons };
-  const monthly = monthlyTotalDollars(selection);
-  const firstMonth = firstMonthTotalDollars(selection);
+  // #328: the receipt is denominated in what this visitor will actually be
+  // charged. The country toggle above is already the signal — a Canadian who
+  // has told us where they are should not also have to pick a currency.
+  const currency = currencyForCountry(country === "ca" ? "CA" : "US");
+  // The plan CARDS come from a prop the caller built once, in USD. Their
+  // names and feature lists are currency-neutral; their prices are not, and a
+  // card reading $29 above a receipt reading $39 is the page contradicting its
+  // own toggle. Repriced here rather than asking every caller to pass two
+  // lists.
+  const plans = plansProp.map((p) => ({
+    ...p,
+    price: usd(PLAN_PRICE_CENTS[currency][p.id] / 100, currency),
+  }));
+  const monthly = monthlyTotalDollars(selection, currency);
+  const firstMonth = firstMonthTotalDollars(selection, currency);
   const chosenPlan = plans.find((p) => p.id === plan) ?? plans[0];
 
   function toggleAddon(id: PlanModule) {
@@ -349,7 +366,7 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
                   {card.label}
                 </dt>
                 <dd className="fr-mono-data text-[color:var(--fr-ink)]">
-                  + {usd(addonMonthlyDollars(card))}/mo
+                  + {usd(addonMonthlyDollars(card), currency)}/mo
                 </dd>
               </div>
             ))}
@@ -360,7 +377,7 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
               Every month
             </span>
             <span className="fr-figure text-[color:var(--fr-ink)]">
-              {usd(monthly)}
+              {usd(monthly, currency)}
               <span className="fr-mono-data ml-1 text-[color:var(--fr-ink-55)]">
                 /mo
               </span>
@@ -380,7 +397,7 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
                   One-time US registration, first month only
                 </dt>
                 <dd className="fr-mono-data text-[color:var(--fr-ink)]">
-                  + {usd(US_REGISTRATION_FEE_DOLLARS)}
+                  + {usd(US_REGISTRATION_FEE_CENTS[currency] / 100, currency)}
                 </dd>
               </div>
               <div className="flex items-baseline justify-between gap-4">
@@ -388,7 +405,7 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
                   First month, US shops
                 </dt>
                 <dd className="fr-mono-data font-medium text-[color:var(--fr-ink)]">
-                  {usd(firstMonth)}
+                  {usd(firstMonth, currency)}
                 </dd>
               </div>
             </dl>
@@ -397,7 +414,7 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
               <GreenTick />
               <p className="text-[0.875rem] leading-relaxed text-[color:var(--fr-ink)]">
                 No registration fee in Canada. Your first month is{" "}
-                {usd(monthly)}, the same as every month after, and texting
+                {usd(monthly, currency)}, the same as every month after, and texting
                 Canadian customers works the same day.
               </p>
             </div>
@@ -410,16 +427,17 @@ export function PlanBuilder({ plans }: { plans: Plan[] }) {
           </p>
         ) : (
           <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
-            Prices in USD, plus sales tax where it applies. CAD billing
-            isn&apos;t here yet, so your card is charged in USD for now and your
-            bank converts it.
+            {/* #328: this used to say CAD billing wasn't here yet. It is. */}
+            Prices in Canadian dollars, plus sales tax where it applies. Your
+            card is charged in CAD, so the amount does not move with the
+            exchange rate.
           </p>
         )}
 
         <CtaButton
           href={signupHref(selection)}
           className="mt-6 w-full"
-          ariaLabel={`${PRIMARY_CTA_LABEL}: start with ${chosenPlan.name} at ${usd(monthly)} a month`}
+          ariaLabel={`${PRIMARY_CTA_LABEL}: start with ${chosenPlan.name} at ${usd(monthly, currency)} a month`}
         >
           {PRIMARY_CTA_LABEL}
         </CtaButton>

@@ -17,16 +17,30 @@
 
 import { useId, useState } from "react";
 
+import { formatMoney, type BillingCurrency } from "@loonext/shared";
+
 import { MonoFigure } from "@/components/marketing/fr";
+import {
+  PlanPrice,
+  useMarketingCurrency,
+} from "@/components/marketing/pricing/plan-price";
 
 const WEEKS_PER_MONTH = 4.33;
 
-function usd(n: number): string {
-  return n.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  });
+/**
+ * The visitor's own dollars, in the currency their country implies (#328).
+ *
+ * ONE currency across the whole card, deliberately. The job value they type,
+ * the monthly figure we multiply out of it, and the plan price at the bottom
+ * are set against each other in the same sentence, so a Canadian reading a CAD
+ * plan price under a USD loss would be comparing two different things — and it
+ * would look right, because both start with a "$".
+ *
+ * It used to say `currency: "USD"` outright, which was a claim about somebody
+ * else's money: these are the reader's numbers, not a price of ours.
+ */
+function money(dollars: number, currency: BillingCurrency): string {
+  return formatMoney(Math.round(dollars * 100), currency);
 }
 
 /** A labelled numeric field with a range slider + exact number input. */
@@ -94,6 +108,7 @@ export function MissedTextCalculator() {
   const [missed, setMissed] = useState(5);
   const [ratePct, setRatePct] = useState(25);
   const [value, setValue] = useState(250);
+  const currency = useMarketingCurrency();
 
   const rate = ratePct / 100;
   const weekly = missed * rate * value;
@@ -137,7 +152,7 @@ export function MissedTextCalculator() {
           </span>
           {/* The one Flare display element (§3.4.3): 48px+, bold, mono. */}
           <MonoFigure
-            value={usd(monthly)}
+            value={money(monthly, currency)}
             suffix="a month"
             tone="flare"
             className="mt-1"
@@ -148,15 +163,17 @@ export function MissedTextCalculator() {
         </p>
         {/* The formula, always visible: we show our work (§S8). */}
         <p className="fr-mono-data mt-3 text-[0.8125rem] text-[color:var(--fr-ink-55)]">
-          {missed} × {ratePct}% × {usd(value)} × 4.33 weeks
+          {missed} × {ratePct}% × {money(value, currency)} × 4.33 weeks
         </p>
       </div>
 
       <p className="mt-4 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
         This is arithmetic on your numbers, not a claim of ours. Change any of
         them. We only multiply what you type. That&apos;s{" "}
-        <span className="fr-mono-data text-[color:var(--fr-ink)]">$29</span> a
-        month against the figure above.
+        <span className="fr-mono-data text-[color:var(--fr-ink)]">
+          <PlanPrice plan="starter" />
+        </span>{" "}
+        a month against the figure above.
       </p>
     </div>
   );

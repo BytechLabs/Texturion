@@ -14,6 +14,7 @@ import type { Metadata } from "next";
 
 import { CountryText } from "@/components/marketing/country";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
 import { SALONS_SCRIPT } from "@/components/marketing/trades/scripts";
@@ -22,10 +23,18 @@ import { ACTIVATION_CHIP, ACTIVATION_CLAIM } from "@/lib/marketing/activation";
 
 const PATH = "/for/salons";
 
+/**
+ * #328 — the snippet keeps the claim and drops the figure. A
+ * `metadata.description` is one string per URL, baked at build time, and the
+ * visitor's country is a client-side choice, so it cannot say $29 to an
+ * American and $39 to a Canadian. Everything in `CONTENT` below can, and does.
+ * Same call `lib/marketing/activation.ts` made for the same class of string;
+ * the reasoning is written out in full on `/for/plumbers`, the master page.
+ */
 export const metadata: Metadata = buildMetadata({
   title: "Text messaging for salons and barbershops",
   description:
-    "One business line for salons: confirm appointments to cut no-shows, fill cancellations from your waitlist, and answer the booking calls as a floor. Texts, calls and voicemail, flat $29/mo.",
+    "One business line for salons: confirm appointments to cut no-shows, fill cancellations from your waitlist, and answer the booking calls as a floor. Texts, calls and voicemail, one flat price for the floor.",
   path: PATH,
 });
 
@@ -35,8 +44,13 @@ const CONTENT: TradeContent = {
 
   dateline: "11:20 AM · RUNNING LATE",
   h1: "A front desk, even if you don't have one.",
-  heroSub:
-    "A running-late text only helps if somebody sees it before the chair sits empty, and a booking call only helps if somebody picks it up. Loonext gives the whole floor one line, so confirmations, reschedules and waitlist fills get handled by whoever is free, not whoever's phone it landed on. $29 a month for the whole salon.",
+  heroSub: (
+    <>
+      {"A running-late text only helps if somebody sees it before the chair sits empty, and a booking call only helps if somebody picks it up. Loonext gives the whole floor one line, so confirmations, reschedules and waitlist fills get handled by whoever is free, not whoever's phone it landed on. "}
+      <PlanPrice plan="starter" />
+      {" a month for the whole salon."}
+    </>
+  ),
   heroTruth:
     `One inbox for the whole floor · ${ACTIVATION_CHIP} · Month to month`,
 
@@ -126,9 +140,19 @@ const CONTENT: TradeContent = {
     },
   ],
 
-  pricingH2: "$29 a month for the whole salon.",
-  pricingBody:
-    "Starter covers 3 people, 1 local number, and texting sized for confirming a full book and working a waitlist on a fair-use basis, not a hard cap; a plain confirmation counts as one text, and the composer shows the count before you send. More chairs, or a second location? Pro is $79 for up to 15 people and a second number to keep two shops separate.",
+  pricingH2: (
+    <>
+      <PlanPrice plan="starter" />
+      {" a month for the whole salon."}
+    </>
+  ),
+  pricingBody: (
+    <>
+      {"Starter covers 3 people, 1 local number, and texting sized for confirming a full book and working a waitlist on a fair-use basis, not a hard cap; a plain confirmation counts as one text, and the composer shows the count before you send. More chairs, or a second location? Pro is "}
+      <PlanPrice plan="pro" />
+      {" for up to 15 people and a second number to keep two shops separate."}
+    </>
+  ),
 
   faqH2: "Salon questions, straight answers.",
   faqs: [

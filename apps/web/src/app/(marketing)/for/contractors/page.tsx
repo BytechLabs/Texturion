@@ -17,6 +17,7 @@ import Link from "next/link";
 
 import { CountryText } from "@/components/marketing/country";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
 import { CONTRACTORS_SCRIPT } from "@/components/marketing/trades/scripts";
@@ -25,10 +26,18 @@ import { ACTIVATION_CHIP, ACTIVATION_CLAIM } from "@/lib/marketing/activation";
 
 const PATH = "/for/contractors";
 
+/**
+ * #328 — the snippet keeps the claim and drops the figure. A
+ * `metadata.description` is one string per URL, baked at build time, and the
+ * visitor's country is a client-side choice, so it cannot say $29 to an
+ * American and $39 to a Canadian. Everything in `CONTENT` below can, and does.
+ * Same call `lib/marketing/activation.ts` made for the same class of string;
+ * the reasoning is written out in full on `/for/plumbers`, the master page.
+ */
 export const metadata: Metadata = buildMetadata({
   title: "Texting app for contractors and builders",
   description:
-    "One business line for contractors: change orders priced and approved in writing, subs coordinated on your business number, off your personal cell. Texts, calls and voicemail, flat $29/mo.",
+    "One business line for contractors: change orders priced and approved in writing, subs coordinated on your business number, off your personal cell. Texts, calls and voicemail, one flat price for the crew.",
   path: PATH,
 });
 
@@ -38,8 +47,13 @@ const CONTENT: TradeContent = {
 
   dateline: "8:02 AM · CHANGE ORDER",
   h1: "One line for the whole contracting crew.",
-  heroSub:
-    "The homeowner's change request is worth real money, if it lands where the crew can see it and gets approved in writing. Loonext gives the client, the GC and the subs one business number to text or call, and the crew one shared inbox, so every decision is on the record and every job that comes out of it has an owner. $29 a month.",
+  heroSub: (
+    <>
+      {"The homeowner's change request is worth real money, if it lands where the crew can see it and gets approved in writing. Loonext gives the client, the GC and the subs one business number to text or call, and the crew one shared inbox, so every decision is on the record and every job that comes out of it has an owner. "}
+      <PlanPrice plan="starter" />
+      {" a month."}
+    </>
+  ),
   heroTruth:
     `Job texts off your personal cell · ${ACTIVATION_CHIP} · Month to month`,
 
@@ -128,9 +142,19 @@ const CONTENT: TradeContent = {
     },
   ],
 
-  pricingH2: "$29 a month for the whole crew.",
-  pricingBody:
-    "Starter covers 3 people, 1 local number, and texting sized for a small crew running a couple of jobs on a fair-use basis, not a hard cap, and the composer shows the count before you send. Running a bigger crew with subs, or want the office and the field on separate lines? Pro is $79 for up to 15 people and 2 numbers.",
+  pricingH2: (
+    <>
+      <PlanPrice plan="starter" />
+      {" a month for the whole crew."}
+    </>
+  ),
+  pricingBody: (
+    <>
+      {"Starter covers 3 people, 1 local number, and texting sized for a small crew running a couple of jobs on a fair-use basis, not a hard cap, and the composer shows the count before you send. Running a bigger crew with subs, or want the office and the field on separate lines? Pro is "}
+      <PlanPrice plan="pro" />
+      {" for up to 15 people and 2 numbers."}
+    </>
+  ),
   truthLines: [
     {
       text: (

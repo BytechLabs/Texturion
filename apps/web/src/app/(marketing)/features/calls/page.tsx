@@ -28,6 +28,7 @@ import type { Metadata } from "next";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { PanelFrame } from "@/components/marketing/fr";
 import { CallVisual } from "@/components/marketing/features/call-visual";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import {
   FeatureCta,
   FeatureFaq,
@@ -46,7 +47,10 @@ const PATH = "/features/calls";
 export const metadata: Metadata = buildMetadata({
   title: "Calls and voicemail on your business number",
   description:
-    "Incoming calls ring your whole crew in the app, so whoever is free answers. Missed callers leave a voicemail you can read and get a text back. Included on every plan, $29/mo flat for the team.",
+    // #328: no figure. A description is one string per URL and the price a
+    // reader should see depends on their country, so quoting either one would
+    // put a number in the search snippet that the page itself may contradict.
+    "Incoming calls ring your whole crew in the app, so whoever is free answers. Missed callers leave a voicemail you can read and get a text back. Included on every plan, at one flat price for the team.",
   path: PATH,
 });
 
@@ -166,9 +170,10 @@ export default function CallsPage() {
 
       <PricingSnippet>
         <p>
-          Calling costs nothing extra: $29/mo on Starter covers up to 3 people
-          and $79/mo on Pro covers up to 15, and calls are included at both
-          prices. Minutes work the way texting does, on a fair-use basis rather
+          Calling costs nothing extra: <PlanPrice plan="starter" />/mo on
+          Starter covers up to 3 people and <PlanPrice plan="pro" />/mo on Pro
+          covers up to 15, and calls are included at both prices. Minutes work
+          the way texting does, on a fair-use basis rather
           than a hard cap, with a spending limit you set and an email at 80%
           and again at 100% before a single paid minute is billed. The concrete
           numbers live in our{" "}

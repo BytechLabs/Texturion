@@ -5,8 +5,21 @@ import {
   LegalPage,
   LegalSectionBlock,
 } from "@/components/marketing/legal/legal-page";
+import { RegistrationFee } from "@/components/marketing/pricing/plan-price";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
 import { buildMetadata } from "@/lib/marketing/seo";
+
+/**
+ * #328 — the one figure on this page is the registration fee, and it is the
+ * figure a refund promise is measured against. It now comes from
+ * `US_REGISTRATION_FEE_CENTS` via <RegistrationFee>, which follows the
+ * site-wide country: a Canadian workspace that turned on US texting paid the
+ * CAD amount, and the guarantee has to name what they actually paid.
+ *
+ * The "if you paid it" clause carries the rest: the fee only exists for a
+ * workspace that enabled US texting, which is why this sentence does not need
+ * a country branch the way the terms page's currency line does.
+ */
 
 const PATH = "/legal/refunds";
 const LAST_UPDATED = "July 3, 2026";
@@ -40,9 +53,10 @@ export default function RefundsPage() {
         <p>
           If Loonext isn&apos;t right for your crew, tell us within 30 days of
           signing up and we&apos;ll refund your first invoice in full, the
-          subscription and, if you paid it, the one-time $29 registration fee.
-          No &quot;minus credits used&quot;: the texts you sent during those 30
-          days are on us. No forms, no retention call. The guarantee covers the
+          subscription and, if you paid it, the one-time <RegistrationFee />{" "}
+          registration fee. No &quot;minus credits used&quot;: the texts you sent
+          during those 30 days are on us. No forms, no retention call. The
+          guarantee covers the
           first 30 days of your first Loonext subscription; it doesn&apos;t
           reset if you cancel and come back later. It is also part of our{" "}
           <LegalLink href="/legal/terms">terms of service</LegalLink>.

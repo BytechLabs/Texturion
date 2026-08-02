@@ -18,6 +18,11 @@ import { CountryOnly } from "@/components/marketing/country";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { PanelFrame } from "@/components/marketing/fr";
 import {
+  FirstMonthTotal,
+  PlanPrice,
+  RegistrationFee,
+} from "@/components/marketing/pricing/plan-price";
+import {
   FeatureCta,
   FeatureFaq,
   FeatureHero,
@@ -202,19 +207,22 @@ export default function TemplatesAndTagsPage() {
         <p>
           Saved replies, tags, statuses, done-marks, search, CSV import, and
           contact notes are included on every plan. There&apos;s no workflow
-          upsell: Starter is $29/mo for up to 3 people, Pro is $79/mo for up to
-          15 and a second number.
+          upsell: Starter is <PlanPrice plan="starter" />/mo for up to 3 people,
+          Pro is <PlanPrice plan="pro" />/mo for up to 15 and a second number.
         </p>
         <CountryOnly country="us">
           <p>
-            US shops pay a one-time $29 to register with the phone companies,
-            once, ever, so the first month is $58 and every month after is $29.
+            US shops pay a one-time <RegistrationFee /> to register with the
+            phone companies, once, ever, so the first month is{" "}
+            <FirstMonthTotal plan="starter" /> and every month after is{" "}
+            <PlanPrice plan="starter" />.
           </p>
         </CountryOnly>
         <CountryOnly country="ca">
           <p>
-            Texting Canadian customers has no registration and no setup fee, so
-            $29 is $29 from your first month on.
+            Texting Canadian customers has no registration and no setup fee, so{" "}
+            <PlanPrice plan="starter" /> is <PlanPrice plan="starter" /> from
+            your first month on.
           </p>
         </CountryOnly>
       </PricingSnippet>

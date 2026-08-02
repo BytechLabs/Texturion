@@ -8,7 +8,7 @@
  *  - Hero         S1  #tonight      9:04 dateline, LCP H1, the Arrival Field
  *                                   (the site's ONLY live canvas, Law 3)
  *                                   docking into the real inbox
- *  - TruthBar     S2                $29 display figure + the three chips
+ *  - TruthBar     S2                the Starter display figure + three chips
  *  - Pattern      S3  #after-dark   the three pain cards (Frost band)
  *  - FixShown     S4  #see-it-work  the steppable water-heater thread in the
  *                                   product frame (app tokens, Law 2)
@@ -30,6 +30,7 @@
  * hardcode image URLs here.
  */
 
+import { formatMoney, PLAN_PRICE_CENTS } from "@loonext/shared";
 import type { Metadata } from "next";
 
 import { HomeJsonLd } from "@/components/marketing/home-json-ld";
@@ -47,9 +48,33 @@ import { TruthBar } from "@/components/marketing/home/truth-bar";
 import { buildMetadata } from "@/lib/marketing/seo";
 import { absoluteUrl } from "@/lib/marketing/site";
 
+/**
+ * #328 — the ONE price figure on this page that cannot follow the visitor.
+ *
+ * Everything the page RENDERS (the truth bar, the plan cards, the calculator)
+ * reads the site-wide country and shows CAD to a Canadian. Metadata cannot:
+ * `metadata` is evaluated on the server, once, for one URL, and the country
+ * signal is a client-side choice in localStorage. There is nothing to read.
+ *
+ * Three ways out, and why this is the one:
+ *   - Geo-detect in `generateMetadata` from the Cloudflare country header.
+ *     Rejected. It is a SECOND country signal that would disagree with the
+ *     first — a visitor who told us "Canada" would get a CAD page under a USD
+ *     description, or the reverse — and it makes the LCP page dynamic. Worse,
+ *     the requests that matter most here come from link scrapers on datacentre
+ *     IPs, whose country means nothing.
+ *   - Drop the figure. It is the strongest hook in the description ("flat for
+ *     the team, not per user" only lands attached to a number).
+ *   - Pin it to USD and derive it. What we do. The figure is still wrong for a
+ *     Canadian reading a SERP snippet, but it is wrong by one currency rather
+ *     than wrong forever: when the USD price moves, this moves with it.
+ */
+const STARTER_USD = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd");
+
 const OG_TITLE = "Somebody texted your business at 9:04 last night.";
 const OG_DESCRIPTION =
-  "Loonext gives your business a local number and one shared inbox for the texts and calls that reach it, answered by whoever on the crew is free. $29 a month flat for the team, not per user.";
+  "Loonext gives your business a local number and one shared inbox for the texts and calls that reach it, answered by whoever on the crew is free. " +
+  `${STARTER_USD} a month flat for the team, not per user.`;
 
 export const metadata: Metadata = {
   ...buildMetadata({
@@ -62,7 +87,8 @@ export const metadata: Metadata = {
     // line most buyers ever read about what this is.
     title: "Loonext: the shared line for service crews",
     description:
-      "One business number for texts and calls, in an inbox the whole crew works from any phone. Reply, answer, assign, turn it into a job, close it. $29 a month flat for the team, not per user.",
+      "One business number for texts and calls, in an inbox the whole crew works from any phone. Reply, answer, assign, turn it into a job, close it. " +
+      `${STARTER_USD} a month flat for the team, not per user.`,
     path: "/",
     absoluteTitle: true,
   }),

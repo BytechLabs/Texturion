@@ -12,6 +12,7 @@ import type { Metadata } from "next";
 
 import { CountryText } from "@/components/marketing/country";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
 import { LANDSCAPERS_SCRIPT } from "@/components/marketing/trades/scripts";
@@ -20,10 +21,18 @@ import { ACTIVATION_CHIP, ACTIVATION_CLAIM } from "@/lib/marketing/activation";
 
 const PATH = "/for/landscapers";
 
+/**
+ * #328 — the snippet keeps the claim and drops the figure. A
+ * `metadata.description` is one string per URL, baked at build time, and the
+ * visitor's country is a client-side choice, so it cannot say $29 to an
+ * American and $39 to a Canadian. Everything in `CONTENT` below can, and does.
+ * Same call `lib/marketing/activation.ts` made for the same class of string;
+ * the reasoning is written out in full on `/for/plumbers`, the master page.
+ */
 export const metadata: Metadata = buildMetadata({
   title: "Texting software for landscaping businesses",
   description:
-    "One business line for landscaping crews: quote from a yard photo, keep every gate code with the property, reschedule around the weather. Texts, calls and voicemail, flat $29/mo.",
+    "One business line for landscaping crews: quote from a yard photo, keep every gate code with the property, reschedule around the weather. Texts, calls and voicemail, one flat price for the crew.",
   path: PATH,
 });
 
@@ -33,8 +42,13 @@ const CONTENT: TradeContent = {
 
   dateline: "7:15 AM · GATE LOCKED",
   h1: "One line for the whole landscaping crew.",
-  heroSub:
-    "The crew is at the gate, the gate is locked, and the code is in a thread on somebody's day off. Loonext puts every gate code, reschedule, and add-on ask on one business number the whole company works from, calls included. $29 a month.",
+  heroSub: (
+    <>
+      {"The crew is at the gate, the gate is locked, and the code is in a thread on somebody's day off. Loonext puts every gate code, reschedule, and add-on ask on one business number the whole company works from, calls included. "}
+      <PlanPrice plan="starter" />
+      {" a month."}
+    </>
+  ),
   heroTruth:
     `One inbox for every property · ${ACTIVATION_CHIP} · No busy-season lock-in`,
 
@@ -123,9 +137,19 @@ const CONTENT: TradeContent = {
     },
   ],
 
-  pricingH2: "$29 a month, flat. Even in April.",
-  pricingBody:
-    "Starter is 3 people, 1 local number, and texting sized for a working crew on a fair-use basis, not a hard cap. The spring rush is fine: past your included texting, extra texts bill at a small per-text rate with a cap you control, and the composer shows the count before you send. Add seasonal crew on Pro at $79 for up to 15 people and a second number, then drop back when the season winds down.",
+  pricingH2: (
+    <>
+      <PlanPrice plan="starter" />
+      {" a month, flat. Even in April."}
+    </>
+  ),
+  pricingBody: (
+    <>
+      {"Starter is 3 people, 1 local number, and texting sized for a working crew on a fair-use basis, not a hard cap. The spring rush is fine: past your included texting, extra texts bill at a small per-text rate with a cap you control, and the composer shows the count before you send. Add seasonal crew on Pro at "}
+      <PlanPrice plan="pro" />
+      {" for up to 15 people and a second number, then drop back when the season winds down."}
+    </>
+  ),
 
   faqH2: "Landscaper questions, straight answers.",
   faqs: [
@@ -135,7 +159,15 @@ const CONTENT: TradeContent = {
     },
     {
       q: "We add crew for the season. Do we pay per person?",
-      a: "No per-user fee, ever. Starter covers 3 people for $29; when you scale up for the busy months, Pro is $79 for up to 15. Drop back down between seasons, since it's month to month.",
+      a: (
+        <>
+          {"No per-user fee, ever. Starter covers 3 people for "}
+          <PlanPrice plan="starter" />
+          {"; when you scale up for the busy months, Pro is "}
+          <PlanPrice plan="pro" />
+          {" for up to 15. Drop back down between seasons, since it's month to month."}
+        </>
+      ),
     },
     {
       q: "Can the whole crew see a property's address and gate code?",

@@ -27,6 +27,11 @@ import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { PanelFrame } from "@/components/marketing/fr";
 import { CountryOnly, CountryText } from "@/components/marketing/country";
 import {
+  FirstMonthTotal,
+  PlanPrice,
+  RegistrationFee,
+} from "@/components/marketing/pricing/plan-price";
+import {
   FeatureCta,
   FeatureFaq,
   FeatureHero,
@@ -297,21 +302,24 @@ export default function CompliancePage() {
         <p>
           Compliance handling is part of every plan. There&apos;s no separate
           carrier or compliance line item on your bill, ever: the recurring
-          carrier campaign fees are absorbed into the flat $29 or $79.
+          carrier campaign fees are absorbed into the flat{" "}
+          <PlanPrice plan="starter" /> or <PlanPrice plan="pro" />.
         </p>
         <CountryText
           us={
             <p>
-              The one exception for US shops is the one-time $29 to register
-              your business with the phone companies, charged once, ever, so the
-              first month is $58 and every month after is $29.
+              The one exception for US shops is the one-time <RegistrationFee />{" "}
+              to register your business with the phone companies, charged once,
+              ever, so the first month is <FirstMonthTotal plan="starter" /> and
+              every month after is <PlanPrice plan="starter" />.
             </p>
           }
           ca={
             <p>
               Texting Canadian customers needs no registration fee and no
-              approval wait, so your first month is the same flat $29 or $79 as
-              every month after.
+              approval wait, so your first month is the same flat{" "}
+              <PlanPrice plan="starter" /> or <PlanPrice plan="pro" /> as every
+              month after.
             </p>
           }
         />

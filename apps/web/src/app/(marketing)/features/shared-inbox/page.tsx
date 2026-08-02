@@ -20,6 +20,11 @@ import { CountryOnly } from "@/components/marketing/country";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { PanelFrame } from "@/components/marketing/fr";
 import {
+  FirstMonthTotal,
+  PlanPrice,
+  RegistrationFee,
+} from "@/components/marketing/pricing/plan-price";
+import {
   FeatureCta,
   FeatureFaq,
   FeatureHero,
@@ -38,7 +43,10 @@ const PATH = "/features/shared-inbox";
 export const metadata: Metadata = buildMetadata({
   title: "Shared text inbox for the whole crew",
   description:
-    "Every customer text, in one inbox the whole crew can see. Assign one owner per conversation, reply from any phone, search everything. $29/mo flat for the team.",
+    // #328: no figure. A description is one string per URL and the price a
+    // reader should see depends on their country, so quoting either one would
+    // put a number in the search snippet that the page itself may contradict.
+    "Every customer text, in one inbox the whole crew can see. Assign one owner per conversation, reply from any phone, search everything. One flat price for the team.",
   path: PATH,
 });
 
@@ -149,8 +157,9 @@ export default function SharedInboxPage() {
       <PricingSnippet>
         <p>
           The shared inbox is the whole product, at one flat price for the
-          whole crew: $29/mo on Starter for up to 3 people and one local
-          number, $79/mo on Pro for up to 15 people and two numbers. Texting is
+          whole crew: <PlanPrice plan="starter" />/mo on Starter for up to 3
+          people and one local number, <PlanPrice plan="pro" />/mo on Pro for up
+          to 15 people and two numbers. Texting is
           included on a fair-use basis rather than a hard cap, sized so almost
           every crew stays comfortably inside it, and receiving texts is
           always free and unlimited. The concrete numbers live in our{" "}
@@ -164,15 +173,17 @@ export default function SharedInboxPage() {
         </p>
         <CountryOnly country="us">
           <p>
-            US shops also pay a one-time $29 to register with the phone
-            companies, charged once, ever, so the first month is $58 and every
-            month after is $29.
+            US shops also pay a one-time <RegistrationFee /> to register with
+            the phone companies, charged once, ever, so the first month is{" "}
+            <FirstMonthTotal plan="starter" /> and every month after is{" "}
+            <PlanPrice plan="starter" />.
           </p>
         </CountryOnly>
         <CountryOnly country="ca">
           <p>
-            Texting Canadian customers has no registration and no setup fee, so
-            $29 is $29 from your first month on.
+            Texting Canadian customers has no registration and no setup fee, so{" "}
+            <PlanPrice plan="starter" /> is <PlanPrice plan="starter" /> from
+            your first month on.
           </p>
         </CountryOnly>
       </PricingSnippet>

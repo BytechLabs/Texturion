@@ -9,10 +9,40 @@ vi.mock("next/font/local", () => ({
 }));
 
 import {
+  formatMoney,
+  PLAN_PRICE_CENTS,
+  US_REGISTRATION_FEE_CENTS,
+  type BillingCurrency,
+} from "@loonext/shared";
+
+import {
   PLAN_MODULE_CARDS,
   PLAN_PRICING,
   US_REGISTRATION_FEE_DOLLARS,
 } from "@/lib/api/types";
+
+/**
+ * #328 — the expected figures, read from the same book the page reads.
+ *
+ * Deliberately NOT typed here. A test that spells out "$29" is a second copy of
+ * the price with a stricter enforcement mechanism than the first, and the repo
+ * has already been bitten by that shape: a guard pinning a literal becomes a
+ * CEILING, so the day the figure legitimately changes the test fails and the
+ * correction looks like the regression.
+ *
+ * What is worth pinning is the RELATIONSHIP: that each surface shows its own
+ * country's money, that the first month is the sum of its two parts, and that
+ * the Canada surfaces never quote a US figure.
+ */
+const planPrice = (plan: "starter" | "pro", currency: BillingCurrency) =>
+  formatMoney(PLAN_PRICE_CENTS[currency][plan], currency);
+const registrationFee = (currency: BillingCurrency) =>
+  formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency);
+const firstMonth = (plan: "starter" | "pro", currency: BillingCurrency) =>
+  formatMoney(
+    PLAN_PRICE_CENTS[currency][plan] + US_REGISTRATION_FEE_CENTS[currency],
+    currency,
+  );
 
 import PricingPage from "./page";
 
@@ -121,8 +151,12 @@ describe("/pricing rendered strings (Law 6)", () => {
 });
 
 describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
-  it("dateline states the $58-then-$29 US arithmetic from the constants", () => {
-    expect(PRICING_DATELINE).toBe("$58 FIRST MONTH (US) · $29 AFTER");
+  it("dateline states the first-month-then-monthly US arithmetic from the price book", () => {
+    expect(PRICING_DATELINE).toBe(
+      `${firstMonth("starter", "usd")} FIRST MONTH (US) · ${planPrice("starter", "usd")} AFTER`,
+    );
+    // The first-month figure is the SUM of its parts, which is the assertion
+    // worth having: both halves can be right while the total is stale.
     expect(PRICING_DATELINE).toContain(
       `$${PLAN_PRICING.starter.monthlyDollars + US_REGISTRATION_FEE_DOLLARS}`,
     );
@@ -172,9 +206,11 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
       (e) => e.term === "Register with the phone companies",
     );
     expect(registration?.figure).toBe(
-      `$${US_REGISTRATION_FEE_DOLLARS}, one time, ever`,
+      `${registrationFee("usd")}, one time, ever`,
     );
-    expect(registration?.detail).toContain("$58 your first month");
+    expect(registration?.detail).toContain(
+      `${firstMonth("starter", "usd")} your first month`,
+    );
     expect(registration?.detail).toContain("you won't pay it again");
 
     // #121: the overage row is the fair-use + cap story with no ¢ figure;
@@ -224,9 +260,28 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
     expect(whole?.detail).toContain("one optional add-on");
     expect(whole?.detail).toContain("no storage fees");
 
-    // The CAD honesty stays (deck: "we'd rather tell you now").
+    // #328: the tax row names the currency the US reader is charged in. The
+    // assertion it replaced required the phrase "CAD billing isn't here yet",
+    // which was true when it was written and became false the day CAD billing
+    // shipped. A guard pinning a retired fact does not catch drift, it BLOCKS
+    // the correction, so it is replaced rather than deleted: what is worth
+    // enforcing is that the row still names a currency at all.
     const tax = LEDGER.find((e) => e.term === "Tax");
-    expect(tax?.detail).toContain("CAD billing isn't here yet");
+    expect(tax?.detail).toContain("US dollars");
+    expect(tax?.detail).not.toContain("CAD billing isn't here yet");
+  });
+
+  it("prices the whole US ledger in USD (#328)", () => {
+    const plan = LEDGER.find((e) => e.term === "Your plan");
+    expect(plan?.figure).toBe(
+      `${planPrice("starter", "usd")} or ${planPrice("pro", "usd")}/mo`,
+    );
+    // And never leaks a Canadian figure into the US branch.
+    for (const entry of LEDGER) {
+      const row = `${entry.term} ${entry.figure ?? ""} ${entry.detail}`;
+      expect(row, entry.term).not.toContain(planPrice("starter", "cad"));
+      expect(row, entry.term).not.toContain(planPrice("pro", "cad"));
+    }
   });
 
   it('the "priced elsewhere" table keeps the dated July 2026 math and the sourced footnote', () => {
@@ -246,18 +301,23 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
 });
 
 describe("/pricing country split (owner ruling v1: no mixing, no US fee shown to Canada)", () => {
-  it("the US dateline keeps the $58-then-$29 arithmetic; the Canada dateline is the flat monthly price with no registration fee", () => {
-    expect(PRICING_DATELINE).toBe("$58 FIRST MONTH (US) · $29 AFTER");
-    expect(PRICING_DATELINE_CA).toBe(
-      `$${PLAN_PRICING.starter.monthlyDollars}/MO · NO REGISTRATION FEE`,
+  it("the US dateline keeps the first-month arithmetic; the Canada dateline is the flat CANADIAN monthly price with no registration fee", () => {
+    expect(PRICING_DATELINE).toBe(
+      `${firstMonth("starter", "usd")} FIRST MONTH (US) · ${planPrice("starter", "usd")} AFTER`,
     );
+    // #328: the chip a Canadian reader actually sees. This is the largest
+    // figure on the page for them, and it used to be the US one.
+    expect(PRICING_DATELINE_CA).toBe(
+      `${planPrice("starter", "cad")}/MO · NO REGISTRATION FEE`,
+    );
+    expect(PRICING_DATELINE_CA).not.toContain(planPrice("starter", "usd"));
     // The Canada dateline never surfaces the US-only first-month figure.
     expect(PRICING_DATELINE_CA).not.toContain(
       `$${PLAN_PRICING.starter.monthlyDollars + US_REGISTRATION_FEE_DOLLARS}`,
     );
   });
 
-  it("the Canada ledger drops the US registration row and never shows the $29 fee or $58 first month", () => {
+  it("the Canada ledger drops the US registration row and never shows the US fee or first-month figure", () => {
     const terms = LEDGER_CA.map((e) => e.term);
     expect(terms).not.toContain("Register with the phone companies");
     expect(terms).toContain("No registration, no setup fee");
@@ -289,18 +349,44 @@ describe("/pricing country split (owner ruling v1: no mixing, no US fee shown to
     expect(whole?.detail).toContain("No registration fee");
   });
 
-  it("the Canada ledger keeps the country-neutral rows byte-for-byte identical to the US ledger", () => {
+  /**
+   * #328 narrowed this. It used to require FIVE rows to be byte-for-byte equal
+   * across the two ledgers, which encoded "the price is the same in both
+   * countries" as a structural invariant. That was true and is now false, and a
+   * test asserting it would have made the correct change look like a break.
+   *
+   * The rows that carry no money still have to match exactly, because a
+   * divergence there IS a drift: nobody should be rewriting the storage
+   * sentence for one country. The rows that carry money are asserted below
+   * instead, on the property that actually matters.
+   */
+  it("the Canada ledger keeps the money-free rows byte-for-byte identical to the US ledger", () => {
     for (const term of [
-      "Your plan",
       "Extra texts",
       "Storage",
       "Optional add-ons, if you turn them on",
-      "Tax",
     ]) {
       expect(LEDGER_CA.find((e) => e.term === term)).toEqual(
         LEDGER.find((e) => e.term === term),
       );
     }
+  });
+
+  it("prices the Canada ledger in Canadian dollars, and never in US ones (#328)", () => {
+    const plan = LEDGER_CA.find((e) => e.term === "Your plan");
+    expect(plan?.figure).toBe(
+      `${planPrice("starter", "cad")} or ${planPrice("pro", "cad")}/mo`,
+    );
+    // The whole point: no US plan figure survives anywhere in the CA branch.
+    for (const entry of LEDGER_CA) {
+      const row = `${entry.term} ${entry.figure ?? ""} ${entry.detail}`;
+      expect(row, entry.term).not.toContain(planPrice("starter", "usd"));
+      expect(row, entry.term).not.toContain(planPrice("pro", "usd"));
+    }
+    // And the tax row says which money, rather than apologising for USD.
+    const tax = LEDGER_CA.find((e) => e.term === "Tax");
+    expect(tax?.detail).toContain("Canadian dollars");
+    expect(tax?.detail).not.toContain("CAD billing isn't here yet");
   });
 });
 
@@ -383,11 +469,39 @@ describe("/pricing FAQ (all nine, facts intact)", () => {
     }
   });
 
-  it("keeps the once-ever registration-fee promise", () => {
+  it("keeps the once-ever registration-fee promise, without a figure in the question", () => {
     const fee = FAQS.find(
-      (f) => f.q === "Will I ever pay the $29 registration fee twice?",
+      (f) => f.q === "Will I ever pay the registration fee twice?",
     );
     expect(fee?.a).toContain("once per company, ever");
+  });
+
+  /**
+   * #328 — the FAQ is the one block on this page that is NOT country-branched:
+   * both readers get the same nine answers. So no figure may appear in it,
+   * because any figure here is wrong for half the audience. The amounts live in
+   * the honesty ledger a few sections up, which IS branched.
+   */
+  it("carries no plan or fee figure anywhere, because it is read by both countries", () => {
+    for (const faq of FAQS) {
+      const text = `${faq.q} ${faq.a}`;
+      for (const currency of ["usd", "cad"] as const) {
+        expect(text, faq.q).not.toContain(planPrice("starter", currency));
+        expect(text, faq.q).not.toContain(planPrice("pro", currency));
+        expect(text, faq.q).not.toContain(registrationFee(currency));
+      }
+    }
+  });
+
+  it("answers the currency question with what we now actually do (#328)", () => {
+    const currency = FAQS.find((f) => f.q === "What currency am I billed in?");
+    expect(currency?.a).toContain("Canadian dollars");
+    expect(currency?.a).toContain("US dollars");
+    // The retired promise. "CAD billing is coming" shipped, so a page still
+    // saying it is coming is the page contradicting the invoice.
+    for (const faq of FAQS) {
+      expect(faq.a, faq.q).not.toContain("CAD billing is coming");
+    }
   });
 });
 

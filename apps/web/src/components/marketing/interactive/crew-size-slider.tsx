@@ -20,6 +20,8 @@
  * Keyboard-accessible (native range input), tabular numerals, aria-live.
  */
 
+import { useMarketingCurrency } from "@/components/marketing/pricing/plan-price";
+import { formatMoney, type BillingCurrency } from "@loonext/shared";
 import { useId, useState } from "react";
 
 import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
@@ -69,8 +71,21 @@ export function loonextPrice(
     : { plan: "Pro", price: PLAN_PRICING.pro.monthlyDollars };
 }
 
-function usd(n: number): string {
-  return `$${n.toLocaleString("en-US")}`;
+/**
+ * #328 — a US figure, labelled as one when the reader is not American.
+ *
+ * Every number on this card is USD and stays USD: the rival's rate is a
+ * published US price, so quoting our half in CAD would subtract two currencies
+ * and print a saving nobody gets.
+ *
+ * But a Canadian reading the plan cards directly above this sees Pro at $109,
+ * and an unlabelled "$79" here made our own price look like it contradicted
+ * itself. The comparison is the thing that must not be converted; the LABEL is
+ * what makes it honest. `formatMoney`'s audience argument exists for exactly
+ * this: mark the foreign currency, and only the foreign one.
+ */
+function usd(n: number, audience: BillingCurrency): string {
+  return formatMoney(n * 100, "usd", audience);
 }
 
 export interface RivalSeatPricing {
@@ -84,6 +99,10 @@ export function CrewSizeSlider({
   perUserMonthly = DEFAULT_PER_USER_MONTHLY,
   minimumSeats = DEFAULT_MINIMUM_SEATS,
 }: RivalSeatPricing = {}) {
+  // #328: the reader's own currency, so the USD figures below can be marked as
+  // foreign when they are. Client component, so this reads the country
+  // directly — the static twin takes it as a prop because it cannot.
+  const audience = useMarketingCurrency();
   const [seats, setSeats] = useState(6);
   const sliderId = useId();
 
@@ -132,7 +151,7 @@ export function CrewSizeSlider({
             </span>
             <span className="whitespace-nowrap">
               <span className="fr-mono-data text-[color:var(--fr-ink)]">
-                {usd(loonext.price)}/mo
+                {usd(loonext.price, audience)}/mo
               </span>
               <span className="text-[color:var(--fr-ink-55)]">, flat</span>
             </span>
@@ -149,11 +168,11 @@ export function CrewSizeSlider({
         <div>
           <div className="flex items-baseline justify-between gap-3 text-[0.875rem]">
             <span className="font-medium text-[color:var(--fr-ink)]">
-              Typical per-user tool at {usd(perUserMonthly)}/user/mo
+              Typical per-user tool at {usd(perUserMonthly, audience)}/user/mo
             </span>
             <span className="whitespace-nowrap">
               <span className="fr-mono-data text-[color:var(--fr-ink)]">
-                {usd(perUser)}/mo
+                {usd(perUser, audience)}/mo
               </span>
               <span className="text-[color:var(--fr-ink-55)]">
                 {seats > 1 ? ", and climbing" : ""}
@@ -173,10 +192,10 @@ export function CrewSizeSlider({
         <p className="mt-5 text-[0.9375rem] text-[color:var(--fr-ink)]">
           At {seats} people, that&apos;s{" "}
           <span className="fr-mono-data text-[color:var(--fr-ink)]">
-            {usd(savings)} less a month
+            {usd(savings, audience)} less a month
           </span>{" "}
-          with Loonext, {usd(loonext.price)} flat instead of {seats} ×{" "}
-          {usd(perUserMonthly)}.
+          with Loonext, {usd(loonext.price, audience)} flat instead of {seats} ×{" "}
+          {usd(perUserMonthly, audience)}.
         </p>
       )}
 
@@ -184,7 +203,7 @@ export function CrewSizeSlider({
         href={APP_LINKS.signup}
         className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
       >
-        Start for {usd(loonext.price)} flat →
+        Start for {usd(loonext.price, audience)} flat →
       </a>
 
       <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">

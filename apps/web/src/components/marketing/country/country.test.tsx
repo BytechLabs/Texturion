@@ -1,5 +1,12 @@
+import { type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+
+import {
+  formatMoney,
+  PLAN_PRICE_CENTS,
+  US_REGISTRATION_FEE_CENTS,
+} from "@loonext/shared";
 
 /**
  * The site-wide country infrastructure (owner ruling v1): the persistence
@@ -11,7 +18,17 @@ import { describe, expect, it, vi } from "vitest";
  * (renderToStaticMarkup), which is also the exact HTML a JS-disabled visitor
  * gets. The "us" default and every branch are pinned; hydration-time swapping is
  * a thin useEffect over these same tested helpers.
+ *
+ * #328 added a fourth thing this context decides: the money. The last describe
+ * covers it here, in the file that owns the signal, because the whole design is
+ * that there is no second control to disagree with this one.
  */
+
+import {
+  FirstMonthTotal,
+  PlanPrice,
+  RegistrationFee,
+} from "@/components/marketing/pricing/plan-price";
 
 import { CountryProvider } from "./country-context";
 import { CountryOnly, CountryText } from "./country-only";
@@ -23,6 +40,39 @@ import {
   writeStoredCountry,
 } from "./country-storage";
 import { HeroCountryChooser } from "./hero-country-chooser";
+
+/**
+ * #328 — the figures each country's visitor is charged, read from the one book.
+ *
+ * Built for both currencies because the claim under test is not "the markup
+ * says $29" but "the markup says what THIS reader's card will be charged". A
+ * typed figure would make this file a second copy of the price book, and a
+ * stale one the day a figure moves.
+ */
+function money(currency: "usd" | "cad") {
+  return {
+    starter: formatMoney(PLAN_PRICE_CENTS[currency].starter, currency),
+    pro: formatMoney(PLAN_PRICE_CENTS[currency].pro, currency),
+    fee: formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency),
+    /** Plan plus the one-time US fee: the sum that can drift on its own. */
+    firstMonth: formatMoney(
+      PLAN_PRICE_CENTS[currency].starter + US_REGISTRATION_FEE_CENTS[currency],
+      currency,
+    ),
+  };
+}
+const USD = money("usd");
+const CAD = money("cad");
+
+/** A subtree rendered under the site-wide provider, pinned to one country. */
+const us = (node: ReactNode) =>
+  renderToStaticMarkup(
+    <CountryProvider initialCountry="us">{node}</CountryProvider>,
+  );
+const ca = (node: ReactNode) =>
+  renderToStaticMarkup(
+    <CountryProvider initialCountry="ca">{node}</CountryProvider>,
+  );
 
 function fakeStorage(initial: Record<string, string> = {}) {
   const map = new Map(Object.entries(initial));
@@ -179,10 +229,52 @@ describe("the country infrastructure never renders an em-dash (Law 6)", () => {
         <CountrySelector />
         <CountrySelector fullLabels />
         <HeroCountryChooser />
-        <CountryText us="a one-time $29 registration fee" ca="no fee" />
+        {/* A representative money sentence, priced from the book rather than
+            typed: this test is about the dash, and a literal figure here would
+            still be a second copy of the price (#328). */}
+        <CountryText
+          us={`a one-time ${USD.fee} registration fee`}
+          ca="no fee"
+        />
       </>,
     );
     expect(html).not.toContain("—");
+  });
+});
+
+describe("the money branches on the same signal as the copy (#328)", () => {
+  it("quotes a US visitor in US dollars", () => {
+    expect(us(<PlanPrice plan="starter" />)).toBe(USD.starter);
+    expect(us(<PlanPrice plan="pro" />)).toBe(USD.pro);
+    expect(us(<RegistrationFee />)).toBe(USD.fee);
+    expect(us(<FirstMonthTotal plan="starter" />)).toBe(USD.firstMonth);
+  });
+
+  it("quotes a Canadian visitor in Canadian dollars", () => {
+    // THE ONE THAT MATTERS. Every one of these used to be the US figure on a
+    // Canada-first page, and a literal never disagrees with itself: the drift
+    // only surfaced on the invoice, in front of somebody holding a card.
+    expect(ca(<PlanPrice plan="starter" />)).toBe(CAD.starter);
+    expect(ca(<PlanPrice plan="pro" />)).toBe(CAD.pro);
+    // A Canadian workspace CAN turn on US texting, and then the one-time fee
+    // lands on a Canadian invoice, so it carries a currency too.
+    expect(ca(<RegistrationFee />)).toBe(CAD.fee);
+    expect(ca(<FirstMonthTotal plan="starter" />)).toBe(CAD.firstMonth);
+  });
+
+  it("the two countries are actually different figures", () => {
+    // Without this the pair of tests above would both pass on a resolver that
+    // ignored the country entirely.
+    expect(CAD.starter).not.toBe(USD.starter);
+    expect(CAD.pro).not.toBe(USD.pro);
+  });
+
+  it("defaults to the US figure with no provider above it (SSR)", () => {
+    // Same default as every other branch here: "us" until a visitor says
+    // otherwise, so the server HTML and the first paint agree.
+    expect(renderToStaticMarkup(<PlanPrice plan="starter" />)).toBe(
+      USD.starter,
+    );
   });
 });
 

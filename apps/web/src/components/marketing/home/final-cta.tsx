@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { ConvergedField, CtaButton, FrSection } from "@/components/marketing/fr";
 import { PRIMARY_CTA_LABEL, SIGNUP_HREF } from "@/components/marketing/nav-links";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 
 /**
@@ -43,8 +44,12 @@ export function FinalCta() {
             {PRIMARY_CTA_LABEL}
           </CtaButton>
         </div>
+        {/* #328: the closing reassurance line is the last figure on the page,
+            and a price stated at the moment of the decision is the worst one to
+            state in the wrong currency. */}
         <p className="fr-eyebrow mt-5 text-[color:var(--fr-on-olive-70)]">
-          $29/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK
+          <PlanPrice plan="starter" />
+          /MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK
         </p>
 
         <p className="font-body-mkt mx-auto mt-12 max-w-[62ch] text-[15px] leading-[1.7] text-[color:var(--fr-on-olive-70)]">

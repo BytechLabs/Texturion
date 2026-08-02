@@ -23,6 +23,11 @@ import { PanelFrame } from "@/components/marketing/fr";
 import { CountryOnly, CountryText } from "@/components/marketing/country";
 import { CityAreaCodeWidget } from "@/components/marketing/interactive/city-area-code-widget";
 import {
+  FirstMonthTotal,
+  PlanPrice,
+  RegistrationFee,
+} from "@/components/marketing/pricing/plan-price";
+import {
   FeatureCta,
   FeatureFaq,
   FeatureHero,
@@ -59,7 +64,10 @@ const PAID_PLAN_DETAIL = {
 export const metadata: Metadata = buildMetadata({
   title: "A local business number for texting, and it's yours",
   description:
-    "Pick a local number in the area code you choose, usually live in a minute or two, or bring the number on your trucks. Porting is free. Two numbers on Pro. $29/mo flat.",
+    // #328: no figure. A description is one string per URL and the price a
+    // reader should see depends on their country, so quoting either one would
+    // put a number in the search snippet that the page itself may contradict.
+    "Pick a local number in the area code you choose, usually live in a minute or two, or bring the number on your trucks. Porting is free. Two numbers on Pro. One flat monthly price.",
   path: PATH,
 });
 
@@ -215,23 +223,26 @@ export default function BusinessNumberPage() {
 
       <PricingSnippet>
         <p>
-          One local number comes with Starter at $29/mo for up to 3 people; a
-          second number comes with Pro at $79/mo for up to 15. Both are flat,
-          month to month, with receiving texts always free and unlimited. Porting a
-          number in is free.
+          One local number comes with Starter at <PlanPrice plan="starter" />
+          /mo for up to 3 people; a second number comes with Pro at{" "}
+          <PlanPrice plan="pro" />
+          /mo for up to 15. Both are flat, month to month, with receiving texts
+          always free and unlimited. Porting a number in is free.
         </p>
         <CountryText
           us={
             <p>
-              US shops pay a one-time $29 to register the business with the
-              phone companies, once, ever, so the first month is $58 and every
-              month after is $29.
+              US shops pay a one-time <RegistrationFee /> to register the
+              business with the phone companies, once, ever, so the first month
+              is <FirstMonthTotal plan="starter" /> and every month after is{" "}
+              <PlanPrice plan="starter" />.
             </p>
           }
           ca={
             <p>
               Texting Canadian customers needs no registration and no one-time
-              fee, so your first month is the same flat $29 or $79 as every
+              fee, so your first month is the same flat{" "}
+              <PlanPrice plan="starter" /> or <PlanPrice plan="pro" /> as every
               month after.
             </p>
           }

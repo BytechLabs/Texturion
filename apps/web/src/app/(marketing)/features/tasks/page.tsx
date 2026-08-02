@@ -24,6 +24,7 @@ import type { Metadata } from "next";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { PanelFrame } from "@/components/marketing/fr";
 import { TaskBoardVisual } from "@/components/marketing/features/task-board-visual";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import {
   FeatureCta,
   FeatureFaq,
@@ -42,7 +43,10 @@ const PATH = "/features/tasks";
 export const metadata: Metadata = buildMetadata({
   title: "Turn a text or a call into a job",
   description:
-    "Promote any customer message or call into a task with an owner, an address and a due date, still linked to what they said. Work it from a list, a board, a calendar or a map. $29/mo flat for the crew.",
+    // #328: no figure. A description is one string per URL and the price a
+    // reader should see depends on their country, so quoting either one would
+    // put a number in the search snippet that the page itself may contradict.
+    "Promote any customer message or call into a task with an owner, an address and a due date, still linked to what they said. Work it from a list, a board, a calendar or a map. One flat price for the crew.",
   path: PATH,
 });
 
@@ -141,9 +145,10 @@ export default function TasksPage() {
 
       <PricingSnippet>
         <p>
-          Tasks come with the inbox at one flat price for the whole crew:
-          $29/mo on Starter for up to 3 people, $79/mo on Pro for up to 15.
-          Nothing about tasks is metered, and nothing here is an add-on. If you
+          Tasks come with the inbox at one flat price for the whole crew:{" "}
+          <PlanPrice plan="starter" />/mo on Starter for up to 3 people,{" "}
+          <PlanPrice plan="pro" />/mo on Pro for up to 15. Nothing about tasks
+          is metered, and nothing here is an add-on. If you
           want the detail on what IS metered, it is texting and calling minutes,
           both under our{" "}
           <Link

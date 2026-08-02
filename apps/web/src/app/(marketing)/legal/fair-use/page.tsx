@@ -5,8 +5,27 @@ import {
   LegalPage,
   LegalSectionBlock,
 } from "@/components/marketing/legal/legal-page";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
 import { buildMetadata } from "@/lib/marketing/seo";
+
+/**
+ * #328 — D34 makes this the canonical home of the allowance figures, so it is
+ * the page a hardcoded price hurts most: everything else points here.
+ *
+ * The plan prices now come from `PLAN_PRICE_CENTS` via <PlanPrice>, which reads
+ * the site-wide country the way this page's neighbours already do. A server
+ * component may render those client components; the CountryProvider is mounted
+ * once in (marketing)/layout.tsx, above every page in the group.
+ *
+ * STILL LITERAL, AND WHY: the per-segment and per-minute overage rates (3¢ /
+ * 2.5¢ / 1¢) are currency-dependent too — `OVERAGE_CENTS_PER_SEGMENT.cad` is
+ * 4¢ and 3.5¢, `VOICE_OVERAGE_CENTS_PER_MINUTE.cad` is 1.5¢ — but there is no
+ * client component for them yet, and one cannot be declared inside this file
+ * because a page that exports `metadata` must stay a server component. The
+ * `summary` prop is worse still: `LegalPage` types it as `string`, so it cannot
+ * carry a component at all. Both are follow-ups, not oversights.
+ */
 
 const PATH = "/legal/fair-use";
 const LAST_UPDATED = "July 11, 2026";
@@ -63,9 +82,11 @@ export default function FairUsePage() {
         heading="What your plan includes"
       >
         <p>
-          Starter is $29/mo for up to 3 people and includes 500 texts a month on
-          one number. Pro is $79/mo for up to 15 people, includes 2,500 texts,
-          and adds a second number. A text is counted in segments (about 160
+          Starter is <PlanPrice plan="starter" />
+          /mo for up to 3 people and includes 500 texts a month on one number.
+          Pro is <PlanPrice plan="pro" />
+          /mo for up to 15 people, includes 2,500 texts, and adds a second
+          number. A text is counted in segments (about 160
           characters each), the same way the carriers count them, so one long
           message can use more than one segment. Only the texts you send count.
           Receiving is free and unlimited on every plan, in every month, and

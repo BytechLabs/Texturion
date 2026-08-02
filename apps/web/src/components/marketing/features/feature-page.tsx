@@ -30,7 +30,6 @@ import {
   Eyebrow,
   FrCard,
   FrSection,
-  MonoFigure,
 } from "@/components/marketing/fr";
 import {
   PRIMARY_CTA_LABEL,
@@ -38,10 +37,8 @@ import {
   SIGNUP_HREF,
 } from "@/components/marketing/nav-links";
 import { cn } from "@/lib/utils";
-import {
-  HEADLINE_PRICE,
-  HEADLINE_PRICE_SUFFIX,
-} from "@/lib/marketing/headline-price";
+import { HeadlinePriceFigure } from "@/components/marketing/pricing/headline-price-figure";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 
 /* -------------------------------------------------------------------------- */
 /* DATELINE HEADER (§5.1): the static converged-arrival mark, the ink fact    */
@@ -314,11 +311,7 @@ export function PricingSnippet({ children }: { children: ReactNode }) {
   return (
     <FrSection ground="frost">
       <FrCard className="mx-auto max-w-3xl p-6 sm:p-10">
-        <MonoFigure
-          value={HEADLINE_PRICE}
-          suffix={HEADLINE_PRICE_SUFFIX}
-          size="display"
-        />
+        <HeadlinePriceFigure size="display" />
         <div className="font-body-mkt mt-5 space-y-3 text-[15px] leading-relaxed text-[color:var(--fr-ink-70)]">
           {children}
         </div>
@@ -464,7 +457,8 @@ export function FeatureCta({
           </CtaButton>
         </div>
         <p className="fr-eyebrow mt-6 text-[color:var(--fr-ink-55)]">
-          $29/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK
+          <PlanPrice plan="starter" />
+          {"/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK"}
         </p>
       </div>
     </FrSection>

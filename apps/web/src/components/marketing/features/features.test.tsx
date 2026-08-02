@@ -17,6 +17,12 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import {
+  formatMoney,
+  PLAN_PRICE_CENTS,
+  US_REGISTRATION_FEE_CENTS,
+} from "@loonext/shared";
+
 import BusinessNumberPage, {
   metadata as businessNumberMetadata,
 } from "@/app/(marketing)/features/business-number/page";
@@ -48,6 +54,35 @@ import { RegistrationStepperVisual } from "./registration-stepper-visual";
 import { SavedRepliesVisual } from "./saved-replies-visual";
 import { TagsDoneVisual } from "./tags-done-visual";
 
+/**
+ * #328 — the figures these pages must show, read from the one price book.
+ *
+ * Law 7 says the factual claims survive the redesign, and a price is one of
+ * them. Typing "$29" here would make this file a second, silent copy of the
+ * price book: it would keep passing after a figure moved, and it would have to
+ * be re-typed by hand the day somebody noticed. Worse, a test pinning a stale
+ * literal stops being a guard and becomes the thing blocking the fix, which is
+ * why `price-surfaces.test.ts` forbids the literal in tests as well as in
+ * pages.
+ *
+ * Both currencies are built, because the claim under test is not "the page says
+ * $29" but "the page says the price this reader will actually be charged".
+ */
+function money(currency: "usd" | "cad") {
+  return {
+    starter: formatMoney(PLAN_PRICE_CENTS[currency].starter, currency),
+    pro: formatMoney(PLAN_PRICE_CENTS[currency].pro, currency),
+    fee: formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency),
+    /** Plan plus the one-time US fee: the sum that can drift on its own. */
+    firstMonth: formatMoney(
+      PLAN_PRICE_CENTS[currency].starter + US_REGISTRATION_FEE_CENTS[currency],
+      currency,
+    ),
+  };
+}
+const USD = money("usd");
+const CAD = money("cad");
+
 const PAGES: Record<string, string> = {
   "shared-inbox": renderToStaticMarkup(<SharedInboxPage />),
   "business-number": renderToStaticMarkup(<BusinessNumberPage />),
@@ -61,7 +96,15 @@ const PAGES: Record<string, string> = {
 // branch deterministically; renderToStaticMarkup never runs the effect that
 // would otherwise adopt localStorage, so the tree stays in "ca". PAGES above is
 // the US branch (default "us", no provider needed).
+//
+// #328 widened this from two pages to all five: every one of them quotes a
+// plan price, so every one of them can now be wrong in exactly one country.
 const CA_PAGES: Record<string, string> = {
+  "shared-inbox": renderToStaticMarkup(
+    <CountryProvider initialCountry="ca">
+      <SharedInboxPage />
+    </CountryProvider>,
+  ),
   "business-number": renderToStaticMarkup(
     <CountryProvider initialCountry="ca">
       <BusinessNumberPage />
@@ -70,6 +113,16 @@ const CA_PAGES: Record<string, string> = {
   compliance: renderToStaticMarkup(
     <CountryProvider initialCountry="ca">
       <CompliancePage />
+    </CountryProvider>,
+  ),
+  "templates-and-tags": renderToStaticMarkup(
+    <CountryProvider initialCountry="ca">
+      <TemplatesAndTagsPage />
+    </CountryProvider>,
+  ),
+  canada: renderToStaticMarkup(
+    <CountryProvider initialCountry="ca">
+      <CanadaPage />
     </CountryProvider>,
   ),
 };
@@ -155,8 +208,8 @@ describe("laws that hold across every features/canada page (Laws 1, 6)", () => {
 describe("factual claims survive the v4 restage (Law 7)", () => {
   it("shared-inbox: seats, allowances, and the first-month arithmetic", () => {
     const html = PAGES["shared-inbox"];
-    expect(html).toContain("$29");
-    expect(html).toContain("$79");
+    expect(html).toContain(USD.starter);
+    expect(html).toContain(USD.pro);
     // #96/#121: fair-use posture, never a pinned per-plan message count, and
     // the policy where the concrete numbers live is linked. Storage is free,
     // never an "included storage" pool that implies a cap.
@@ -167,7 +220,7 @@ describe("factual claims survive the v4 restage (Law 7)", () => {
     expect(html).toContain("storage is free");
     expect(html).toMatch(/up to 3 people/);
     expect(html).toMatch(/up to 15 people/);
-    expect(html).toMatch(/first month is \$58/);
+    expect(html).toContain(`first month is ${USD.firstMonth}`);
     expect(html).toMatch(/receiving texts is\s+always free and unlimited/i);
     // #134/D42: calling is included on every plan — the $8 add-on is gone.
     expect(html).toContain("Calling is included on every plan");
@@ -183,7 +236,7 @@ describe("factual claims survive the v4 restage (Law 7)", () => {
     expect(html).toMatch(/3 to 7 business days/);
     expect(html).toMatch(/without an EIN/);
     expect(html).toMatch(/single number regardless of plan/);
-    expect(html).toMatch(/first month is \$58/);
+    expect(html).toContain(`first month is ${USD.firstMonth}`);
   });
 
   it("compliance: the honest 10DLC countdown, STOP handling, consent record, the careful claim", () => {
@@ -205,17 +258,24 @@ describe("factual claims survive the v4 restage (Law 7)", () => {
     expect(html).toMatch(/\{first_name\}/);
     expect(html).toMatch(/Quote sent/);
     expect(html).toMatch(/not a task list|not a job, a task, or a to-do list/i);
-    expect(html).toMatch(/first month is \$58/);
+    expect(html).toContain(`first month is ${USD.firstMonth}`);
   });
 
-  it("canada: day-one texting, USD billing, US data residency, the later-US path", () => {
+  it("canada: day-one texting, CAD billing, US data residency, the later-US path", () => {
     const html = PAGES.canada;
     expect(html).toMatch(/text customers today/i);
-    expect(html).toMatch(/USD/);
     expect(html).toMatch(/stored (and processed )?in the United States/i);
-    expect(html).toMatch(/one-time \$29/);
+    expect(html).toContain(`one-time ${USD.fee}`);
     expect(html).toMatch(/3 to 7\s*business day/);
     expect(html).toMatch(/helps you follow/i);
+
+    // #328 REVERSED THE FACT THIS TEST USED TO PIN. It asserted /USD/, because
+    // the page said "billing is in USD for now, CAD billing is coming" in three
+    // places. CAD billing shipped, so that assertion was guarding a promise we
+    // had already broken in the other direction, and the page now states the
+    // currency as a fact about a Canadian workspace.
+    expect(html).toMatch(/billed in Canadian dollars/);
+    expect(html).not.toMatch(/CAD billing is coming|in USD for now|Prices in USD/);
   });
 
   it("canada: the province ledger is generated from the app's NANP table", () => {
@@ -261,6 +321,35 @@ describe("country branching: a Canadian sees only the Canada story (owner ruling
     }
   });
 
+  /**
+   * #328 — the reason this file exists for prices at all.
+   *
+   * Every page above quotes a plan price, and a Canadian workspace is billed
+   * $39/$109 in CAD. A literal on the page could not disagree with itself, so
+   * the drift was invisible: it only showed up on the invoice, months later,
+   * in front of somebody holding a card. Asserting BOTH branches is what makes
+   * it visible here instead.
+   */
+  it("every page that quotes a price quotes the Canadian one to a Canadian", () => {
+    for (const [name, html] of Object.entries(CA_PAGES)) {
+      expect(html, `${name}: shows the CAD plan price`).toContain(CAD.starter);
+      // And never the US figure, which is the failure this closes.
+      expect(html, `${name}: leaks the USD plan price`).not.toContain(
+        `${USD.starter}/mo`,
+      );
+    }
+    // The Pro figure, wherever the page names both plans.
+    for (const name of ["shared-inbox", "business-number", "compliance", "canada"]) {
+      expect(CA_PAGES[name], `${name}: shows the CAD Pro price`).toContain(
+        CAD.pro,
+      );
+    }
+    // The one-time US registration fee is charged to a Canadian workspace only
+    // if it enables US texting, and then it lands on a Canadian invoice, so
+    // /canada quotes it in CAD rather than skipping the currency.
+    expect(CA_PAGES.canada).toContain(`one-time ${CAD.fee}`);
+  });
+
   it("business-number (CA): same-day, no-fee, no-registration facts, no US wait/fee/EIN", () => {
     const html = CA_PAGES["business-number"];
     // The Canada story is present.
@@ -273,8 +362,10 @@ describe("country branching: a Canadian sees only the Canada story (owner ruling
     expect(html).toMatch(/often faster in Canada/);
     // The US-only wait, fee, and 10DLC sole-prop cap never reach a Canadian.
     expect(html).not.toMatch(/3 to 7 business days/);
-    expect(html).not.toContain("first month is $58");
-    expect(html).not.toContain("one-time $29");
+    expect(html).not.toContain(`first month is ${USD.firstMonth}`);
+    expect(html).not.toContain(`first month is ${CAD.firstMonth}`);
+    expect(html).not.toContain(`one-time ${USD.fee}`);
+    expect(html).not.toContain(`one-time ${CAD.fee}`);
     expect(html).not.toMatch(/without an EIN/);
     expect(html).not.toMatch(/single number regardless of plan/);
   });
@@ -290,8 +381,10 @@ describe("country branching: a Canadian sees only the Canada story (owner ruling
     expect(html).toMatch(/Let us handle the compliance details/);
     // No US wait, fee, or carrier-registration obligation, in copy OR the embed.
     expect(html).not.toMatch(/3 to 7 business days/);
-    expect(html).not.toContain("first month is $58");
-    expect(html).not.toContain("one-time $29");
+    expect(html).not.toContain(`first month is ${USD.firstMonth}`);
+    expect(html).not.toContain(`first month is ${CAD.firstMonth}`);
+    expect(html).not.toContain(`one-time ${USD.fee}`);
+    expect(html).not.toContain(`one-time ${CAD.fee}`);
     expect(html).not.toContain("carrier approval");
     expect(html).not.toContain("carrier paperwork"); // the closing-CTA leak, now branched
     expect(html).not.toContain("Registration filed for you"); // the closing-CTA leak
@@ -373,11 +466,11 @@ describe("the FEATURE-template blocks", () => {
   it("PricingSnippet: price as art plus the deck's guarantee microcopy", () => {
     const html = renderToStaticMarkup(
       <PricingSnippet>
-        <p>Starter is $29/mo.</p>
+        <p>Starter is {USD.starter}/mo.</p>
       </PricingSnippet>,
     );
     expect(html).toContain("fr-figure");
-    expect(html).toContain("$29");
+    expect(html).toContain(USD.starter);
     expect(html).toContain(
       "30-day money-back guarantee. Full refund, including the registration fee. No fine print.",
     );
@@ -391,7 +484,14 @@ describe("the FEATURE-template blocks", () => {
     );
     expect(html).toContain("--fr-frost");
     expect(html).not.toMatch(/bg-\[color:var\(--fr-olive\)\] text-white"?[^>]*<h2/);
-    expect(html).toContain("$29/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK");
+    // NOT country-aware yet: this eyebrow and the MonoFigure above it both read
+    // `HEADLINE_PRICE`, a USD literal in lib/marketing/headline-price.ts, so a
+    // Canadian still sees the US figure in the largest type on the page. That
+    // constant is #385's declared resolver and lives outside these pages; the
+    // assertion is derived here so it does not have to be retyped when it moves.
+    expect(html).toContain(
+      `${USD.starter}/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK`,
+    );
   });
 });
 

@@ -12,6 +12,7 @@ import type { Metadata } from "next";
 
 import { CountryText } from "@/components/marketing/country";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import { TradePage } from "@/components/marketing/trades/trade-page";
 import type { TradeContent } from "@/components/marketing/trades/trade-page";
 import { CLEANERS_SCRIPT } from "@/components/marketing/trades/scripts";
@@ -20,10 +21,18 @@ import { ACTIVATION_CHIP, ACTIVATION_CLAIM } from "@/lib/marketing/activation";
 
 const PATH = "/for/cleaners";
 
+/**
+ * #328 — the snippet keeps the claim and drops the figure. A
+ * `metadata.description` is one string per URL, baked at build time, and the
+ * visitor's country is a client-side choice, so it cannot say $29 to an
+ * American and $39 to a Canadian. Everything in `CONTENT` below can, and does.
+ * Same call `lib/marketing/activation.ts` made for the same class of string;
+ * the reasoning is written out in full on `/for/plumbers`, the master page.
+ */
 export const metadata: Metadata = buildMetadata({
   title: "Texting software for cleaning businesses",
   description:
-    "One business line for cleaning companies: confirm recurring visits, keep every access note with the client, handle reschedules as a team. Texts, calls and voicemail, flat $29/mo.",
+    "One business line for cleaning companies: confirm recurring visits, keep every access note with the client, handle reschedules as a team. Texts, calls and voicemail, one flat price for the team.",
   path: PATH,
 });
 
@@ -33,8 +42,13 @@ const CONTENT: TradeContent = {
 
   dateline: "5:56 PM · KEY UNDER MAT?",
   h1: "One line for the whole cleaning crew.",
-  heroSub:
-    "Key under the mat, dog in the crate, oven this time, and Friday moved to Monday. Half of cleaning is what the client told you last week, and it can't live on one phone. Loonext keeps every access note, reschedule and add-on on one timeline the whole team can see, whether the client texted it or said it on the phone. $29 a month.",
+  heroSub: (
+    <>
+      {"Key under the mat, dog in the crate, oven this time, and Friday moved to Monday. Half of cleaning is what the client told you last week, and it can't live on one phone. Loonext keeps every access note, reschedule and add-on on one timeline the whole team can see, whether the client texted it or said it on the phone. "}
+      <PlanPrice plan="starter" />
+      {" a month."}
+    </>
+  ),
   heroTruth:
     `Access notes saved to the client · ${ACTIVATION_CHIP} · Month to month`,
 
@@ -123,9 +137,19 @@ const CONTENT: TradeContent = {
     },
   ],
 
-  pricingH2: "$29 a month for the whole team.",
-  pricingBody:
-    "Starter is 3 people, 1 local number, and texting sized for confirming a route of recurring clients on a fair-use basis, not a hard cap; a plain confirmation counts as one text, and the composer shows the count before you send. Growing past three cleaners, or running residential and commercial lines separately? Pro is $79 for up to 15 people and a second number.",
+  pricingH2: (
+    <>
+      <PlanPrice plan="starter" />
+      {" a month for the whole team."}
+    </>
+  ),
+  pricingBody: (
+    <>
+      {"Starter is 3 people, 1 local number, and texting sized for confirming a route of recurring clients on a fair-use basis, not a hard cap; a plain confirmation counts as one text, and the composer shows the count before you send. Growing past three cleaners, or running residential and commercial lines separately? Pro is "}
+      <PlanPrice plan="pro" />
+      {" for up to 15 people and a second number."}
+    </>
+  ),
 
   faqH2: "Cleaner questions, straight answers.",
   faqs: [

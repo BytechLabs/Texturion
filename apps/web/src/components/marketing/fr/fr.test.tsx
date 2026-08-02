@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { formatMoney, PLAN_PRICE_CENTS } from "@loonext/shared";
+
 import {
   ConvergedField,
   CtaButton,
@@ -13,6 +15,17 @@ import {
 } from "./index";
 
 /** The v4 laws the primitives must encode (DESIGN-DIRECTION v4). */
+
+/**
+ * The Starter price, for the MonoFigure fixture below.
+ *
+ * #328: even a fixture reads the book. A "$29" typed here would be one more
+ * copy of the price that nothing keeps honest, and `price-surfaces.test.ts`
+ * forbids the literal in tests for exactly that reason. The primitive itself is
+ * currency-blind (it renders the string it is handed), so USD is arbitrary
+ * here — what matters is that the string came from somewhere real.
+ */
+const STARTER_USD = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd");
 
 describe("fr primitives — the FIRST RESPONSE component kit", () => {
   it("Dateline is the dark chip (paper mono text) with a frost tone for legal summary chips", () => {
@@ -98,10 +111,14 @@ describe("fr primitives — the FIRST RESPONSE component kit", () => {
 
   it("MonoFigure: mono value + quiet body suffix; flare tone forces display scale and bold (§3.4.3)", () => {
     const fig = renderToStaticMarkup(
-      <MonoFigure value="$29" suffix="/mo · the whole crew" size="display" />,
+      <MonoFigure
+        value={STARTER_USD}
+        suffix="/mo · the whole crew"
+        size="display"
+      />,
     );
     expect(fig).toContain("fr-figure");
-    expect(fig).toContain("$29");
+    expect(fig).toContain(STARTER_USD);
     expect(fig).toContain("/mo · the whole crew");
 
     const flare = renderToStaticMarkup(

@@ -26,6 +26,7 @@ import type { Metadata } from "next";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { PanelFrame } from "@/components/marketing/fr";
 import { AssistantVisual } from "@/components/marketing/features/assistant-visual";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import {
   FeatureCta,
   FeatureFaq,
@@ -141,9 +142,10 @@ export default function AssistantPage() {
       <PricingSnippet>
         <p>
           Lou is included at both prices with nothing to enable and no per-seat
-          or per-use charge: $29/mo on Starter for up to 3 people, $79/mo on Pro
-          for up to 15. The monthly caps are the reason there is no meter to
-          watch. What Lou reads and stores is set out in our{" "}
+          or per-use charge: <PlanPrice plan="starter" />/mo on Starter for up
+          to 3 people, <PlanPrice plan="pro" />/mo on Pro for up to 15. The
+          monthly caps are the reason there is no meter to watch. What Lou reads
+          and stores is set out in our{" "}
           <Link
             href="/legal/privacy"
             className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"

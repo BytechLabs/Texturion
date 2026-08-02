@@ -6,6 +6,7 @@ import {
   SECONDARY_CTA_LABEL,
   SIGNUP_HREF,
 } from "@/components/marketing/nav-links";
+import { PlanPrice } from "@/components/marketing/pricing/plan-price";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 import { AppSurface } from "@/components/marketing/thread-demo/app-surface";
 
@@ -36,6 +37,12 @@ import { HeroInbox } from "./hero-inbox";
  * LCP settles (P5-SPEC gating in arrival-layer). The inbox is the REAL
  * conversation-row pattern with the app's own tokens inside the PanelFrame
  * (Law 2); the deck ships it with no caption.
+ *
+ * #328: the price in the sub-head is the FIRST figure anybody reads on the
+ * site, so it is the one that must not be a US number shown to a Canadian.
+ * <PlanPrice> reads the same site-wide country the truth strip below it
+ * already branches on; this stays a server component and renders it as a
+ * child, which is the only way that signal crosses the boundary.
  */
 export function Hero() {
   return (
@@ -87,7 +94,8 @@ export function Hero() {
               inbox for everything that reaches it. Texts and calls both land
               where the whole crew can see them, so the next 9 PM message gets
               answered by whoever is free instead of dying on somebody&apos;s
-              personal cell. $29 a month for the whole team, flat.
+              personal cell. <PlanPrice plan="starter" /> a month for the whole
+              team, flat.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">

@@ -1,4 +1,10 @@
-import { PLAN_SEATS } from "@loonext/shared";
+import type { BillingCurrency } from "@loonext/shared";
+import {
+  OVERAGE_CENTS_PER_SEGMENT,
+  PLAN_PRICE_CENTS,
+  PLAN_SEATS,
+  US_REGISTRATION_FEE_CENTS,
+} from "@loonext/shared";
 import type { PipelineStage } from "@loonext/shared";
 import type { DeferralKind } from "@loonext/shared";
 
@@ -309,6 +315,12 @@ export interface CompanyView {
   /** D15: workspace IANA timezone (business-facing daily framing). */
   timezone: string;
   plan: PlanId | null;
+  /**
+   * #328: what this workspace is charged in. Absent on a client that predates
+   * the column, which `billingCurrencyOf` reads as USD — every workspace that
+   * existed before this shipped is on USD anyway.
+   */
+  billing_currency?: BillingCurrency;
   subscription_status: SubscriptionStatus;
   current_period_start: string | null;
   current_period_end: string | null;
@@ -1674,7 +1686,18 @@ export const PLAN_MODULE_CARDS: PlanModuleCard[] = [
 export const PLAN_PRICING: Record<
   PlanId,
   {
-    /** Flat monthly price in whole USD (SPEC §2). */
+    /**
+     * Flat monthly price in whole USD (SPEC §2).
+     *
+     * #328: derived from the shared price book rather than retyped. This used
+     * to be a hand-kept mirror of a number that also lived in the API's cost
+     * model and in the Stripe catalog script, and "hand-kept" is how a pricing
+     * page ends up quoting a figure the invoice does not.
+     *
+     * USD only, deliberately. A workspace's own currency comes from its
+     * `billing_currency`, and marketing reads the visitor's country — neither
+     * is knowable from a module constant.
+     */
     monthlyDollars: number;
     /** Teammates included (PLAN_LIMITS.seats). Both self-serve plans are capped. */
     seats: number;
@@ -1687,7 +1710,7 @@ export const PLAN_PRICING: Record<
   }
 > = {
   starter: {
-    monthlyDollars: 29,
+    monthlyDollars: PLAN_PRICE_CENTS.usd.starter / 100,
     // #392: derived, never retyped. Web carried TWO unlinked copies of the
     // seat number — this one and lib/settings/seat-line.ts — and nothing kept
     // them equal. The seat ceiling is the Starter-to-Pro upgrade trigger, so a
@@ -1695,14 +1718,14 @@ export const PLAN_PRICING: Record<
     seats: PLAN_SEATS.starter,
     numbers: 1,
     includedTexts: 500,
-    overageCentsPerText: 3,
+    overageCentsPerText: OVERAGE_CENTS_PER_SEGMENT.usd.starter,
   },
   pro: {
-    monthlyDollars: 79,
+    monthlyDollars: PLAN_PRICE_CENTS.usd.pro / 100,
     seats: PLAN_SEATS.pro,
     numbers: 2,
     includedTexts: 2500,
-    overageCentsPerText: 2.5,
+    overageCentsPerText: OVERAGE_CENTS_PER_SEGMENT.usd.pro,
   },
 };
 
@@ -1711,7 +1734,7 @@ export const PLAN_PRICING: Record<
  * at most once per company, ever; Canadian companies that never text US
  * numbers never pay it). Same hand-kept-mirror rules as PLAN_PRICING.
  */
-export const US_REGISTRATION_FEE_DOLLARS = 29;
+export const US_REGISTRATION_FEE_DOLLARS = US_REGISTRATION_FEE_CENTS.usd / 100;
 
 /** GET /v1/registration row — owner/admin additionally receive `data`. */
 export interface RegistrationRow extends RegistrationSummary {

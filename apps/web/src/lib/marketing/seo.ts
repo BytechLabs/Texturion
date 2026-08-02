@@ -1,3 +1,4 @@
+import { BILLING_CURRENCIES, PLAN_PRICE_CENTS } from "@loonext/shared";
 import type { Metadata } from "next";
 
 import { SITE_URL, absoluteUrl } from "./site";
@@ -143,10 +144,14 @@ export function websiteJsonLd() {
 
 /**
  * SoftwareApplication (WebApplication) with the two REAL offers, home + pricing.
- * Each Offer carries priceCurrency USD, a string price, and a monthly-subscription
- * qualifier so a parser can't read it as a one-time charge (§11.2 finding).
+ * One Offer per plan PER CURRENCY (#328), each with a string price and a
+ * monthly-subscription qualifier so a parser can't read it as a one-time
+ * charge (§11.2 finding).
  * Deliberately no aggregateRating / review.
  */
+/** The currencies we publish offers in. */
+const PLAN_OFFER_CURRENCIES = BILLING_CURRENCIES;
+
 export function softwareApplicationJsonLd() {
   return {
     "@context": "https://schema.org",
@@ -158,36 +163,35 @@ export function softwareApplicationJsonLd() {
     operatingSystem: "Web",
     url: SITE_URL,
     publisher: { "@id": ORG_ID },
-    offers: [
-      {
-        "@type": "Offer",
-        name: "Starter",
-        price: "29.00",
-        priceCurrency: "USD",
-        category: "monthly subscription",
-        priceSpecification: {
-          "@type": "UnitPriceSpecification",
-          price: "29.00",
-          priceCurrency: "USD",
-          unitCode: "MON",
-          billingIncrement: 1,
-        },
-      },
-      {
-        "@type": "Offer",
-        name: "Pro",
-        price: "79.00",
-        priceCurrency: "USD",
-        category: "monthly subscription",
-        priceSpecification: {
-          "@type": "UnitPriceSpecification",
-          price: "79.00",
-          priceCurrency: "USD",
-          unitCode: "MON",
-          billingIncrement: 1,
-        },
-      },
-    ],
+    // #328: BOTH currencies, as separate Offers.
+    //
+    // Structured data is read by machines that surface a price to a searcher,
+    // and we genuinely sell in two currencies now — so emitting only USD would
+    // put a foreign figure in front of every Canadian who finds us through
+    // search, which is the same defect this issue fixes on the page itself.
+    // schema.org models this as one Offer per currency rather than a converted
+    // one, which is also the honest shape: neither is a conversion of the
+    // other.
+    offers: PLAN_OFFER_CURRENCIES.flatMap((currency) =>
+      (["starter", "pro"] as const).map((plan) => {
+        const price = (PLAN_PRICE_CENTS[currency][plan] / 100).toFixed(2);
+        const code = currency.toUpperCase();
+        return {
+          "@type": "Offer",
+          name: plan === "starter" ? "Starter" : "Pro",
+          price,
+          priceCurrency: code,
+          category: "monthly subscription",
+          priceSpecification: {
+            "@type": "UnitPriceSpecification",
+            price,
+            priceCurrency: code,
+            unitCode: "MON",
+            billingIncrement: 1,
+          },
+        };
+      }),
+    ),
   } as const;
 }
 

@@ -1,12 +1,27 @@
 import type { Metadata } from "next";
 
+import { CountryText } from "@/components/marketing/country";
 import {
   LegalLink,
   LegalPage,
   LegalSectionBlock,
 } from "@/components/marketing/legal/legal-page";
+import {
+  PlanPrice,
+  RegistrationFee,
+} from "@/components/marketing/pricing/plan-price";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
 import { buildMetadata } from "@/lib/marketing/seo";
+
+/**
+ * #328 — the billing section quotes prices, so it must quote the reader's own.
+ *
+ * This page is a server component (it exports `metadata`), and PlanPrice /
+ * RegistrationFee / CountryText are client components. That composition is
+ * fine: a server component may render a client one, the props here are plain
+ * strings, and the CountryProvider that feeds them is mounted once in
+ * (marketing)/layout.tsx above every page in the group.
+ */
 
 const PATH = "/legal/terms";
 const LAST_UPDATED = "July 2, 2026";
@@ -70,23 +85,30 @@ export default function TermsPage() {
         <p>
           Loonext is a paid, month-to-month subscription. There is no annual
           contract and nothing auto-converts from a trial, there is no trial
-          that provisions a number. You pick Starter ($29/mo) or Pro ($79/mo),
-          pay through Stripe, and your number is created only after your payment
-          succeeds.
+          that provisions a number. You pick Starter (
+          <PlanPrice plan="starter" />
+          /mo) or Pro (<PlanPrice plan="pro" />
+          /mo), pay through Stripe, and your number is created only after your
+          payment succeeds.
         </p>
         <p>
           US businesses (and Canadian businesses that turn on US texting) also
-          pay a one-time $29 fee to register with the phone companies. It is
-          charged once, ever, cancel and come back later and you won&apos;t pay
-          it again.
+          pay a one-time <RegistrationFee /> fee to register with the phone
+          companies. It is charged once, ever, cancel and come back later and
+          you won&apos;t pay it again.
         </p>
         <p>
-          Prices are in US dollars, plus sales tax where it applies, calculated
-          at checkout by Stripe Tax. If you send more than your plan&apos;s
-          included texts, extra texts are billed at your plan&apos;s overage rate
-          up to a spending cap you control. We email you at 80% and 100% of your
-          included texts. Your subscription renews automatically each month until
-          you cancel.
+          Prices are in{" "}
+          <CountryText us="US dollars" ca="Canadian dollars" />, plus sales tax
+          where it applies, calculated at checkout by Stripe Tax. Your currency
+          follows the country of your business: it is set when your workspace is
+          created and fixed once you subscribe, because Stripe pins the currency
+          to the subscription. Changing it later means cancelling and signing up
+          again, so email us and we will walk you through it. If you send more
+          than your plan&apos;s included texts, extra texts are billed at your
+          plan&apos;s overage rate up to a spending cap you control. We email
+          you at 80% and 100% of your included texts. Your subscription renews
+          automatically each month until you cancel.
         </p>
       </LegalSectionBlock>
 

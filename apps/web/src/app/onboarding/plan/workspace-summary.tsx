@@ -2,6 +2,14 @@
 
 import { useState } from "react";
 
+import {
+  billingCurrencyOf,
+  currencyForCountry,
+  formatMoney,
+  US_REGISTRATION_FEE_CENTS,
+  type BillingCurrency,
+} from "@loonext/shared";
+
 import { NumberPicker, isFullNumber } from "@/components/numbers/number-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +40,7 @@ export function WorkspaceSummary({
   areaCode,
   usTexting,
   canEditNumber,
+  billingCurrency,
 }: {
   companyId: string;
   name: string;
@@ -40,6 +49,18 @@ export function WorkspaceSummary({
   areaCode: string | null;
   usTexting: boolean;
   canEditNumber: boolean;
+  /**
+   * #328 — the company row's own `billing_currency`, so the fee this panel
+   * quotes is the one the invoice will carry.
+   *
+   * Optional, and the fallback is `currencyForCountry(country)`, which is the
+   * exact expression `api_create_company` evaluates when it writes the column.
+   * For any workspace created since #328 the two therefore agree by
+   * construction. They can only diverge for a workspace that was created BEFORE
+   * the column existed and is somehow still pre-checkout, which the fallback
+   * would over-quote; passing the row closes that.
+   */
+  billingCurrency?: BillingCurrency;
 }) {
   const update = useOnboardingUpdateCompany();
   const [editing, setEditing] = useState<null | "name" | "number">(null);
@@ -48,6 +69,19 @@ export function WorkspaceSummary({
   const [draftChosen, setDraftChosen] = useState<string | null>(chosenNumber);
   const [draftUsTexting, setDraftUsTexting] = useState(usTexting);
   const [error, setError] = useState<string | null>(null);
+
+  // #328: the row wins, and it is deliberately NOT re-derived from
+  // `draftCountry`. Switching country in this editor PATCHes the country and
+  // nothing else; no code path rewrites `billing_currency` after creation, so a
+  // sentence that followed the draft would promise a currency the invoice never
+  // uses. What is editable here and what is priced here are two different facts.
+  const feeCurrency = billingCurrency
+    ? billingCurrencyOf(billingCurrency)
+    : currencyForCountry(country);
+  const registrationFee = formatMoney(
+    US_REGISTRATION_FEE_CENTS[feeCurrency],
+    feeCurrency,
+  );
 
   const areaHint = areaCode ? areaCodeHint(areaCode, country) : null;
   // What the number line shows when not editing: the exact chosen number if the
@@ -276,7 +310,8 @@ export function WorkspaceSummary({
                     <span>
                       Also text customers with US numbers
                       <span className="mt-0.5 block text-[13px] text-muted-foreground">
-                        US texting needs a one-time $29 carrier registration.
+                        US texting needs a one-time {registrationFee} carrier
+                        registration.
                       </span>
                     </span>
                   </label>

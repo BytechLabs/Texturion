@@ -1,13 +1,27 @@
+import { formatMoney, PLAN_PRICE_CENTS } from "@loonext/shared";
 import { ImageResponse } from "next/og";
 
 /**
  * OpenGraph image for /pricing, v4 "FIRST RESPONSE" palette: Signal White
  * ground, a cobalt left rule, Dispatch Ink title, the wordmark bottom-left,
- * and the "$29/mo flat" truth chip bottom-right. Same Satori/Node-runtime
+ * and the Starter truth chip bottom-right. Same Satori/Node-runtime
  * constraints as the route-group default (no runtime='edge'; OpenNext forbids
  * it, SPEC §3; Satori built-in font).
+ *
+ * #328 — pinned to USD, derived not typed, for exactly the reason spelled out
+ * in (marketing)/opengraph-image.tsx: this renders to a PNG at build time, so
+ * there is no visitor and no country to follow, and the card gets cached by
+ * every link scraper that touches it. The figure it CAN honour is the price
+ * book, and now it does: change PLAN_PRICE_CENTS.usd.starter and the next build
+ * redraws the chip and rewrites the alt text with it.
+ *
+ * The alt text carries the same figure on purpose. It is what a screen-reader
+ * user gets instead of the image, and a share card whose picture and
+ * description quote different prices is worse than either alone.
  */
-export const alt = "Loonext pricing, $29/mo flat for the whole crew";
+const STARTER_USD = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd");
+
+export const alt = `Loonext pricing, ${STARTER_USD}/mo flat for the whole crew`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -120,7 +134,7 @@ export default function PricingOpengraphImage() {
                 fontWeight: 600,
               }}
             >
-              $29/mo flat
+              {`${STARTER_USD}/mo flat`}
             </div>
           </div>
         </div>

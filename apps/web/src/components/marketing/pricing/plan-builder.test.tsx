@@ -2,6 +2,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  formatMoney,
+  PLAN_PRICE_CENTS,
+  US_REGISTRATION_FEE_CENTS,
+} from "@loonext/shared";
+
+import {
   PLAN_MODULE_CARDS,
   PLAN_PRICING,
   US_REGISTRATION_FEE_DOLLARS,
@@ -21,6 +27,31 @@ import {
   monthlyTotalDollars,
   signupHref,
 } from "./plan-math";
+
+/**
+ * #328 — the receipt figures, per currency, from the one price book.
+ *
+ * The builder is the page's centerpiece and the last thing read before the
+ * button, so it is the worst place on the site for a figure that disagrees
+ * with checkout. Owner ruling 13 already said "zero retyped numbers" about the
+ * component; a literal in its test is the same mistake one file over, and it
+ * would go on passing after the number moved.
+ */
+function money(currency: "usd" | "cad") {
+  return {
+    starter: formatMoney(PLAN_PRICE_CENTS[currency].starter, currency),
+    pro: formatMoney(PLAN_PRICE_CENTS[currency].pro, currency),
+    fee: formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency),
+    /** Plan plus the one-time US fee: the sum, and the only line that can
+     *  drift while both of its parts stay right. */
+    firstMonth: formatMoney(
+      PLAN_PRICE_CENTS[currency].starter + US_REGISTRATION_FEE_CENTS[currency],
+      currency,
+    ),
+  };
+}
+const USD = money("usd");
+const CAD = money("cad");
 
 describe("plan-math (owner ruling 13: totals from shared constants, zero retyped numbers)", () => {
   it("sells exactly the API's sellable modules — nothing today (#134/D42)", () => {
@@ -64,8 +95,12 @@ describe("plan-math (owner ruling 13: totals from shared constants, zero retyped
     expect(firstMonthTotalDollars({ plan: "pro", addons: [] })).toBe(
       PLAN_PRICING.pro.monthlyDollars + US_REGISTRATION_FEE_DOLLARS,
     );
-    // And the ruling's own arithmetic: Starter first month is $58.
-    expect(firstMonthTotalDollars(DEFAULT_SELECTION)).toBe(58);
+    // And the ruling's own arithmetic, read from the price book rather than
+    // typed: a pinned "58" here would survive a price change and become the
+    // thing blocking the fix instead of the thing catching the drift.
+    expect(firstMonthTotalDollars(DEFAULT_SELECTION)).toBe(
+      (PLAN_PRICE_CENTS.usd.starter + US_REGISTRATION_FEE_CENTS.usd) / 100,
+    );
   });
 
   it("ignores add-on ids that aren't sellable (no phantom charges)", () => {
@@ -106,13 +141,14 @@ describe("plan-math (owner ruling 13: totals from shared constants, zero retyped
 describe("<PlanBuilder> SSR default (complete without JavaScript, zero fake state)", () => {
   const html = renderToStaticMarkup(<PlanBuilder plans={PLANS} />);
 
-  it("renders the default receipt: $29 monthly, + $29 registration, $58 first month", () => {
-    expect(html).toContain("$29");
-    expect(html).toContain("$58");
+  it("renders the default receipt: plan monthly, + registration, first month", () => {
+    // No provider above it, so this is the site-wide "us" default.
+    expect(html).toContain(USD.starter);
+    expect(html).toContain(USD.firstMonth);
     expect(html).toContain("One-time US registration, first month only");
     expect(html).toContain("First month, US shops");
     // The fee is a separate line, never rolled into the monthly figure.
-    expect(html).not.toContain("$58/mo");
+    expect(html).not.toContain(`${USD.firstMonth}/mo`);
   });
 
   it("renders both plans with their catalog prices", () => {
@@ -175,26 +211,42 @@ describe("<PlanBuilder> country toggle (US default, Canada one tap)", () => {
     </CountryProvider>,
   );
 
-  it("US view: the $29 registration fee is its own first-month line and the first month is $58", () => {
+  it("US view: the registration fee is its own first-month line, in US dollars", () => {
     expect(usHtml).toContain("One-time US registration, first month only");
     expect(usHtml).toContain("First month, US shops");
-    expect(usHtml).toContain("$58");
+    expect(usHtml).toContain(USD.starter);
+    expect(usHtml).toContain(USD.fee);
+    expect(usHtml).toContain(USD.firstMonth);
     // Never rolled into the monthly figure.
-    expect(usHtml).not.toContain("$58/mo");
+    expect(usHtml).not.toContain(`${USD.firstMonth}/mo`);
   });
 
-  it("Canada view: no registration fee, no $58 first month, first month equals the monthly total", () => {
+  it("Canada view: no registration fee, and the first month equals the monthly total", () => {
     expect(caHtml).not.toContain("One-time US registration, first month only");
     expect(caHtml).not.toContain("First month, US shops");
-    expect(caHtml).not.toContain("$58");
+    expect(caHtml).not.toContain(USD.firstMonth);
+    expect(caHtml).not.toContain(CAD.firstMonth);
     expect(caHtml).toContain("No registration fee in Canada");
-    // Base plan price is identical either way (USD, plus tax): $29 monthly.
-    expect(caHtml).toContain("$29");
   });
 
-  it("Canada view keeps the CAD-billing honesty line visible (charged in USD for now)", () => {
-    expect(caHtml).toContain("CAD billing isn&#x27;t here yet");
-    expect(caHtml).toContain("charged in USD");
+  it("Canada view: the receipt is in Canadian dollars (#328)", () => {
+    // The builder is ONE instance shown to both countries, and it already
+    // reads the country for the registration line, so a Canadian reading a US
+    // figure here was the page contradicting its own toggle.
+    expect(caHtml).toContain(CAD.starter);
+    expect(caHtml).not.toContain(USD.starter);
+    expect(caHtml).not.toContain(`${USD.starter}/mo`);
+  });
+
+  it("Canada view states the billing currency as the fact it now is", () => {
+    // #328 REVERSED WHAT THIS TEST GUARDED. It used to pin "CAD billing isn't
+    // here yet ... charged in USD", which was honest in July and is the exact
+    // opposite of true now: a Canadian workspace is priced, invoiced and
+    // charged in Canadian dollars. A disclaimer beside a CAD figure would be
+    // the same panel disagreeing with itself two lines apart.
+    expect(caHtml).not.toContain("CAD billing isn&#x27;t here yet");
+    expect(caHtml).not.toContain("charged in USD");
+    expect(caHtml).toMatch(/Canadian dollars/);
   });
 
   it("neither view has an em-dash (Law 6)", () => {
@@ -246,10 +298,12 @@ describe("<FirstWeekTimeline> is country-aware", () => {
     );
     expect(html).toContain("Day one · No wait");
     expect(html).toContain("same day you sign up");
-    // A Canadian never reads about the US carrier wait or the $29 fee.
+    // A Canadian never reads about the US carrier wait or the registration
+    // fee, in either currency.
     expect(html).not.toContain("US carrier review");
     expect(html).not.toContain("3 to 7 business days");
-    expect(html).not.toContain("$29");
+    expect(html).not.toContain(USD.fee);
+    expect(html).not.toContain(CAD.fee);
     expect(html).not.toContain("You are here");
     expect(html).not.toContain("—");
   });
