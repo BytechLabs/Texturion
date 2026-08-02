@@ -9,11 +9,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
-import { emailLayout } from "../email/html";
+import { emailLayout, escapeHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { canaryConfig } from "./inbound-canary";
-import { LIVENESS_EXPECTATIONS, recordHeartbeatBestEffort } from "./liveness";
+import {
+  LIVENESS_EXPECTATIONS,
+  type LivenessExpectation,
+  recordHeartbeatBestEffort,
+} from "./liveness";
 
 /** How long an alerting key waits before it shouts again. */
 const REALERT_AFTER_MINUTES = 360;
@@ -112,19 +116,65 @@ export async function runLivenessCheckJob(
   return { overdue: overdue.length, seeded: seeded.length };
 }
 
+/**
+ * The remediation for an overdue key, read from the DECLARATION.
+ *
+ * Not from the alert row: `api_liveness_check` echoes back only the fields it
+ * was passed for its own arithmetic, and widening that RPC would put a second
+ * copy of this sentence in SQL — a copy that drifts, and the migration comment
+ * on that function refuses exactly that ("the code declares expectations"). The
+ * key is the join, and it is a compile-time table, so the lookup costs nothing.
+ */
+function doThisFor(key: string): string {
+  // Narrowed to the one field this reads, and derived from the interface so a
+  // rename over there breaks HERE rather than silently falling through to the
+  // message below. `row.key` is a plain string off an RPC, so the lookup has to
+  // tolerate a miss even though the checker only ever asks about what it sent.
+  const declared = LIVENESS_EXPECTATIONS as Record<
+    string,
+    Partial<Pick<LivenessExpectation, "doThis">> | undefined
+  >;
+  return (
+    declared[key]?.doThis ??
+    // Unreachable in practice — the checker only asks about keys it declared —
+    // and deliberately blames the alert rather than the reader if it ever is.
+    `No action is declared for "${key}", so this alert is itself the bug: it is ` +
+      `not in LIVENESS_EXPECTATIONS. Add it there or stop sending this.`
+  );
+}
+
 async function sendOverdueAlert(
   env: Env,
   overdue: OverdueRow[],
   now: Date,
 ): Promise<void> {
-  const lines = overdue
-    .map((row) => {
-      const minutes = Math.round(
-        (now.getTime() - new Date(row.last_seen_at).getTime()) / 60000,
-      );
-      return `• ${row.key}\n  ${row.what}\n  Last seen ${minutes} min ago (due by ${row.due_by}).`;
-    })
+  const items = overdue.map((row) => ({
+    ...row,
+    minutes: Math.round(
+      (now.getTime() - new Date(row.last_seen_at).getTime()) / 60000,
+    ),
+    doThis: doThisFor(row.key),
+  }));
+
+  // #510: the remedy gets its OWN line and its own label, never a clause
+  // appended to `what`. The founder's complaint was not that the sentence was
+  // too short — it was that the email ended on the diagnosis, so the reader had
+  // to supply the next step themselves at whatever hour it arrived. Last in the
+  // block on purpose: the diagnosis is what you read, the remedy is what you
+  // are left holding.
+  const lines = items
+    .map(
+      (row) =>
+        `• ${row.key}\n` +
+        `  ${row.what}\n` +
+        `  Last seen ${row.minutes} min ago (due by ${row.due_by}).\n` +
+        `  → DO THIS: ${row.doThis}`,
+    )
     .join("\n\n");
+
+  const closing =
+    `You will get one more of these in ${REALERT_AFTER_MINUTES / 60}h if it ` +
+    `is still overdue, and nothing at all once it recovers.`;
 
   const text =
     `${overdue.length} expected thing(s) have not happened.\n\n${lines}\n\n` +
@@ -132,8 +182,7 @@ async function sendOverdueAlert(
     `carrier accepts and drops, the mailbox bounces after we were told 200, ` +
     `the cron simply does not fire. Silence and health look identical from ` +
     `here, which is the whole reason this check exists (#387).\n\n` +
-    `You will get one more of these in ${REALERT_AFTER_MINUTES / 60}h if it ` +
-    `is still overdue, and nothing at all once it recovers.`;
+    closing;
 
   await sendEmail(env, {
     to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
@@ -141,16 +190,71 @@ async function sendOverdueAlert(
     text,
     html: emailLayout(
       `<p><strong>${overdue.length} expected thing(s) have not happened.</strong></p>` +
-        `<pre style="white-space:pre-wrap;font-family:inherit;">${escapeText(lines)}</pre>`,
+        items.map(overdueCardHtml).join("") +
+        `<p style="font-size:13px;line-height:1.5;color:#6E7163;">${escapeHtml(closing)}</p>`,
     ),
   });
 }
 
-function escapeText(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+/**
+ * One overdue key as a card, rather than a line of a <pre> dump.
+ *
+ * The old HTML body was the plain-text block verbatim inside a <pre>, which
+ * gave the key, the diagnosis and the timestamp identical weight — and would
+ * have given the remedy that same weight, i.e. made it read as a fourth
+ * undifferentiated line, which is the one thing #510 says it must not do.
+ *
+ * So the two groups are separated visually as well as textually: the diagnosis
+ * is tight (key, sentence, staleness, 4px apart — one semantic unit), and the
+ * remedy sits in its own tinted, olive-ruled block after a real gap. Tables and
+ * inline styles only, because Gmail and Outlook strip <style> blocks.
+ */
+const MONO_STACK = "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace";
+
+/**
+ * Render the `backticked` identifiers in a remedy as actual monospace.
+ *
+ * Every `doThis` names the specific thing to look at — a log line to search, a
+ * column to read, an environment variable to compare — and marks it with
+ * backticks so the plain-text body sets it apart. Left alone in the HTML those
+ * become literal backticks, i.e. markdown that visibly failed to render, in the
+ * body the founder actually opens. Worse than ugly: the identifier is the part
+ * that has to be copied exactly, and it is the part the eye has to find.
+ *
+ * Runs AFTER escaping, which is safe in that order and only in that order:
+ * `escapeHtml` neutralises `&<>` and leaves backticks alone, so nothing in the
+ * text can forge the tags this adds. Unpaired backticks are left as-is rather
+ * than swallowing the rest of the sentence into a code span.
+ */
+function withCodeSpans(escaped: string): string {
+  return escaped.replaceAll(
+    /`([^`]+)`/g,
+    (_match, code: string) =>
+      `<code style="font-family:${MONO_STACK};font-size:0.92em;background-color:#E7E8E0;padding:1px 4px;border-radius:3px;">${code}</code>`,
+  );
+}
+
+function overdueCardHtml(row: {
+  key: string;
+  what: string;
+  due_by: string;
+  minutes: number;
+  doThis: string;
+}): string {
+  const mono = MONO_STACK;
+  return (
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 22px 0;">` +
+    `<tr><td style="padding:0 0 4px 0;font-family:${mono};font-size:13px;line-height:1.4;color:#6E7163;">${escapeHtml(row.key)}</td></tr>` +
+    `<tr><td style="padding:0 0 4px 0;font-size:16px;line-height:1.5;color:#191B14;">${escapeHtml(row.what)}</td></tr>` +
+    `<tr><td style="padding:0 0 10px 0;font-size:13px;line-height:1.4;color:#6E7163;">Last seen ${row.minutes} min ago — due by ${escapeHtml(row.due_by)}.</td></tr>` +
+    // #3A430F on this tint, not the #66801F wordmark olive: the label is 11px,
+    // where the bar is 4.5:1, and olive does not clear it (the same split
+    // email/html.ts makes for links versus the wordmark).
+    `<tr><td style="padding:10px 14px;background-color:#F3F3EE;border-left:3px solid #66801F;">` +
+    `<div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#3A430F;padding:0 0 3px 0;">Do this</div>` +
+    `<div style="font-size:15px;line-height:1.5;color:#191B14;">${withCodeSpans(escapeHtml(row.doThis))}</div>` +
+    `</td></tr></table>`
+  );
 }
 
 /**

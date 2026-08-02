@@ -72,6 +72,39 @@ describe("the declaration is complete in both directions", () => {
       expect(spec.what.length, `${key} description`).toBeGreaterThan(20);
     }
   });
+
+  /**
+   * #510 — the requiredness of `doThis` is a type, but its USEFULNESS cannot be.
+   *
+   * TypeScript is satisfied by `doThis: "investigate"`, which is the founder's
+   * complaint verbatim ("what do I do?? there is nothing actionable?") wearing
+   * a field name. So the compiler enforces that an answer exists and this
+   * enforces that it is an answer: something the reader can DO without already
+   * knowing this codebase — a log line to search, a console path to open, a
+   * table to read, an environment variable to compare.
+   *
+   * Deliberately a shape check, not a wording check. A test that pinned
+   * phrasing would be a ceiling on how these are written rather than a floor
+   * under how useful they are, and the next person would route around it.
+   */
+  it("answers 'what do I do?' with something concrete, for every key", () => {
+    // A backticked identifier, a `→` console path, a URL, or a SCREAMING_CASE
+    // env var. Any one of them is a thing the reader can act on; prose with
+    // none of them is a restatement of the problem.
+    const CONCRETE = /`[^`]+`|→|https?:\/\/|[A-Z][A-Z0-9_]{4,}/;
+    // The two the doc comment calls out by name: they fit all ~76 keys here,
+    // which is exactly what makes them worthless.
+    const RESTATEMENTS = /check the logs|investigate the (issue|problem)/i;
+
+    for (const [key, spec] of Object.entries(LIVENESS_EXPECTATIONS)) {
+      const doThis: string = spec.doThis;
+      expect(doThis, `${key} names no concrete first move`).toMatch(CONCRETE);
+      expect(doThis, `${key} restates the problem`).not.toMatch(RESTATEMENTS);
+      // Long enough to name a move and its consequence. The shortest honest
+      // answer here ("nothing to do, it clears when X") still clears this.
+      expect(doThis.length, `${key} remedy length`).toBeGreaterThan(80);
+    }
+  });
 });
 
 describe("recording a heartbeat", () => {
@@ -206,6 +239,101 @@ describe("the checker", () => {
     // 21 hours stale — the number is the difference between "check this" and
     // "this has been broken since yesterday".
     expect(email.text).toContain("1260 min ago");
+  });
+
+  /**
+   * #510 — "I keep getting emails like this but what do I do??"
+   *
+   * The remedy must arrive with the alert, on its own labelled line, in both
+   * bodies. Appending it to `what` would technically put the words in the
+   * email and would not fix anything: the complaint was that the message ended
+   * on the diagnosis, so the reader had to supply the next step themselves at
+   * whatever hour it landed.
+   */
+  it("tells the founder what to DO, not only what broke", async () => {
+    const world = checkWorld({
+      overdue: [
+        {
+          key: "cron:0 15 * * *",
+          what: "The daily subscription reconcile has not run.",
+          last_seen_at: "2026-07-27T15:00:00Z",
+          due_by: "2026-07-28T03:00:00Z",
+          first_alert: true,
+        },
+      ],
+    });
+    stubFetch(...world.routes);
+
+    await runLivenessCheckJob(env, CHECK_NOW);
+
+    const email = world.emails[0] as { text: string; html: string };
+    expect(email.text).toContain("DO THIS:");
+    expect(email.text).toContain(
+      LIVENESS_EXPECTATIONS["cron:0 15 * * *"].doThis,
+    );
+    // And in the HTML, which is the body the founder actually reads — with its
+    // own label, so it cannot be mistaken for a fourth line of the diagnosis.
+    expect(email.html).toContain("Do this");
+    expect(email.html).toContain("Cron Triggers");
+  });
+
+  /**
+   * The identifiers a remedy names are the parts that have to be copied
+   * exactly, so they are backticked — which the plain-text body renders as-is
+   * and the HTML body must render as monospace rather than as literal
+   * backticks, i.e. markdown that visibly failed.
+   */
+  it("sets the identifiers it names in monospace, and cannot be forged", async () => {
+    const world = checkWorld({
+      overdue: [
+        {
+          key: "job:report-usage",
+          what: "Usage is not reaching Stripe.",
+          last_seen_at: "2026-07-27T15:00:00Z",
+          due_by: "2026-07-28T03:00:00Z",
+          first_alert: true,
+        },
+      ],
+    });
+    stubFetch(...world.routes);
+
+    await runLivenessCheckJob(env, CHECK_NOW);
+
+    const email = world.emails[0] as { html: string };
+    // `stripe_reported_at` is backticked in that key's remedy.
+    expect(email.html).toContain("<code");
+    expect(email.html).toContain("stripe_reported_at</code>");
+    // Escaping runs FIRST, so nothing in the alert's own text can close a tag
+    // or open one of its own. The RPC's `what` is the untrusted-ish half here
+    // (it round-trips through SQL), and it is escaped by the same path.
+    expect(email.html).not.toContain("<script");
+  });
+
+  /**
+   * The remedy is looked up from the DECLARATION by key, not echoed back by
+   * the RPC, so a key the checker never declared has no answer to give. That
+   * is unreachable in practice — it only asks about what it sent — and the
+   * failure mode if it ever happens must be a readable alert, not a crash that
+   * takes down the whole email and silences every other overdue key with it.
+   */
+  it("blames the alert, not the reader, for a key it never declared", async () => {
+    const world = checkWorld({
+      overdue: [
+        {
+          key: "cron:0 4 * * *",
+          what: "A schedule that is no longer declared has not run.",
+          last_seen_at: "2026-07-27T15:00:00Z",
+          due_by: "2026-07-28T03:00:00Z",
+          first_alert: true,
+        },
+      ],
+    });
+    stubFetch(...world.routes);
+
+    await expect(runLivenessCheckJob(env, CHECK_NOW)).resolves.toBeDefined();
+
+    const email = world.emails[0] as { text: string };
+    expect(email.text).toContain("LIVENESS_EXPECTATIONS");
   });
 });
 
