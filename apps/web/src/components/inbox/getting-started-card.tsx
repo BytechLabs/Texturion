@@ -1,5 +1,6 @@
 "use client";
 
+import { roleHasCapability } from "@loonext/shared";
 import { Check, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -63,12 +64,21 @@ interface StepItem {
 
 export function GettingStartedCard() {
   const { role } = useActiveCompany();
-  // #405: owner and admin get the setup list; everybody else gets the one
-  // about doing the job. Checked before any of the setup queries below matter,
-  // so a member never pays for data about a card they will not see.
-  const isSetupAudience = role === "owner" || role === "admin";
-  if (!isSetupAudience) return <MemberStartedCard />;
-  return <OwnerStartedCard />;
+  // #405/#504: which card, asked as a CAPABILITY question rather than a rank
+  // one. "Is this person senior enough?" and "can this person do the things on
+  // the list?" agree for owner, admin and member and disagree for read_only,
+  // which holds only workspace.access and conversations.read — so the rank gate
+  // handed a read-only observer a checklist of three things they provably
+  // cannot do, on the surface they land on, that could never empty itself.
+  //
+  // Matches `startedAudience()` on both native clients, which were written
+  // against #315's capability sets from the start.
+  if (roleHasCapability(role, "settings.manage")) return <OwnerStartedCard />;
+  if (roleHasCapability(role, "conversations.send")) return <MemberStartedCard />;
+  // Neither list applies. Returning before either card mounts is what keeps
+  // this free: every query lives inside the cards, so an audience that sees
+  // nothing fetches nothing.
+  return null;
 }
 
 /**
