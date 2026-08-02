@@ -440,3 +440,14 @@ export {
   contactRelationshipLine,
   monthYear,
 } from "./contact-relationship";
+export {
+  ATTRIBUTION_PARAMS,
+  ATTRIBUTION_PATH_MAX,
+  ATTRIBUTION_VALUE_MAX,
+  attributionParams,
+  isMeaningfulTouch,
+  referrerHost,
+  sanitizeAttributionValue,
+  sanitizeLandingPath,
+} from "./attribution";
+export type { AttributionParam, FirstTouch } from "./attribution";

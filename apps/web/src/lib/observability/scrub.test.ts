@@ -215,6 +215,42 @@ describe("scrubBreadcrumb (beforeBreadcrumb defense-in-depth)", () => {
   });
 });
 
+describe("#296 the campaign allow-list is the ONLY thing that survives", () => {
+  it("keeps utm and the click ids", () => {
+    // Without these there is no way to tell whether /compare produces a
+    // signup, which is six landing pages of investment with no feedback loop.
+    expect(stripQueryAndHash("/compare?utm_source=google&utm_medium=cpc")).toBe(
+      "/compare?utm_source=google&utm_medium=cpc",
+    );
+    expect(stripQueryAndHash("/?gclid=Cj0KCQ")).toBe("/?gclid=Cj0KCQ");
+  });
+
+  it("still cuts everything this function was written to cut", () => {
+    // The whole reason the query string is dropped: it round-trips typed
+    // contact names and message words through the inbox filter and the search
+    // palette. Adding an allow-list must not reopen that.
+    expect(stripQueryAndHash("/inbox?q=Jane+Doe")).toBe("/inbox");
+    expect(stripQueryAndHash("/inbox?q=Jane&utm_source=google")).toBe(
+      "/inbox?utm_source=google",
+    );
+    expect(stripQueryAndHash("/signup?email=jane%40example.com")).toBe("/signup");
+    expect(stripQueryAndHash("/x?ref=ABCD1234")).toBe("/x");
+  });
+
+  it("refuses a campaign value that is not campaign-shaped", () => {
+    // The parameter name is allow-listed; the VALUE still has to look like a
+    // campaign token, so ?utm_source=<a name> does not smuggle one through.
+    expect(stripQueryAndHash("/x?utm_source=Jane%20Doe")).toBe("/x");
+    expect(stripQueryAndHash("/x?utm_campaign=" + "a".repeat(200))).toBe("/x");
+  });
+
+  it("drops the fragment even when a campaign key survives", () => {
+    expect(stripQueryAndHash("/compare?utm_source=google#rows")).toBe(
+      "/compare?utm_source=google",
+    );
+  });
+});
+
 describe("stripQueryAndHash (shared with lib/analytics/posthog.ts)", () => {
   it("cuts at the first ? or #, and passes clean URLs through", () => {
     expect(stripQueryAndHash("/inbox?q=Jane#top")).toBe("/inbox");

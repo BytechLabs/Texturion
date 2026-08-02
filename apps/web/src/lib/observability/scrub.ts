@@ -1,3 +1,5 @@
+import { ATTRIBUTION_PARAMS, sanitizeAttributionValue } from "@loonext/shared";
+
 /**
  * PII scrubbing for browser telemetry (SPEC §10, D8): message bodies, contact
  * names, and phone numbers never reach Sentry or PostHog.
@@ -51,7 +53,30 @@ export const URL_KEY_PATTERN = /url|referr?er|pathname|^(?:from|to)$/i;
  */
 export function stripQueryAndHash(url: string): string {
   const cut = url.search(/[?#]/);
-  return cut === -1 ? url : url.slice(0, cut);
+  if (cut === -1) return url;
+  const base = url.slice(0, cut);
+
+  // #296: ONE exception, enumerated rather than inferred. Campaign parameters
+  // describe an ad, never a person, and without them there is no way to tell
+  // whether /compare or /for/plumbers produces a signup — six landing pages of
+  // investment with no feedback loop.
+  //
+  // Everything else still goes, including the ?q= this function was written
+  // for. The allow-list lives in @loonext/shared so the value that survives
+  // here is the same one the capture stores, and widening it is one edit in a
+  // file whose tests are about privacy.
+  const kept = new URLSearchParams();
+  try {
+    const query = new URLSearchParams(url.slice(cut + 1).split("#")[0] ?? "");
+    for (const key of ATTRIBUTION_PARAMS) {
+      const value = sanitizeAttributionValue(query.get(key));
+      if (value !== null) kept.set(key, value);
+    }
+  } catch {
+    return base;
+  }
+  const suffix = kept.toString();
+  return suffix === "" ? base : `${base}?${suffix}`;
 }
 
 /** Full URL treatment: cut at `?`/`#`, then redact phone-shaped path segments. */
