@@ -71,3 +71,55 @@ export function useDeleteTag() {
     },
   });
 }
+
+/**
+ * #298 — GET /v1/tags/usage: how much each tag is actually used.
+ *
+ * Its own query rather than a field on the tag list, because the list is on
+ * every screen that shows a tag chip and this is only ever read on one. Joining
+ * it in would put a count aggregate on the inbox's hot path.
+ */
+export interface TagUsage {
+  tag_id: string;
+  name: string;
+  uses: number;
+  last_used: string | null;
+}
+
+export function useTagUsage(enabled = true) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: keys.tagUsage(companyId),
+    queryFn: () => apiFetch<Page<TagUsage>>("/v1/tags/usage", { companyId }),
+    enabled,
+  });
+}
+
+/**
+ * #298 — POST /v1/tags/:id/merge.
+ *
+ * Invalidates the tag list AND the conversation lists: a merge rewrites which
+ * tag every affected thread carries, so a cached list would keep rendering a
+ * chip for a tag that no longer exists.
+ */
+export function useMergeTags() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { fromTagId: string; intoTagId: string }) =>
+      apiFetch<{ merged: true; moved: number; already_both: number }>(
+        `/v1/tags/${input.fromTagId}/merge`,
+        { method: "POST", companyId, body: { into_tag_id: input.intoTagId } },
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.tags(companyId) });
+      void queryClient.invalidateQueries({ queryKey: keys.tagUsage(companyId) });
+      // Every cached conversation list: a merge rewrites which tag an
+      // affected thread carries, and a stale list keeps rendering a chip
+      // for a tag that no longer exists.
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.lists(companyId),
+      });
+    },
+  });
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { ArrowUpRight, Ban, Check, Copy, Plus, Undo2, X } from "lucide-react";
+import { ArrowUpRight, Ban, Check, Copy, Plus, Sparkles, Undo2, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -41,6 +41,7 @@ import {
   useDetachTag,
 } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
+import { suggestExistingTag } from "@loonext/shared";
 import { useTags } from "@/lib/api/tags";
 import { flattenPages } from "@/lib/api/pagination";
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
@@ -461,9 +462,28 @@ function ConversationTags({
     (tag) => !attached.some((t) => t.id === tag.id),
   );
   const trimmed = query.trim();
-  const exactExists = (tags.data?.data ?? []).some(
-    (tag) => tag.name.toLowerCase() === trimmed.toLowerCase(),
-  );
+  /**
+   * #298 — the tag this typing probably means, if one already exists.
+   *
+   * Catching a near-duplicate at CREATION is worth more than any amount of
+   * cleanup afterwards, because sprawl is invisible while it happens: each act
+   * is reasonable on its own, a tech typing "warranty" instead of "Warranty",
+   * and it only becomes visible once a filter has been quietly under-returning
+   * for months.
+   *
+   * The list above is filtered by cmdk's own matcher, which does not know that
+   * "quote-sent" and "Quote sent" are the same idea, or that "warrenty" is a
+   * typo. This does.
+   */
+  const suggestion = suggestExistingTag(trimmed, tags.data?.data ?? []);
+  const suggested =
+    suggestion && !attached.some((t) => t.id === suggestion.tag.id)
+      ? suggestion
+      : null;
+  // An EXACT normalised match cannot be created: the find-or-create RPC keys on
+  // lower(name) and would hand back the existing tag anyway. Offering "Create"
+  // there is offering something that does not happen.
+  const exactExists = suggestion?.exact === true;
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 px-2">
@@ -531,6 +551,25 @@ function ConversationTags({
                     {tag.name}
                   </CommandItem>
                 ))}
+                {/* #298: the existing tag comes FIRST, and it says why it is
+                    being offered. A prompt that just reorders the list teaches
+                    nothing; one that names the near-duplicate is how somebody
+                    stops making it. */}
+                {suggested && !suggested.exact && (
+                  <CommandItem
+                    value={`suggest-${suggested.tag.id}`}
+                    onSelect={() => {
+                      attach.mutate(
+                        { tag_id: suggested.tag.id },
+                        { onError: (e) => onApiError(e, "Couldn't add the tag.") },
+                      );
+                      setOpen(false);
+                    }}
+                  >
+                    <Sparkles className="size-3.5" strokeWidth={1.75} />
+                    Did you mean &ldquo;{suggested.tag.name}&rdquo;?
+                  </CommandItem>
+                )}
                 {trimmed !== "" && !exactExists && (
                   <CommandItem
                     value={`create-${trimmed}`}

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { LoadError, SettingsPage } from "@/components/settings/section";
+import { TagManagementCard } from "@/components/settings/tag-management-card";
 import { Button } from "@/components/ui/button";
 import { useActiveCompany } from "@/lib/company/provider";
 import {
@@ -112,8 +113,13 @@ export default function TemplatesSettingsPage() {
 
   return (
     <SettingsPage
-      title="Templates"
-      description="Saved replies your team can send in one tap. Type / in the composer to insert one."
+      title="Templates & tags"
+      // #298: tags live here rather than in a section of their own. They are
+      // the other thing a crew curates together, and the marketing already
+      // pairs them at /features/templates-and-tags — inventing a fifteenth
+      // settings section for one list would be a worse answer than joining the
+      // one it belongs beside.
+      description="Saved replies your team can send in one tap, and the tags they file work under."
     >
       <div className="space-y-4">
         {canCurate ? (
@@ -213,6 +219,11 @@ export default function TemplatesSettingsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* #298: the tag list, ordered by use. The near-duplicates sit next to
+          each other with wildly different counts, and the dead ones collect at
+          the bottom — which is the whole of "see the sprawl". */}
+      <TagManagementCard canManage={canCurate} />
     </SettingsPage>
   );
 }

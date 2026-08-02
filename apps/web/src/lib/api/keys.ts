@@ -49,6 +49,8 @@ export const keys = {
       [companyId, "text-enablements", "detail", orderId] as const,
   },
   tags: (companyId: string) => [companyId, "tags"] as const,
+  /** #298: usage counts, read only on the tag-management screen. */
+  tagUsage: (companyId: string) => [companyId, "tags", "usage"] as const,
   /** #280: one key per surface — the two lists are fetched independently. */
   savedViews: (companyId: string, surface: string) =>
     [companyId, "saved-views", surface] as const,

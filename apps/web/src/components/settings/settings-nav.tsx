@@ -94,8 +94,11 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "templates",
     slug: "templates",
-    label: "Templates",
-    description: "Saved replies your team can send in one tap",
+    label: "Templates & tags",
+    // #298: tags are curated here too. The marketing already pairs them at
+    // /features/templates-and-tags, so this is the product's own vocabulary
+    // rather than a new one invented for a settings row.
+    description: "Saved replies, and the tags your work is filed under",
     icon: MessageSquareText,
   },
   {
