@@ -118,6 +118,10 @@ describe("templates CRUD (#461: read is a member's, curating is admin's)", () =>
       company_id: COMPANY_ID,
       name: "On my way",
       body: "Heading over now!",
+      // #274: an explicit null rather than an absent key. "No category" is a
+      // state the column stores, and writing it plainly keeps every reader's
+      // null check meaning one thing.
+      category: null,
       created_by: auth.subject,
     });
 
@@ -277,5 +281,79 @@ describe("templates CRUD (#461: read is a member's, curating is admin's)", () =>
       });
       expect(res.status, `${method} ${path}`).toBe(403);
     }
+  });
+});
+
+describe("#274 categories and the picker's order", () => {
+  it("stores the crew's own grouping", async () => {
+    const sb = adminStub();
+    sb.on("POST", "/rest/v1/templates", () => [{ id: TEMPLATE_ID, name: "On my way", body: "Heading over now!" }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/templates", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { name: "Quote sent", body: "Your quote is attached.", category: "Quoting" },
+    });
+    expect(res.status).toBe(201);
+    expect(sb.find("POST", "/rest/v1/templates")[0].body).toMatchObject({
+      category: "Quoting",
+    });
+  });
+
+  it("treats an empty category as cleared, not as a category named nothing", async () => {
+    const sb = adminStub();
+    sb.on("GET", "/rest/v1/templates", () => [{ id: TEMPLATE_ID, name: "On my way", body: "Heading over now!" }]);
+    sb.on("PATCH", "/rest/v1/templates", () => [{ id: TEMPLATE_ID, name: "On my way", body: "Heading over now!" }]);
+    sb.on("POST", "/rest/v1/audit_log", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(app, env, await auth.token(), `/v1/templates/${TEMPLATE_ID}`, {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { category: "" },
+    });
+    expect(sb.find("PATCH", "/rest/v1/templates")[0].body).toMatchObject({
+      category: null,
+    });
+  });
+
+  it("counts a category change as a field, so it alone is a valid patch", async () => {
+    // The refine() clause enumerates fields by hand, and one left out of it
+    // 422s a body that is perfectly valid.
+    const sb = adminStub();
+    sb.on("GET", "/rest/v1/templates", () => [{ id: TEMPLATE_ID, name: "On my way", body: "Heading over now!" }]);
+    sb.on("PATCH", "/rest/v1/templates", () => [{ id: TEMPLATE_ID, name: "On my way", body: "Heading over now!" }]);
+    sb.on("POST", "/rest/v1/audit_log", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/templates/${TEMPLATE_ID}`,
+      { method: "PATCH", companyId: COMPANY_ID, body: { category: "Quoting" } },
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("sorts by use for the picker, and alphabetically by default", async () => {
+    // Two orders because two people are asking different questions: somebody
+    // SENDING wants what they send most; somebody MAINTAINING wants a stable
+    // place to find one.
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/templates", () => [{ id: TEMPLATE_ID, name: "On my way", body: "Heading over now!" }]);
+    sb.on("POST", "/rest/v1/rpc/api_templates_by_use", () => [{ id: TEMPLATE_ID, name: "On my way", body: "Heading over now!" }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(app, env, await auth.token(), "/v1/templates", {
+      companyId: COMPANY_ID,
+    });
+    expect(sb.find("POST", "/rest/v1/rpc/api_templates_by_use")).toHaveLength(0);
+
+    await apiRequest(app, env, await auth.token(), "/v1/templates?sort=use", {
+      companyId: COMPANY_ID,
+    });
+    expect(sb.find("POST", "/rest/v1/rpc/api_templates_by_use")).toHaveLength(1);
   });
 });

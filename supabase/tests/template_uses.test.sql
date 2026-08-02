@@ -172,6 +172,92 @@ begin
 end $$;
 
 -- ===========================================================================
+-- TU-6a: #274 — the picker's list is most-used first, and includes the unused.
+--
+-- Somebody about to send is looking for the reply they send twenty times a
+-- day. Alphabetical puts it wherever its name falls. A never-used template
+-- still appears: a picker that hid them would hide every reply a crew has just
+-- written.
+-- ===========================================================================
+do $$
+declare
+  v_first uuid;
+  v_count int;
+begin
+  select id into v_first
+    from public.api_templates_by_use('54000000-0000-4000-8000-0000000000c1'::uuid)
+   limit 1;
+  if v_first <> '54000000-0000-4000-8000-0000000000e1'::uuid then
+    raise exception 'TU-6a: the picker did not lead with the most-used template';
+  end if;
+
+  select count(*) into v_count
+    from public.api_templates_by_use('54000000-0000-4000-8000-0000000000c1'::uuid)
+   where id = '54000000-0000-4000-8000-0000000000e2'::uuid;
+  if v_count <> 1 then
+    raise exception 'TU-6a: a never-used template is missing from the picker';
+  end if;
+end $$;
+
+-- ===========================================================================
+-- TU-6b: #274 — a category is the crew's own text, and the guard is its length.
+-- ===========================================================================
+do $$
+declare r record;
+begin
+  update public.templates set category = 'Quoting'
+   where id = '54000000-0000-4000-8000-0000000000e1'::uuid;
+
+  select * into r
+    from public.api_template_usage('54000000-0000-4000-8000-0000000000c1'::uuid)
+   where template_id = '54000000-0000-4000-8000-0000000000e1'::uuid;
+  if r.category is distinct from 'Quoting' then
+    raise exception 'TU-6b: the usage list dropped the category';
+  end if;
+
+  -- Over the limit, the write must fail rather than silently truncate a label
+  -- somebody chose.
+  begin
+    update public.templates set category = repeat('x', 41)
+     where id = '54000000-0000-4000-8000-0000000000e1'::uuid;
+    raise exception 'TU-6b: a 41-character category was accepted';
+  exception
+    when check_violation then null;
+  end;
+
+  -- Blank is not a category. The API normalises "" to null before it gets
+  -- here; the CHECK is the backstop for anything that does not.
+  begin
+    update public.templates set category = '   '
+     where id = '54000000-0000-4000-8000-0000000000e1'::uuid;
+    raise exception 'TU-6b: a whitespace-only category was accepted';
+  exception
+    when check_violation then null;
+  end;
+end $$;
+
+-- ===========================================================================
+-- TU-6c: a soft-deleted template leaves the PICKER too, not just the settings
+-- list. It is the same rule stated twice because they are two functions.
+-- ===========================================================================
+do $$
+declare v_count int;
+begin
+  update public.templates set deleted_at = now()
+   where id = '54000000-0000-4000-8000-0000000000e2'::uuid;
+
+  select count(*) into v_count
+    from public.api_templates_by_use('54000000-0000-4000-8000-0000000000c1'::uuid)
+   where id = '54000000-0000-4000-8000-0000000000e2'::uuid;
+  if v_count <> 0 then
+    raise exception 'TU-6c: a deleted template is still in the picker';
+  end if;
+
+  update public.templates set deleted_at = null
+   where id = '54000000-0000-4000-8000-0000000000e2'::uuid;
+end $$;
+
+-- ===========================================================================
 -- TU-7: a HARD delete takes the ledger with it, both ways.
 --
 -- #475's retention criterion: the ledger outlives neither the template nor the

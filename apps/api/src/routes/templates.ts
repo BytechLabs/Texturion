@@ -30,7 +30,7 @@ const TEMPLATE_COLUMNS =
   // #419: `updated_by` rides every read so a list can say who last changed
   // shared copy. Not a permission — visibility, which is what settles a
   // question before it becomes a dispute.
-  "id,name,body,created_by,updated_by,created_at,updated_at";
+  "id,name,body,category,created_by,updated_by,created_at,updated_at";
 
 /**
  * What the audit log is told about a template (#419).
@@ -52,16 +52,40 @@ function auditShape(row: Record<string, unknown>): Record<string, unknown> {
 const createSchema = z.object({
   name: z.string().trim().min(1).max(120),
   body: z.string().trim().min(1).max(2000),
+  /**
+   * #274: the crew's own grouping. Free text and optional — a taxonomy we
+   * imposed would be ignored in favour of whatever people were already doing,
+   * and a category is worth typing at thirty templates and friction at five.
+   */
+  // No min(1): an empty input box is how somebody CLEARS a category, and
+   // rejecting "" would make the clear a 422 the client has to know to
+   // avoid. Normalised to null in the handler, which is what the column's
+   // CHECK requires and what every reader branches on.
+   category: z.string().trim().max(40).nullable().optional(),
 });
 
 const patchSchema = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
     body: z.string().trim().min(1).max(2000).optional(),
+  /**
+     * #274: the crew's own grouping. Free text and optional — a taxonomy we
+     * imposed would be ignored in favour of whatever people were already doing,
+     * and a category is worth typing at thirty templates and friction at five.
+     */
+    // No min(1): an empty input box is how somebody CLEARS a category, and
+   // rejecting "" would make the clear a 422 the client has to know to
+   // avoid. Normalised to null in the handler, which is what the column's
+   // CHECK requires and what every reader branches on.
+   category: z.string().trim().max(40).nullable().optional(),
   })
-  .refine((value) => value.name !== undefined || value.body !== undefined, {
-    message: "Provide at least one field to update.",
-  });
+  .refine(
+    (value) =>
+      value.name !== undefined ||
+      value.body !== undefined ||
+      "category" in value,
+    { message: "Provide at least one field to update." },
+  );
 
 const NAME_CONFLICT = "A saved reply with this name already exists.";
 
@@ -69,19 +93,41 @@ export const templatesRoutes = new Hono<AppEnv>();
 
 templatesRoutes.get("/templates", requireCapability("conversations.read"), async (c) => {
   const db = getDb(getEnv(c.env));
-  const rows = unwrap<Record<string, unknown>[]>(
-    await db
-      .from("templates")
-      .select(TEMPLATE_COLUMNS)
-      .eq("company_id", c.get("companyId"))
-      .is("deleted_at", null)
-      .order("name", { ascending: true })
-      // Defensive bound: this list is unpaginated (next_cursor is always null),
-      // so cap the rows well above any real company's saved-reply count rather
-      // than let a pathological table return an unbounded response.
-      .limit(500),
-    "templates list",
-  );
+  /**
+   * #274 — two orders, because two people are asking different questions.
+   *
+   * `sort=use` is the COMPOSER's picker: somebody about to send is looking for
+   * the reply they send twenty times a day, and alphabetical puts it wherever
+   * its name happens to fall. Rows come back with their counts already joined,
+   * so the picker opens on one request rather than a list plus a usage table
+   * to sort it by.
+   *
+   * The default stays alphabetical, for the SETTINGS list: somebody
+   * maintaining thirty templates wants a stable place to find one, and a list
+   * that reorders itself as the crew works is a list you cannot learn.
+   */
+  const byUse = c.req.query("sort") === "use";
+  const rows = byUse
+    ? unwrap<Record<string, unknown>[]>(
+        await db.rpc("api_templates_by_use", {
+          p_company_id: c.get("companyId"),
+        }),
+        "templates by use",
+      )
+    : unwrap<Record<string, unknown>[]>(
+        await db
+          .from("templates")
+          .select(TEMPLATE_COLUMNS)
+          .eq("company_id", c.get("companyId"))
+          .is("deleted_at", null)
+          .order("name", { ascending: true })
+          // Defensive bound: this list is unpaginated (next_cursor is always
+          // null), so cap the rows well above any real company's saved-reply
+          // count rather than let a pathological table return an unbounded
+          // response.
+          .limit(500),
+        "templates list",
+      );
 
   // #419 ask 3: resolve the editor SERVER-SIDE, through the same #191
   // attribution helper every other surface uses. Three clients each mapping a
@@ -115,6 +161,8 @@ templatesRoutes.post("/templates", requireCapability("settings.manage"), async (
         company_id: c.get("companyId"),
         name: body.name,
         body: body.body,
+        // #274: normalised the same way the patch path does.
+        category: body.category === "" ? null : (body.category ?? null),
         created_by: c.get("userId"),
       })
       .select(TEMPLATE_COLUMNS),
@@ -138,6 +186,13 @@ templatesRoutes.patch("/templates/:id", requireCapability("settings.manage"), as
   const patch: Record<string, unknown> = {};
   if (body.name !== undefined) patch.name = body.name;
   if (body.body !== undefined) patch.body = body.body;
+  // #274: an empty string is a cleared grouping, not a category named "". The
+  // column is nullable and every reader branches on null, so normalising here
+  // keeps "no category" single-valued.
+  if ("category" in body) {
+    patch.category =
+      body.category === null || body.category === "" ? null : body.category;
+  }
 
   patch.updated_by = c.get("userId");
 
