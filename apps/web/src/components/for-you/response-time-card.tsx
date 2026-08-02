@@ -129,7 +129,7 @@ export function ResponseTimeCard() {
               onClick={() => setDays(w.days)}
               aria-pressed={days === w.days}
               className={cn(
-                "rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums transition-colors duration-150 ease-out",
+                "tap-target rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums transition-colors duration-150 ease-out",
                 days === w.days
                   ? "bg-app-ink text-app-paper"
                   : "text-app-muted-2 hover:bg-app-hover",

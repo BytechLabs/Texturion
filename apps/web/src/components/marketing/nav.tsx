@@ -98,7 +98,7 @@ export function Nav() {
                   <button
                     type="button"
                     aria-label="Open menu"
-                    className="frn-focus inline-flex size-10 items-center justify-center rounded-full text-[color:var(--fr-ink-70)] transition-colors duration-200 ease-out hover:bg-[color:var(--fr-frost)] hover:text-[color:var(--fr-ink)]"
+                    className="tap-target frn-focus inline-flex size-10 items-center justify-center rounded-full text-[color:var(--fr-ink-70)] transition-colors duration-200 ease-out hover:bg-[color:var(--fr-frost)] hover:text-[color:var(--fr-ink)]"
                   >
                     <Menu className="size-5" aria-hidden />
                   </button>

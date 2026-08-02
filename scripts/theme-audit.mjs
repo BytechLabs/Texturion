@@ -296,6 +296,209 @@ const AUDIT = () => {
   return faults;
 };
 
+/**
+ * #238 — APP-LAYOUT-V2 §7, checked mechanically rather than from memory.
+ *
+ * §7 is a good, precise, BINDING specification that nothing verified. #238 is
+ * blunt about the consequence: "a spec that is only enforced by memory decays
+ * exactly like the parity in #338 did." It also says where this belongs —
+ * "shared with #320's both-theme capture rather than built twice" — so it runs
+ * inside the audit that already logs in, opens the overlays, and renders every
+ * surface in both schemes. A second harness would be a second thing to keep
+ * working.
+ *
+ * THREE RULES, chosen because each is written in §7 in as many words, each is
+ * measurable without judgement, and each has a real regression behind it:
+ *
+ *   NO-NAME     An interactive control with no accessible name. §7 requires
+ *               labels on the icon-only controls specifically ("Remove
+ *               <filter>", the composer send button, the per-message toggle),
+ *               and an icon-only button is exactly the thing that ships nameless
+ *               — it looks complete on screen and is a dead end in a screen
+ *               reader. Nothing else in CI would catch it.
+ *   SMALL-TAP   §7: hit targets >= 44px via `.tap-target`. MEASURED AT 375px
+ *               ONLY, and that qualifier is the whole check. §7's rule is
+ *               mobile-first in as many words ("designed at 375px"), and
+ *               `.tap-target` is `size-11 md:size-8` — 44px on a phone,
+ *               deliberately smaller on a desktop where the pointer is a mouse.
+ *               Running it at 1440px reported 210 faults on eight surfaces,
+ *               every one of them correct-by-design: a firehose that would have
+ *               been muted within a week, which #320 already warned is worse
+ *               than no gate at all.
+ *   NO-ALT      §7 requires alt text on every gallery thumbnail. An <img> with
+ *               no alt attribute at all is the failure; alt="" is a DECLARATION
+ *               that the image is decorative and is correct, so it passes.
+ *
+ * WHAT IT DELIBERATELY DOES NOT CHECK. Focus appearance (2.4.11) needs a
+ * rendered focus ring compared against its surround, and reduced motion needs
+ * a second pass under an emulated media query. Both are real and both belong
+ * here later; neither is measurable in this pass without producing the kind of
+ * noisy near-miss that gets a gate rubber-stamped, which #320 already warned is
+ * worse than no gate at all.
+ */
+const A11Y = (checkTapSize) => {
+  const faults = [];
+
+  /**
+   * WCAG 2.2 2.5.8 AA's normative floor, NOT §7's 44px aspiration.
+   *
+   * §7 asks for 44px and `.tap-target` delivers it; this gate enforces the
+   * STANDARD instead, one notch below, and the difference is deliberate. The
+   * country selector is the case that settled it: its author chose `min-h-6`
+   * with a comment naming 2.5.8's 24px floor, because a compact segmented
+   * control given 44px hit areas would have its two options OVERLAP — worse
+   * for the same user. A gate that fails a considered, conformant choice is one
+   * that gets argued with and then muted.
+   *
+   * So: 24px is the line, `.tap-target` credits anything aiming higher, and
+   * §7's 44px stays what the utility exists to make easy rather than what CI
+   * demands of every control.
+   */
+  const MIN_TARGET_PX = 24;
+
+  /** Is this actually on screen? An offscreen control is not a user's problem. */
+  const visible = (el) => {
+    const style = getComputedStyle(el);
+    if (style.display === "none" || style.visibility === "hidden") return false;
+    if (parseFloat(style.opacity || "1") === 0) return false;
+    const box = el.getBoundingClientRect();
+    return box.width > 0 && box.height > 0;
+  };
+
+  /** A short, stable way to point at the offender in a failure line. */
+  const describe = (el) => {
+    const id = el.id ? `#${el.id}` : "";
+    const cls = typeof el.className === "string" && el.className
+      ? `.${el.className.trim().split(/\s+/).slice(0, 2).join(".")}`
+      : "";
+    return `${el.tagName.toLowerCase()}${id}${cls}`;
+  };
+
+  /**
+   * The name a screen reader would announce, in the order it resolves them.
+   * Deliberately not a full accname implementation — this needs to be right
+   * about the common cases and never wrong about a control that HAS a name.
+   */
+  const accessibleName = (el) => {
+    const labelledby = el.getAttribute("aria-labelledby");
+    if (labelledby) {
+      const text = labelledby
+        .split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent?.trim() ?? "")
+        .join(" ")
+        .trim();
+      if (text) return text;
+    }
+    const aria = el.getAttribute("aria-label")?.trim();
+    if (aria) return aria;
+    const text = el.textContent?.trim();
+    if (text) return text;
+    const title = el.getAttribute("title")?.trim();
+    if (title) return title;
+    // An icon-only control often carries its name on the image inside it.
+    const img = el.querySelector("img[alt]");
+    if (img?.getAttribute("alt")?.trim()) return img.getAttribute("alt").trim();
+    if (el.tagName === "INPUT") {
+      const placeholder = el.getAttribute("placeholder")?.trim();
+      if (placeholder) return placeholder;
+    }
+    // `<label for>` labels any LABELABLE element — button, input, meter,
+    // output, progress, select, textarea — not just inputs. Radix renders a
+    // switch as `<button role="switch">`, so checking inputs alone reported
+    // every correctly-labelled toggle in settings as nameless.
+    const LABELABLE = ["BUTTON", "INPUT", "METER", "OUTPUT", "PROGRESS", "SELECT", "TEXTAREA"];
+    if (LABELABLE.includes(el.tagName)) {
+      const labelled = el.id
+        ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`)
+        : el.closest("label");
+      if (labelled?.textContent?.trim()) return labelled.textContent.trim();
+    }
+    return "";
+  };
+
+  const interactive = document.querySelectorAll(
+    'button, a[href], [role="button"], [role="tab"], [role="switch"], ' +
+      'input:not([type="hidden"]), select, textarea',
+  );
+
+  for (const el of interactive) {
+    if (!visible(el)) continue;
+    // aria-hidden subtrees are removed from the tree a screen reader sees, so
+    // a nameless control inside one is not reachable and not a fault.
+    if (el.closest('[aria-hidden="true"]')) continue;
+
+    if (!accessibleName(el)) {
+      faults.push({
+        kind: "NO-NAME",
+        what: describe(el),
+        detail:
+          "interactive control with no accessible name — reachable by keyboard " +
+          "and unannounceable by a screen reader (§7 roles and labels)",
+      });
+    }
+
+    const box = el.getBoundingClientRect();
+    // CONTROLS, NOT LINKS. §7's rule is about hit targets — it names the
+    // segmented tabs, the filter chips, the composer send button, the
+    // per-message toggle — and `.tap-target` is a class on buttons. Text links
+    // are a different question that WCAG 2.5.8 answers differently (24px, with
+    // exceptions for anything inline or adequately spaced), and applying 44px
+    // to them reported every footer link on the marketing site. A gate that
+    // fires on correct markup is one that gets muted.
+    const isControl =
+      el.tagName === "BUTTON" ||
+      el.tagName === "SELECT" ||
+      ["button", "tab", "switch"].includes(el.getAttribute("role") ?? "") ||
+      (el.tagName === "INPUT" &&
+        ["checkbox", "radio", "button", "submit"].includes(el.type));
+    // Visually-hidden-until-focused controls (the skip link is 1x1 by design)
+    // are not small targets, they are absent ones until they are needed.
+    const hidden = box.width <= 4 || box.height <= 4;
+    // `.tap-target` SATISFIES the rule even though the box stays small: the
+    // utility extends the CLICKABLE area to 44px with a centred invisible
+    // ::after, deliberately, so a chip keeps its visual size without a layout
+    // shift. getBoundingClientRect() cannot see a pseudo-element, so measuring
+    // the box alone reported every correctly-built button on the login and
+    // signup screens. §7's rule is "hit targets >= 44px VIA `.tap-target`", so
+    // what this looks for is a small control MISSING the mechanism.
+    const hasTapTarget = el.classList.contains("tap-target");
+    if (
+      checkTapSize &&
+      isControl &&
+      !hidden &&
+      !hasTapTarget &&
+      (box.width < MIN_TARGET_PX || box.height < MIN_TARGET_PX)
+    ) {
+      faults.push({
+        kind: "SMALL-TAP",
+        what: `${describe(el)} ${Math.round(box.width)}x${Math.round(box.height)}`,
+        detail:
+          `hit target under ${MIN_TARGET_PX}px and not using \`.tap-target\` ` +
+          "(WCAG 2.2 2.5.8 AA; §7 asks for 44 via the utility) — " +
+          `named "${accessibleName(el).slice(0, 40)}"`,
+      });
+    }
+  }
+
+  for (const img of document.querySelectorAll("img")) {
+    if (!visible(img)) continue;
+    if (img.closest('[aria-hidden="true"]')) continue;
+    // alt="" is a decision that this image is decorative, and a correct one.
+    // A MISSING attribute is the fault: nobody decided.
+    if (!img.hasAttribute("alt")) {
+      faults.push({
+        kind: "NO-ALT",
+        what: describe(img),
+        detail:
+          "image with no alt attribute — alt=\"\" is fine and says decorative; " +
+          "absent says nobody decided (§7 gallery)",
+      });
+    }
+  }
+
+  return faults;
+};
+
 /* ------------------------------------------------------------------------- */
 
 if (!existsSync(STATE_DIR)) mkdirSync(STATE_DIR, { recursive: true });
@@ -385,9 +588,72 @@ for (const theme of ["light", "dark"]) {
       await page.waitForTimeout(400);
       const faults = await page.evaluate(AUDIT);
       for (const fault of faults) problems.push({ theme, surface: surface.label, ...fault });
+      // #238: the same rendered page, asked a different question. Run once per
+      // theme like the contrast pass — a control can lose its name in one
+      // scheme only (a dark-mode-only icon swap), and a check that ran once
+      // would be green on the theme nobody was looking at.
+      // Names and alt text, in both themes: a control can lose its name in one
+      // scheme only (a dark-mode-only icon swap), and a check that ran once
+      // would be green on the theme nobody was looking at. Tap size is
+      // theme-independent and measured in the phone pass below instead.
+      const a11y = await page.evaluate(A11Y, false);
+      for (const fault of a11y) problems.push({ theme, surface: surface.label, ...fault });
     } catch (error) {
       problems.push({
         theme,
+        surface: surface.label,
+        kind: "ERROR",
+        what: surface.path,
+        detail: String(error?.message ?? error),
+      });
+    }
+    await page.close();
+  }
+  await context.close();
+}
+
+/**
+ * #238 — the phone pass, and the only place tap size is measured.
+ *
+ * §7 specifies 44px hit targets as a MOBILE rule ("designed at 375px"), and the
+ * implementation agrees: `.tap-target` is `size-11 md:size-8`, so a control is
+ * 44px on a phone and smaller on a desktop where the pointer is a mouse. The
+ * rule is real; the viewport it is written for is the one that has to be
+ * measured.
+ *
+ * ONE THEME, not two. A button's box does not change colour scheme, so a second
+ * pass would double the runtime to re-measure identical numbers.
+ *
+ * Overlay surfaces are skipped: their triggers are laid out for a wide shell
+ * and the open sequence is unreliable at 375px, so including them would report
+ * NOT-OPENED noise rather than tap-size facts.
+ */
+{
+  const context = await browser.newContext({
+    viewport: { width: 375, height: 812 },
+    colorScheme: "light",
+    isMobile: true,
+    hasTouch: true,
+  });
+  if (needsAuth) await login(context);
+
+  for (const surface of wanted.filter((s) => !s.open)) {
+    const page = await context.newPage();
+    try {
+      await page.goto(`${base}${surface.path}`, { waitUntil: "networkidle", timeout: 45_000 });
+      if (surface.auth && new URL(page.url()).pathname.startsWith("/login")) {
+        await page.close();
+        continue; // already reported by the desktop pass
+      }
+      await page.waitForTimeout(400);
+      const faults = await page.evaluate(A11Y, true);
+      for (const fault of faults) {
+        if (fault.kind !== "SMALL-TAP") continue; // names/alt already covered
+        problems.push({ theme: "375px", surface: surface.label, ...fault });
+      }
+    } catch (error) {
+      problems.push({
+        theme: "375px",
         surface: surface.label,
         kind: "ERROR",
         what: surface.path,
@@ -410,7 +676,20 @@ if (!problems.length) {
 }
 
 console.error(`\ntheme-audit: ${problems.length} fault(s) across ${audited} surface/theme combinations\n`);
-for (const kind of ["ERROR", "AUTH", "EMPTY", "NOT-OPENED", "ESCAPED-SCOPE", "CONTRAST"]) {
+// #238's kinds are listed here too. A fault collected and never printed is
+// the "silently audits nothing" failure this file warns about elsewhere, and it
+// would arrive as a green run with a nonzero exit nobody could explain.
+for (const kind of [
+  "ERROR",
+  "AUTH",
+  "EMPTY",
+  "NOT-OPENED",
+  "ESCAPED-SCOPE",
+  "CONTRAST",
+  "NO-NAME",
+  "SMALL-TAP",
+  "NO-ALT",
+]) {
   const group = problems.filter((p) => p.kind === kind);
   if (!group.length) continue;
   console.error(`── ${kind} ─────────────────────────────────────────────`);
