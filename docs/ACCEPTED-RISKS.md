@@ -124,3 +124,13 @@ trigger on purpose, so neither can be revisited without the other.
 | **Why accepted** | Recorded rather than accepted, honestly. #230's acceptance required the spike to change no production behaviour, and a schema change is production. |
 | **Trigger to revisit** | **Already fired.** Tracked as #506. This entry exists so that if #506 is closed without being done, the reason is written next to the risk rather than lost in an issue thread. |
 | **Not a trigger** | RCS shipping. That is D111's question and it has its own gate; this is about the ledger being able to record whatever comes next, which is true regardless of whether RCS ever does. |
+
+## R8 — one workspace is one crew, one subscription, one carrier identity (D114)
+
+| | |
+|---|---|
+| **Exposure** | A customer who opens a second location outgrows the product at the moment they are growing. A separate legal entity needs a second workspace, a second subscription and a second 10DLC brand, with no combined reporting and no shared contacts. |
+| **Bound** | A second branch of the SAME legal entity fits today: one workspace, per-number access (#106) separating who sees which line. The ceiling is legal-entity shaped, not size shaped. |
+| **Why accepted** | Production holds ~3,448 rows. There is no customer with this shape, and `company_id` is the unit of money, carrier identity AND authority at once — so either model splits an identity in three places for a customer who does not exist yet. |
+| **Trigger to revisit** | A **real** instance: a paying workspace that has opened a second location, or a lost deal where this was diagnosed as the reason. One real case, not a prospect's question. |
+| **Not a trigger** | The architecture being interesting, or a prospect asking whether we support it. Wanting it is not the same as having the shape, and D114 records that the franchise case is a reporting feature rather than a tenancy one. |

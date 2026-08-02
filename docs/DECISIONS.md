@@ -6658,3 +6658,89 @@ activation one.
 **Also not a trigger:** a franchise or multi-location prospect asking. That is
 #256's question, and wanting a toll-free line is not the same as our needing a
 verification pipeline to sell one.
+
+## D114 — multi-location is deferred deliberately, and the model is chosen by the customer's legal shape rather than by ours (#256, 2026-08-02)
+
+**We do not build multi-location now**, and #256 explicitly permits that
+outcome: *"including the option to defer it deliberately."* This is that
+option, taken with evidence and with the ceiling written down.
+
+### The evidence, which is the part that decides it
+
+Production holds **~3,448 rows across 74 tables, 22.7 MB** (`prod-dump-scale.mjs`,
+2026-08-02). There is no customer with a second branch because there is barely
+a customer base. #256's own warning is the operative one: building hierarchy
+speculatively is *"a classic way for a small team to spend a quarter serving an
+imagined enterprise while the real customer waits."*
+
+### The finding that reframes the question
+
+#256 asks us to choose between a parent org over workspaces and one workspace
+with location as a dimension. An audit of both found blockers on both sides —
+and the same underlying reason:
+
+> `company_id` in this codebase is not a scope key you can shadow with a finer
+> attribute; it is simultaneously the unit of **money** (one Stripe
+> subscription, one pooled allowance, a `usage_events` table with no number
+> column to split an invoice on), the unit of **carrier identity** (one 10DLC
+> brand carrying one EIN, one messaging profile, one `usApproved` flag gating
+> every number), and the unit of **authority** (one role per user per company).
+
+119 of 242 SQL functions take `p_company_id`. So neither model is additive:
+both require splitting an identity that is currently one thing, in three places
+at once.
+
+### The sharpest blocker under each, because they are not symmetric
+
+**Model A (parent org over workspaces) — opt-out becomes branch-scoped.**
+`opt_outs` is unique on `(company_id, phone_e164)` and the single pre-send gate
+matches on `company_id`. A homeowner texts STOP to the Kitchener number; the
+Guelph branch — same franchise, same legal entity, same EIN — texts them next
+week, and Guelph's contact screen shows them as textable the whole time. Nobody
+did anything wrong and nothing in the product can catch it. **That contradicts
+the one rule with no exceptions**, so Model A cannot ship without making
+opt-out entity-scoped rather than company-scoped. That is the first thing to
+solve, not the last.
+
+**Model B (location as a dimension) — location is a view, not a boundary.**
+Both spend gates sum on `company_id` with no location predicate, so two
+branches share one throttle and one wallet: a busy morning in Kitchener
+throttles Guelph's afternoon. And a member has exactly one role per workspace,
+so a branch manager who should run their own branch has to be given `admin`
+over all of them.
+
+### Therefore: the customer's legal shape picks the model
+
+This is the decision, and it is not a preference:
+
+- **One legal entity, one EIN, one wallet** (a second branch of the same
+  business) → **Model B.** Location is a view. The blockers are real but they
+  are about fairness within one wallet, not about correctness.
+- **Separate entities, separate wallets, separate EINs** (a franchise, two
+  trade names) → **separate workspaces, which is what we already have.** What
+  is missing is not tenancy — it is pooled reporting and a way to switch
+  without friction. Model A's org layer is a *reporting* feature wearing a
+  tenancy costume, and the opt-out blocker above is what happens when it is
+  built as tenancy.
+
+Recognising that changes what "supporting franchises" costs, from an
+architecture to a report.
+
+### The ceiling, stated so nobody sells past it
+
+**One workspace = one crew = one subscription = one carrier identity.** A
+second branch that shares a legal entity can share the workspace today, with
+per-number access (#106) separating who sees which line. A second branch that
+is a separate legal entity is a second workspace, a second subscription, and no
+combined reporting. That is the honest boundary and it belongs in a sales
+conversation before a contract, not after.
+
+### Trigger
+
+**A real customer with the shape.** Not a prospect asking whether we support
+it — a paying workspace that has opened a second location, or a lost deal where
+this was diagnosed as the reason. #256 asks for evidence rather than
+speculation, and one real instance carries more than any amount of modelling.
+
+**Not a trigger:** the architecture being interesting. It is, and that is the
+danger.

@@ -304,3 +304,17 @@ person's personal cell. Pricing is flat and per company rather than per seat,
 starting at $29 a month, with texting included under a fair-use policy,
 compliance handled automatically, and free number porting. Learn more at
 https://loonext.com.
+
+## The ceiling, so nobody sells past it (D114, #256)
+
+**One workspace = one crew = one subscription = one carrier identity.**
+
+- A second branch of the **same legal entity** fits today. One workspace, and
+  per-number access decides who sees which line.
+- A second **legal entity** — a franchise, a second trade name — is a second
+  workspace: its own subscription, its own 10DLC registration, no shared
+  contacts and no combined reporting.
+
+Say this before a contract rather than after. It is a real boundary and a
+customer discovering it themselves at their moment of growth is how a product
+gets replaced.
