@@ -35,6 +35,7 @@ import {
 } from "./marketing/contact-retention";
 import { runCarrierCeilingJob } from "./billing/carrier-ceiling";
 import { retryInterruptedSends } from "./messaging/retry-interrupted";
+import { runAupWatchJob } from "./messaging/aup-watch";
 import { runRetentionEnforceJob } from "./workspace/retention-enforce";
 import { runRetentionNoticeJob } from "./workspace/retention-notice";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
@@ -442,6 +443,10 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // #397 ask 2: one workspace's calls going quiet. The fleet-wide call-event
     // key catches a Telnyx outage; this catches a customer replacing us.
     job("job:call-silence", runCallSilenceJob),
+    // #303: the AUP has been accepted by everyone and enforced against nobody.
+    // Daily, on the slow trigger, because the signals it reads are day-scale by
+    // construction — a workspace's own median day against the last one.
+    job("job:aup-watch", runAupWatchJob),
     // #281 item 4: a workspace stalling in the funnel. Daily like its siblings,
     // and for the same reason — the windows it compares are 3, 7 and 10 days,
     // so asking more often would spend queries to learn the same answer.

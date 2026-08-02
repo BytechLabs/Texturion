@@ -20,6 +20,7 @@ import {
   runContactRetentionJob,
   runMarketingContactRetentionJob,
 } from "./marketing/contact-retention";
+import { runAupWatchJob } from "./messaging/aup-watch";
 import { runRetentionEnforceJob } from "./workspace/retention-enforce";
 import { runRetentionNoticeJob } from "./workspace/retention-notice";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
@@ -514,6 +515,9 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       runRegistrationStallJob,
       // #397: one workspace's calls going quiet.
       runCallSilenceJob,
+      // #303: the AUP watcher, on the same daily trigger as the other slow
+      // watchers — its signals are day-scale by construction.
+      runAupWatchJob,
       // #281: a workspace stalling on the way to its first conversation.
       runActivationStallJob,
     ]);

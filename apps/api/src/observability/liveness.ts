@@ -879,6 +879,26 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "job:aup-watch": {
+    what:
+      "Nothing is watching for a workspace sending in the shape the AUP "
+      + "exists to catch (#303). Carrier action lands on the whole sending "
+      + "pool rather than on the offender, so one abusive tenant is billed to "
+      + "every other customer's deliverability — and the first sign would be a "
+      + "carrier complaint rather than an alert.",
+    doThis:
+      "Workers Logs, search `cron job job:aup-watch failed` for the stack. "
+      + "Nothing is lost and nothing is over-enforced while it is down — the "
+      + "job only ever emails, never suspends, so its silence costs detection "
+      + "rather than a customer. Run it by hand from the Supabase SQL editor "
+      + "if you want the answer today: `select * from api_aup_signals(14)` "
+      + "returns the same rows the job reads, and a workspace far above its own "
+      + "`baseline_daily` with a `fresh_ratio` near 1 is the shape worth "
+      + "opening. Everything it reads is a count or a ratio, so a stack trace "
+      + "here can never involve message content.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
   "job:call-silence": {
     what:
       "Nothing is watching for a single workspace's calls stopping (#397). "

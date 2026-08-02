@@ -121,6 +121,7 @@ const SUITES = [
   "billing_currency",
   "retention_enforce",
   "storage_fleet",
+  "aup_signals",
 
 ];
 
