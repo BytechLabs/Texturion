@@ -72,6 +72,7 @@ reliable defence.
 | `erase-contact.mjs` | A non-customer asks us to delete their contact-form data (#340) | They have no account, so no self-serve path reaches it. Prints what we hold **before** removing it, and returns a count |
 | `retention-report.mjs` | Is week-4 retention above D12's 85% floor? (#327) | Read-only. **Withholds the verdict** on a thin cohort rather than showing a rate nobody should act on |
 | `rcs-session-model.mjs` | Would RCS Conversational's per-session billing beat per-segment SMS? (#450) | Read-only. Folds real traffic into rolling 24h sessions and prints break-even across plausible multipliers. **Withholds the verdict** below 200 sessions |
+| `attribution-report.mjs` | Which marketing page produces customers — and is a new competitor page worth writing? (#296) | Read-only. Ranks on **activations**, not signups, using D12's definition. States coverage **above** the table, reports unattributed signups as their own row rather than dropping them, and refuses to rank a page below the cohort floor |
 
 ### The one promise that needs saying out loud
 

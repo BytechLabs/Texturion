@@ -117,6 +117,7 @@ const SUITES = [
   "template_uses",
   "contact_merge",
   "usage_events_channel",
+  "signup_attribution",
 ];
 
 const args = process.argv.slice(2);

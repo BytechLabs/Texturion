@@ -31,7 +31,12 @@ import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { CREW_SIZE_BUCKETS } from "@loonext/shared";
+import {
+  ATTRIBUTION_PARAMS,
+  CREW_SIZE_BUCKETS,
+  sanitizeAttributionValue,
+  sanitizeLandingPath,
+} from "@loonext/shared";
 import { attributeReferral } from "../referrals/referrals";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
@@ -81,6 +86,18 @@ const createSchema = z.object({
   // Bounded rather than shaped — a wrong code must produce a workspace without
   // attribution, never a 422 that blocks a signup over eight characters.
   referral_code: z.string().trim().max(64).optional(),
+  /**
+   * #296: which marketing page this owner FIRST landed on, and the campaign
+   * that brought them. Re-sanitised below with the same shared allow-list the
+   * browser used — the client is not trusted with what reaches a column.
+   */
+  first_touch: z
+    .object({
+      landing_path: z.string().max(200).optional(),
+      referrer_host: z.string().max(200).optional(),
+      params: z.record(z.string(), z.string().max(200)).optional(),
+    })
+    .optional(),
 });
 
 /** A weekday open/close window; both HH:MM. Full shape checked below. */
@@ -373,6 +390,40 @@ companiesRoutes.post("/companies", async (c) => {
       });
     } catch (cause) {
       console.error(`referral attribution skipped: ${String(cause)}`);
+    }
+  }
+
+  // #296: attribute the signup to the page that started it. Best effort for
+  // the same reason the referral above is — a workspace that exists must not
+  // fail to be created over a measurement that did not.
+  //
+  // Re-sanitised HERE rather than trusted from the browser: these values are
+  // attacker-controlled query parameters on a public marketing page, and the
+  // web scrubber's allow-list is a privacy boundary, not an input validator.
+  if (body.first_touch) {
+    try {
+      const landing = sanitizeLandingPath(body.first_touch.landing_path);
+      const host = sanitizeAttributionValue(body.first_touch.referrer_host ?? null);
+      const params: Record<string, string> = {};
+      for (const key of ATTRIBUTION_PARAMS) {
+        const value = sanitizeAttributionValue(body.first_touch.params?.[key] ?? null);
+        if (value !== null) params[key] = value;
+      }
+      const touch =
+        host !== null || Object.keys(params).length > 0
+          ? { referrer_host: host, params }
+          : null;
+      if (landing !== null || touch !== null) {
+        await db
+          .from("companies")
+          .update({
+            signup_landing_path: landing,
+            signup_first_touch: touch,
+          })
+          .eq("id", company.id as string);
+      }
+    } catch (cause) {
+      console.error(`signup attribution skipped: ${String(cause)}`);
     }
   }
 

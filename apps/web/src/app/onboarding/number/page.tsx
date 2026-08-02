@@ -20,6 +20,10 @@ import {
   clearReferralCode,
   referralCodeForCreate,
 } from "@/lib/referral/capture";
+import {
+  clearFirstTouch,
+  firstTouchForCreate,
+} from "@/lib/marketing/first-touch";
 import { cn } from "@/lib/utils";
 
 import { clearOnboardingDraft, writeOnboardingDraft } from "../local-draft";
@@ -200,9 +204,12 @@ export default function NumberStepPage() {
         ...(draft.crewSize ? { crew_size: draft.crewSize } : {}),
         // #501: the link this signup arrived through, if it arrived through one.
         ...referralCodeForCreate(),
+        // #296: which marketing page started this, if we recorded one.
+        ...firstTouchForCreate(),
       });
       writeCompanyCookie(created.id);
       clearReferralCode();
+      clearFirstTouch();
       // The next step's guard resolves the company through GET /v1/me —
       // wait for the membership to be visible before navigating.
       await queryClient.invalidateQueries({ queryKey: keys.me });

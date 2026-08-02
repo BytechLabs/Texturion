@@ -6,6 +6,7 @@ import "./globals.css";
 // fails `next dev` and `next build` loudly (SPEC §3, §10).
 import "@/env";
 
+import { FirstTouchCapture } from "@/components/first-touch-capture";
 import { ReferralCapture } from "@/components/referral-capture";
 
 import { Providers } from "./providers";
@@ -113,6 +114,10 @@ export default function RootLayout({
         {/* #501: remembers ?ref= before the visitor walks away from the
             landing page. Renders nothing. */}
         <ReferralCapture />
+        {/* #296: remembers which page the visitor FIRST landed on, so the
+            trade and comparison pages can be told apart by what they
+            produce. Renders nothing. */}
+        <FirstTouchCapture />
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -20,6 +20,10 @@ import {
   clearReferralCode,
   referralCodeForCreate,
 } from "@/lib/referral/capture";
+import {
+  clearFirstTouch,
+  firstTouchForCreate,
+} from "@/lib/marketing/first-touch";
 
 import { writeOnboardingPortDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
@@ -94,9 +98,12 @@ export default function PortNumberPage() {
           ...(draft.crewSize ? { crew_size: draft.crewSize } : {}),
           // #501: the link this signup arrived through, if it arrived through one.
           ...referralCodeForCreate(),
+          // #296: which marketing page started this, if we recorded one.
+          ...firstTouchForCreate(),
         });
         writeCompanyCookie(company.id);
         clearReferralCode();
+        clearFirstTouch();
         await queryClient.invalidateQueries({ queryKey: keys.me });
         activeCompanyId = company.id;
       }

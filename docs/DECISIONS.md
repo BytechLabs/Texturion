@@ -6860,3 +6860,50 @@ on a trigger that has not fired is not a backlog.
 One item is a *warning* rather than a deferral, and it is recorded in the
 decision itself because it has no owner until somebody starts: widening
 `lookupAreaCode` and adding a country gate to `runPreSendGates` are one change.
+
+## D116 — marketing attribution is FIRST touch, and it ranks on activation rather than signup (#296, 2026-08-02)
+
+Six trade landing pages and three comparison pages existed with no feedback
+loop. #296 gates writing per-competitor "alternative" pages on evidence that
+`/compare` converts, so the evidence had to exist before the next page did.
+
+**First touch, not last.** This is the opposite of `?ref=` attribution
+(`lib/referral/capture.ts`), and deliberately so. A referral reward should
+follow the link somebody actually arrived through, which is last touch. But
+every signup walks through `/pricing` on its way to a card, so under last touch
+`/pricing` wins every comparison and the six trade pages score approximately
+nothing no matter how well they work. The question being asked is which page
+*started* it.
+
+The window is 30 days, matching the referral window. An attribution window that
+never closes eventually credits a page somebody read last spring.
+
+**It ranks on activation, not signups.** A page producing signups who never
+send a message has produced support load, not customers, and would still top a
+signup-ranked table. Activation here is not a new definition — it is D12's, the
+same pair of facts `20260730003900_activation_stall.sql` judges on: an outbound
+message that reached Telnyx, *and* a reply. Two definitions of activation in one
+codebase is how two dashboards start disagreeing in a meeting.
+
+**Rows below the cohort floor are shown but never ranked.** At our base size a
+page with three signups and two activations formats as "67% — our best page"
+and would move real money on four data points. Same reasoning as #327's
+retention floor: a number that cannot support a decision must not be formatted
+like one that can. `attribution-report.mjs` prints those rows with no rate and
+refuses to name a winner if nothing clears the floor.
+
+**Unattributed signups are a row, not an omission.** Every workspace created
+before this shipped has a null landing path, as does anyone with storage
+blocked or an expired window. Dropping them would make the known pages look
+like they account for all of growth, so coverage is printed *above* the table
+rather than under it.
+
+**What is stored is enumerated, and re-sanitised server-side.** The values come
+off `window.location` on a public marketing page, so the browser's allow-list is
+a courtesy rather than a control: `apps/api/src/routes/companies.ts` re-runs the
+same shared allow-list before anything reaches a column. The allow-list is
+closed (`utm_*`, `gclid`, `fbclid`), every value is length-capped and
+character-filtered, and a landing path is stripped of any query string smuggled
+into it. This is the single enumerated exception to the web scrubber's rule that
+query strings are cut entirely — that rule exists because a query string can
+carry a contact's name or number, and the exception does not widen it.

@@ -47,6 +47,16 @@ export interface CreateCompanyInput {
    * Read from storage at the call site, never typed.
    */
   referral_code?: string;
+  /**
+   * #296: the marketing page this signup FIRST landed on, plus the referrer
+   * host and any allow-listed campaign parameters. Read from storage at the
+   * call site and re-sanitised server-side — never typed, never trusted.
+   */
+  first_touch?: {
+    landing_path: string;
+    referrer_host?: string;
+    params: Record<string, string>;
+  };
 }
 
 /**

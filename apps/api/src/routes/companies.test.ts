@@ -257,6 +257,136 @@ describe("POST /v1/companies (company-exempt)", () => {
   });
 });
 
+/**
+ * #296 — the landing page a signup came from.
+ *
+ * The values arrive from `window.location` on a PUBLIC marketing page, so the
+ * browser's own allow-list is a courtesy, not a control. Everything below is
+ * about the server re-doing that work: what lands in a column has to be safe
+ * even when the request was hand-crafted with curl.
+ */
+describe("POST /v1/companies — first-touch attribution (#296)", () => {
+  function createStub(): SupabaseStub {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_create_company", () => ({ id: COMPANY_ID }));
+    return sb;
+  }
+
+  async function create(body: Record<string, unknown>): Promise<Response> {
+    return apiRequest(app, env, await auth.token(), "/v1/companies", {
+      method: "POST",
+      companyId: null,
+      body: { ...validBody, requested_area_code: "212", ...body },
+    });
+  }
+
+  it("records the landing page, referrer and campaign on the company", async () => {
+    const sb = createStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await create({
+      first_touch: {
+        landing_path: "/for/plumbers",
+        referrer_host: "www.google.com",
+        params: { utm_source: "google", utm_campaign: "spring" },
+      },
+    });
+    expect(res.status).toBe(201);
+
+    const [update] = sb.find("PATCH", "/rest/v1/companies");
+    expect(update.body).toEqual({
+      signup_landing_path: "/for/plumbers",
+      signup_first_touch: {
+        referrer_host: "www.google.com",
+        params: { utm_source: "google", utm_campaign: "spring" },
+      },
+    });
+    expect(update.url.searchParams.get("id")).toBe(`eq.${COMPANY_ID}`);
+  });
+
+  it("drops parameters that are not on the allow-list", async () => {
+    const sb = createStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    // `phone` and `email` are exactly what the web scrubber exists to cut, and
+    // a caller that skips the browser can put them here directly.
+    await create({
+      first_touch: {
+        landing_path: "/pricing",
+        params: {
+          utm_source: "google",
+          phone: "+14165551234",
+          email: "owner@example.ca",
+        },
+      },
+    });
+
+    const [update] = sb.find("PATCH", "/rest/v1/companies");
+    expect(update.body).toEqual({
+      signup_landing_path: "/pricing",
+      signup_first_touch: { referrer_host: null, params: { utm_source: "google" } },
+    });
+  });
+
+  it("rejects a landing path that is really an off-site redirect", async () => {
+    const sb = createStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await create({
+      first_touch: { landing_path: "//evil.example.com/phish" },
+    });
+
+    // Nothing worth storing survived, so no write happened at all.
+    expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
+  });
+
+  it("strips a query string smuggled inside the landing path", async () => {
+    const sb = createStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await create({
+      first_touch: { landing_path: "/for/plumbers?email=owner@example.ca" },
+    });
+
+    const [update] = sb.find("PATCH", "/rest/v1/companies");
+    expect(update.body).toMatchObject({ signup_landing_path: "/for/plumbers" });
+  });
+
+  it("does not write when the touch carries nothing usable", async () => {
+    const sb = createStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await create({ first_touch: { params: {} } });
+
+    expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
+  });
+
+  it("still creates the workspace when the attribution write fails", async () => {
+    const sb = createStub();
+    sb.on("PATCH", "/rest/v1/companies", () => {
+      throw new Error("column disappeared");
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await create({
+      first_touch: { landing_path: "/for/plumbers", params: {} },
+    });
+
+    // Attribution is a measurement. It must never cost somebody a signup.
+    expect(res.status).toBe(201);
+  });
+
+  it("creates the workspace normally when no touch was recorded", async () => {
+    const sb = createStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await create({});
+
+    expect(res.status).toBe(201);
+    expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
+  });
+});
+
 describe("GET /v1/company", () => {
   it("returns company + numbers + registration for any member", async () => {
     const sb = stubWithRole("member");

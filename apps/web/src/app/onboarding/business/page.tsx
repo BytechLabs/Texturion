@@ -38,6 +38,10 @@ import {
   clearReferralCode,
   referralCodeForCreate,
 } from "@/lib/referral/capture";
+import {
+  clearFirstTouch,
+  firstTouchForCreate,
+} from "@/lib/marketing/first-touch";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 
@@ -333,10 +337,13 @@ export default function BusinessIdentityPage() {
           ...(state.draft.crewSize ? { crew_size: state.draft.crewSize } : {}),
           // #501: the link this signup arrived through, if it arrived through one.
           ...referralCodeForCreate(),
+          // #296: which marketing page started this, if we recorded one.
+          ...firstTouchForCreate(),
         });
         companyId = company.id;
         writeCompanyCookie(company.id);
         clearReferralCode();
+        clearFirstTouch();
       }
       if (!companyId) throw new Error("no active company after create");
       await saveRegistration.mutateAsync({ companyId, brand });
