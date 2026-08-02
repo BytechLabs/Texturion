@@ -24,7 +24,8 @@
  *          (mark unread — the conversation counts as unread again everywhere).
  *   POST   /v1/conversations/:id/snooze      { until, note? } — defer the
  *          thread out of THIS member's default list until `until` (#293). The
- *          list hides deferred threads unless asked (`?snoozed=only|all`), and
+ *          list hides deferred threads unless asked (`?snoozed=only|all`),
+ *          `?awaiting=only` narrows to threads nobody has replied to (#508), and
  *          an inbound message clears every member's deferral in the database.
  *   DELETE /v1/conversations/:id/snooze      bring it back now, idempotent.
  *   GET    /v1/conversations/:id/events      audit timeline, cursor list.
@@ -157,6 +158,14 @@ const listQuerySchema = z.object({
   // so it lives in the RPC rather than here; this parameter only exists so a
   // client can ASK for the snoozed view ('only') or opt out entirely ('all').
   snoozed: z.enum(["only", "exclude", "all"]).optional(),
+  /**
+   * #508: threads still waiting on a first reply — the #388 lead clock, not
+   * `status`. The response-time card counts unanswered LEADS, and this is the
+   * live set behind that number; `?status=new` was a housekeeping state a
+   * reply does not change, so a crew that answers everything and never touches
+   * the status dropdown saw every thread under it.
+   */
+  awaiting: z.enum(["only", "exclude"]).optional(),
 });
 
 const patchSchema = z
@@ -253,6 +262,7 @@ conversationsRoutes.get("/conversations", requireCapability("conversations.read"
     q: c.req.query("q"),
     pinned: c.req.query("pinned"),
     snoozed: c.req.query("snoozed"),
+    awaiting: c.req.query("awaiting"),
   });
   const limit = parseLimit(c, 25, 100);
   const cursor = parseCursor(c);
@@ -281,6 +291,10 @@ conversationsRoutes.get("/conversations", requireCapability("conversations.read"
       p_pinned: query.pinned ?? null,
       p_hidden_number_ids: access.hiddenNumberIds,
       p_snoozed: query.snoozed ?? "exclude",
+      // Unset means no filter, unlike `snoozed`: the ordinary inbox shows
+      // answered and unanswered alike, and only a caller who came from the
+      // response-time card is asking the narrower question.
+      p_awaiting: query.awaiting ?? null,
     }),
     "conversations list",
   );

@@ -122,6 +122,7 @@ const SUITES = [
   "retention_enforce",
   "storage_fleet",
   "aup_signals",
+  "list_conversations_awaiting",
 
 ];
 

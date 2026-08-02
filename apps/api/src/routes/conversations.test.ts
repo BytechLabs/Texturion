@@ -123,6 +123,10 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       // it says so on EVERY call rather than relying on the RPC's default —
       // one explicit value beats two places that have to agree.
       p_snoozed: "exclude",
+      // #508: unset means no filter, unlike `snoozed`. The ordinary inbox
+      // shows answered and unanswered alike; only a reader arriving from the
+      // response-time card asks the narrower question.
+      p_awaiting: null,
     });
   });
 
@@ -196,6 +200,28 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
     expect(
       sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0].body,
     ).toMatchObject({ p_snoozed: "exclude" });
+  });
+
+  it("#508: ?awaiting=only reaches the RPC as the lead-clock filter", async () => {
+    // The destination the response-time card links to. `status=new` was the
+    // old one and meant something else entirely — nothing moves a conversation
+    // off `new` when the crew replies — so this asserts the parameter that
+    // actually narrows to threads nobody has answered.
+    const sb = memberStub();
+    sb.on("POST", "/rest/v1/rpc/api_list_conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/conversations?awaiting=only",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0].body,
+    ).toMatchObject({ p_awaiting: "only" });
 
     for (const [value, expected] of [
       ["only", "only"], // the "what did I defer" view
