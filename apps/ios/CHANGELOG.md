@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.8.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.7.0...ios-v0.8.0) (2026-08-02)
+
+
+### Features
+
+* **android:** the contacts list shows the duplicates it found ([1c0c470](https://github.com/BytechLabs/Texturion/commit/1c0c470be25df4458b20fd6973c78f2499ab215c))
+* **android:** the home screen shows how many quotes turned into work ([131c656](https://github.com/BytechLabs/Texturion/commit/131c656259aa146319b46afe4790751dca56dc74))
+* **api:** a thread marked as spam stops spending the AI budget ([f53b9bd](https://github.com/BytechLabs/Texturion/commit/f53b9bd65778b06296028dca49f47e68a30eff61)), closes [#250](https://github.com/BytechLabs/Texturion/issues/250)
+* **app:** the banner that says what broke can now tell us about it ([221f1b9](https://github.com/BytechLabs/Texturion/commit/221f1b909ae900aa6b1260d48c74f7f4353be304))
+* **app:** we say we will write back when a fix ships, and now we do ([7917b38](https://github.com/BytechLabs/Texturion/commit/7917b3823131e1d33f6dcb5e43a42fc819bf68b4))
+* **clients:** a repeat customer is visible without opening the contact panel ([c3def7f](https://github.com/BytechLabs/Texturion/commit/c3def7f69ea259380709c1c876a33a451a651601)), closes [#505](https://github.com/BytechLabs/Texturion/issues/505)
+* **clients:** a tech can see a repeat customer without reading a list ([77f659d](https://github.com/BytechLabs/Texturion/commit/77f659d0411405d33b7e8397fc59cf7ea9e48202)), closes [#410](https://github.com/BytechLabs/Texturion/issues/410)
+* **clients:** a thread that looks like spam says so, instead of going quiet ([bd5b003](https://github.com/BytechLabs/Texturion/commit/bd5b0033673097df1da1dfc64d09a1a1a0158f29)), closes [#250](https://github.com/BytechLabs/Texturion/issues/250)
+* **clients:** say what a call was about and Lou writes it into a note ([18cb2fa](https://github.com/BytechLabs/Texturion/commit/18cb2fab55e96820b43dd7e8a493f50cc3efbca8)), closes [#507](https://github.com/BytechLabs/Texturion/issues/507)
+* **compose:** the composer preview stops hiding what it cannot know ([f50e31b](https://github.com/BytechLabs/Texturion/commit/f50e31b1ca636648a14547e4ee9cae5a7153ed39))
+* **inbox:** a saved reply now records that it was the one sent ([452bcd4](https://github.com/BytechLabs/Texturion/commit/452bcd4e6b907c810040ebdf1c0199a0775c7a62))
+* **inbox:** a tag can say what it means, and there is a limit on how many ([6b9b85c](https://github.com/BytechLabs/Texturion/commit/6b9b85ce19d06beaf4a25228a6e557ab90b59070))
+* **inbox:** the phones can tidy tags too, and a crew can freeze the list ([1ebf918](https://github.com/BytechLabs/Texturion/commit/1ebf918a3b8ede21a6693718e43feca5e5c66ff3))
+* **ios:** a dot shows when something new shipped ([a14db2c](https://github.com/BytechLabs/Texturion/commit/a14db2c9171b5361326d8c61a60947aed39fb0d5))
+* **ios:** saved views appear as a row of pills above the inbox ([8556801](https://github.com/BytechLabs/Texturion/commit/85568015018e542f5214c9600db31ed5d40d2732))
+* **ios:** the contacts list shows the duplicates it found ([51a9004](https://github.com/BytechLabs/Texturion/commit/51a90044544df52c1f82461ff420dde24b588428))
+* **mobile:** first-run guidance reaches the phones, where the crew works ([53abc80](https://github.com/BytechLabs/Texturion/commit/53abc8031cae269435bb11a2d32b2e9068e830ca)), closes [#476](https://github.com/BytechLabs/Texturion/issues/476)
+* **mobile:** the phones group templates and open the picker on what you use ([b53fa77](https://github.com/BytechLabs/Texturion/commit/b53fa77078b28e064d4b758b98dc1dd08d3357d2))
+* **settings:** the template editor offers all seven variables, and shows them working ([a3b5f6f](https://github.com/BytechLabs/Texturion/commit/a3b5f6fcf1aa9d41101ad95dab6ec46cbacd9404))
+
+
+### Bug Fixes
+
+* **ios:** the contact merge calls compile ([b0416f2](https://github.com/BytechLabs/Texturion/commit/b0416f2e6ac396f423acc30809447a50ae136d87))
+* **ios:** the for-you previews build again ([449e86d](https://github.com/BytechLabs/Texturion/commit/449e86d002ba88735b3b63146937aa6b137d6c95))
+* **ios:** the new-conversation preview passes the sender name it now requires ([fee7d04](https://github.com/BytechLabs/Texturion/commit/fee7d04510698b8bcab5688d0b6d2b88117a650b))
+* **ios:** the pipeline models build with a zero-argument init ([24d0bba](https://github.com/BytechLabs/Texturion/commit/24d0bbaec5e6343436852cbcd3cd3fd97422a992))
+* **ios:** the saved-view sheets open instead of failing to build ([5d146a4](https://github.com/BytechLabs/Texturion/commit/5d146a4f8896454a6e22314c72c7ed30e7d5b5ec))
+* **ios:** the thread's report link builds against the conversation's workspace ([081d64a](https://github.com/BytechLabs/Texturion/commit/081d64ae865609df33b7cbb39fc13f95924d24b4))
+* **mobile:** the waiting-room setup buttons open the screens they name ([6ff76a6](https://github.com/BytechLabs/Texturion/commit/6ff76a69cd87c86d6b0922cf8d4d1c1f6b1369a2)), closes [#503](https://github.com/BytechLabs/Texturion/issues/503)
+* **stores:** the contacts permission iOS ships is now the one we declare ([308d0cd](https://github.com/BytechLabs/Texturion/commit/308d0cd0ee610ea1df9376d2d16500480e27687f))
+
 ## [0.7.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.6.0...ios-v0.7.0) (2026-08-01)
 
 

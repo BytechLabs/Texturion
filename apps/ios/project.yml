@@ -54,7 +54,7 @@ targets:
         # The double-o brand tile (#206): Assets.xcassets/AppIcon.appiconset,
         # single-size 1024 from brand/out/icon-1024.png.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        MARKETING_VERSION: 0.7.0 # x-release-please-version
+        MARKETING_VERSION: 0.8.0 # x-release-please-version
         # Local-dev fallback ONLY. App Store Connect rejects a repeated
         # CFBundleVersion, so real builds override this with the git commit count:
         #   xcodebuild ... CURRENT_PROJECT_VERSION=$(git rev-list --count HEAD)

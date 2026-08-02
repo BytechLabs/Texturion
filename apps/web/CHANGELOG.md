@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.10.0](https://github.com/BytechLabs/Texturion/compare/web-v0.9.0...web-v0.10.0) (2026-08-02)
+
+
+### Features
+
+* **api:** a thread marked as spam stops spending the AI budget ([f53b9bd](https://github.com/BytechLabs/Texturion/commit/f53b9bd65778b06296028dca49f47e68a30eff61)), closes [#250](https://github.com/BytechLabs/Texturion/issues/250)
+* **app:** the banner that says what broke can now tell us about it ([221f1b9](https://github.com/BytechLabs/Texturion/commit/221f1b909ae900aa6b1260d48c74f7f4353be304))
+* **app:** we say we will write back when a fix ships, and now we do ([7917b38](https://github.com/BytechLabs/Texturion/commit/7917b3823131e1d33f6dcb5e43a42fc819bf68b4))
+* **billing:** the billing page offers a year, and the alert stops counting it ([702f34a](https://github.com/BytechLabs/Texturion/commit/702f34a03ab11d6d99f50694d2a55fa1f8f9384b))
+* **clients:** a repeat customer is visible without opening the contact panel ([c3def7f](https://github.com/BytechLabs/Texturion/commit/c3def7f69ea259380709c1c876a33a451a651601)), closes [#505](https://github.com/BytechLabs/Texturion/issues/505)
+* **clients:** a tech can see a repeat customer without reading a list ([77f659d](https://github.com/BytechLabs/Texturion/commit/77f659d0411405d33b7e8397fc59cf7ea9e48202)), closes [#410](https://github.com/BytechLabs/Texturion/issues/410)
+* **clients:** a thread that looks like spam says so, instead of going quiet ([bd5b003](https://github.com/BytechLabs/Texturion/commit/bd5b0033673097df1da1dfc64d09a1a1a0158f29)), closes [#250](https://github.com/BytechLabs/Texturion/issues/250)
+* **clients:** say what a call was about and Lou writes it into a note ([18cb2fa](https://github.com/BytechLabs/Texturion/commit/18cb2fab55e96820b43dd7e8a493f50cc3efbca8)), closes [#507](https://github.com/BytechLabs/Texturion/issues/507)
+* **compose:** the composer preview stops hiding what it cannot know ([f50e31b](https://github.com/BytechLabs/Texturion/commit/f50e31b1ca636648a14547e4ee9cae5a7153ed39))
+* **inbox:** a saved reply now records that it was the one sent ([452bcd4](https://github.com/BytechLabs/Texturion/commit/452bcd4e6b907c810040ebdf1c0199a0775c7a62))
+* **inbox:** a tag can say what it means, and there is a limit on how many ([6b9b85c](https://github.com/BytechLabs/Texturion/commit/6b9b85ce19d06beaf4a25228a6e557ab90b59070))
+* **inbox:** saved views appear as a row you can tap ([179c57f](https://github.com/BytechLabs/Texturion/commit/179c57f6dc08b39598a068778f322af0cc179091))
+* **inbox:** the phones can tidy tags too, and a crew can freeze the list ([1ebf918](https://github.com/BytechLabs/Texturion/commit/1ebf918a3b8ede21a6693718e43feca5e5c66ff3))
+* **marketing:** a page says what shipped, so improvement stops being invisible ([8ba5aae](https://github.com/BytechLabs/Texturion/commit/8ba5aae29f83cdbcf1ce6bf5ccece9f4237dfc4a))
+* **marketing:** campaign parameters survive scrubbing, and nothing else does ([7227403](https://github.com/BytechLabs/Texturion/commit/7227403d0c32e93623da4f0ec86f7f76e1a6f393)), closes [#296](https://github.com/BytechLabs/Texturion/issues/296)
+* **marketing:** the comparison pages argue capability, not only price ([d26e4dd](https://github.com/BytechLabs/Texturion/commit/d26e4dd413c775462c03e746cc422bc4037a7bb8)), closes [#435](https://github.com/BytechLabs/Texturion/issues/435)
+* **marketing:** the page a customer arrived through reaches their workspace ([8097fc0](https://github.com/BytechLabs/Texturion/commit/8097fc00c9920ddb08ecb2298bf706fcf695c0ce)), closes [#296](https://github.com/BytechLabs/Texturion/issues/296)
+* **referrals:** the referrer can see their link and what it did ([932c090](https://github.com/BytechLabs/Texturion/commit/932c0907def800092d568dd61f0f6de7f6d014b4))
+* **settings:** the template editor offers all seven variables, and shows them working ([a3b5f6f](https://github.com/BytechLabs/Texturion/commit/a3b5f6fcf1aa9d41101ad95dab6ec46cbacd9404))
+* **signup:** the signup asks how big the crew is ([620a12f](https://github.com/BytechLabs/Texturion/commit/620a12fc0011528af1ca90005b0a73af64ea21b1))
+* **web:** a dot shows when something new shipped, and never interrupts ([03f1d04](https://github.com/BytechLabs/Texturion/commit/03f1d043cdfef756225ebcd7e1cc6706b8a73c0e))
+* **web:** templates group by category, and the picker opens on what you use ([8c08b40](https://github.com/BytechLabs/Texturion/commit/8c08b40164ff4e70494be3cd1c03c35e199a51ce))
+* **web:** the contacts page shows the duplicates it found ([c235572](https://github.com/BytechLabs/Texturion/commit/c23557289ef2d595afab38865fce398d221b68fc))
+* **web:** the home screen shows how many quotes turned into work ([7ef2789](https://github.com/BytechLabs/Texturion/commit/7ef27893ba1eb18333ff9e238c9305a4416d4c69))
+* **web:** the tag list shows what gets used, and duplicates can be merged ([90add66](https://github.com/BytechLabs/Texturion/commit/90add664218b93b463a3702b35c9e71384315322))
+
+
+### Bug Fixes
+
+* **compare:** the Heymarket chart was drawing Quo's seat price ([dd3dc04](https://github.com/BytechLabs/Texturion/commit/dd3dc04ce851618b581e0a8e8503accfd63f691f))
+* **ios:** the pipeline models build with a zero-argument init ([24d0bba](https://github.com/BytechLabs/Texturion/commit/24d0bbaec5e6343436852cbcd3cd3fd97422a992))
+* **marketing:** the pricing FAQ no longer sells a voice add-on that was retired ([5b68e25](https://github.com/BytechLabs/Texturion/commit/5b68e258fa51271302b992b944803012da701737))
+* **referrals:** a referral link now credits the person who sent it ([549d290](https://github.com/BytechLabs/Texturion/commit/549d290d58a2926e50e536ea2d729233c0c0bb2c))
+* **web:** a read-only observer is no longer shown a checklist they cannot act on ([0398066](https://github.com/BytechLabs/Texturion/commit/03980664fb9ea969b784b35d25ef5aab19171a3d)), closes [#504](https://github.com/BytechLabs/Texturion/issues/504)
+* **web:** the scrubber stops importing shared, which broke the build ([1dba7d7](https://github.com/BytechLabs/Texturion/commit/1dba7d703e2665eebcd89efe2e502ebf08907587))
+
 ## [0.9.0](https://github.com/BytechLabs/Texturion/compare/web-v0.8.0...web-v0.9.0) (2026-08-01)
 
 
