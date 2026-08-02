@@ -41,7 +41,9 @@ import {
   useDetachTag,
 } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
-import { suggestExistingTag } from "@loonext/shared";
+import { roleHasCapability, suggestExistingTag } from "@loonext/shared";
+import { useCompany } from "@/lib/api/companies";
+import { useActiveCompany } from "@/lib/company/provider";
 import { useTags } from "@/lib/api/tags";
 import { flattenPages } from "@/lib/api/pagination";
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
@@ -454,6 +456,8 @@ function ConversationTags({
   const attach = useAttachTag(conversation.id);
   const detach = useDetachTag(conversation.id);
   const tags = useTags();
+  const company = useCompany();
+  const { role } = useActiveCompany();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -484,6 +488,18 @@ function ConversationTags({
   // lower(name) and would hand back the existing tag anyway. Offering "Create"
   // there is offering something that does not happen.
   const exactExists = suggestion?.exact === true;
+  /**
+   * #298 — a locked workspace hides Create rather than failing it.
+   *
+   * The server refuses either way (api_find_or_create_tag holds the lock and
+   * the existence check in one statement), so this is not the gate. It is the
+   * difference between an affordance that is absent and one that says no after
+   * you have typed the name — and being told no is exactly what sends somebody
+   * to the notes field instead. Every existing tag is still one tap away.
+   */
+  const mayCreate =
+    company.data?.tags_locked !== true ||
+    roleHasCapability(role, "settings.manage");
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 px-2">
@@ -533,7 +549,16 @@ function ConversationTags({
             />
             <CommandList>
               <CommandEmpty>
-                {trimmed === "" ? "Type to create a tag." : null}
+                {/* #298: the placeholder has to be true. A locked workspace
+                    can search this list but not add to it, and inviting a
+                    member to "create" one is an offer we would then refuse. */}
+                {trimmed === ""
+                  ? mayCreate
+                    ? "Type to create a tag."
+                    : "Type to find a tag."
+                  : !mayCreate
+                    ? "No tag by that name. Ask an admin to add it."
+                    : null}
               </CommandEmpty>
               <CommandGroup>
                 {available.map((tag) => (
@@ -570,7 +595,7 @@ function ConversationTags({
                     Did you mean &ldquo;{suggested.tag.name}&rdquo;?
                   </CommandItem>
                 )}
-                {trimmed !== "" && !exactExists && (
+                {trimmed !== "" && !exactExists && mayCreate && (
                   <CommandItem
                     value={`create-${trimmed}`}
                     onSelect={() => {

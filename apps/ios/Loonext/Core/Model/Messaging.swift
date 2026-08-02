@@ -35,6 +35,26 @@ struct Tag: Codable, Sendable {
     let updated_at: String?
 }
 
+/// #298: one tag and how much it is actually used. Ordered busiest-first by the
+/// server, because the tail is where the duplicates and the dead ones both live
+/// — and neither is visible from the tag names alone.
+struct TagUsage: Codable, Sendable, Identifiable {
+    let tag_id: String
+    let name: String
+    @Default<DefaultZero> var uses: Int
+    let last_used: String?
+
+    var id: String { tag_id }
+}
+
+/// #298: what a merge did, so the confirmation can say it back.
+struct TagMergeResult: Codable, Sendable {
+    @Default<DefaultFalse> var merged: Bool
+    @Default<DefaultZero> var moved: Int
+    @Default<DefaultZero> var already_both: Int
+    @Default<DefaultFalse> var stage_moved: Bool
+}
+
 struct Conversation: Codable, Sendable {
     let id: String
     let company_id: String

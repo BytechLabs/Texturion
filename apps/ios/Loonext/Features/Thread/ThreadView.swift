@@ -329,6 +329,17 @@ private struct ThreadBody: View {
                     repo: controller.repo,
                     companyId: detail.company_id,
                     attached: detail.tags,
+                    // #298: a workspace that keeps a set list hides Create here
+                    // rather than failing it. Defaults to allowed while the
+                    // company is still loading — the server is the gate, and an
+                    // affordance that flickers off is worse than one that
+                    // occasionally has to say no.
+                    mayCreate: controller.company?.tags_locked != true
+                        || MemberRole.has(
+                            me.memberships
+                                .first { $0.company_id == detail.company_id }?.role,
+                            Capability.settingsManage
+                        ),
                     onAttach: { controller.attachTag($0) },
                     onDetach: { controller.detachTag($0) }
                 )

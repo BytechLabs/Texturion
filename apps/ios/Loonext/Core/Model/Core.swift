@@ -371,6 +371,11 @@ struct CompanyView: Codable, Sendable {
     /// are held to the window regardless. Defaults TRUE, so a payload decoded
     /// without the field keeps the prompt.
     @Default<DefaultTrue> var quiet_hours_confirm_enabled: Bool
+    /// #298: whether members may INVENT tags, or only use the set that already
+    /// exists. Attaching an existing tag is never restricted — a tech who
+    /// cannot categorise a thread leaves it uncategorised rather than filing it
+    /// somewhere else. Defaults FALSE: most shops want no taxonomy at all.
+    @Default<DefaultFalse> var tags_locked: Bool
     let voicemail_greeting: String?
     @Default<DefaultScreeningOff> var call_screening: String
     let cnam_display_name: String?

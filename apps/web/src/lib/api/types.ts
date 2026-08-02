@@ -392,6 +392,13 @@ export interface CompanyView {
    * automated sends are held to the window regardless.
    */
   quiet_hours_confirm_enabled: boolean;
+  /**
+   * #298: whether members may INVENT tags, or only use the set that already
+   * exists. Default false and meant to stay that way for most shops — a crew
+   * that has BUILT a vocabulary and wants it held still is the case this is
+   * for. Attaching an existing tag is never restricted.
+   */
+  tags_locked: boolean;
   /** #393: the EXACT suffix such a message will carry, or null when the setting
    *  is off (or the company name is blank). Render and METER this string —
    *  never compose it here, or the count can drift from what is billed. */

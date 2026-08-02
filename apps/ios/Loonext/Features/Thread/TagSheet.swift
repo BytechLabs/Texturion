@@ -108,6 +108,13 @@ struct TagManageSheet: View {
     let repo: MessagingRepository
     let companyId: String
     let attached: [Tag]
+    /// #298: whether this person may INVENT a tag here. False hides the Create
+    /// affordance rather than failing it — the server refuses either way
+    /// (api_find_or_create_tag holds the lock and the existence check in one
+    /// statement), and being told no after typing a name is exactly what sends
+    /// somebody to the notes field instead. Every existing tag stays one tap
+    /// away regardless.
+    var mayCreate: Bool = true
     let onAttach: @MainActor (TagAttachPlan) -> Void
     let onDetach: @MainActor (Tag) -> Void
 
@@ -148,9 +155,19 @@ struct TagManageSheet: View {
             CenteredError(message: message) { retryKey += 1 }
         case .ready(let tags):
             let plan = resolveTagInput(input, existing: tags)
+            // #298: the tag this typing probably means, if one already exists.
+            // The list below is an exact-name affair, which does not know that
+            // "quote-sent" and "Quote sent" are the same idea, or that
+            // "warrenty" is a typo. This does.
+            let suggestion = suggestExistingTag(input, existing: tags)
+            let creating = isCreate(plan)
+            let blocked = creating && !mayCreate
             List {
                 HStack(spacing: 8) {
-                    TextField("Add or create a tag", text: $input)
+                    TextField(
+                        mayCreate ? "Add or create a tag" : "Find a tag",
+                        text: $input
+                    )
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .onChange(of: input) { _, next in
@@ -164,15 +181,45 @@ struct TagManageSheet: View {
                             input = ""
                         }
                     } label: {
-                        Text(attachLabel(plan))
+                        Text(creating ? "Create" : "Add")
                             .font(.subheadline.weight(.medium))
                     }
-                    .disabled(plan == nil)
+                    .disabled(plan == nil || blocked)
                 }
+
+                // The existing tag comes FIRST, and it says why it is being
+                // offered. A prompt that just reorders the list teaches
+                // nothing; one that names the near-duplicate is how somebody
+                // stops making it.
+                if let suggestion, !suggestion.exact,
+                   !attachedIds.contains(suggestion.tag.id) {
+                    Button {
+                        onAttach(.existing(suggestion.tag))
+                        input = ""
+                    } label: {
+                        Text("Did you mean \u{201C}\(suggestion.tag.name)\u{201D}?")
+                            .font(.subheadline)
+                            .foregroundStyle(BrandColor.olive)
+                    }
+                }
+
+                if blocked {
+                    Text(
+                        "No tag by that name. Ask an admin to add it — this "
+                            + "workspace keeps a set list."
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                }
+
                 if tags.isEmpty {
-                    Text("No tags yet. Create the first one above.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        mayCreate
+                            ? "No tags yet. Create the first one above."
+                            : "No tags yet. An admin adds the first one."
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                 }
                 ForEach(tags, id: \.id) { tag in
                     let isAttached = attachedIds.contains(tag.id)
@@ -202,9 +249,9 @@ struct TagManageSheet: View {
         }
     }
 
-    private func attachLabel(_ plan: TagAttachPlan?) -> String {
-        if case .createNew = plan { return "Create" }
-        return "Add"
+    private func isCreate(_ plan: TagAttachPlan?) -> Bool {
+        if case .createNew = plan { return true }
+        return false
     }
 }
 

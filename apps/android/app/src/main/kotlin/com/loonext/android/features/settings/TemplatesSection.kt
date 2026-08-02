@@ -73,7 +73,11 @@ private val TEMPLATE_VARIABLES = listOf(
 )
 
 @Composable
-fun TemplatesSection(scope: SettingsScope, company: CompanyView) {
+fun TemplatesSection(
+    scope: SettingsScope,
+    company: CompanyView,
+    onCompanyUpdated: (CompanyView) -> Unit,
+) {
     val repo = remember(scope.graph) { MessagingRepository(scope.graph.api) }
     var refreshKey by remember { mutableIntStateOf(0) }
     var state by remember { mutableStateOf<LoadState<List<Template>>>(LoadState.Loading) }
@@ -170,6 +174,12 @@ fun TemplatesSection(scope: SettingsScope, company: CompanyView) {
             },
         )
     }
+
+    // #298: tags live here rather than in a fifteenth settings section.
+    // /features/templates-and-tags already pairs them in the product's own
+    // vocabulary, so this is a name the crew has seen rather than one
+    // invented for a settings row.
+    TagsCard(scope, company, onCompanyUpdated)
 
     deleting?.let { template ->
         DeleteTemplateDialog(

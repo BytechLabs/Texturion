@@ -59,6 +59,11 @@ export const COMPANY_COLUMNS =
   // so it is the OWNER'S call, and every client needs to read the switch to
   // know whether to offer the breakdown at all.
   "response_stats_per_member," +
+  // #298: whether the tag list is a set one. Every client reads it,
+  // because the create affordance in the thread's tag sheet has to
+  // disappear rather than fail — being told "no" after typing a name is
+  // how somebody puts the category in the notes field instead.
+  "tags_locked," +
   // D43 Calls v2: voicemail greeting, screening routing, CNAM pair. #193:
   // cnam_submitted_at = when the effective listing last went to the carrier
   // side (CNAM propagation takes days and Telnyx reports no status, so the

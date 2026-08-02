@@ -67,6 +67,7 @@ private func updatedLine(_ iso: String, editor: String? = nil) -> String {
 struct TemplatesSectionView: View {
     let scope: SettingsScope
     let company: CompanyView
+    let onCompanyUpdated: @MainActor (CompanyView) -> Void
 
     @State private var state: LoadState<[Template]> = .loading
     @State private var refreshKey = 0
@@ -138,6 +139,16 @@ struct TemplatesSectionView: View {
                     .tint(BrandColor.olive)
                 }
             }
+
+            // #298: tags live here rather than in a fifteenth settings section.
+            // /features/templates-and-tags already pairs them in the product's
+            // own vocabulary, so this is a name the crew has seen rather than
+            // one invented for a settings row.
+            TagsCard(
+                scope: scope,
+                company: company,
+                onCompanyUpdated: onCompanyUpdated
+            )
         }
     }
 

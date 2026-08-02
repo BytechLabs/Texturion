@@ -50,7 +50,11 @@ function readyRow(overrides: Record<string, unknown> = {}) {
     error: null,
     requested_at: "2026-07-26T00:00:00+00:00",
     completed_at: "2026-07-26T00:05:00+00:00",
-    expires_at: "2026-08-02T00:00:00+00:00",
+    // Relative, not a literal date. `signFiles` compares this against
+    // Date.now(), so a hardcoded "not yet" becomes a hardcoded "already gone"
+    // the moment the clock passes it — this fixture read `2026-08-02` and the
+    // suite went red on 2026-08-02 with no code change behind it.
+    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     ...overrides,
   };
 }

@@ -767,6 +767,71 @@ describe("PATCH /v1/company — the quiet-hours confirmation switch (#225 ask 5)
   });
 });
 
+describe("PATCH /v1/company — the tag creation lock (#298)", () => {
+  it("an admin locks the tag list", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { tags_locked: true },
+    });
+    expect(res.status).toBe(200);
+    expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
+      tags_locked: true,
+    });
+  });
+
+  it("counts as a field, so it alone satisfies the at-least-one-field rule", async () => {
+    // The refine() clause enumerates fields by hand, and a boolean left out of
+    // it 422s a body that is perfectly valid — the failure mode is invisible
+    // until somebody flips only this switch.
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { tags_locked: false },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("a member cannot decide the shop's vocabulary is fixed", async () => {
+    const sb = stubWithRole("member");
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { tags_locked: true },
+    });
+    expect(res.status).toBe(403);
+    expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
+  });
+
+  it("is admin's, NOT owner-only", async () => {
+    // The owner-only settings on this route have one thing in common: they
+    // reach a customer (the off-ramp message) or name an individual (per-member
+    // response times). Which words a crew may invent for its own filing does
+    // neither — it is the same class of housekeeping as curating templates,
+    // which #461 already made an admin's.
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { tags_locked: true },
+    });
+    expect(res.status).toBe(200);
+  });
+});
+
 describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)", () => {
   it("admin saves mctb_enabled + mctb_message and enables voice", async () => {
     const sb = stubWithRole("admin");

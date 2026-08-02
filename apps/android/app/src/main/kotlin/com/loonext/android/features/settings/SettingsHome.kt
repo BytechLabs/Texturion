@@ -128,7 +128,10 @@ enum class SettingsSection(
     Workspace("Workspace", "Name, business identification, timezone"),
     Hours("Business hours & away reply", "When you're open, and what after-hours texters hear"),
     Calling("Calling", "Missed-call text-back, voicemail, screening, caller ID"),
-    Templates("Templates", "Saved replies your team can send in one tap"),
+    Templates(
+        "Templates & tags",
+        "Saved replies, and the labels you file conversations under",
+    ),
     Team("Team", "Who can see and answer your customers' texts", Capability.TEAM_MANAGE),
     Numbers("Numbers", "Your numbers, ports, text-enablement, registration", Capability.NUMBERS_MANAGE),
     Usage("Usage", "Fair use, your spending cap, and the numbers", Capability.BILLING_MANAGE),
@@ -340,7 +343,9 @@ fun SettingsHome(
                                 settingsScope, company, onCompanyUpdated,
                             )
 
-                            SettingsSection.Templates -> TemplatesSection(settingsScope, company)
+                            SettingsSection.Templates -> TemplatesSection(
+                                settingsScope, company, onCompanyUpdated,
+                            )
 
                             SettingsSection.Team -> TeamSection(settingsScope, company)
 

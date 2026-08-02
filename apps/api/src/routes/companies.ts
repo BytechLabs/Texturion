@@ -219,6 +219,21 @@ const patchSchema = z
     quiet_hours_confirm_enabled: z.boolean().optional(),
     // #239: owner-only, checked below with the same shape as the overage cap.
     response_stats_per_member: z.boolean().optional(),
+    /**
+     * #298: whether members may INVENT tags, or only use the set the
+     * workspace already has. Default false, and it must stay false —
+     * #298's own devil's advocate is that a plumber's categories are not
+     * an HVAC company's, so a taxonomy imposed by us would be ignored in
+     * favour of the notes field. A crew that has BUILT one and wants it
+     * held still is a different case, and this is for them.
+     *
+     * Admin, not owner-only: it is a housekeeping choice about the shop's
+     * own vocabulary, the same class of thing as curating the templates
+     * an admin already curates (#461). Nothing about it reaches a
+     * customer or names an individual, which is what the owner-only
+     * settings above have in common.
+     */
+    tags_locked: z.boolean().optional(),
   })
   .refine(
     (body) =>
@@ -247,7 +262,8 @@ const patchSchema = z
       body.caller_id_lookup !== undefined ||
       body.first_message_identification !== undefined ||
       body.quiet_hours_confirm_enabled !== undefined ||
-      body.response_stats_per_member !== undefined,
+      body.response_stats_per_member !== undefined ||
+      body.tags_locked !== undefined,
     { message: "Provide at least one field to update." },
   );
 
@@ -677,6 +693,7 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
   if (body.response_stats_per_member !== undefined) {
     patch.response_stats_per_member = body.response_stats_per_member;
   }
+  if (body.tags_locked !== undefined) patch.tags_locked = body.tags_locked;
   // FEATURE-GAPS voice wave: missed-call text-back settings.
   if (body.mctb_enabled !== undefined) patch.mctb_enabled = body.mctb_enabled;
   if ("mctb_message" in body) {

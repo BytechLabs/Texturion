@@ -49,6 +49,15 @@ internal fun TagManageSheet(
     repo: MessagingRepository,
     companyId: String,
     attached: List<Tag>,
+    /**
+     * #298: whether this person may INVENT a tag here. False hides the Create
+     * affordance rather than failing it — the server refuses either way
+     * (api_find_or_create_tag holds the lock and the existence check in one
+     * statement), and being told no after typing a name is exactly what sends
+     * somebody to the notes field instead. Every existing tag stays one tap
+     * away regardless.
+     */
+    mayCreate: Boolean = true,
     onAttach: (TagAttachPlan) -> Unit,
     onDetach: (Tag) -> Unit,
     onDismiss: () -> Unit,
@@ -96,6 +105,13 @@ internal fun TagManageSheet(
 
                 is LoadState.Ready -> {
                     val plan = resolveTagInput(input, current.value)
+                    // #298: the tag this typing probably means, if one already
+                    // exists. The list below is an exact-name affair, which
+                    // does not know that "quote-sent" and "Quote sent" are the
+                    // same idea, or that "warrenty" is a typo. This does.
+                    val suggestion = suggestExistingTag(input, current.value)
+                    val creating = plan is TagAttachPlan.CreateNew
+                    val blocked = creating && !mayCreate
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -105,31 +121,61 @@ internal fun TagManageSheet(
                         OutlinedTextField(
                             value = input,
                             onValueChange = { input = it.take(TAG_NAME_MAX) },
-                            placeholder = { Text("Add or create a tag") },
+                            placeholder = {
+                                Text(
+                                    if (mayCreate) "Add or create a tag"
+                                    else "Find a tag",
+                                )
+                            },
                             singleLine = true,
                             modifier = Modifier.weight(1f),
                         )
                         Spacer(Modifier.width(8.dp))
                         TextButton(
-                            enabled = plan != null,
+                            enabled = plan != null && !blocked,
                             onClick = {
                                 haptics.confirm()
                                 plan?.let(onAttach)
                                 input = ""
                             },
                         ) {
-                            Text(
-                                when (plan) {
-                                    is TagAttachPlan.CreateNew -> "Create"
-                                    else -> "Add"
-                                },
-                            )
+                            Text(if (creating) "Create" else "Add")
                         }
+                    }
+
+                    // The existing tag comes FIRST, and it says why it is being
+                    // offered. A prompt that just reorders the list teaches
+                    // nothing; one that names the near-duplicate is how
+                    // somebody stops making it.
+                    if (suggestion != null && !suggestion.exact &&
+                        suggestion.tag.id !in attachedIds
+                    ) {
+                        TextButton(
+                            onClick = {
+                                haptics.confirm()
+                                onAttach(TagAttachPlan.Existing(suggestion.tag))
+                                input = ""
+                            },
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        ) {
+                            Text("Did you mean \"${suggestion.tag.name}\"?")
+                        }
+                    }
+
+                    if (blocked) {
+                        Text(
+                            "No tag by that name. Ask an admin to add it — " +
+                                "this workspace keeps a set list.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                        )
                     }
 
                     if (current.value.isEmpty()) {
                         Text(
-                            "No tags yet. Create the first one above.",
+                            if (mayCreate) "No tags yet. Create the first one above."
+                            else "No tags yet. An admin adds the first one.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(20.dp),

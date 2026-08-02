@@ -62,7 +62,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .workspace: "Workspace"
         case .hours: "Business hours & away reply"
         case .calling: "Calling"
-        case .templates: "Templates"
+        case .templates: "Templates & tags"
         case .ai: "Lou"
         case .team: "Team"
         case .numbers: "Numbers"
@@ -82,7 +82,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .workspace: "Name, business identification, timezone"
         case .hours: "When you're open, and what after-hours texters hear"
         case .calling: "Missed-call text-back, voicemail, screening, caller ID"
-        case .templates: "Saved replies your team can send in one tap"
+        case .templates: "Saved replies, and the labels you file conversations under"
         case .ai: "Pre-fill a task's address and due date from a message"
         case .team: "Who can see and answer your customers' texts"
         case .numbers: "Your numbers, ports, text-enablement, registration"
@@ -392,7 +392,11 @@ struct SettingsHome: View {
                 case .calling:
                     CallingSectionView(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
                 case .templates:
-                    TemplatesSectionView(scope: scope, company: company)
+                    TemplatesSectionView(
+                        scope: scope,
+                        company: company,
+                        onCompanyUpdated: onCompanyUpdated
+                    )
                 case .ai:
                     AiSectionView(scope: scope)
                 case .team:

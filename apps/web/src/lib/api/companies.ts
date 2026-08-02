@@ -100,6 +100,8 @@ export interface CompanyPatch {
   first_message_identification?: boolean;
   /** #225: the quiet-hours confirmation prompt (admin-only). */
   quiet_hours_confirm_enabled?: boolean;
+  /** #298 (O/A): restrict tag CREATION to the set that already exists. */
+  tags_locked?: boolean;
   /** D43 Calls v2 (O/A): voicemail greeting (null = spoken default),
    *  screening routing, CNAM display name (<=15 alnum+space; #193: null =
    *  default to the company name, never "no listing"), inbound caller-name

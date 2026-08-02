@@ -40,6 +40,28 @@ data class Tag(
     val updated_at: String? = null,
 )
 
+/**
+ * #298: one tag and how much it is actually used. Ordered busiest-first by the
+ * server, because the tail is where the duplicates and the dead ones both live
+ * — and neither is visible from the tag names alone.
+ */
+@Serializable
+data class TagUsage(
+    val tag_id: String,
+    val name: String,
+    val uses: Long = 0,
+    val last_used: String? = null,
+)
+
+/** #298: what a merge did, so the confirmation can say it back. */
+@Serializable
+data class TagMergeResult(
+    val merged: Boolean = false,
+    val moved: Int = 0,
+    val already_both: Int = 0,
+    val stage_moved: Boolean = false,
+)
+
 @Serializable
 data class Conversation(
     val id: String,

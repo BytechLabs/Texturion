@@ -369,6 +369,11 @@ data class CompanyView(
      *  automated sends are held to the window regardless. Defaults TRUE so a
      *  payload without the field keeps the prompt. */
     val quiet_hours_confirm_enabled: Boolean = true,
+    /** #298: whether members may INVENT tags, or only use the set that already
+     *  exists. Attaching an existing tag is never restricted — a tech who
+     *  cannot categorise a thread leaves it uncategorised rather than filing it
+     *  somewhere else. Defaults FALSE: most shops want no taxonomy at all. */
+    val tags_locked: Boolean = false,
     val voicemail_greeting: String? = null,
     val call_screening: String = "off",
     val cnam_display_name: String? = null,

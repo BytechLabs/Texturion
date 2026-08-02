@@ -26,6 +26,8 @@ import com.loonext.android.core.model.OutboundMedia
 import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.SearchResult
 import com.loonext.android.core.model.Tag
+import com.loonext.android.core.model.TagMergeResult
+import com.loonext.android.core.model.TagUsage
 import com.loonext.android.core.model.Task
 import com.loonext.android.core.model.TaskAddressInput
 import com.loonext.android.core.model.Template
@@ -535,6 +537,25 @@ class MessagingRepository(private val api: ApiClient) {
 
     suspend fun tags(companyId: String): Page<Tag> =
         api.get("/v1/tags", companyId = companyId)
+
+    /** #298: the same list with use counts, busiest first (member-readable). */
+    suspend fun tagUsage(companyId: String): Page<TagUsage> =
+        api.get("/v1/tags/usage", companyId = companyId)
+
+    /**
+     * #298: fold [fromTagId] into [intoTagId], keeping every association.
+     * Delete was the only cleanup and it loses them all, so an admin who found
+     * six variants could previously only destroy five.
+     */
+    suspend fun mergeTags(
+        companyId: String,
+        fromTagId: String,
+        intoTagId: String,
+    ): TagMergeResult = api.post(
+        "/v1/tags/$fromTagId/merge",
+        buildJsonObject { put("into_tag_id", intoTagId) },
+        companyId = companyId,
+    )
 
     suspend fun members(companyId: String): Page<Member> =
         api.get("/v1/members", companyId = companyId)

@@ -109,6 +109,7 @@ import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.model.Attachment
 import com.loonext.android.core.model.AttachmentSummary
+import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.ConversationStatus
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
@@ -1045,6 +1046,15 @@ private fun ThreadLoaded(
             repo = repo,
             companyId = companyId,
             attached = detail.tags,
+            // #298: a workspace that keeps a set list hides Create here rather
+            // than failing it. Defaults to allowed while the company is still
+            // loading — the server is the gate, and an affordance that flickers
+            // off is worse than one that occasionally has to say no.
+            mayCreate = controller.company?.tags_locked != true ||
+                MemberRole.has(
+                    me.memberships.firstOrNull { it.company_id == companyId }?.role,
+                    Capability.SETTINGS_MANAGE,
+                ),
             onAttach = { controller.attachTag(it) },
             onDetach = { controller.detachTag(it) },
             onDismiss = { tagSheetOpen = false },

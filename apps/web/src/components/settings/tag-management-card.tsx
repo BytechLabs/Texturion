@@ -21,6 +21,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useMergeTags, useTagUsage, type TagUsage } from "@/lib/api/tags";
 
@@ -59,6 +62,7 @@ export function TagManagementCard({ canManage }: { canManage: boolean }) {
 
   return (
     <>
+      {canManage && <TagLockCard />}
       <SettingsCard
         title="Tags"
         description="What the crew has been tagging, and how often. The quiet ones at the bottom are usually duplicates of something above."
@@ -189,5 +193,88 @@ function MergeDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * #298 acceptance 4 — restricting who may INVENT a tag. Off by default.
+ *
+ * # Why this exists at all, given the issue argues against taxonomies
+ *
+ * #298's own devil's advocate: "the temptation is to impose a taxonomy. That
+ * is the wrong move for this market — a plumber's categories are not an HVAC
+ * company's, and a locked-down tag list would be ignored in favour of the
+ * notes field." That argument is against US imposing one. A crew that has
+ * BUILT a vocabulary and wants it held still is the opposite case, and this is
+ * the only thing here they cannot do without us.
+ *
+ * # It restricts creation, never attachment
+ *
+ * A tech who cannot categorise a thread does not categorise it in the notes
+ * instead — they leave it uncategorised, and the workspace loses the data it
+ * turned this on to protect. So every existing tag stays one tap away for
+ * everybody, and the switch copy says so before the toggle is touched rather
+ * than after.
+ *
+ * *Applying: Loss Aversion, inverted — the consequence line names what the
+ * crew loses (the ability to name something new mid-job), because that is the
+ * cost an admin is deciding to pay and it is invisible from this screen.*
+ */
+function TagLockCard() {
+  const company = useCompany();
+  const update = useUpdateCompany();
+  const locked = company.data?.tags_locked ?? false;
+  const [error, setError] = useState<string | null>(null);
+
+  if (company.data === undefined) return null;
+
+  return (
+    <SettingsCard
+      title="Who can create tags"
+      description="Anyone on the crew can add a tag by default. Lock it once your list is the list."
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-0.5">
+          <Label htmlFor="tags-locked" className="text-sm font-medium">
+            Only owners and admins can create tags
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            Everyone can still use every tag you already have. This only stops
+            new ones being invented mid-job.
+          </p>
+        </div>
+        <Switch
+          id="tags-locked"
+          checked={locked}
+          disabled={update.isPending}
+          onCheckedChange={(next) => {
+            setError(null);
+            update.mutate(
+              { tags_locked: next },
+              {
+                onError: (cause) => {
+                  setError(
+                    cause instanceof ApiError
+                      ? cause.message
+                      : "Couldn't save. Try again.",
+                  );
+                },
+              },
+            );
+          }}
+        />
+      </div>
+      {locked && (
+        <p className="mt-3 text-[13px] text-muted-foreground">
+          A tech who needs a category you do not have will leave the thread
+          untagged rather than ask. Check the list below now and then.
+        </p>
+      )}
+      {error !== null && (
+        <p role="alert" className="mt-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+    </SettingsCard>
   );
 }

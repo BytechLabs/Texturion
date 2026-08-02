@@ -549,6 +549,26 @@ struct MessagingRepository: Sendable {
         try await api.get("/v1/tags", companyId: companyId)
     }
 
+    /// #298: the same list with use counts, busiest first (member-readable).
+    func tagUsage(companyId: String) async throws -> Page<TagUsage> {
+        try await api.get("/v1/tags/usage", companyId: companyId)
+    }
+
+    /// #298: fold `from` into `into`, keeping every association. Delete was the
+    /// only cleanup and it loses them all, so an admin who found six variants
+    /// could previously only destroy five.
+    func mergeTags(
+        companyId: String,
+        fromTagId: String,
+        intoTagId: String
+    ) async throws -> TagMergeResult {
+        try await api.post(
+            "/v1/tags/\(fromTagId)/merge",
+            body: JSONValue.object(["into_tag_id": .string(intoTagId)]),
+            companyId: companyId
+        )
+    }
+
     func members(companyId: String) async throws -> Page<Member> {
         try await api.get("/v1/members", companyId: companyId)
     }
