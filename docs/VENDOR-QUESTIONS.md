@@ -252,6 +252,58 @@ question that never needed to be sent. Check the vendor's published
 compatibility and limits pages — not just their feature docs — before writing
 "somebody has to ask" next to something that gates a legal disclosure.
 
+
+### R5 — does Telnyx offer RCS, at what price and what registration burden? · ANSWERED from the live API and published pricing, 2026-08-02
+
+**#450 named this "the decisive unknown"** and routed it to the #373 email batch
+as the gate on everything else in that issue. It never needed sending. Third
+time (R3, R4), so this is now simply how the register works.
+
+**Does Telnyx offer RCS? Yes, and it is live on our account.**
+`GET /v2/rcs_agents` returns **HTTP 200** with an empty list — we have no agents
+configured, not that the product is unavailable. Worth contrasting with R2: the
+Canadian number gate announced itself as error `10038` on a real call, so an
+account-level restriction here would have looked like that and does not.
+
+**At what price? Per SEGMENT — there is no session tier.** Telnyx's published
+messaging pricing states it outright: *"RCS Rich text messages are charged per
+segment"* and *"RCS Rich Media is charged per message"*. The words **session**,
+**conversational** and **24-hour do not appear on the page at all.**
+
+| | Telnyx list price | Billing unit |
+|---|---|---|
+| SMS, US local | $0.004 per message part + carrier fee (≈$0.0035–$0.0045 for AT&T/T-Mobile/Verizon) | per part |
+| RCS Rich text | $0.0065 per segment + RBM passthrough (≈$0.0045 AT&T) | **per segment** |
+| RCS Rich Media | $0.016 per message + passthrough | **per message** |
+
+Source: <https://telnyx.com/pricing/messaging>, read 2026-08-02. Re-read the
+per-carrier rows before anything load-bearing; the point here is the billing
+*unit*, which is unambiguous, not the third decimal place.
+
+**So #450's business case does not survive contact with our provider.** That
+issue's whole thesis is that RCS Conversational bundles unlimited exchanges into
+one 24-hour charge, making a chatty inbox *cheaper*. Telnyx bills every RCS
+segment, so an eight-message exchange bills eight times exactly as SMS does —
+and at a higher unit price on both legs, since RCS is billed inbound too. The
+`scripts/ops/rcs-session-model.mjs` break-even table now prints a banner saying
+so, because a table of multipliers nobody can buy is worse than no table.
+
+**Canada is absent.** The RCS pricing tables list US carriers only — no Canadian
+carrier appears. For a Canada-first product that is the more disqualifying half,
+and it is the same shape as R3: the exposure is *carrier* coverage, not vendor
+willingness.
+
+**What survives.** The verified-sender identity benefit (#393, #379) is real and
+independent of the cost thesis — it just costs more rather than less, which is a
+different trade than #450 argued. That belongs to #230, which owns the
+channel-shaped engineering.
+
+**Registration burden: still unmeasured, and no longer gating.** Telnyx's RCS
+docs URLs 404 from their published paths, so the onboarding steps were not
+established here. Left open deliberately: with the pricing thesis inverted and
+Canada uncovered, the burden is no longer the question that decides anything.
+Establish it if and when the identity case is taken up on its own merits.
+
 ---
 
 ## Adding an entry

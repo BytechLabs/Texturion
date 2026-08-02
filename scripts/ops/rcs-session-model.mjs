@@ -57,6 +57,25 @@
  * pricing we do not have yet — that is the Telnyx question in #373 — so the
  * output is a table across plausible multipliers. Whatever number comes back,
  * the answer is read off rather than recomputed.
+ *
+ * ---------------------------------------------------------------------------
+ * THE MULTIPLIER CAME BACK, AND IT DOES NOT EXIST — 2026-08-02
+ *
+ * Telnyx does not sell RCS by the session. Their published messaging pricing
+ * states, in its own words, that "RCS Rich text messages are charged per
+ * segment" and "RCS Rich Media is charged per message"; the words "session",
+ * "conversational" and "24-hour" do not appear on the page at all.
+ *
+ * So the premise this whole script models — unlimited exchanges inside one
+ * 24-hour charge — is not on offer from our provider, and no value of
+ * MULTIPLIERS below describes a price anybody can buy. See VENDOR-QUESTIONS.md
+ * R5 for the figures and the rest of the finding.
+ *
+ * The script is kept, and still runs, for two honest reasons: the segments-per-
+ * session distribution is a real fact about how this product is used, and if a
+ * provider ever does offer session billing the model is already written. The
+ * banner it now prints exists so nobody re-runs it, reads the break-even table,
+ * and believes it is describing a purchasable price.
  */
 import { runScript } from "./lib.mjs";
 
@@ -261,6 +280,10 @@ await runScript("rcs-session-model", async ({ args, db }) => {
 
   console.log(`  Break-even against the RCS session price`);
   console.log(`  (multiplier = one RCS session priced as N single SMS segments)`);
+  console.log(
+    `  HYPOTHETICAL: Telnyx bills RCS per SEGMENT, not per session (R5,\n` +
+      `  2026-08-02). No multiplier below is a price we can actually buy.`,
+  );
   console.log("");
   for (const multiplier of MULTIPLIERS) {
     const rcsCost = sessions.length * multiplier;
@@ -270,8 +293,10 @@ await runScript("rcs-session-model", async ({ args, db }) => {
   }
   console.log("");
   console.log(
-    `  Read it off: RCS wins whenever the session price is below ${mean.toFixed(2)}x\n` +
-      `  a single SMS segment. The multiplier itself is vendor pricing we do\n` +
-      `  not have — that is the Telnyx question in #373.\n`,
+    `  Read it off: RCS would win whenever a session price sits below\n` +
+      `  ${mean.toFixed(2)}x a single SMS segment. Telnyx sells no such price — RCS\n` +
+      `  Rich text is per segment there, so every exchange bills every message\n` +
+      `  exactly as SMS does. This table applies only to a provider that\n` +
+      `  offers session billing (VENDOR-QUESTIONS.md R5).\n`,
   );
 }, { readOnly: true });
