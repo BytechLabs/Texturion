@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.10.0](https://github.com/BytechLabs/Texturion/compare/api-v0.9.0...api-v0.10.0) (2026-08-02)
+
+
+### Features
+
+* **api:** a Canadian workspace can be billed in Canadian dollars ([0ea4335](https://github.com/BytechLabs/Texturion/commit/0ea4335856bd3d1acba811da1a72579b11195911))
+* **api:** a contact says how long they have been one, and how often ([18f265e](https://github.com/BytechLabs/Texturion/commit/18f265e622a32f36209643386aa0ca85eb030cf0)), closes [#410](https://github.com/BytechLabs/Texturion/issues/410)
+* **api:** a robotext stops waking the crew's phones at six in the morning ([e33ad35](https://github.com/BytechLabs/Texturion/commit/e33ad35796d90d1886129b6c3b817990759b02bc)), closes [#250](https://github.com/BytechLabs/Texturion/issues/250)
+* **api:** a thread marked as spam stops spending the AI budget ([f53b9bd](https://github.com/BytechLabs/Texturion/commit/f53b9bd65778b06296028dca49f47e68a30eff61)), closes [#250](https://github.com/BytechLabs/Texturion/issues/250)
+* **api:** a workspace can refuse a number, and clear a wrong suspicion ([948f826](https://github.com/BytechLabs/Texturion/commit/948f826435d685839d80b31acab670652e0c151c)), closes [#250](https://github.com/BytechLabs/Texturion/issues/250)
+* **api:** say what a call was about instead of typing it out afterwards ([8d33b20](https://github.com/BytechLabs/Texturion/commit/8d33b20bcd77077d3ad71fd2b45a5af8f831d90f))
+* **billing:** a workspace can buy a year, and the licensed line goes free ([96011f3](https://github.com/BytechLabs/Texturion/commit/96011f3a7087d7fc322086cc773a2173f90b355d))
+* **billing:** the billing page offers a year, and the alert stops counting it ([702f34a](https://github.com/BytechLabs/Texturion/commit/702f34a03ab11d6d99f50694d2a55fa1f8f9384b))
+* **compose:** a template can say the address, the time and who is coming ([39488a9](https://github.com/BytechLabs/Texturion/commit/39488a9c7352ef789a1529fb5c9959c5f511de17))
+* **contacts:** the workspace can find its duplicates and fold them together ([fdb6144](https://github.com/BytechLabs/Texturion/commit/fdb6144006e5f5c18f198446ef432aff4c2e76ac))
+* **db:** referrals get a table, and the referrer owns the row ([b07349d](https://github.com/BytechLabs/Texturion/commit/b07349d424eeeafd73dd2cd6614f134abf9838d2))
+* **db:** the ledger records which revenue stream a charge belongs to ([e8fbabc](https://github.com/BytechLabs/Texturion/commit/e8fbabc365608a2156f521d1ab13004b8e3edee9)), closes [#506](https://github.com/BytechLabs/Texturion/issues/506)
+* **inbox:** a filter can be saved under a name and kept ([d03bd00](https://github.com/BytechLabs/Texturion/commit/d03bd00e860df22f10f7ac65b57fb3f4eba27783))
+* **inbox:** a saved reply now records that it was the one sent ([452bcd4](https://github.com/BytechLabs/Texturion/commit/452bcd4e6b907c810040ebdf1c0199a0775c7a62))
+* **inbox:** a tag can say what it means, and there is a limit on how many ([6b9b85c](https://github.com/BytechLabs/Texturion/commit/6b9b85ce19d06beaf4a25228a6e557ab90b59070))
+* **inbox:** a workspace can keep a set list of tags if it wants one ([1030bc1](https://github.com/BytechLabs/Texturion/commit/1030bc14ab48b8caf833ee07d16bf256690087bc))
+* **inbox:** the phones can tidy tags too, and a crew can freeze the list ([1ebf918](https://github.com/BytechLabs/Texturion/commit/1ebf918a3b8ede21a6693718e43feca5e5c66ff3))
+* **inbox:** the Quote sent list is waiting for you on Monday ([961cec0](https://github.com/BytechLabs/Texturion/commit/961cec07cb3d577adf283b4ed7799dafa04e68e8))
+* **marketing:** the page a customer arrived through reaches their workspace ([8097fc0](https://github.com/BytechLabs/Texturion/commit/8097fc00c9920ddb08ecb2298bf706fcf695c0ce)), closes [#296](https://github.com/BytechLabs/Texturion/issues/296)
+* **ops:** a report says which workspaces cost more than they pay ([ef83569](https://github.com/BytechLabs/Texturion/commit/ef83569a5df290ad97ed406a3bd478afa449765e))
+* **referrals:** a qualified referral pays both sides a free month ([34383fc](https://github.com/BytechLabs/Texturion/commit/34383fcd16f2abbc841252947cc7bbbbcdbcd904))
+* **referrals:** a signup can name who sent it, and a first text earns it ([25ed502](https://github.com/BytechLabs/Texturion/commit/25ed50255b41655035c39633420b71d56c5c03cc))
+* **referrals:** the referrer can see their link and what it did ([932c090](https://github.com/BytechLabs/Texturion/commit/932c0907def800092d568dd61f0f6de7f6d014b4))
+* **signup:** ask how big the crew is, because that is where our price wins ([9a40601](https://github.com/BytechLabs/Texturion/commit/9a406016ee2763934b004910aeb02783002699ed))
+* **templates:** saved replies carry a category, and the picker leads with what you send ([ab952d1](https://github.com/BytechLabs/Texturion/commit/ab952d1db52b0e0cea7886dd237928fa4f4f4d20))
+
 ## [0.9.0](https://github.com/BytechLabs/Texturion/compare/api-v0.8.0...api-v0.9.0) (2026-08-01)
 
 

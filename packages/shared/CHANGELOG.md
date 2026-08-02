@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.7.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.6.0...shared-v0.7.0) (2026-08-02)
+
+
+### Features
+
+* **android:** a dot shows when something new shipped ([a396984](https://github.com/BytechLabs/Texturion/commit/a3969849534595175ae3715db0f213a8744262c5))
+* **api:** a Canadian workspace can be billed in Canadian dollars ([0ea4335](https://github.com/BytechLabs/Texturion/commit/0ea4335856bd3d1acba811da1a72579b11195911))
+* **api:** say what a call was about instead of typing it out afterwards ([8d33b20](https://github.com/BytechLabs/Texturion/commit/8d33b20bcd77077d3ad71fd2b45a5af8f831d90f))
+* **app:** the banner that says what broke can now tell us about it ([221f1b9](https://github.com/BytechLabs/Texturion/commit/221f1b909ae900aa6b1260d48c74f7f4353be304))
+* **app:** we say we will write back when a fix ships, and now we do ([7917b38](https://github.com/BytechLabs/Texturion/commit/7917b3823131e1d33f6dcb5e43a42fc819bf68b4))
+* **clients:** a repeat customer is visible without opening the contact panel ([c3def7f](https://github.com/BytechLabs/Texturion/commit/c3def7f69ea259380709c1c876a33a451a651601)), closes [#505](https://github.com/BytechLabs/Texturion/issues/505)
+* **clients:** a tech can see a repeat customer without reading a list ([77f659d](https://github.com/BytechLabs/Texturion/commit/77f659d0411405d33b7e8397fc59cf7ea9e48202)), closes [#410](https://github.com/BytechLabs/Texturion/issues/410)
+* **compose:** a template can say the address, the time and who is coming ([39488a9](https://github.com/BytechLabs/Texturion/commit/39488a9c7352ef789a1529fb5c9959c5f511de17))
+* **compose:** the composer preview stops hiding what it cannot know ([f50e31b](https://github.com/BytechLabs/Texturion/commit/f50e31b1ca636648a14547e4ee9cae5a7153ed39))
+* **inbox:** a filter can be saved under a name and kept ([d03bd00](https://github.com/BytechLabs/Texturion/commit/d03bd00e860df22f10f7ac65b57fb3f4eba27783))
+* **inbox:** the Quote sent list is waiting for you on Monday ([961cec0](https://github.com/BytechLabs/Texturion/commit/961cec07cb3d577adf283b4ed7799dafa04e68e8))
+* **inbox:** two tags that mean the same thing can be merged into one ([af059a0](https://github.com/BytechLabs/Texturion/commit/af059a094311dbd32d4e421a14d5205fb653f7c1))
+* **marketing:** a page says what shipped, so improvement stops being invisible ([8ba5aae](https://github.com/BytechLabs/Texturion/commit/8ba5aae29f83cdbcf1ce6bf5ccece9f4237dfc4a))
+* **marketing:** campaign parameters survive scrubbing, and nothing else does ([7227403](https://github.com/BytechLabs/Texturion/commit/7227403d0c32e93623da4f0ec86f7f76e1a6f393)), closes [#296](https://github.com/BytechLabs/Texturion/issues/296)
+* **mobile:** first-run guidance reaches the phones, where the crew works ([53abc80](https://github.com/BytechLabs/Texturion/commit/53abc8031cae269435bb11a2d32b2e9068e830ca)), closes [#476](https://github.com/BytechLabs/Texturion/issues/476)
+* **settings:** the template editor offers all seven variables, and shows them working ([a3b5f6f](https://github.com/BytechLabs/Texturion/commit/a3b5f6fcf1aa9d41101ad95dab6ec46cbacd9404))
+* **shared:** the rules a referral has to pass before it pays anybody ([51d806a](https://github.com/BytechLabs/Texturion/commit/51d806ad76d6b0e539bf07092aabe7a0020fb686))
+* **signup:** ask how big the crew is, because that is where our price wins ([9a40601](https://github.com/BytechLabs/Texturion/commit/9a406016ee2763934b004910aeb02783002699ed))
+* **web:** a dot shows when something new shipped, and never interrupts ([03f1d04](https://github.com/BytechLabs/Texturion/commit/03f1d043cdfef756225ebcd7e1cc6706b8a73c0e))
+
+
+### Bug Fixes
+
+* **stores:** the contacts permission iOS ships is now the one we declare ([308d0cd](https://github.com/BytechLabs/Texturion/commit/308d0cd0ee610ea1df9376d2d16500480e27687f))
+
 ## [0.6.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.5.0...shared-v0.6.0) (2026-08-01)
 
 
