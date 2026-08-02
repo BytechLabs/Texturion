@@ -518,19 +518,39 @@ class MessagingRepository(private val api: ApiClient) {
 
     // --- Supporting reads -----------------------------------------------------
 
-    suspend fun templates(companyId: String): Page<Template> =
-        api.get("/v1/templates", companyId = companyId)
+    /**
+     * #274 — two orders, because two people are asking different questions.
+     *
+     * [byUse] is the composer's picker: somebody about to send wants the reply
+     * they send twenty times a day, and alphabetical puts it wherever its name
+     * falls. The default is the settings list, where a stable place to find a
+     * template beats a list that reorders itself as the crew works.
+     */
+    suspend fun templates(companyId: String, byUse: Boolean = false): Page<Template> =
+        api.get(
+            "/v1/templates",
+            query = if (byUse) mapOf("sort" to "use") else emptyMap(),
+            companyId = companyId,
+        )
 
     // --- Saved replies (Settings → Templates) ---------------------------------
     // Member-level for every operation (routes/templates.ts): any active
     // teammate may write them, so these carry no extra role check.
 
-    suspend fun createTemplate(companyId: String, name: String, body: String): Template =
+    suspend fun createTemplate(
+        companyId: String,
+        name: String,
+        body: String,
+        /** #274: the crew's own grouping. Blank travels as "" and the API
+         *  normalises it to null, which is how a clear is expressed. */
+        category: String = "",
+    ): Template =
         api.post(
             "/v1/templates",
             buildJsonObject {
                 put("name", name)
                 put("body", body)
+                put("category", category)
             },
             companyId = companyId,
         )
@@ -540,11 +560,13 @@ class MessagingRepository(private val api: ApiClient) {
         templateId: String,
         name: String,
         body: String,
+        category: String = "",
     ): Template = api.patch(
         "/v1/templates/$templateId",
         buildJsonObject {
             put("name", name)
             put("body", body)
+            put("category", category)
         },
         companyId = companyId,
     )

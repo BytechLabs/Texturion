@@ -900,7 +900,10 @@ private struct ThreadBody: View {
             ourNumberE164: controller.company?.numbers
                 .first { $0.id == detail.phone_number_id }?.number_e164,
             loadTemplates: { [repo = controller.repo, companyId = detail.company_id] in
-                try await repo.templates(companyId: companyId).data
+                // #274: most-used first. Somebody opening the picker is
+                // about to send, and the reply they send twenty times a
+                // day should not be wherever its name happens to fall.
+                try await repo.templates(companyId: companyId, byUse: true).data
             },
             onSendText: { body, photos, templateId, templateEdited in
                 controller.sendText(

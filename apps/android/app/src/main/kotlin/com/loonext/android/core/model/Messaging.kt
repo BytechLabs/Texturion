@@ -314,6 +314,12 @@ data class Template(
     val id: String,
     val name: String,
     val body: String,
+    /**
+     * #274: the crew's own grouping. Free text and optional — a taxonomy we
+     * imposed would be ignored, and a category is worth typing at thirty
+     * templates and friction at five.
+     */
+    val category: String? = null,
     val created_by: String? = null,
     /** #419: who last edited this shared copy. */
     val updated_by: String? = null,

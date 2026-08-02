@@ -958,7 +958,10 @@ private fun ThreadLoaded(
                 controller.conversationId,
                 detail.last_message_at,
             ),
-            loadTemplates = { repo.templates(companyId).data },
+            // #274: most-used first. Somebody opening the picker is about to
+            // send, and the reply they send twenty times a day should not be
+            // wherever its name happens to fall.
+            loadTemplates = { repo.templates(companyId, byUse = true).data },
             onOpenAiSettings = onOpenAiSettings,
             // #106: calling is outreach like texting, so a notes-only member
             // gets no control the API would refuse.

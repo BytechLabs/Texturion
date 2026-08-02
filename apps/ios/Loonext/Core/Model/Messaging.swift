@@ -307,6 +307,10 @@ struct Template: Codable, Sendable {
     let id: String
     let name: String
     let body: String
+    /// #274: the crew's own grouping. Free text and optional — a taxonomy we
+    /// imposed would be ignored, and a category is worth typing at thirty
+    /// templates and friction at five.
+    var category: String?
     let created_by: String?
     /// #419: who last edited this shared copy.
     let updated_by: String?

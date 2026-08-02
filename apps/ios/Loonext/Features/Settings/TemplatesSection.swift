@@ -3,6 +3,8 @@ import SwiftUI
 /// Mirrors the API schema (routes/templates.ts): trimmed 1...120 / 1...2000.
 private let templateNameMax = 120
 private let templateBodyMax = 2000
+/// Mirrors templates_category_len: a label, not a sentence.
+private let templateCategoryMax = 40
 
 /// The merge variables the editor offers come from the shared port (#274).
 ///
@@ -90,6 +92,7 @@ struct TemplatesSectionView: View {
                 scope: scope,
                 company: company,
                 template: nil,
+                existingCategories: knownCategories,
                 onSaved: {
                     creating = false
                     refreshKey += 1
@@ -116,13 +119,26 @@ struct TemplatesSectionView: View {
                         ReadOnlyLine("No templates yet. Save a reply you send often, then "
                             + "insert it from Templates in the composer.")
                     } else {
-                        ForEach(Array(templates.enumerated()), id: \.element.id) { index, template in
-                            if index > 0 { RowDivider() }
-                            TemplateRowView(
-                                scope: scope,
-                                company: company,
-                                template: template
-                            ) { refreshKey += 1 }
+                        // #274: gathered under whatever headings the crew has
+                        // written. A shop that never uses categories sees the
+                        // flat list it always had.
+                        ForEach(groupTemplates(templates)) { group in
+                            if let label = group.label {
+                                Text(label)
+                                    .font(.golos(11, weight: .semibold))
+                                    .foregroundStyle(BrandColor.muted500)
+                                    .padding(.top, 10)
+                                    .padding(.bottom, 2)
+                            }
+                            ForEach(Array(group.rows.enumerated()), id: \.element.id) { index, template in
+                                if index > 0 { RowDivider() }
+                                TemplateRowView(
+                                    scope: scope,
+                                    company: company,
+                                    template: template,
+                                    existingCategories: knownCategories
+                                ) { refreshKey += 1 }
+                            }
                         }
                     }
                     Spacer().frame(height: 10)
@@ -144,6 +160,24 @@ struct TemplatesSectionView: View {
                 onCompanyUpdated: onCompanyUpdated
             )
         }
+    }
+
+    /**
+     * #274 — the groupings this workspace already uses.
+     *
+     * Offered as chips so the common act is reusing one rather than inventing
+     * a near-duplicate: "Quoting" and "quotes" as separate groups is the same
+     * sprawl #298 fixed for tags, one level up.
+     */
+    private var knownCategories: [String] {
+        guard case .ready(let rows) = state else { return [] }
+        var seen: Set<String> = []
+        for row in rows {
+            let category = (row.category ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !category.isEmpty { seen.insert(category) }
+        }
+        return seen.sorted { $0.lowercased() < $1.lowercased() }
     }
 
     // Read fresh on every visit: this screen is the only writer of the list, so
@@ -176,6 +210,8 @@ private struct TemplateRowView: View {
     let scope: SettingsScope
     let company: CompanyView
     let template: Template
+    /// #274: passed down so the edit sheet can offer them as chips.
+    var existingCategories: [String] = []
     let onChanged: @MainActor () -> Void
 
     @State private var editing = false
@@ -208,6 +244,7 @@ private struct TemplateRowView: View {
                         scope: scope,
                         company: company,
                         template: template,
+                        existingCategories: existingCategories,
                         onSaved: {
                             editing = false
                             onChanged()
@@ -265,12 +302,19 @@ private struct TemplateEditorSheet: View {
     let scope: SettingsScope
     let company: CompanyView
     let template: Template?
+    /// #274: the groupings this workspace already uses, offered as chips.
+    /// Reusing one has to be easier than typing one, or "Quoting" and "quotes"
+    /// become separate groups — the sprawl #298 fixed for tags, one level up.
+    let existingCategories: [String]
     let onSaved: @MainActor () -> Void
     let onDismiss: @MainActor () -> Void
 
     @State private var name: String
     /// Not `body`: that name belongs to the View requirement below.
     @State private var draft: String
+    /// #274: the crew's own grouping. Blank is how it is cleared — the API
+    /// normalises "" to null, so sending it plainly is how a clear travels.
+    @State private var category: String
     @State private var saving = false
     @State private var error: String?
 
@@ -278,16 +322,19 @@ private struct TemplateEditorSheet: View {
         scope: SettingsScope,
         company: CompanyView,
         template: Template?,
+        existingCategories: [String] = [],
         onSaved: @escaping @MainActor () -> Void,
         onDismiss: @escaping @MainActor () -> Void
     ) {
         self.scope = scope
         self.company = company
         self.template = template
+        self.existingCategories = existingCategories
         self.onSaved = onSaved
         self.onDismiss = onDismiss
         _name = State(initialValue: template?.name ?? "")
         _draft = State(initialValue: template?.body ?? "")
+        _category = State(initialValue: template?.category ?? "")
     }
 
     private var trimmedName: String {
@@ -325,6 +372,8 @@ private struct TemplateEditorSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     nameField
+                    Spacer().frame(height: 14)
+                    categoryField
                     Spacer().frame(height: 14)
                     messageField
                     Spacer().frame(height: 14)
@@ -401,6 +450,38 @@ private struct TemplateEditorSheet: View {
         }
     }
 
+    /// #274 — the crew's own grouping, offered rather than imposed. The chips
+    /// are the categories this workspace has ALREADY used, so reusing one is a
+    /// tap and inventing one is still a free-text box away.
+    private var categoryField: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionHeader(label: "Category (optional)")
+            TextField("Quoting", text: $category)
+                .textFieldStyle(.roundedBorder)
+                .disabled(saving)
+                .onChange(of: category) { _, next in
+                    if next.count > templateCategoryMax {
+                        category = String(next.prefix(templateCategoryMax))
+                    }
+                }
+            if !existingCategories.isEmpty {
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 104), spacing: 8, alignment: .leading)],
+                    alignment: .leading,
+                    spacing: 8
+                ) {
+                    ForEach(existingCategories, id: \.self) { existing in
+                        Button(existing) { category = existing }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .tint(BrandColor.olive)
+                            .disabled(saving)
+                    }
+                }
+            }
+        }
+    }
+
     private var variablesRow: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionHeader(label: "Variables")
@@ -442,19 +523,23 @@ private struct TemplateEditorSheet: View {
         let repo = MessagingRepository(api: scope.graph.api)
         Task {
             do {
+                let trimmedCategory = category
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
                 if let template {
                     _ = try await repo.updateTemplate(
                         companyId: scope.companyId,
                         templateId: template.id,
                         name: trimmedName,
-                        body: trimmedBody
+                        body: trimmedBody,
+                        category: trimmedCategory
                     )
                     scope.showMessage("Template saved.")
                 } else {
                     _ = try await repo.createTemplate(
                         companyId: scope.companyId,
                         name: trimmedName,
-                        body: trimmedBody
+                        body: trimmedBody,
+                        category: trimmedCategory
                     )
                     scope.showMessage("Template created.")
                 }
@@ -465,4 +550,42 @@ private struct TemplateEditorSheet: View {
             saving = false
         }
     }
+}
+
+/// #274 — templates in their groups, for the SETTINGS list.
+///
+/// The half of "a flat list collapses at thirty" that ordering cannot fix:
+/// somebody maintaining templates is looking for a GROUP of them ("all the
+/// quoting ones"), and no sort answers that.
+///
+/// Ungrouped rows come LAST, under no heading. They are not a category called
+/// "Other" — a heading invents a group the crew did not make, and in a
+/// workspace that never uses categories it would label every single row.
+///
+/// MIRROR of groupTemplates in apps/web settings/templates/grouping.ts.
+struct TemplateGroup: Identifiable {
+    let label: String?
+    let rows: [Template]
+
+    var id: String { label ?? "__ungrouped" }
+}
+
+func groupTemplates(_ rows: [Template]) -> [TemplateGroup] {
+    var byCategory: [String: [Template]] = [:]
+    var ungrouped: [Template] = []
+    for row in rows {
+        let category = (row.category ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if category.isEmpty {
+            ungrouped.append(row)
+        } else {
+            byCategory[category, default: []].append(row)
+        }
+    }
+    var groups = byCategory
+        .sorted { $0.key.lowercased() < $1.key.lowercased() }
+        .map { TemplateGroup(label: $0.key, rows: $0.value) }
+    if !ungrouped.isEmpty {
+        groups.append(TemplateGroup(label: nil, rows: ungrouped))
+    }
+    return groups
 }

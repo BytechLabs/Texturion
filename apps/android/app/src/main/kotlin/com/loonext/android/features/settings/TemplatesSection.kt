@@ -64,6 +64,9 @@ import kotlinx.coroutines.launch
 private const val TEMPLATE_NAME_MAX = 120
 private const val TEMPLATE_BODY_MAX = 2000
 
+/** Mirrors templates_category_len: a label, not a sentence. */
+private const val TEMPLATE_CATEGORY_MAX = 40
+
 /**
  * The merge variables the editor offers come from the shared port (#274).
  *
@@ -135,18 +138,33 @@ fun TemplatesSection(
                                 "it from Templates in the composer.",
                         )
                     } else {
-                        templates.forEachIndexed { index, template ->
-                            if (index > 0) {
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        // #274: gathered under whatever headings the crew has
+                        // written. A shop that never uses categories sees the
+                        // flat list it always had.
+                        groupTemplates(templates).forEach { (label, rows) ->
+                            if (label != null) {
+                                Text(
+                                    label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
+                                )
                             }
-                            TemplateListRow(
-                                template = template,
-                                onEdit = {
-                                    editing = template
-                                    editorOpen = true
-                                },
-                                onDelete = { deleting = template },
-                            )
+                            rows.forEachIndexed { index, template ->
+                                if (index > 0) {
+                                    HorizontalDivider(
+                                        color = MaterialTheme.colorScheme.outlineVariant,
+                                    )
+                                }
+                                TemplateListRow(
+                                    template = template,
+                                    onEdit = {
+                                        editing = template
+                                        editorOpen = true
+                                    },
+                                    onDelete = { deleting = template },
+                                )
+                            }
                         }
                     }
                     Spacer(Modifier.height(10.dp))
@@ -170,6 +188,11 @@ fun TemplatesSection(
             repo = repo,
             company = company,
             template = editing,
+            existingCategories = (state as? LoadState.Ready)?.value
+                ?.mapNotNull { it.category?.trim()?.takeIf(String::isNotEmpty) }
+                ?.distinct()
+                ?.sortedBy(String::lowercase)
+                .orEmpty(),
             onDismiss = { editorOpen = false },
             onSaved = {
                 editorOpen = false
@@ -263,11 +286,22 @@ private fun TemplateEditorDialog(
     repo: MessagingRepository,
     company: CompanyView,
     template: Template?,
+    /**
+     * #274: the groupings this workspace already uses, offered as chips.
+     *
+     * Reusing one has to be easier than typing one, or "Quoting" and "quotes"
+     * become separate groups — the same sprawl #298 fixed for tags, one level
+     * up.
+     */
+    existingCategories: List<String>,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
 ) {
     var name by remember(template) { mutableStateOf(template?.name.orEmpty()) }
     var body by remember(template) { mutableStateOf(template?.body.orEmpty()) }
+    // #274: the crew's own grouping. Blank is how it is cleared — the API
+    // normalises "" to null, so sending it plainly is how a clear travels.
+    var category by remember(template) { mutableStateOf(template?.category.orEmpty()) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
@@ -329,6 +363,34 @@ private fun TemplateEditorDialog(
                     },
                 )
                 Spacer(Modifier.height(10.dp))
+                // #274: offered rather than imposed. The chips are the
+                // categories this workspace has ALREADY used, so reusing one is
+                // a tap and inventing one is still a free-text box away — the
+                // posture #298 settled for tags, one level up.
+                OutlinedTextField(
+                    value = category,
+                    onValueChange = { if (it.length <= TEMPLATE_CATEGORY_MAX) category = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !saving,
+                    label = { Text("Category (optional)") },
+                    placeholder = { Text("Quoting") },
+                )
+                if (existingCategories.isNotEmpty()) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        existingCategories.forEach { existing ->
+                            AssistChip(
+                                onClick = {
+                                    haptics.tap()
+                                    category = existing
+                                },
+                                enabled = !saving,
+                                label = { Text(existing) },
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
                 Text(
                     "Variables: tap to insert",
                     style = MaterialTheme.typography.labelMedium,
@@ -379,14 +441,21 @@ private fun TemplateEditorDialog(
                     saving = true
                     coroutines.launch {
                         try {
+                            val trimmedCategory = category.trim()
                             if (template == null) {
-                                repo.createTemplate(scope.companyId, trimmedName, trimmedBody)
+                                repo.createTemplate(
+                                    companyId = scope.companyId,
+                                    name = trimmedName,
+                                    body = trimmedBody,
+                                    category = trimmedCategory,
+                                )
                             } else {
                                 repo.updateTemplate(
                                     companyId = scope.companyId,
                                     templateId = template.id,
                                     name = trimmedName,
                                     body = trimmedBody,
+                                    category = trimmedCategory,
                                 )
                             }
                             haptics.confirm()
@@ -463,4 +532,36 @@ private fun DeleteTemplateDialog(
             }
         },
     )
+}
+
+/**
+ * #274 — templates in their groups, for the SETTINGS list.
+ *
+ * The half of "a flat list collapses at thirty" that ordering cannot fix:
+ * somebody maintaining templates is looking for a GROUP of them ("all the
+ * quoting ones"), and no sort answers that.
+ *
+ * Ungrouped rows come LAST, under no heading. They are not a category called
+ * "Other" — a heading invents a group the crew did not make, and in a workspace
+ * that never uses categories it would label every single row.
+ *
+ * MIRROR of groupTemplates in apps/web settings/templates/grouping.ts.
+ */
+internal fun groupTemplates(rows: List<Template>): List<Pair<String?, List<Template>>> {
+    val byCategory = LinkedHashMap<String, MutableList<Template>>()
+    val ungrouped = mutableListOf<Template>()
+    for (row in rows) {
+        val category = row.category?.trim()
+        if (category.isNullOrEmpty()) {
+            ungrouped.add(row)
+        } else {
+            byCategory.getOrPut(category) { mutableListOf() }.add(row)
+        }
+    }
+    val groups = byCategory.entries
+        .sortedBy { it.key.lowercase() }
+        .map { (label, rows) -> label as String? to rows.toList() }
+        .toMutableList()
+    if (ungrouped.isNotEmpty()) groups.add(null to ungrouped.toList())
+    return groups
 }

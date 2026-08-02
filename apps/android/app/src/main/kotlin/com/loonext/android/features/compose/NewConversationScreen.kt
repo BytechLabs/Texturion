@@ -656,7 +656,8 @@ private fun NewConversationLoaded(
 
     if (templatePickerOpen) {
         TemplatePickerSheet(
-            loadTemplates = { repo.templates(companyId).data },
+            // #274: most-used first — see the thread picker.
+            loadTemplates = { repo.templates(companyId, byUse = true).data },
             onPick = { body, templateId ->
                 templatePickerOpen = false
                 val current = composer.text

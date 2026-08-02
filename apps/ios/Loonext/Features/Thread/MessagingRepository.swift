@@ -535,18 +535,42 @@ struct MessagingRepository: Sendable {
 
     // MARK: - Supporting reads
 
-    func templates(companyId: String) async throws -> Page<Template> {
-        try await api.get("/v1/templates", companyId: companyId)
+    /// #274 — two orders, because two people are asking different questions.
+    ///
+    /// `byUse` is the composer's picker: somebody about to send wants the reply
+    /// they send twenty times a day, and alphabetical puts it wherever its name
+    /// falls. The default is the settings list, where a stable place to find a
+    /// template beats a list that reorders itself as the crew works.
+    func templates(
+        companyId: String,
+        byUse: Bool = false
+    ) async throws -> Page<Template> {
+        try await api.get(
+            "/v1/templates",
+            query: byUse ? ["sort": "use"] : [:],
+            companyId: companyId
+        )
     }
 
     // MARK: - Saved replies (Settings → Templates)
     // Member-level for every operation (routes/templates.ts): any active
     // teammate may write them, so these carry no extra role check.
 
-    func createTemplate(companyId: String, name: String, body: String) async throws -> Template {
+    func createTemplate(
+        companyId: String,
+        name: String,
+        body: String,
+        /// #274: the crew's own grouping. Blank travels as "" and the API
+        /// normalises it to null, which is how a clear is expressed.
+        category: String = ""
+    ) async throws -> Template {
         try await api.post(
             "/v1/templates",
-            body: JSONValue.object(["name": .string(name), "body": .string(body)]),
+            body: JSONValue.object([
+                "name": .string(name),
+                "body": .string(body),
+                "category": .string(category),
+            ]),
             companyId: companyId
         )
     }
@@ -555,11 +579,16 @@ struct MessagingRepository: Sendable {
         companyId: String,
         templateId: String,
         name: String,
-        body: String
+        body: String,
+        category: String = ""
     ) async throws -> Template {
         try await api.patch(
             "/v1/templates/\(templateId)",
-            body: JSONValue.object(["name": .string(name), "body": .string(body)]),
+            body: JSONValue.object([
+                "name": .string(name),
+                "body": .string(body),
+                "category": .string(category),
+            ]),
             companyId: companyId
         )
     }

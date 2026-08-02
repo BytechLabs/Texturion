@@ -212,7 +212,8 @@ private struct NewConversationLoaded: View {
         .sheet(isPresented: $templatePickerOpen) {
             TemplatePickerSheet(
                 loadTemplates: { [repo, companyId] in
-                    try await repo.templates(companyId: companyId).data
+                    // #274: most-used first — see the thread picker.
+                    try await repo.templates(companyId: companyId, byUse: true).data
                 },
                 onPick: { body, templateId in
                     templatePickerOpen = false
