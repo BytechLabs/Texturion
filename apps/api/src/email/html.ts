@@ -39,6 +39,17 @@ const EMAIL_FONT =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
 /**
+ * The address a human actually reads (#252).
+ *
+ * Deliberately a constant here rather than an env var: it appears in the
+ * footer of every transactional email, so a missing or mistyped variable would
+ * silently ship the void this exists to close. It matches
+ * `apps/web/src/lib/marketing/business.ts`'s SUPPORT_EMAIL, which is where the
+ * customer-facing copy says the same thing.
+ */
+const SUPPORT_EMAIL = "support@loonext.com";
+
+/**
  * Wrap already-built body HTML in Loonext's shared transactional-email layout
  * (#88): a centered, single-column, table-based container with the Loonext
  * wordmark, readable typography, and a quiet footer. Deliberately email-client
@@ -73,6 +84,15 @@ export function emailLayout(bodyHtml: string): string {
     // Quiet footer.
     `<tr><td style="padding:20px 32px 28px 32px;border-top:1px solid #F0F0E8;font-family:${EMAIL_FONT};font-size:13px;line-height:1.5;color:#6E7163;">` +
     `This is a service message about your Loonext account.<br>` +
+    // #252: every one of these is sent from a no-reply address, and a customer
+    // replying to it was replying into a void — which from their side is
+    // indistinguishable from being ignored. Naming the address that IS read is
+    // the cheap half of that fix and does not depend on any inbox routing we
+    // would have to verify first: the worst case is somebody writes to a
+    // monitored address instead of an unmonitored one.
+    `Replies to this address are not read — write to ` +
+    `<a href="mailto:${SUPPORT_EMAIL}" style="color:#3A430F;">${SUPPORT_EMAIL}</a>` +
+    ` and a person will answer.<br>` +
     `Loonext, flat-rate business texting.` +
     `</td></tr>` +
     `</table></td></tr></table>` +

@@ -123,6 +123,41 @@ the only reclamation path.
 
 ---
 
+## 4b. Email authentication posture (#252)
+
+**Verified 2026-08-02 by public DNS lookup** (`nslookup -type=TXT … 8.8.8.8`).
+Recorded as a checked fact with a date rather than an assumed one, and
+re-checkable by anyone — it needs no zone access, which matters because neither
+Cloudflare token in this project can read zone settings.
+
+| Record | Host | Status |
+|---|---|---|
+| SPF (sending) | `send.loonext.com` | ✅ `v=spf1 include:amazonses.com ~all` — Resend sends through SES, and this subdomain is the envelope sender, so SPF is checked here rather than at the root |
+| SPF (root) | `loonext.com` | ✅ `v=spf1 include:_spf.mx.cloudflare.net ~all` — Cloudflare Email Routing, for inbound. Not a Resend path and correctly does not list SES |
+| DKIM | `resend._domainkey.loonext.com` | ✅ present, 1024-bit RSA. Aligns on `loonext.com`, which is what `RESEND_FROM` (`noreply@loonext.com`) sends as |
+| DMARC | `_dmarc.loonext.com` | ❌ **ABSENT** |
+
+**The gap is DMARC, and it is a founder action** — adding a TXT record needs
+zone access this project's tokens do not have. Start at monitor-only, which
+changes nothing about delivery and begins collecting reports:
+
+```
+_dmarc.loonext.com  TXT  "v=DMARC1; p=none; rua=mailto:dmarc@loonext.com"
+```
+
+Why it matters even below Gmail/Yahoo's 5,000/day bulk threshold: without a
+policy, a receiver deciding what to do with mail that fails alignment has
+nothing from us to go on, and we get no aggregate reports — so the first sign
+of a deliverability problem would be a customer saying they never got the
+grace-period warning. SPF and DKIM both pass and align today, so `p=none`
+should show clean reports immediately; tighten to `quarantine` once it does.
+
+Re-check any time with:
+
+```bash
+nslookup -type=TXT _dmarc.loonext.com 8.8.8.8
+```
+
 ## 5. Rotating a leaked key
 
 Set the new value, then invalidate the old at the vendor. No redeploy is needed for

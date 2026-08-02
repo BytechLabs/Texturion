@@ -66,6 +66,11 @@ function graceEndpoints(state: GraceState): StubEndpoint[] {
       email: "owner@example.com",
     })),
     endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "email_1" })),
+    // #252: the warning now also goes to the phone, because losing a business
+    // number is too consequential to depend on one channel. Answering "nobody
+    // subscribed" makes it a silent no-op here — these tests are about the
+    // ledger claim and the email copy, and the push has its own assertions.
+    endpoint("GET", /\/rest\/v1\/push_subscriptions/, () => []),
   ];
 }
 
@@ -377,6 +382,8 @@ describe("runGraceJob — day 1/15/27/30 transitions, ledger-gated", () => {
       endpoint("GET", /\/rest\/v1\/company_members/, () => [
         { user_id: "11111111-1111-4111-8111-111111111111" },
       ]),
+      // #252: the release warning also pushes; nobody is subscribed here.
+      endpoint("GET", /\/rest\/v1\/push_subscriptions/, () => []),
       endpoint("GET", /\/auth\/v1\/admin\/users\//, () => ({
         id: "11111111-1111-4111-8111-111111111111",
         email: "owner@example.com",
@@ -413,5 +420,68 @@ describe("runGraceJob — day 1/15/27/30 transitions, ledger-gated", () => {
     await expect(runGraceJob(env, daysAfterCancel(2))).rejects.toThrow(
       /grace job failed for 1 company/,
     );
+  });
+});
+
+describe("#252 — the release warning does not depend on email alone", () => {
+  /**
+   * Losing a business number is the most expensive thing that can happen to a
+   * workspace here, and the only warning was an email — to an address that may
+   * bounce, may be filtered, and whose deliverability this issue exists
+   * because we could not vouch for.
+   *
+   * Asserted at the AUDIENCE lookup rather than at the wire. Getting a real
+   * send through would mean generating ECDH keys per test to satisfy the
+   * payload encryption, which would pin `webpush.ts`'s crypto — already
+   * covered by its own suite — instead of the thing that is new here: that the
+   * warning reaches the phone at all, aimed at the right people.
+   */
+  it("wakes the phone as well as the inbox, for the owners and admins", async () => {
+    const state: GraceState = {
+      ledger: new Set<number>(),
+      nonReleasedNumbers: 1,
+      campaignActive: false,
+    };
+    const harness = makeHarness(graceEndpoints(state));
+    stubFetch(harness.route);
+
+    await runGraceJob(env, daysAfterCancel(1.2));
+
+    const emails = harness.callsTo("POST", /api\.resend\.com\/emails/);
+    const pushes = harness.callsTo("GET", /\/rest\/v1\/push_subscriptions/);
+    // Both channels, for one warning.
+    expect(emails.length).toBeGreaterThan(0);
+    expect(pushes.length).toBeGreaterThan(0);
+    // Aimed at the billing audience, not at the whole crew: a release warning
+    // is for whoever can actually stop it.
+    expect(pushes[0].url.searchParams.get("user_id")).toContain(
+      "11111111-1111-4111-8111-111111111111",
+    );
+  });
+
+  it("still sends the email when the push audience read fails", async () => {
+    // The ledger row is claimed before either channel runs, so a push failure
+    // must not make the caller think nothing went out. Throwing would also
+    // re-run the notice tomorrow, where the claim would refuse it — so one bad
+    // read would silence the warning entirely rather than degrade it.
+    const state: GraceState = {
+      ledger: new Set<number>(),
+      nonReleasedNumbers: 1,
+      campaignActive: false,
+    };
+    const harness = makeHarness([
+      // FIRST: the harness is first-match-wins, so this overrides the healthy
+      // answer graceEndpoints registers below.
+      endpoint("GET", /\/rest\/v1\/push_subscriptions/, () =>
+        new Response("boom", { status: 500 }),
+      ),
+      ...graceEndpoints(state),
+    ]);
+    stubFetch(harness.route);
+
+    await runGraceJob(env, daysAfterCancel(1.2));
+
+    expect(harness.callsTo("POST", /api\.resend\.com\/emails/).length,
+    ).toBeGreaterThan(0);
   });
 });

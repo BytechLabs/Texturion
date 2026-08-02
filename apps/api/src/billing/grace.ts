@@ -2,6 +2,9 @@ import { billingRecipients } from "./recipients";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { deliverPush } from "../notifications/deliver";
 import type { Env } from "../env";
 import { deactivateCampaign } from "../telnyx/registration";
 import { releaseCompanyNumbers } from "../telnyx/provisioning";
@@ -196,7 +199,72 @@ export async function recordAndSendGraceNotice(
   if (to.length === 0) return false;
   const { subject, text } = warningCopy(company, thresholdDay, env);
   await sendEmail(env, { to, subject, text, html: renderEmailHtml(text) });
+  await pushGraceWarning(env, db, company, thresholdDay, subject);
   return true;
+}
+
+/**
+ * #252: the release warning also goes to the phone.
+ *
+ * Losing a business number is the most expensive thing that can happen to a
+ * workspace here, and until now the ONLY warning was an email — to an address
+ * that may bounce, may be filtered, and whose deliverability this very issue
+ * exists because we could not vouch for. "Belt and braces on the ones that
+ * matter": a notice this consequential must not depend on one channel we do
+ * not fully control.
+ *
+ * BEST-EFFORT, AND AFTER THE EMAIL. The ledger row is already claimed by the
+ * time this runs, so a push failure must never make the caller think the
+ * warning was not sent — it was, by the channel that has always carried it.
+ * Throwing here would also re-run the whole notice on the next sweep, and the
+ * claim would refuse it, so the email would not resend either.
+ *
+ * NO CONTENT TO WITHHOLD. This is our own sentence about the workspace's own
+ * billing, not a customer's words, so #430 has nothing to hide here.
+ */
+async function pushGraceWarning(
+  env: Env,
+  db: SupabaseClient,
+  company: CanceledCompany,
+  thresholdDay: GraceThresholdDay,
+  subject: string,
+): Promise<void> {
+  try {
+    const { data, error } = await db
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", company.id)
+      .is("deactivated_at", null)
+      .in("role", ["owner", "admin"]);
+    if (error) throw new Error(`grace push audience failed: ${error.message}`);
+    const userIds = ((data ?? []) as { user_id: string }[]).map(
+      (row) => row.user_id,
+    );
+    if (userIds.length === 0) return;
+
+    const failures: unknown[] = [];
+    await deliverPush(env, db, {
+      userIds,
+      content: { written: "us" },
+      web: {
+        title: subject,
+        body: "Open Loonext to keep your number.",
+        url: `${env.APP_ORIGIN}/settings/billing`,
+      },
+      // One warning per rung, so day 15 does not erase day 27 — each is a
+      // different deadline and the later one is the one that matters most.
+      collapseKey: `grace:${company.id}:${thresholdDay}`,
+      failures,
+    });
+    if (failures.length > 0) {
+      throw new AggregateError(failures, "grace warning push failed");
+    }
+  } catch (cause) {
+    console.error(
+      `grace warning push failed for ${company.id} day ${thresholdDay}:`,
+      cause instanceof Error ? (cause.stack ?? cause.message) : String(cause),
+    );
+  }
 }
 
 /**

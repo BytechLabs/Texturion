@@ -87,3 +87,25 @@ describe("emailLayout + renderEmailHtml (#88 branded transactional layout)", () 
     expect(html).not.toContain('href="https://x.example/a</p>');
   });
 });
+
+describe("#252 — a reply reaches a person", () => {
+  it("names the monitored address, because the sender is not one", () => {
+    // Every transactional email goes out from a no-reply address. A customer
+    // replying to it was replying into a void, which from their side is
+    // indistinguishable from being ignored.
+    const html = emailLayout("<p>Your grace period ends in three days.</p>");
+
+    expect(html).toContain("support@loonext.com");
+    expect(html).toContain("not read");
+  });
+
+  it("puts it in every email, not just the ones somebody remembered", () => {
+    // The whole value is that it is unconditional: a footer added per-send is
+    // one somebody forgets on the send that matters.
+    for (const body of ["<p>a</p>", "", "<p>Payment failed.</p>"]) {
+      expect(emailLayout(body), JSON.stringify(body)).toContain(
+        "support@loonext.com",
+      );
+    }
+  });
+});

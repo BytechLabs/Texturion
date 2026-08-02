@@ -258,6 +258,11 @@ function recipientEndpoints(): StubEndpoint[] {
       email: "admin@example.com",
     })),
     endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "email_1" })),
+    // #252: the grace warning now reaches the phone too, because losing a
+    // business number is too consequential to depend on email alone. Nobody is
+    // subscribed in the billing suites, so it is a quiet no-op — the push has
+    // its own assertions in grace.test.ts.
+    endpoint("GET", /\/rest\/v1\/push_subscriptions/, () => []),
   ];
 }
 
