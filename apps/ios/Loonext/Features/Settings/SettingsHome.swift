@@ -267,6 +267,13 @@ struct SettingsHome: View {
             VStack(alignment: .leading, spacing: 13) {
                 ScreenTitle(text: "Settings")
                 identityCard(company)
+                // #515: a handover addressed to the reader, above the section
+                // list they may not be able to use. The index is the one
+                // surface every role reaches — it is the whole app for a
+                // bookkeeper — and the named backup owner is routinely a plain
+                // member with no Team row. Draws nothing when nothing is
+                // theirs.
+                OwnershipPrompt(scope: scope) { refreshKey += 1 }
                 PaperCard {
                     ForEach(Array(visibleSections.enumerated()), id: \.element.id) { index, section in
                         if index > 0 { RowDivider() }

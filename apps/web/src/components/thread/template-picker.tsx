@@ -1,5 +1,6 @@
 "use client";
 
+import { SettingsLink } from "@/components/settings/settings-link-guard";
 import Link from "next/link";
 
 import {
@@ -75,13 +76,26 @@ export function TemplatePicker({
             // the actual door, never a dead end (APP-UI-ELEVATION §5).
             <span className="flex flex-col items-center gap-1.5">
               No saved replies yet.
-              <Link
-                href="/settings/templates"
-                onClick={() => onOpenChange(false)}
-                className="font-medium text-primary underline-offset-4 hover:underline"
+              {/* #515: the door only for somebody who can walk through it.
+                  This empty state is the link plus one line, so a member who
+                  cannot make templates is told who can rather than left with
+                  a sentence that trails off. */}
+              <SettingsLink
+                section="templates"
+                fallback={
+                  <span className="text-muted-foreground">
+                    An owner or admin can add them in Settings.
+                  </span>
+                }
               >
-                Create one in Settings › Templates
-              </Link>
+                <Link
+                  href="/settings/templates"
+                  onClick={() => onOpenChange(false)}
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Create one in Settings › Templates
+                </Link>
+              </SettingsLink>
             </span>
           ) : (
             // Rows exist but the search matched none.

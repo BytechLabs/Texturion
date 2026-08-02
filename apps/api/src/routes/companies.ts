@@ -52,6 +52,7 @@ import {
   withCallerIdDerived,
   withAwayDerived,
   withEmergencyDerived,
+  withBillingRedacted,
   withIdentificationDerived,
   withMctbDerived,
   withSeatDerived,
@@ -1049,13 +1050,23 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
   // client merging this echo would fall back to its decode default of true.
   // That silently restores the in-app plan-change and module controls the
   // switch exists to hide, after nothing more than saving a business hour.
+  //
+  // #515: the echo is a company shape a client merges into its cache, so it
+  // obeys the same redaction as the GET view — otherwise the one payload that
+  // skips it becomes the way the money columns get back into a member's cached
+  // company. A no-op today (this route is settings.manage, and every role
+  // holding that also holds billing.manage); it is here so a settings-only
+  // preset cannot reopen the hole by existing.
   return c.json({
-    ...withSeatDerived(
-      withCallerIdDerived(
-        withEmergencyDerived(
-          withMctbDerived(withAwayDerived(withIdentificationDerived(company))),
+    ...withBillingRedacted(
+      withSeatDerived(
+        withCallerIdDerived(
+          withEmergencyDerived(
+            withMctbDerived(withAwayDerived(withIdentificationDerived(company))),
+          ),
         ),
       ),
+      c.get("role"),
     ),
     billing_writes_enabled: billingWritesEnabled(env),
   });

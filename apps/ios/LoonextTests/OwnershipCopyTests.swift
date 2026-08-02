@@ -86,4 +86,108 @@ final class OwnershipCopyTests: XCTestCase {
         XCTAssertFalse(decoded.isMine)
         XCTAssertFalse(decoded.isReady)
     }
+
+    // MARK: - #515: the same handover, read by the person it is happening to
+    //
+    // Vectors shared with packages/shared/src/handover.test.ts and the Android
+    // twin. Built by DECODING rather than by the memberwise init, so each one
+    // also proves the wire shape the server actually sends.
+
+    private func ownership(canClaim: Bool = false, pending: String = "null") throws -> Ownership {
+        let json = """
+        {"owner_member_id":"m-1","backup_member_id":"m-2",
+         "can_claim":\(canClaim),"pending":\(pending)}
+        """
+        return try JSONDecoder().decode(Ownership.self, from: Data(json.utf8))
+    }
+
+    private func pendingJSON(kind: String, mine: Bool, ready: Bool) -> String {
+        """
+        {"kind":"\(kind)","to_member_id":"m-2","ripens_at":"\(ripens)",
+         "expires_at":"\(expires)","created_at":"\(ripens)",
+         "mine":\(mine),"ready":\(ready)}
+        """
+    }
+
+    func testTheNamedBackupIsGivenSomewhereToStart() throws {
+        // The bug #515 reported, at its root: this person could reach the API
+        // and not the button, on a phone with no URL bar to type around it.
+        XCTAssertEqual(
+            viewerHandoverPrompt(try ownership(canClaim: true)),
+            HandoverPrompt.backupStanding
+        )
+    }
+
+    func testAnOfferAddressedToTheReaderIsTheirsToAccept() throws {
+        XCTAssertEqual(
+            viewerHandoverPrompt(
+                try ownership(
+                    pending: pendingJSON(kind: HandoverKind.offer, mine: true, ready: true)
+                )
+            ),
+            HandoverPrompt.acceptOffer
+        )
+    }
+
+    func testAClaimWaitsUntilItsVetoWindowCloses() throws {
+        XCTAssertEqual(
+            viewerHandoverPrompt(
+                try ownership(
+                    pending: pendingJSON(kind: HandoverKind.claim, mine: true, ready: false)
+                )
+            ),
+            HandoverPrompt.claimWaiting
+        )
+        XCTAssertEqual(
+            viewerHandoverPrompt(
+                try ownership(
+                    pending: pendingJSON(kind: HandoverKind.claim, mine: true, ready: true)
+                )
+            ),
+            HandoverPrompt.completeClaim
+        )
+    }
+
+    func testSomebodyElsesHandoverIsNotThisReadersPrompt() throws {
+        XCTAssertNil(viewerHandoverPrompt(try ownership()))
+        XCTAssertNil(
+            viewerHandoverPrompt(
+                try ownership(
+                    pending: pendingJSON(kind: HandoverKind.claim, mine: false, ready: true)
+                )
+            )
+        )
+    }
+
+    func testThePromptSpeaksToTheReaderAndNeverAsksThemToDeclineTheirOwnRequest() {
+        for kind in [
+            HandoverPrompt.acceptOffer,
+            HandoverPrompt.completeClaim,
+            HandoverPrompt.claimWaiting,
+            HandoverPrompt.backupStanding,
+        ] {
+            let line = handoverPromptHeadline(kind)
+            XCTAssertTrue(line.hasPrefix("You"), line)
+            XCTAssertTrue(line.hasSuffix("."), line)
+        }
+        XCTAssertEqual(handoverPromptCancelLabel(HandoverPrompt.acceptOffer), "Decline")
+        XCTAssertEqual(
+            handoverPromptCancelLabel(HandoverPrompt.completeClaim),
+            "Withdraw my request"
+        )
+        // A standing nomination has nothing to call off.
+        XCTAssertNil(handoverPromptCancelLabel(HandoverPrompt.backupStanding))
+    }
+
+    func testTheStandingNominationExplainsWhatItIsForNotWhatToDoNow() {
+        let text = handoverPromptDetail(
+            HandoverPrompt.backupStanding, ripensAt: ripens, expiresAt: expires
+        )
+        XCTAssertTrue(text.contains("Nothing changes until you ask."), text)
+        let waiting = handoverPromptDetail(
+            HandoverPrompt.claimWaiting, ripensAt: ripens, expiresAt: expires
+        )
+        // Same safety property as the crew-facing line: a deadline and a veto.
+        XCTAssertTrue(waiting.contains("can stop this until"), waiting)
+    }
 }

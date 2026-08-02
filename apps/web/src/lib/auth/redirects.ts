@@ -26,6 +26,10 @@ const PROTECTED_PREFIXES = [
   "/contacts",
   "/templates",
   "/settings",
+  // #515: the succession surface. Outside /settings on purpose — the named
+  // backup owner is routinely a plain member, and every ownership email links
+  // here, so it has to survive a cold click from an inbox.
+  "/ownership",
   "/onboarding",
 ] as const;
 

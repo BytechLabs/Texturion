@@ -444,7 +444,11 @@ describe("GET /v1/company", () => {
   });
 
   it("selects cancel_at_period_end (and only customer-safe columns) for the view", async () => {
-    const sb = stubWithRole("member");
+    // #515: the caller is an OWNER here on purpose. The column is still
+    // SELECTED for everybody — the redaction happens in the projection, not the
+    // query — but it only leaves the API for a caller who holds billing.manage,
+    // so asserting the value needs a role that is told it.
+    const sb = stubWithRole("owner");
     sb.on("GET", "/rest/v1/companies", () => [
       { id: COMPANY_ID, cancel_at_period_end: true },
     ]);
@@ -478,6 +482,145 @@ describe("GET /v1/company", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(403);
+  });
+});
+
+/**
+ * #515 — the money picture is not everybody's.
+ *
+ * A member could not see /settings/billing in the nav and could read every
+ * number on it by typing the URL, because the page's data is this route and
+ * this route is `workspace.access`. The gate is right (the app BOOTS on it);
+ * the payload was not. These tests hold both halves of that: the workspace's
+ * commercial state leaves only for a caller with `billing.manage`, and a plain
+ * member still gets everything the app needs to run.
+ *
+ * GET /v1/me is not exercised here (different sub-app) but inherits the same
+ * fix: both routes hydrate through `loadCompanyView`, which is the whole reason
+ * the redaction lives there rather than at a route gate — /v1/me is
+ * company-exempt and has no role for a gate to read.
+ */
+describe("GET /v1/company — billing fields follow billing.manage (#515)", () => {
+  /** Every money column, populated, so redaction has something to remove. */
+  const COMMERCIAL_ROW = {
+    billing_currency: "cad",
+    current_period_start: "2026-07-01T00:00:00Z",
+    current_period_end: "2026-08-01T00:00:00Z",
+    overage_cap_multiplier: "3.00",
+    registration_fee_paid_at: "2026-06-01T00:00:00Z",
+    canceled_at: "2026-07-20T00:00:00Z",
+    cancel_at_period_end: true,
+    offramp_message: "We've moved to 555-0123 — call or text us there.",
+    offramp_opted_in_at: "2026-07-20T00:00:00Z",
+  };
+
+  const BILLING_FIELDS = Object.keys(COMMERCIAL_ROW);
+
+  async function companyAs(role: string): Promise<Record<string, unknown>> {
+    const sb = stubWithRole(role);
+    sb.on("GET", "/rest/v1/companies", () => [
+      {
+        id: COMPANY_ID,
+        name: "Acme",
+        country: "CA",
+        us_texting_enabled: false,
+        timezone: "America/Toronto",
+        plan: "pro",
+        subscription_status: "active",
+        mfa_grace_until: "2026-09-01T00:00:00Z",
+        ...COMMERCIAL_ROW,
+      },
+    ]);
+    sb.on("GET", "/rest/v1/phone_numbers", () => [
+      { id: "n-1", number_e164: "+14165550111", status: "active" },
+    ]);
+    sb.on("GET", "/rest/v1/messaging_registrations", () => [
+      { kind: "brand", status: "approved" },
+    ]);
+    sb.on("GET", "/rest/v1/company_modules", () => [{ module: "voice" }]);
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status, role).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    vi.unstubAllGlobals();
+    return body;
+  }
+
+  it("withholds the workspace's commercial state from a member", async () => {
+    const body = await companyAs("member");
+    for (const field of BILLING_FIELDS) {
+      expect(body, field).not.toHaveProperty(field);
+    }
+  });
+
+  it("OMITS them rather than nulling them — a null would be an answer", async () => {
+    // `canceled_at: null` states this workspace is not winding down and
+    // `cancel_at_period_end: false` that no cancellation is scheduled. Both
+    // would be false here. An absent key says only "you were not told", which
+    // is the only honest thing a redaction can say.
+    const body = await companyAs("member");
+    expect(Object.keys(body)).not.toContain("canceled_at");
+    expect(Object.keys(body)).not.toContain("cancel_at_period_end");
+  });
+
+  it("still hands a member everything the app boots on", async () => {
+    // The point of fixing this in the projection instead of the route gate:
+    // the app-wide status banner, the MFA gate and every composer banner read
+    // this route for EVERY role. A member who cannot load it cannot work.
+    const body = await companyAs("member");
+    expect(body).toMatchObject({
+      id: COMPANY_ID,
+      name: "Acme",
+      country: "CA",
+      us_texting_enabled: false,
+      timezone: "America/Toronto",
+      // Deliberately NOT redacted: the "this workspace can't send" banner and
+      // the composer gate need it, and /v1/me publishes it per membership with
+      // no gate at all — hiding it here would blind a member and reveal nothing.
+      subscription_status: "active",
+      // A tier name is not money, and seat_limit discloses it anyway.
+      plan: "pro",
+      seat_limit: 15,
+      // The member's "waiting on approval" banner is derived from this.
+      registration: { brand: { status: "approved" } },
+      // #314: a deadline you meet as a wall was never given to you.
+      mfa_grace_until: "2026-09-01T00:00:00Z",
+      // #133: every calling surface gates on this.
+      enabled_modules: ["voice"],
+      // A client that misses this decodes it as TRUE and restores the very
+      // controls the kill switch exists to hide.
+      billing_writes_enabled: true,
+      // #192/#193: the derived, server-resolved effective values.
+      caller_id_effective: "Acme",
+    });
+    expect((body.numbers as unknown[]).length).toBe(1);
+  });
+
+  it("withholds them from a read-only observer too", async () => {
+    // #315's outside accountant or consultant: sees the work, not the books.
+    const body = await companyAs("read_only");
+    for (const field of BILLING_FIELDS) {
+      expect(body, field).not.toHaveProperty(field);
+    }
+  });
+
+  it("gives the BOOKKEEPER the lot — the preset exists for exactly this", async () => {
+    // The #315 trap in one test: a rank check (`owner || admin`) would refuse
+    // the one role built to do the books, and that refusal is what sends an
+    // owner back to sharing their login.
+    const body = await companyAs("bookkeeper");
+    expect(body).toMatchObject(COMMERCIAL_ROW);
+  });
+
+  it("gives an admin and an owner the lot", async () => {
+    for (const role of ["admin", "owner"]) {
+      const body = await companyAs(role);
+      expect(body, role).toMatchObject(COMMERCIAL_ROW);
+    }
   });
 });
 

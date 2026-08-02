@@ -34,6 +34,7 @@
  * never checked out (plan null / no period) reads as zero usage with an
  * empty history and zero storage — it cannot own files or media yet.
  */
+import { roleHasCapability, type MemberRole } from "@loonext/shared";
 import { Hono } from "hono";
 
 import { summarize } from "../messaging/delivery-by-country";
@@ -272,24 +273,44 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
       ? "pacing"
       : "quiet";
 
+  /**
+   * #515 — the money half of this payload is billing data.
+   *
+   * This endpoint cannot simply be gated at `billing.manage`, because it is
+   * not only the usage screen: the getting-started card reads it to know
+   * whether a first reply has been sent, and the composer reads it to warn
+   * before a send. Both are member surfaces, and both need the COUNTS.
+   *
+   * What a member has no business seeing is the commercial picture — what the
+   * workspace will be charged, the cap somebody else set, and the billing
+   * period those are measured over. So the split is by field rather than by
+   * route: counts for everybody who can send, money for whoever holds
+   * `billing.manage`.
+   *
+   * Owners hold it. So does the bookkeeper, whose whole preset is the books.
+   */
+  const seesMoney = roleHasCapability(c.get("role") as MemberRole, "billing.manage");
+
   return c.json({
     status,
-    period_start: company.current_period_start,
-    period_end: company.current_period_end,
+    period_start: seesMoney ? company.current_period_start : null,
+    period_end: seesMoney ? company.current_period_end : null,
     included_segments: included,
     used_segments: used,
     inbound_segments: inboundUsed,
     overage_segments: overage,
-    cap_segments: capSegments,
-    projected_overage_cents: Math.round(
-      overage * PLAN_OVERAGE_CENTS_PER_SEGMENT[company.plan],
-    ),
-    overage_projection: {
-      trending_over: projection.trendingOver,
-      projected_overage_cents: Math.round(
-        projection.projectedOverageChargesCents,
-      ),
-    },
+    cap_segments: seesMoney ? capSegments : null,
+    projected_overage_cents: seesMoney
+      ? Math.round(overage * PLAN_OVERAGE_CENTS_PER_SEGMENT[company.plan])
+      : null,
+    overage_projection: seesMoney
+      ? {
+          trending_over: projection.trendingOver,
+          projected_overage_cents: Math.round(
+            projection.projectedOverageChargesCents,
+          ),
+        }
+      : null,
     history,
     storage: {
       attachments_bytes: Number(storage.attachments_bytes),

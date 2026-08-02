@@ -61,12 +61,16 @@ function usageStub(
   used: number,
   storage: Record<string, unknown> = STORAGE,
   inbound: number = INBOUND_USED,
+  role = "owner",
 ): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
     "POST",
     "/rest/v1/rpc/api_authorize_request",
-    membershipResponder(MEMBER_ID, "member"),
+    // #515: the money half of this payload needs `billing.manage`. These
+    // assertions are about the FIGURES, so they run as the role that may see
+    // them; the member's redacted view is asserted separately below.
+    membershipResponder(MEMBER_ID, role),
   );
   sb.on("GET", "/rest/v1/companies", () => [company]);
   sb.on("POST", "/rest/v1/rpc/api_period_segments", () => used);
@@ -432,5 +436,58 @@ describe("GET /v1/usage", () => {
     expect(
       sb.find("POST", "/rest/v1/rpc/api_period_forward_seconds"),
     ).toHaveLength(0);
+  });
+});
+
+/**
+ * #515 — the money half of this payload is billing data.
+ *
+ * The endpoint stays open to `workspace.access` because it is not only the
+ * usage screen: the getting-started card reads it to know whether a first
+ * reply has been sent, and the composer reads it before a send. Both are
+ * member surfaces and both need the COUNTS.
+ *
+ * What a member must not receive is the commercial picture. Asserted here
+ * rather than trusted, because the previous version of these tests ran as a
+ * member and asserted the money WAS present — a test can pin a leak just as
+ * easily as it can catch one.
+ */
+describe("GET /v1/usage — what a member may not see (#515)", () => {
+  it("withholds the money and keeps the counts", async () => {
+    const sb = usageStub(starterCompany, 620, STORAGE, INBOUND_USED, "member");
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
+      companyId: COMPANY_ID,
+    });
+    const body = (await res.json()) as Record<string, unknown>;
+
+    expect(res.status).toBe(200);
+    // The commercial picture: gone.
+    expect(body.projected_overage_cents).toBeNull();
+    expect(body.cap_segments).toBeNull();
+    expect(body.overage_projection).toBeNull();
+    expect(body.period_start).toBeNull();
+    expect(body.period_end).toBeNull();
+    // The counts the member surfaces actually need: intact. Withholding these
+    // would break the getting-started card and the composer's pre-send check
+    // for every member in the workspace.
+    expect(body.used_segments).toBe(620);
+    expect(body.included_segments).toBe(500);
+  });
+
+  it("gives the bookkeeper the money, because the books are their whole role", async () => {
+    const sb = usageStub(starterCompany, 620, STORAGE, INBOUND_USED, "bookkeeper");
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
+      companyId: COMPANY_ID,
+    });
+    const body = (await res.json()) as Record<string, unknown>;
+
+    // The positive control. Without it, "member sees null" would pass even if
+    // the field had been deleted outright.
+    expect(body.projected_overage_cents).not.toBeNull();
+    expect(body.period_end).not.toBeNull();
   });
 });

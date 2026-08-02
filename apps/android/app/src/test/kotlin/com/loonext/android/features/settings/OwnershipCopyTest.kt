@@ -63,4 +63,101 @@ class OwnershipCopyTest {
         // vetoing — they are the recipient in that case.
         assertEquals("Decline", handoverCancelLabel(isOwner = true, isMine = true))
     }
+
+    // -----------------------------------------------------------------------
+    // #515 — the same handover, read by the person it is happening to.
+    // Vectors shared with packages/shared/src/handover.test.ts.
+    // -----------------------------------------------------------------------
+
+    private fun ownership(
+        canClaim: Boolean = false,
+        pending: PendingHandover? = null,
+    ) = Ownership(can_claim = canClaim, pending = pending)
+
+    private fun pending(kind: String, mine: Boolean, ready: Boolean) =
+        PendingHandover(
+            kind = kind,
+            ripens_at = ripens,
+            expires_at = expires,
+            created_at = ripens,
+            mine = mine,
+            ready = ready,
+        )
+
+    @Test
+    fun `the named backup is given somewhere to start`() {
+        // The bug #515 reported, at its root: this person could reach the API
+        // and not the button, on a phone with no URL bar to type around it.
+        assertEquals(
+            HandoverPrompt.BACKUP_STANDING,
+            viewerHandoverPrompt(ownership(canClaim = true)),
+        )
+    }
+
+    @Test
+    fun `an offer addressed to the reader is theirs to accept`() {
+        assertEquals(
+            HandoverPrompt.ACCEPT_OFFER,
+            viewerHandoverPrompt(
+                ownership(pending = pending(HandoverKind.OFFER, mine = true, ready = true)),
+            ),
+        )
+    }
+
+    @Test
+    fun `a claim waits until its veto window closes`() {
+        assertEquals(
+            HandoverPrompt.CLAIM_WAITING,
+            viewerHandoverPrompt(
+                ownership(pending = pending(HandoverKind.CLAIM, mine = true, ready = false)),
+            ),
+        )
+        assertEquals(
+            HandoverPrompt.COMPLETE_CLAIM,
+            viewerHandoverPrompt(
+                ownership(pending = pending(HandoverKind.CLAIM, mine = true, ready = true)),
+            ),
+        )
+    }
+
+    @Test
+    fun `somebody else's handover is not this reader's prompt`() {
+        assertEquals(null, viewerHandoverPrompt(ownership()))
+        assertEquals(
+            null,
+            viewerHandoverPrompt(
+                ownership(pending = pending(HandoverKind.CLAIM, mine = false, ready = true)),
+            ),
+        )
+    }
+
+    @Test
+    fun `the prompt speaks to the reader, and never asks them to decline their own request`() {
+        for (kind in listOf(
+            HandoverPrompt.ACCEPT_OFFER,
+            HandoverPrompt.COMPLETE_CLAIM,
+            HandoverPrompt.CLAIM_WAITING,
+            HandoverPrompt.BACKUP_STANDING,
+        )) {
+            val line = handoverPromptHeadline(kind)
+            assertTrue(line, line.startsWith("You"))
+            assertTrue(line, line.endsWith("."))
+        }
+        assertEquals("Decline", handoverPromptCancelLabel(HandoverPrompt.ACCEPT_OFFER))
+        assertEquals(
+            "Withdraw my request",
+            handoverPromptCancelLabel(HandoverPrompt.COMPLETE_CLAIM),
+        )
+        // A standing nomination has nothing to call off.
+        assertEquals(null, handoverPromptCancelLabel(HandoverPrompt.BACKUP_STANDING))
+    }
+
+    @Test
+    fun `the standing nomination explains what it is for, not what to do now`() {
+        val text = handoverPromptDetail(HandoverPrompt.BACKUP_STANDING, ripens, expires)
+        assertTrue(text, text.contains("Nothing changes until you ask."))
+        val waiting = handoverPromptDetail(HandoverPrompt.CLAIM_WAITING, ripens, expires)
+        // Same safety property as the crew-facing line: a deadline and a veto.
+        assertTrue(waiting, waiting.contains("can stop this until"))
+    }
 }

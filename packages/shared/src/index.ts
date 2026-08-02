@@ -16,6 +16,15 @@ export {
 } from "./settings-visibility";
 
 export {
+  handoverPromptCancelLabel,
+  handoverPromptHeadline,
+  handoverPromptIsUrgent,
+  viewerHandoverPrompt,
+  type HandoverPromptKind,
+  type HandoverViewer,
+} from "./handover";
+
+export {
   extraNumberBlockedReason,
   canBuyExtraNumber,
   STARTER_MAX_TOTAL_NUMBERS,

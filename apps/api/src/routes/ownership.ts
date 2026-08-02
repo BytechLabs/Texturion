@@ -22,6 +22,13 @@
  * (the named backup; the named recipient), and a role gate would either be
  * too loose or would lock out a backup who is a plain member.
  *
+ * #515: that reasoning was right and the UI ignored it. Every control these
+ * routes serve lived on the Team settings card, behind `team.manage`, so the
+ * backup who is a plain member could reach the API and not the button. The
+ * clients now host the same booleans on a surface any member can open (web
+ * /ownership; the settings index on both phones), and the emails below point
+ * there — see `handoverLink`.
+ *
  * Every one of them tells the whole crew afterwards. That is not politeness:
  * a handover nobody was told about is indistinguishable from a takeover, and
  * the people best placed to notice a wrong one are the people who work there.
@@ -179,7 +186,7 @@ ownershipRoutes.post(
             "lose access to their email, or worse — you can ask to take over " +
             "the workspace. They get a week to say no, and everyone on the " +
             "team is told. Nothing changes today.\n\n" +
-            `${env.APP_ORIGIN}/settings/team`,
+            handoverLink(env),
         );
       });
     }
@@ -240,7 +247,7 @@ ownershipRoutes.post(
         "teammate. Nothing has changed yet — it takes effect only if they " +
         "accept, and the owner can cancel until then.\n\n" +
         "If this is not something you expected, tell the owner now.\n\n" +
-        `${env.APP_ORIGIN}/settings/team`,
+        handoverLink(env),
     }));
 
     return c.json(viewFor(await loadState(db, companyId), c.get("userId")));
@@ -299,7 +306,7 @@ ownershipRoutes.post(
         "IF YOU ARE THE OWNER AND DID NOT EXPECT THIS: open the link below " +
         "and cancel it. That takes effect immediately.\n\n" +
         "If nobody cancels, the handover completes in 7 days.\n\n" +
-        `${env.APP_ORIGIN}/settings/team`,
+        handoverLink(env),
     }));
 
     return c.json(viewFor(await loadState(db, companyId), c.get("userId")));
@@ -370,7 +377,7 @@ ownershipRoutes.post(
         "numbers, and the spending cap.\n\n" +
         "If this is not what you understood to be happening, say so now — " +
         "this is on the workspace's history and can be traced.\n\n" +
-        `${env.APP_ORIGIN}/settings/team`,
+        handoverLink(env),
     }));
 
     return c.json(viewFor(await loadState(db, companyId), c.get("userId")));
@@ -418,7 +425,7 @@ ownershipRoutes.post(
       body:
         `The handover of ${name} has been ${declined ? "declined" : "cancelled"}. ` +
         "Nothing changed — the workspace has the same owner it had before.\n\n" +
-        `${env.APP_ORIGIN}/settings/team`,
+        handoverLink(env),
     }));
 
     return c.json(viewFor(await loadState(db, companyId), c.get("userId")));
@@ -474,6 +481,22 @@ async function notify(
       cause instanceof Error ? cause.message : String(cause),
     );
   }
+}
+
+/**
+ * Where every one of these emails points (#515).
+ *
+ * It used to be /settings/team, which is where the card lives — and where the
+ * one person these emails exist for cannot go. The Team section is gated on
+ * `team.manage`, and the named backup is routinely a plain member, because the
+ * whole premise of #332 is that succession does not track rank. On the phones
+ * there was no path at all. /ownership is mounted in the signed-in app outside
+ * settings and needs only `workspace.access` — the same gate the routes in
+ * this file already use — so an email can land a member, a read-only observer
+ * or a bookkeeper directly on the button that is theirs.
+ */
+function handoverLink(env: Env): string {
+  return `${env.APP_ORIGIN}/ownership`;
 }
 
 async function companyName(db: SupabaseClient, companyId: string): Promise<string> {

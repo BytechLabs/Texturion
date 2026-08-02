@@ -775,3 +775,105 @@ fun handoverDetail(
  */
 fun handoverCancelLabel(isOwner: Boolean, isMine: Boolean): String =
     if (isOwner && !isMine) "Stop this" else "Decline"
+
+// ---------------------------------------------------------------------------
+// The handover, read by the person it is happening TO (#515)
+// ---------------------------------------------------------------------------
+
+/**
+ * The four states somebody can be in with respect to a handover of their own.
+ *
+ * Hand-ported from packages/shared/src/handover.ts (vectors in
+ * handover.test.ts). The three functions above describe a handover to a crew;
+ * these describe one to its recipient, which is a different reader — the Team
+ * card said "Ownership has been offered to Dana", and Dana could not open it.
+ */
+object HandoverPrompt {
+    /** An offer is open and addressed to them. */
+    const val ACCEPT_OFFER = "accept_offer"
+
+    /** Their own claim outlasted the owner's veto window. */
+    const val COMPLETE_CLAIM = "complete_claim"
+
+    /** Their own claim is still inside it. */
+    const val CLAIM_WAITING = "claim_waiting"
+
+    /** They are the named backup and nothing is in flight. */
+    const val BACKUP_STANDING = "backup_standing"
+}
+
+/**
+ * The prompt this caller is owed, or null when they are not party to anything.
+ *
+ * `can_claim` rather than `i_am_backup` for the standing state: they differ
+ * exactly when something is already in flight, and the server's answer to "may
+ * they act" is the one that must not be second-guessed.
+ */
+fun viewerHandoverPrompt(state: Ownership): String? {
+    val pending = state.pending
+    if (pending != null && pending.mine) {
+        // Only a claim can be theirs and unripe: an offer ripens the moment it
+        // is made (api_offer_ownership sets ripens_at = now()), so a pending
+        // offer addressed to somebody is always ready to accept.
+        if (!pending.ready) return HandoverPrompt.CLAIM_WAITING
+        return if (pending.kind == HandoverKind.OFFER) {
+            HandoverPrompt.ACCEPT_OFFER
+        } else {
+            HandoverPrompt.COMPLETE_CLAIM
+        }
+    }
+    return if (state.can_claim) HandoverPrompt.BACKUP_STANDING else null
+}
+
+/** The one sentence the prompt leads with. */
+fun handoverPromptHeadline(kind: String): String = when (kind) {
+    HandoverPrompt.ACCEPT_OFFER -> "You have been offered ownership of this workspace."
+    HandoverPrompt.COMPLETE_CLAIM -> "Your request to take over is ready to complete."
+    HandoverPrompt.CLAIM_WAITING -> "You have asked to take over this workspace."
+    else -> "You are the backup owner."
+}
+
+/**
+ * What happens next, in the second person.
+ *
+ * The `backup_standing` branch is loss aversion, stated once and plainly, and
+ * it is deliberately the same sentence the OWNER read when they named this
+ * person — both ends of the arrangement should understand it identically.
+ */
+fun handoverPromptDetail(kind: String, ripensAt: String, expiresAt: String): String =
+    when (kind) {
+        HandoverPrompt.ACCEPT_OFFER ->
+            "Accepting makes you responsible for billing, the spending cap and your " +
+                "numbers; the current owner stays on the team as an admin. Everyone " +
+                "is told either way. The offer expires ${absoluteTime(expiresAt)}."
+
+        HandoverPrompt.COMPLETE_CLAIM ->
+            "The waiting period is over and nobody stopped it. Completing this makes " +
+                "you the owner — billing, the spending cap and your numbers — and puts " +
+                "the previous owner on the team as an admin."
+
+        HandoverPrompt.CLAIM_WAITING ->
+            "The owner has been emailed and can stop this until " +
+                "${absoluteTime(ripensAt)}. If nobody stops it, you can complete the " +
+                "takeover after that."
+
+        else ->
+            "If the owner ever can't get in — they leave, they lose access to their " +
+                "email, or worse — you're the one person who can ask to take over. " +
+                "They get a week to say no, and everyone on the team is told. " +
+                "Nothing changes until you ask."
+    }
+
+/**
+ * What the button that ends it says, to the person it is happening to.
+ *
+ * [handoverCancelLabel] covers the Team card, where an owner reads about their
+ * crew. Neither of its labels fits a claimant reading about their OWN request —
+ * being told to "decline" something you asked for is the app misreading the
+ * room. Null for the standing nomination, which has nothing to call off.
+ */
+fun handoverPromptCancelLabel(kind: String): String? = when (kind) {
+    HandoverPrompt.ACCEPT_OFFER -> "Decline"
+    HandoverPrompt.COMPLETE_CLAIM, HandoverPrompt.CLAIM_WAITING -> "Withdraw my request"
+    else -> null
+}

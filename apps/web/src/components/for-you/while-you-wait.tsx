@@ -1,5 +1,6 @@
 "use client";
 
+import { SettingsLink } from "@/components/settings/settings-link-guard";
 import {
   registrationProgress,
   isWaitingOnRegistration,
@@ -95,8 +96,18 @@ export function WhileYouWait() {
           is not a sense of arriving somewhere. */}
       <ul className="mt-4 space-y-1">
         <SetupStep href="/contacts" label="Bring your customers in" />
-        <SetupStep href="/settings/team" label="Invite your crew" />
-        <SetupStep href="/settings/hours" label="Set your hours and greeting" />
+        {/* #515: two of the three go to Settings sections a member cannot
+            open. Offering them anyway turns the one card a new workspace
+            lands on into a pair of walls. Contacts is everybody's. */}
+        <SettingsLink section="team">
+          <SetupStep href="/settings/team" label="Invite your crew" />
+        </SettingsLink>
+        <SettingsLink section="hours">
+          <SetupStep
+            href="/settings/hours"
+            label="Set your hours and greeting"
+          />
+        </SettingsLink>
       </ul>
     </section>
   );

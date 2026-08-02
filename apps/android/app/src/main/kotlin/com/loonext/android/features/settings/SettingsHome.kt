@@ -321,6 +321,15 @@ fun SettingsHome(
                         },
                         onOpenDiagnostics = onOpenDiagnostics,
                         onVersionTap = onVersionTap,
+                        // #515: the handover addressed to the reader. A slot
+                        // rather than a scope parameter so the index stays a
+                        // pure layout that previews without an AppGraph.
+                        ownershipPrompt = {
+                            OwnershipPrompt(
+                                settingsScope,
+                                onChanged = { refreshKey++ },
+                            )
+                        },
                     )
 
                     // The host header already carries the section title and
@@ -405,6 +414,7 @@ private fun SettingsIndex(
     onCopyNumber: (String) -> Unit,
     onOpenDiagnostics: () -> Unit,
     onVersionTap: () -> Unit,
+    ownershipPrompt: @Composable () -> Unit = {},
 ) {
     // #180: the hub already scrolls at any height; condense the inter-card
     // rhythm on short/landscape viewports so more of the list clears the fold.
@@ -420,6 +430,12 @@ private fun SettingsIndex(
         verticalArrangement = Arrangement.spacedBy(if (compact) 9.dp else 13.dp),
     ) {
         IdentityCard(company, me, role, onCopyNumber)
+        // #515: a handover addressed to the reader, above the section list
+        // they may not be able to use. The index is the one surface every role
+        // reaches — it is the whole app for a bookkeeper — and the named
+        // backup owner is routinely a plain member with no Team row. Draws
+        // nothing when nothing is theirs.
+        ownershipPrompt()
         usage?.let { UsageStatusCard(it, onOpen = { onOpen(SettingsSection.Usage) }) }
         PaperCard(Modifier.fillMaxWidth()) {
             // #461: a member saw every section and could act on almost none

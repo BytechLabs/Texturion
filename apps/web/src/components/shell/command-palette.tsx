@@ -1,5 +1,6 @@
 "use client";
 
+import { useCanOpenSettings } from "@/components/settings/settings-link-guard";
 import {
   Ban,
   CircleDot,
@@ -229,6 +230,8 @@ export function CommandPalette() {
   }, [input]);
 
   const search = useSearch(open ? query : "");
+  // #515: which Settings destinations this role may actually be offered.
+  const canOpen = useCanOpenSettings();
   const searching = query.trim().length >= 2;
 
   // cmdk's <CommandEmpty> is driven by its own filtered count, which is
@@ -427,7 +430,13 @@ export function CommandPalette() {
           </CommandGroup>
         )}
 
-        {searching && search.data && search.data.templates.length > 0 && (
+        {/* #515: the result opens Settings › Templates, so it is offered only
+            to somebody who can go there. A search hit that does nothing is
+            worse than no hit — it reads as the app being broken. */}
+        {searching &&
+          search.data &&
+          search.data.templates.length > 0 &&
+          canOpen("templates") && (
           <CommandGroup heading="Templates">
             {search.data.templates.map((template) => (
               <CommandItem

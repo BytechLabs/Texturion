@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { LandingGate } from "@/components/for-you/landing-gate";
 import { InviteBanner } from "@/components/invites/invite-banner";
+import { HandoverBanner } from "@/components/ownership/handover-banner";
 import { AppShell } from "@/components/shell/app-shell";
 import { MfaGate } from "@/components/shell/mfa-gate";
 import { PortalScope } from "@/components/shell/portal-scope";
@@ -74,6 +75,12 @@ export default function AppLayout({
             {/* #109: ambient "you've been invited — Join" card (fixed, no
                 layout shift; renders nothing when there's no pending invite). */}
             <InviteBanner />
+            {/* #515: the same shape of problem one door further in — an
+                ownership handover addressed to somebody whose navigation has
+                no Team row. Mounted here rather than on a route because the
+                named backup can be any role, including a bookkeeper who never
+                leaves the billing screen. Silent unless it is theirs. */}
+            <HandoverBanner />
           </div>
         </RealtimeProvider>
       </CompanyProvider>

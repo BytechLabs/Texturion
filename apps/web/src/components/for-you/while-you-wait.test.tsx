@@ -12,9 +12,21 @@ import { describe, expect, it, vi } from "vitest";
  */
 
 let registration: unknown = null;
+/**
+ * #515: the two setup steps that point into Settings are now capability-gated,
+ * so the card reads the active membership. An OWNER by default — these tests
+ * are about the card's copy and its progress bar, and a role that could not
+ * see the steps would quietly stop asserting them.
+ */
+let role = "owner";
 
 vi.mock("@/lib/api/me-company", () => ({
   useMeCompany: () => ({ data: { company: { registration } } }),
+}));
+
+vi.mock("@/lib/company/provider", () => ({
+  useActiveCompany: () => ({ companyId: "c-1", role }),
+  useCompanyId: () => "c-1",
 }));
 
 const { WhileYouWait } = await import("./while-you-wait");
@@ -103,5 +115,31 @@ describe("WhileYouWait", () => {
     const html = markup().toLowerCase();
     expect(html).not.toContain("10dlc");
     expect(html).not.toContain("campaign");
+  });
+});
+
+describe("WhileYouWait setup steps (#515)", () => {
+  it("offers a member only the step they can actually complete", () => {
+    registration = { brand: { status: "approved" }, campaign: { status: "pending" } };
+    role = "member";
+    const html = renderToStaticMarkup(<WhileYouWait />);
+    role = "owner";
+
+    // Contacts is everybody's; the other two are Settings sections a member
+    // cannot open, and offering them would make the first card a new
+    // workspace lands on into a pair of walls.
+    expect(html).toContain("Bring your customers in");
+    expect(html).not.toContain("Invite your crew");
+    expect(html).not.toContain("Set your hours");
+  });
+
+  it("still offers an owner all three", () => {
+    registration = { brand: { status: "approved" }, campaign: { status: "pending" } };
+    const html = renderToStaticMarkup(<WhileYouWait />);
+
+    // The positive control: without it, the assertions above would pass on a
+    // card that had stopped rendering steps at all.
+    expect(html).toContain("Invite your crew");
+    expect(html).toContain("Set your hours");
   });
 });

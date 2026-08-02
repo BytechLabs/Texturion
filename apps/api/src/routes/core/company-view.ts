@@ -10,6 +10,7 @@ import {
   effectiveMctbMessage,
   emergencyReplyBody,
   identificationSuffix,
+  roleHasCapability,
   seatLimit,
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -286,6 +287,88 @@ export function withCallerIdDerived<T extends Record<string, unknown>>(
 }
 
 /**
+ * #515 — the workspace's commercial state, and who is told it.
+ *
+ * These nine columns are the money picture: what the workspace is charged in,
+ * when the period renews, the spending ceiling, whether somebody has already
+ * cancelled, and the note a departing owner has written for their customers.
+ * Every one of them was going to every role, because the ROUTE gate is
+ * `workspace.access` — so a tech, a read-only observer and (for the off-ramp
+ * message) the whole crew read the owner's wind-down note before being told.
+ *
+ * Why the projection rather than the gate, which is the part worth writing
+ * down:
+ *
+ *  1. The gate is CORRECT. GET /v1/company is what the app boots on. The
+ *     app-wide status banner, the MFA gate, the composer banners, the contact
+ *     panel and new-conversation all read it for every role — a member who
+ *     cannot load it cannot use the product. The question was never who may
+ *     call it; it is what comes back.
+ *  2. A gate fix would close nothing. The identical object is the `company`
+ *     key of GET /v1/me, which is company-exempt: it never populates
+ *     `c.get("role")`, so there is no role for `requireCapability` to read and
+ *     no way to gate it without breaking app boot for everybody. Narrow
+ *     /v1/company and the same member reads the same fields one header later.
+ *     Any fix that is not in the projection is decorative.
+ *  3. There is exactly one insertion point and it already carries the caller.
+ *     `loadCompanyView` took `caller` for #106's hidden-number filter, so both
+ *     call sites inherit this atomically and a third can't forget it.
+ *
+ * Asked as a CAPABILITY, never `role === "owner" || role === "admin"` (#315):
+ * the bookkeeper preset exists precisely to hold the books without the inbox,
+ * and a rank check here would lock the one role built for this out of it.
+ *
+ * OMITTED rather than nulled, deliberately. `canceled_at: null` states that the
+ * workspace is not cancelled and `cancel_at_period_end: false` that no
+ * cancellation is scheduled — redacting by nulling would put a false answer on
+ * the wire. An absent key says only "you were not told". It is also safe on
+ * every client: every one of these that a phone models at all is declared
+ * `= null` / `= false` in Kotlin (Core.kt) and as an Optional or `@Default` in
+ * Swift (Core.swift) — neither models `billing_currency` at all — so a missing
+ * key decodes rather than throwing, and on web the only readers are the
+ * billing/usage/onboarding screens.
+ *
+ * NOT here, and this is the half to get right:
+ *  - `subscription_status` — the app-wide "this workspace can't send" banner
+ *    and the composer gate read it for every role, and GET /v1/me publishes it
+ *    per-membership with no gate at all. Withholding it would blind a member
+ *    to why sending is refused while hiding nothing.
+ *  - the `registration` summary — the member's "waiting on approval" banner is
+ *    derived from it (the wizard `data` with the EIN is a different payload and
+ *    was never in REGISTRATION_COLUMNS).
+ *  - `plan` and its derived `seat_limit` — a tier name is not money, the seat
+ *    count discloses it anyway, and its only member-facing reader is the
+ *    "Report this" support link.
+ *  - `billing_writes_enabled` — a kill switch that clients default to TRUE when
+ *    absent, so redacting it would restore the very controls it exists to hide.
+ */
+export const BILLING_ONLY_COMPANY_FIELDS = [
+  "billing_currency",
+  "current_period_start",
+  "current_period_end",
+  "overage_cap_multiplier",
+  "registration_fee_paid_at",
+  "canceled_at",
+  "cancel_at_period_end",
+  "offramp_message",
+  "offramp_opted_in_at",
+] as const;
+
+/**
+ * #515: drop {@link BILLING_ONLY_COMPANY_FIELDS} unless the caller holds
+ * `billing.manage`. A no-op for owner, admin and bookkeeper.
+ */
+export function withBillingRedacted<T extends Record<string, unknown>>(
+  company: T,
+  role: MemberRole,
+): T {
+  if (roleHasCapability(role, "billing.manage")) return company;
+  const redacted: Record<string, unknown> = { ...company };
+  for (const field of BILLING_ONLY_COMPANY_FIELDS) delete redacted[field];
+  return redacted as T;
+}
+
+/**
  * Fetch the company (soft-deleted companies read as absent), its number list,
  * and its registration snapshot. Returns null when no live company exists.
  */
@@ -349,22 +432,29 @@ export async function loadCompanyView(
     "company_modules lookup",
   );
 
-  return {
-    ...withSeatDerived(
-      withCallerIdDerived(
-        withEmergencyDerived(
-          withMctbDerived(withAwayDerived(withIdentificationDerived(company))),
+  // #515: the money columns leave here only for a caller who holds
+  // billing.manage. Applied LAST, to the finished payload, so a column carried
+  // forward by one of the derive helpers above is covered by the same rule
+  // rather than slipping past it.
+  return withBillingRedacted(
+    {
+      ...withSeatDerived(
+        withCallerIdDerived(
+          withEmergencyDerived(
+            withMctbDerived(withAwayDerived(withIdentificationDerived(company))),
+          ),
         ),
       ),
-    ),
-    numbers,
-    enabled_modules: modules.map((row) => row.module),
-    billing_writes_enabled: billingWritesEnabled(env),
-    registration: {
-      brand: registrations.find((row) => row.kind === "brand") ?? null,
-      campaign: registrations.find((row) => row.kind === "campaign") ?? null,
+      numbers,
+      enabled_modules: modules.map((row) => row.module),
+      billing_writes_enabled: billingWritesEnabled(env),
+      registration: {
+        brand: registrations.find((row) => row.kind === "brand") ?? null,
+        campaign: registrations.find((row) => row.kind === "campaign") ?? null,
+      },
     },
-  };
+    caller.role,
+  );
 }
 
 /**

@@ -1,5 +1,6 @@
 "use client";
 
+import { useCanOpenSettings } from "@/components/settings/settings-link-guard";
 import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef } from "react";
@@ -30,6 +31,10 @@ import {
  * not-ready workspace is obvious on every page, not just the inbox.
  */
 export function WorkspaceStatusBanner() {
+  // #515: before any early return — this component bails out for the happy
+  // cases below, and a hook called after that runs in a different order on
+  // different renders.
+  const canOpen = useCanOpenSettings();
   const company = useCompany();
   const registration = useRegistration();
   const { role } = useActiveCompany();
@@ -103,7 +108,12 @@ export function WorkspaceStatusBanner() {
                     : REGISTRATION_COPY.registrationPending;
 
   // Members of an unpaid workspace can't act — the strip is informational only.
-  const action: { href: string; label: string } | null =
+  //
+  // #515: and neither can anybody the destination is closed to. This banner is
+  // mounted app-wide for every role, so an unfiltered action offers a member a
+  // Billing button that now refuses them. The strip still SAYS what is wrong —
+  // that part is everybody's business — it just stops handing out a door.
+  const rawAction: { href: string; label: string } | null =
     state.kind === "setup_unfinished_member"
       ? null
       : state.kind === "subscription_canceled"
@@ -117,6 +127,17 @@ export function WorkspaceStatusBanner() {
               : state.kind === "number_action_needed"
                 ? { href: "/settings/numbers", label: "Choose a number" }
                 : { href: "/settings/numbers", label: "Details" };
+
+  // Both destinations are Settings sections with a capability behind them.
+  // Anything outside Settings (the onboarding code entry) is everybody's.
+  const action =
+    rawAction === null
+      ? null
+      : rawAction.href.startsWith("/settings/billing") && !canOpen("billing")
+        ? null
+        : rawAction.href.startsWith("/settings/numbers") && !canOpen("numbers")
+          ? null
+          : rawAction;
 
   return (
     <div
