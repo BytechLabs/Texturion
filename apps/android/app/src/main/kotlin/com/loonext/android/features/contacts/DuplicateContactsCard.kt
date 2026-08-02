@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.model.ContactMergeResult
 import com.loonext.android.core.model.DuplicatePair
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.rememberHaptics
@@ -54,7 +55,12 @@ fun DuplicateContactsCard(
     companyId: String,
     /** #246: merging needs settings.manage. A member still sees the finding. */
     canMerge: Boolean,
-    onMerged: () -> Unit,
+    /**
+     * Handed the result rather than a bare signal, because the opt-out union is
+     * the one outcome the crew has to be told about — a merged contact can come
+     * out opted out when neither record they were looking at said so.
+     */
+    onMerged: (ContactMergeResult) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var pairs by remember { mutableStateOf<List<DuplicatePair>>(emptyList()) }
@@ -124,10 +130,10 @@ fun DuplicateContactsCard(
             companyId = companyId,
             pair = pair,
             onDismiss = { merging = null },
-            onMerged = {
+            onMerged = { result ->
                 merging = null
                 refreshKey++
-                onMerged()
+                onMerged(result)
             },
         )
     }
@@ -157,7 +163,7 @@ private fun MergeContactsDialog(
     companyId: String,
     pair: DuplicatePair,
     onDismiss: () -> Unit,
-    onMerged: () -> Unit,
+    onMerged: (ContactMergeResult) -> Unit,
 ) {
     var keepFirst by remember(pair) { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
@@ -238,8 +244,7 @@ private fun MergeContactsDialog(
                     saving = true
                     coroutines.launch {
                         try {
-                            repo.merge(companyId, foldedId, survivorId)
-                            onMerged()
+                            onMerged(repo.merge(companyId, foldedId, survivorId))
                         } catch (cause: Exception) {
                             error = cause.userMessage()
                         } finally {

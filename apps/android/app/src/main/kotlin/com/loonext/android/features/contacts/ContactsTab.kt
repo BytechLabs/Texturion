@@ -569,7 +569,25 @@ private fun ContactListScreen(
                                         repo = mutations,
                                         companyId = companyId,
                                         canMerge = canImport,
-                                        onMerged = onRefresh,
+                                        onMerged = { result ->
+                                            onRefresh()
+                                            // The opt-out union is said out
+                                            // loud: a merge can leave the
+                                            // survivor opted out when the
+                                            // record the user kept was not,
+                                            // and nothing else on screen
+                                            // would tell them.
+                                            scope.launch {
+                                                snackbar.showSnackbar(
+                                                    if (result.opted_out) {
+                                                        "Merged. This customer is opted out, " +
+                                                            "so nothing sends to either number."
+                                                    } else {
+                                                        "Merged."
+                                                    },
+                                                )
+                                            }
+                                        },
                                     )
                                 }
                                 itemsIndexed(rows, key = { _, contact -> contact.id }) { index, contact ->

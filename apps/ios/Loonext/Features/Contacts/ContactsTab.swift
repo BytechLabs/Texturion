@@ -371,6 +371,25 @@ struct ContactsTab: View {
                 .refreshable { await reload() }
             } else {
                 ScrollView {
+                    // #246: above the list, and only when there is something to
+                    // act on. Somebody who does not know they have duplicates
+                    // will not go looking for a screen about them.
+                    DuplicateContactsCard(
+                        mutations: mutations,
+                        companyId: companyId,
+                        canMerge: canImport,
+                        onMerged: { result in
+                            refreshKey += 1
+                            // The opt-out union is said out loud: a merge can
+                            // leave the survivor opted out when the record the
+                            // user kept was not, and nothing else on screen
+                            // would tell them.
+                            notice = result.opted_out
+                                ? "Merged. This customer is opted out, so nothing sends to either number."
+                                : "Merged."
+                        }
+                    )
+
                     PaperCard {
                         LazyVStack(alignment: .leading, spacing: 0) {
                             ForEach(Array(rows.enumerated()), id: \.element.id) { index, contact in
