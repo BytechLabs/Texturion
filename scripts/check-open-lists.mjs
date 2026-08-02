@@ -55,7 +55,7 @@ const DOCS = "docs";
 // The first version required a bare heading, silently saw one document instead
 // of two, and reported a pass — the same matches-nothing failure the parity
 // vectors guard against. Hence the floor below.
-const HEADING = /^#{1,3}\s+(?:[\d.]+\s+)?Open, and tracked elsewhere\s*$/im;
+const HEADING = /^#{1,3}\s+(?:[\d.]+\s+)?Open, and tracked elsewhere\s*$/gim;
 
 function markdownFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -65,13 +65,24 @@ function markdownFiles(dir) {
   });
 }
 
-/** The section's body: from the heading to the next heading of any level. */
-function openSection(source) {
-  const match = HEADING.exec(source);
-  if (!match) return null;
-  const after = source.slice(match.index + match[0].length);
-  const next = /^#{1,3}\s+/m.exec(after);
-  return next ? after.slice(0, next.index) : after;
+/**
+ * EVERY section's body in one file, each from its heading to the next heading.
+ *
+ * All of them, not the first: #427's ask 3 puts an open list under individual
+ * DECISIONS.md entries, so one file now carries many. Reading only the first
+ * match meant adopting that convention silently stopped the later lists being
+ * checked — the guard reported "0 open" while a live issue sat in the second
+ * section. A guard that goes quiet when you comply with it is worse than none.
+ */
+function openSections(source) {
+  const bodies = [];
+  HEADING.lastIndex = 0;
+  for (const match of source.matchAll(HEADING)) {
+    const after = source.slice(match.index + match[0].length);
+    const next = /^#{1,3}[ \t]+/m.exec(after);
+    bodies.push(next ? after.slice(0, next.index) : after);
+  }
+  return bodies;
 }
 
 const found = [];
@@ -86,9 +97,10 @@ const found = [];
  */
 const sectioned = new Set();
 for (const file of markdownFiles(DOCS)) {
-  const section = openSection(readFileSync(file, "utf8"));
-  if (section === null) continue;
+  const sections = openSections(readFileSync(file, "utf8"));
+  if (sections.length === 0) continue;
   sectioned.add(file);
+  const section = sections.join("\n");
   // ONLY the issue a list item LEADS with, per the convention D48 set:
   //   - **#316** — a released number must carry no history to its next owner
   //

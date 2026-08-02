@@ -6427,6 +6427,28 @@ are measurable: the funnel events from #255 and the churn reasons from #277.
 which is the direction that needs no risk appetite to take; accepting it is the
 owner's call and is not made here.
 
+## A decision names what it does NOT settle
+
+D48 ended with a section headed **"Open, and tracked elsewhere"**: a list of
+what that decision deliberately leaves unresolved, each with an issue number.
+#427 checked it four decisions later and found it still accurate, which is why
+it is a convention now rather than one document's habit.
+
+It does three things at once. It **bounds the decision's authority**, so a
+reader knows where it stops being the answer. It **survives the author**, so
+the next person does not have to infer whether an omission was deliberate or
+forgotten. And it **stays checkable** — `scripts/check-open-lists.mjs` reads
+every markdown file under `docs/` for that heading and verifies each issue the
+list leads with is still open.
+
+**A decision that knowingly leaves something open says so, with a number.** If
+it settles everything, it says that instead — an absent list and a complete
+decision must not look alike.
+
+The convention earned this on its first application: D112 deferred AI call
+summaries in prose, with no issue behind them. Writing the list is what turned
+that into #507.
+
 ## Accepted risks carry a trigger
 
 A decision that knowingly accepts a risk records **what would make us look
@@ -6509,6 +6531,16 @@ the product starting to tell an owner something about their customer's
 behaviour that it has never told them. Whether we want to say it at all is a
 product decision to make deliberately, and it is not made here.
 
+### Open, and tracked elsewhere
+
+- ~~**#506**~~ — **closed.** The ledger records a channel now, so the one
+  finding on the RCS list whose cost rose with the calendar is discharged.
+
+The other 35 sites in `docs/RCS-READINESS.md` are deliberately NOT tracked as
+issues. They cost the same whenever they are done, and filing 35 tickets for
+work gated on a trigger that has not fired would be a backlog pretending to be
+a plan.
+
 ## D112 — we do not record live calls; the value people want is a summary, not a tape (#279, 2026-08-02)
 
 **No live-call recording.** Not off by default, not behind a flag — not built.
@@ -6576,6 +6608,12 @@ what makes this tempting, and it is not new information.
 **Not a trigger:** a competitor shipping it. Quo ships call recording and we
 say so plainly on `/compare/quo`; conceding where a competitor genuinely wins
 is the posture, not a reason to take on an exposure we have decided against.
+
+### Open, and tracked elsewhere
+
+- **#507** — AI call summaries: the value this decision preserved, on the
+  existing transcript pipeline with the audio discarded. Named in prose here
+  before it had a number; #427's convention is what turned it into one.
 
 ## D113 — no toll-free pipeline yet, and the reason is not the one SPEC recorded (#329, 2026-08-02)
 
@@ -6658,6 +6696,14 @@ activation one.
 **Also not a trigger:** a franchise or multi-location prospect asking. That is
 #256's question, and wanting a toll-free line is not the same as our needing a
 verification pipeline to sell one.
+
+### Open, and tracked elsewhere
+
+**Nothing open.** The one unresolved input — current TFV timelines and
+documentation requirements — is deliberately unestablished rather than tracked,
+because the finding that toll-free is a deliverability mitigation rather than
+an activation feature makes the timeline stop deciding anything. It becomes
+worth establishing when R1's trigger fires, and R1 owns that.
 
 ## D114 — multi-location is deferred deliberately, and the model is chosen by the customer's legal shape rather than by ours (#256, 2026-08-02)
 
@@ -6745,6 +6791,12 @@ speculation, and one real instance carries more than any amount of modelling.
 **Not a trigger:** the architecture being interesting. It is, and that is the
 danger.
 
+### Open, and tracked elsewhere
+
+**Nothing open.** Both models were audited and neither is being built, so there
+is no deferred sub-question to track. R8 in `docs/ACCEPTED-RISKS.md` carries
+the trigger; a real customer with the shape is the only thing that reopens it.
+
 ## D115 — NANP-only, deliberately, and the next market is a different product rather than a config change (#305, 2026-08-02)
 
 **We serve the US and Canada, and nothing else.** #305 asked for a written no
@@ -6798,3 +6850,13 @@ answered by the ceiling statement, not by a project.
 **Also not a trigger:** #228 shipping French. Localising *language* for a
 market we already serve is not the same as entering one, and conflating them is
 the specific optimism #305 was filed to prevent.
+
+### Open, and tracked elsewhere
+
+**Nothing open.** `docs/MARKET-CEILING.md` holds the 23 sites, and they are
+deliberately not filed as issues for the same reason D111's are not: work gated
+on a trigger that has not fired is not a backlog.
+
+One item is a *warning* rather than a deferral, and it is recorded in the
+decision itself because it has no owner until somebody starts: widening
+`lookupAreaCode` and adding a country gate to `runPreSendGates` are one change.
