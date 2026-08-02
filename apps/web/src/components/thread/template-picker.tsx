@@ -55,7 +55,9 @@ export function TemplatePicker({
   /** Anchor element the desktop popover positions against (the composer pill). */
   children?: React.ReactNode;
 }) {
-  const templates = useTemplates();
+  // #274: most-used first. Somebody opening this is about to send, and the
+  // reply they send twenty times a day should not be wherever its name falls.
+  const templates = useTemplates("use");
   const rows = templates.data?.data ?? [];
   const coarse = usePointerCoarse();
 

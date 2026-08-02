@@ -1084,6 +1084,15 @@ export interface Template {
   id: string;
   name: string;
   body: string;
+  /**
+   * #274: the crew's own grouping. Free text and optional — a taxonomy we
+   * imposed would be ignored, and a category is worth typing at thirty
+   * templates and friction at five.
+   */
+  category?: string | null;
+  /** #274: how many times this reply has been sent. Present only on the
+   *  use-sorted list the picker asks for. */
+  uses?: number;
   created_by: string | null;
   /** #419: who last edited this shared copy. Null = nobody has since it existed. */
   updated_by: string | null;

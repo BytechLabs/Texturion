@@ -58,6 +58,14 @@ export const keys = {
   savedViewCounts: (companyId: string, surface: string, ids: string[]) =>
     [companyId, "saved-views", surface, "counts", ids.join(",")] as const,
   templates: (companyId: string) => [companyId, "templates"] as const,
+  /**
+   * #274: the picker's use-sorted list and the settings alphabetical one
+   * are different lists, so they get different keys. Sharing one would
+   * have a picker open in whatever order the settings page last fetched.
+   * Prefixed with `templates` so one invalidation still clears both.
+   */
+  templatesSorted: (companyId: string, sort: "name" | "use") =>
+    [companyId, "templates", sort] as const,
   members: (companyId: string) => [companyId, "members"] as const,
   /** #236: every active member's live devices, workspace-wide. */
   workspaceSessions: (companyId: string) =>

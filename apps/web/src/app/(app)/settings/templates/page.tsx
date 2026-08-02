@@ -22,6 +22,7 @@ import { useDeleteTemplate, useTemplates } from "@/lib/api/templates";
 import type { Template } from "@/lib/api/types";
 import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
 
+import { groupTemplates } from "./grouping";
 import { TemplateDialog } from "./template-dialog";
 
 function TemplateRow({
@@ -157,15 +158,30 @@ export default function TemplatesSettingsPage() {
             )}
           </div>
         ) : (
-          <div className="divide-y rounded-lg border bg-card">
-            {templates.data.data.map((template) => (
-              <TemplateRow
-                key={template.id}
-                template={template}
-                editorName={template.updated_by_name}
-                onEdit={() => openEdit(template)}
-                onDelete={() => setDeleting(template)}
-              />
+          <div className="space-y-5">
+            {groupTemplates(templates.data.data).map((group) => (
+              <div key={group.label ?? "__ungrouped"} className="space-y-2">
+                {/* #274: the heading appears only once a workspace has actually
+                    grouped something. A single "Uncategorised" band over every
+                    template in a five-template shop is chrome that describes
+                    nothing. */}
+                {group.label !== null && (
+                  <h3 className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {group.label}
+                  </h3>
+                )}
+                <div className="divide-y rounded-lg border bg-card">
+                  {group.rows.map((template) => (
+                    <TemplateRow
+                      key={template.id}
+                      template={template}
+                      editorName={template.updated_by_name}
+                      onEdit={() => openEdit(template)}
+                      onDelete={() => setDeleting(template)}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}

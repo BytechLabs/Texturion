@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { estimateSegments } from "@loonext/shared";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -29,7 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCompany } from "@/lib/api/companies";
 import { MERGE_FIELD_VARIABLES } from "@loonext/shared";
 import { ApiError } from "@/lib/api/error";
-import { useCreateTemplate, useUpdateTemplate } from "@/lib/api/templates";
+import { useTemplates, useCreateTemplate, useUpdateTemplate } from "@/lib/api/templates";
 import type { Template } from "@/lib/api/types";
 import { previewTemplate, SAMPLE_FIRST_NAME } from "@/lib/settings/away-preview";
 import { cn } from "@/lib/utils";
@@ -47,6 +47,11 @@ const schema = z.object({
     .trim()
     .min(1, "Add the message text.")
     .max(2000, "Keep it under 2,000 characters."),
+  /**
+   * #274: the crew's own grouping. Optional, and blank is how it is cleared —
+   * a category is worth typing at thirty templates and friction at five.
+   */
+  category: z.string().trim().max(40, "Keep it under 40 characters."),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -73,21 +78,44 @@ export function TemplateDialog({
   /** null = create a new template. */
   template: Template | null;
 }) {
+  // #274: read for the category chips only — the same alphabetical list the
+  // page behind this dialog already has cached, so no extra request.
+  const templates = useTemplates();
   const create = useCreateTemplate();
   const update = useUpdateTemplate();
   const company = useCompany();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", body: "" },
+    defaultValues: { name: "", body: "", category: "" },
   });
 
   // Re-seed the fields whenever the dialog opens for a different template.
   useEffect(() => {
     if (open) {
-      form.reset({ name: template?.name ?? "", body: template?.body ?? "" });
+      form.reset({
+        name: template?.name ?? "",
+        body: template?.body ?? "",
+        category: template?.category ?? "",
+      });
     }
   }, [open, template, form]);
+
+  /**
+   * #274 — the groupings this workspace already uses.
+   *
+   * Offered as chips so the common act is reusing one rather than inventing a
+   * near-duplicate: "Quoting" and "quotes" as separate groups is the same
+   * sprawl #298 fixed for tags, one level up.
+   */
+  const existingCategories = useMemo(() => {
+    const seen = new Set<string>();
+    for (const row of templates.data?.data ?? []) {
+      const category = row.category?.trim();
+      if (category) seen.add(category);
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b));
+  }, [templates.data]);
 
   const body = form.watch("body");
   const estimate = estimateSegments(body);
@@ -126,13 +154,16 @@ export function TemplateDialog({
       onOpenChange(false);
       toast.success(template ? "Template saved." : "Template created.");
     };
+    // #274: an empty box means "no category". The API normalises "" to null,
+    // so sending it plainly is how a clear travels.
+    const payload = { ...values, category: values.category.trim() };
     if (template) {
       update.mutate(
-        { templateId: template.id, patch: values },
+        { templateId: template.id, patch: payload },
         { onSuccess, onError },
       );
     } else {
-      create.mutate(values, { onSuccess, onError });
+      create.mutate(payload, { onSuccess, onError });
     }
   }
 
@@ -162,6 +193,53 @@ export function TemplateDialog({
                   <FormControl>
                     <Input maxLength={120} placeholder="On my way" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {/* #274 — the crew's own grouping, offered rather than imposed.
+                The chips are the categories this workspace has ALREADY used,
+                so the common path is one tap and inventing a new one is still
+                a free-text box away. Same posture #298 settled for tags: a
+                plumber's categories are not an HVAC company's. */}
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Category{" "}
+                    <span className="font-normal text-muted-foreground">
+                      (optional)
+                    </span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      maxLength={40}
+                      placeholder="Quoting"
+                      list="template-categories"
+                      {...field}
+                    />
+                  </FormControl>
+                  {existingCategories.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {existingCategories.map((category) => (
+                        <Button
+                          key={category}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => form.setValue("category", category, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          })}
+                        >
+                          {category}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
