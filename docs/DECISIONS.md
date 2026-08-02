@@ -6576,3 +6576,85 @@ what makes this tempting, and it is not new information.
 **Not a trigger:** a competitor shipping it. Quo ships call recording and we
 say so plainly on `/compare/quo`; conceding where a competitor genuinely wins
 is the posture, not a reason to take on an exposure we have decided against.
+
+## D113 — no toll-free pipeline yet, and the reason is not the one SPEC recorded (#329, 2026-08-02)
+
+**We do not build a second, toll-free compliance pipeline now.** Same answer
+SPEC §13 gave, for a materially different reason, and #329 was right that the
+recorded rationale deserved re-testing rather than inheriting.
+
+### What re-testing actually found
+
+**1. Availability is not the blocker.** `GET /v2/messaging_tollfree/verification/requests`
+returns **HTTP 200** with an empty list on our account — the verification
+pipeline is reachable today, we have simply never submitted to it. (Contrast
+R2's Canadian number ordering, which hard-fails with `10038`.) SPEC's argument
+was never that we could not; it was that it buys nothing. That part stands, but
+not for the reason given.
+
+**2. SPEC's "equally slow (~5 business days)" premise could not be
+re-established from published sources, and I will not restate a figure I could
+not verify.** Telnyx's toll-free verification support article defers the
+requirements to another page and states no turnaround; the developer path 404s.
+So the honest position is that the timeline comparison SPEC rested on is
+**unverified today**, not that it is wrong. It is recorded as a gap rather than
+quietly re-asserted, because a number nobody re-checked is exactly how a
+rationale goes stale (#326).
+
+**3. The real case for toll-free is not activation speed at all.** #329 frames
+it as a second door past the 10DLC wait. The codebase already frames it
+differently and more sharply, in two places written before this issue:
+
+> Canadian carriers filter long-code A2P traffic — Twilio publishes this as
+> carrier behaviour and recommends verified toll-free instead — and filtering
+> returns no error, so a filtered message is accepted, billed, marked sent and
+> never arrives.
+> — `telnyx/registration.ts`, on `caAllowed`
+
+and `packages/shared/src/first-message-identification.ts` names toll-free as
+one of "the levers left" after D4 removed the identification footer.
+
+So toll-free is already, internally, **the mitigation for the risk R1 accepts**
+— not an activation feature. That reframing is the finding, and it changes what
+would trigger building it.
+
+### Why not now, given that
+
+**The evidence that would justify it does not exist yet.** R1's scoreboard is
+`delivery-by-country.ts` with a floor of 0.85, and at current volume there is
+not enough Canadian traffic for that rate to mean anything — the same
+thin-data problem that makes `rcs-session-model.mjs` withhold its verdict at 12
+sessions. Building a second compliance pipeline against an unmeasured risk is
+speculation with permanent maintenance attached.
+
+**The cost is a pipeline, not a feature.** A verification state machine
+parallel to `messaging_registrations`, its own status surfacing on three
+clients (#319 argues registration status must be legible, and this would need
+a second copy of that), its own entries in `rejection-guidance.ts`, and two
+existing exclusions to revisit: `nanp.ts` classifies toll-free prefixes as
+non-assignable, and `routes/porting.ts` explicitly refuses to port a toll-free
+number. Both are correct today and both become wrong the day this ships.
+
+**And the devil's advocate in #329 is right.** A homeowner choosing between
+three plumbers answers a local number and lets an 800 number ring out. Local
+presence is the product for the core ICP, so even a shipped toll-free option
+should never be promoted to them.
+
+### The trigger
+
+**R1's trigger firing is this decision's trigger.** When
+`delivery-by-country.ts` reports a sustained CA-destination rate below
+`DELIVERY_ALERT_FLOOR`, toll-free stops being a hypothesis and becomes the
+named mitigation — and at that point the pipeline cost is worth paying because
+the alternative is messages that are accepted, billed, and never arrive.
+
+Recorded in `docs/ACCEPTED-RISKS.md` R1 so the two cannot drift apart.
+
+**Not a trigger:** the 10DLC wait being slow. That is #310's problem and a
+second queue is not an answer to a first queue — #329's own ask 5 says it:
+if it just adds a second way to wait, it is a distribution feature, not an
+activation one.
+
+**Also not a trigger:** a franchise or multi-location prospect asking. That is
+#256's question, and wanting a toll-free line is not the same as our needing a
+verification pipeline to sell one.

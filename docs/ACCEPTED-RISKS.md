@@ -60,6 +60,11 @@ exception to it:
 | **Trigger to revisit** | **Whichever comes first:** (a) `delivery-by-country.ts` reports a CA- or US-destination rate below `DELIVERY_ALERT_FLOOR` (0.85) for a sustained window; (b) any number reaches a `number_health` flagged state (#235); (c) counsel answers L1 in `VENDOR-QUESTIONS.md` on CASL s.6(2) sender identification; (d) a carrier rejection catalogued in `rejection-guidance.ts` cites missing identification. |
 | **Not a trigger** | A single failed message, or one customer complaint. The risk is a *rate* and the scoreboard measures a rate; reacting to a single event would mean reversing an owner ruling on noise. |
 
+**What firing this trigger buys.** The named mitigation is verified toll-free
+for Canadian A2P (D113, #329) — already reachable on our Telnyx account, and
+deliberately not built until this rate says it is needed. R1 and D113 share one
+trigger on purpose, so neither can be revisited without the other.
+
 ## R2 — one carrier, no fallback (D76, #241)
 
 | | |
