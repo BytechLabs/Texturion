@@ -77,7 +77,8 @@ struct ForYouTab: View {
                         await reloadPipeline()
                     },
                     company: me.company,
-                    onOpenSettings: nil
+                    onOpenContacts: { AppRouter.shared.openContacts = true },
+                    onOpenSettings: { AppRouter.shared.openSettingsSection = $0 }
                 )
             }
         }
@@ -196,8 +197,9 @@ private struct ForYouList: View {
     let onRefresh: @MainActor () async -> Void
     /// #310: the workspace, for the waiting-room card. Nil until /me lands.
     let company: CompanyView?
-    /// #310: the waiting-room card's doors. Nil where routing is unavailable.
-    let onOpenSettings: (@MainActor (String) -> Void)?
+    /// #310/#503: the waiting-room card's doors. Required — see WhileYouWait.
+    let onOpenContacts: @MainActor () -> Void
+    let onOpenSettings: @MainActor (SettingsSection) -> Void
 
     /// #306: the work, not the page. Counting the rows meant a member 60
     /// conversations behind read "20 things need you", and the queue looked
@@ -235,7 +237,11 @@ private struct ForYouList: View {
                 // #310: only while the carriers have it. Above the queue
                 // because during the wait the queue is empty by definition —
                 // texting is what fills it, and that has not started yet.
-                WhileYouWait(company: company, onOpenSettings: onOpenSettings)
+                WhileYouWait(
+                    company: company,
+                    onOpenContacts: onOpenContacts,
+                    onOpenSettings: onOpenSettings
+                )
                 // #239 — the claim we sell, measured. Above the queue because the
                 // arc is the reason a contractor stays, and it is a result to
                 // read rather than a task to do.
@@ -707,7 +713,8 @@ private func previewCall(
         onOpenCalls: {},
         onRefresh: {},
         company: nil,
-        onOpenSettings: nil
+        onOpenContacts: {},
+        onOpenSettings: { _ in }
     )
 }
 
@@ -728,7 +735,8 @@ private func previewCall(
         onOpenCalls: {},
         onRefresh: {},
         company: nil,
-        onOpenSettings: nil
+        onOpenContacts: {},
+        onOpenSettings: { _ in }
     )
 }
 
@@ -768,7 +776,8 @@ private func previewCall(
         onOpenCalls: {},
         onRefresh: {},
         company: nil,
-        onOpenSettings: nil
+        onOpenContacts: {},
+        onOpenSettings: { _ in }
     )
 }
 

@@ -17,7 +17,18 @@ import SwiftUI
 /// cannot describe the same wait differently.
 struct WhileYouWait: View {
     let company: CompanyView?
-    var onOpenSettings: ((String) -> Void)?
+    /// #310/#503: the card's three doors.
+    ///
+    /// REQUIRED, and typed. These were one optional `((String) -> Void)?`, and
+    /// `ForYouTab` passed nil — so every button here was a dead tap on the
+    /// first surface a new workspace sees. An optional navigation callback
+    /// turns "nobody wired this" into silence instead of a compile error.
+    ///
+    /// Two callbacks rather than one because contacts is a TAB and the other
+    /// two are settings sections; a single `(SettingsSection) -> Void` could
+    /// not express the first.
+    let onOpenContacts: () -> Void
+    let onOpenSettings: (SettingsSection) -> Void
 
     private var brand: String? { company?.registration.brand?.status }
     private var campaign: String? { company?.registration.campaign?.status }
@@ -65,9 +76,9 @@ struct WhileYouWait: View {
                 .padding(.top, 12)
 
                 // Three, not the whole settings surface.
-                setupStep("Bring your customers in", "contacts")
-                setupStep("Invite your crew", "team")
-                setupStep("Set your hours and greeting", "hours")
+                setupStep("Bring your customers in", onOpenContacts)
+                setupStep("Invite your crew") { onOpenSettings(.team) }
+                setupStep("Set your hours and greeting") { onOpenSettings(.hours) }
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -81,10 +92,11 @@ struct WhileYouWait: View {
     /// "enough contacts" we do not have, and a checklist that stays unticked
     /// while somebody has plainly done the work is its own small insult.
     @ViewBuilder
-    private func setupStep(_ label: String, _ section: String) -> some View {
-        Button {
-            onOpenSettings?(section)
-        } label: {
+    private func setupStep(
+        _ label: String,
+        _ action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
             HStack {
                 Text(label)
                     .font(.subheadline)

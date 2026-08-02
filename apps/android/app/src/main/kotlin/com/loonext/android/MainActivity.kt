@@ -655,6 +655,9 @@ private fun ReadyShell(
                     // rather than pushing a route, for the same reason
                     // onOpenCalls does — one surface, no duplicate.
                     onOpenContacts = { tab = ShellTab.Contacts },
+                    // #503: the waiting-room card's setup buttons. Pushed as an
+                    // overlay, like every other settings entry.
+                    onOpenSettings = { push(Overlay.Settings(it)) },
                     // Single surface: For You's "Recent calls" header switches to
                     // the Calls tab (the pager animates) instead of pushing a
                     // duplicate route.

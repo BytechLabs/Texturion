@@ -64,6 +64,7 @@ import com.loonext.android.features.calls.CallsRepository
 import com.loonext.android.features.calls.callOutcomeLabel
 import com.loonext.android.features.calls.callerDisplayName
 import com.loonext.android.features.calls.isActionableMiss
+import com.loonext.android.features.settings.SettingsSection
 import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.CenteredError
@@ -120,8 +121,18 @@ fun ForYouTab(
     onOpenCalls: (() -> Unit)? = null,
     onOpenThread: ((conversationId: String) -> Unit)? = null,
     onOpenNotifications: (() -> Unit)? = null,
-    /** #310: the waiting-room card's doors. Null in contexts that cannot route. */
-    onOpenSettings: ((section: String) -> Unit)? = null,
+    /**
+     * #310/#503: the waiting-room card's doors.
+     *
+     * REQUIRED, and typed. Both were nullable-with-a-default and the settings
+     * one was a bare String, which is how `Shell.kt` came to call this without
+     * passing either: three buttons on the first surface a new workspace sees
+     * invoked a null callback and did nothing at all. A default of null on a
+     * navigation callback turns "nobody wired this" into a silent dead tap
+     * instead of a compile error, so there is no default now.
+     */
+    onOpenContacts: () -> Unit,
+    onOpenSettings: (SettingsSection) -> Unit,
 ) {
     // Threads and notifications are ROUTES above the shell now (founder
     // mandate: nothing pushed shows the pill nav) — this tab is only ever the
@@ -269,6 +280,7 @@ fun ForYouTab(
                 onOpenConversation = { onOpenThread?.invoke(it) },
                 onOpenCalls = onOpenCalls,
                 onOpenNotifications = { onOpenNotifications?.invoke() },
+                onOpenContacts = onOpenContacts,
                 onOpenSettings = onOpenSettings,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -293,8 +305,9 @@ private fun ForYouList(
     onOpenConversation: (String) -> Unit,
     onOpenCalls: (() -> Unit)?,
     onOpenNotifications: () -> Unit,
-    /** #310: the waiting-room card's doors. Null in contexts that cannot route. */
-    onOpenSettings: ((section: String) -> Unit)?,
+    /** #310/#503: the waiting-room card's doors. Required — see ForYouTab. */
+    onOpenContacts: () -> Unit,
+    onOpenSettings: (SettingsSection) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // #306: what each section HOLDS, not how many rows came back. Counting the
@@ -338,9 +351,9 @@ private fun ForYouList(
         item(key = "while-you-wait") {
             WhileYouWait(
                 company = me.company,
-                onOpenContacts = { onOpenSettings?.invoke("contacts") },
-                onOpenTeam = { onOpenSettings?.invoke("team") },
-                onOpenHours = { onOpenSettings?.invoke("hours") },
+                onOpenContacts = onOpenContacts,
+                onOpenTeam = { onOpenSettings(SettingsSection.Team) },
+                onOpenHours = { onOpenSettings(SettingsSection.Hours) },
                 modifier = Modifier.padding(top = 14.dp),
             )
         }

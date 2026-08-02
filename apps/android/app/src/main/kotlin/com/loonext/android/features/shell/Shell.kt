@@ -69,6 +69,7 @@ import com.loonext.android.features.calls.CallsScreen
 import com.loonext.android.features.contacts.ContactsTab
 import com.loonext.android.features.foryou.ForYouTab
 import com.loonext.android.features.inbox.InboxTab
+import com.loonext.android.features.settings.SettingsSection
 import com.loonext.android.features.tasks.TasksTab
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.InitialsAvatar
@@ -486,6 +487,8 @@ fun ShellContent(
     onComposeTo: (phone: String) -> Unit,
     /** #459: the dialer's way out to the contacts list. */
     onOpenContacts: () -> Unit,
+    /** #503: the waiting-room card's route into a settings section. */
+    onOpenSettings: (SettingsSection) -> Unit,
     onOpenCalls: () -> Unit,
     onViewedConversationChanged: (conversationId: String?) -> Unit,
 ) {
@@ -495,6 +498,11 @@ fun ShellContent(
             onOpenCalls = onOpenCalls,
             onOpenThread = { onOpenThread(it, null) },
             onOpenNotifications = onOpenNotifications,
+            // #503: the waiting-room card's three setup buttons. Contacts is a
+            // TAB and the other two are settings sections, which is why this is
+            // two callbacks rather than one.
+            onOpenContacts = onOpenContacts,
+            onOpenSettings = onOpenSettings,
         )
 
         ShellTab.Inbox -> InboxTab(
