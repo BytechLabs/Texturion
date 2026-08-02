@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { CallBar } from "@/components/calls/call-bar";
 import { UnreadTitleManager } from "@/components/notifications/unread-title-manager";
+import { ConnectionBanner } from "@/components/shell/connection-banner";
 import { WorkspaceStatusBanner } from "@/components/registration/status-banner";
 import { SoftphoneProvider } from "@/lib/softphone/provider";
 import { cn } from "@/lib/utils";
@@ -94,6 +95,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {/* Ambient workspace status (number provisioning / registration / billing).
             Mounted app-wide so a not-ready workspace is obvious on every page;
             renders null when there's nothing to say. */}
+          {/* #299: above the workspace strip on purpose. Being offline
+            explains why the strip below it may itself be stale, so it has to be
+            read first; and it renders null the rest of the time, so the
+            ordering costs nothing on an ordinary day. */}
+          <ConnectionBanner />
           <WorkspaceStatusBanner />
           <main
             id="main-content"

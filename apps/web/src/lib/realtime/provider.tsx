@@ -767,6 +767,23 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener("blur", markAway);
     window.addEventListener("focus", maybeResync);
 
+    // #299: THE TAB THAT NEVER LEFT. Every trigger above asks "was I away?",
+    // and the answer during a mid-session network drop is no — the office
+    // manager watched the whole outage with the tab focused. So the #215 net
+    // does not fire, the socket may reconnect without a JOIN that arms the gap
+    // flag, and the only recovery was a manual reload. That is the exact case
+    // #299 reports: "reconnect requires a reload."
+    //
+    // Routed through the SAME away-gate rather than resyncing directly, which
+    // is what keeps it cheap and honest: a two-second blip cannot have lost a
+    // frame worth refetching for, and a flapping connection must not turn into
+    // a refetch storm. `offline` marks the start of the absence exactly as a
+    // blur does — the tab was present, but the data was not.
+    const onOffline = () => markAway();
+    const onOnline = () => maybeResync();
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", onOnline);
+
     // ONE gap flag for the whole socket rather than one per channel (#480).
     // Every channel drops and rejoins together, so a per-channel flag would run
     // the backfill N times for a single outage; the first channel back clears it
@@ -1004,6 +1021,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("blur", markAway);
       window.removeEventListener("focus", maybeResync);
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("online", onOnline);
       for (const timer of pendingUpdates.values()) clearTimeout(timer);
       pendingUpdates.clear();
       // #483: a rebuild scheduled for a given-up topic must not outlive the run
