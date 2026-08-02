@@ -47,6 +47,12 @@ this PR merges and at no other time:
   **The run also files an issue** titled `Upload to the stores: <tags>` with the
   checklist, the run link and the artifact expiry date (#443). Close it when the
   stores actually have the build; while it is open, they do not.
+  **A release also retires the handoffs it makes unshippable** (#498): filing
+  `android-v0.8.0` closes the still-open `android-v0.7.0` one, because nobody
+  submits a build a release behind and an open to-do nobody will ever do is how
+  this list stops being believed. It is per-platform — a release that tags only
+  Android comments on a both-platform issue and leaves it open for the iOS half
+  rather than dropping a real upload on the floor.
 
 So the tag means the same thing for all four: *this is what shipped*. It used to
 mean "live" for the Workers and "somebody should build this eventually" for the
