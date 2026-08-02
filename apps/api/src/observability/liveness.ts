@@ -950,6 +950,27 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 60,
     graceMinutes: 30,
   },
+  "job:retention-enforce": {
+    what:
+      "Retention is no longer being enforced (#284). Messages past a "
+      + "workspace's own window are being kept, after that workspace was "
+      + "emailed to say they would go — which is the promise, not the "
+      + "deletion, that carries the liability.",
+    doThis:
+      "Workers Logs, search `cron job job:retention-enforce failed` for the "
+      + "stack. Nothing is lost and nothing is over-deleted: the sweep is "
+      + "resumable by construction (each pass deletes rows, so the database "
+      + "state is the cursor) and one good run clears the whole backlog. Check "
+      + "for `job:retention-notice` in this same email first — the notice is a "
+      + "precondition the SQL enforces, so if IT is broken this job correctly "
+      + "does nothing and is a symptom rather than a second fault. If the "
+      + "stack is a Storage error, that is the safe failure: objects are "
+      + "removed before the rows that point at them, so a failed remove leaves "
+      + "both in place for the next run rather than stranding files nobody can "
+      + "reach.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
   "job:retention-notice": {
     what:
       "Workspaces are no longer being warned before their oldest messages age "

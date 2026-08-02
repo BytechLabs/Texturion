@@ -35,6 +35,7 @@ import {
 } from "./marketing/contact-retention";
 import { runCarrierCeilingJob } from "./billing/carrier-ceiling";
 import { retryInterruptedSends } from "./messaging/retry-interrupted";
+import { runRetentionEnforceJob } from "./workspace/retention-enforce";
 import { runRetentionNoticeJob } from "./workspace/retention-notice";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
 import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
@@ -519,6 +520,11 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // #284: warn BEFORE anything ages out. Deliberately shipped ahead of the
     // enforcement job — nobody should discover retention by losing something.
     job("job:retention-notice", runRetentionNoticeJob),
+    // #284: and the half that actually destroys something. AFTER the notice on
+    // purpose — the notice is a precondition the SQL enforces, so on the very
+    // first day a window applies the warning is claimed before anything is
+    // eligible, rather than a run order deciding whether somebody was told.
+    job("job:retention-enforce", runRetentionEnforceJob),
   ],
 };
 

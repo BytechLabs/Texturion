@@ -20,6 +20,7 @@ import {
   runContactRetentionJob,
   runMarketingContactRetentionJob,
 } from "./marketing/contact-retention";
+import { runRetentionEnforceJob } from "./workspace/retention-enforce";
 import { runRetentionNoticeJob } from "./workspace/retention-notice";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
 import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
@@ -539,6 +540,10 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       runMarketingContactRetentionJob,
       // #284: the warning that precedes enforcement.
       runRetentionNoticeJob,
+      // #284: and the enforcement, AFTER it. The SQL makes the notice a
+      // precondition, so ordering them the other way would leave a workspace
+      // eligible for a window it had not yet been told about.
+      runRetentionEnforceJob,
     ]);
     // #375: the DO alert-channel canary, alone on its own six-hourly trigger.
     expect(runs("15 */6 * * *")).toEqual([runDoSentryCanaryJob]);

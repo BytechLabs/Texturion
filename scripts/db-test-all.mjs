@@ -119,6 +119,8 @@ const SUITES = [
   "usage_events_channel",
   "signup_attribution",
   "billing_currency",
+  "retention_enforce",
+
 ];
 
 const args = process.argv.slice(2);
