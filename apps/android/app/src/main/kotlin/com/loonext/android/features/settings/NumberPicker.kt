@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -78,7 +79,18 @@ fun NumberPickerDialog(
     // Only a well-formed NANP code goes on the wire; partial input just types.
     val effectiveAreaCode = areaCode.takeIf { isValidAreaCode(it) }
 
-    LaunchedEffect(effectiveAreaCode, bestEffort, fetchKey) {
+    // #513: the digits are part of the SEARCH, not only of the list below.
+    //
+    // Keyed on the filter, so a fresh batch honours it — Refresh used to hand
+    // back another twenty numbers chosen without reference to what had been
+    // typed. Two digits is the floor: one narrows nothing and the API refuses
+    // it.
+    val searchDigits = digitFilter.takeIf { it.length >= 2 }
+    LaunchedEffect(effectiveAreaCode, bestEffort, searchDigits, fetchKey) {
+        // A keystroke cancels the previous effect, so this settles rather than
+        // firing a request per character. The list below still narrows
+        // instantly in the meantime, which is what makes the wait invisible.
+        if (searchDigits != null) delay(400)
         state = LoadState.Loading
         state = try {
             LoadState.Ready(
@@ -86,6 +98,7 @@ fun NumberPickerDialog(
                     country = country,
                     areaCode = effectiveAreaCode,
                     bestEffort = bestEffort,
+                    contains = searchDigits,
                 ),
             )
         } catch (cause: Exception) {

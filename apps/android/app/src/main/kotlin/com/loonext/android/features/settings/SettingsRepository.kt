@@ -242,6 +242,15 @@ class SettingsRepository(
         country: String,
         areaCode: String? = null,
         bestEffort: Boolean = false,
+        /**
+         * #513: digits the number must contain, honoured by the SEARCH.
+         *
+         * The picker used to narrow only the batch it already held, so asking
+         * for a fresh one silently discarded what had been typed. Telnyx
+         * honours `filter[phone_number][contains]` — a comment in the web
+         * client claimed otherwise for months and it was wrong.
+         */
+        contains: String? = null,
         limit: Int = 50,
     ): AvailableNumbersResult = api.get(
         "/v1/available-numbers",
@@ -249,6 +258,7 @@ class SettingsRepository(
             "country" to country,
             "area_code" to areaCode,
             "best_effort" to if (bestEffort) "true" else null,
+            "contains" to contains,
             "limit" to limit.toString(),
         ),
         // Company-exempt route (the onboarding number step runs pre-company).

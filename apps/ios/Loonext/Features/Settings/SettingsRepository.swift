@@ -305,6 +305,13 @@ struct SettingsRepository: Sendable {
         country: String,
         areaCode: String? = nil,
         bestEffort: Bool = false,
+        /// #513: digits the number must contain, honoured by the SEARCH.
+        ///
+        /// The picker used to narrow only the batch it already held, so asking
+        /// for a fresh one silently discarded what had been typed. Telnyx does
+        /// honour `filter[phone_number][contains]` — a comment in the web
+        /// client claimed otherwise for months and it was wrong.
+        contains: String? = nil,
         limit: Int = 50
     ) async throws -> AvailableNumbersResult {
         try await api.get(
@@ -313,6 +320,7 @@ struct SettingsRepository: Sendable {
                 "country": country,
                 "area_code": areaCode,
                 "best_effort": bestEffort ? "true" : nil,
+                "contains": contains,
                 "limit": String(limit),
             ],
             // Company-exempt route (the onboarding number step runs pre-company).

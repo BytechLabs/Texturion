@@ -30,6 +30,12 @@ struct NumberPickerSheet: View {
 
     @State private var areaCode: String
     @State private var digitFilter = ""
+
+    /// #513: the filter the SEARCH uses, as opposed to the one the list uses.
+    /// Below two digits there is nothing to narrow and the API refuses it.
+    private var searchDigits: String? {
+        digitFilter.count >= 2 ? digitFilter : nil
+    }
     @State private var bestEffort = false
     @State private var state: LoadState<AvailableNumbersResult> = .loading
     @State private var fetchKey = 0
@@ -126,14 +132,29 @@ struct NumberPickerSheet: View {
         }
         .presentationDetents([.large])
         .interactiveDismissDisabled(pending)
-        .task(id: "\(effectiveAreaCode ?? "")|\(bestEffort)|\(fetchKey)") {
+        // #513: the digits are part of the SEARCH, not only of the list below.
+        // Keyed on the filter, so a fresh batch honours it — Refresh used to
+        // hand back another twenty numbers chosen without reference to what had
+        // been typed. Two digits is the floor: one narrows nothing and the API
+        // refuses it.
+        .task(
+            id: "\(effectiveAreaCode ?? "")|\(bestEffort)|\(searchDigits ?? "")|\(fetchKey)"
+        ) {
+            // A keystroke replaces the task, so this settles rather than firing
+            // a request per character. The list below still narrows instantly
+            // in the meantime, which is what makes the wait invisible.
+            if searchDigits != nil {
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                if Task.isCancelled { return }
+            }
             state = .loading
             do {
                 state = .ready(
                     try await scope.repo.availableNumbers(
                         country: country,
                         areaCode: effectiveAreaCode,
-                        bestEffort: bestEffort
+                        bestEffort: bestEffort,
+                        contains: searchDigits
                     )
                 )
             } catch {
