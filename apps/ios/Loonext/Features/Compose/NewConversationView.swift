@@ -765,6 +765,7 @@ private struct NewConversationLoaded: View {
             ),
         ],
         businessName: "Loonext Fencing",
+        senderName: "Sam",
         companySignature: nil,
         selectedContact: nil,
         onContactChange: { _ in },
