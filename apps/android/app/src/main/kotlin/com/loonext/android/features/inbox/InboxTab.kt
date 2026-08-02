@@ -983,6 +983,25 @@ private fun InboxList(
             }
         }
     }
+
+    // #476: which first-run list this person should see, if any. Resolved from
+    // the capability the items actually need, so a read-only observer is not
+    // handed a checklist of things their role cannot do.
+    val startedAudience = remember(me, companyId) {
+        startedAudience(me.memberships.firstOrNull { it.company_id == companyId }?.role)
+    }
+    var startedSteps by remember(companyId, startedAudience) {
+        mutableStateOf<List<StartedStep>>(emptyList())
+    }
+    LaunchedEffect(companyId, startedAudience, me.company?.subscription_status) {
+        startedSteps = loadStartedSteps(
+            audience = startedAudience,
+            companyId = companyId,
+            me = me,
+            meRepo = graph.meRepo,
+            repo = repo,
+        )
+    }
     LaunchedEffect(controller) {
         graph.realtime.reconnected.collect { controller.refreshAfterReconnect() }
     }
@@ -1074,6 +1093,24 @@ private fun InboxList(
                     ),
                 )
                 Spacer(Modifier.height(14.dp))
+                // #476: first-run guidance, above the list and OUTSIDE the
+                // state switch below. Inside it (or inside the LazyColumn) the
+                // card would vanish for a brand-new workspace, which is its
+                // entire audience — that pane early-returns an empty state
+                // before it ever reaches its list.
+                if (startedSteps.isNotEmpty()) {
+                    GettingStartedCard(
+                        title = if (startedAudience == StartedAudience.SETUP) "Getting started"
+                        else "Getting the hang of it",
+                        steps = startedSteps,
+                        companyId = companyId,
+                        kind = startedAudience,
+                        footer = if (startedAudience == StartedAudience.SETUP) null
+                        else "Your notification settings are yours alone. " +
+                            "Change when we buzz you in Settings.",
+                    )
+                    Spacer(Modifier.height(14.dp))
+                }
                 Box(Modifier.weight(1f)) {
                     when (val current = controller.state) {
                         // First fetch only (#176 keeps every revisit cached):

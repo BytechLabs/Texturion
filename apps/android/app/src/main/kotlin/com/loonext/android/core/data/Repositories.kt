@@ -6,6 +6,7 @@ import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.ForYou
 import com.loonext.android.core.model.Me
+import com.loonext.android.core.model.MemberFirsts
 import com.loonext.android.core.model.NotificationItem
 import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.PipelineReportResponse
@@ -36,6 +37,14 @@ class MeRepository(private val api: ApiClient) {
 
     suspend fun updateDisplayName(name: String): Map<String, String> =
         api.patch("/v1/me", mapOf("display_name" to name), companyId = null)
+
+    /**
+     * #476: what this member has done in this workspace. NOT company-exempt,
+     * unlike [me] — the answer is scoped to the workspace they are in, so the
+     * id is required rather than optional.
+     */
+    suspend fun firsts(companyId: String): MemberFirsts =
+        api.get("/v1/me/firsts", companyId = companyId)
 }
 
 class ForYouRepository(private val api: ApiClient) {

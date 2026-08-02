@@ -164,6 +164,21 @@ struct EmailState: Codable, Sendable {
     @Default<DefaultFalse> var fixable: Bool
 }
 
+/// GET /v1/me/firsts — #405/#476. Has THIS member replied, written a note, and
+/// marked something done, in THIS workspace.
+///
+/// Its own route rather than a field on /v1/me: that one is the hottest in the
+/// product, and this answers a question that only matters for a few days of one
+/// person's life. `@Default` rather than a bare `let` because a Swift default
+/// on a non-optional property does NOT make the key optional to the synthesized
+/// `init(from:)` — decoding still demands it, and the card must never turn a
+/// half-understood payload into a thrown error.
+struct MemberFirsts: Codable, Sendable {
+    @Default<DefaultFalse> var replied: Bool
+    @Default<DefaultFalse> var noted: Bool
+    @Default<DefaultFalse> var marked_done: Bool
+}
+
 enum NumberStatus {
     static let provisioning = "provisioning"
     static let active = "active"

@@ -966,6 +966,12 @@ private struct InboxList: View {
                     onPickTag: { tagSheetOpen = true }
                 )
 
+                // #476: first-run guidance, above the list and OUTSIDE the
+                // state switch below. Inside it the card would vanish for a
+                // brand-new workspace, which is its entire audience.
+                GettingStartedCard(graph: graph, companyId: companyId, me: me)
+                    .padding(.horizontal, 18)
+
                 switch controller.state {
                 case .loading:
                     CenteredLoading()

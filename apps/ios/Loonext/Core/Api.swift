@@ -11,6 +11,13 @@ struct MeApi: Sendable {
         try await api.get("/v1/me", companyId: companyId)
     }
 
+    /// #476: what this member has done in this workspace. NOT company-exempt,
+    /// unlike `me()` — the answer is scoped to the workspace they are in, so
+    /// the id is required rather than optional.
+    func firsts(companyId: String) async throws -> MemberFirsts {
+        try await api.get("/v1/me/firsts", companyId: companyId)
+    }
+
     func updateDisplayName(_ name: String) async throws {
         let _: JSONValue = try await api.patch(
             "/v1/me",
