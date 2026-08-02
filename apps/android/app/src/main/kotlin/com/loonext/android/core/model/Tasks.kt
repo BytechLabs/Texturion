@@ -270,6 +270,8 @@ data class ReplySuggestions(
  */
 fun replyDraftMessage(reason: String?): String = when (reason) {
     "disabled" -> "Drafting is turned off for this workspace. Settings, AI turns it back on."
+    // #250: a thread somebody marked as spam never spends AI budget.
+    "spam" -> "This thread is marked as spam, so Lou skips it. Unmark it to draft a reply."
     "nothing_to_reply" -> "Nothing to draft from yet. Type a few words and try again."
     "over_cap" -> "This month's drafting is used up. It starts again next month."
     "rate_limited" -> "That was a lot of drafts at once. Try again in a moment."

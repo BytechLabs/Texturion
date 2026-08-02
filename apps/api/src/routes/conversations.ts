@@ -1047,6 +1047,22 @@ conversationsRoutes.post(
       need: "text",
     });
 
+    // #250: a thread somebody marked as spam never spends AI budget. Drafting
+    // a warm reply to a robotext is a model call the customer did not want and
+    // is paying for either way.
+    //
+    // Gated on the HUMAN's `is_spam`, deliberately, and not on the classifier's
+    // `spam_suspected_at`. A suspicion is a guess that only silences a
+    // notification; refusing to draft on a guess would take a tool away from
+    // somebody who can see the thread and has decided it is real.
+    if (conversation.is_spam) {
+      return c.json({
+        suggestions: [],
+        suggestions_disabled: true,
+        reason: "spam" as const,
+      });
+    }
+
     const settings = await loadAiSettings(db, companyId);
     if (!settings.suggest_replies) {
       return c.json({

@@ -18,6 +18,8 @@ export function suggestionFailureMessage(
   switch (reason) {
     case "disabled":
       return "Drafting is turned off for this workspace. Settings, AI turns it back on.";
+    case "spam":
+      return "This thread is marked as spam, so Lou skips it. Unmark it to draft a reply.";
     case "nothing_to_reply":
       return "Nothing to reply to yet. Type a few words and try again.";
     case "over_cap":

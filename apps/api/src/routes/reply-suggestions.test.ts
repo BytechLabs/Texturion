@@ -60,6 +60,8 @@ const TWO_REPLIES = {
 };
 
 interface StubOptions {
+  /** #250: the thread is marked spam, so no AI budget may be spent on it. */
+  spam?: boolean;
   /** Settings row; null = the row is absent (defaults apply). */
   settings?: {
     suggest_replies: boolean;
@@ -89,8 +91,8 @@ function stubs(options: StubOptions = {}): SupabaseStub {
       company_id: COMPANY_ID,
       contact_id: CONTACT_ID,
       phone_number_id: "eeeeeeee-1111-4222-8333-444444444444",
-      status: "open",
-      is_spam: false,
+      status: options.spam === true ? "closed" : "open",
+      is_spam: options.spam === true,
       assigned_user_id: null,
       pinned_at: null,
       pinned_by_user_id: null,
@@ -185,6 +187,26 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     // Best effort: a draft with less context beats no draft at all.
     expect(res.status).toBe(200);
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("spends nothing on a thread somebody marked as spam (#250)", async () => {
+    // A robotext costs us a model call the customer never wanted and pays for
+    // either way. Checked BEFORE the settings read and before the cap, so a
+    // spam thread cannot consume the monthly allowance a real customer needs.
+    const { ai, run } = mockAi(TWO_REPLIES);
+    const sb = stubs({ spam: true });
+    const res = await suggest(sb, { ...env, AI: ai });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      suggestions: [],
+      suggestions_disabled: true,
+      reason: "spam",
+    });
+    expect(run).not.toHaveBeenCalled();
+    // The reservation is the spend. Not reaching the model is not enough if a
+    // request still burned a slot off the monthly cap.
+    expect(sb.find("POST", "/rest/v1/rpc/ai_usage_reserve")).toHaveLength(0);
   });
 
   it("toggle OFF returns nothing and never reaches the model or the cap", async () => {

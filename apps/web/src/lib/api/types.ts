@@ -786,7 +786,10 @@ export interface ReplySuggestions {
     | "rate_limited"
     | "over_cap"
     | "model_error"
-    | "unusable_output";
+    | "unusable_output"
+    // #250: the thread is marked spam, so no budget is spent drafting a warm
+    // reply to a robotext.
+    | "spam";
 }
 
 export interface Task {

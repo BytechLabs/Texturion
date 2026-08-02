@@ -140,6 +140,9 @@ func replyDraftMessage(_ reason: String?) -> String {
     switch reason {
     case "disabled":
         return "Drafting is turned off for this workspace. Settings, AI turns it back on."
+    // #250: a thread somebody marked as spam never spends AI budget.
+    case "spam":
+        return "This thread is marked as spam, so Lou skips it. Unmark it to draft a reply."
     case "nothing_to_reply":
         return "Nothing to draft from yet. Type a few words and try again."
     case "over_cap":
