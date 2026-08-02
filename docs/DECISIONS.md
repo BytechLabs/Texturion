@@ -6425,3 +6425,78 @@ are measurable: the funnel events from #255 and the churn reasons from #277.
 **The Connect question stays genuinely open.** This decision declines exposure,
 which is the direction that needs no risk appetite to take; accepting it is the
 owner's call and is not made here.
+
+## D111 — RCS is a change, not a rewrite, so we do not build the abstraction until there is a reason (#230, #450, 2026-08-02)
+
+**We do not abstract the message channel now.** #230 asked whether adding RCS
+later would be a change we make or an architecture we rewrite. The audit
+(`docs/RCS-READINESS.md`) found **36 SMS-shaped sites and not one of them XL**:
+9 small, 17 medium, 10 large, zero architectural. Nothing in the data model
+forces a rewrite. The expensive sites are expensive because they are live
+billing surfaces, not because they are shaped wrong.
+
+That is the whole answer to the question the spike was asked. Building a
+channel abstraction today would be paying, in complexity every reader carries
+forever, to avoid a cost the audit says is not there.
+
+**And the commercial case that would have justified it is gone.** #450 argued
+RCS Conversational's 24-hour session billing makes a shared inbox *cheaper*.
+Our provider does not sell that: Telnyx bills RCS **per segment** (`VENDOR-
+QUESTIONS.md` R5), and the words session, conversational and 24-hour appear
+nowhere on their pricing page. At Telnyx an eight-message exchange bills eight
+times, exactly as SMS does, at a higher unit price, on both legs.
+
+**Canada is absent from their RCS coverage entirely** — US carriers only. For a
+Canada-first product that is the more disqualifying half, and it is a *carrier*
+fact rather than a vendor-willingness one, so it is not something a
+conversation fixes.
+
+### The trigger, stated so nobody has to re-derive it
+
+Ship RCS when **both** are true:
+
+1. **Telnyx publishes Canadian RCS carrier coverage.** Today: none. This is the
+   gate, and it is checkable in one page-read rather than a meeting.
+2. **The verified-sender identity benefit has been argued on its own merits and
+   won** — knowing it costs MORE per message, not less. That is a different
+   argument from the one #450 made, and it is the one that survives: a business
+   name and logo on an inbound message instead of a ten-digit number nobody
+   recognises is worth something, and #393's CASL sender-identification problem
+   and #379's carrier filtering both point at it.
+
+**Cost is explicitly NOT a trigger.** That thesis is dead at our provider, and
+`scripts/ops/rcs-session-model.mjs` now prints so above its own break-even
+table. Re-running it does not change this decision; only a different provider
+would.
+
+### The one thing that is time-sensitive, and is not this
+
+`usage_events` carries no channel dimension, and the audit's finding is that
+**no backfill can reclassify rows that were never tagged**. Every other site on
+the list costs the same whether it is fixed today or in two years. That one
+silently gets more expensive every day the ledger grows.
+
+It is tracked as #506 so it can be decided for its own reasons — a ledger
+that cannot tell one revenue stream from another is a problem the day a second
+stream exists, and voice already is one. This decision does not fix it, because
+#230's acceptance is explicit that the spike changes no production behaviour
+and a schema change is production.
+
+### Degrade-to-SMS, recorded now because it is cheap to say and expensive to
+discover
+
+When RCS does arrive, an absent or unknown recipient capability degrades
+**silently to SMS**. Not an error path, not a warning, not a blocked send. The
+product's promise is that the message arrives; a channel that is newer than the
+promise does not get to weaken it. Three of the client message bubbles already
+close their status branch with a null default rather than throwing, which is
+the same posture and worth keeping.
+
+### Read receipts are a promise, not a status value
+
+RCS reports when a customer *read* a message. The delivery ladder ends at
+delivered on every layer at once — the enum, the status mapper, and the
+four-state branch in each client. Adding 'read' is not a schema widening; it is
+the product starting to tell an owner something about their customer's
+behaviour that it has never told them. Whether we want to say it at all is a
+product decision to make deliberately, and it is not made here.
