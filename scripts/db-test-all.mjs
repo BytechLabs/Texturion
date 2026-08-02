@@ -115,6 +115,7 @@ const SUITES = [
   "pricing_snapshot",
   "tag_governance",
   "template_uses",
+  "contact_merge",
 ];
 
 const args = process.argv.slice(2);

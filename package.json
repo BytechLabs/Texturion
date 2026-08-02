@@ -80,6 +80,7 @@
     "db:test:ownership": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/ownership_transfer.test.sql",
     "db:test:tag-governance": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/tag_governance.test.sql",
     "db:test:template-uses": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/template_uses.test.sql",
+    "db:test:contact-merge": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/contact_merge.test.sql",
     "db:test:pricing-snapshot": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/pricing_snapshot.test.sql",
     "db:test:pipeline-stages": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/pipeline_stages.test.sql",
     "db:test:saved-views": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/saved_views.test.sql",
