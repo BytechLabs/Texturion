@@ -106,6 +106,9 @@ const MMS_SIGNED_URL_TTL_SECONDS = 3600;
 const CONVERSATION_COLUMNS =
   "id,company_id,contact_id,phone_number_id,status,is_spam,assigned_user_id," +
   "pinned_at,pinned_by_user_id,last_message_at,closed_at,created_at,updated_at," +
+  // #250: the classifier's suspicion and its reasons. A badge that cannot
+  // say WHY is one people learn to ignore, so the signals travel with it.
+  "spam_suspected_at,spam_signals," +
   // #414 ask 2 — "visibly flagged in the inbox". Set when a customer replies
   // URGENT; the clients badge the row while the thread is open, and closing
   // the thread is the crew saying it was handled.
@@ -150,6 +153,11 @@ const patchSchema = z
     // #342: "yes, this is still spam". Answers the review prompt without
     // making the decision permanent again — only literal true has meaning.
     spam_reviewed: z.literal(true).optional(),
+    // #250: "this is not spam" against the CLASSIFIER, which is a
+    // different sentence from is_spam:false against a person's own mark.
+    // Only literal false has meaning — nothing may set a suspicion from
+    // outside, because then it would no longer be the machine's opinion.
+    spam_suspected: z.literal(false).optional(),
   })
   .refine(
     (body) =>
@@ -157,7 +165,8 @@ const patchSchema = z
       "assigned_user_id" in body ||
       body.is_spam !== undefined ||
       body.pinned !== undefined ||
-      body.spam_reviewed === true,
+      body.spam_reviewed === true ||
+      body.spam_suspected === false,
     { message: "Provide at least one field to update." },
   );
 
@@ -664,6 +673,16 @@ conversationsRoutes.patch(
     // dismissal would be the noise this feature exists to avoid.
     if (body.spam_reviewed === true && current.is_spam) {
       patch.spam_reviewed_at = now;
+    }
+
+    // #250: the crew looked and it is a real customer. Clearing both the
+    // stamp and the reasons is what makes the badge disappear, and it must
+    // survive the next inbound from the same sender — which it does,
+    // because by then the thread has our outbound on it and the classifier
+    // treats a relationship as outranking every content signal.
+    if (body.spam_suspected === false && current.spam_suspected_at) {
+      patch.spam_suspected_at = null;
+      patch.spam_signals = null;
     }
 
     if (
