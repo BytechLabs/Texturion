@@ -73,7 +73,7 @@ not here.
 
 | Key | String |
 |---|---|
-| `NSMicrophoneUsageDescription` | "Loonext uses the microphone for phone calls." |
+| `NSMicrophoneUsageDescription` | "Loonext uses the microphone for phone calls, and to write down the wrap-up you speak after one." |
 | `NSLocationWhenInUseUsageDescription` | "Loonext shows where you are on the job map so you can see which jobs are nearby." |
 | `NSContactsUsageDescription` | "Loonext shows your phone's contacts alongside your crew's, so you can text someone without adding them first. Your contacts stay on your phone." |
 
