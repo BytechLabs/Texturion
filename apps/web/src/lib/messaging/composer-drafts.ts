@@ -117,3 +117,52 @@ export function clearDraftMentions(conversationId: string): void {
     // As above.
   }
 }
+
+/**
+ * #299/#269 — save whatever is in the box when the page is going away.
+ *
+ * The composer writes its draft on a debounce: one entry per idle moment
+ * rather than one per keystroke. That is right for the steady state and wrong
+ * at exactly the moment it matters, because the debounce's cleanup CANCELS a
+ * pending write. Type a reply and leave inside that window — close the tab,
+ * reload, background the app, open another thread — and the last keystrokes
+ * are discarded rather than saved.
+ *
+ * #299 makes it specific rather than theoretical. A mid-session network drop
+ * makes the product look broken, the reasonable response is a reload, and that
+ * reload lands inside the window somebody was still typing in. The draft
+ * feature exists precisely so that reply survives, and it was losing it in the
+ * one case it was built for. #269 was this same bug on Android.
+ *
+ * `pagehide` rather than `beforeunload`: the latter disqualifies a page from
+ * the bfcache and does not fire reliably on mobile. `visibilitychange` covers
+ * the phone that is backgrounded and then killed without the page ever hiding.
+ * Unmount is the third exit, and the one a thread switch takes.
+ *
+ * `read` is called at flush time rather than closed over, so the listener is
+ * registered once and never re-registers on a keystroke. Writing the same
+ * value twice is free — this is a localStorage set, not a request — so a flush
+ * that races the timer costs nothing.
+ */
+export function flushDraftOnExit(
+  read: () => { conversationId: string; text: string; mentions: readonly StoredMention[] },
+): () => void {
+  if (typeof window === "undefined") return () => {};
+
+  const flush = () => {
+    const { conversationId, text, mentions } = read();
+    saveDraft(conversationId, text);
+    saveDraftMentions(conversationId, mentions);
+  };
+  const onVisibility = () => {
+    if (document.visibilityState === "hidden") flush();
+  };
+
+  window.addEventListener("pagehide", flush);
+  document.addEventListener("visibilitychange", onVisibility);
+  return () => {
+    window.removeEventListener("pagehide", flush);
+    document.removeEventListener("visibilitychange", onVisibility);
+    flush();
+  };
+}

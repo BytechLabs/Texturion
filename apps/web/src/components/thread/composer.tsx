@@ -41,6 +41,7 @@ import {
   clearDraftMentions,
   loadDraft,
   loadDraftMentions,
+  flushDraftOnExit,
   saveDraft,
   saveDraftMentions,
 } from "@/lib/messaging/composer-drafts";
@@ -550,6 +551,21 @@ export function Composer({
     const timer = setTimeout(() => saveDraftMentions(conversationId, picked), 400);
     return () => clearTimeout(timer);
   }, [conversationId, picked]);
+
+  // #299/#269: the debounce above cancels a pending write on cleanup, so a
+  // reload or thread switch inside the window discarded what was typed. The
+  // flush lives with the persistence module; the reasoning is there.
+  const draftRef = useRef({ conversationId, text, picked });
+  draftRef.current = { conversationId, text, picked };
+  useEffect(
+    () =>
+      flushDraftOnExit(() => ({
+        conversationId: draftRef.current.conversationId,
+        text: draftRef.current.text,
+        mentions: draftRef.current.picked,
+      })),
+    [],
+  );
 
   // Object URLs are revoked when chips are removed or the composer unmounts.
   const attachmentsRef = useRef(attachments);
