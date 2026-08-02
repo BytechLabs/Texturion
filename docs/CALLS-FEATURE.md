@@ -52,8 +52,15 @@ feel like a feature, not a fee.
   founder direction):** outbound click-to-call bridging shipped — the app
   rings the member's cell from the business number, then connects them to
   the customer. In-browser WebRTC audio remains a possible later wave.
-- **No call recording, no voicemail transcription** — two-party-consent risk;
-  revisit only as its own decision.
+- ~~**No voicemail transcription**~~ **REVERSED (#409):** voicemail is
+  transcribed by `@cf/openai/whisper-large-v3-turbo` and the text ships on all
+  three clients. Recording a voicemail was never the two-party-consent risk —
+  it starts only after our own greeting, so the caller is speaking to a machine
+  on purpose.
+- **No call recording** — LIVE calls are never recorded. Settled by **D112**:
+  the value people want is a summary, not a tape, and the rule that binds
+  depends on where the other party is, which we can only infer from an area
+  code that lies.
 - **No IVR/PBX** — FEATURE-GAPS non-goal, unchanged.
 - **No concrete allowance numbers on marketing surfaces** — D34/D36; the
   fair-use page stays the only public home.

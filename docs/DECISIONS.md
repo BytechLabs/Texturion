@@ -28,6 +28,7 @@ refusal means adding a row.
 | An IVR, call trees, extensions, a hunt group as a product surface | D36-D43 scope | Calls shipped as a shared line, not a phone system. #244 covers routing without becoming a PBX |
 | A second status machine for the job pipeline, or stages as a table rather than tags | D7, D108 | Stages are TAGS carrying a stage KEY. A status machine is the rigidity that decision rejected |
 | Storage tiers, storage add-ons, charging a customer for attachments | D34, #121 | Storage is free to the customer. The cost is capped, not billed |
+| Recording a live call: call recording, retained call audio, a recordings library | D112 | The value is a summary, not a tape. The rule that binds depends on where the other party is, and we can only infer that from an area code |
 
 An entry here is not "never". It is "not without a new numbered decision that
 supersedes the one named", and the Because column is what such a decision would
@@ -6507,3 +6508,71 @@ four-state branch in each client. Adding 'read' is not a schema widening; it is
 the product starting to tell an owner something about their customer's
 behaviour that it has never told them. Whether we want to say it at all is a
 product decision to make deliberately, and it is not made here.
+
+## D112 — we do not record live calls; the value people want is a summary, not a tape (#279, 2026-08-02)
+
+**No live-call recording.** Not off by default, not behind a flag — not built.
+Voicemail recording stays exactly as it is: `telnyx-record-start` fires only on
+`speak-ended`, after our own greeting, so the only voice we capture is one a
+caller left on purpose, at a machine, after being spoken to.
+
+#279 asked for the no-recording alternative to be evaluated **first**, on the
+grounds it might be sufficient. It is, and that is the decision.
+
+### What people actually want, and it is not a tape
+
+The recurring, expensive dispute in the trades is *"what did I quote him?"*
+Nobody wants to re-listen to a nineteen-minute call to answer it. They want the
+answer. Reading beats listening, and searchable beats both — #279 says so
+itself in ask 6, which is the ask that quietly contains the whole feature.
+
+**A post-call summary written from a transcript delivers that**, and the
+machinery exists: D89's pipeline already turns speech into text through
+`@cf/openai/whisper-large-v3-turbo`, and voicemail transcripts ship on all
+three clients today. A summary keeps the answer and discards the tape.
+
+### Why the tape is a different category of thing
+
+**We cannot know the rule that applies.** Several US states require all-party
+consent, and which rule binds depends on where the *other* party is. We can
+infer that only from an area code, and #279 is right that area codes lie — we
+know they do, because `destination-clock.ts` exists precisely because an area
+code is not a location. A compliance posture resting on an inference we have
+already documented as unreliable is not a posture.
+
+**The consent burden falls on someone who is not our user.** The party being
+recorded is the customer's customer. They cannot accept our terms, so consent
+has to be an undisableable announcement on every call in both directions —
+which degrades the product for the 100% of calls that never become a dispute,
+to serve the fraction that do.
+
+**It is the most sensitive data we would ever hold**, and it inherits every
+downstream obligation at once: export, deletion, retention, store data-safety
+declarations, subprocessor disclosure, per-number access, and a playback audit
+trail. Each is real work, and none of it is the feature.
+
+**A solo founder cannot absorb a wiretap-statute mistake.** The cost-protection
+posture that caps every other spend applies here in its sharpest form: this is
+the one exposure where being wrong once is not a bill.
+
+### What we build instead, when we build it
+
+An **AI call summary** on the existing transcript pipeline: the call is
+transcribed, summarised into the thread, and **the audio is discarded**. No
+retained recording, so no consent announcement, no retention window, no
+playback audit, and no new category of breach.
+
+That is a separate issue and is not authorised here — this decision only
+establishes that it is the shape worth pursuing, and that recording is not.
+
+### The trigger, and it is deliberately narrow
+
+Revisit **only** when a customer's own compliance obligation requires a
+retained recording — a regulated trade, an insurer, a contract term — *and*
+they are in a jurisdiction whose rule we can determine without inferring it
+from an area code. Demand alone is not a trigger: "customers ask for it" is
+what makes this tempting, and it is not new information.
+
+**Not a trigger:** a competitor shipping it. Quo ships call recording and we
+say so plainly on `/compare/quo`; conceding where a competitor genuinely wins
+is the posture, not a reason to take on an exposure we have decided against.
