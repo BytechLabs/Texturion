@@ -37,7 +37,7 @@ import {
   QUO_ROWS,
   QUO_SEAT_PRICING,
 } from "./page-data";
-import { COMPARE_AS_OF } from "../verification";
+import { COMPARE_AS_OF, COMPARE_MONTH } from "../verification";
 
 const PATH = LIVE_ROUTES.compareQuo;
 
@@ -62,7 +62,7 @@ export default function CompareQuoPage() {
       <CompareHero
         dateline="$19/USER/MO + 1¢/TEXT"
         title="Loonext vs Quo: flat beats per-user."
-        lead="Quo (formerly OpenPhone) is a full business phone system: calling included, priced per user at $19 a month on monthly billing, with texting metered at 1¢ a segment and extra numbers at $5 each. Loonext is one line for texts and calls, $29 a month flat for the whole crew, both included. Here is the arithmetic, dated and sourced, July 2026."
+        lead={`Quo (formerly OpenPhone) is a full business phone system: calling included, priced per user at $19 a month on monthly billing, with texting metered at 1¢ a segment and extra numbers at $5 each. Loonext is one line for texts and calls, $29 a month flat for the whole crew, both included. Here is the arithmetic, dated and sourced, ${COMPARE_MONTH}.`}
       />
 
       <LedgerBand

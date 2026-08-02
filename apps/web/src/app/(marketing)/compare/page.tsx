@@ -35,14 +35,14 @@ import {
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 import { HONEST_OMISSIONS } from "./honest-omissions";
-import { COMPARE_AS_OF } from "./verification";
+import { COMPARE_AS_OF, COMPARE_MONTH } from "./verification";
 
 const PATH = LIVE_ROUTES.compareIndex;
 
 export const metadata: Metadata = buildMetadata({
   title: "Compare Loonext: the same crew, priced elsewhere",
   description:
-    "One workload, priced three ways: Loonext next to Heymarket and Quo for a 3-person crew sending 500 texts a month. Every competitor price dated July 2026 and sourced from their own pricing page, and every place they fit better named outright.",
+    `One workload, priced three ways: Loonext next to Heymarket and Quo for a 3-person crew sending 500 texts a month. Every competitor price dated ${COMPARE_MONTH} and sourced from their own pricing page, and every place they fit better named outright.`,
   path: PATH,
 });
 

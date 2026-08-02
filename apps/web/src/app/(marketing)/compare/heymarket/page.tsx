@@ -28,7 +28,7 @@ import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 
-import { COMPARE_AS_OF } from "../verification";
+import { COMPARE_AS_OF, COMPARE_MONTH } from "../verification";
 
 import {
   HEYMARKET_COLUMNS,
@@ -42,7 +42,7 @@ const PATH = LIVE_ROUTES.compareHeymarket;
 export const metadata: Metadata = buildMetadata({
   title: "Loonext vs Heymarket: flat $29 vs $49 a person",
   description:
-    "A dated, sourced comparison. Loonext is $29/mo flat with texting included under automated fair use; Heymarket is $49/user with a 2-user minimum, texts at 3¢/segment, and a $10/mo carrier fee. About $172 vs $29 for a 3-person crew, July 2026.",
+    `A dated, sourced comparison. Loonext is $29/mo flat with texting included under automated fair use; Heymarket is $49/user with a 2-user minimum, texts at 3¢/segment, and a $10/mo carrier fee. About $172 vs $29 for a 3-person crew, ${COMPARE_MONTH}.`,
   path: PATH,
 });
 
@@ -60,7 +60,7 @@ export default function CompareHeymarketPage() {
       <CompareHero
         dateline="$49/USER/MO · THEIR PUBLISHED STARTER SEAT"
         title="Loonext vs Heymarket: flat $29 vs $49 a person."
-        lead="Heymarket is a polished, enterprise-grade shared inbox, and its price model is per user: $49 a seat with a two-seat minimum, texts billed on top at 3¢ a segment, plus a $10 monthly carrier fee. Loonext is $29 a month for the whole crew, texts included. Here is the arithmetic, dated and sourced, July 2026."
+        lead={`Heymarket is a polished, enterprise-grade shared inbox, and its price model is per user: $49 a seat with a two-seat minimum, texts billed on top at 3¢ a segment, plus a $10 monthly carrier fee. Loonext is $29 a month for the whole crew, texts included. Here is the arithmetic, dated and sourced, ${COMPARE_MONTH}.`}
       />
 
       <LedgerBand

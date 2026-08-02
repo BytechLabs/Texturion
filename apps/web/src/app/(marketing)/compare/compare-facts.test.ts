@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -102,6 +106,72 @@ describe("compare ledgers (shared laws)", () => {
       ).toBe("$29");
     });
 
+    it(`${page.name}: argues at least one CAPABILITY, not only price (#435)`, () => {
+      // A ledger of nothing but prices is an argument a better-funded
+      // competitor erases by discounting. These two rows are the ones a
+      // discount cannot answer.
+      const capability = page.rows.filter((r) =>
+        ["Voicemail you can read", "AI in the plan, not on the meter"].includes(
+          r.label,
+        ),
+      );
+      expect(capability).toHaveLength(2);
+
+      // Still a ledger, not a feature matrix: #435 ask 3 is explicit that a
+      // long checklist would fight what these pages are good at.
+      const priced = page.rows.filter((r) => !r.total).length;
+      expect(capability.length).toBeLessThan(priced - capability.length);
+    });
+
+    it(`${page.name}: every capability row states OUR side as a claim about us (#435)`, () => {
+      // Ask 2, and the reason for it: "Heymarket has no voicemail
+      // transcription" carries #403's verification burden and goes stale the
+      // day they ship one. A claim about our own product never does.
+      for (const label of [
+        "Voicemail you can read",
+        "AI in the plan, not on the meter",
+      ]) {
+        const row = page.rows.find((r) => r.label === label);
+        const ours = row?.cells[0];
+        const note = typeof ours === "string" ? "" : (ours?.note ?? "");
+        expect(note, `${label}: our cell should describe us`).not.toMatch(
+          /\b(they|their|theirs)\b/i,
+        );
+        expect(note.length, `${label}: our cell needs a real note`).toBeGreaterThan(40);
+      }
+    });
+
+    it(`${page.name}: never claims a competitor LACKS a capability (#403, #435)`, () => {
+      // The competitor cell may say what their pricing page prices, and no
+      // more. Both of these ship AI heavily, so "they cannot do this" would be
+      // false as well as unverifiable.
+      for (const label of [
+        "Voicemail you can read",
+        "AI in the plan, not on the meter",
+      ]) {
+        const row = page.rows.find((r) => r.label === label);
+        const theirs = row?.cells[1];
+        const text =
+          typeof theirs === "string"
+            ? theirs
+            : `${theirs?.value ?? ""} ${theirs?.note ?? ""}`;
+        expect(text, `${label}: no absence claim about a competitor`).not.toMatch(
+          /\b(cannot|can't|doesn't have|does not have|no support|lacks|unable)\b/i,
+        );
+        // It has to be anchored to their published pricing, not to a guess.
+        expect(text.toLowerCase(), `${label}: cite their pricing`).toMatch(
+          /pric(e|es|ing)|credits|rate/,
+        );
+      }
+    });
+
+    it(`${page.name}: says the total excludes AI usage, since a row now prices it (#435)`, () => {
+      // The ledger totals model seats and texts. Adding an AI row without
+      // saying the total omits AI would leave the reader to assume the ~$172
+      // and ~$64 already carry it.
+      expect(page.footnote).toMatch(/total(s)? include(s)? (any )?AI|include AI/i);
+    });
+
     it(`${page.name}: the 500-texts row is an explicit workload scenario, never an allowance claim (#121)`, () => {
       const workload = page.rows.find((r) => r.label.includes("500"));
       expect(workload?.label).toBe("500 texts a month, the workload");
@@ -113,7 +183,40 @@ describe("compare ledgers (shared laws)", () => {
   }
 });
 
-describe("heymarket ledger facts (their published prices, July 2026)", () => {
+describe("compare pages carry ONE dateline (#403, #435)", () => {
+  // Found by rendering the page: the ledger derived "as of August 2026" from
+  // the constant while the hero prose beside it still read "July 2026", because
+  // four rendered strings hardcoded the month. The old guard only covered the
+  // footnote and the column header, so the contradiction was invisible to it.
+  const SOURCES = [
+    "heymarket/page.tsx",
+    "quo/page.tsx",
+    "page.tsx",
+    "heymarket/page-data.ts",
+    "quo/page-data.ts",
+  ];
+  const MONTH_YEAR =
+    /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+20\d\d\b/;
+
+  for (const file of SOURCES) {
+    it(`${file}: states no month and year as a literal`, () => {
+      const source = readFileSync(
+        join(dirname(fileURLToPath(import.meta.url)), file),
+        "utf8",
+      );
+      // Strip block comments: prose ABOUT the date in a docstring is fine, it
+      // is only rendered copy that can contradict the table.
+      const code = source.replace(/\/\*[\s\S]*?\*\//g, "");
+      const hit = MONTH_YEAR.exec(code);
+      expect(
+        hit?.[0],
+        `${file} hardcodes "${hit?.[0]}"; derive it from COMPARE_MONTH so moving the verification date moves every dateline`,
+      ).toBeUndefined();
+    });
+  }
+});
+
+describe("heymarket ledger facts (their published prices, as verified)", () => {
   const flat = HEYMARKET_ROWS.flatMap((r) =>
     r.cells.map((c) => (typeof c === "string" ? c : `${c.value} ${c.note ?? ""}`)),
   ).join(" ");
@@ -135,7 +238,7 @@ describe("heymarket ledger facts (their published prices, July 2026)", () => {
   });
 });
 
-describe("quo ledger facts (their published prices, July 2026)", () => {
+describe("quo ledger facts (their published prices, as verified)", () => {
   const flat = QUO_ROWS.flatMap((r) =>
     r.cells.map((c) => (typeof c === "string" ? c : `${c.value} ${c.note ?? ""}`)),
   ).join(" ");

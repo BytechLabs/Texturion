@@ -20,21 +20,41 @@
  * looking — the whole value of publishing a date is that it is true.
  */
 
-/** The day both ledgers were last checked, figure by figure, against live pages. */
-export const COMPARE_VERIFIED_ON = "2026-07-29";
+/**
+ * The day both ledgers were last checked, figure by figure, against live pages.
+ *
+ * 2026-08-02 (#435): every existing figure re-read on heymarket.com/pricing and
+ * quo.com/pricing and unchanged. The pass also established the two AI prices the
+ * new capability rows cite: Heymarket's "Each AI Agent message costs 3x the base
+ * rate", and Quo's Sona shipping on every plan with 1,000 automation credits at
+ * 100 credits a call, then $1.00 down to $0.45 per call by tier.
+ */
+export const COMPARE_VERIFIED_ON = "2026-08-02";
 
 /**
  * Re-check by this date. A quarter: competitor pricing moves on roughly that
  * cadence, and a claim about somebody else's price is the kind that gets
  * expensive rather than merely wrong when it rots.
  */
-export const COMPARE_RECHECK_AFTER = "2026-10-29";
+export const COMPARE_RECHECK_AFTER = "2026-11-02";
 
 /**
  * The competitor column's dateline, derived so it cannot drift from
  * {@link COMPARE_VERIFIED_ON} — the drift the literal made invisible.
  */
 export const COMPARE_AS_OF = asOfLabel(COMPARE_VERIFIED_ON);
+
+/**
+ * "August 2026" — the bare month, for prose that already supplies its own
+ * "dated and sourced," lead-in.
+ *
+ * #435: four rendered strings (both page leads and two metadata descriptions)
+ * carried a hardcoded "July 2026" while the table beside them derived its
+ * dateline from the constant above. Moving the verification date left the hero
+ * of each page contradicting its own ledger. Exported so there is one date on
+ * these pages and no way to move half of it.
+ */
+export const COMPARE_MONTH = COMPARE_AS_OF.replace(/^as of /, "");
 
 /** "as of July 2026" for an ISO date. Pure, so the test can re-derive it. */
 export function asOfLabel(isoDate: string): string {

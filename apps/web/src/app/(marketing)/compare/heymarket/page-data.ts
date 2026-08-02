@@ -116,6 +116,39 @@ export const HEYMARKET_ROWS: LedgerTableRow[] = [
     ],
   },
   {
+    // #435: the first row here that is not a price. Our cell is a claim about
+    // OUR product; theirs states only what their pricing page prices, because
+    // "they cannot do this" is a competitor claim that carries #403's
+    // verification burden and goes stale the day they ship it.
+    label: "Voicemail you can read",
+    cells: [
+      {
+        value: "Every one, written down",
+        note: "A missed call takes a voicemail and we write it out into the thread, so you read it in the inbox instead of dialling in to listen. Included under fair use, not an add-on.",
+      },
+      {
+        value: "Not a priced line",
+        note: "Their published pricing covers seats, message segments and AI Agent messages. Voicemail transcription is not one of the things it prices.",
+      },
+    ],
+  },
+  {
+    // #435: the row a discount cannot erase. Both competitors ship AI heavily,
+    // so "we have AI and they do not" would be plainly false. What differs is
+    // that they METER it and we cap ours, and that is structural.
+    label: "AI in the plan, not on the meter",
+    cells: [
+      {
+        value: "Included, never per use",
+        note: "Lou drafts a reply for you to send or change, and writes your voicemails down, inside the plan price. We cap what our own AI costs us rather than billing you for each message it touches.",
+      },
+      {
+        value: "3x the base rate",
+        note: "Their pricing page prices each AI Agent message at three times the $0.03 base rate, charged on top of seats.",
+      },
+    ],
+  },
+  {
     label: "Monthly total",
     total: true,
     cells: ["$29", "~$172/mo"],
@@ -123,4 +156,4 @@ export const HEYMARKET_ROWS: LedgerTableRow[] = [
 ];
 
 export const HEYMARKET_FOOTNOTE =
-  `Loonext's numbers come straight from our published plans. Heymarket figures are from heymarket.com/pricing, re-verified ${COMPARE_VERIFIED_ON}: Standard $49/user/mo (annual) with a 2-user minimum, SMS/MMS $0.03/segment, and a $10/mo-per-campaign 10DLC fee. The ~$172 total assumes 3 seats, 500 single-segment texts, and one campaign; texts over 160 characters count as multiple segments and cost more. One-time registration fees are excluded from both totals (ours is $29). If any figure changes, tell us and we'll correct it.`;
+  `Loonext's numbers come straight from our published plans. Heymarket figures are from heymarket.com/pricing, re-verified ${COMPARE_VERIFIED_ON}: Standard $49/user/mo (annual) with a 2-user minimum, SMS/MMS $0.03/segment, and a $10/mo-per-campaign 10DLC fee. The ~$172 total assumes 3 seats, 500 single-segment texts, and one campaign; texts over 160 characters count as multiple segments and cost more. Neither total includes any AI usage: theirs bills AI Agent messages at 3x the base rate, and ours is included. One-time registration fees are excluded from both totals (ours is $29). If any figure changes, tell us and we'll correct it.`;
