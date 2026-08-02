@@ -182,9 +182,37 @@ export function useLiveCall(sessionId: string | null) {
     // The conversation link appears once answer-time threading lands — a
     // couple of quick retries beat a dead "Open conversation" affordance.
     retry: 2,
+    // #516: `retry` only covers a FAILED read. The read that succeeds and
+    // reports `conversation_id: null` is the common case right after answer —
+    // threading lands a beat later — and it used to end the story: the query
+    // was fresh for 30s, nothing refetched it, and the Messages button stayed
+    // missing for the rest of the call. So poll while the answer is still
+    // pending, 4 reads at 1.2s, which is the same window InCallScreen.kt and
+    // InCallView.swift already gave it. Both phones had this; the web client
+    // never did.
+    refetchInterval: (query) =>
+      query.state.data?.conversation_id != null ||
+      query.state.dataUpdateCount >= LIVE_NOTE_LOOKUP_ATTEMPTS
+        ? false
+        : LIVE_NOTE_LOOKUP_INTERVAL_MS,
     staleTime: 30_000,
   });
 }
+
+/**
+ * #516 — how long the notes link is allowed to be "still coming".
+ *
+ * Exported because two things need the SAME window and must not drift: this
+ * hook, which stops polling when it elapses, and the call bar, which stops
+ * saying "Finding…" when it elapses. A button that promises to keep looking
+ * after the lookup gave up is the failure this pair exists to prevent — it is
+ * the same lie as the missing button, just more patient.
+ *
+ * The values match InCallScreen.kt and InCallView.swift, which both do four
+ * reads 1.2s apart.
+ */
+export const LIVE_NOTE_LOOKUP_ATTEMPTS = 4;
+export const LIVE_NOTE_LOOKUP_INTERVAL_MS = 1_200;
 
 /** D43 phase 3: who can take this call (credentialed, #106-cleared, busy flag). */
 export function useTransferTargets(sessionId: string | null, enabled: boolean) {

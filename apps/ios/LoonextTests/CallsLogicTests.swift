@@ -173,4 +173,15 @@ final class CallsLogicTests: XCTestCase {
         XCTAssertEqual("0:42", formatVoicemailLength(42))
         XCTAssertEqual("2:00", formatVoicemailLength(120))
     }
+
+    /// #516 — mirrors CallsLogicTest.kt's `note control says Linking while the
+    /// thread link resolves`, case for case, because the two are hand-ported.
+    func testNoteControlSaysLinkingWhileTheThreadLinkResolves() {
+        XCTAssertEqual("Linking…", noteControlLabel(linked: false, resolving: true))
+        XCTAssertEqual("Note", noteControlLabel(linked: true, resolving: false))
+        // Resolution genuinely gave up: honest plain label, no endless pending.
+        XCTAssertEqual("Note", noteControlLabel(linked: false, resolving: false))
+        // A linked note is never pending, whatever the resolver flag says.
+        XCTAssertEqual("Note", noteControlLabel(linked: true, resolving: true))
+    }
 }

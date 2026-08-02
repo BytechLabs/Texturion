@@ -28,6 +28,8 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
+  LIVE_NOTE_LOOKUP_ATTEMPTS,
+  LIVE_NOTE_LOOKUP_INTERVAL_MS,
   useLiveCall,
   useTransferCall,
   useTransferTargets,
@@ -297,6 +299,25 @@ function ActiveCard({ call }: { call: CallInfo }) {
   // (kill switch or a pre-#211 worker rollback) still carries a sessionId but
   // has no DO to address, so /live 404s and no dead transfer button appears.
   const serverAddressable = live.isSuccess;
+  const conversationId = live.data?.conversation_id ?? null;
+  // #516: mirrors Android's `noteLinkGaveUp`. The query stops polling after its
+  // window; without this the button would go on saying "Finding…" forever,
+  // which is the same lie as the missing button with more patience.
+  const [noteLookupGaveUp, setNoteLookupGaveUp] = useState(false);
+  useEffect(() => {
+    setNoteLookupGaveUp(false);
+    if (call.sessionId === null) return;
+    const timer = setTimeout(
+      () => setNoteLookupGaveUp(true),
+      LIVE_NOTE_LOOKUP_ATTEMPTS * LIVE_NOTE_LOOKUP_INTERVAL_MS,
+    );
+    return () => clearTimeout(timer);
+    // Re-armed per session: a transfer lands a NEW session on the same chip,
+    // and that call's lookup deserves its own window rather than inheriting a
+    // give-up from the leg before it.
+  }, [call.sessionId]);
+  const noteLinkPending =
+    conversationId === null && !noteLookupGaveUp && !live.isError;
 
   return (
     <div
@@ -343,25 +364,63 @@ function ActiveCard({ call }: { call: CallInfo }) {
         </p>
       </div>
 
-      {/* In-call notes: the conversation IS the notepad (threaded at answer). */}
-      {live.data?.conversation_id && (
-        <Button
-          asChild
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Open the conversation to take notes"
-        >
-          <Link href={`/inbox/${live.data.conversation_id}`}>
+      {/* In-call notes: the conversation IS the notepad (threaded at answer).
+          #516: PRESENT while the call is active, enabled once the thread is
+          known. It used to be absent until then, which on a transferred call
+          could be forever — and an absent control is indistinguishable from a
+          feature that does not exist, so the founder found hold/unhold before
+          they found the button. Both phones already keep it mounted and
+          disabled (InCallScreen.kt #202, InCallView.swift); this is the web
+          client catching up. */}
+      {call.phase === "active" &&
+        (conversationId ? (
+          <Button
+            asChild
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Open the conversation to take notes"
+          >
+            <Link href={`/inbox/${conversationId}`}>
+              <MessageSquareText className="size-4" strokeWidth={1.75} />
+            </Link>
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            disabled
+            // Says WHICH of the two it is. "Not available" on a call that is
+            // still threading reads as broken; "Finding…" on one that already
+            // gave up is a lie the user waits on.
+            aria-label={
+              noteLinkPending
+                ? "Finding this call's conversation…"
+                : "This call has no conversation to take notes in"
+            }
+            title={
+              noteLinkPending
+                ? "Finding this call's conversation…"
+                : "No conversation for this call"
+            }
+          >
             <MessageSquareText className="size-4" strokeWidth={1.75} />
-          </Link>
-        </Button>
-      )}
-      {call.phase === "active" && call.sessionId && serverAddressable && (
+          </Button>
+        ))}
+      {call.phase === "active" && (
         <Button
           variant="ghost"
           size="icon-sm"
           aria-label="Transfer this call"
           aria-expanded={transferOpen}
+          // #516: mounted for the whole active call, enabled once the server
+          // can address the session. Disabled still communicates "this call can
+          // be transferred, just not this instant"; absent communicates nothing.
+          disabled={!call.sessionId || !serverAddressable}
+          title={
+            call.sessionId && serverAddressable
+              ? undefined
+              : "Connecting this call to the server…"
+          }
           onClick={() => {
             // Mutually exclusive with the keypad — they render in the same
             // slot and would otherwise stack on top of each other.

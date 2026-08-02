@@ -6,6 +6,17 @@ import Foundation
 /// imports so they unit-test without a device.
 
 /// Display resolution order: contact > CNAM dip > formatted number.
+/// #516 — the Note control's title while its conversation link is still being
+/// found, mirroring Android's `noteControlLabel`.
+///
+/// A plain greyed "Note" read as broken to the founder (#202), and an absent
+/// one read as a missing feature (#516). Saying "Linking…" says which of the
+/// two this is, and stops saying it the moment the lookup gives up so the
+/// control never promises a wait that is already over.
+func noteControlLabel(linked: Bool, resolving: Bool) -> String {
+    !linked && resolving ? "Linking…" : "Note"
+}
+
 func callerDisplayName(_ call: Call) -> String {
     if let contact = call.contact_name, !contact.isBlank { return contact }
     if let cnam = call.caller_name, !cnam.isBlank { return cnam }

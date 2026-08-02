@@ -254,9 +254,12 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   const resolveSession = useResolveLiveSession();
   const resolveRef = useRef(resolveSession);
   resolveRef.current = resolveSession;
-  // Ring-leg ccids we've already resolved to a customer session — the SDK
+  // Ring-leg ccids whose by-leg resolution is running or done — the SDK
   // fires 'active' repeatedly, and we only need to resolve once per call.
   const resolvedRef = useRef<Set<string>>(new Set());
+  // #516: pending resolve retries, so they can be abandoned when the provider
+  // unmounts rather than dispatching into a dead reducer.
+  const resolveTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   // Is the SDK authenticated + REGISTERED right now (able to ring)? Tracked so
   // recovery only ever acts when the phone is DOWN — it never disturbs a
   // healthy connection.
@@ -322,6 +325,73 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         /* autoplay policy — the answer/place gesture covers it */
       });
     }
+  }, []);
+
+  /**
+   * #516 — resolve an answered inbound ring leg to its CUSTOMER session,
+   * retrying until the ledger row lands.
+   *
+   * The reported symptom was that a member who received a transferred call saw
+   * no Messages and no Transfer button, and that pressing hold and then unhold
+   * made both appear. That is this function's absence, exactly: both controls
+   * are gated on a resolved session, this ran ONCE per 'active', and the only
+   * thing in the product that produces a second 'active' for a call already
+   * answered is a manual hold/unhold. So the old code's promise of "retry
+   * allowed on a later 'active'" was a retry nobody would ever perform — the
+   * founder found the workaround before the code found the retry.
+   *
+   * The race it loses is real and ordinary: a transfer re-rings the customer at
+   * the target, and the target's SDK reaches 'active' before the webhook that
+   * ledgers the new leg has been processed. One attempt is simply too early.
+   *
+   * The policy — 6 attempts, 600ms doubling to a 5s ceiling — is COPIED from
+   * SoftphoneCore.kt/.swift rather than chosen here. Both phones already had
+   * it; the web client is the one that never got it, which is why this is a
+   * parity fix and not a new idea. Keep the three in step.
+   */
+  const resolveSessionWithRetry = useCallback(
+    async (legCcid: string, callId: string): Promise<void> => {
+      let backoffMs = 600;
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        // The call ending mid-backoff makes the answer worthless: nothing is
+        // left to address, and dispatching would resurrect a dead chip.
+        if (!callsRef.current.has(callId)) return;
+        try {
+          const resolved = await resolveRef.current.mutateAsync(legCcid);
+          dispatch({
+            type: "session_known",
+            id: callId,
+            sessionId: resolved.call_session_id,
+          });
+          return;
+        } catch {
+          // Not ledgered yet (or a blip) — wait and ask again.
+        }
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(() => {
+            resolveTimersRef.current.delete(timer);
+            resolve();
+          }, backoffMs);
+          resolveTimersRef.current.add(timer);
+        });
+        backoffMs = Math.min(backoffMs * 2, 5_000);
+      }
+      // Give up on THIS pass but not on the call: clearing the guard lets a
+      // later 'active' (a hold/unhold, or a second answer) try again, which is
+      // the behaviour the phones have and the only thing that used to work here.
+      resolvedRef.current.delete(legCcid);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    // Abandon in-flight resolve backoffs on teardown rather than letting a
+    // timer fire into a dead reducer.
+    const timers = resolveTimersRef.current;
+    return () => {
+      for (const timer of timers) clearTimeout(timer);
+      timers.clear();
+    };
   }, []);
 
   /** Register (or reuse) the SDK client — lazy import, single flight. */
@@ -477,20 +547,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
             const legCcid = call.telnyxIDs?.telnyxCallControlId;
             if (legCcid && !resolvedRef.current.has(legCcid)) {
               resolvedRef.current.add(legCcid);
-              void resolveRef.current
-                .mutateAsync(legCcid)
-                .then((r) =>
-                  dispatch({
-                    type: "session_known",
-                    id: call.id,
-                    sessionId: r.call_session_id,
-                  }),
-                )
-                .catch(() => {
-                  // Retry allowed on a later 'active' if the ledger row hadn't
-                  // landed yet; live-call ops stay disabled meanwhile.
-                  resolvedRef.current.delete(legCcid);
-                });
+              void resolveSessionWithRetry(legCcid, call.id);
             }
           } else {
             const sessionId = call.telnyxIDs?.telnyxSessionId;
@@ -526,7 +583,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     } finally {
       connectingRef.current = null;
     }
-  }, [attachActiveAudio, mintToken, hasLiveCall]);
+  }, [attachActiveAudio, mintToken, hasLiveCall, resolveSessionWithRetry]);
 
   /** Tear a dead client down and build a fresh one — re-mints the token, so a
    *  NEW SIP registration is established (that's what makes the phone ring

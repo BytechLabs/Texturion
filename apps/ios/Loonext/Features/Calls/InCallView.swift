@@ -28,6 +28,10 @@ struct InCallView: View {
     /// the same shape as Android's pendingRoute.
     @State private var speakerPending: Bool?
     @State private var conversationId: String?
+    /// #516: the lookup below ran its four attempts and found nothing. Kept
+    /// apart from `conversationId == nil` so the Note control can tell "still
+    /// looking" from "looked, and there is nothing".
+    @State private var noteLookupGaveUp = false
     /// #211: whether the server can actually address this call. A successful
     /// live read is the proof; a session id alone is not. An outbound call that
     /// fell to the legacy webhook path still carries a session id but has no
@@ -99,6 +103,7 @@ struct InCallView: View {
         .task(id: featured?.sessionId) {
             conversationId = nil
             serverAddressable = false
+            noteLookupGaveUp = false
             guard let session = featured?.sessionId else { return }
             for attempt in 0 ..< 4 {
                 if let facts = try? await manager.liveFacts(sessionId: session) {
@@ -109,6 +114,7 @@ struct InCallView: View {
                 if Task.isCancelled { return }
                 if attempt < 3 { try? await Task.sleep(for: .milliseconds(1_200)) }
             }
+            noteLookupGaveUp = true
         }
         .sheet(isPresented: $dtmfOpen) {
             if let featured {
@@ -354,7 +360,10 @@ struct InCallView: View {
                     on: false,
                     systemImage: "text.bubble",
                     label: "Add a note in the conversation",
-                    title: "Note",
+                    title: noteControlLabel(
+                        linked: conversationId != nil,
+                        resolving: conversationId == nil && !noteLookupGaveUp
+                    ),
                     enabled: conversationId != nil
                 ) {
                     if let conversationId { openConversation(conversationId) }
