@@ -316,6 +316,36 @@ node scripts/check-commit-message.mjs --range origin/main..HEAD
 Prefer a component scope (`web`, `api`, `android`, `ios`, `shared`) — the
 changelog reads better and the diff's intent is obvious.
 
+### A client scope must match the diff
+
+Release-please routes a commit to a changelog by the **files** it touches, and
+for the store apps those generated notes are the "What's new" text. So a
+`feat(android)` that also edits `apps/ios/**` lands in the **iOS** changelog
+with the word `android` as its first word — which is what shipped in af2f2b5
+(#441). The subject was well-formed and the routing was right; the wrong part
+was a fact about the diff, which no string check can see.
+
+For `feat`/`fix`/`perf`/`revert`, a client scope is therefore checked against
+the paths:
+
+| Scope | May touch |
+|---|---|
+| `web` | `apps/web` |
+| `android` | `apps/android` |
+| `ios` | `apps/ios` |
+| `mobile` | both phones |
+| `clients` | all three |
+
+**Cross-platform work uses `mobile` or `clients`, or is split into one commit
+per client.** Picking the platform you happened to write first is the mistake
+this exists to catch.
+
+Only client scopes are checked. `api`, `db`, `shared` and feature scopes
+(`contacts`, `compose`, …) make no platform claim — a server change shipping
+its own migration is normal work, not a mislabel. Internal types
+(`chore`/`docs`/`refactor`/…) are exempt too, since their scope reaches no
+customer.
+
 ## Rolling back
 
 A Worker rolls back in seconds — this is what makes shipping a batch safe:
