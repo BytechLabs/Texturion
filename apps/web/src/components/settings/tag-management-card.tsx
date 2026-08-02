@@ -1,6 +1,6 @@
 "use client";
 
-import { Merge } from "lucide-react";
+import { Merge, Pencil } from "lucide-react";
 import { useState } from "react";
 
 import { SettingsCard } from "@/components/settings/section";
@@ -25,7 +25,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
-import { useMergeTags, useTagUsage, type TagUsage } from "@/lib/api/tags";
+import { useMergeTags, useTagUsage, useUpdateTag, type TagUsage } from "@/lib/api/tags";
+import { Input } from "@/components/ui/input";
+import { formatRelativeTime } from "@/lib/format/time";
 
 /**
  * #298 — the tag list, with how much each one is actually used, and a way to
@@ -69,28 +71,13 @@ export function TagManagementCard({ canManage }: { canManage: boolean }) {
       >
         <ul className="divide-y divide-border">
           {rows.map((row) => (
-            <li
+            <TagUsageRow
               key={row.tag_id}
-              className="flex items-center gap-3 py-2 first:pt-0 last:pb-0"
-            >
-              <span className="min-w-0 flex-1 truncate text-sm">{row.name}</span>
-              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                {row.uses === 0
-                  ? "never used"
-                  : `${row.uses} ${row.uses === 1 ? "thread" : "threads"}`}
-              </span>
-              {canManage && rows.length > 1 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 shrink-0 px-2 text-xs"
-                  onClick={() => setMerging(row)}
-                >
-                  <Merge className="size-3.5" strokeWidth={1.75} aria-hidden />
-                  Merge
-                </Button>
-              )}
-            </li>
+              row={row}
+              canManage={canManage}
+              canMerge={canManage && rows.length > 1}
+              onMerge={() => setMerging(row)}
+            />
           ))}
         </ul>
       </SettingsCard>
@@ -101,6 +88,131 @@ export function TagManagementCard({ canManage }: { canManage: boolean }) {
         onClose={() => setMerging(null)}
       />
     </>
+  );
+}
+
+/**
+ * One tag: what it is called, what it means, and how much it is used.
+ *
+ * # Why the description is editable from HERE and nowhere else
+ *
+ * A description answers "does this mean the same thing as that one?", and this
+ * list is the only screen where somebody asks that question. Putting the editor
+ * behind a separate tag-detail page would mean the answer is written somewhere
+ * other than where it is needed.
+ *
+ * *Applying: Zen of Clarity — the editor is a pencil that appears on the row,
+ * not a permanent field per tag; forty always-open inputs would bury the counts
+ * that are the point of the list.*
+ */
+function TagUsageRow({
+  row,
+  canManage,
+  canMerge,
+  onMerge,
+}: {
+  row: TagUsage;
+  canManage: boolean;
+  canMerge: boolean;
+  onMerge: () => void;
+}) {
+  const update = useUpdateTag();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(row.description ?? "");
+  const [error, setError] = useState<string | null>(null);
+
+  function save() {
+    setError(null);
+    update.mutate(
+      { tagId: row.tag_id, patch: { description: draft.trim() || null } },
+      {
+        onSuccess: () => setEditing(false),
+        onError: (cause) =>
+          setError(
+            cause instanceof ApiError ? cause.message : "Couldn't save that.",
+          ),
+      },
+    );
+  }
+
+  return (
+    <li className="py-2 first:pt-0 last:pb-0">
+      <div className="flex items-center gap-3">
+        <span className="min-w-0 flex-1 truncate text-sm">{row.name}</span>
+        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+          {row.uses === 0
+            ? "never used"
+            : `${row.uses} ${row.uses === 1 ? "thread" : "threads"}`}
+          {/* Last used, beside the count: a tag with forty uses and nothing
+              since March is a category the crew has stopped believing in, and
+              the count alone cannot say that. */}
+          {row.last_used !== null && ` · last ${formatRelativeTime(row.last_used)}`}
+        </span>
+        {canManage && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 shrink-0 px-2 text-xs"
+            // A pencil is the same glyph either way, so the label carries the
+            // difference: a screen reader user needs to know whether they are
+            // about to write the first description or change an existing one.
+            aria-label={
+              row.description === null || row.description === ""
+                ? `Describe ${row.name}`
+                : `Edit the description for ${row.name}`
+            }
+            onClick={() => {
+              setDraft(row.description ?? "");
+              setEditing((open) => !open);
+            }}
+          >
+            <Pencil className="size-3.5" strokeWidth={1.75} aria-hidden />
+          </Button>
+        )}
+        {canMerge && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 shrink-0 px-2 text-xs"
+            onClick={onMerge}
+          >
+            <Merge className="size-3.5" strokeWidth={1.75} aria-hidden />
+            Merge
+          </Button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="mt-1.5 flex items-center gap-2">
+          <Input
+            value={draft}
+            maxLength={200}
+            autoFocus
+            placeholder="What does this one mean?"
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") save();
+              if (event.key === "Escape") setEditing(false);
+            }}
+            className="h-8 text-sm"
+          />
+          <Button size="sm" className="h-8" disabled={update.isPending} onClick={save}>
+            Save
+          </Button>
+        </div>
+      ) : (
+        row.description !== null && (
+          <p className="mt-0.5 text-[13px] text-muted-foreground">
+            {row.description}
+          </p>
+        )
+      )}
+      {error !== null && (
+        <p role="alert" className="mt-1 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+    </li>
   );
 }
 

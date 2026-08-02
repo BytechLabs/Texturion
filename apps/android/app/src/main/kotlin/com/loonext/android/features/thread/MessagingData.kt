@@ -542,6 +542,17 @@ class MessagingRepository(private val api: ApiClient) {
     suspend fun tagUsage(companyId: String): Page<TagUsage> =
         api.get("/v1/tags/usage", companyId = companyId)
 
+    /** #298: say what a tag means. Blank clears it back to unexplained. */
+    suspend fun describeTag(companyId: String, tagId: String, description: String): Tag =
+        api.patch(
+            "/v1/tags/$tagId",
+            buildJsonObject {
+                if (description.isBlank()) put("description", JsonNull)
+                else put("description", description)
+            },
+            companyId = companyId,
+        )
+
     /**
      * #298: fold [fromTagId] into [intoTagId], keeping every association.
      * Delete was the only cleanup and it loses them all, so an admin who found

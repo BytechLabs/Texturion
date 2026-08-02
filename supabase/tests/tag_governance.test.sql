@@ -295,4 +295,80 @@ begin
   end if;
 end $$;
 
+-- ===========================================================================
+-- TG-9: the ceiling refuses with a REASON, and never blocks an existing tag.
+--
+-- #298 asks for "a sane ceiling, high enough that nobody legitimate hits it and
+-- low enough to catch runaway automation". A crew at 200 tags has an
+-- integration, not a taxonomy — but it still has to be able to file things, so
+-- the refusal must be on INVENTING only, exactly like the lock.
+-- ===========================================================================
+do $$
+declare
+  r record;
+  i int;
+begin
+  update public.companies set tags_locked = false
+   where id = '53000000-0000-4000-8000-0000000000c1'::uuid;
+
+  -- Fill to the ceiling. The fixtures above already hold a handful, so this
+  -- tops up rather than assuming an empty table.
+  for i in 1..300 loop
+    exit when (select count(*) from public.tags
+                where company_id = '53000000-0000-4000-8000-0000000000c1'::uuid) >= 200;
+    insert into public.tags (company_id, name)
+    values ('53000000-0000-4000-8000-0000000000c1'::uuid, 'Filler ' || i);
+  end loop;
+
+  -- Even an owner is refused: the ceiling is a runaway guard, not a permission.
+  select * into r from public.api_find_or_create_tag(
+    '53000000-0000-4000-8000-0000000000c1'::uuid, 'One too many', true);
+  if not r.refused then
+    raise exception 'TG-9: the ceiling let a 201st tag through';
+  end if;
+  if r.reason is distinct from 'at_ceiling' then
+    raise exception 'TG-9: the refusal did not say WHY (got %)', r.reason;
+  end if;
+
+  -- Attaching one that already exists is untouched by the ceiling: a workspace
+  -- that cannot file anything is a workspace that stops tagging entirely.
+  select * into r from public.api_find_or_create_tag(
+    '53000000-0000-4000-8000-0000000000c1'::uuid, 'Filler 1', true);
+  if r.refused then
+    raise exception 'TG-9: the ceiling refused an EXISTING tag';
+  end if;
+end $$;
+
+-- ===========================================================================
+-- TG-10: a description says what a tag MEANS, and rides along with the usage
+-- list where the decision to merge is actually made.
+-- ===========================================================================
+do $$
+declare r record;
+begin
+  update public.tags
+     set description = 'Work we are going back to fix for free.'
+   where id = '53000000-0000-4000-8000-0000000000a1'::uuid;
+
+  select * into r from public.api_tag_usage(
+    '53000000-0000-4000-8000-0000000000c1'::uuid)
+   where tag_id = '53000000-0000-4000-8000-0000000000a1'::uuid;
+  if r.description is distinct from 'Work we are going back to fix for free.' then
+    raise exception 'TG-10: the usage list dropped the description';
+  end if;
+  if r.last_used is null then
+    raise exception 'TG-10: a used tag reported no last-used date';
+  end if;
+
+  -- The length guard is the one thing the column promises. Over it, the write
+  -- must fail rather than silently truncate somebody's sentence.
+  begin
+    update public.tags set description = repeat('x', 201)
+     where id = '53000000-0000-4000-8000-0000000000a1'::uuid;
+    raise exception 'TG-10: a 201-character description was accepted';
+  exception
+    when check_violation then null;
+  end;
+end $$;
+
 rollback;

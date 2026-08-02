@@ -463,6 +463,13 @@ export interface Tag {
   name: string;
   color: string | null;
   /**
+   * #298: what this tag MEANS, in the crew's own words. Null when nobody has
+   * said — which is most of them, and must stay comfortable: a required
+   * description would be answered with "warranty" for a tag named Warranty by
+   * everybody in a hurry, and that looks like an answer without being one.
+   */
+  description?: string | null;
+  /**
    * #354: which marketed pipeline stage this tag IS, independent of what the
    * crew renamed it to. Null for tags a crew invented, absent on the embedded
    * summaries. Everything that reads the pipeline reads this — matching on the

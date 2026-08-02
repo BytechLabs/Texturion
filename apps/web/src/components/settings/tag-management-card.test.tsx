@@ -11,14 +11,20 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-const state: { rows: { tag_id: string; name: string; uses: number }[]; locked: boolean } = {
-  rows: [],
-  locked: false,
+type Row = {
+  tag_id: string;
+  name: string;
+  uses: number;
+  description?: string | null;
+  last_used?: string | null;
 };
+
+const state: { rows: Row[]; locked: boolean } = { rows: [], locked: false };
 
 vi.mock("@/lib/api/tags", () => ({
   useTagUsage: () => ({ data: { data: state.rows }, isPending: false }),
   useMergeTags: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateTag: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock("@/lib/api/companies", () => ({
   useCompany: () => ({ data: { id: "co-1", tags_locked: state.locked } }),
@@ -32,9 +38,15 @@ function render(
 ): string {
   Object.assign(state, {
     rows: [
-      { tag_id: "t1", name: "Warranty", uses: 12 },
-      { tag_id: "t2", name: "Wrnty", uses: 1 },
-      { tag_id: "t3", name: "Roof", uses: 0 },
+      {
+        tag_id: "t1",
+        name: "Warranty",
+        uses: 12,
+        description: "Work we are going back to fix for free.",
+        last_used: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+      { tag_id: "t2", name: "Wrnty", uses: 1, description: null, last_used: null },
+      { tag_id: "t3", name: "Roof", uses: 0, description: null, last_used: null },
     ],
     locked: false,
     ...next,
@@ -79,6 +91,24 @@ describe("#298 the usage list", () => {
   it("offers no merge when there is nothing to merge INTO", () => {
     const html = render({ rows: [{ tag_id: "t1", name: "Warranty", uses: 3 }] });
     expect(html).not.toContain("Merge");
+  });
+
+  it("shows what a tag MEANS, and when it was last used", () => {
+    // The two things the names alone cannot say. A tag with forty uses and
+    // nothing since March is a category the crew has quietly stopped
+    // believing in, and the count on its own reads as healthy.
+    const html = render();
+    expect(html).toContain("Work we are going back to fix for free.");
+    expect(html).toContain("last ");
+  });
+
+  it("labels the pencil by what it will actually do", () => {
+    // The glyph is the same either way, so the label carries the difference:
+    // writing the first description is a different act from changing one, and
+    // a screen reader user has only the label to tell them which.
+    const html = render();
+    expect(html).toContain('aria-label="Edit the description for Warranty"');
+    expect(html).toContain('aria-label="Describe Wrnty"');
   });
 });
 

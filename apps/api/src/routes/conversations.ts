@@ -33,7 +33,7 @@
  *   DELETE /v1/conversations/:id/tags/:tag_id detach.
  */
 import type { BusinessHours, HoursException } from "@loonext/shared";
-import { roleHasCapability } from "@loonext/shared";
+import { TAGS_PER_WORKSPACE, roleHasCapability } from "@loonext/shared";
 import { runAiFeature } from "../ai/run";
 import { notifyNoteMention } from "../notifications/mention";
 import { Hono } from "hono";
@@ -1537,7 +1537,7 @@ conversationsRoutes.post(
       // enable, and would leave a window where a lock switched on between the
       // check and the create did nothing.
       const mayCreate = roleHasCapability(c.get("role"), "settings.manage");
-      const rows = unwrap<(TagRow & { refused: boolean })[]>(
+      const rows = unwrap<(TagRow & { refused: boolean; reason: string | null })[]>(
         await db.rpc("api_find_or_create_tag", {
           p_company_id: companyId,
           p_name: name,
@@ -1546,6 +1546,20 @@ conversationsRoutes.post(
         "tag find-or-create",
       );
       if (rows[0]?.refused === true) {
+        // Two refusals, two sentences. A refusal with no reason forces the
+        // person to invent one, and these need different next steps: one is
+        // "ask an admin", the other is "something is creating these
+        // automatically and you should go and look at it".
+        if (rows[0].reason === "at_ceiling") {
+          return errorResponse(
+            c,
+            "conflict",
+            `This workspace has hit its ${TAGS_PER_WORKSPACE}-tag limit. That is ` +
+              "far more than any crew files by hand, so something is probably " +
+              "creating them automatically. Merge the duplicates in Settings, " +
+              "under Templates & tags.",
+          );
+        }
         return errorResponse(
           c,
           "forbidden",

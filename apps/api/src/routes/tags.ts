@@ -19,8 +19,11 @@ import { parseJsonBody, pathUuid, unwrap } from "./core/http";
 // view, the conversion report and the delete guard all key on, and a
 // client that cannot see it would have to guess from the name — which is
 // exactly the coupling this column exists to remove.
+// #298: `description` rides along too — what a tag MEANS is only useful at the
+// moment somebody is choosing between two of them, which is every read of this
+// list, not a detail screen nobody opens.
 const TAG_COLUMNS =
-  "id,name,color,pipeline_stage,created_at,updated_at";
+  "id,name,color,description,pipeline_stage,created_at,updated_at";
 
 const patchSchema = z
   .object({
@@ -31,10 +34,21 @@ const patchSchema = z
       .regex(/^#[0-9a-fA-F]{6}$/)
       .nullable()
       .optional(),
+    /**
+     * #298: what this tag means, in the crew's own words. Null clears it.
+     *
+     * Optional, and it stays optional. A required description would be
+     * answered with "warranty" for a tag named Warranty by everybody who was
+     * in a hurry, which is worse than nothing because it looks like an answer.
+     * 200 chars mirrors tags_description_len: a sentence, not a policy.
+     */
+    description: z.string().trim().max(200).nullable().optional(),
   })
-  .refine((body) => body.name !== undefined || "color" in body, {
-    message: "Provide at least one field to update.",
-  });
+  .refine(
+    (body) =>
+      body.name !== undefined || "color" in body || "description" in body,
+    { message: "Provide at least one field to update." },
+  );
 
 const mergeSchema = z.object({ into_tag_id: z.uuid() });
 
@@ -64,6 +78,13 @@ tagsRoutes.patch("/tags/:id", requireCapability("conversations.note"), async (c)
   const patch: Record<string, unknown> = {};
   if (body.name !== undefined) patch.name = body.name;
   if ("color" in body) patch.color = body.color ?? null;
+  // An empty string is a cleared field, not a description of "". The column is
+  // nullable and every reader branches on null, so normalising here keeps the
+  // "no description" state single-valued.
+  if ("description" in body) {
+    patch.description =
+      body.description === null || body.description === "" ? null : body.description;
+  }
 
   const db = getDb(getEnv(c.env));
   const rows = unwrap<Record<string, unknown>[]>(

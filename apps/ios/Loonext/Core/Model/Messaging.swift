@@ -33,6 +33,16 @@ struct Tag: Codable, Sendable {
     let color: String?
     let created_at: String?
     let updated_at: String?
+    /// #298: what this tag MEANS, in the crew's own words. Nil when nobody has
+    /// said — which is most of them, and must stay comfortable: a required
+    /// description would be answered with "warranty" for a tag named Warranty
+    /// by everybody in a hurry, and that looks like an answer without being one.
+    ///
+    /// Declared last with a default so the memberwise initialiser every preview
+    /// and test already calls keeps compiling. `var` rather than `let` for the
+    /// same reason: a `let` with an initial value takes no memberwise argument
+    /// at all, which would make the field unsettable in a fixture.
+    var description: String? = nil
 }
 
 /// #298: one tag and how much it is actually used. Ordered busiest-first by the
@@ -41,6 +51,8 @@ struct Tag: Codable, Sendable {
 struct TagUsage: Codable, Sendable, Identifiable {
     let tag_id: String
     let name: String
+    /// #298: what it means, so the merge decision can be made from this list.
+    var description: String?
     @Default<DefaultZero> var uses: Int
     let last_used: String?
 

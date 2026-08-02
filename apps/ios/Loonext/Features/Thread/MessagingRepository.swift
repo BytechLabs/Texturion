@@ -554,6 +554,22 @@ struct MessagingRepository: Sendable {
         try await api.get("/v1/tags/usage", companyId: companyId)
     }
 
+    /// #298: say what a tag means. Blank clears it back to unexplained.
+    func describeTag(
+        companyId: String,
+        tagId: String,
+        description: String
+    ) async throws -> Tag {
+        let trimmed = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        return try await api.patch(
+            "/v1/tags/\(tagId)",
+            body: JSONValue.object([
+                "description": trimmed.isEmpty ? .null : .string(trimmed),
+            ]),
+            companyId: companyId
+        )
+    }
+
     /// #298: fold `from` into `into`, keeping every association. Delete was the
     /// only cleanup and it loses them all, so an admin who found six variants
     /// could previously only destroy five.

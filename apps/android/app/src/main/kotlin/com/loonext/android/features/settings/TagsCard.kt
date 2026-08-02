@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,6 +33,7 @@ import com.loonext.android.core.model.TagUsage
 import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.CancellationException
@@ -101,25 +103,15 @@ fun TagsCard(
                         if (index > 0) {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
-                        Row(
-                            Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                row.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Text(
-                                usesLabel(row.uses),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            if (canManage && rows.size > 1) {
-                                Spacer(Modifier.width(4.dp))
-                                LinkButton(onClick = { merging = row }) { Text("Merge") }
-                            }
-                        }
+                        TagUsageRow(
+                            scope = scope,
+                            repo = repo,
+                            row = row,
+                            canManage = canManage,
+                            canMerge = canManage && rows.size > 1,
+                            onMerge = { merging = row },
+                            onChanged = { refreshKey++ },
+                        )
                     }
                 }
             }
@@ -139,6 +131,121 @@ fun TagsCard(
             }
         }
     }
+}
+
+/**
+ * One tag: what it is called, what it means, and how much it is used.
+ *
+ * # Why the description is editable from HERE and nowhere else
+ *
+ * A description answers "does this mean the same thing as that one?", and this
+ * list is the only screen where somebody asks that question. Putting the editor
+ * behind a separate tag screen would mean the answer gets written somewhere
+ * other than where it is needed.
+ *
+ * *Applying: Zen of Clarity — the editor is a pencil that opens on the row, not
+ * a permanent field per tag; forty always-open inputs would bury the counts
+ * that are the point of the list.*
+ */
+@Composable
+private fun TagUsageRow(
+    scope: SettingsScope,
+    repo: MessagingRepository,
+    row: TagUsage,
+    canManage: Boolean,
+    canMerge: Boolean,
+    onMerge: () -> Unit,
+    onChanged: () -> Unit,
+) {
+    var editing by remember(row.tag_id) { mutableStateOf(false) }
+    var draft by remember(row.tag_id) { mutableStateOf(row.description.orEmpty()) }
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val coroutines = rememberCoroutineScope()
+
+    Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                row.name,
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                // Last used beside the count: a tag with forty uses and nothing
+                // since March is a category the crew has stopped believing in,
+                // and the count alone cannot say that.
+                usesLabel(row.uses) + lastUsedSuffix(row.last_used),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (canManage) {
+                Spacer(Modifier.width(4.dp))
+                LinkButton(onClick = {
+                    draft = row.description.orEmpty()
+                    editing = !editing
+                }) {
+                    Text(if (row.description.isNullOrBlank()) "Describe" else "Edit")
+                }
+            }
+            if (canMerge) {
+                Spacer(Modifier.width(4.dp))
+                LinkButton(onClick = onMerge) { Text("Merge") }
+            }
+        }
+
+        if (editing) {
+            Spacer(Modifier.height(6.dp))
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { if (it.length <= TAG_DESCRIPTION_MAX) draft = it },
+                placeholder = { Text("What does this one mean?") },
+                singleLine = true,
+                enabled = !saving,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                LinkButton(
+                    enabled = !saving,
+                    onClick = {
+                        error = null
+                        saving = true
+                        coroutines.launch {
+                            try {
+                                repo.describeTag(scope.companyId, row.tag_id, draft.trim())
+                                editing = false
+                                onChanged()
+                            } catch (cause: Exception) {
+                                error = cause.userMessage()
+                            } finally {
+                                saving = false
+                            }
+                        }
+                    },
+                ) { Text(if (saving) "Saving…" else "Save") }
+                LinkButton(enabled = !saving, onClick = { editing = false }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        } else if (!row.description.isNullOrBlank()) {
+            Text(
+                row.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        InlineError(error)
+    }
+}
+
+/** Mirrors tags_description_len: a sentence, not a policy. */
+private const val TAG_DESCRIPTION_MAX = 200
+
+/** " · last 2d" when it has ever been used; nothing when it has not. */
+private fun lastUsedSuffix(iso: String?): String {
+    if (iso.isNullOrBlank()) return ""
+    val relative = relativeTime(iso)
+    return if (relative.isEmpty()) "" else " · last $relative"
 }
 
 /** "never used" reads as a verdict; "0 threads" reads as a loading state. */

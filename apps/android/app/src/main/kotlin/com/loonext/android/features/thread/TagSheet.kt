@@ -194,11 +194,20 @@ internal fun TagManageSheet(
                                 .padding(horizontal = 20.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(
-                                tag.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f),
-                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(tag.name, style = MaterialTheme.typography.bodyLarge)
+                                // #298: what it means, under what it is called.
+                                // This is the moment somebody picks between two
+                                // similar tags, and a description written
+                                // anywhere else is one nobody reads.
+                                if (!tag.description.isNullOrBlank()) {
+                                    Text(
+                                        tag.description,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
                             if (isAttached) {
                                 Icon(
                                     Icons.Filled.Check,

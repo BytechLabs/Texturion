@@ -573,7 +573,18 @@ function ConversationTags({
                       setOpen(false);
                     }}
                   >
-                    {tag.name}
+                    {/* #298: what it means, under what it is called. This is
+                        the moment somebody picks between two similar tags, and
+                        a description written anywhere else is a description
+                        nobody reads. */}
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate">{tag.name}</span>
+                      {tag.description != null && tag.description !== "" && (
+                        <span className="truncate text-[11px] text-muted-foreground">
+                          {tag.description}
+                        </span>
+                      )}
+                    </span>
                   </CommandItem>
                 ))}
                 {/* #298: the existing tag comes FIRST, and it says why it is

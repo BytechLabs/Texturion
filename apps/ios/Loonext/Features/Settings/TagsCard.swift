@@ -84,22 +84,14 @@ struct TagsCard: View {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(rows.enumerated()), id: \.element.tag_id) { index, row in
                             if index > 0 { RowDivider() }
-                            HStack(spacing: 8) {
-                                Text(row.name)
-                                    .font(.golos(13.5))
-                                    .foregroundStyle(BrandColor.ink)
-                                Spacer(minLength: 8)
-                                Text(usesLabel(row.uses))
-                                    .font(.golos(11))
-                                    .foregroundStyle(BrandColor.muted500)
-                                if canManage && rows.count > 1 {
-                                    Button("Merge") { merging = row }
-                                        .font(.subheadline)
-                                        .buttonStyle(.plain)
-                                        .foregroundStyle(BrandColor.olive)
-                                }
-                            }
-                            .padding(.vertical, 10)
+                            TagUsageRow(
+                                scope: scope,
+                                row: row,
+                                canManage: canManage,
+                                canMerge: canManage && rows.count > 1,
+                                onMerge: { merging = row },
+                                onChanged: { refreshKey += 1 }
+                            )
                         }
                     }
                 }
@@ -119,6 +111,130 @@ struct TagsCard: View {
             }
         }
     }
+}
+
+/// One tag: what it is called, what it means, and how much it is used.
+///
+/// # Why the description is editable from HERE and nowhere else
+///
+/// A description answers "does this mean the same thing as that one?", and this
+/// list is the only screen where somebody asks that question. Putting the editor
+/// behind a separate tag screen would mean the answer gets written somewhere
+/// other than where it is needed.
+///
+/// *Applying: Zen of Clarity — the editor opens on the row, not a permanent
+/// field per tag; forty always-open inputs would bury the counts that are the
+/// point of the list.*
+@MainActor
+private struct TagUsageRow: View {
+    let scope: SettingsScope
+    let row: TagUsage
+    let canManage: Bool
+    let canMerge: Bool
+    let onMerge: @MainActor () -> Void
+    let onChanged: @MainActor () -> Void
+
+    @State private var editing = false
+    @State private var draft = ""
+    @State private var saving = false
+    @State private var error: String?
+
+    private var repo: MessagingRepository { MessagingRepository(api: scope.graph.api) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Text(row.name)
+                    .font(.golos(13.5))
+                    .foregroundStyle(BrandColor.ink)
+                Spacer(minLength: 8)
+                // Last used beside the count: a tag with forty uses and nothing
+                // since March is a category the crew has stopped believing in,
+                // and the count alone cannot say that.
+                Text(usesLabel(row.uses) + lastUsedSuffix(row.last_used))
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted500)
+                if canManage {
+                    Button(row.description?.isEmpty == false ? "Edit" : "Describe") {
+                        draft = row.description ?? ""
+                        editing.toggle()
+                    }
+                    .font(.subheadline)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(BrandColor.olive)
+                }
+                if canMerge {
+                    Button("Merge") { onMerge() }
+                        .font(.subheadline)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(BrandColor.olive)
+                }
+            }
+
+            if editing {
+                TextField("What does this one mean?", text: $draft)
+                    .font(.golos(12.5))
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(saving)
+                    .padding(.top, 6)
+                    .onChange(of: draft) { _, next in
+                        if next.count > tagDescriptionMax {
+                            draft = String(next.prefix(tagDescriptionMax))
+                        }
+                    }
+                HStack(spacing: 12) {
+                    Button(saving ? "Saving…" : "Save") { save() }
+                        .font(.subheadline)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(BrandColor.olive)
+                        .disabled(saving)
+                    Button("Cancel") { editing = false }
+                        .font(.subheadline)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(BrandColor.muted500)
+                        .disabled(saving)
+                }
+                .padding(.top, 4)
+            } else if let description = row.description, !description.isEmpty {
+                Text(description)
+                    .font(.golos(11.5))
+                    .foregroundStyle(BrandColor.muted600)
+                    .padding(.top, 2)
+            }
+
+            InlineError(error)
+        }
+        .padding(.vertical, 10)
+    }
+
+    private func save() {
+        error = nil
+        saving = true
+        Task {
+            do {
+                _ = try await repo.describeTag(
+                    companyId: scope.companyId,
+                    tagId: row.tag_id,
+                    description: draft
+                )
+                editing = false
+                onChanged()
+            } catch {
+                self.error = error.userMessage
+            }
+            saving = false
+        }
+    }
+}
+
+/// Mirrors tags_description_len: a sentence, not a policy.
+private let tagDescriptionMax = 200
+
+/// " · last 2d" when it has ever been used; nothing when it has not.
+private func lastUsedSuffix(_ iso: String?) -> String {
+    guard let iso, !iso.isEmpty else { return "" }
+    let relative = relativeTime(iso)
+    return relative.isEmpty ? "" : " · last \(relative)"
 }
 
 /// "never used" reads as a verdict; "0 threads" reads as a loading state.

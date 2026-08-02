@@ -1798,6 +1798,31 @@ describe("#298 a locked tag list restricts CREATION, never attachment", () => {
     expect(res.status).toBe(201);
   });
 
+  it("says WHY when the workspace is at its tag ceiling, not just no", async () => {
+    // Two refusals with one sentence between them would send somebody to an
+    // admin who cannot help: the ceiling is not a permission, and the fix is
+    // to go and find whatever is creating tags automatically.
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+    sb.on("POST", "/rest/v1/rpc/api_find_or_create_tag", () => [
+      { id: null, name: null, color: null, refused: true, reason: "at_ceiling" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/tags`,
+      { method: "POST", companyId: COMPANY_ID, body: { name: "Two hundred and one" } },
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("200-tag limit");
+    // Nothing was attached on a refusal.
+    expect(sb.find("POST", "/rest/v1/conversation_tags")).toHaveLength(0);
+  });
+
   it("tells the RPC whether the caller may create, and costs no extra read", async () => {
     // Off by default, and it must cost an open workspace nothing: a companies
     // lookup on every attach for a setting almost nobody enables is a tax on

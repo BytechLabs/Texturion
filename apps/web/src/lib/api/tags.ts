@@ -26,7 +26,7 @@ export function useUpdateTag() {
   return useMutation({
     mutationFn: (input: {
       tagId: string;
-      patch: { name?: string; color?: string | null };
+      patch: { name?: string; color?: string | null; description?: string | null };
     }) =>
       apiFetch<Tag>(`/v1/tags/${input.tagId}`, {
         method: "PATCH",
@@ -47,6 +47,9 @@ export function useUpdateTag() {
         queryKey: keys.conversations.lists(companyId),
         refetchType: "none",
       });
+      // #298: the usage list renders the description, so an edit made from it
+      // must not leave the row it was typed into showing the old words.
+      void queryClient.invalidateQueries({ queryKey: keys.tagUsage(companyId) });
     },
   });
 }
@@ -82,6 +85,8 @@ export function useDeleteTag() {
 export interface TagUsage {
   tag_id: string;
   name: string;
+  /** #298: what the tag means, so the merge decision can be made from here. */
+  description: string | null;
   uses: number;
   last_used: string | null;
 }

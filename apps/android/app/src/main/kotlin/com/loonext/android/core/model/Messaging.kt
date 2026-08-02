@@ -36,6 +36,13 @@ data class Tag(
     val id: String,
     val name: String,
     val color: String? = null,
+    /**
+     * #298: what this tag MEANS, in the crew's own words. Null when nobody has
+     * said — which is most of them, and must stay comfortable: a required
+     * description would be answered with "warranty" for a tag named Warranty
+     * by everybody in a hurry, and that looks like an answer without being one.
+     */
+    val description: String? = null,
     val created_at: String? = null,
     val updated_at: String? = null,
 )
@@ -49,6 +56,8 @@ data class Tag(
 data class TagUsage(
     val tag_id: String,
     val name: String,
+    /** #298: what it means, so the merge decision can be made from this list. */
+    val description: String? = null,
     val uses: Long = 0,
     val last_used: String? = null,
 )

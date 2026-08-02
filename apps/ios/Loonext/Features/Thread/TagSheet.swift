@@ -231,8 +231,19 @@ struct TagManageSheet: View {
                         }
                     } label: {
                         HStack {
-                            Text(tag.name)
-                                .foregroundStyle(.primary)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(tag.name)
+                                    .foregroundStyle(.primary)
+                                // #298: what it means, under what it is called.
+                                // This is the moment somebody picks between two
+                                // similar tags, and a description written
+                                // anywhere else is one nobody reads.
+                                if let note = tag.description, !note.isEmpty {
+                                    Text(note)
+                                        .font(.golos(11.5))
+                                        .foregroundStyle(BrandColor.muted500)
+                                }
+                            }
                             Spacer()
                             if isAttached {
                                 Image(systemName: "checkmark")
