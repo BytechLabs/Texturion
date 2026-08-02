@@ -28,6 +28,7 @@ const SETTINGS = {
   business_description: null,
   transcribe_voicemail: true,
   voicemail_intake: true,
+  call_wrapup: true,
 };
 
 /** A Supabase double: only the reservation RPC and the settings read matter. */

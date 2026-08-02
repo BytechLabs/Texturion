@@ -218,6 +218,16 @@ describe("GET /v1/usage", () => {
           outcomes: [],
           outcomesRecorded: 0,
         },
+        {
+          // #507: the crew wrap-up, last because it is the newest cost centre.
+          key: "call_wrapup",
+          label: "call wrap-up dictation",
+          used: 0,
+          cap: 1500,
+          enabled: true,
+          outcomes: [],
+          outcomesRecorded: 0,
+        },
       ],
       voice: {
         used_minutes: 61,

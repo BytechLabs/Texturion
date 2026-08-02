@@ -25,7 +25,12 @@
 
 export interface AiDisclosure {
   /** Matches the `AiCostFeature` key, which is what binds this to the code. */
-  key: "enrich" | "suggest_reply" | "voicemail_transcript" | "voicemail_intake";
+  key:
+    | "enrich"
+    | "suggest_reply"
+    | "voicemail_transcript"
+    | "voicemail_intake"
+    | "call_wrapup";
   /** What a customer would call it. */
   label: string;
   /** Exactly what leaves the product for this feature. No euphemisms. */
@@ -92,6 +97,19 @@ export const AI_DISCLOSURES: readonly AiDisclosure[] = [
     // business's own voice when they ring. That is not a default anyone else
     // gets to pick — see D89.
     defaultOn: false,
+  },
+  {
+    key: "call_wrapup",
+    label: "Call wrap-ups",
+    // Precise about WHOSE voice, because that is the entire difference between
+    // this feature and the one D117 declined. A crew member dictating after
+    // hanging up is not the call, and a disclosure that blurred the two would
+    // claim we listen to calls — which we do not.
+    sends:
+      "the crew member's own dictation after a call has ended, to write it " +
+      "down as a note. Never the call itself and never the customer's voice",
+    models: ["@cf/openai/whisper-large-v3-turbo", "@cf/openai/whisper"],
+    defaultOn: true,
   },
 ] as const;
 

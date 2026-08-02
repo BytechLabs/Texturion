@@ -196,6 +196,24 @@ export const AI_UNIT_COST_CENTS = {
    * paid module and the realtime version necessarily does.
    */
   voicemail_intake: 0.02,
+  /**
+   * #507 Phase 1: crew wrap-up dictation on
+   * `@cf/openai/whisper-large-v3-turbo` ($0.0005 per audio minute).
+   *
+   * Bounded by the feature rather than by hope: CALL_WRAPUP_MAX_SECONDS is 120,
+   * so the ceiling is 2 x $0.0005 = $0.001 => 0.1c. A real wrap-up is a
+   * sentence or three and runs well under twenty seconds, so this over-counts
+   * by roughly six times — which is this file's stated posture.
+   *
+   * Cheaper per call than voicemail_transcript (0.25c) for the same model, and
+   * the reason is the length gate: a voicemail is however long a stranger talks
+   * for, a wrap-up is however long somebody holds a button.
+   *
+   * No LLM pass rides on top of this. The dictation is stored verbatim
+   * (ai/call-wrapup.ts explains why a paraphrase would defeat the feature), so
+   * unlike voicemail there is no second cost centre for structuring.
+   */
+  call_wrapup: 0.1,
 } as const;
 
 /** The `company_ai_usage.feature` keys the cost model knows how to price. */

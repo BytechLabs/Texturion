@@ -34,7 +34,20 @@
  */
 import type { BusinessHours, HoursException } from "@loonext/shared";
 import { TAGS_PER_WORKSPACE, roleHasCapability } from "@loonext/shared";
+import {
+  CALL_WRAPUP_FEATURE_SPEC,
+  CALL_WRAPUP_MAX_BYTES,
+  sanitizeWrapUp,
+  shouldTranscribeWrapUp,
+} from "../ai/call-wrapup";
 import { runAiFeature } from "../ai/run";
+import {
+  VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL,
+  VOICEMAIL_TRANSCRIPT_MODEL,
+  fallbackTranscriptInput,
+  transcriptInput,
+  transcriptText,
+} from "../calls/voicemail-transcript";
 import { notifyNoteMention } from "../notifications/mention";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -84,6 +97,7 @@ import {
   type ConversationEventRow,
 } from "./core/events";
 import {
+  assertBodyWithinLimit,
   escapeLike,
   expectOk,
   keysetFilter,
@@ -1005,6 +1019,7 @@ const aiOutcomeSchema = z.object({
     "enrich",
     "voicemail_transcript",
     "voicemail_intake",
+    "call_wrapup",
   ]),
   // Three outcomes, never a rate. #431's own devil's advocate is right that
   // acceptance is noisy: a discard can mean "the draft was wrong" or "I wanted to
@@ -1269,6 +1284,118 @@ conversationsRoutes.post(
           dropped: { candidates: parsed.length, ...report.dropped },
         })
       : c.json({ suggestions, business_unknown: businessUnknown });
+  },
+);
+
+// --------------------------------------------------------------------------
+// POST /conversations/:id/wrap-up-transcript  (#507 Phase 1)
+//
+// The crew member has just hung up. They hold a button, say "quoted him $2,400
+// for the tank, parts Thursday, he's confirming with his wife", and get those
+// words back as text to check and post as a note.
+//
+// WHY THIS RETURNS TEXT INSTEAD OF WRITING THE NOTE ITSELF. Two reasons, and
+// both are the product's existing posture rather than a preference. Every AI
+// output here is a suggestion a member reads before it becomes anything
+// (DEFAULT_AI_SETTINGS' comment says exactly that), and a note written straight
+// to a thread is not reviewable. And the note route already exists with its
+// mentions, its permissions, its search and its push — a second write path for
+// the same row would be a second place for those to drift.
+//
+// WHOSE VOICE. The member's own, about a call that has ended. Never the call,
+// never the customer — D117 is why that line matters, and #509 is the version
+// that crosses it and needs a consent architecture this does not.
+//
+// THE AUDIO IS NEVER STORED. It is read off the request, handed to the model,
+// and dropped when the handler returns. It never reaches R2 and no id exists
+// that could fetch it back. A test asserts this rather than trusting the
+// comment.
+//
+// Requires the 'note' level on the number (#106), matching where the text is
+// going: this produces something for the crew, not for the customer.
+// --------------------------------------------------------------------------
+conversationsRoutes.post(
+  "/conversations/:id/wrap-up-transcript",
+  requireCapability("conversations.note"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const companyId = c.get("companyId");
+    const env = getEnv(c.env);
+    const db = getDb(env);
+
+    const conversation = await findConversation(db, companyId, id);
+    if (!conversation) {
+      return errorResponse(c, "not_found", "No such conversation.");
+    }
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: conversation.phone_number_id as string | null,
+      need: "note",
+    });
+
+    // Declared-size gate BEFORE formData() buffers the whole body, same as the
+    // attachment upload — a runaway must be refused while it is still a header.
+    assertBodyWithinLimit(c, CALL_WRAPUP_MAX_BYTES);
+
+    let form: FormData;
+    try {
+      form = await c.req.raw.formData();
+    } catch {
+      throw new ApiError(
+        "validation_failed",
+        "Request must be multipart/form-data with audio and seconds.",
+      );
+    }
+
+    const uploaded = form.get("audio");
+    if (uploaded === null || typeof uploaded === "string") {
+      throw new ApiError("validation_failed", "audio: missing audio field.");
+    }
+    const blob = uploaded as File;
+    const seconds = Number(form.get("seconds"));
+    if (!Number.isFinite(seconds)) {
+      throw new ApiError("validation_failed", "seconds: a number is required.");
+    }
+
+    const audio = await blob.arrayBuffer();
+    // Both gates are free, so they run before anything is reserved or spent: a
+    // recording of nothing, or one from a phone left in a pocket, must not buy
+    // audio minutes. `seconds` is the client's CLAIM and `byteLength` is a
+    // fact, which is why both are checked.
+    if (!shouldTranscribeWrapUp({ seconds, bytes: audio.byteLength })) {
+      return c.json({ text: null, reason: "too_long" as const });
+    }
+
+    const settings = await loadAiSettings(db, companyId);
+    // One door onto the model (ai/run.ts): it owns the opt-in, the monthly cap,
+    // the alert before the cap, and the timeout.
+    const run = await runAiFeature(env, db, {
+      companyId,
+      spec: CALL_WRAPUP_FEATURE_SPEC,
+      model: VOICEMAIL_TRANSCRIPT_MODEL,
+      input: transcriptInput(Buffer.from(audio).toString("base64")),
+      settings,
+      // The binding cannot be exercised outside a deployed Worker, so one
+      // model's input contract being wrong must not mean no words at all.
+      fallback: {
+        model: VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL,
+        input: fallbackTranscriptInput(audio),
+      },
+      accept: (raw) => sanitizeWrapUp(transcriptText(raw)) !== null,
+    });
+    if (!run.ok) {
+      // Every one of these leaves the member exactly where they were: the note
+      // composer, with a keyboard. The reason is what lets the client say which
+      // of those it was instead of "something went wrong".
+      return c.json({ text: null, reason: run.reason });
+    }
+
+    const text = sanitizeWrapUp(transcriptText(run.raw));
+    return text === null
+      ? c.json({ text: null, reason: "unusable_output" as const })
+      : c.json({ text });
   },
 );
 

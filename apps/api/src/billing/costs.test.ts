@@ -141,7 +141,10 @@ describe("#380 — every AI cost centre is priced, and says so where it is decla
     // over the registry so a new feature raises the number here instead of
     // going uncounted.
     //
-    // 205¢ = $2.05: the previous 195¢ plus voicemail intake's 500 x 0.02¢.
+    // 355¢ = $3.55: the previous 205¢ plus the crew wrap-up's 1,500 x 0.1¢
+    // (#507). The wrap-up cap was sized DOWN to keep this number defensible —
+    // see CALL_WRAPUP_MONTHLY_CAP, which explains why it is 1,500 and not the
+    // 2,000 that would have doubled the ceiling.
     // Worth seeing next to D78's realtime receptionist, which costs 13.6¢ for a
     // single two-minute call — more than every AI feature in the product can
     // spend for a whole tenant in a whole month, ten times over.
@@ -149,6 +152,6 @@ describe("#380 — every AI cost centre is priced, and says so where it is decla
       (total, spec) => total + spec.cap * spec.unitCostCents,
       0,
     );
-    expect(atCap).toBeCloseTo(205, 6); // $2.05
+    expect(atCap).toBeCloseTo(355, 6); // $3.55
   });
 });

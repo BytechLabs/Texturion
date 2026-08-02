@@ -263,6 +263,7 @@ describe("the cost posture", () => {
         business_description: null,
         transcribe_voicemail: true,
         voicemail_intake: false,
+        call_wrapup: true,
       }),
     ).toBe(false);
   });

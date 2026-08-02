@@ -367,6 +367,10 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
       // business's own name — so a workspace that has never opened the settings
       // screen must not have it.
       voicemail_intake: false,
+      // #507: on, and it belongs with the group above rather than with the
+      // exception below it — a dictation is text a member reads and edits
+      // before it becomes anything, and no stranger ever hears it.
+      call_wrapup: true,
     });
   });
 

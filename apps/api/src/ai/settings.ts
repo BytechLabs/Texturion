@@ -41,6 +41,14 @@ export interface CompanyAiSettings {
    * the business's own name — not a default anybody else gets to pick (D89).
    */
   voicemail_intake: boolean;
+  /**
+   * #507: whether a crew member can DICTATE a post-call wrap-up instead of
+   * typing it. Off leaves the note composer exactly as it is.
+   *
+   * Their own voice, about a call that has ended — never the customer's, and
+   * never the call itself. D117 is why that distinction is load-bearing.
+   */
+  call_wrapup: boolean;
 }
 
 /**
@@ -57,12 +65,15 @@ export const DEFAULT_AI_SETTINGS: CompanyAiSettings = {
   transcribe_voicemail: true,
   // The exception, and deliberately so — see the field comment and D89.
   voicemail_intake: false,
+  // On, like the rest: the output is text a member reads and edits before it
+  // becomes anything, and the monthly cap bounds the spend.
+  call_wrapup: true,
 };
 
 /** The columns that make up the settings row, for a `select`. */
 export const AI_SETTINGS_COLUMNS =
   "enrich_task_address,enrich_task_due,suggest_replies,business_description," +
-  "transcribe_voicemail,voicemail_intake";
+  "transcribe_voicemail,voicemail_intake,call_wrapup";
 
 /** Company AI toggles, falling back to the defaults when the row is absent. */
 export async function loadAiSettings(

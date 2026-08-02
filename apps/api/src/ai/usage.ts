@@ -10,6 +10,7 @@
  * Read-only. The ledger is written exclusively by `ai_usage_reserve`, which is
  * what makes the count and the cap the same number the gate uses.
  */
+import { CALL_WRAPUP_FEATURE_SPEC } from "./call-wrapup";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { VOICEMAIL_INTAKE_FEATURE_SPEC } from "../calls/voicemail-intake";
@@ -69,6 +70,9 @@ export const AI_USAGE_FEATURES = [
   VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
   // Beneath the transcript it reads, which is also the order the two happen in.
   VOICEMAIL_INTAKE_FEATURE_SPEC,
+  // #507: last because it is the newest, and because it is the only one whose
+  // audio a member records on purpose rather than a stranger leaving a message.
+  CALL_WRAPUP_FEATURE_SPEC,
 ] as const;
 
 /** The ledger's month bucket: 'YYYY-MM' in UTC, matching ai_usage_reserve. */

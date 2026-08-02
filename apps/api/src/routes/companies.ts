@@ -489,6 +489,8 @@ const aiSettingsSchema = z
     // anywhere else on this object — an older client saving the other switches
     // must not be able to change what callers hear as a side effect.
     voicemail_intake: z.boolean().optional(),
+    /** #507: dictate a post-call wrap-up rather than typing it. */
+    call_wrapup: z.boolean().optional(),
   })
   .strict();
 
@@ -543,7 +545,7 @@ companiesRoutes.patch(
       .from("company_ai_settings")
       .select(
         "enrich_task_address,enrich_task_due,suggest_replies," +
-          "transcribe_voicemail,voicemail_intake",
+          "transcribe_voicemail,voicemail_intake,call_wrapup",
       )
       .eq("company_id", c.get("companyId"))
       .maybeSingle();
@@ -558,6 +560,9 @@ companiesRoutes.patch(
       // Null, not false: the RPC reads null as "leave it alone". Defaulting to
       // false would let any older client turn the greeting back off.
       p_voicemail_intake: body.voicemail_intake ?? null,
+      // #507: same null-means-leave-it reasoning — a client that predates
+      // dictation must not turn it back on for a workspace that switched it off.
+      p_call_wrapup: body.call_wrapup ?? null,
     });
     if (error) {
       throw new Error(`upsert_company_ai_settings failed: ${error.message}`);
@@ -575,6 +580,7 @@ companiesRoutes.patch(
       // hears, which makes "who turned this on, and when" a question support
       // will actually be asked.
       voicemail_intake: row.voicemail_intake,
+      call_wrapup: row.call_wrapup,
     });
     // The business description is deliberately absent from the diff: it is the
     // owner's own words about their business, and the log records shape, not
@@ -595,6 +601,7 @@ companiesRoutes.patch(
       business_description: row.business_description ?? null,
       transcribe_voicemail: row.transcribe_voicemail,
       voicemail_intake: row.voicemail_intake,
+      call_wrapup: row.call_wrapup,
     });
   },
 );
