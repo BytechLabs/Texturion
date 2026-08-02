@@ -87,7 +87,10 @@ export {
 export {
   applyMergeFields,
   hasMergeFields,
+  hasServerOnlyTokens,
   mergeFieldsNeeded,
+  SERVER_ONLY_TOKENS,
+  SERVER_ONLY_TOKENS_NOTE,
   MERGE_FIELD_SAMPLES,
   MERGE_FIELD_TOKENS,
   MERGE_FIELD_VARIABLES,

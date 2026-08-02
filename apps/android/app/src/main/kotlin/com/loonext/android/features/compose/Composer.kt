@@ -303,6 +303,12 @@ fun ThreadComposer(
     banner: ComposerBanner?,
     contactName: String?,
     businessName: String?,
+    /** #274: the contact's service address, for {address} in the preview. */
+    contactAddress: String? = null,
+    /** #274: the signed-in member, for {my_name}. */
+    senderName: String? = null,
+    /** #274: this conversation's number in E.164, for {our_number}. */
+    ourNumberE164: String? = null,
     loadTemplates: suspend () -> List<Template>,
     onSendText: (
         body: String,
@@ -869,6 +875,9 @@ fun ThreadComposer(
                 hasMedia = state.photos.isNotEmpty(),
                 contactName = contactName,
                 businessName = businessName,
+                contactAddress = contactAddress,
+                senderName = senderName,
+                ourNumberE164 = ourNumberE164,
             )
         }
     }
@@ -1106,6 +1115,10 @@ fun ComposerHints(
     hasMedia: Boolean,
     contactName: String?,
     businessName: String?,
+    /** #274: everything else this side can answer honestly. */
+    contactAddress: String? = null,
+    senderName: String? = null,
+    ourNumberE164: String? = null,
     modifier: Modifier = Modifier,
 ) {
     // #415: measure what SENDS, not what was typed. This function already had
@@ -1117,10 +1130,17 @@ fun ComposerHints(
     // The encoding boundary is where it stops being a rounding error: an
     // accent or a curly apostrophe arriving through a name flips the WHOLE
     // message from GSM-7 to UCS-2 and per-part capacity falls from 160 to 70.
-    val meter = segmentMeter(
-        MergeFields.applyMergeFields(text, contactName, businessName),
-        hasMedia,
+    // #274: the same values the preview renders with, so the meter counts the
+    // string that actually ships. An address resolving into the body changes
+    // the part count exactly the way a business name does.
+    val values = MergeFields.MergeValues(
+        contactName = contactName,
+        businessName = businessName,
+        contactAddress = contactAddress,
+        senderName = senderName,
+        ourNumber = ourNumberE164?.let { MergeFields.formatNanpNumber(it) },
     )
+    val meter = segmentMeter(MergeFields.applyMergeFields(text, values), hasMedia)
     val showPreview = MergeFields.hasMergeFields(text)
     if (!meter.visible && !showPreview) return
     Column(modifier.padding(horizontal = 20.dp)) {
@@ -1134,12 +1154,23 @@ fun ComposerHints(
         }
         if (showPreview) {
             Text(
-                "Sends as: " + MergeFields.applyMergeFields(text, contactName, businessName),
+                "Sends as: " + MergeFields.applyMergeFields(text, values),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+            // #274: the two tokens this side cannot answer honestly. A cached
+            // "next visit" would be confidently wrong the moment a teammate
+            // reschedules it, and a preview that is usually right is worse
+            // than one that says which part it cannot show.
+            if (MergeFields.hasServerOnlyTokens(text)) {
+                Text(
+                    MergeFields.SERVER_ONLY_TOKENS_NOTE,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         Spacer(Modifier.height(4.dp))
     }

@@ -888,6 +888,17 @@ private struct ThreadBody: View {
             banner: banner,
             contactName: detail.contact.name,
             businessName: controller.company?.name,
+            // #274: everything this side can answer honestly. The visit day and
+            // time are the server's to resolve — a cached answer would be
+            // confidently wrong the moment a teammate reschedules the task.
+            //
+            // In DECLARATION order: a SwiftUI view's memberwise initialiser
+            // takes its arguments in the order the properties are declared, so
+            // these belong here rather than beside the other new argument.
+            contactAddress: detail.contact.address,
+            senderName: me.display_name,
+            ourNumberE164: controller.company?.numbers
+                .first { $0.id == detail.phone_number_id }?.number_e164,
             loadTemplates: { [repo = controller.repo, companyId = detail.company_id] in
                 try await repo.templates(companyId: companyId).data
             },

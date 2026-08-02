@@ -12,7 +12,10 @@ import { toast } from "sonner";
 import {
   appendIdentificationSuffix,
   applyMergeFields,
+  formatNanpNumber,
   hasMergeFields,
+  hasServerOnlyTokens,
+  SERVER_ONLY_TOKENS_NOTE,
   type MmsMediaType,
 } from "@loonext/shared";
 
@@ -347,11 +350,20 @@ export function MergeFieldPreview({
   text,
   contactName,
   businessName,
+  contactAddress,
+  senderName,
+  ourNumber,
   identificationSuffix,
 }: {
   text: string;
   contactName?: string | null;
   businessName?: string | null;
+  /** #274: the contact's service address, for {address}. */
+  contactAddress?: string | null;
+  /** #274: the signed-in member, for {my_name}. */
+  senderName?: string | null;
+  /** #274: this conversation's number in E.164, for {our_number}. */
+  ourNumber?: string | null;
   /** #393: the signature this send will carry, when it applies. */
   identificationSuffix?: string | null;
 }) {
@@ -362,13 +374,26 @@ export function MergeFieldPreview({
   if (!hasMergeFields(text) && !signed) return null;
   if (text.trim().length === 0) return null;
   return (
-    <p className="truncate text-xs text-muted-foreground">
-      Sends as:{" "}
-      {appendIdentificationSuffix(
-        applyMergeFields(text, { contactName, businessName }),
-        identificationSuffix,
-      )}
-    </p>
+    <div className="text-xs text-muted-foreground">
+      <p className="truncate">
+        Sends as:{" "}
+        {appendIdentificationSuffix(
+          applyMergeFields(text, {
+            contactName,
+            businessName,
+            contactAddress,
+            senderName,
+            ourNumber: ourNumber ? formatNanpNumber(ourNumber) : null,
+          }),
+          identificationSuffix,
+        )}
+      </p>
+      {/* #274: the two tokens this side cannot answer honestly. A cached
+          "next visit" would be confidently wrong the moment a teammate
+          reschedules it, and a preview that is usually right is worse than
+          one that says which part it cannot show. */}
+      {hasServerOnlyTokens(text) && <p>{SERVER_ONLY_TOKENS_NOTE}</p>}
+    </div>
   );
 }
 
@@ -971,6 +996,18 @@ export function Composer({
             text={text}
             contactName={conversation.data?.contact?.name}
             businessName={company.data?.name}
+            // #274: everything this side can answer honestly. The visit day and
+            // time are the server's to resolve — see MergeFieldPreview.
+            contactAddress={conversation.data?.contact?.address}
+            senderName={me.data?.display_name}
+            // The number THIS conversation sends from, matched against the
+            // workspace's list — the customer replies to that one, not to
+            // whichever number happens to be first.
+            ourNumber={
+              company.data?.numbers?.find(
+                (n) => n.id === conversation.data?.phone_number_id,
+              )?.number_e164 ?? null
+            }
           />
         </div>
       )}

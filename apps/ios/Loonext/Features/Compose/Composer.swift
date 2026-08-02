@@ -147,6 +147,12 @@ struct ThreadComposerView: View {
     let banner: ComposerBanner?
     let contactName: String?
     let businessName: String?
+    /// #274: the contact's service address, for {address} in the preview.
+    var contactAddress: String?
+    /// #274: the signed-in member, for {my_name}.
+    var senderName: String?
+    /// #274: this conversation's number in E.164, for {our_number}.
+    var ourNumberE164: String?
     let loadTemplates: @MainActor () async throws -> [Template]
     /// #475: the body, the photos, the saved reply it came from (if any),
     /// and whether the words changed after it was inserted (#274).
@@ -312,7 +318,10 @@ struct ThreadComposerView: View {
                     text: state.text,
                     hasMedia: !state.photos.isEmpty,
                     contactName: contactName,
-                    businessName: businessName
+                    businessName: businessName,
+                    contactAddress: contactAddress,
+                    senderName: senderName,
+                    ourNumberE164: ourNumberE164
                 )
             }
         }
@@ -845,6 +854,12 @@ struct ComposerHints: View {
     /// what the meter counts. Passed in rather than composed so the count cannot
     /// drift from the body the server bills.
     var identificationSuffix: String? = nil
+    /// #274: the contact's service address, for {address} in the preview.
+    var contactAddress: String? = nil
+    /// #274: the signed-in member, for {my_name}.
+    var senderName: String? = nil
+    /// #274: this conversation's number in E.164, for {our_number}.
+    var ourNumberE164: String? = nil
 
     var body: some View {
         // #415: measure what SENDS, not what was typed. This view already had
@@ -861,11 +876,20 @@ struct ComposerHints: View {
         //
         // #393 adds the signature to that same string: merge fields first, then
         // sign, then estimate — the order the send path uses.
+        //
+        // #274: the meter counts the same values the preview renders, so an
+        // address resolving into the body changes the part count exactly the
+        // way a business name does.
         let sendsAs = Signature.append(
             MergeFields.applyMergeFields(
                 text,
-                contactName: contactName,
-                businessName: businessName
+                values: MergeFields.Values(
+                    contactName: contactName,
+                    businessName: businessName,
+                    contactAddress: contactAddress,
+                    senderName: senderName,
+                    ourNumber: ourNumberE164.map(MergeFields.formatNanpNumber)
+                )
             ),
             suffix: identificationSuffix
         )
@@ -888,6 +912,15 @@ struct ComposerHints: View {
                     .font(.golos(10.5))
                     .foregroundStyle(BrandColor.muted300)
                     .lineLimit(2)
+                    // #274: the two tokens this side cannot answer honestly. A
+                    // cached "next visit" would be confidently wrong the moment
+                    // a teammate reschedules it, and a preview that is usually
+                    // right is worse than one that says what it cannot show.
+                    if MergeFields.hasServerOnlyTokens(text) {
+                        Text(MergeFields.serverOnlyTokensNote)
+                            .font(.golos(10.5))
+                            .foregroundStyle(BrandColor.muted300)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

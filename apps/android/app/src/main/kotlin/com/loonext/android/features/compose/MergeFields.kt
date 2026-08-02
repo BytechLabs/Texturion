@@ -185,6 +185,28 @@ object MergeFields {
         ),
     )
 
+    /**
+     * #274 — the tokens a CLIENT cannot resolve honestly. MIRROR of
+     * SERVER_ONLY_TOKENS in packages/shared.
+     *
+     * {job_day}/{job_time} come from the conversation's next open due-dated
+     * task. A composer could look that up in its own cache and usually be
+     * right — and "usually right" is the worst possible property for a
+     * preview, whose whole reason to exist is being exactly what ships.
+     */
+    val SERVER_ONLY_TOKENS = listOf("job_day", "job_time")
+
+    /** The note a composer preview appends when it cannot show the whole truth. */
+    const val SERVER_ONLY_TOKENS_NOTE = "The day and time fill in when you send."
+
+    /** True when `text` uses a token only the send path can resolve. */
+    fun hasServerOnlyTokens(text: String): Boolean {
+        if (!text.contains('{')) return false
+        return TOKEN_PATTERN.findAll(text).any { match ->
+            match.groupValues[1].lowercase() in SERVER_ONLY_TOKENS
+        }
+    }
+
     /** True when `text` contains at least one {token} this substituter handles. */
     fun hasMergeFields(text: String): Boolean {
         if (!text.contains('{')) return false

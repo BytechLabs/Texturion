@@ -225,6 +225,28 @@ enum MergeFields {
         return anyDropped ? tidyDroppedTokens(result) : result
     }
 
+    /// #274 — the tokens a CLIENT cannot resolve honestly. MIRROR of
+    /// SERVER_ONLY_TOKENS in packages/shared.
+    ///
+    /// {job_day}/{job_time} come from the conversation's next open due-dated
+    /// task. A composer could look that up in its own cache and usually be
+    /// right — and "usually right" is the worst possible property for a
+    /// preview, whose whole reason to exist is being exactly what ships.
+    static let serverOnlyTokens = ["job_day", "job_time"]
+
+    /// The note a composer preview appends when it cannot show the whole truth.
+    static let serverOnlyTokensNote = "The day and time fill in when you send."
+
+    /// True when `text` uses a token only the send path can resolve.
+    static func hasServerOnlyTokens(_ text: String) -> Bool {
+        guard text.contains("{"), let pattern = tokenPattern() else { return false }
+        let ns = text as NSString
+        let matches = pattern.matches(in: text, range: NSRange(location: 0, length: ns.length))
+        return matches.contains { match in
+            serverOnlyTokens.contains(ns.substring(with: match.range(at: 1)).lowercased())
+        }
+    }
+
     /// True when `text` contains at least one {token} this substituter handles.
     static func hasMergeFields(_ text: String) -> Bool {
         guard text.contains("{"), let pattern = tokenPattern() else { return false }

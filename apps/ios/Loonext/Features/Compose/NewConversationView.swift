@@ -46,6 +46,7 @@ struct NewConversationView: View {
                     companyId: companyId,
                     numbers: numbers,
                     businessName: businessName,
+                    senderName: me.display_name,
                     companySignature: companySignature,
                     selectedContact: selectedContact,
                     prefillPhone: selectedContact == nil ? prefillPhone : nil,
@@ -82,6 +83,10 @@ private struct NewConversationLoaded: View {
     let companyId: String
     let numbers: [PhoneNumberSummary]
     let businessName: String?
+    /// #274: the signed-in member's name, for {my_name} in the preview. Passed
+    /// in because `me` belongs to the outer view, and threading the one field
+    /// this needs beats handing a whole session object down.
+    let senderName: String?
     /// #393: the company-wide signature, before the per-customer check.
     let companySignature: String?
     let selectedContact: Contact?
@@ -390,7 +395,17 @@ private struct NewConversationLoaded: View {
                     identificationSuffix: Signature.pending(
                         companySuffix: companySignature,
                         alreadySignedAt: selectedContact?.first_identification_sent_at
-                    )
+                    ),
+                    // #274: a brand-new conversation has no visit booked yet, so
+                    // those two tokens genuinely have nothing to resolve to —
+                    // the note the preview shows is still the honest thing.
+                    //
+                    // AFTER identificationSuffix: a memberwise initialiser takes
+                    // its arguments in declaration order, defaults or not.
+                    contactAddress: selectedContact?.address,
+                    senderName: senderName,
+                    ourNumberE164: numbers
+                        .first { $0.id == fromNumberId }?.number_e164
                 )
                 .padding(.top, 2)
             }

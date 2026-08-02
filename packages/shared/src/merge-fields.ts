@@ -257,3 +257,45 @@ export const MERGE_FIELD_SAMPLES: Readonly<
   jobDay: "Tuesday",
   jobTime: "2:00 PM",
 };
+
+/**
+ * #274 — the tokens a CLIENT cannot resolve honestly, and why.
+ *
+ * `{job_day}` and `{job_time}` come from the conversation's next open
+ * due-dated task. A composer could look that up in its own cache and usually be
+ * right — and "usually right" is the worst possible property for a preview,
+ * because the whole reason a preview exists is that it is exactly what ships.
+ * The moment a teammate completes or reschedules that task on another device,
+ * a cached answer here is confidently wrong.
+ *
+ * Duplicating the server's query on three clients would also make it a
+ * hand-ported QUERY rather than a hand-ported pure function, which is a much
+ * worse thing to keep in sync.
+ *
+ * So a composer resolves everything it genuinely knows and SAYS that these two
+ * fill in on send. Silently dropping them would show the sender a message
+ * different from the one the customer receives, which is the one failure a
+ * preview must never have.
+ *
+ * The editor is a different case: it has no real contact, so it previews with
+ * samples and every token is honestly a sample.
+ */
+export const SERVER_ONLY_TOKENS: readonly MergeFieldToken[] = [
+  "job_day",
+  "job_time",
+];
+
+/** True when `text` uses a token only the send path can resolve. */
+export function hasServerOnlyTokens(text: string): boolean {
+  const needed = mergeFieldsNeeded(text);
+  return SERVER_ONLY_TOKENS.some((token) => needed.has(token));
+}
+
+/**
+ * The note a composer preview appends when it cannot show the whole truth.
+ *
+ * One sentence, in the product's voice, from one place — three clients writing
+ * their own would each be describing the same mechanism slightly differently.
+ */
+export const SERVER_ONLY_TOKENS_NOTE =
+  "The day and time fill in when you send.";

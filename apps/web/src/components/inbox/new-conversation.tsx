@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompany } from "@/lib/api/companies";
+import { useMe } from "@/lib/api/me";
 import { useActiveCompany } from "@/lib/company/provider";
 import {
   clearDraft,
@@ -100,6 +101,8 @@ export function NewConversation() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const company = useCompany();
+  // #274: the signed-in member, for {my_name} in the preview.
+  const meQuery = useMe();
   const usage = useUsage();
   const start = useStartConversation();
   // Re-entrancy guard: submit() awaits an async media read before start.mutate,
@@ -781,6 +784,16 @@ export function NewConversation() {
               recipient?.kind === "contact" ? recipient.contact.name : null
             }
             businessName={company.data?.name}
+            // #274: a brand-new conversation has no visit booked yet, so those
+            // two tokens genuinely have nothing to resolve to — the note the
+            // preview shows is still the honest thing to say.
+            contactAddress={
+              recipient?.kind === "contact" ? recipient.contact.address : null
+            }
+            senderName={meQuery.data?.display_name}
+            ourNumber={
+              activeNumbers.find((n) => n.id === numberId)?.number_e164 ?? null
+            }
             identificationSuffix={pendingSignature}
           />
           {/* #225: what o'clock it is for THEM, before the send rather than in
