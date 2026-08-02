@@ -41,6 +41,7 @@
     "db:test:member-firsts": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/member_firsts.test.sql",
     "db:test:activation-stall": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/activation_stall.test.sql",
     "db:test:retention-enforce": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/retention_enforce.test.sql",
+  "db:test:storage-fleet": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/storage_fleet.test.sql",
   "db:test:all": "node scripts/db-test-all.mjs",
     "db:test:ci": "npm run db:test:all",
     "db:test:schema": "docker exec -i supabase_db_Loonext psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < supabase/tests/schema.test.sql",

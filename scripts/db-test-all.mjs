@@ -120,6 +120,7 @@ const SUITES = [
   "signup_attribution",
   "billing_currency",
   "retention_enforce",
+  "storage_fleet",
 
 ];
 
