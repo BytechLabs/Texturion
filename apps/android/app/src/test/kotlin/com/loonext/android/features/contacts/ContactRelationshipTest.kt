@@ -66,4 +66,49 @@ class ContactRelationshipTest {
         assertEquals("1 conversation", contactRelationshipLine(1, null))
         assertEquals("2 conversations", contactRelationshipLine(2, null))
     }
+
+    /** #505 [count, expected badge] — `CONTACT_REPEAT_BADGE_CASES`, case for case. */
+    private val badgeCases: List<Pair<Int?, String?>> = listOf(
+        null to null,
+        0 to null,
+        1 to null,
+        2 to "2 conversations",
+        7 to "7 conversations",
+        23 to "23 conversations",
+        -3 to null,
+    )
+
+    @Test
+    fun `matches the shared repeat-badge table case for case`() {
+        for ((count, expected) in badgeCases) {
+            assertEquals("count=$count", expected, contactRepeatBadge(count))
+        }
+    }
+
+    @Test
+    fun `says nothing until the second conversation`() {
+        // Asserted around the named constant AND positively, because a port
+        // that returned null for everything would sail through a table of
+        // nulls — and the whole feature is the case that is NOT null.
+        assertNull(contactRepeatBadge(REPEAT_CUSTOMER_MINIMUM - 1))
+        assertEquals("2 conversations", contactRepeatBadge(REPEAT_CUSTOMER_MINIMUM))
+    }
+
+    @Test
+    fun `the header stays quieter than the panel on the same contact`() {
+        // The two surfaces are deliberately different lengths, and a port that
+        // reached for contactRelationshipLine here would silently make the
+        // header a second identity card.
+        assertEquals("7 conversations", contactRepeatBadge(7))
+        assertEquals(
+            "Customer since March 2026 · 7 conversations",
+            contactRelationshipLine(7, "2026-03-04T10:00:00Z"),
+        )
+        // And the first-timer the panel still speaks for: header silent.
+        assertNull(contactRepeatBadge(1))
+        assertEquals(
+            "Customer since March 2026 · 1 conversation",
+            contactRelationshipLine(1, "2026-03-04T10:00:00Z"),
+        )
+    }
 }

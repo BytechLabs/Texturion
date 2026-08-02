@@ -19,7 +19,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import type { DeferralKind } from "@loonext/shared";
+import { contactRepeatBadge, type DeferralKind } from "@loonext/shared";
 
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 
@@ -27,6 +27,7 @@ import { CallButton } from "@/components/calls/call-button";
 import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { StatusPill } from "@/components/inbox/status-pill";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import {
@@ -147,6 +148,17 @@ export function ThreadHeader({
     ? memberNames.get(conversation.assigned_user_id) ?? "Teammate"
     : null;
   const phone = conversation.contact.phone_e164;
+  // #505: the repeat-customer signal, on the surface the person mid-reply is
+  // actually looking at. The panel already carries the full line, but it
+  // defaults closed, so the fact reached everyone except the one about to use
+  // it. Null below two conversations (`contactRepeatBadge` — the open thread
+  // is itself one of the count), which is why the common case is untouched.
+  //
+  // #106/D88: this is the same number-access-filtered count the panel reads —
+  // it arrives already scoped, so there is nothing to filter here. `contact`
+  // is undefined until the detail query lands, and an absent badge is the
+  // honest reading of "we do not know yet".
+  const repeatBadge = contactRepeatBadge(contact?.conversation_count);
 
   const copyPhone = async () => {
     try {
@@ -261,6 +273,21 @@ export function ThreadHeader({
     );
   };
 
+  // Lifted out of the JSX only so the #505 badge can sit beside it in a flex
+  // row without the no-badge path having to render a wrapper it does not need.
+  // Nothing about the button itself changed.
+  const nameButton = (
+    <button
+      type="button"
+      onClick={onToggleContactPanel}
+      aria-pressed={panelOpen}
+      aria-label={`View contact details for ${name}, ${formatPhone(phone)}`}
+      className="block max-w-full truncate rounded-md px-1 text-left text-[15px] font-bold leading-tight text-app-ink transition-colors duration-150 ease-out hover:bg-app-hover md:leading-normal"
+    >
+      {name}
+    </button>
+  );
+
   const assignTo = (assignId: string | null) => {
     const prev = conversation.assigned_user_id;
     if (assignId === prev) return;
@@ -328,15 +355,42 @@ export function ThreadHeader({
 
       {/* Name (tap → contact panel) + number with a copy button. */}
       <div className="min-w-0 flex-1">
-        <button
-          type="button"
-          onClick={onToggleContactPanel}
-          aria-pressed={panelOpen}
-          aria-label={`View contact details for ${name}, ${formatPhone(phone)}`}
-          className="block max-w-full truncate rounded-md px-1 text-left text-[15px] font-bold leading-tight text-app-ink transition-colors duration-150 ease-out hover:bg-app-hover md:leading-normal"
-        >
-          {name}
-        </button>
+        {/* #505: BESIDE the name, never under it. A second line would make the
+            header a reading surface, and reading is the contact panel's job —
+            the panel spends a whole line on "Customer since March 2026 · 7
+            conversations" because somebody who opened it is reading; this
+            spends a glance. Subordinate by weight too: 12px regular against
+            the name's 15px bold, on the neutral secondary fill rather than a
+            colour, because a five-time customer is a FACT and not an alert.
+
+            Hidden below sm, the same call the avatar beside it and the snooze
+            chip further along already make: at 375px the back button and the
+            four right-hand controls (44px tap targets, G11) leave the name
+            column roughly 80px, so a ~100px chip would not sit beside the name
+            — it would replace it. The phone keeps the fact one tap away in the
+            panel sheet. Calling stays visible at every width because it is a
+            CONTROL (#133); this is a label, and a label loses.
+
+            The no-badge branch renders `nameButton` bare, so a first-time
+            caller's header is unchanged down to the DOM — which is the point:
+            a header that decorates everybody distinguishes nobody. */}
+        {repeatBadge === null ? (
+          nameButton
+        ) : (
+          // `min-w-0` so this wrapper can be narrower than its content:
+          // without it the wrapper's automatic minimum is the un-shrinkable
+          // badge, and a squeezed column would push the pill out over the
+          // controls instead of letting the name truncate.
+          <div className="flex min-w-0 items-center gap-1.5">
+            {nameButton}
+            <Badge
+              variant="secondary"
+              className="hidden shrink-0 font-normal sm:inline-flex"
+            >
+              {repeatBadge}
+            </Badge>
+          </div>
+        )}
         {/* #76: on a phone the number+copy is a duplicate second header line
             (the contact panel — one tap on the name — shows both). Hidden below
             md; the number is folded into the name button's aria-label.

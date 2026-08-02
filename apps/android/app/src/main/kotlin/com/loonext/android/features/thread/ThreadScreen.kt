@@ -120,6 +120,7 @@ import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.features.compose.bannerKind
+import com.loonext.android.features.contacts.contactRepeatBadge
 import com.loonext.android.features.settings.openExternal
 import com.loonext.android.features.settings.supportMailto
 import com.loonext.android.features.settings.supportSituation
@@ -1308,7 +1309,37 @@ private fun ThreadHeader(
                     val assigneeName = members
                         .firstOrNull { it.user_id == detail.assigned_user_id }
                         ?.display_name?.ifBlank { null }
+                    // #505 — the repeat-customer signal, on the surface the
+                    // person replying is actually looking at. It lived only in
+                    // the contact panel, which opens on a tap nobody takes
+                    // mid-reply.
+                    //
+                    // On this line rather than beside the name, which is where
+                    // web puts it. The phone header's identity column is about
+                    // 142dp on a 360dp device, and an unweighted chip in a Row
+                    // is measured BEFORE the weighted name — so a long count at
+                    // a large system font scale could squeeze the contact's
+                    // name to nothing. This line already ellipsizes, already
+                    // joins secondary facts with " · ", and cannot push
+                    // anything off screen.
+                    //
+                    // FIRST in the string, so it is the last thing truncation
+                    // takes: a tech in a truck is exactly who this is for, and
+                    // the narrow screen is exactly where it would be lost.
+                    //
+                    // The count comes from the contact DETAIL read (the same
+                    // `controller.contact` the opted-out marker below uses) —
+                    // the conversation embed carries no relationship summary,
+                    // and reading a defaulted 0 off it would badge nobody.
+                    val repeatBadge =
+                        contactRepeatBadge(controller.contact?.conversation_count)
                     val subtitle = buildString {
+                        // Absent entirely below two conversations: a first-time
+                        // caller's header is what it always was.
+                        if (repeatBadge != null) {
+                            append(repeatBadge)
+                            append(" · ")
+                        }
                         append(statusLabel(detail.status))
                         append(" · ")
                         append(assigneeName ?: phoneLabel)

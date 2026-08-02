@@ -74,6 +74,43 @@ export function useContact(contactId: string) {
   });
 }
 
+/**
+ * Fold a saved contact back into the cached detail.
+ *
+ * PATCH and POST echo the stored COLUMNS and nothing computed — the derived
+ * fields (`conversation_count`, `first_conversation_at`, the created/updated-by
+ * names, the resolved clock) exist only in the GET handler. So the response is
+ * a partial view of the detail, and writing it over the cache DROPS whatever it
+ * does not mention.
+ *
+ * #505: that was a live #410 defect. Editing a name blanked the panel's
+ * "Customer since March 2026 · 7 conversations" until something refetched,
+ * because the merge listed five fields to carry forward and stopped there.
+ * Spreading `existing` carries every derived field, including the ones added
+ * after this was written — an explicit list is a thing to forget, and it was
+ * forgotten once already.
+ *
+ * The saved columns still win, so the edit the user just made is what shows.
+ */
+export function mergeContactDetail(
+  existing: ContactDetail | undefined,
+  saved: Contact,
+): ContactDetail {
+  return {
+    // Defaults for the case where nothing is cached yet.
+    opted_out: existing?.opted_out ?? false,
+    opt_out_source: existing?.opt_out_source ?? null,
+    // #292: the write echoes the stored OVERRIDE, not the resolved clock.
+    // Carrying the previous resolution forward beats blanking the line
+    // mid-edit; a timezone change refetches it.
+    timezone_resolved: existing?.timezone_resolved ?? "UTC",
+    timezone_source: existing?.timezone_source ?? "company",
+    local_hour: existing?.local_hour ?? 0,
+    ...existing,
+    ...saved,
+  };
+}
+
 export interface ContactCreateInput {
   phone_e164: string;
   name?: string;
@@ -95,17 +132,7 @@ export function useCreateContact() {
     onSuccess: (contact) => {
       queryClient.setQueryData<ContactDetail>(
         keys.contacts.detail(companyId, contact.id),
-        (existing) => ({
-          opted_out: existing?.opted_out ?? false,
-          opt_out_source: existing?.opt_out_source ?? null,
-          // #292: the PATCH echoes the stored override, not the resolved
-          // clock — the detail refetch below brings that. Keeping the previous
-          // resolution meanwhile beats blanking the line mid-edit.
-          timezone_resolved: existing?.timezone_resolved ?? "UTC",
-          timezone_source: existing?.timezone_source ?? "company",
-          local_hour: existing?.local_hour ?? 0,
-          ...contact,
-        }),
+        (existing) => mergeContactDetail(existing, contact),
       );
       queryClient.invalidateQueries({
         queryKey: keys.contacts.lists(companyId),
@@ -143,17 +170,7 @@ export function useUpdateContact(contactId: string) {
     onSuccess: (contact, patch) => {
       queryClient.setQueryData<ContactDetail>(
         keys.contacts.detail(companyId, contactId),
-        (existing) => ({
-          opted_out: existing?.opted_out ?? false,
-          opt_out_source: existing?.opt_out_source ?? null,
-          // #292: the PATCH echoes the stored OVERRIDE, not the resolved
-          // clock. Carrying the previous resolution forward beats blanking the
-          // line mid-edit; a timezone change refetches it below.
-          timezone_resolved: existing?.timezone_resolved ?? "UTC",
-          timezone_source: existing?.timezone_source ?? "company",
-          local_hour: existing?.local_hour ?? 0,
-          ...contact,
-        }),
+        (existing) => mergeContactDetail(existing, contact),
       );
       queryClient.invalidateQueries({
         queryKey: keys.contacts.lists(companyId),

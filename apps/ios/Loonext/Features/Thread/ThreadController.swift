@@ -1106,12 +1106,24 @@ final class ThreadController {
     /// throws so the field shows its calm failure sentence.
     func saveContactField(_ field: String, _ value: String?) async throws {
         guard let contactId = conversation?.contact_id else { return }
-        contact = try await contacts.updateField(
+        let previous = contact
+        var saved = try await contacts.updateField(
             companyId: companyId,
             contactId: contactId,
             field: field,
             value: value
         )
+        // #505: PATCH echoes the stored COLUMNS and nothing derived — the
+        // relationship counts are computed only in the GET handler
+        // (apps/api/src/routes/contacts.ts). Assigning the response wholesale
+        // therefore blanked `conversation_count`, so editing a name made the
+        // header's repeat chip — and the contact sheet's "Customer since"
+        // line, which is #410 and shipped — disappear until a refetch.
+        saved.conversation_count =
+            previous?.conversation_count ?? saved.conversation_count
+        saved.first_conversation_at =
+            previous?.first_conversation_at ?? saved.first_conversation_at
+        contact = saved
         try? await refreshConversationDetail()
     }
 

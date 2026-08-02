@@ -1149,7 +1149,19 @@ class ThreadController(
      */
     suspend fun saveContactField(field: String, value: String?) {
         val contactId = conversation?.contact_id ?: return
-        contact = repo.updateContactField(companyId, contactId, field, value)
+        val previous = contact
+        val saved = repo.updateContactField(companyId, contactId, field, value)
+        // #505: PATCH echoes the stored COLUMNS and nothing derived — the
+        // relationship counts are computed only in the GET handler
+        // (apps/api/src/routes/contacts.ts). Assigning the response wholesale
+        // therefore zeroed `conversation_count`, so editing a name made the
+        // header's repeat badge — and the contact sheet's "Customer since"
+        // line, which is #410 and shipped — disappear until a refetch.
+        contact = saved.copy(
+            conversation_count = previous?.conversation_count ?: saved.conversation_count,
+            first_conversation_at =
+                previous?.first_conversation_at ?: saved.first_conversation_at,
+        )
         runCatching { refreshConversationDetail() }
     }
 

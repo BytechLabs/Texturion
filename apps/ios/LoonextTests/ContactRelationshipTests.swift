@@ -2,9 +2,10 @@ import XCTest
 
 @testable import Loonext
 
-/// #410 — the Swift half of a line three clients render.
+/// #410/#505 — the Swift half of two strings three clients render.
 ///
-/// The table below is `CONTACT_RELATIONSHIP_CASES` from
+/// The tables below are `CONTACT_RELATIONSHIP_CASES` and
+/// `CONTACT_REPEAT_BADGE_CASES` from
 /// `packages/shared/src/contact-relationship.ts`, copied case for case. Adding
 /// a case there means adding it here; the mirror is
 /// `apps/android/.../features/contacts/ContactRelationshipTest.kt`.
@@ -57,5 +58,49 @@ final class ContactRelationshipTests: XCTestCase {
         // unfinished on the exact screen it is trying to build confidence.
         XCTAssertEqual(contactRelationshipLine(1, nil), "1 conversation")
         XCTAssertEqual(contactRelationshipLine(2, nil), "2 conversations")
+    }
+
+    // MARK: - #505, the thread-header badge
+
+    /// (count, expected badge) — `CONTACT_REPEAT_BADGE_CASES`, case for case.
+    private let badgeCases: [(Int?, String?)] = [
+        (nil, nil),
+        (0, nil),
+        (1, nil),
+        (2, "2 conversations"),
+        (7, "7 conversations"),
+        (23, "23 conversations"),
+        (-3, nil),
+    ]
+
+    func testRepeatBadgeMatchesTheSharedTableCaseForCase() {
+        for (count, expected) in badgeCases {
+            XCTAssertEqual(
+                contactRepeatBadge(count),
+                expected,
+                "count=\(String(describing: count))"
+            )
+        }
+    }
+
+    func testTheThresholdIsTheNamedConstantNotALiteral() {
+        // Deliberately RELATIVE to the constant, with no `== 2` anywhere: the
+        // table above already pins the shared contract's value, and a second
+        // copy of the literal here would become a ceiling on changing it rather
+        // than a check that the function and the constant still agree. What
+        // this catches is one of the two moving without the other.
+        XCTAssertNil(contactRepeatBadge(repeatCustomerMinimum - 1))
+        XCTAssertNotNil(contactRepeatBadge(repeatCustomerMinimum))
+    }
+
+    func testTheHeaderAndTheContactScreenDisagreeAtOneDeliberately() {
+        // The #505 decision, pinned so nobody "fixes" it into consistency
+        // later: the count includes the conversation on screen, so a first-time
+        // caller reads 1 and gets NO header chip — a badge on every thread
+        // would be noise on the common case. `ContactDetailView` still says
+        // "1 conversation", because somebody who opened a reading surface is
+        // owed the fact. The two strings disagreeing at 1 IS the design.
+        XCTAssertNil(contactRepeatBadge(1))
+        XCTAssertEqual(contactRelationshipLine(1, nil), "1 conversation")
     }
 }

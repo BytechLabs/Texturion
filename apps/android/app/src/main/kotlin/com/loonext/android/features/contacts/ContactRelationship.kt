@@ -48,3 +48,38 @@ fun contactRelationshipLine(conversationCount: Int?, firstConversationAt: String
     // the question this exists for, and inventing a date would not.
     return if (since != null) "Customer since $since · $conversations" else conversations
 }
+
+/**
+ * Two, because the open conversation is one of them.
+ *
+ * Named rather than inlined so the three clients cannot drift apart on the
+ * threshold — this mirrors `REPEAT_CUSTOMER_MINIMUM` in the shared module, not
+ * the literal.
+ */
+const val REPEAT_CUSTOMER_MINIMUM = 2
+
+/**
+ * #505 — the THREAD-HEADER form of the same fact: a count, or nothing.
+ *
+ * The person who most needs to know they are talking to a five-time customer
+ * is the one replying right now, and they are looking at the thread, not the
+ * contact panel. But the header is a GLANCE surface and the panel is a READING
+ * surface, so they do not carry the same weight of text: the panel says
+ * "Customer since March 2026 · 7 conversations", the header says
+ * "7 conversations".
+ *
+ * Silent below two on purpose. `conversation_count` counts every conversation
+ * with this contact INCLUDING the open one, so a first-time caller reads
+ * exactly 1 — a badge on every thread would be noise on the common case, and a
+ * header that decorates everybody distinguishes nobody. Their header stays
+ * byte-for-byte what it is today; being new is said by the ABSENCE of a badge.
+ *
+ * The count is the number-access-filtered one the server derived (#106/D88):
+ * a member kept off a number must not learn the customer's history from a badge
+ * either. Nothing here re-counts or re-filters anything.
+ */
+fun contactRepeatBadge(conversationCount: Int?): String? {
+    val count = conversationCount ?: 0
+    if (count < REPEAT_CUSTOMER_MINIMUM) return null
+    return "$count conversations"
+}

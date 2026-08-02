@@ -437,7 +437,10 @@ export {
 export type { TagLike, TagSuggestion } from "./tag-similarity";
 export {
   CONTACT_RELATIONSHIP_CASES,
+  CONTACT_REPEAT_BADGE_CASES,
+  REPEAT_CUSTOMER_MINIMUM,
   contactRelationshipLine,
+  contactRepeatBadge,
   monthYear,
 } from "./contact-relationship";
 export {

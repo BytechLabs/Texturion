@@ -981,12 +981,12 @@ private struct ThreadBody: View {
 
 // MARK: - Header
 
-/// The paper pill header (#186 item 3): back · avatar · name + status line ·
-/// ink call circle. The avatar / name / status line all open the conversation
-/// info sheet (a bottom-sheet CARD, not a scatter of menus) — assign, pin,
-/// gallery, spam, opt-out, and timeline visibility live there, with the full
-/// contact panel one tap deeper. The Android ThreadHeader + ConversationSheet
-/// twin.
+/// The paper pill header (#186 item 3): back · avatar · name (+ the #505
+/// repeat-customer chip) + status line · ink call circle. The avatar / name /
+/// status line all open the conversation info sheet (a bottom-sheet CARD, not a
+/// scatter of menus) — assign, pin, gallery, spam, opt-out, and timeline
+/// visibility live there, with the full contact panel one tap deeper. The
+/// Android ThreadHeader + ConversationSheet twin.
 @MainActor
 private struct ThreadHeader: View {
     @Bindable var controller: ThreadController
@@ -1012,6 +1012,29 @@ private struct ThreadHeader: View {
         return parts
     }
 
+    /// #505: "7 conversations", or nil for a first-time caller.
+    ///
+    /// Read off `controller.contact` — the same number-access-filtered record
+    /// (#106/D88) this header already asks for `opted_out`, fetched once on
+    /// open. The conversation's own `detail.contact` cannot answer this: it is
+    /// a `ConversationDetailContact`, which carries no counts. Nil until that
+    /// read lands, so the chip simply arrives with the header's other late
+    /// facts rather than being a second thing that flickers.
+    private var repeatBadge: String? {
+        contactRepeatBadge(controller.contact?.conversation_count)
+    }
+
+    /// VoiceOver hears the chip too.
+    ///
+    /// An `accessibilityLabel` on a Button REPLACES its children's text, so a
+    /// chip left out of this string is a signal that does not exist at all for
+    /// a screen-reader user — which is the same complaint #505 opened with, one
+    /// surface further in.
+    private var identityLabel: String {
+        guard let badge = repeatBadge else { return "Conversation options for \(contactName)" }
+        return "Conversation options for \(contactName), \(badge)"
+    }
+
     var body: some View {
         HStack(spacing: 8) {
             Button(action: onBack) {
@@ -1028,10 +1051,36 @@ private struct ThreadHeader: View {
                     InitialsAvatar(name: contactName, size: 38)
 
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(contactName)
-                            .font(.golos(14.5, weight: .semibold))
-                            .foregroundStyle(BrandColor.ink)
-                            .lineLimit(1)
+                        HStack(spacing: 6) {
+                            Text(contactName)
+                                .font(.golos(14.5, weight: .semibold))
+                                .foregroundStyle(BrandColor.ink)
+                                .lineLimit(1)
+                            // #505: the repeat-customer signal where the reply
+                            // actually gets written, instead of only inside a
+                            // panel that defaults closed. The contacts list's
+                            // "Opted out" chip verbatim — a quiet grey capsule
+                            // beside a name is vocabulary this app already has,
+                            // and a second one would only be a second thing to
+                            // learn. Subordinate to the name by every measure:
+                            // 10pt against 14.5, muted against ink.
+                            if let badge = repeatBadge {
+                                DsChip(
+                                    text: badge,
+                                    container: BrandColor.insetDeep,
+                                    content: BrandColor.muted700
+                                )
+                                // The NAME yields first when both cannot fit.
+                                // This row is tighter than the contacts list's
+                                // — a back chevron, a 38pt avatar and a 44pt
+                                // call circle are already spending the width —
+                                // and a chip clipped to "7 conve…" says less
+                                // than a clipped name does. The chip is
+                                // intrinsically small, so nothing else in the
+                                // header moves for it.
+                                .layoutPriority(1)
+                            }
+                        }
                         HStack(spacing: 5) {
                             Circle()
                                 .fill(BrandColor.lime)
@@ -1046,7 +1095,7 @@ private struct ThreadHeader: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Conversation options for \(contactName)")
+            .accessibilityLabel(identityLabel)
 
             // Call — enabled even for opted-out contacts (voice ≠ SMS
             // consent); #106: outreach like texting, so note-level viewers

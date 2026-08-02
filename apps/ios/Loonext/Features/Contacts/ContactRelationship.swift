@@ -1,11 +1,13 @@
 import Foundation
 
 /// #410 — how long they have been a customer, and how often, in one line.
+/// #505 — and the same fact again, shortened, for the thread header.
 ///
 /// Hand-ported from `packages/shared/src/contact-relationship.ts`, whose
-/// `CONTACT_RELATIONSHIP_CASES` table is the fixture this is pinned against
-/// case for case (see `ContactRelationshipTests`). The same deal
-/// `SettingsLogic` and `MentionLogic` already keep.
+/// `CONTACT_RELATIONSHIP_CASES` and `CONTACT_REPEAT_BADGE_CASES` tables are the
+/// fixtures this is pinned against case for case (see
+/// `ContactRelationshipTests`). The same deal `SettingsLogic` and
+/// `MentionLogic` already keep.
 ///
 /// Two facts and deliberately not a third: a count and a date are
 /// observations, while a score or a segment is a judgement, and the line this
@@ -56,4 +58,42 @@ func contactRelationshipLine(
     // question this exists for, and inventing a date would not.
     guard let since = monthYear(firstConversationAt) else { return conversations }
     return "Customer since \(since) · \(conversations)"
+}
+
+/// Two, because the conversation on screen is one of them.
+///
+/// Mirrored from `REPEAT_CUSTOMER_MINIMUM` rather than written as a literal at
+/// the one call site, so the three clients cannot quietly drift apart on where
+/// "repeat customer" starts.
+let repeatCustomerMinimum = 2
+
+/// #505 — the THREAD-HEADER form of the relationship: a count, or nothing.
+///
+/// Not just `contactRelationshipLine` again. A contact record is a READING
+/// surface and a thread header is a GLANCE surface, so the same truth is
+/// carried at two weights: `ContactDetailView` spends a full line on "Customer
+/// since March 2026 · 7 conversations" because whoever opened it is reading,
+/// and the header spends a chip on "7 conversations" because whoever is
+/// mid-reply is not.
+///
+/// Nil below two, and that is the feature rather than an edge case.
+/// `conversation_count` counts every conversation with this contact INCLUDING
+/// the open one, so a first-time caller reads exactly 1 — and a header that
+/// decorates everybody distinguishes nobody. Their header stays exactly what it
+/// was before this shipped; the ABSENCE of the chip is what says they are new,
+/// which costs no glance at all. `contactRelationshipLine` still says "1
+/// conversation" on the contact screen, because on a surface somebody chose to
+/// read, being new IS worth a line.
+///
+/// The count is the number-access-filtered one the server derived (#106/D88).
+/// A member kept off a number must not learn the customer's history from a chip
+/// either, so nothing here re-counts or re-filters anything.
+func contactRepeatBadge(_ conversationCount: Int?) -> String? {
+    let count = conversationCount ?? 0
+    // A count that arrived negative is not a repeat customer either: fail quiet
+    // rather than printing "-3 conversations" beside somebody's name.
+    if count < repeatCustomerMinimum { return nil }
+    // No singular branch, unlike `contactRelationshipLine` above — nothing
+    // below two reaches this line, so "1 conversations" cannot be reached.
+    return "\(count) conversations"
 }

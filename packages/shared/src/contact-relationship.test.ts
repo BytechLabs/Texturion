@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   CONTACT_RELATIONSHIP_CASES,
+  CONTACT_REPEAT_BADGE_CASES,
   contactRelationshipLine,
+  contactRepeatBadge,
   monthYear,
+  REPEAT_CUSTOMER_MINIMUM,
 } from "./contact-relationship";
 
 /**
@@ -52,5 +55,32 @@ describe("#410 the relationship line", () => {
     // unfinished on the exact screen it is trying to build confidence.
     expect(contactRelationshipLine(1, null)).toBe("1 conversation");
     expect(contactRelationshipLine(2, null)).toBe("2 conversations");
+  });
+});
+
+describe("contactRepeatBadge (#505)", () => {
+  it.each(CONTACT_REPEAT_BADGE_CASES)(
+    "count %s renders %s",
+    (count, expected) => {
+      expect(contactRepeatBadge(count)).toBe(expected);
+    },
+  );
+
+  // The property the whole placement decision rests on. If a first-timer ever
+  // got a badge, the header would decorate every thread and distinguish none.
+  it("says nothing for a first-time caller, whose only conversation is this one", () => {
+    expect(contactRepeatBadge(1)).toBeNull();
+    expect(contactRepeatBadge(REPEAT_CUSTOMER_MINIMUM)).not.toBeNull();
+  });
+
+  // Header and panel must never disagree about the number itself — only about
+  // how much they say around it.
+  it("agrees with the panel line on the count, for every repeat case", () => {
+    for (const [count] of CONTACT_REPEAT_BADGE_CASES) {
+      const badge = contactRepeatBadge(count);
+      if (badge === null) continue;
+      const line = contactRelationshipLine(count, "2026-03-04T10:00:00Z");
+      expect(line).toContain(badge);
+    }
   });
 });

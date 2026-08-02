@@ -98,3 +98,70 @@ export const CONTACT_RELATIONSHIP_CASES: [
   [2, "2026-01-01T00:00:00Z", "Customer since January 2026 · 2 conversations"],
   [2, "2026-12-31T23:59:59Z", "Customer since December 2026 · 2 conversations"],
 ];
+
+/**
+ * The THREAD-HEADER form of the same fact: a count, or nothing.
+ *
+ * # Why this is not just the line above
+ *
+ * #505: the person who most needs to know they are talking to a five-time
+ * customer is the one replying right now, and they are looking at the thread,
+ * not the panel — which defaults closed. But the header is a GLANCE surface
+ * and the panel is a READING surface, and they should not carry the same
+ * weight of text. The panel says "Customer since March 2026 · 7 conversations"
+ * because somebody who opened it is reading; the header says "7 conversations"
+ * because somebody mid-reply is not.
+ *
+ * # Why it says nothing below two
+ *
+ * `conversation_count` counts every conversation with this contact INCLUDING
+ * the open one (`contactRelationship` in apps/api/src/routes/contacts.ts), so a
+ * first-time caller reads exactly 1. A badge on every thread would be noise on
+ * the common case to serve the uncommon one, and a header that decorates
+ * everybody distinguishes nobody — which is the entire point of the feature.
+ *
+ * The panel keeps showing "1 conversation": there, being new IS information
+ * worth a line. Here it is the absence of a badge, which says the same thing
+ * without spending a glance.
+ *
+ * # Whose count this is
+ *
+ * The same number-access-filtered count the panel shows (#106/D88). A member
+ * kept off a number must not learn the customer's history from a badge either.
+ */
+export function contactRepeatBadge(
+  conversationCount: number | null | undefined,
+): string | null {
+  const count = conversationCount ?? 0;
+  if (count < REPEAT_CUSTOMER_MINIMUM) return null;
+  return `${count} conversations`;
+}
+
+/**
+ * Two, because the open conversation is one of them.
+ *
+ * Named rather than inlined so the three clients cannot drift apart on the
+ * threshold — the hand-ports mirror this constant, not the literal.
+ */
+export const REPEAT_CUSTOMER_MINIMUM = 2;
+
+/**
+ * The canonical badge cases. Kotlin and Swift hand-port this table too.
+ *
+ * [count, expected badge]
+ */
+export const CONTACT_REPEAT_BADGE_CASES: [number | null, string | null][] = [
+  // Nothing at all, and a contact somebody typed in but never texted.
+  [null, null],
+  [0, null],
+  // THE case: a first-time caller's header is unchanged. Their one
+  // conversation is the one on screen.
+  [1, null],
+  // Two is the first time "we have spoken before" is true.
+  [2, "2 conversations"],
+  [7, "7 conversations"],
+  [23, "23 conversations"],
+  // A count that arrived negative is not a repeat customer either. Fail quiet
+  // rather than rendering "-3 conversations" beside somebody's name.
+  [-3, null],
+];
