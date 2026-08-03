@@ -113,6 +113,61 @@ describe("#239 response-time copy is the same on every client", () => {
     expect(ios).toMatch(/let onOpenUnanswered:\s*\(\)\s*->\s*Void/);
   });
 
+  it("#508: every iOS construction site passes it, previews included", () => {
+    // Swift only compiles in CI's Gate/iOS job, so a required parameter added
+    // without updating a `#Preview` block is invisible here and turns main red
+    // several minutes later. It did, on the first push of this change: three
+    // previews build `ForYouList` and none of them passed the new callback.
+    //
+    // Each call is read to its balanced closing paren rather than counted —
+    // a bare count also matches the declaration and the ResponseTimeCard call
+    // below it, which is how a broken guard passes.
+    const source = readFileSync(SOURCES.ios, "utf8");
+    const forYouTab = readFileSync(
+      join(REPO_ROOT, "apps/ios/Loonext/Features/ForYou/ForYouTab.swift"),
+      "utf8",
+    );
+
+    /** The argument text of each `ForYouList(…)` call in the file. */
+    const callsToForYouList = (text: string): string[] => {
+      const calls: string[] = [];
+      const marker = "ForYouList(";
+      let from = text.indexOf(marker);
+      while (from !== -1) {
+        let depth = 0;
+        let i = from + marker.length - 1;
+        for (; i < text.length; i += 1) {
+          if (text[i] === "(") depth += 1;
+          else if (text[i] === ")") {
+            depth -= 1;
+            if (depth === 0) break;
+          }
+        }
+        calls.push(text.slice(from, i + 1));
+        from = text.indexOf(marker, i);
+      }
+      return calls;
+    };
+
+    const calls = callsToForYouList(forYouTab);
+    // The real call site plus its previews — if this ever reads 0 the guard has
+    // stopped guarding and the assertion below would pass vacuously.
+    expect(calls.length).toBeGreaterThan(1);
+    const missing = calls
+      .map((call, index) => ({ call, index }))
+      .filter(({ call }) => !call.includes("onOpenUnanswered:"))
+      .map(({ index }) => `ForYouList call #${index + 1}`);
+    expect(
+      missing,
+      `These construct ForYouList without the required onOpenUnanswered: ` +
+        `${missing.join(", ")}. A #Preview that omits it fails only in CI's ` +
+        `Gate/iOS job, several minutes after the push.`,
+    ).toEqual([]);
+    // And the card still declares it, so the check above is measuring a real
+    // requirement rather than a parameter that quietly went away.
+    expect(source).toMatch(/let onOpenUnanswered:/);
+  });
+
   it("asks the shared arc helper on every platform, so the wrong direction is reportable", () => {
     // The check that keeps the good news credible. A client that decides the
     // direction itself is a client that can quietly stop reporting the bad one —

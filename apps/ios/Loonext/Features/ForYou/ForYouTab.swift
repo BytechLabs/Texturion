@@ -734,7 +734,8 @@ private func previewCall(
         onRefresh: {},
         company: nil,
         onOpenContacts: {},
-        onOpenSettings: { _ in }
+        onOpenSettings: { _ in },
+        onOpenUnanswered: {}
     )
 }
 
@@ -756,7 +757,8 @@ private func previewCall(
         onRefresh: {},
         company: nil,
         onOpenContacts: {},
-        onOpenSettings: { _ in }
+        onOpenSettings: { _ in },
+        onOpenUnanswered: {}
     )
 }
 
@@ -797,7 +799,8 @@ private func previewCall(
         onRefresh: {},
         company: nil,
         onOpenContacts: {},
-        onOpenSettings: { _ in }
+        onOpenSettings: { _ in },
+        onOpenUnanswered: {}
     )
 }
 
