@@ -46,7 +46,7 @@ import {
   STOP_KEYWORDS,
 } from "./keywords";
 import { confirmAppointmentFromReply } from "./appointment-reminders";
-import { recordRatingFromReply } from "./job-ratings";
+import { escalatePoorRating, recordRatingFromReply } from "./job-ratings";
 import {
   INBOUND_MEDIA_TYPES,
   MAX_INBOUND_MEDIA_BYTES,
@@ -321,11 +321,22 @@ export async function handleInboundMessage(
     // durable, and a rating that could not be recorded must never wedge a
     // delivery in a retry loop.
     try {
-      await recordRatingFromReply(db, {
+      const rated = await recordRatingFromReply(db, {
         companyId: number.company_id,
         conversationId: threaded.conversation_id,
         body: payload.text ?? "",
       });
+      // A bad answer is not a statistic to read next month. Inside the same
+      // try: the rating is already written and on the thread, so a push that
+      // fails degrades the alert rather than losing the score.
+      if (rated) {
+        await escalatePoorRating(env, db, {
+          companyId: number.company_id,
+          conversationId: threaded.conversation_id,
+          taskId: rated.taskId,
+          score: rated.score,
+        });
+      }
     } catch (cause) {
       console.error("job rating record failed:", cause);
     }

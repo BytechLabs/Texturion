@@ -18,10 +18,14 @@ import {
   RATING_ASK_DELAY_HOURS,
   RATING_ASK_HORIZON_HOURS,
   JOB_RATED_EVENT,
+  isPoorRating,
   parseRatingReply,
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { listConversationViewers } from "../auth/conversation-audience";
+import type { Env } from "../env";
+import { deliverPush } from "../notifications/deliver";
 import { unwrap } from "../routes/core/http";
 import {
   nextSendableInstant,
@@ -183,4 +187,97 @@ export async function recordRatingFromReply(
     score,
     ratedUserId: result.rated_user_id ?? null,
   };
+}
+
+/**
+ * #313 — tell somebody about a bad answer, today.
+ *
+ * "A poor answer reaches the owner immediately, as something needing a human
+ * today, not a statistic in a monthly report." A dissatisfied customer
+ * contacted within a day is often recoverable; one contacted never leaves a
+ * review instead.
+ *
+ * PUSH ONLY, and to everyone who can see the thread. Email arriving tomorrow
+ * about a customer who was unhappy this afternoon has already lost, and the
+ * person who did the job may be on a roof — this is the workspace's problem,
+ * not one member's inbox.
+ *
+ * The score is in the notification and the customer's words are NOT. They did
+ * not write any: the answer is a digit. What a lock-screen carries here is
+ * entirely ours, which is what `content: { written: "us" }` asserts.
+ *
+ * Stamped on the row before sending, so a redelivered webhook or a second reply
+ * cannot wake the crew twice about one unhappy customer. Best-effort after
+ * that: the rating is already recorded and visible in the thread, so a dead
+ * device degrades the alert rather than losing the signal.
+ */
+export async function escalatePoorRating(
+  env: Env,
+  db: SupabaseClient,
+  input: {
+    companyId: string;
+    conversationId: string;
+    taskId: string;
+    score: number;
+  },
+): Promise<void> {
+  if (!isPoorRating(input.score)) return;
+
+  // Claim the escalation FIRST. `is null` makes this the same
+  // one-winner-only shape the rest of the queue uses: a concurrent second
+  // reply updates nothing and sends nothing.
+  const claimed = unwrap<Record<string, unknown>[]>(
+    await db
+      .from("job_ratings")
+      .update({ escalated_at: new Date().toISOString() })
+      .eq("company_id", input.companyId)
+      .eq("task_id", input.taskId)
+      .is("escalated_at", null)
+      .select("id"),
+    "claim rating escalation",
+  );
+  if (claimed.length === 0) return;
+
+  const conversation = unwrap<{ phone_number_id: string | null } | null>(
+    await db
+      .from("conversations")
+      .select("phone_number_id")
+      .eq("id", input.conversationId)
+      .eq("company_id", input.companyId)
+      .maybeSingle(),
+    "rating conversation lookup",
+  );
+
+  // WHO gets told: the people who can see this thread, which under #106 is not
+  // everyone in the workspace. A member with no access to that number learning
+  // a customer on it was unhappy is the leak that access control exists to
+  // stop. `deliverPush` already no-ops on an empty list, so there is no guard
+  // for that case here.
+  const viewers = await listConversationViewers(db, {
+    companyId: input.companyId,
+    phoneNumberId: conversation?.phone_number_id,
+  });
+
+  const failures: unknown[] = [];
+  await deliverPush(env, db, {
+    failures,
+    userIds: viewers.map((viewer) => viewer.user_id),
+    content: { written: "us" },
+    // One alert per rating. A rating cannot change — the RPC refuses a second
+    // answer — so this is belt and braces on the claim above.
+    collapseKey: `rating:${input.taskId}`,
+    web: {
+      title: "A customer was not happy",
+      body:
+        `They rated a finished job ${input.score} out of 5. ` +
+        "Today is when that is still fixable.",
+      url: `${env.APP_ORIGIN}/inbox/${input.conversationId}`,
+    },
+  });
+
+  if (failures.length > 0) {
+    console.error(
+      `job rating: ${failures.length} escalation push(es) failed for ${input.taskId}`,
+    );
+  }
 }
