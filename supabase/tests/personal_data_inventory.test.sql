@@ -30,6 +30,10 @@ declare
     'attachments', 'message_attachments', 'calls', 'call_member_legs',
     'opt_outs', 'blocked_senders', 'contact_consent_events', 'tasks',
     'number_port_outs',
+    -- #291: a customer's addresses, plural. Squarely contact data — it is
+    -- where somebody lives, which is the most sensitive thing in the
+    -- record after the phone number itself.
+    'contact_addresses',
     'text_enablement_orders',
     -- #233: an unsent message body addressed to a contact. Classified with
     -- `messages` rather than as configuration, because it IS a message — it

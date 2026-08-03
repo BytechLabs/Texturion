@@ -21,7 +21,7 @@ import {
 } from "../test/support";
 import { decodeCursor, encodeCursor } from "../http/pagination";
 
-import { contactsRoutes } from "./contacts";
+import { contactSearchOr, contactsRoutes } from "./contacts";
 
 const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
@@ -98,7 +98,7 @@ describe("GET /v1/contacts", () => {
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("deleted_at")).toBe("is.null");
     expect(call.url.searchParams.get("or")).toBe(
-      "(name.ilike.*smi*,phone_e164.ilike.*smi*)",
+      "(name.ilike.*smi*,phone_e164.ilike.*smi*,business_name.ilike.*smi*,email.ilike.*smi*)",
     );
     expect(call.url.searchParams.get("limit")).toBe("11");
     // The list never fetches the (up-to-5000-char) notes column — it's detail-only.
@@ -235,7 +235,7 @@ describe("GET /v1/contacts", () => {
     );
     const call = sb.find("GET", "/rest/v1/contacts")[0];
     expect(call.url.searchParams.get("or")).toBe(
-      "(name.ilike.*abcd*,phone_e164.ilike.*abcd*)",
+      "(name.ilike.*abcd*,phone_e164.ilike.*abcd*,business_name.ilike.*abcd*,email.ilike.*abcd*)",
     );
   });
 
@@ -260,7 +260,7 @@ describe("GET /v1/contacts", () => {
     expect(
       sb.find("GET", "/rest/v1/contacts")[0].url.searchParams.get("or"),
     ).toBe(
-      "(name.ilike.*647 892-3862*,phone_e164.ilike.*647 892-3862*," +
+      "(name.ilike.*647 892-3862*,phone_e164.ilike.*647 892-3862*,business_name.ilike.*647 892-3862*,email.ilike.*647 892-3862*," +
         "phone_e164.ilike.*6478923862*)",
     );
   });
@@ -281,11 +281,11 @@ describe("GET /v1/contacts", () => {
 
     const calls = sb.find("GET", "/rest/v1/contacts");
     expect(calls[0].url.searchParams.get("or")).toBe(
-      "(name.ilike.*smith*,phone_e164.ilike.*smith*)",
+      "(name.ilike.*smith*,phone_e164.ilike.*smith*,business_name.ilike.*smith*,email.ilike.*smith*)",
     );
     // Already bare digits: the same term twice would only cost a scan.
     expect(calls[1].url.searchParams.get("or")).toBe(
-      "(name.ilike.*6478923862*,phone_e164.ilike.*6478923862*)",
+      "(name.ilike.*6478923862*,phone_e164.ilike.*6478923862*,business_name.ilike.*6478923862*,email.ilike.*6478923862*)",
     );
   });
 });
@@ -1720,7 +1720,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     // The literal /export route ran (not /:id, which would 404 on a non-uuid).
     const call = sb.find("GET", "/rest/v1/contacts")[0];
     expect(call.url.searchParams.get("or")).toBe(
-      "(name.ilike.*smi*,phone_e164.ilike.*smi*)",
+      "(name.ilike.*smi*,phone_e164.ilike.*smi*,business_name.ilike.*smi*,email.ilike.*smi*)",
     );
   });
 });
@@ -2231,5 +2231,95 @@ describe("#246 merging two contacts for the same customer", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { reason: string }[] };
     expect(body.data[0].reason).toBe("same digits");
+  });
+});
+
+/**
+ * #291 — the fields a crew actually needs.
+ *
+ * The email guard is the one worth having: quote delivery (#287) and receipts
+ * (#224) will trust this field, and a phone number stored in it fails at the
+ * moment somebody is waiting for a quote rather than at the moment it was
+ * typed.
+ */
+describe("#291 email and business name", () => {
+  it("CN-1: stores an email and a business name", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", () => [contactRow()]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/contacts", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: {
+        phone_e164: "(416) 555-0199",
+        email: "dave@mapleproperty.example",
+        business_name: "Maple Property Group",
+      },
+    });
+
+    expect(res.status).toBe(201);
+    expect(sb.find("POST", "/rest/v1/contacts")[0].body).toMatchObject({
+      email: "dave@mapleproperty.example",
+      business_name: "Maple Property Group",
+    });
+  });
+
+  it("CN-2: refuses something that is plainly not an email", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", () => [contactRow()]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    for (const email of ["not-an-email", "+16135550000", "a@b", "no spaces@x.com y"]) {
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        "/v1/contacts",
+        {
+          method: "POST",
+          companyId: COMPANY_ID,
+          body: { phone_e164: "(416) 555-0199", email },
+        },
+      );
+      expect(res.status, email).toBe(422);
+    }
+  });
+
+  it("CN-3: a mistyped email can be cleared", async () => {
+    // A field somebody cannot empty is a field they stop trusting — and the
+    // wrong email is worse than none, because a quote goes to a stranger.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("PATCH", "/rest/v1/contacts", () => [contactRow()]);
+    // The same three a PATCH always touches: the opt-out check, the thread it
+    // might annotate, and the event it writes there.
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      { method: "PATCH", companyId: COMPANY_ID, body: { email: null } },
+    );
+
+    expect(res.status).toBe(200);
+    expect(sb.find("PATCH", "/rest/v1/contacts")[0].body).toMatchObject({
+      email: null,
+    });
+  });
+
+  it("CN-4: search reaches the business name and the email", () => {
+    // The issue's whole complaint is that this knowledge is unfindable.
+    // "Maple" has to find Dave at Maple Property Group.
+    const arm = contactSearchOr("maple");
+    expect(arm).toContain("business_name.ilike.*maple*");
+    expect(arm).toContain("email.ilike.*maple*");
   });
 });

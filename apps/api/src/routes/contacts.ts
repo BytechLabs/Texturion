@@ -68,6 +68,10 @@ import { parseVCards } from "./core/vcard";
 
 const CONTACT_COLUMNS =
   "id,phone_e164,name,address,notes,consent_source,consent_at," +
+  // #291: the two fields whose absence forecloses other features outright —
+  // an email for quote delivery and receipts, and the business a customer
+  // represents, which for a property manager IS the relationship.
+  "email,business_name," +
   "consent_attested_by,created_by_user_id,updated_by_user_id," +
   // #292: the human's correction to the area-code inference. NULL means infer.
   "timezone," +
@@ -87,17 +91,41 @@ const CONTACT_COLUMNS =
  */
 const CONTACT_LIST_COLUMNS =
   "id,phone_e164,name,address,consent_source,consent_at," +
+  // #291: on the LIST too, unlike notes. Both are short, and the business name
+  // is how somebody recognises which "Dave" a row is — which is exactly the
+  // job a list does.
+  "email,business_name," +
   "consent_attested_by,created_by_user_id,updated_by_user_id," +
   // #393: one timestamp per row, and the composer's recipient picker reads the
   // LIST rather than fetching each contact.
   "first_identification_sent_at," +
   "deleted_at,created_at,updated_at";
 
+/**
+ * #291: an email, checked for shape rather than validated.
+ *
+ * Deliverability is not knowable here and a strict RFC pattern rejects real
+ * addresses — what this stops is a phone number or a sentence landing in the
+ * field that quote delivery (#287) will later trust.
+ */
+const emailField = z
+  .string()
+  .trim()
+  .min(3)
+  .max(254)
+  .refine((value) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value), {
+    message: "That does not look like an email address",
+  });
+
 const createSchema = z.object({
   phone_e164: z.string().trim().min(1).max(32),
   name: z.string().trim().min(1).max(200).optional(),
   address: z.string().trim().min(1).max(500).optional(),
   notes: z.string().max(5000).optional(),
+  /** #291: one of the two ways to reach a customer, finally stored. */
+  email: emailField.optional(),
+  /** #291: who they work for, when that is the relationship. */
+  business_name: z.string().trim().min(1).max(200).optional(),
 });
 
 const patchSchema = z
@@ -105,6 +133,10 @@ const patchSchema = z
     name: z.string().trim().min(1).max(200).nullable().optional(),
     address: z.string().trim().min(1).max(500).nullable().optional(),
     notes: z.string().max(5000).nullable().optional(),
+    // #291. Nullable so a mistyped email can be cleared — a field somebody
+    // cannot empty is a field they stop trusting.
+    email: emailField.nullable().optional(),
+    business_name: z.string().trim().min(1).max(200).nullable().optional(),
     // #292/D49: the correction to the area-code inference. NULL clears it and
     // goes back to inferring — which is a real thing to want, so it is
     // nullable rather than write-once.
@@ -127,6 +159,11 @@ const patchSchema = z
       "address" in body ||
       "notes" in body ||
       "timezone" in body ||
+      // #291. Easy to forget, and the failure is a 422 on a PATCH that looks
+      // perfectly well formed — the field validates, the write path handles
+      // it, and the request is refused before either runs.
+      "email" in body ||
+      "business_name" in body ||
       body.consent_attested === true,
     { message: "Provide at least one field to update." },
   );
@@ -202,7 +239,16 @@ export const contactsRoutes = new Hono<AppEnv>();
  */
 export function contactSearchOr(rawQ: string, t9 = false): string {
   const q = orIlikeValue(rawQ);
-  const terms = [`name.ilike.*${q}*`, `phone_e164.ilike.*${q}*`];
+  // #291: business name and email join the arm, because the whole complaint
+  // is that this knowledge is unfindable. "Maple" should find Dave at Maple
+  // Property Group, and a half-remembered email is often the only thing
+  // somebody has to go on.
+  const terms = [
+    `name.ilike.*${q}*`,
+    `phone_e164.ilike.*${q}*`,
+    `business_name.ilike.*${q}*`,
+    `email.ilike.*${q}*`,
+  ];
   const digits = rawQ.replace(/\D/g, "");
   if (digits.length >= 3 && digits !== q) {
     terms.push(`phone_e164.ilike.*${digits}*`);
@@ -502,6 +548,13 @@ contactsRoutes.post("/contacts", requireCapability("conversations.note"), async 
   const fields: Record<string, unknown> = {};
   if (body.name !== undefined) fields.name = body.name;
   if (body.notes !== undefined) fields.notes = body.notes;
+  // #291. Explicit rather than spread, like every field above it: this object
+  // becomes a database write, and spreading a request body into one is how a
+  // column nobody meant to expose becomes writable.
+  if (body.email !== undefined) fields.email = body.email;
+  if (body.business_name !== undefined) {
+    fields.business_name = body.business_name;
+  }
   if (body.address !== undefined) {
     fields.address = body.address;
     // A new/resurrected/edited address needs geocoding (D25).
@@ -841,6 +894,13 @@ contactsRoutes.patch("/contacts/:id", requireCapability("conversations.note"), a
     Object.assign(patch, geocodeReset(nextAddress));
   }
   if ("notes" in body) patch.notes = body.notes ?? null;
+  // #291: `in` rather than `!== undefined`, matching its neighbours — an
+  // explicit null is how a field gets CLEARED, and a check that could not tell
+  // "absent" from "null" would make the wrong email permanent.
+  if ("email" in body) patch.email = body.email ?? null;
+  if ("business_name" in body) {
+    patch.business_name = body.business_name ?? null;
+  }
   // #292/D49: null is meaningful here — it clears the correction and goes back
   // to inferring from the area code, which is what you want after fixing a
   // number rather than a person.
