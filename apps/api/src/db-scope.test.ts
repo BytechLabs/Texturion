@@ -42,10 +42,21 @@ const SRC = fileURLToPath(new URL(".", import.meta.url));
 /**
  * Every table carrying a `company_id`, mirrored from the live schema.
  *
- * Kept honest in the other direction by `supabase/tests/tenant_scope.test.sql`,
- * which fails if the database grows a tenant table this list does not know —
- * otherwise a new table would be silently exempt from the whole check, which
- * is the failure mode a hardcoded list normally has.
+ * TWO LISTS, AND THE LINK BETWEEN THEM IS BELOW, NOT IN THIS SENTENCE. This
+ * docblock used to claim `supabase/tests/tenant_scope.test.sql` kept the list
+ * honest. It cannot: that suite compares the DATABASE against its own copy of
+ * the roster, and a psql script has no way to read a TypeScript constant. So
+ * the SQL suite proves the database and the SQL copy agree, and nothing at all
+ * proved the SQL copy and THIS one did.
+ *
+ * They had already drifted. `template_uses` was in the SQL roster and not here,
+ * which meant every query against it was silently exempt from this whole scan —
+ * exactly the failure mode the paragraph above claimed was impossible. (#519:
+ * "the guard asserts that something is MENTIONED rather than that it WORKS".)
+ *
+ * `matches the SQL roster it is supposed to mirror` below is the actual link: a
+ * TS test CAN read a .sql file, which is the direction that was available all
+ * along.
  */
 const TENANT_TABLES = new Set([
   "attachments", "audit_log", "billing_disputes", "blocked_senders",
@@ -67,6 +78,7 @@ const TENANT_TABLES = new Set([
   "ownership_transfers", "phone_numbers",
   "public_links",
   "port_requests", "provider_costs", "tags", "task_map_rows", "tasks",
+  "template_uses",
   "templates", "text_enablement_orders", "usage_alerts", "usage_events",
 ]);
 
@@ -584,14 +596,60 @@ describe("#347 — a query against a tenant table carries its company scope", ()
     });
   });
 
-  it("still finds the query sites at all", () => {
+  it("still finds the query sites it is here to protect", () => {
     // The scan is regex over source, so it fails OPEN: if `.from(` usage were
     // refactored into a helper this whole test would pass by finding nothing,
     // and would keep passing forever. A floor makes that visible.
-    const total = sources(SRC)
-      .map((file) => readFileSync(file, "utf8"))
-      .join("\n")
-      .match(/\.from\(\s*["'`][a-z_]+["'`]\s*\)/g);
-    expect(total?.length ?? 0).toBeGreaterThan(300);
+    //
+    // #519: the floor used to be `> 300` over EVERY `.from(` in the tree — 595
+    // sites, of which only 443 are on tenant tables. A guard protecting 443
+    // things could be satisfied by the 152 it does not protect plus a third of
+    // the ones it does. So the floor now counts the population it actually
+    // guards, and sits close enough underneath it to notice a real collapse
+    // rather than to tolerate one.
+    const tenantSites = sources(SRC)
+      .flatMap((file) => [
+        ...stripComments(readFileSync(file, "utf8")).matchAll(
+          /\.from\(\s*["'`]([a-z_]+)["'`]\s*\)/g,
+        ),
+      ])
+      .filter((match) => TENANT_TABLES.has(match[1]));
+    expect(tenantSites.length).toBeGreaterThan(400);
+  });
+
+  it("matches the SQL roster it is supposed to mirror", () => {
+    // THE LINK THE DOCBLOCK USED TO ONLY CLAIM. `tenant_scope.test.sql` proves
+    // its own copy of the roster matches the live database; this proves ours
+    // matches that copy. Without both halves, a table can carry `company_id`,
+    // be known to the SQL suite, and still be invisible here — which is what
+    // `template_uses` was.
+    //
+    // Parsed rather than shared, because there is no format both a psql script
+    // and a TS module can import. That makes the parse the weak point, so it
+    // asserts it found a plausible roster before comparing: a rename or a
+    // reformat that broke the scrape would otherwise compare two empty sets and
+    // pass.
+    const sql = readFileSync(
+      fileURLToPath(new URL("../../../supabase/tests/tenant_scope.test.sql", import.meta.url)),
+      "utf8",
+    );
+    const block = /known text\[\] := array\[([\s\S]*?)\];/.exec(sql)?.[1];
+    expect(block, "could not find the `known` roster in tenant_scope.test.sql")
+      .toBeTruthy();
+    const sqlTables = new Set(
+      [...(block ?? "").matchAll(/'([a-z_]+)'/g)].map((match) => match[1]),
+    );
+    expect(sqlTables.size).toBeGreaterThan(50);
+
+    const missingHere = [...sqlTables].filter((t) => !TENANT_TABLES.has(t));
+    const missingThere = [...TENANT_TABLES].filter((t) => !sqlTables.has(t));
+    expect(
+      { missingHere, missingThere },
+      `\n\nThe two tenant-table rosters disagree.\n` +
+        `  in the SQL roster, missing from TENANT_TABLES: ${missingHere.join(", ") || "none"}\n` +
+        `    → every query against those is silently EXEMPT from this scan.\n` +
+        `  in TENANT_TABLES, missing from the SQL roster: ${missingThere.join(", ") || "none"}\n` +
+        `    → the SQL suite cannot tell you when one of those loses company_id.\n`,
+    ).toEqual({ missingHere: [], missingThere: [] });
   });
 });
