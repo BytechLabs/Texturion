@@ -246,6 +246,40 @@ export function portDocumentsNeededCopy(number: string, env: Env): EmailCopy {
  * slot (releasing is their call; nothing is released automatically). Fires
  * with P6d under the same P6 idempotency guard, so it sends once.
  */
+/**
+ * #319 — the transfer stopped, and the temporary number did not.
+ *
+ * Cancellation released the placeholder slot for the number that never arrived
+ * and said nothing about the bridge. So a customer whose transfer failed kept a
+ * tide-me-over number on their plan, still billed, for a transfer that is not
+ * happening, and nothing on any screen connected the two.
+ *
+ * NOT released automatically, for the same reason the success nudge is not:
+ * by now they may have given that number to customers, and taking it back
+ * because a port failed would turn one disappointment into a second, larger
+ * one. The decision is theirs; ours is to make sure they know they have it.
+ *
+ * The reason is deliberately not restated here. Whoever cancelled knows why,
+ * and a rejection they are still arguing with their old provider about should
+ * not be re-litigated inside a billing note.
+ */
+export function portBridgeAfterCancelCopy(
+  attemptedNumber: string,
+  bridgeNumber: string,
+  env: Env,
+): EmailCopy {
+  return copy(
+    "Your temporary number is still yours",
+    `Hi,\n\nThe transfer of ${attemptedNumber} has been cancelled, so the ` +
+      `temporary number we set up (${bridgeNumber}) is now your only number ` +
+      `here. It still works and it still counts against your plan.\n\n` +
+      `Keep it if your customers have it, or release it if you no longer ` +
+      `need it:\n\n${env.APP_ORIGIN}/settings/numbers\n\n` +
+      `If you want to try the transfer again, start it from the same ` +
+      `screen.\n\nLoonext`,
+  );
+}
+
 export function portBridgeReleaseNudgeCopy(
   portedNumber: string,
   bridgeNumber: string,

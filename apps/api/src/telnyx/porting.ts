@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { telnyxRequest, telnyxUpload, TelnyxApiError } from "./client";
 import {
+  portBridgeAfterCancelCopy,
   portBridgeReleaseNudgeCopy,
   portCompletedCopy,
   portExceptionCopy,
@@ -984,6 +985,36 @@ async function applyStatusTransition(
     if (phone && phone.status !== "released") {
       try {
         await releaseNumberRow(env, phone);
+      } catch (cause) {
+        Sentry.captureException(cause);
+      }
+    }
+    // #319: and say what happened to the BRIDGE, which the line above does not
+    // touch. Cancelling released the slot for the number that never arrived
+    // and left the tide-me-over number active and billed, with nothing on any
+    // screen connecting the two — so a customer whose transfer failed kept
+    // paying for a stopgap to a transfer that is not happening.
+    //
+    // Told, never released for them: by now they may have given that number
+    // out, and taking it back because a port failed would turn one
+    // disappointment into a second, larger one. Same rule as the P6e success
+    // nudge, and best-effort for the same reason — the cancellation is already
+    // applied and an email must not wedge it.
+    if (updated.bridge_number_id) {
+      try {
+        const bridge = await fetchPhoneRow(db, updated.bridge_number_id);
+        if (bridge?.status === "active" && bridge.number_e164) {
+          await sendPortEmail(
+            env,
+            db,
+            updated.company_id,
+            portBridgeAfterCancelCopy(
+              updated.phone_e164,
+              bridge.number_e164,
+              env,
+            ),
+          );
+        }
       } catch (cause) {
         Sentry.captureException(cause);
       }

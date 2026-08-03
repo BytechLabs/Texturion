@@ -445,6 +445,81 @@ describe("handlePortingEvent — §5.1 transitions", () => {
     expect(emails.some((e) => e.subject.includes("date is locked in"))).toBe(true);
   });
 
+  it("#319: a cancelled transfer says what happened to the bridge number", async () => {
+    // Cancelling released the slot for the number that never arrived and said
+    // nothing about the tide-me-over number the customer had opted into. So it
+    // stayed active and billed, for a transfer that is not happening, with
+    // nothing on any screen connecting the two.
+    //
+    // Told, never released for them: by now they may have given that number
+    // out, and taking it back because a port failed would turn one
+    // disappointment into a second, larger one.
+    const BRIDGE_ID = "44444444-4444-4444-8444-444444444444";
+    const BRIDGE_E164 = "+13035559999";
+    const { env, rest, emails } = setup({
+      telnyx_porting_order_id: ORDER_ID,
+      status: "submitted",
+      messaging_port_status: "pending",
+      wants_bridge_number: true,
+      bridge_number_id: BRIDGE_ID,
+    });
+    rest.insert("phone_numbers", {
+      id: BRIDGE_ID,
+      company_id: COMPANY_ID,
+      country: "US",
+      status: "active",
+      number_e164: BRIDGE_E164,
+    });
+
+    await handlePortingEvent(env, {
+      data: {
+        event_type: "porting_order.status_changed",
+        payload: { id: ORDER_ID, status: { value: "cancelled" } },
+      },
+    });
+
+    expect(portRow(rest).status).toBe("cancelled");
+    const nudge = emails.find((e) =>
+      e.subject.includes("temporary number is still yours"),
+    );
+    expect(nudge, "no bridge email on cancellation").toBeDefined();
+    // Both numbers named: which transfer stopped, and which number they keep.
+    expect(nudge?.text).toContain(BRIDGE_E164);
+    expect(nudge?.text).toContain(PORT_E164);
+    // The cost is stated, because that is the part they would otherwise only
+    // discover on an invoice.
+    expect(nudge?.text).toContain("counts against your plan");
+    // The bridge is NOT released out from under them.
+    const bridge = rest
+      .rows("phone_numbers")
+      .find((r) => (r as { id: string }).id === BRIDGE_ID) as {
+      status: string;
+    };
+    expect(bridge.status).toBe("active");
+  });
+
+  it("#319: says nothing about a bridge when there was never one", async () => {
+    // The overwhelmingly common case. A cancellation email about a number the
+    // customer never opted into would be noise at the worst moment.
+    const { env, rest, emails } = setup({
+      telnyx_porting_order_id: ORDER_ID,
+      status: "submitted",
+      messaging_port_status: "pending",
+    });
+
+    await handlePortingEvent(env, {
+      data: {
+        event_type: "porting_order.status_changed",
+        payload: { id: ORDER_ID, status: { value: "cancelled" } },
+      },
+    });
+
+    expect(portRow(rest).status).toBe("cancelled");
+    expect(
+      emails.some((e) => e.subject.includes("temporary number is still yours")),
+    ).toBe(false);
+  });
+
   it("stores the flattened rejection reason + emails on exception", async () => {
     const { env, rest, emails } = setup({
       telnyx_porting_order_id: ORDER_ID,
