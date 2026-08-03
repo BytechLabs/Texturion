@@ -14,6 +14,7 @@ import {
 } from "@/components/thread/composer-banner";
 import { ClosedDatesCard } from "@/components/settings/closed-dates-card";
 import { EmergencyCard } from "@/components/settings/emergency-card";
+import { OnCallCard } from "@/components/settings/on-call-card";
 import { ReminderRulesCard } from "@/components/settings/reminder-rules-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -437,6 +438,13 @@ export default function AwayReplySettingsPage() {
               hold another for a two-rule form.
               *Applying: Chunking & Zen of Clarity.* */}
           <ReminderRulesCard canEdit={canEdit} />
+          {/* #244: on this page for the same reason as everything above it —
+              every card here answers "what happens outside working hours". The
+              away reply is what the CUSTOMER gets; this is who on the crew is
+              woken, and the two are read together or not at all.
+              *Applying: Relationship Strength — a strong semantic relationship
+              gets tight grouping, not a seventeenth settings row.* */}
+          <OnCallCard canEdit={canEdit} />
         </div>
       )}
     </SettingsPage>

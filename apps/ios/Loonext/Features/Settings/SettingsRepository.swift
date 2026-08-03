@@ -40,6 +40,24 @@ struct SettingsRepository: Sendable {
     /// `suggested` is offered, never applied: no workspace sends reminders
     /// until somebody turns them on, because seeding them would start texting a
     /// live customer base automatically.
+    // MARK: - #244 on call
+
+    /// Live and upcoming shifts. A finished one is history.
+    func onCallShifts(_ companyId: String) async throws -> OnCallShiftsResponse {
+        try await api.get("/v1/on-call", companyId: companyId)
+    }
+
+    func createOnCallShift(
+        _ companyId: String,
+        body: OnCallShiftBody
+    ) async throws -> OnCallShiftCreated {
+        try await api.post("/v1/on-call", body: body, companyId: companyId)
+    }
+
+    func endOnCallShift(_ companyId: String, id: String) async throws {
+        try await api.delete("/v1/on-call/\(id)", companyId: companyId)
+    }
+
     func reminderRules(_ companyId: String) async throws -> ReminderRulesResponse {
         try await api.get("/v1/appointment-reminders", companyId: companyId)
     }

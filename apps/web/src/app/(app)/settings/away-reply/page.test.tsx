@@ -66,6 +66,18 @@ vi.mock("@/lib/api/appointment-reminders", () => ({
   useSaveReminderRules: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
+// #244: this page now also mounts the on-call card. Empty roster, no shifts —
+// the card renders its "nobody is on call" state and these assertions stay
+// about the away reply's reach.
+vi.mock("@/lib/api/on-call", () => ({
+  useOnCallShifts: () => ({ isPending: false, data: [] }),
+  useCreateOnCallShift: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useEndOnCallShift: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+vi.mock("@/lib/api/team", () => ({
+  useMembers: () => ({ data: { data: [] } }),
+}));
+
 import AwayReplySettingsPage from "./page";
 
 const render = () => renderToStaticMarkup(<AwayReplySettingsPage />);

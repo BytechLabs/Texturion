@@ -170,6 +170,8 @@ export const keys = {
     [companyId, "reports", "pipeline", days] as const,
   responseTime: (companyId: string, days: number) =>
     [companyId, "response-time", days] as const,
+  /** #244: the on-call rota — one list per workspace, no window. */
+  onCall: (companyId: string) => [companyId, "on-call"] as const,
   /** #313: satisfaction, keyed like its two neighbours on the same surface. */
   satisfaction: (companyId: string, days: number) =>
     [companyId, "reports", "satisfaction", days] as const,

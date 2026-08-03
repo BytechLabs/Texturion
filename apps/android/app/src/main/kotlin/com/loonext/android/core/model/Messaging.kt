@@ -361,6 +361,36 @@ data class ScheduledContact(
  * #237 — one appointment-reminder rule: how long before a job it goes, and
  * what it says.
  */
+/**
+ * #244 — a shift with an owner, hand-ported from the web client's type.
+ *
+ * `phone_number_id` null means the whole workspace, which is what a one-number
+ * crew always means.
+ */
+@Serializable
+data class OnCallShift(
+    val id: String = "",
+    val user_id: String = "",
+    val phone_number_id: String? = null,
+    val starts_at: String = "",
+    val ends_at: String = "",
+    val created_by: String? = null,
+)
+
+@Serializable
+data class OnCallShiftsResponse(val data: List<OnCallShift> = emptyList())
+
+@Serializable
+data class OnCallShiftBody(
+    val user_id: String,
+    val starts_at: String,
+    val ends_at: String,
+    val phone_number_id: String? = null,
+)
+
+@Serializable
+data class OnCallShiftCreated(val data: OnCallShift = OnCallShift())
+
 @Serializable
 data class ReminderRule(
     val id: String? = null,

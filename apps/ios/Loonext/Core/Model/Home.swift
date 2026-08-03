@@ -183,6 +183,34 @@ struct ResponseTimeWindowInfo: Codable, Sendable {
     var days: Int = 30
 }
 
+/// #244 — a shift with an owner.
+///
+/// `phone_number_id` nil means the whole workspace, which is what a one-number
+/// crew always means.
+struct OnCallShift: Codable, Sendable, Identifiable {
+    var id: String = ""
+    var user_id: String = ""
+    var phone_number_id: String? = nil
+    var starts_at: String = ""
+    var ends_at: String = ""
+    var created_by: String? = nil
+}
+
+struct OnCallShiftsResponse: Codable, Sendable {
+    var data: [OnCallShift] = []
+}
+
+struct OnCallShiftBody: Codable, Sendable {
+    var user_id: String
+    var starts_at: String
+    var ends_at: String
+    var phone_number_id: String? = nil
+}
+
+struct OnCallShiftCreated: Codable, Sendable {
+    var data: OnCallShift = OnCallShift()
+}
+
 /// GET /v1/reports/satisfaction (#313) — how customers rate the finished work.
 ///
 /// Every refusal in here is the SERVER's: `average` arrives nil when the sample

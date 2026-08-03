@@ -15,6 +15,9 @@ import com.loonext.android.core.model.Usage
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
+import com.loonext.android.core.model.OnCallShiftBody
+import com.loonext.android.core.model.OnCallShiftCreated
+import com.loonext.android.core.model.OnCallShiftsResponse
 import com.loonext.android.core.model.ReminderRule
 import com.loonext.android.core.model.ReminderRulesBody
 import com.loonext.android.core.model.ReminderRulesResponse
@@ -78,6 +81,21 @@ class SettingsRepository(
      * somebody turns them on, because seeding them would start texting a live
      * customer base automatically.
      */
+    // -- #244 on call -------------------------------------------------------
+
+    /** Live and upcoming shifts. A finished one is history. */
+    suspend fun onCallShifts(companyId: String): OnCallShiftsResponse =
+        api.get("/v1/on-call", companyId = companyId)
+
+    suspend fun createOnCallShift(
+        companyId: String,
+        body: OnCallShiftBody,
+    ): OnCallShiftCreated = api.post("/v1/on-call", body = body, companyId = companyId)
+
+    suspend fun endOnCallShift(companyId: String, id: String) {
+        api.delete("/v1/on-call/$id", companyId = companyId)
+    }
+
     suspend fun reminderRules(companyId: String): ReminderRulesResponse =
         api.get("/v1/appointment-reminders", companyId = companyId)
 

@@ -48,6 +48,10 @@ struct HoursSectionView: View {
         // settings list is already long enough that a two-rule form does not
         // earn another row.
         ReminderRulesCard(scope: scope)
+        // #244: with the reminder card and everything above it — every card on
+        // this screen answers "what happens outside working hours". The away
+        // reply is what the CUSTOMER gets; this is who on the crew is woken.
+        OnCallCard(scope: scope)
     }
 }
 
