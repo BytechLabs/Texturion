@@ -62,6 +62,16 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
         overage_cap_multiplier: state.capMultiplier ?? 1,
       },
     ]),
+    // #304: the three period sums are now ONE window read.
+    endpoint("POST", /\/rest\/v1\/rpc\/api_usage_window/, () => [
+      {
+        outbound_segments: state.used,
+        inbound_segments: state.inboundSegments ?? 0,
+        forward_seconds: state.voiceSeconds ?? 0,
+        reported_segments: state.used,
+        unreported_segments: 0,
+      },
+    ]),
     endpoint("POST", /\/rest\/v1\/rpc\/api_period_segments/, () => state.used),
     endpoint("POST", /\/rest\/v1\/rpc\/api_storage_usage/, () => ({
       attachments_bytes: state.attachmentBytes ?? 0,

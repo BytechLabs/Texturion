@@ -73,6 +73,16 @@ function usageStub(
     membershipResponder(MEMBER_ID, role),
   );
   sb.on("GET", "/rest/v1/companies", () => [company]);
+  // #304: the screen and the bookkeeper's export ask ONE question now.
+  sb.on("POST", "/rest/v1/rpc/api_usage_window", () => [
+    {
+      outbound_segments: used,
+      inbound_segments: inbound,
+      forward_seconds: VOICE_SECONDS,
+      reported_segments: used,
+      unreported_segments: 0,
+    },
+  ]);
   sb.on("POST", "/rest/v1/rpc/api_period_segments", () => used);
   // #400/D107: null = no prepaid year. A year zeroes the licensed line, so
   // the projection asks before counting the list price as revenue.
@@ -248,10 +258,15 @@ describe("GET /v1/usage", () => {
       delivery: { by_country: [], delivered: 0, failed: 0, pending: 0 },
     });
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_period_segments")[0];
+    // #304: the window is asked for by BOTH bounds. `p_to: null` is the load-
+    // bearing half — it means "this period is still running", and a `now()`
+    // here instead would trim the period by whichever clock answered and quietly
+    // drop the sends that happened in the gap.
+    const rpc = sb.find("POST", "/rest/v1/rpc/api_usage_window")[0];
     expect(rpc.body).toEqual({
       p_company_id: COMPANY_ID,
-      p_since: "2026-06-15T00:00:00+00:00",
+      p_from: "2026-06-15T00:00:00+00:00",
+      p_to: null,
     });
     // DESIGN G8: 6-month history bars ride along on the same response.
     const historyRpc = sb.find("POST", "/rest/v1/rpc/api_usage_history")[0];

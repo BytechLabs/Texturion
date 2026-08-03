@@ -56,6 +56,8 @@
  *   passed, because a one-day extrapolation (x30) is noise, not signal.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { readUsageWindow } from "./usage-window";
 import { storedBytes, type StorageUsageRow } from "./stored-bytes";
 
 import {
@@ -398,7 +400,7 @@ async function rpcNumber(
   return Number(data);
 }
 
-/** Read the period's usage totals from the six period-sum RPCs. */
+/** Read the period's usage totals: the #304 window, plus the cost arms. */
 export async function readPeriodUsage(
   db: SupabaseClient,
   company: OverageCompany,
@@ -408,18 +410,22 @@ export async function readPeriodUsage(
     p_since: company.current_period_start,
   };
   const [
-    outbound,
-    inbound,
-    voiceSeconds,
+    totals,
     forwardedCalls,
     egressBytes,
     actualTelecomCostCents,
     aiRequests,
     storage,
   ] = await Promise.all([
-    rpcNumber(db, "api_period_segments", windowed),
-    rpcNumber(db, "api_period_inbound_segments", windowed),
-    rpcNumber(db, "api_period_forward_seconds", windowed),
+    // #304: segments, inbound and voice in ONE question. These three used to
+    // be three separate `>= since` reads here AND three more on the usage
+    // route, for the same company over the same period — six round trips for
+    // one answer, and two places that could drift apart. `to: null` is the
+    // same open-ended period these RPCs always meant.
+    readUsageWindow(db, company.id, {
+      from: company.current_period_start,
+      to: null,
+    }),
     rpcNumber(db, "api_period_forwarded_calls", windowed),
     rpcNumber(db, "api_period_egress_bytes", windowed),
     periodProviderCostCents(db, company.id, company.current_period_start),
@@ -442,9 +448,9 @@ export async function readPeriodUsage(
     })(),
   ]);
   return {
-    outboundSegments: outbound,
-    inboundSegments: inbound,
-    voiceSeconds,
+    outboundSegments: totals.outboundSegments,
+    inboundSegments: totals.inboundSegments,
+    voiceSeconds: totals.voiceSeconds,
     forwardedCalls,
     egressBytes,
     aiRequests,

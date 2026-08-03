@@ -41,6 +41,7 @@ import { summarize } from "../messaging/delivery-by-country";
 import { loadAiSettings } from "../ai/settings";
 import { requireCapability } from "../auth/company";
 import { decideOverage } from "../billing/overage-projection";
+import { readUsageWindow } from "../billing/usage-window";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -139,16 +140,15 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
   // issue them in ONE parallel batch instead of six serial awaits. The end-of-
   // period projection (decideOverage) depends only on `company` + `multiplier`,
   // never on the sums below, so it joins the same batch.
-  const [usedRes, inboundRes, historyRes, storageRes, voiceRes, projection] =
+  const [totals, historyRes, storageRes, projection] =
     await Promise.all([
-      db.rpc("api_period_segments", {
-        p_company_id: companyId,
-        p_since: company.current_period_start,
-      }),
-      // #12: inbound volume this period (visibility only — not billed).
-      db.rpc("api_period_inbound_segments", {
-        p_company_id: companyId,
-        p_since: company.current_period_start,
+      // #304: segments, inbound volume and voice seconds in ONE question, so
+      // the bookkeeper's export and this screen can never disagree about the
+      // same workspace. `to: null` means the period is still running — not
+      // "now", which would trim it by whichever clock answered.
+      readUsageWindow(db, companyId, {
+        from: company.current_period_start,
+        to: null,
       }),
       db.rpc("api_usage_history", {
         p_company_id: companyId,
@@ -157,12 +157,6 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
       // D30: per-company stored bytes via the exact-sum RPC (a PostgREST read
       // would truncate at the row cap — same reason as segments).
       db.rpc("api_storage_usage", { p_company_id: companyId }),
-      // #12/D36: forwarded (dialed-leg) seconds — the fair-use measure the
-      // allowance, the 1¢/min meter, and the spending-cap gate share.
-      db.rpc("api_period_forward_seconds", {
-        p_company_id: companyId,
-        p_since: company.current_period_start,
-      }),
       // #85/#93: dynamic END-OF-PERIOD projection (extrapolated), distinct from
       // the overage-SO-FAR figure. Exposes only customer-facing bits, never our
       // internal cost/margin; gates the conditional overage surface in settings.
@@ -180,10 +174,9 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
         new Date(),
       ),
     ]);
-  const used = Number(unwrap<number | string>(usedRes, "usage sum"));
-  const inboundUsed = Number(
-    unwrap<number | string>(inboundRes, "inbound usage sum"),
-  );
+  const used = totals.outboundSegments;
+  const inboundUsed = totals.inboundSegments;
+  const voiceSeconds = totals.voiceSeconds;
   const history = unwrap<{ month: string; segments: number }[]>(
     historyRes,
     "usage history",
@@ -197,9 +190,6 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
     other_bytes?: number | string;
     total_bytes?: number | string;
   }>(storageRes, "storage usage");
-  const voiceSeconds = Number(
-    unwrap<number | string>(voiceRes, "voice usage sum"),
-  );
   // Read alongside the rest of the screen's numbers. A failure here must not
   // take down the whole usage page, so it degrades to no AI section rather
   // than an error: the segment and storage figures are the ones people came

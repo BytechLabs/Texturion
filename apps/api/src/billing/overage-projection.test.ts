@@ -366,6 +366,16 @@ describe("decideOverage (DB orchestrator)", () => {
       // #400/D107: null = no prepaid year. A year zeroes the licensed line,
       // so the projection asks before counting the list price as revenue.
       endpoint("POST", /\/rpc\/open_prepayment/, () => null),
+      // #304: the three period sums are now ONE window read.
+      endpoint("POST", /\/rpc\/api_usage_window/, () => [
+        {
+          outbound_segments: u.outboundSegments,
+          inbound_segments: u.inboundSegments,
+          forward_seconds: u.voiceSeconds,
+          reported_segments: u.outboundSegments,
+          unreported_segments: 0,
+        },
+      ]),
       endpoint("POST", /\/rpc\/api_period_segments/, () => u.outboundSegments),
       endpoint(
         "POST",

@@ -133,6 +133,7 @@ const SUITES = [
   "contact_phones",
   "contact_custom_values",
   "scoped_exports",
+  "usage_window",
 
 ];
 
