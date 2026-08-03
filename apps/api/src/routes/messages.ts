@@ -49,6 +49,7 @@ import {
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
+import { askForJobRating } from "../messaging/job-ratings";
 import { ApiError } from "../http/errors";
 import { buildPage } from "../http/pagination";
 import {
@@ -75,6 +76,7 @@ import {
 import type { AttachmentSummary, MessageRow } from "../messaging/types";
 import {
   assertBodyWithinLimit,
+  executionCtxOf,
   keysetFilter,
   parseCursor,
   parseJsonBody,
@@ -651,9 +653,67 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
   }
 
   const updated = result.message;
+
+  // #313: a promoted message going DONE is a job finishing, which is the only
+  // moment worth asking a customer how it went.
+  //
+  // Gated on 'updated' rather than on `body.done`: the RPC answers 'unchanged'
+  // for a redundant mark-done, and a crew tapping the tick twice must not queue
+  // two questions. Gated on the message actually carrying a task, because a
+  // done note is somebody tidying their own list, not a visit.
+  //
+  // Best-effort on `waitUntil`, like every other automated ask: completing a
+  // job must never fail because a satisfaction question could not be queued,
+  // and the RPC behind it is idempotent per job, so a lost one costs a signal
+  // rather than correctness.
+  if (result.outcome === "updated" && body.done === true) {
+    askForRatingAfterDone(c, {
+      companyId,
+      messageId: updated.id,
+      userId,
+    });
+  }
+
   const attachments = await loadAttachments(db, companyId, [updated.id]);
   return c.json(messageJson(updated, attachments.get(updated.id) ?? []));
 });
+
+/**
+ * #313 — find the job this message was promoted into, and ask about it.
+ *
+ * The lookup lives here rather than inside `askForJobRating` because the done
+ * route knows a MESSAGE and the rating knows a TASK, and putting the join in
+ * the messaging module would make it take an argument every other caller has
+ * to translate into.
+ */
+function askForRatingAfterDone(
+  c: Context<AppEnv>,
+  input: { companyId: string; messageId: string; userId: string },
+): void {
+  const db = getDb(getEnv(c.env));
+  const work = (async () => {
+    const tasks = unwrap<{ id: string }[]>(
+      await db
+        .from("tasks")
+        .select("id")
+        .eq("company_id", input.companyId)
+        .eq("message_id", input.messageId)
+        .is("deleted_at", null)
+        .limit(1),
+      "rating task lookup",
+    );
+    const taskId = tasks[0]?.id;
+    if (!taskId) return;
+    await askForJobRating(db, {
+      companyId: input.companyId,
+      taskId,
+      userId: input.userId,
+    });
+  })().catch((cause: unknown) => {
+    console.error("job rating ask failed:", cause);
+  });
+  executionCtxOf(c)?.waitUntil(work);
+}
 
 messageRoutes.get(
   "/conversations/:id/messages",

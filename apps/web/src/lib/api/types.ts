@@ -96,6 +96,8 @@ export type ConversationEventType =
   // #237: the customer answered a reminder. Actor is null — they have no
   // user row — which is why its system line carries no name.
   | "appointment_confirmed"
+  // #313: the customer answered "how did it go?". Actor is null, same as above.
+  | "job_rated"
   | "spam_marked"
   | "spam_unmarked"
   // D22 / APP-LAYOUT-V2 §4.2 — done audit. Written by the D14 PATCH

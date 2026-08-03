@@ -46,6 +46,7 @@ import {
   STOP_KEYWORDS,
 } from "./keywords";
 import { confirmAppointmentFromReply } from "./appointment-reminders";
+import { recordRatingFromReply } from "./job-ratings";
 import {
   INBOUND_MEDIA_TYPES,
   MAX_INBOUND_MEDIA_BYTES,
@@ -310,6 +311,23 @@ export async function handleInboundMessage(
       });
     } catch (cause) {
       console.error("appointment confirmation failed:", cause);
+    }
+
+    // #313: "5" answering "how did it go?". Behind the same carrier gate and
+    // for the same reason, and disjoint from the confirmation above — that
+    // reads words, this reads a bare digit, so no reply can be both.
+    //
+    // Best-effort for the same reason too: the inbound message is already
+    // durable, and a rating that could not be recorded must never wedge a
+    // delivery in a retry loop.
+    try {
+      await recordRatingFromReply(db, {
+        companyId: number.company_id,
+        conversationId: threaded.conversation_id,
+        body: payload.text ?? "",
+      });
+    } catch (cause) {
+      console.error("job rating record failed:", cause);
     }
   }
 

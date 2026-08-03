@@ -298,6 +298,9 @@ fun eventLine(
         // carries no name. "Sam confirmed the appointment" would credit the
         // crew with the customer's answer.
         "appointment_confirmed" -> "They confirmed the appointment"
+        // #313: the customer again, so no name. The SCORE is the whole line.
+        "job_rated" ->
+            "They rated the job ${event.payloadString("score") ?: "?"} out of 5"
         "spam_marked" -> "$actor marked this as spam"
         "spam_unmarked" -> "$actor marked this as not spam"
         "message_done" -> "$actor marked a message done"

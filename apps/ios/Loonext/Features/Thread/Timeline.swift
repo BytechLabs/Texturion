@@ -341,6 +341,9 @@ func eventLine(
     // carries no name. "Sam confirmed the appointment" would credit the crew
     // with the customer's answer.
     case "appointment_confirmed": return "They confirmed the appointment"
+    // #313: the customer again, so no name. The SCORE is the whole line.
+    case "job_rated":
+        return "They rated the job \(event.payload["score"]?.intValue.map(String.init) ?? "?") out of 5"
     case "spam_marked": return "\(actor) marked this as spam"
     case "spam_unmarked": return "\(actor) marked this as not spam"
     case "message_done": return "\(actor) marked a message done"
