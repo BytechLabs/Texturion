@@ -446,6 +446,16 @@ export {
 } from "./member-quiet-hours";
 export type { MemberQuietWindow } from "./member-quiet-hours";
 export {
+  CONTACT_FIELDS_CAP,
+  CONTACT_FIELDS_COPY,
+  CONTACT_FIELD_KINDS,
+  CONTACT_FIELD_OPTIONS_CAP,
+  CONTACT_FIELD_VALUE_MAX,
+  contactFieldKey,
+  contactFieldValueError,
+} from "./contact-fields";
+export type { ContactFieldDef, ContactFieldKind } from "./contact-fields";
+export {
   ALERT_BANNER_COPY,
   alertTakenLine,
   ON_CALL_COPY,

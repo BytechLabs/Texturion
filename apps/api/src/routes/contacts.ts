@@ -58,7 +58,15 @@ import {
   unwrap,
 } from "./core/http";
 import { resolveActorNames } from "./core/attribution";
-import { detectContactColumns } from "@loonext/shared";
+import {
+  CONTACT_FIELDS_CAP,
+  CONTACT_FIELD_KINDS,
+  CONTACT_FIELD_OPTIONS_CAP,
+  CONTACT_FIELD_VALUE_MAX,
+  type ContactFieldKind,
+  contactFieldValueError,
+  detectContactColumns,
+} from "@loonext/shared";
 
 import { capture } from "../analytics/posthog";
 
@@ -72,6 +80,12 @@ const CONTACT_COLUMNS =
   // an email for quote delivery and receipts, and the business a customer
   // represents, which for a property manager IS the relationship.
   "email,business_name," +
+  // #291: the workspace's own fields — on the DETAIL projection only, for the
+  // same reason `notes` is: up to 4 KB a row that only the detail panel
+  // renders. It has to be on THIS one, though, because PATCH answers with this
+  // shape, and a client writing that answer into its cache would blank a gate
+  // code on an unrelated edit.
+  "custom_fields," +
   "consent_attested_by,created_by_user_id,updated_by_user_id," +
   // #292: the human's correction to the area-code inference. NULL means infer.
   "timezone," +
@@ -150,6 +164,13 @@ const patchSchema = z
       })
       .nullable()
       .optional(),
+    // #291: the workspace's own fields, as a whole object. A PARTIAL merge
+    // would leave no way to clear one value — the omitted key and the cleared
+    // key would look identical — so the client sends the set it wants stored.
+    custom_fields: z
+      .record(z.string(), z.string().max(CONTACT_FIELD_VALUE_MAX))
+      .nullable()
+      .optional(),
     // §5 consent attestation: only literal true has meaning.
     consent_attested: z.literal(true).optional(),
   })
@@ -164,6 +185,7 @@ const patchSchema = z
       // it, and the request is refused before either runs.
       "email" in body ||
       "business_name" in body ||
+      "custom_fields" in body ||
       body.consent_attested === true,
     { message: "Provide at least one field to update." },
   );
@@ -934,6 +956,56 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
   });
 });
 
+/**
+ * #291 — values checked against the definitions that exist RIGHT NOW.
+ *
+ * The check is against the live definitions rather than a snapshot on the
+ * client, because a field deleted five minutes ago would otherwise keep
+ * accepting values from a screen nobody had reloaded — and those values would
+ * be invisible the moment they landed.
+ *
+ * Unknown keys are REJECTED rather than dropped. Dropping them silently is the
+ * failure mode where somebody types the gate code into a stale form, sees it
+ * save, and comes back tomorrow to an empty field.
+ */
+async function validateCustomFields(
+  db: ReturnType<typeof getDb>,
+  companyId: string,
+  values: Record<string, string>,
+): Promise<Record<string, string>> {
+  const keys = Object.keys(values);
+  if (keys.length === 0) return {};
+
+  const defs = unwrap<Record<string, unknown>[]>(
+    await db
+      .from("contact_field_defs")
+      .select("key,label,kind,options")
+      .eq("company_id", companyId),
+    "contact field definitions",
+  );
+  const byKey = new Map(defs.map((def) => [def.key as string, def]));
+
+  for (const key of keys) {
+    const def = byKey.get(key);
+    if (!def) {
+      throw new ApiError(
+        "validation_failed",
+        `There is no "${key}" field on your contacts.`,
+      );
+    }
+    const reason = contactFieldValueError(
+      {
+        kind: def.kind as ContactFieldKind,
+        options: (def.options as string[] | null) ?? null,
+        label: def.label as string,
+      },
+      values[key],
+    );
+    if (reason) throw new ApiError("validation_failed", `${reason}.`);
+  }
+  return values;
+}
+
 contactsRoutes.patch("/contacts/:id", requireCapability("conversations.note"), async (c) => {
   const id = pathUuid(c, "id");
   const body = await parseJsonBody(c, patchSchema);
@@ -961,6 +1033,13 @@ contactsRoutes.patch("/contacts/:id", requireCapability("conversations.note"), a
   if ("email" in body) patch.email = body.email ?? null;
   if ("business_name" in body) {
     patch.business_name = body.business_name ?? null;
+  }
+  if ("custom_fields" in body) {
+    patch.custom_fields = await validateCustomFields(
+      db,
+      companyId,
+      body.custom_fields ?? {},
+    );
   }
   // #292/D49: null is meaningful here — it clears the correction and goes back
   // to inferring from the area code, which is what you want after fixing a
@@ -2039,5 +2118,114 @@ contactsRoutes.delete(
     }
 
     return c.body(null, 204);
+  },
+);
+
+/**
+ * #291 — a workspace's own contact fields.
+ *
+ * A WHOLE-SET PUT rather than per-row routes, which is the opposite of the
+ * addresses above and deliberately so. There are at most ten, they are ORDERED
+ * relative to each other, and they are edited on a settings screen with a Save
+ * button — the same shape #237's reminder rules take. Addresses are many,
+ * independent, and edited one at a time by different people.
+ */
+const fieldDefSchema = z.object({
+  key: z
+    .string()
+    .trim()
+    .regex(/^[a-z][a-z0-9_]{0,39}$/, "A field key is lower case, no spaces"),
+  label: z.string().trim().min(1).max(80),
+  kind: z.enum(CONTACT_FIELD_KINDS),
+  options: z.array(z.string().trim().min(1).max(80)).max(CONTACT_FIELD_OPTIONS_CAP).nullable().optional(),
+});
+
+const fieldDefsSchema = z.object({
+  fields: z.array(fieldDefSchema).max(CONTACT_FIELDS_CAP),
+});
+
+contactsRoutes.get(
+  "/contact-fields",
+  requireCapability("conversations.read"),
+  async (c) => {
+    const db = getDb(getEnv(c.env));
+    const rows = unwrap<Record<string, unknown>[]>(
+      await db
+        .from("contact_field_defs")
+        .select("key,label,kind,options,position")
+        .eq("company_id", c.get("companyId"))
+        .order("position", { ascending: true })
+        .order("created_at", { ascending: true }),
+      "contact field definitions",
+    );
+    return c.json({ data: rows, cap: CONTACT_FIELDS_CAP });
+  },
+);
+
+contactsRoutes.put(
+  "/contact-fields",
+  // `settings.manage`, not `conversations.note`: defining a field changes what
+  // every contact record LOOKS like for the whole crew, which is workspace
+  // configuration rather than annotating one customer.
+  requireCapability("settings.manage"),
+  async (c) => {
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+    const body = await parseJsonBody(c, fieldDefsSchema);
+
+    const keys = body.fields.map((field) => field.key);
+    if (new Set(keys).size !== keys.length) {
+      throw new ApiError(
+        "validation_failed",
+        "Two fields cannot share a key.",
+      );
+    }
+    for (const field of body.fields) {
+      const options = field.options ?? null;
+      if (field.kind === "select" && (options === null || options.length === 0)) {
+        throw new ApiError(
+          "validation_failed",
+          `${field.label} is a dropdown, so it needs some choices.`,
+        );
+      }
+      if (field.kind !== "select" && options !== null && options.length > 0) {
+        throw new ApiError(
+          "validation_failed",
+          `${field.label} is not a dropdown, so it cannot have choices.`,
+        );
+      }
+    }
+
+    // Delete-then-insert, in that order, because the set is small and ordered
+    // and a diff would be more code for the same result. VALUES ARE NOT
+    // TOUCHED: they live on `contacts.custom_fields` keyed by `key`, so a
+    // field removed here and added back tomorrow finds its data waiting —
+    // which is what the delete warning in the UI promises.
+    unwrap(
+      await db
+        .from("contact_field_defs")
+        .delete()
+        .eq("company_id", companyId)
+        .select("id"),
+      "clear contact field definitions",
+    );
+
+    if (body.fields.length > 0) {
+      unwrap(
+        await db.from("contact_field_defs").insert(
+          body.fields.map((field, index) => ({
+            company_id: companyId,
+            key: field.key,
+            label: field.label,
+            kind: field.kind,
+            options: field.kind === "select" ? field.options ?? [] : null,
+            position: index,
+          })),
+        ),
+        "save contact field definitions",
+      );
+    }
+
+    return c.json({ data: body.fields, cap: CONTACT_FIELDS_CAP });
   },
 );

@@ -2502,3 +2502,264 @@ describe("#291 contact addresses", () => {
     expect(body.addresses).toHaveLength(1);
   });
 });
+
+/**
+ * #291 — a workspace's own contact fields.
+ *
+ * CFA-10 is the one that matters most. A PUT rewrites the DEFINITIONS; it must
+ * not go anywhere near the VALUES. Removing a field from the settings screen
+ * and finding a customer's gate code gone is not a bug anyone reports as a bug
+ * — it just looks like the data was never there.
+ */
+describe("contact field definitions", () => {
+  const fieldRow = (overrides: Record<string, unknown> = {}) => ({
+    key: "boiler_model",
+    label: "Boiler model",
+    kind: "text",
+    options: null,
+    position: 0,
+    ...overrides,
+  });
+
+  it("CFA-1: lists a workspace's fields in the order it put them in", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contact_field_defs", () => [
+      fieldRow(),
+      fieldRow({ key: "gate_code", label: "Gate code", position: 1 }),
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/contact-fields", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { key: string }[]; cap: number };
+    expect(body.data.map((f) => f.key)).toEqual(["boiler_model", "gate_code"]);
+    // The cap travels with the list so the UI can say "that is all 10" without
+    // hardcoding a number that then drifts from the server's.
+    expect(body.cap).toBe(10);
+
+    const call = sb.find("GET", "/rest/v1/contact_field_defs")[0];
+    expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(call.url.searchParams.get("order")).toContain("position.asc");
+  });
+
+  it("CFA-2: replaces the whole set and numbers it by array order", async () => {
+    const sb = stubWithRole("owner");
+    sb.on("DELETE", "/rest/v1/contact_field_defs", () => []);
+    sb.on("POST", "/rest/v1/contact_field_defs", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/contact-fields", {
+      method: "PUT",
+      companyId: COMPANY_ID,
+      body: {
+        fields: [
+          { key: "gate_code", label: "Gate code", kind: "text" },
+          { key: "boiler_model", label: "Boiler model", kind: "text" },
+        ],
+      },
+    });
+    expect(res.status).toBe(200);
+
+    // The delete is SCOPED. An unscoped one would empty every workspace on the
+    // platform, and the test that only checks the response would pass.
+    const del = sb.find("DELETE", "/rest/v1/contact_field_defs")[0];
+    expect(del.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+
+    const insert = sb.find("POST", "/rest/v1/contact_field_defs")[0];
+    const rows = insert.body as Record<string, unknown>[];
+    expect(rows.map((r) => [r.key, r.position])).toEqual([
+      ["gate_code", 0],
+      ["boiler_model", 1],
+    ]);
+    expect(rows.every((r) => r.company_id === COMPANY_ID)).toBe(true);
+  });
+
+  it("CFA-3: refuses two fields with the same key", async () => {
+    const sb = stubWithRole("owner");
+    sb.on("DELETE", "/rest/v1/contact_field_defs", () => []);
+    sb.on("POST", "/rest/v1/contact_field_defs", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/contact-fields", {
+      method: "PUT",
+      companyId: COMPANY_ID,
+      body: {
+        fields: [
+          { key: "gate_code", label: "Gate code", kind: "text" },
+          { key: "gate_code", label: "Gate code again", kind: "text" },
+        ],
+      },
+    });
+    expect(res.status).toBe(422);
+    // Refused BEFORE the delete: a rejected save must leave the old set intact.
+    expect(sb.find("DELETE", "/rest/v1/contact_field_defs")).toHaveLength(0);
+  });
+
+  it("CFA-4: a dropdown needs choices, and nothing else may have them", async () => {
+    const sb = stubWithRole("owner");
+    sb.on("DELETE", "/rest/v1/contact_field_defs", () => []);
+    sb.on("POST", "/rest/v1/contact_field_defs", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const empty = await apiRequest(app, env, await auth.token(), "/v1/contact-fields", {
+      method: "PUT",
+      companyId: COMPANY_ID,
+      body: { fields: [{ key: "system_type", label: "System type", kind: "select" }] },
+    });
+    expect(empty.status).toBe(422);
+
+    const stray = await apiRequest(app, env, await auth.token(), "/v1/contact-fields", {
+      method: "PUT",
+      companyId: COMPANY_ID,
+      body: {
+        fields: [
+          { key: "has_dog", label: "Dog on site", kind: "checkbox", options: ["yes"] },
+        ],
+      },
+    });
+    expect(stray.status).toBe(422);
+  });
+
+  it("CFA-5: stops at the cap", async () => {
+    const sb = stubWithRole("owner");
+    sb.on("DELETE", "/rest/v1/contact_field_defs", () => []);
+    sb.on("POST", "/rest/v1/contact_field_defs", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/contact-fields", {
+      method: "PUT",
+      companyId: COMPANY_ID,
+      body: {
+        fields: Array.from({ length: 11 }, (_unused, index) => ({
+          key: `field_${index}`,
+          label: `Field ${index}`,
+          kind: "text",
+        })),
+      },
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it("CFA-6: defining a field is workspace configuration, not note-taking", async () => {
+    // A member can WRITE a value on a contact (conversations.note) but cannot
+    // change what fields exist — that reshapes every contact for the whole crew.
+    const sb = stubWithRole("member");
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/contact-fields", {
+      method: "PUT",
+      companyId: COMPANY_ID,
+      body: { fields: [] },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("CFA-7: refuses a value for a field that does not exist", async () => {
+    // Rather than dropping it. Dropping is the failure where somebody types the
+    // gate code into a stale form, watches it save, and finds it gone tomorrow.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("GET", "/rest/v1/contact_field_defs", () => []);
+    sb.on("PATCH", "/rest/v1/contacts", () => [contactRow()]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      {
+        method: "PATCH",
+        companyId: COMPANY_ID,
+        body: { custom_fields: { gate_code: "1234" } },
+      },
+    );
+    expect(res.status).toBe(422);
+    expect(await res.text()).toContain("gate_code");
+    expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("CFA-8: names the field when a value is the wrong shape", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("GET", "/rest/v1/contact_field_defs", () => [
+      fieldRow({ key: "warranty", label: "Warranty expiry", kind: "date" }),
+    ]);
+    sb.on("PATCH", "/rest/v1/contacts", () => [contactRow()]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      {
+        method: "PATCH",
+        companyId: COMPANY_ID,
+        body: { custom_fields: { warranty: "next Tuesday" } },
+      },
+    );
+    expect(res.status).toBe(422);
+    // The LABEL, not the key — a form with ten fields and one error reading
+    // "invalid" is a form somebody edits at random until it saves.
+    expect(await res.text()).toContain("Warranty expiry");
+  });
+
+  it("CFA-9: writes a good value, and validates against the LIVE definitions", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("GET", "/rest/v1/contact_field_defs", () => [
+      fieldRow({ key: "system_type", label: "System type", kind: "select", options: ["Combi"] }),
+    ]);
+    sb.on("PATCH", "/rest/v1/contacts", () => [
+      contactRow({ custom_fields: { system_type: "Combi" } }),
+    ]);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      {
+        method: "PATCH",
+        companyId: COMPANY_ID,
+        body: { custom_fields: { system_type: "Combi" } },
+      },
+    );
+    expect(res.status).toBe(200);
+    const patch = sb.find("PATCH", "/rest/v1/contacts")[0];
+    expect((patch.body as Record<string, unknown>).custom_fields).toEqual({
+      system_type: "Combi",
+    });
+    // Read from the SERVER's definitions, scoped to this workspace — not from
+    // whatever the client believed the fields were.
+    const read = sb.find("GET", "/rest/v1/contact_field_defs")[0];
+    expect(read.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+  });
+
+  it("CFA-10: rewriting the definitions never touches the values", async () => {
+    // THE SILENT ONE. Deleting a field is meant to hide it; what the crew typed
+    // stays on each contact, which is exactly what the delete warning promises.
+    const sb = stubWithRole("owner");
+    sb.on("DELETE", "/rest/v1/contact_field_defs", () => []);
+    sb.on("POST", "/rest/v1/contact_field_defs", () => []);
+    sb.on("PATCH", "/rest/v1/contacts", () => []);
+    sb.on("DELETE", "/rest/v1/contacts", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/contact-fields", {
+      method: "PUT",
+      companyId: COMPANY_ID,
+      body: { fields: [] },
+    });
+    expect(res.status).toBe(200);
+    expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
+    expect(sb.find("DELETE", "/rest/v1/contacts")).toHaveLength(0);
+    // An empty set still clears the definitions — and inserts nothing.
+    expect(sb.find("DELETE", "/rest/v1/contact_field_defs")).toHaveLength(1);
+    expect(sb.find("POST", "/rest/v1/contact_field_defs")).toHaveLength(0);
+  });
+});
