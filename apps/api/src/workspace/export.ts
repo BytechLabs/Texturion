@@ -34,6 +34,10 @@ import {
   buildUsageExport,
   type UsageExportFilters,
 } from "./usage-export";
+import {
+  buildTaskExport,
+  type TaskExportFilters,
+} from "./tasks-export";
 import { emailLayout } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
@@ -179,7 +183,9 @@ export async function buildDataExports(
           ? await buildHistoryExport(db, row, now)
           : row.kind === "usage_summary"
             ? await buildUsageSummaryExport(db, row, now)
-            : await buildOne(env, db, row, now);
+            : row.kind === "tasks"
+              ? await buildTasksExport(db, row, now)
+              : await buildOne(env, db, row, now);
       summary.parts += result.parts;
       if (result.completed) summary.completed += 1;
     } catch (cause) {
@@ -388,6 +394,46 @@ async function buildUsageSummaryExport(
       status: "ready",
       completed_at: new Date().toISOString(),
       row_counts: { segments: result.segments, partial: result.partial ? 1 : 0 },
+    })
+    .eq("id", row.id);
+  return { parts: 2, completed: true };
+}
+
+/** #304 — the work, written in one run. Same shape as the other two. */
+async function buildTasksExport(
+  db: SupabaseClient,
+  row: ExportRow,
+  now: Date,
+): Promise<{ parts: number; completed: boolean }> {
+  const prefix = row.storage_prefix ?? `${row.company_id}/${row.id}`;
+  if (row.storage_prefix === null) {
+    await db
+      .from("data_exports")
+      .update({ storage_prefix: prefix, status: "running", started_at: now.toISOString() })
+      .eq("id", row.id);
+  }
+
+  const result = await buildTaskExport(
+    db,
+    {
+      companyId: row.company_id,
+      requestedBy: row.requested_by,
+      filters: (row.filters ?? {}) as TaskExportFilters,
+      prefix,
+      now,
+    },
+    (path, body, contentType) => putObject(db, path, body, contentType),
+  );
+
+  await db
+    .from("data_exports")
+    .update({
+      status: "ready",
+      completed_at: new Date().toISOString(),
+      row_counts: {
+        tasks: result.tasks,
+        partial: result.withheld > 0 || result.capped ? 1 : 0,
+      },
     })
     .eq("id", row.id);
   return { parts: 2, completed: true };

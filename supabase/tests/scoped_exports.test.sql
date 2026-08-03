@@ -31,7 +31,11 @@ insert into public.companies
   (id, name, owner_user_id, country, requested_area_code, aup_accepted_at)
 values
   ('8e000000-0000-4000-8000-0000000000c1'::uuid, 'Export HVAC',
-   '8e000000-0000-4000-8000-00000000000a'::uuid, 'US', '415', now());
+   '8e000000-0000-4000-8000-00000000000a'::uuid, 'US', '415', now()),
+  -- A workspace with nothing in flight, so SE-10 can ask for one of every kind
+  -- without the earlier tests' queued rows answering for it.
+  ('8e000000-0000-4000-8000-0000000000c2'::uuid, 'Quiet HVAC',
+   '8e000000-0000-4000-8000-00000000000a'::uuid, 'US', '416', now());
 
 -- ---------------------------------------------------------------------------
 -- SE-1: the #227 call site still means the whole workspace.
@@ -260,6 +264,85 @@ begin
   end;
   if not v_rejected then
     raise exception 'SE-8: a misspelled kind was accepted — the constraint is gone';
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- SE-9: the work kind, and the two gates that both have to be widened.
+--
+-- The failure this catches is not a rejected new kind — it is a table that
+-- accepts the row while request_data_export still raises on it, or the reverse.
+-- Adding a kind means touching a check constraint AND a list inside a
+-- function, and nothing about either one points at the other.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_result jsonb;
+  v_kind text;
+  v_rejected boolean := false;
+begin
+  v_result := public.request_data_export(
+    p_company_id => '8e000000-0000-4000-8000-0000000000c1'::uuid,
+    p_user_id    => '8e000000-0000-4000-8000-00000000000a'::uuid,
+    p_kind       => 'tasks',
+    p_filters    => jsonb_build_object('state', 'open')
+  );
+  if v_result->>'outcome' <> 'queued' then
+    raise exception 'SE-9: a task export was not queued (%)', v_result;
+  end if;
+  select kind into v_kind
+    from public.data_exports where id = (v_result->>'export_id')::uuid;
+  if v_kind <> 'tasks' then
+    raise exception 'SE-9: the kind was stored as %, not tasks', v_kind;
+  end if;
+
+  -- The other gate, from the table's side.
+  begin
+    insert into public.data_exports (company_id, requested_by, kind)
+    values ('8e000000-0000-4000-8000-0000000000c1'::uuid,
+            '8e000000-0000-4000-8000-00000000000a'::uuid,
+            'task');
+  exception when check_violation then
+    v_rejected := true;
+  end;
+  if not v_rejected then
+    raise exception 'SE-9: kind ''task'' was accepted — the constraint is stale';
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- SE-10: each kind gets its own queue slot.
+--
+-- The per-kind lock, asserted across all four now that there are four. A lock
+-- that had drifted back to per-company would make the bookkeeper's dump block
+-- the adjuster's thread, which is the exact thing SE-4 was written to stop.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_kinds text[] := array['workspace', 'conversation_history', 'usage_summary', 'tasks'];
+  v_kind text;
+  v_result jsonb;
+begin
+  foreach v_kind in array v_kinds loop
+    v_result := public.request_data_export(
+      p_company_id => '8e000000-0000-4000-8000-0000000000c2'::uuid,
+      p_user_id    => '8e000000-0000-4000-8000-00000000000a'::uuid,
+      p_kind       => v_kind
+    );
+    if v_result->>'outcome' <> 'queued' then
+      raise exception 'SE-10: kind % waited behind another kind (%)', v_kind, v_result;
+    end if;
+  end loop;
+
+  -- And a SECOND of the same kind still waits, so the slot is per-kind rather
+  -- than simply absent.
+  v_result := public.request_data_export(
+    p_company_id => '8e000000-0000-4000-8000-0000000000c2'::uuid,
+    p_user_id    => '8e000000-0000-4000-8000-00000000000a'::uuid,
+    p_kind       => 'tasks'
+  );
+  if v_result->>'outcome' <> 'in_flight' then
+    raise exception 'SE-10: a second task export was queued rather than joined (%)', v_result;
   end if;
 end $$;
 

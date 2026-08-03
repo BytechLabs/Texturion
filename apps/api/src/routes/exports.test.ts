@@ -211,6 +211,104 @@ describe("GET /v1/exports", () => {
  * Gating it like the history export next door would have locked out the only
  * person it was built for.
  */
+/**
+ * #304 — exporting the work.
+ *
+ * TR-2 is the point. A task list reads like internal admin, so the tempting
+ * gate is `workspace.access` — and that would hand every member a list of
+ * every customer with outstanding work, which is a customer list with extra
+ * steps. It is gated like the history export instead.
+ */
+describe("POST /v1/exports/tasks (#304)", () => {
+  it("TR-1: asks for the task kind, and passes the filters through", async () => {
+    const { sb, routes } = world();
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/exports/tasks", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { from: "2026-06-01T00:00:00Z", state: "open" },
+    });
+    expect(res.status).toBe(202);
+
+    const sent = sb.find("POST", "/rest/v1/rpc/request_data_export")[0]
+      .body as Record<string, unknown>;
+    expect(sent.p_kind).toBe("tasks");
+    expect(sent.p_filters).toEqual({ from: "2026-06-01T00:00:00Z", state: "open" });
+  });
+
+  it("TR-2: a member cannot take the workspace's customer list", async () => {
+    // The gate that matters. Every task names a customer, so this is
+    // `contacts.bulk` — the same axis as exporting a thread.
+    const { routes } = world({ role: "member" });
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/exports/tasks", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: {},
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("TR-3: an unknown state is refused rather than ignored", async () => {
+    // Silently ignoring it would produce a file containing finished work for
+    // somebody who asked for what is outstanding.
+    const { routes } = world();
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/exports/tasks", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { state: "in_progress" },
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it("TR-4: refuses a period that ends before it starts", async () => {
+    const { routes } = world();
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/exports/tasks", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { from: "2026-06-30T00:00:00Z", to: "2026-06-01T00:00:00Z" },
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it("TR-5: the audit row says WHAT was taken", async () => {
+    const { sb, routes } = world();
+    stubFetch(jwksRoute(auth), ...routes);
+
+    await apiRequest(app, env, await auth.token(), "/v1/exports/tasks", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { state: "open" },
+    });
+
+    const audit = sb.find("POST", "/rest/v1/audit_log")[0];
+    const row = (audit.body as Record<string, unknown>[])[0] ??
+      (audit.body as Record<string, unknown>);
+    expect(JSON.stringify(row)).toContain("tasks");
+    expect(JSON.stringify(row)).toContain("open");
+  });
+
+  it("TR-6: an unfiltered export means all work, not none", async () => {
+    // An empty body is valid: "everything" is what an unfiltered export of the
+    // work means, and requiring a period would be friction for the common case.
+    const { routes } = world();
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/exports/tasks", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: {},
+    });
+    expect(res.status).toBe(202);
+  });
+});
+
 describe("POST /v1/exports/usage (#304)", () => {
   it("UR-1: asks for the usage kind, and passes the period through", async () => {
     const { sb, routes } = world();

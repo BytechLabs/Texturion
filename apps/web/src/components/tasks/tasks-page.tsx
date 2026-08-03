@@ -7,6 +7,7 @@ import { useCallback, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 import { TaskFilterBar } from "./task-filter-bar";
+import { ExportTasks } from "./export-tasks";
 import {
   coerceTabForView,
   parseTaskSearchParams,
@@ -70,7 +71,13 @@ export function TasksPage() {
             }
           />
         </div>
-        <TaskFilterBar state={state} onChange={setState} />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <TaskFilterBar state={state} onChange={setState} />
+          {/* #304: quiet, beside the filters that already say what it covers.
+              Absent for anybody without `contacts.bulk` — every task names a
+              customer. */}
+          <ExportTasks tab={state.tab} />
+        </div>
       </header>
 
       <ViewBody state={state} />

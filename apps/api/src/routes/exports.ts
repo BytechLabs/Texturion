@@ -241,6 +241,84 @@ exportsRoutes.post(
   },
 );
 
+/**
+ * #304 — POST /v1/exports/tasks: the work, as a file.
+ *
+ * GATED ON `contacts.bulk`, like the history export and unlike the usage one.
+ * A task list looks like internal admin and is not: every task hangs off a
+ * conversation (D17), so each row names a customer and quotes what they asked
+ * for. Gating it on `workspace.access` — which is what "it is only our own
+ * to-do list" would suggest — would hand every member a customer list.
+ *
+ * The builder resolves #106 number access again at build time and states what
+ * it withheld. This route does not repeat that check, for the same reason the
+ * history route does not: two implementations of one security decision is the
+ * drift D79 exists to prevent, and the builder is the side that writes bytes.
+ */
+const tasksExportSchema = z.object({
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  /** Absent means both, which is what an unfiltered export of work means. */
+  state: z.enum(["open", "done"]).optional(),
+});
+
+exportsRoutes.post(
+  "/exports/tasks",
+  requireCapability("contacts.bulk"),
+  async (c) => {
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+    const body = await parseJsonBody(c, tasksExportSchema);
+
+    if (body.from && body.to && body.from > body.to) {
+      throw new ApiError(
+        "validation_failed",
+        "The end of the period is before its start.",
+      );
+    }
+
+    const { data, error } = await db.rpc("request_data_export", {
+      p_company_id: companyId,
+      p_user_id: c.get("userId"),
+      p_kind: "tasks",
+      p_filters: body,
+    });
+    if (error) throw new Error(`request_data_export failed: ${error.message}`);
+    const result = data as { outcome: "queued" | "in_flight"; export_id: string };
+
+    if (result.outcome === "in_flight") {
+      return c.json({ export_id: result.export_id, already_building: true });
+    }
+
+    // WHAT was asked for, not merely that an export happened — the same reason
+    // the history route names the customer.
+    await recordAuditFromRequest(db, c, {
+      companyId,
+      action: "contacts.exported",
+      targetType: "data_export",
+      targetId: result.export_id,
+      after: {
+        scope: "tasks",
+        from: body.from ?? null,
+        to: body.to ?? null,
+        state: body.state ?? null,
+      },
+    });
+
+    // #231: a list of every customer with outstanding work is the same shape of
+    // artifact the bulk alarm exists for, so it fires here as it does for the
+    // history export.
+    alarmOnBulkContactAccess(c, getEnv(c.env), db, {
+      companyId,
+      actorUserId: c.get("userId"),
+      event: "history_exported",
+      count: 0,
+    });
+
+    return c.json({ export_id: result.export_id, already_building: false }, 202);
+  },
+);
+
 exportsRoutes.get("/exports", requireCapability("contacts.bulk"), async (c) => {
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));

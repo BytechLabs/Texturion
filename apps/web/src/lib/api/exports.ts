@@ -95,3 +95,24 @@ export function useExportUsage() {
     },
   });
 }
+
+/**
+ * #304 — the work, as a file.
+ *
+ * Every filter is optional: an unfiltered export of the work means all of it,
+ * and requiring a period would be friction for the common case.
+ */
+export function useExportTasks() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (filters: { from?: string; to?: string; state?: "open" | "done" }) =>
+      apiFetch<{ export_id: string; already_building: boolean }>(
+        "/v1/exports/tasks",
+        { method: "POST", companyId, body: filters },
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [companyId, "exports"] });
+    },
+  });
+}
