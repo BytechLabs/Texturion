@@ -36,6 +36,11 @@ declare
     -- has simply not gone yet, and a workspace's export and erasure have to
     -- treat it as one.
     'scheduled_messages',
+    -- #313: a customer's opinion of a job, and which member it was attributed
+    -- to. Classified with the conversation data rather than as configuration:
+    -- it is a statement BY the customer about a visit to their home, and an
+    -- export or an erasure has to treat it as theirs.
+    'job_ratings',
     -- #237: the workspace's own reminder wording, and how long before a job it
     -- goes. No customer data — but it is company-scoped and must die with the
     -- workspace, because a rule outliving closure would be the template for a
