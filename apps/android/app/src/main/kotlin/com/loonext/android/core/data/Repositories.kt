@@ -4,6 +4,7 @@ import com.loonext.android.core.model.ReplySuggestions
 import com.loonext.android.core.model.SatisfactionReport
 import com.loonext.android.core.model.CompanyAiSettings
 import com.loonext.android.core.model.Contact
+import com.loonext.android.core.model.ContactFieldsResponse
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.ForYou
 import com.loonext.android.core.model.Me
@@ -180,6 +181,15 @@ class ContactsRepository(private val api: ApiClient) {
          * quietly returning names as well would answer a question nobody asked.
          */
         t9: Boolean = false,
+        /**
+         * #291: narrow to ONE answer in one of the workspace's own fields.
+         * Both halves or neither — the server refuses a field with no value,
+         * because "has any answer" and "has none" are different questions and
+         * guessing either would filter somebody's list by a rule they did not
+         * choose.
+         */
+        field: String? = null,
+        value: String? = null,
     ): Page<Contact> = api.get(
         "/v1/contacts",
         query = mapOf(
@@ -187,9 +197,25 @@ class ContactsRepository(private val api: ApiClient) {
             "cursor" to cursor,
             "limit" to limit.toString(),
             "t9" to if (t9 && !q.isNullOrEmpty()) "1" else null,
+            "field" to field,
+            // Sent even when empty: "" is a real answer on a custom field, and
+            // dropping it would silently widen the list back to everybody.
+            "value" to if (field != null) value.orEmpty() else null,
         ),
         companyId = companyId,
     )
+
+    /**
+     * #291: the fields this workspace defined for its own trade.
+     *
+     * Here as well as on `ContactMutations`, because the two screens that need
+     * them hold different objects: the contacts LIST builds its filter chips
+     * from this repository, the contact DETAIL fills values in through the
+     * mutations. One method on the wrong one compiles nowhere and is found by
+     * whichever client is checked first.
+     */
+    suspend fun contactFields(companyId: String): ContactFieldsResponse =
+        api.get("/v1/contact-fields", companyId = companyId)
 }
 
 class NotificationsRepository(private val api: ApiClient) {

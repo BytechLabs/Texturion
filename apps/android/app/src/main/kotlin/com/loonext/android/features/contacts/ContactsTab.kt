@@ -78,6 +78,7 @@ import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.Contact
+import com.loonext.android.core.model.ContactFieldDef
 import com.loonext.android.core.model.ImportResult
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.MemberRole
@@ -237,6 +238,17 @@ private fun ContactListScreen(
         debouncedQ = query.trim()
     }
 
+    // #291: the active field filter, and the definitions the chips are built
+    // from. Read once per workspace — they are the same for every list, and an
+    // empty list is the honest state both for a workspace that defined none
+    // and for a read that failed: the chips simply do not appear.
+    var fieldFilter by remember(companyId) { mutableStateOf<Pair<String, String>?>(null) }
+    var fieldDefs by remember(companyId) { mutableStateOf<List<ContactFieldDef>>(emptyList()) }
+    LaunchedEffect(companyId) {
+        runCatching { graph.contactsRepo.contactFields(companyId) }
+            .onSuccess { fieldDefs = it.data }
+    }
+
     // #176 cache-first: the default (empty-query) list renders instantly from
     // StoreCache on every revisit; refreshKey bumps revalidate silently. The
     // revalidate re-walks cursors to the depth already cached so a background
@@ -267,14 +279,23 @@ private fun ContactListScreen(
     // semantics as before #176.
     var searchSnapshot by remember(companyId) { mutableStateOf<ContactsSnapshot?>(null) }
     var searchState by remember(companyId) { mutableStateOf<LoadState<Unit>>(LoadState.Loading) }
-    LaunchedEffect(companyId, debouncedQ, refreshKey) {
-        if (debouncedQ.isEmpty()) {
+    LaunchedEffect(companyId, debouncedQ, fieldFilter, refreshKey) {
+        // #291: a FILTER is live too. The cached list is everybody, so serving
+        // it under an active filter would show every contact as though they
+        // matched — the same failure the search path guards against below.
+        if (debouncedQ.isEmpty() && fieldFilter == null) {
             searchSnapshot = null
             searchState = LoadState.Loading
             return@LaunchedEffect
         }
         try {
-            val page = graph.contactsRepo.contacts(companyId, q = debouncedQ, limit = 50)
+            val page = graph.contactsRepo.contacts(
+                companyId,
+                q = debouncedQ.ifEmpty { null },
+                limit = 50,
+                field = fieldFilter?.first,
+                value = fieldFilter?.second,
+            )
             searchSnapshot = ContactsSnapshot(page.data, page.next_cursor)
             searchState = LoadState.Ready(Unit)
         } catch (cause: Exception) {
@@ -290,10 +311,17 @@ private fun ContactListScreen(
     // invisible). Falling back while a search is merely IN FLIGHT is still
     // correct — that is the "hold the previous rows while typing" behaviour.
     val searchFailed =
-        debouncedQ.isNotEmpty() && searchSnapshot == null && searchState is LoadState.Failed
+        (debouncedQ.isNotEmpty() || fieldFilter != null) &&
+            searchSnapshot == null &&
+            searchState is LoadState.Failed
     val snapshot = when {
-        debouncedQ.isEmpty() -> defaultSnapshot
+        debouncedQ.isEmpty() && fieldFilter == null -> defaultSnapshot
         searchFailed -> null
+        // #291: a FILTERED list never falls through to the unfiltered one,
+        // even mid-flight. Holding the previous rows is right while somebody
+        // types — the rows shown were a real answer a moment ago — but under a
+        // new filter the previous rows are precisely what was excluded.
+        fieldFilter != null -> searchSnapshot
         else -> searchSnapshot ?: defaultSnapshot
     }
     val rows = snapshot?.rows ?: emptyList()
@@ -491,6 +519,17 @@ private fun ContactListScreen(
 
             Spacer(Modifier.height(14.dp))
             SearchPill(query, onValueChange = { query = it.take(200) })
+            // #291: under the search box, because both answer "show me less".
+            // Absent entirely unless the workspace defined a field with a
+            // closed set of answers, so most lists look exactly as they did.
+            if (fieldDefs.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                ContactFilter(
+                    defs = fieldDefs,
+                    active = fieldFilter,
+                    onChange = { fieldFilter = it },
+                )
+            }
             Spacer(Modifier.height(14.dp))
 
             when (val current = state) {
@@ -516,11 +555,17 @@ private fun ContactListScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             Text(
-                                if (debouncedQ.isBlank()) {
-                                    "No contacts yet. They're added automatically when " +
-                                        "someone texts you, or add one yourself."
-                                } else {
-                                    "No matches for \"$debouncedQ\"."
+                                when {
+                                    debouncedQ.isNotBlank() -> "No matches for \"$debouncedQ\"."
+                                    // #291: NOT the no-contacts-yet line. Under
+                                    // an active filter those customers are
+                                    // excluded, not missing, and "they're added
+                                    // automatically" reads as having none.
+                                    fieldFilter != null ->
+                                        "$CONTACT_FILTER_EMPTY_TITLE. $CONTACT_FILTER_EMPTY_BODY"
+                                    else ->
+                                        "No contacts yet. They're added automatically when " +
+                                            "someone texts you, or add one yourself."
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
