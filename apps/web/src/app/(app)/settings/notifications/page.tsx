@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { LeadChaseRow } from "@/components/settings/lead-chase-row";
 import { PushContentRow } from "@/components/settings/push-content-row";
+import { DeliveryModesCard } from "@/components/settings/delivery-modes-card";
 import { QuietHoursRow } from "@/components/settings/quiet-hours-row";
 import { PermissionCard } from "@/components/notifications/permission-card";
 import { EmailReachabilityCard } from "@/components/settings/email-reachability-card";
@@ -62,6 +63,14 @@ export default function NotificationsSettingsPage() {
           {/* #244: with the other per-member switches, because it IS one —
               the difference from "notifications off" is that this one ends by
               itself at 7am. */}
+          {/* #297: above quiet hours, because it is the broader question. How
+              loud each kind of notification is comes first; when your phone is
+              silent regardless is the refinement on top of it. */}
+          <DeliveryModesCard
+            prefs={prefs.data}
+            saving={update.isPending}
+            onSave={(next) => update.mutateAsync(next)}
+          />
           <QuietHoursRow
             prefs={prefs.data}
             saving={update.isPending}

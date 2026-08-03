@@ -119,6 +119,13 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
                         .padding(.top, 4)
                 }
 
+                // #297: above the quiet-hours row and below the on/off
+                // switches, because it is the middle question — how loud each
+                // kind is, before when the phone is silent regardless.
+                DeliveryModesCard(prefs: prefs) { next in
+                    save(next, previous: prefs)
+                }
+
                 extraRows()
 
                 Divider()

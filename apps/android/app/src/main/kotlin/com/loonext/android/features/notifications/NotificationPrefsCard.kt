@@ -202,6 +202,14 @@ fun NotificationPrefsCard(
                     )
                 }
 
+                // #297: above the quiet-hours row and below the on/off
+                // switches, because it is the middle question — how loud each
+                // kind is, before when the phone is silent regardless.
+                DeliveryModesCard(
+                    prefs = prefs,
+                    onSave = { next -> save(next, prefs) },
+                )
+
                 extraRows()
 
                 Spacer(Modifier.padding(top = 12.dp))

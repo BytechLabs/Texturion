@@ -388,4 +388,16 @@ struct NotificationPrefs: Codable, Sendable {
     var quiet_to: String? = nil
     /// Their own zone; nil falls back to the workspace's.
     var quiet_timezone: String? = nil
+    /// #297: category -> "immediate" | "batched" | "summary". An ABSENT key
+    /// means immediate, which is what every member receives today — so an
+    /// empty dictionary and "never touched this" are the same state.
+    /// Optional rather than a @Default wrapper: Swift's synthesized Decodable
+    /// ignores property defaults for missing keys, and an optional handles the
+    /// absent case with no new machinery. nil and empty both mean "nothing
+    /// quietened", so the extra state costs nothing.
+    var delivery: [String: String]? = nil
+    /// How long a group waits. Nil when nothing is grouped.
+    var batch_window_minutes: Int? = nil
+    /// When the daily summary goes, in their own clock. Nil = no summary.
+    var summary_at: String? = nil
 }

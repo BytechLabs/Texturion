@@ -51,6 +51,22 @@ const FRAGMENTS: readonly string[] = [
   "Off — every notification reaches you at any hour.",
   "Quiet from",
   "This applies to this workspace only.",
+  // #297's volume control. The urgent-always promise is the load-bearing one:
+  // without it nobody picks a quieter mode, and a client that dropped it would
+  // be offering silence with no reassurance attached.
+  "How much we tell you",
+  "An emergency, a page while you are on call, or an alert nobody picked ",
+  "up always arrives straight away, whatever you choose here.",
+  "Straight away",
+  "Grouped up",
+  "Once a day",
+  "Held for your daily summary, not discarded.",
+  "Texts on my jobs",
+  "Texts on anyone's jobs",
+  "When somebody @s me",
+  "Work handed to me",
+  "Missed calls",
+  "Voicemails",
 ];
 
 /**
@@ -92,6 +108,17 @@ const EXTRA_VOCABULARY: Record<string, string> = {
 };
 
 /**
+ * #297's vocabulary, which is a third shared module.
+ *
+ * On the phones all three sets live in one `OnCall` object, so only the shared
+ * side keeps splitting — the cost of TypeScript being able to have small files
+ * and Kotlin/Swift preferring one.
+ */
+const EXTRA_DELIVERY: Record<string, string> = {
+  shared: join(REPO_ROOT, "packages/shared/src/notification-delivery.ts"),
+};
+
+/**
  * The banner's own file per client.
  *
  * Keyed to match SOURCES, so `shared` maps to WEB's banner: the shared module
@@ -127,6 +154,9 @@ describe("#244 on-call copy is the same on every client", () => {
         (BANNERS[platform] ? readFileSync(BANNERS[platform], "utf8") : "") +
           (EXTRA_VOCABULARY[platform]
             ? readFileSync(EXTRA_VOCABULARY[platform], "utf8")
+            : "") +
+          (EXTRA_DELIVERY[platform]
+            ? readFileSync(EXTRA_DELIVERY[platform], "utf8")
             : ""),
       );
       for (const fragment of FRAGMENTS) {
@@ -181,6 +211,23 @@ describe("#244 on-call copy is the same on every client", () => {
         );
       }
     }
+  });
+
+  it("offers the same grouping choices and default on every client", () => {
+    // Three clients offering three different windows would mean the same crew
+    // reporting different grouping depending on which screen they used — and
+    // the server would silently accept all of them.
+    const shared = codeOnly(EXTRA_DELIVERY.shared);
+    expect(shared).toContain("BATCH_WINDOW_CHOICES = [5, 15, 30, 60]");
+    expect(shared).toContain("DEFAULT_BATCH_WINDOW: BatchWindowMinutes = 15");
+
+    const kotlin = codeOnly(SOURCES.android);
+    expect(kotlin).toContain("BATCH_WINDOW_CHOICES = listOf(5, 15, 30, 60)");
+    expect(kotlin).toContain("DEFAULT_BATCH_WINDOW = 15");
+
+    const swift = codeOnly(SOURCES.ios);
+    expect(swift).toContain("batchWindowChoices = [5, 15, 30, 60]");
+    expect(swift).toContain("defaultBatchWindow = 15");
   });
 
   it("offers the same default window on every client", () => {

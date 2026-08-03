@@ -1977,6 +1977,16 @@ export interface NotificationPrefs {
   quiet_to?: string | null;
   /** Their own zone; null falls back to the workspace's. */
   quiet_timezone?: string | null;
+  /**
+   * #297: category -> "immediate" | "batched" | "summary". An ABSENT key means
+   * immediate, which is what every member receives today — so `{}` and "never
+   * touched this" are the same state, deliberately.
+   */
+  delivery?: Record<string, string>;
+  /** How long a group waits. Null when nothing is grouped. */
+  batch_window_minutes?: number | null;
+  /** When the daily summary goes, in their own clock. Null = no summary. */
+  summary_at?: string | null;
 }
 
 // ---------------------------------------------------------------------------

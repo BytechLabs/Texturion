@@ -87,6 +87,43 @@ object OnCall {
 
     fun quietHoursLine(from: String, to: String): String = "$QUIET_ON $from to $to"
 
+    // -- #297 how loud each kind of notification is ------------------------
+
+    const val DELIVERY_HEADING = "How much we tell you"
+
+    /**
+     * THE PROMISE THAT MAKES A QUIETER SETTING PICKABLE. Without it nobody
+     * chooses one, because the fear is missing the call that mattered — and
+     * they go back to turning notifications off entirely.
+     */
+    const val DELIVERY_URGENT_ALWAYS =
+        "An emergency, a page while you are on call, or an alert nobody picked " +
+            "up always arrives straight away, whatever you choose here."
+
+    const val DELIVERY_IMMEDIATE = "Straight away"
+    const val DELIVERY_BATCHED = "Grouped up"
+    const val DELIVERY_SUMMARY = "Once a day"
+
+    /** Said next to "Once a day", the option people misread as off. */
+    const val DELIVERY_SUMMARY_DETAIL =
+        "Held for your daily summary, not discarded."
+
+    /** The categories, in the words a member would use. */
+    val CATEGORY_LABELS = linkedMapOf(
+        "messages_mine" to "Texts on my jobs",
+        "messages_all" to "Texts on anyone's jobs",
+        "mentions" to "When somebody @s me",
+        "assignments" to "Work handed to me",
+        "missed_calls" to "Missed calls",
+        "voicemails" to "Voicemails",
+    )
+
+    val DELIVERY_MODES = listOf("immediate", "batched", "summary")
+
+    val BATCH_WINDOW_CHOICES = listOf(5, 15, 30, 60)
+
+    const val DEFAULT_BATCH_WINDOW = 15
+
     /**
      * Turn a preset into a real window.
      *

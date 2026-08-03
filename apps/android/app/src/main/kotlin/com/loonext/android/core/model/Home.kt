@@ -375,6 +375,16 @@ data class NotificationPrefs(
     val quiet_to: String? = null,
     /** Their own zone; null falls back to the workspace's. */
     val quiet_timezone: String? = null,
+    /**
+     * #297: category -> "immediate" | "batched" | "summary". An ABSENT key
+     * means immediate, which is what every member receives today — so an empty
+     * map and "never touched this" are the same state, deliberately.
+     */
+    val delivery: Map<String, String> = emptyMap(),
+    /** How long a group waits. Null when nothing is grouped. */
+    val batch_window_minutes: Int? = null,
+    /** When the daily summary goes, in their own clock. Null = no summary. */
+    val summary_at: String? = null,
 )
 
 /**

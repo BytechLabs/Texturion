@@ -138,6 +138,11 @@ describe("GET /v1/notification-prefs", () => {
       quiet_from: null,
       quiet_to: null,
       quiet_timezone: null,
+      // #297: nothing quietened, no window, no summary — what every member
+      // receives today, and named for the same reason as the fields above.
+      delivery: {},
+      batch_window_minutes: null,
+      summary_at: null,
       vapid_public_key: env.VAPID_PUBLIC_KEY,
     });
   });
@@ -886,5 +891,95 @@ describe("#244 quiet hours on the prefs route", () => {
       quiet_to: null,
       quiet_timezone: null,
     });
+  });
+});
+
+/**
+ * #297 — the volume controls, over the wire.
+ *
+ * The rule worth guarding is that an omitted field CLEARS. It reads as
+ * dangerous and is the opposite: without it, turning a category back to
+ * immediate would be impossible to express, and a member who quietened
+ * something once could never undo it.
+ */
+describe("#297 delivery preferences on the prefs route", () => {
+  const BASE = { email_enabled: true, push_enabled: true };
+
+  async function put(body: Record<string, unknown>) {
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/notification_prefs", () => []);
+    sb.on("POST", "/rest/v1/notification_prefs", () => [BASE]);
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notification-prefs",
+      { companyId: COMPANY_ID, method: "PUT", body },
+    );
+    return { res, sb };
+  }
+
+  it("DP-1: saves a per-category mode", async () => {
+    const { res, sb } = await put({
+      ...BASE,
+      delivery: { messages_all: "batched", voicemails: "summary" },
+      batch_window_minutes: 30,
+    });
+
+    expect(res.status).toBe(200);
+    const write = sb.calls.find(
+      (call) =>
+        call.method === "POST" && call.path === "/rest/v1/notification_prefs",
+    );
+    expect(write?.body).toMatchObject({
+      delivery: { messages_all: "batched", voicemails: "summary" },
+      batch_window_minutes: 30,
+    });
+  });
+
+  it("DP-2: refuses a category or a mode it has never heard of", async () => {
+    // A typo here would be stored and then read back by `decideDelivery`,
+    // which SENDS on anything unknown — so the member would quietly get the
+    // opposite of what they picked, with nothing to show for it.
+    expect(
+      (await put({ ...BASE, delivery: { made_up: "batched" } })).res.status,
+    ).toBe(422);
+    expect(
+      (await put({ ...BASE, delivery: { messages_all: "whisper" } })).res.status,
+    ).toBe(422);
+  });
+
+  it("DP-3: bounds the batch window", async () => {
+    // A day-long "batch" is a summary with the wrong name; a zero-minute one is
+    // immediate delivery pretending to be something else.
+    expect(
+      (await put({ ...BASE, batch_window_minutes: 1440 })).res.status,
+    ).toBe(422);
+    expect((await put({ ...BASE, batch_window_minutes: 1 })).res.status).toBe(
+      422,
+    );
+  });
+
+  it("DP-4: an omitted field CLEARS, so a member can undo a choice", async () => {
+    const { sb } = await put(BASE);
+
+    const write = sb.calls.find(
+      (call) =>
+        call.method === "POST" && call.path === "/rest/v1/notification_prefs",
+    );
+    expect(write?.body).toMatchObject({
+      delivery: {},
+      batch_window_minutes: null,
+      summary_at: null,
+    });
+  });
+
+  it("DP-5: the summary time is a wall clock or nothing", async () => {
+    expect((await put({ ...BASE, summary_at: "07:30" })).res.status).toBe(200);
+    expect((await put({ ...BASE, summary_at: null })).res.status).toBe(200);
+    expect((await put({ ...BASE, summary_at: "half seven" })).res.status).toBe(
+      422,
+    );
   });
 });

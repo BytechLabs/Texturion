@@ -50,6 +50,11 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
+import {
+  DELIVERY_MODES,
+  NOTIFICATION_CATEGORIES,
+} from "@loonext/shared";
+
 import { requireCapability } from "../auth/company";
 import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
@@ -69,6 +74,27 @@ import {
 /** "22:00" or "07:00" — a wall clock, not an instant. */
 const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 
+/**
+ * #297: category -> mode. An ABSENT key means immediate, so a client that has
+ * never heard of a category cannot accidentally quieten it by omission — which
+ * matters because the phones ship on their own release cadence and will be
+ * older than this Worker for weeks at a time.
+ *
+ * A string key with an explicit membership check rather than
+ * `z.record(z.enum(...), ...)`: a keyed enum record is EXHAUSTIVE in Zod, so
+ * it would reject the partial object this endpoint is built around — every
+ * client sends only the categories somebody has actually changed.
+ */
+const deliverySchema = z
+  .record(z.string(), z.enum(DELIVERY_MODES))
+  .refine(
+    (value) =>
+      Object.keys(value).every((key) =>
+        (NOTIFICATION_CATEGORIES as readonly string[]).includes(key),
+      ),
+    { message: "Unknown notification category" },
+  );
+
 const prefsSchema = z.object({
   email_enabled: z.boolean(),
   push_enabled: z.boolean(),
@@ -81,6 +107,17 @@ const prefsSchema = z.object({
   quiet_to: clockTime.nullable().optional(),
   /** The member's own zone. Null falls back to the workspace's. */
   quiet_timezone: z.string().max(64).nullable().optional(),
+  /** #297: how loud each category is. Absent keys mean immediate. */
+  delivery: deliverySchema.optional(),
+  batch_window_minutes: z
+    .number()
+    .int()
+    .min(5)
+    .max(60)
+    .nullable()
+    .optional(),
+  /** When the daily summary goes, in the member's own clock. Null = none. */
+  summary_at: clockTime.nullable().optional(),
 }).refine(
   (value) =>
     (value.quiet_from ?? null) === null ? (value.quiet_to ?? null) === null
@@ -121,6 +158,10 @@ const subscriptionSchema = z.object({
 interface PrefsRow {
   email_enabled: boolean;
   push_enabled: boolean;
+  /** #297: category -> mode, `{}` for a member who has changed nothing. */
+  delivery?: Record<string, string>;
+  batch_window_minutes?: number | null;
+  summary_at?: string | null;
   /** #244: null on every member who has not set a window. */
   quiet_from?: string | null;
   quiet_to?: string | null;
@@ -150,7 +191,10 @@ notificationsRoutes.get(
     const rows = unwrap<PrefsRow[]>(
       await db
         .from("notification_prefs")
-        .select("email_enabled,push_enabled,quiet_from,quiet_to,quiet_timezone")
+        .select(
+          "email_enabled,push_enabled,quiet_from,quiet_to,quiet_timezone," +
+            "delivery,batch_window_minutes,summary_at",
+        )
         .eq("user_id", c.get("userId"))
         .eq("company_id", c.get("companyId"))
         .limit(1),
@@ -164,6 +208,11 @@ notificationsRoutes.get(
       quiet_from: null,
       quiet_to: null,
       quiet_timezone: null,
+      // #297: no category quietened, no window, no summary — which is what
+      // every member receives today.
+      delivery: {},
+      batch_window_minutes: null,
+      summary_at: null,
     };
     return c.json({ ...prefs, vapid_public_key: env.VAPID_PUBLIC_KEY });
   },
@@ -191,6 +240,13 @@ notificationsRoutes.put(
             quiet_from: body.quiet_from ?? null,
             quiet_to: body.quiet_to ?? null,
             quiet_timezone: body.quiet_timezone ?? null,
+            // Same rule as the quiet window above: the client always sends the
+            // whole preference, so an omitted field CLEARS rather than
+            // preserves. Otherwise turning a category back to immediate would
+            // be impossible to express.
+            delivery: body.delivery ?? {},
+            batch_window_minutes: body.batch_window_minutes ?? null,
+            summary_at: body.summary_at ?? null,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "user_id,company_id" },

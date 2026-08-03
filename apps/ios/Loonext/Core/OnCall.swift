@@ -95,6 +95,41 @@ enum OnCall {
         "\(quietOn) \(from) to \(to)"
     }
 
+    // MARK: - #297 how loud each kind of notification is
+
+    static let deliveryHeading = "How much we tell you"
+
+    /// THE PROMISE THAT MAKES A QUIETER SETTING PICKABLE. Without it nobody
+    /// chooses one, because the fear is missing the call that mattered — and
+    /// they go back to turning notifications off entirely.
+    static let deliveryUrgentAlways =
+        "An emergency, a page while you are on call, or an alert nobody picked "
+        + "up always arrives straight away, whatever you choose here."
+
+    static let deliveryImmediate = "Straight away"
+    static let deliveryBatched = "Grouped up"
+    static let deliverySummary = "Once a day"
+
+    /// Said next to "Once a day", the option people misread as off.
+    static let deliverySummaryDetail =
+        "Held for your daily summary, not discarded."
+
+    /// The categories, in the words a member would use, in display order.
+    static let categoryLabels: [(key: String, label: String)] = [
+        ("messages_mine", "Texts on my jobs"),
+        ("messages_all", "Texts on anyone's jobs"),
+        ("mentions", "When somebody @s me"),
+        ("assignments", "Work handed to me"),
+        ("missed_calls", "Missed calls"),
+        ("voicemails", "Voicemails"),
+    ]
+
+    static let deliveryModes = ["immediate", "batched", "summary"]
+
+    static let batchWindowChoices = [5, 15, 30, 60]
+
+    static let defaultBatchWindow = 15
+
     /// Turn a preset into a real window.
     ///
     /// `offsetMinutes` is the crew's offset from UTC, passed in rather than
