@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import { PLAN_PRICE_CENTS, US_REGISTRATION_FEE_CENTS } from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
+import { stripComments } from "@/test/source-tree";
+
 /**
  * #328 — every price surface agrees, because none of them types a price.
  *
@@ -76,9 +78,11 @@ const ALLOWED = [
  * comments. Only code can mislead a reader holding a card.
  */
 function codeOnly(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^\s*\/\/.*$/gm, "");
+  // #519: `stripComments` rather than a local regex. The copy here opened a
+  // block comment at any `/*` — including the one in `` `image/*` `` — and
+  // blanked everything to the next `*/`, so a price literal in that region was
+  // outside the guarantee this file exists to give.
+  return stripComments(source);
 }
 
 function walk(dir: string): string[] {

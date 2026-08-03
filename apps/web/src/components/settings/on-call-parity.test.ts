@@ -11,6 +11,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { stripComments } from "@/test/source-tree";
+
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
 
 const SOURCES: Record<string, string> = {
@@ -89,11 +91,10 @@ function joinLiterals(text: string): string {
 
 /** The file with its comments removed — see satisfaction-parity for why. */
 function codeOnly(path: string): string {
-  return readFileSync(path, "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .split(/\r?\n/)
-    .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
-    .join("\n");
+  // #519: `stripComments` rather than a local regex. Every copy of that regex
+  // opened a block comment at any `/*`, including one inside a string literal,
+  // and blanked the file from there to the next `*/`.
+  return stripComments(readFileSync(path, "utf8"));
 }
 
 /**

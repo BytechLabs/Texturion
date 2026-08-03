@@ -1,36 +1,21 @@
 import { readFileSync } from "node:fs";
 
+import { stripComments } from "@/test/source-tree";
+
 /**
- * #291 — one way the client-parity tests read a source file.
+ * #291/#519 — a client source with its comments removed, for the parity tests.
  *
- * Three of them assert that a sentence or a rule appears in each client's
- * source, and every one of those assertions has to ignore COMMENTS: the prose
- * explaining why "Not asked" is a third state contains the words "Not asked",
- * so a client that collapsed the state and left the comment in place would
- * pass. Each test had its own copy of the stripper, and the copies were wrong
- * in the same way.
+ * The stripping itself lives in `src/test/source-tree.ts`, beside the tree
+ * reader, because four guards across two apps needed the same thing and each
+ * had written its own. Every copy was wrong the same way: a block comment was
+ * taken to start at any `/*`, including one inside a string literal, so
+ * `arrayOf("text/*", …)` in `ContactsTab.kt` blanked four hundred lines and the
+ * assertions reading that region checked nothing.
  *
- * WHAT WAS WRONG. `source.replace(/\/\*[\s\S]*?\*\//g, "")` swallows from the
- * first `/*` it finds to the next `*​/` — and `ContactsTab.kt` contains
- * `arrayOf("text/*", …)`, a MIME type in a string literal. Everything from
- * there to the next doc comment vanished, taking four hundred lines of real
- * code with it, and the assertion reading that file quietly checked nothing.
- *
- * That is the failure this whole family of tests exists to prevent, committed
- * by the tests themselves. It surfaced only because one assertion was moved
- * onto a file where the removed region mattered — the other two had been
- * passing over a hole for as long as they existed.
- *
- * WHAT THIS DOES INSTEAD. A block comment is only stripped when its `/*`
- * OPENS A LINE (optionally indented), which is how every doc block in this
- * repo is written and how no string literal ever is. Line comments are
- * stripped only when `//` follows whitespace or a line start, so a `https://`
- * inside a string survives too.
+ * Kept as a named wrapper rather than inlined at each call site: these tests
+ * read ANDROID and iOS sources, which the tree reader does not walk, so what
+ * they share is the stripping and not the walking.
  */
 export function parityCode(path: string): string {
-  return readFileSync(path, "utf8")
-    .replace(/^[ \t]*\/\*[\s\S]*?\*\/[ \t]*$/gm, "")
-    .split("\n")
-    .map((line) => line.replace(/(^|\s)\/\/.*$/, "$1"))
-    .join("\n");
+  return stripComments(readFileSync(path, "utf8"));
 }
