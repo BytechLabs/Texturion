@@ -17,7 +17,7 @@
  */
 import { join } from "node:path";
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../http/errors";
 import { RATE_LIMITED_SENDS_PER_HOUR, runPreSendGates } from "./send";
@@ -47,7 +47,10 @@ const ALLOWED_TO_ENFORCE: readonly string[] = [];
  * is real and goes through the stubbed fetch below.
  */
 function world(options: { enforcement?: AupEnforcement; sentThisHour?: number } = {}) {
-  getSendGates.mockResolvedValue({
+  // vi.mocked: vitest resolves this import to the aliased double, tsc
+  // resolves the real module's plain function. The cast is what makes the
+  // two agree — a green vitest run does not mean the file typechecks.
+  vi.mocked(getSendGates).mockResolvedValue({
     subscriptionActive: true,
     aupEnforcement: options.enforcement ?? "none",
     usApproved: true,
@@ -74,7 +77,7 @@ async function attempt(options: Parameters<typeof world>[0] = {}) {
 }
 
 beforeEach(() => {
-  getSendGates.mockReset();
+  vi.mocked(getSendGates).mockReset();
 });
 
 describe("#303 the AUP enforcement ladder", () => {

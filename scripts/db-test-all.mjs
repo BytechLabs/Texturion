@@ -134,6 +134,7 @@ const SUITES = [
   "contact_custom_values",
   "scoped_exports",
   "usage_window",
+  "aup_enforcement",
 
 ];
 

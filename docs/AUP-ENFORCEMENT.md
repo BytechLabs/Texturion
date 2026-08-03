@@ -106,9 +106,17 @@ Honest state, so nobody assumes a lever exists:
   outside the enforcement path writes it — AE-10 fails if a billing, webhook or
   provisioning path is merely *added to the allowlist*, before any such write
   exists.
-- **`AuditAction` still has no enforcement member.** The ladder can be applied;
-  applying it is not yet recorded in the audit log, which #303's acceptance
-  requires.
+- **Applying the ladder IS recorded**, by a trigger on the column rather than
+  by route code. That is deliberate: this file says enforcement is applied by a
+  human in psql, and a route can only record what passes through it. Every
+  writer is covered — psql, a future ops route, a migration, a mistake.
+  `aup.rate_limited`, `aup.suspended`, `aup.lifted`, with both states and the
+  note in `before`/`after` and a null actor, because it is a platform decision
+  and not one taken by anybody inside the workspace.
+
+  Re-asserting the SAME step writes nothing. A second complaint about a
+  workspace already suspended is not a second suspension, and an audit column
+  that cries wolf is one people stop reading.
 - **No signup screening** for the categories §4 prohibits outright, so a
   prohibited-category workspace is still declined at 10DLC registration rather
   than before provisioning.

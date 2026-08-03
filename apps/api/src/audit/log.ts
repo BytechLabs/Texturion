@@ -155,6 +155,21 @@ export type AuditAction =
    */
   | "usage.exported"
   /**
+   * #303: the AUP enforcement ladder was applied to this workspace.
+   *
+   * Written by a database TRIGGER, not by this Worker — the runbook is
+   * explicit that enforcement is applied by a human in psql today, and a route
+   * records only what passes through it. Listed here anyway because this union
+   * is the contract for what may appear in the column, and a reader scanning
+   * `action` will meet these.
+   *
+   * `actor_user_id` is null on all three: a platform decision, taken by nobody
+   * inside the workspace.
+   */
+  | "aup.rate_limited"
+  | "aup.suspended"
+  | "aup.lifted"
+  /**
    * #317: a member pulled a file back for the whole workspace, or an owner let
    * it go again. Recorded because it is one member's judgement overriding
    * everybody else's access — the same reason `member.sessions_revoked` is
