@@ -11,9 +11,10 @@
  * customer who sent STOP gets a text; get it wrong in the other and a
  * workspace's follow-ups vanish because a card expired for an afternoon.
  */
+import { SCHEDULED_HOLD_REASONS } from "@loonext/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { supabaseStub } from "../test/routes-harness";
+import { pgError, supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
 // The "cross-track-doubles" project resolves this to a vi.fn double that
 // answers all-clear by default (src/test/telnyx-doubles/registration.ts), which
@@ -57,6 +58,13 @@ interface HarnessOptions {
   optOuts?: Record<string, unknown>[];
   /** Make the fire RPC blow up, to test that one bad row does not stop the rest. */
   fireThrows?: boolean;
+  /**
+   * #237: the job a reminder is about, as the fire-time check reads it.
+   *  means no task row at all (deleted outright).
+   */
+  task?: Record<string, unknown> | null;
+  /** #237: make the job read error, to pin the send-anyway direction. */
+  taskReadFails?: boolean;
 }
 
 function harness(options: HarnessOptions = {}) {
@@ -117,6 +125,12 @@ function harness(options: HarnessOptions = {}) {
   sb.on("GET", "/rest/v1/messages", () =>
     options.newestInbound ? [{ created_at: options.newestInbound }] : [],
   );
+  // #237: the fire-time job check. Only reached for a row with origin
+  // 'reminder' and a task_id, so an ordinary scheduled send never asks.
+  sb.on("GET", "/rest/v1/tasks", () => {
+    if (options.taskReadFails) return pgError("57014", "statement timeout");
+    return options.task ? [options.task] : [];
+  });
 
   // The gates, through the cross-track double rather than a companies row:
   // this project aliases `telnyx/registration`, so stubbing the REST read the
@@ -279,5 +293,98 @@ describe("#233 one workspace cannot stop the others", () => {
     await expect(runScheduledSendJob(env, NOW)).rejects.toThrow(
       /2 of 2 failed/,
     );
+  });
+});
+
+describe("#237 a reminder for a job that is no longer booked", () => {
+  /** A queued reminder, as the claim RPC hands it back. */
+  const reminderRow = (overrides: Record<string, unknown> = {}) =>
+    scheduledRow({
+      origin: "reminder",
+      task_id: "aaaaaaaa-0000-4000-8000-0000000000aa",
+      reminder_offset_minutes: 1440,
+      body: "Reminder: we're booked for Thursday at 9am.",
+      ...overrides,
+    });
+
+  /** A job that is still on the books. */
+  const bookedJob = (overrides: Record<string, unknown> = {}) => ({
+    deleted_at: null,
+    reminders_off: false,
+    due_at: "2026-08-06T13:00:00Z",
+    messages: { done_at: null },
+    ...overrides,
+  });
+
+  it("still sends when the job is booked", async () => {
+    // The control. Without it every assertion below could pass because the
+    // reminder path is broken outright rather than because the check works.
+    const { sb, fires } = harness({ due: [reminderRow()], task: bookedJob() });
+    stubFetch(sb.route);
+
+    const summary = await runScheduledSendJob(env, NOW);
+    expect(summary.sent).toBe(1);
+    expect(fires).toHaveLength(1);
+  });
+
+  it.each([
+    ["the job was deleted", { deleted_at: "2026-08-02T10:00:00Z" }],
+    ["the job was marked done", { messages: { done_at: "2026-08-02T10:00:00Z" } }],
+    ["reminders were switched off for it", { reminders_off: true }],
+    ["the job lost its date", { due_at: null }],
+  ])("does not send when %s", async (_label, patch) => {
+    const { sb, fires, fails } = harness({
+      due: [reminderRow()],
+      task: bookedJob(patch),
+    });
+    stubFetch(sb.route);
+
+    const summary = await runScheduledSendJob(env, NOW);
+    expect(fires, "a customer was told to expect somebody").toHaveLength(0);
+    expect(summary.sent).toBe(0);
+    expect(summary.failed).toBe(1);
+    expect(fails[0]?.p_reason).toBe(
+      SCHEDULED_HOLD_REASONS.job_no_longer_scheduled,
+    );
+  });
+
+  it("does not send when the job is gone entirely", async () => {
+    const { sb, fires } = harness({ due: [reminderRow()], task: null });
+    stubFetch(sb.route);
+
+    const summary = await runScheduledSendJob(env, NOW);
+    expect(fires).toHaveLength(0);
+    expect(summary.failed).toBe(1);
+  });
+
+  it("never asks about a job for a text a person wrote", async () => {
+    // A hand-scheduled send shares this table, and no job's state has any
+    // bearing on it. Asserted by the absence of the read: if this ever starts
+    // asking, a task row that happens not to exist would cancel somebody's own
+    // message.
+    const { sb } = harness({ due: [scheduledRow()] });
+    stubFetch(sb.route);
+
+    await runScheduledSendJob(env, NOW);
+    expect(sb.find("GET", "/rest/v1/tasks")).toHaveLength(0);
+  });
+
+  it("sends anyway when the job read FAILS, rather than cancelling silently", async () => {
+    // A transient PostgREST error is not evidence the job is gone. The job WAS
+    // booked when this was queued, and the recoverable direction here is to
+    // send — a reminder that arrives for a cancelled job is a bad day, and one
+    // silently cancelled by a blip is a no-show.
+    //
+    // `taskReadFails` rather than a second `sb.on`: this harness is
+    // first-match-wins, so re-registering the path would never run.
+    const { sb, fires } = harness({
+      due: [reminderRow()],
+      taskReadFails: true,
+    });
+    stubFetch(sb.route);
+
+    const summary = await runScheduledSendJob(env, NOW);
+    expect(summary.sent).toBe(1);
+    expect(fires).toHaveLength(1);
   });
 });

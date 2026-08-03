@@ -92,6 +92,23 @@ export const SCHEDULED_HOLD_REASONS = {
   /** The workspace closed with this still queued. */
   workspace_closed:
     "The workspace was closed before this was due to send.",
+
+  /**
+   * #237: the job this reminder was about is no longer on the books — done,
+   * deleted, or reminders switched off for it.
+   *
+   * ONE reason for three causes, on purpose. From the reader's side the
+   * actionable fact is identical: the job is not happening as booked, so we did
+   * not text their customer about it. Three near-identical sentences is exactly
+   * the drift this roster exists to prevent, and each would have to be ported
+   * to Kotlin and Swift to say the same thing a third time.
+   *
+   * This should almost never be seen. Regenerating a job's reminders already
+   * removes them when it changes; this is the fire-time net for the case where
+   * that did not run, and a net that stays quiet is a net doing its job.
+   */
+  job_no_longer_scheduled:
+    "That job is no longer booked, so this reminder was not sent.",
 } as const;
 
 export type ScheduledHoldReason = keyof typeof SCHEDULED_HOLD_REASONS;

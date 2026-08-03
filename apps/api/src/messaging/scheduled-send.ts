@@ -88,6 +88,9 @@ interface ScheduledRow {
   body: string;
   send_at: string;
   inbound_watermark: string | null;
+  /** #237: the job this reminds about, or null for a text a person wrote. */
+  task_id: string | null;
+  origin: string;
 }
 
 interface Destination {
@@ -189,6 +192,63 @@ function customerReplied(row: ScheduledRow, destination: Destination): boolean {
   return (
     new Date(destination.newestInbound).getTime() >
     new Date(row.inbound_watermark).getTime()
+  );
+}
+
+/**
+ * #237 — is the job this reminder is about still on the books?
+ *
+ * THE GUARANTEE, AS OPPOSED TO THE OPTIMISATION. Regenerating a job's reminders
+ * already removes them when it changes, and that is what keeps the thread strip
+ * and the workspace list accurate. But it depends on every write path calling
+ * the sync, and "did this edit change whether the job deserves reminders" is
+ * exactly the judgement a caller will one day get wrong — silently, and only
+ * visibly when a customer is told to expect somebody who is not coming.
+ *
+ * So the promise lives HERE, at fire time, where #233 already put every other
+ * one. A reminder for a job that is done, deleted, or has reminders switched
+ * off does not send, whatever the queue says.
+ *
+ * Completion DERIVES from the source message's `done_at` (D17) — `tasks` has no
+ * done column, and asking for one 400s at PostgREST.
+ *
+ * Returns true when the row is not a reminder at all: a text a person wrote is
+ * theirs to send, and no job's state has any bearing on it.
+ */
+async function jobStillBooked(
+  db: SupabaseClient,
+  row: ScheduledRow,
+): Promise<boolean> {
+  if (row.origin !== "reminder" || !row.task_id) return true;
+
+  const { data, error } = await db
+    .from("tasks")
+    .select("deleted_at,reminders_off,due_at,messages!message_id(done_at)")
+    .eq("id", row.task_id)
+    .eq("company_id", row.company_id)
+    .maybeSingle();
+  // A read that FAILED is not evidence the job is gone. Sending is the
+  // recoverable direction here — the job was booked when this was queued, and
+  // a transient PostgREST error must not silently cancel somebody's reminder.
+  if (error) return true;
+  if (!data) return false;
+
+  const task = data as unknown as {
+    deleted_at: string | null;
+    reminders_off: boolean;
+    due_at: string | null;
+    // PostgREST types a to-one embed as an ARRAY even where it can only ever
+    // hold one row, and returns it as an object. Both shapes are read here
+    // rather than picked, because guessing wrong reads as "never done" — and
+    // "never done" is the direction that keeps sending.
+    messages: { done_at: string | null } | { done_at: string | null }[] | null;
+  };
+  const source = Array.isArray(task.messages) ? task.messages[0] : task.messages;
+  return (
+    task.deleted_at === null &&
+    !task.reminders_off &&
+    task.due_at !== null &&
+    (source?.done_at ?? null) === null
   );
 }
 
@@ -362,6 +422,21 @@ export async function runScheduledSendJob(
       if (customerReplied(row, destination)) {
         await hold(env, db, row, "customer_replied");
         summary.held += 1;
+        continue;
+      }
+
+      // #237: before the gates, because this is not a gate — it is the message
+      // no longer being wanted. Running the plan/quota checks on a reminder for
+      // a job that finished yesterday would be asking permission to send
+      // something nobody should send.
+      //
+      // FAILED rather than held: a finished job does not un-finish, so there is
+      // nothing to resume. `scheduledReasonRecovers` says the same, and the two
+      // must agree or the row retries forever against a condition that will
+      // never change.
+      if (!(await jobStillBooked(db, row))) {
+        await fail(env, db, row, "job_no_longer_scheduled");
+        summary.failed += 1;
         continue;
       }
 

@@ -86,6 +86,38 @@ function membersRoute(role: "member" | "admin" | "owner" = "member"): FetchRoute
  * existing assertions are unchanged. Tests that exercise a hidden number stub
  * this route with a rule and a conversations lookup explicitly.
  */
+/**
+ * #237: the reads a task write's reminder sync makes.
+ *
+ * Registered on every task-route stub set rather than per test, because the
+ * sync runs after EVERY write — that is the point of it, and a harness that
+ * only knows about it in the due-date tests would leave the others issuing
+ * unmatched fetches that outlive their assertions.
+ *
+ * Empty rules is the honest default: most workspaces have never opened the
+ * setting, so the sync's real job here is to clear, which is what an empty
+ * array asks the RPC to do.
+ */
+function reminderRoutes(): FetchRoute[] {
+  return [
+    // Registered LAST by every caller, so a describe that already stubs the
+    // task lookup keeps its own answer; this only catches the sets that do not
+    // read tasks at all (creation), where an unmatched fetch simply hangs.
+    stubRoute(
+      (url) => url.pathname.endsWith("/rest/v1/tasks"),
+      () => [],
+    ).route,
+    stubRoute(
+      (url) => url.pathname.endsWith("/rest/v1/appointment_reminder_rules"),
+      () => [],
+    ).route,
+    stubRoute(
+      (url) => url.pathname.endsWith("/rest/v1/rpc/api_sync_task_reminders"),
+      () => ({ outcome: "synced", removed: 0, added: 0 }),
+    ).route,
+  ];
+}
+
 function numberAccessRoute(rules: unknown[] = []): FetchRoute {
   return stubRoute(rpcMatch(env, "member_number_levels"), () => rules).route;
 }
@@ -181,7 +213,13 @@ describe("POST /v1/tasks — promote a message", () => {
     });
     return {
       rpc,
-      all: [jwksRoute(auth), membersRoute(), numberAccessRoute(), rpc.route],
+      all: [
+        jwksRoute(auth),
+        membersRoute(),
+        numberAccessRoute(),
+        rpc.route,
+        ...reminderRoutes(),
+      ],
     };
   }
 
@@ -1104,6 +1142,7 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
         alertRoute,
         update.route,
         assign.route,
+        ...reminderRoutes(),
       ],
     };
   }
@@ -1265,6 +1304,7 @@ describe("DELETE /v1/tasks/:id — soft-delete + role gate", () => {
         membersRoute(options.role),
         lookup.route,
         del.route,
+        ...reminderRoutes(),
       ],
     };
   }
@@ -1606,6 +1646,7 @@ describe("#106/#107 number access on tasks", () => {
       source.route,
       conv.route,
       rpc.route,
+      ...reminderRoutes(),
     );
 
     const response = await request("POST", "/v1/tasks", {
@@ -1633,6 +1674,7 @@ describe("#106/#107 number access on tasks", () => {
       source.route,
       conv.route,
       rpc.route,
+      ...reminderRoutes(),
     );
 
     const response = await request("POST", "/v1/tasks", {

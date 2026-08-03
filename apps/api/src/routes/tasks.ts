@@ -66,6 +66,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
+import { syncTaskReminders } from "../messaging/appointment-reminders";
 import { notifyAssigned } from "../notifications/assignment";
 import { decodeCursor, encodeCursor } from "../http/pagination";
 import {
@@ -483,6 +484,13 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
     });
   }
 
+  // #237: a task created WITH a due date should already have its reminders.
+  await syncRemindersAfterWrite(c, {
+    companyId,
+    taskId: result.task.id as string,
+    userId,
+  });
+
   return c.json(result.task, 201);
 });
 
@@ -522,6 +530,47 @@ function notifyAssignedTask(
     return Promise.resolve();
   }
   return notify;
+}
+
+/**
+ * #237 — bring this job's reminders back in line with what it now says.
+ *
+ * Called after EVERY write, unconditionally, rather than only when `due_at`
+ * moved. Deciding which edits are "reminder-relevant" is the judgement a caller
+ * gets wrong eventually — a task marked done, a job suppressed, a rule changed
+ * elsewhere — and the failure is a customer being told to expect somebody who
+ * is not coming. The sync is idempotent and reads two small indexed rows, so
+ * calling it always is cheaper than being clever about when.
+ *
+ * Best-effort, on the same `waitUntil` contract as the assignment alert: a
+ * queue that could not be rebuilt must never turn a saved task into an error.
+ * On a host with no execution context it is AWAITED rather than left dangling —
+ * an unawaited fetch outlives the request that started it, and in the test
+ * runner that means one route's background read landing inside another route's
+ * assertions. (It did: a GET-filters test started failing only in the full
+ * recursive run.)
+ *
+ * What makes best-effort safe rather than sloppy is `jobStillBooked` in
+ * `messaging/scheduled-send.ts` — the fire-time check that refuses to send a
+ * reminder for a job which is no longer booked, whatever the queue holds. This
+ * call keeps the queue ACCURATE for the people looking at it; that check keeps
+ * it SAFE for the customer.
+ */
+function syncRemindersAfterWrite(
+  c: Context<AppEnv>,
+  input: { companyId: string; taskId: string; userId: string },
+): Promise<void> {
+  const work = syncTaskReminders(getDb(getEnv(c.env)), input)
+    .then(() => undefined)
+    .catch((cause: unknown) => {
+      console.error("task reminder sync failed:", cause);
+    });
+  const ctx = executionCtxOf(c);
+  if (ctx) {
+    ctx.waitUntil(work);
+    return Promise.resolve();
+  }
+  return work;
 }
 
 // --------------------------------------------------------------------------
@@ -1768,6 +1817,9 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
   // `latest` is the freshest. If an assignee no-op preceded nothing else, or a
   // combined no-op, fall back to the current row so the response is always the
   // task's present state.
+  // #237: unconditionally, whatever changed. See syncRemindersAfterWrite.
+  if (found) await syncRemindersAfterWrite(c, { companyId, taskId: id, userId });
+
   if (latest) return c.json(latest);
   if (found) {
     const current = await findTask(db, companyId, id);
@@ -1825,5 +1877,9 @@ tasksRoutes.delete("/tasks/:id", requireCapability("conversations.note"), async 
     // Lost a race with a concurrent delete — already gone.
     return errorResponse(c, "not_found", "No such task.");
   }
+  // #237: a deleted job reminds nobody. The RPC clears the queue on a
+  // soft-deleted task, so this is the same call every other write makes.
+  await syncRemindersAfterWrite(c, { companyId, taskId: id, userId });
+
   return c.body(null, 204);
 });

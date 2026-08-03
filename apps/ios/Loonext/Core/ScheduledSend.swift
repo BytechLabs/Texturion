@@ -67,6 +67,12 @@ enum ScheduledSend {
             "The send window passed before this could go, so it was not sent. A late message is usually worse than none.",
         "workspace_closed":
             "The workspace was closed before this was due to send.",
+        // #237: done, deleted, or reminders switched off for that job. One
+        // reason for three causes — from the reader's side the actionable fact
+        // is identical, and three near-identical sentences is the drift this
+        // roster exists to prevent.
+        "job_no_longer_scheduled":
+            "That job is no longer booked, so this reminder was not sent.",
     ]
 
     /// Does this reason clear on its own?
