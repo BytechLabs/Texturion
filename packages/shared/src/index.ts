@@ -446,6 +446,13 @@ export {
 } from "./member-quiet-hours";
 export type { MemberQuietWindow } from "./member-quiet-hours";
 export {
+  ON_MY_WAY_COPY,
+  ON_MY_WAY_PRESETS,
+  onMyWayPresetLabel,
+  onMyWayText,
+} from "./on-my-way";
+export type { OnMyWayPreset } from "./on-my-way";
+export {
   CONTACT_FIELDS_CAP,
   CONTACT_FIELDS_COPY,
   CONTACT_FIELD_KINDS,

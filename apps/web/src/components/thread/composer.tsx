@@ -25,6 +25,7 @@ import {
   SendLaterDialog,
   SendLaterMenuItems,
 } from "@/components/thread/send-later-menu";
+import { OnMyWay } from "@/components/thread/on-my-way";
 import { useScheduleMessage } from "@/lib/api/scheduled-messages";
 import { StagedFileChips } from "@/components/attachments/staged-file-chips";
 import { DropOverlay, useFileDrop } from "@/components/attachments/use-file-drop";
@@ -1235,6 +1236,12 @@ export function Composer({
       {...drop.handlers}
     >
       <DropOverlay active={drop.active} />
+      {/* #520: absent unless this thread has a job due today, so it is never a
+          control somebody has to work out the meaning of. Above the input
+          rather than inside the toolbar: sending an ETA is a whole act, not a
+          sixth way to change the draft. Not on a note — a note goes to the
+          crew, and "on my way" is for the customer. */}
+      {!noteOnly && <OnMyWay conversationId={conversationId} />}
       {!noteOnly && (
         <div
           className="mx-auto mb-2 flex max-w-[42rem] gap-1"
