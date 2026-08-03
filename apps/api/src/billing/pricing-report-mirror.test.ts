@@ -71,11 +71,12 @@ describe("#255 the pricing report mirrors this package exactly", () => {
   });
 
   it("mirrors Stripe's cut, which decides whether a workspace looks profitable", () => {
-    expect(m.stripeFees).toEqual({
-      percent: STRIPE_FEES.percent,
-      billingPercent: STRIPE_FEES.billingPercent,
-      fixedCents: STRIPE_FEES.fixedCents,
-    });
+    // The WHOLE object, not three named properties rebuilt by hand. Rebuilding
+    // it meant both sides always carried exactly the same key set, so a fourth
+    // component added to STRIPE_FEES could never make this red — the mirror
+    // would quietly stop mirroring the thing it exists to mirror, on the number
+    // that decides whether a workspace looks profitable.
+    expect(m.stripeFees).toEqual(STRIPE_FEES);
   });
 
   it("mirrors every module's price, and knows about every module", () => {

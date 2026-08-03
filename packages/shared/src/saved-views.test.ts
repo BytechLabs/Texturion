@@ -150,8 +150,40 @@ describe("#280 surfaces", () => {
   });
 
   it("publishes each surface's keys, so a client is not guessing", () => {
-    expect(savedViewFilterKeys("conversations")).toContain("status");
-    expect(savedViewFilterKeys("tasks")).toContain("overdue");
+    // The WHOLE key set per surface, not one key each. `toContain("overdue")`
+    // let the tasks table be gutted to a single filter and stay green: three
+    // clients build their save payloads from this list, so a key silently
+    // leaving it is a filter that vanishes from every save dialog at once,
+    // and the "client is not guessing" promise in this test's own name is
+    // exactly what would have been broken.
+    //
+    // Listed rather than derived, deliberately: deriving it from FILTERS would
+    // compare the table with itself and assert nothing. This is a second copy
+    // on purpose, so REMOVING a key has to be typed twice.
+    expect(savedViewFilterKeys("conversations").sort()).toEqual(
+      [
+        "assigned_to_me",
+        "assigned_user_id",
+        "awaiting",
+        "is_spam",
+        "pinned",
+        "snoozed",
+        "status",
+        "tag_id",
+        "unread",
+      ].sort(),
+    );
+    expect(savedViewFilterKeys("tasks").sort()).toEqual(
+      [
+        "assigned_user_id",
+        "due_after",
+        "due_before",
+        "has_location",
+        "overdue",
+        "status",
+        "unassigned",
+      ].sort(),
+    );
   });
 });
 
