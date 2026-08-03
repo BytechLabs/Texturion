@@ -106,7 +106,8 @@ final class SavedViewsPortTests: XCTestCase {
             tagId: tag,
             unreadOnly: true,
             spamOnly: false,
-            snoozedOnly: true
+            snoozedOnly: true,
+            awaitingOnly: true
         )
         XCTAssertEqual(viewToSelection(selectionToView(selection)), selection)
     }
@@ -141,7 +142,8 @@ final class SavedViewsPortTests: XCTestCase {
             tagId: nil,
             unreadOnly: true,
             spamOnly: false,
-            snoozedOnly: false
+            snoozedOnly: false,
+            awaitingOnly: false
         )
         XCTAssertEqual(suggestViewName(filtered), "Open · Unread")
         // Law 6: no em or en dash in rendered copy.

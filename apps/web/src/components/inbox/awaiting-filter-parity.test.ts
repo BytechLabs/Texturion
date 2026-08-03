@@ -14,7 +14,7 @@
  * this suite, and the drift being guarded against is somebody editing one of
  * the three and not the other two.
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -40,6 +40,35 @@ const CONTROLS: Record<string, string> = {
   ),
   ios: join(REPO_ROOT, "apps/ios/Loonext/Features/Inbox/InboxTab.swift"),
 };
+
+/** Every .swift file under apps/ios — the APP and the TEST target. */
+function swiftSources(): string[] {
+  const root = join(REPO_ROOT, "apps/ios");
+  return readdirSync(root, { recursive: true, encoding: "utf8" })
+    .filter((entry) => entry.endsWith(".swift"))
+    .map((entry) => join(root, entry));
+}
+
+/** The argument text of each `Name(…)` call in `text`, paren-balanced. */
+function callsTo(name: string, text: string): string[] {
+  const marker = `${name}(`;
+  const calls: string[] = [];
+  let from = text.indexOf(marker);
+  while (from !== -1) {
+    let depth = 0;
+    let i = from + marker.length - 1;
+    for (; i < text.length; i += 1) {
+      if (text[i] === "(") depth += 1;
+      else if (text[i] === ")") {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+    }
+    calls.push(text.slice(from, i + 1));
+    from = text.indexOf(marker, i);
+  }
+  return calls;
+}
 
 describe("#508 the unanswered filter is one predicate, three clients", () => {
   it("reads every source, so a passing run means something", () => {
@@ -109,6 +138,33 @@ describe("#508 the unanswered filter is one predicate, three clients", () => {
       const text = readFileSync(path, "utf8");
       expect(text, platform).toContain("Everyone has been answered.");
     }
+  });
+
+  it("every iOS ViewSelection carries the new field, TEST TARGET INCLUDED", () => {
+    // The break this exists to catch, twice over. `awaitingOnly` was added to
+    // ViewSelection, the app target was swept, and `apps/ios/LoonextTests` was
+    // not — so Gate/iOS went red on the commit that was FIXING the previous
+    // red. Swift only compiles on a mac here, so the whole cost of forgetting a
+    // directory is paid in CI round trips.
+    //
+    // Scanning every .swift under apps/ios, rather than a list of files, is the
+    // point: a directory that is not in the list is exactly what went wrong.
+    const missing: string[] = [];
+    let seen = 0;
+    for (const path of swiftSources()) {
+      const text = readFileSync(path, "utf8");
+      for (const call of callsTo("ViewSelection", text)) {
+        seen += 1;
+        if (!call.includes("awaitingOnly")) {
+          missing.push(path.slice(path.indexOf("apps")));
+        }
+      }
+    }
+    expect(seen).toBeGreaterThan(2); // app + tests, or the sweep found nothing
+    expect(
+      missing,
+      `These construct ViewSelection without awaitingOnly: ${missing.join(", ")}`,
+    ).toEqual([]);
   });
 
   it("survives as a destination, so the card's row can land on it", () => {
