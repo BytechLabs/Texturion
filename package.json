@@ -98,7 +98,8 @@
     "check:do-not-build": "node scripts/check-do-not-build.mjs",
     "check:open-lists": "node scripts/check-open-lists.mjs",
     "check:action-pins": "node scripts/check-action-pins.mjs",
-    "check:guards": "node scripts/check-guards.mjs"
+    "check:guards": "node scripts/check-guards.mjs",
+    "gate": "node scripts/gate.mjs"
   },
   "devDependencies": {
     "playwright": "^1.61.1"
