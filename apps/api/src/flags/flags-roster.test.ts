@@ -55,16 +55,42 @@ describe("#283 — the ops script and the registry agree", () => {
     ).toEqual(killSwitchKeys().sort());
   });
 
-  it("documents every kill switch in the rollback runbook", () => {
-    // A switch nobody can find at 2am is a switch that does not exist. The
-    // runbook is the first thing read during an incident, so the roster has to
-    // be complete there too.
+  it("gives every kill switch a ROW in the rollback table", () => {
+    // A switch nobody can find at 2am is a switch that does not exist, and the
+    // table is what somebody reads at 2am: what the switch does, and what
+    // still works once it is thrown.
+    //
+    // #519: this asked whether the key appeared ANYWHERE in the file, which is
+    // the "mentioned rather than documented" shape. Proven by deleting the
+    // table row for `kill:outbound-send` — the switch that silences every
+    // outbound text — and watching the guard stay green, because the key was
+    // still named in a prose sentence and an example command further down.
+    // Both of those tell an operator nothing about what survives.
     const runbook = readFileSync(join(REPO_ROOT, "docs/ROLLBACK.md"), "utf8");
+    const rows = runbook
+      .split("\n")
+      .filter((line) => line.trimStart().startsWith("|"));
+
     for (const key of killSwitchKeys()) {
+      const row = rows.find((line) => line.includes(`\`${key}\``));
       expect(
-        runbook.includes(key),
-        `${key} is a kill switch with no entry in docs/ROLLBACK.md`,
-      ).toBe(true);
+        row,
+        `${key} is a kill switch with no row in the docs/ROLLBACK.md table. ` +
+          `A mention in prose is not a runbook entry — the row is what says ` +
+          `what it does and what keeps working.`,
+      ).toBeDefined();
+      // And the row has to SAY something in both columns. A key added to the
+      // table with empty cells satisfies "has a row" while telling the
+      // operator exactly as much as no row at all.
+      const cells = row!
+        .split("|")
+        .map((cell) => cell.trim())
+        .filter((cell) => cell !== "");
+      expect(
+        cells.length,
+        `${key}'s runbook row has no description of what it does or what ` +
+          `survives it: ${row}`,
+      ).toBeGreaterThanOrEqual(3);
     }
   });
 });
