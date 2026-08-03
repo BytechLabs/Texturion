@@ -17,6 +17,9 @@ describe("error codes (SPEC §7)", () => {
       unauthorized: 401,
       forbidden: 403,
       subscription_inactive: 402,
+      // #303: the AUP ladder's suspend step. 403 like the other refusals a
+      // client cannot resolve by retrying or by paying.
+      sending_suspended: 403,
       usage_cap_reached: 402,
       registration_pending: 403,
       recipient_opted_out: 403,

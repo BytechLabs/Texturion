@@ -85,14 +85,30 @@ getting it wrong in the other direction costs a customer their business.
 
 Honest state, so nobody assumes a lever exists:
 
-- **No enforcement action is implemented in code.** The ladder above is policy
-  and manual work. Rate-limit and suspend-sending have no switch yet, and
-  `AuditAction` in `apps/api/src/audit/log.ts` has no enforcement member.
+- **Rate-limit and suspend now have a switch.** `companies.aup_enforcement`
+  (`'none' | 'rate_limited' | 'suspended'`) is read by `getSendGates` and acted
+  on in `runPreSendGates` — the single choke point every send path funnels
+  through, the same place the opt-out gate lives. Suspended refuses with
+  `sending_suspended`; rate-limited caps outbound at
+  `RATE_LIMITED_SENDS_PER_HOUR` (20), which leaves an ordinary crew's day
+  intact and makes a fan-out of thousands take weeks.
+
+  Setting the state is still a human writing SQL. There is no ops UI, and the
+  column's own constraint refuses a non-`none` state without a timestamp and a
+  note of at least ten characters — §8 promises we say what happened and why,
+  and a row nobody can reconstruct three weeks later cannot honour that.
+
 - **Do NOT reuse the billing suspension.** `phone_numbers.status = "suspended"`
   is the non-payment path (`telnyx/provisioning.ts`), and the Stripe webhook
   clears it on payment (`webhooks/stripe.ts`). Wiring AUP enforcement through it
   would mean paying an invoice silently lifts an abuse suspension. Enforcement
-  needs its own state.
+  has its own state, and `aup-enforcement.test.ts` AE-5 fails if any file
+  outside the enforcement path writes it — AE-10 fails if a billing, webhook or
+  provisioning path is merely *added to the allowlist*, before any such write
+  exists.
+- **`AuditAction` still has no enforcement member.** The ladder can be applied;
+  applying it is not yet recorded in the audit log, which #303's acceptance
+  requires.
 - **No signup screening** for the categories §4 prohibits outright, so a
   prohibited-category workspace is still declined at 10DLC registration rather
   than before provisioning.

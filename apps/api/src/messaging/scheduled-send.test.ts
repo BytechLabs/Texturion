@@ -20,7 +20,7 @@ import { completeEnv, stubFetch } from "../test/support";
 // answers all-clear by default (src/test/telnyx-doubles/registration.ts), which
 // is the lever for the gate states below. Reading the real companies row would
 // not work here: index.ts's imports are aliased in this project.
-import { getSendGates } from "../telnyx/registration";
+import { getSendGates, type AupEnforcement } from "../telnyx/registration";
 import { runScheduledSendJob } from "./scheduled-send";
 
 const env = completeEnv();
@@ -54,7 +54,13 @@ interface HarnessOptions {
   newestInbound?: string | null;
   numberStatus?: string;
   /** Gate state, through the cross-track double. */
-  gates?: { subscriptionActive?: boolean; usApproved?: boolean; caAllowed?: boolean };
+  gates?: {
+    subscriptionActive?: boolean;
+    usApproved?: boolean;
+    caAllowed?: boolean;
+    /** #303: the enforcement ladder step this workspace is under. */
+    aupEnforcement?: AupEnforcement;
+  };
   optOuts?: Record<string, unknown>[];
   /** Make the fire RPC blow up, to test that one bad row does not stop the rest. */
   fireThrows?: boolean;
@@ -146,8 +152,7 @@ function harness(options: HarnessOptions = {}) {
   // The gates, through the cross-track double rather than a companies row:
   // this project aliases `telnyx/registration`, so stubbing the REST read the
   // real `getSendGates` would make is stubbing a function that never runs.
-  vi.mocked(getSendGates).mockResolvedValue({
-    subscriptionActive: true,
+  vi.mocked(getSendGates).mockResolvedValue({ aupEnforcement: "none", subscriptionActive: true,
     usApproved: true,
     caAllowed: true,
     ...options.gates,
@@ -244,7 +249,7 @@ describe("#233 a block that will clear versus one that will not", () => {
     // Binding rule 1: held, not dropped. A workspace whose card failed on
     // Friday must not lose Monday's follow-ups.
     const { sb, holds, fails } = harness({
-      gates: { subscriptionActive: false },
+      gates: { aupEnforcement: "none", subscriptionActive: false },
     });
     stubFetch(sb.route);
 

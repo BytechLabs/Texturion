@@ -6,6 +6,14 @@ export const ERROR_CODES = [
   "unauthorized",
   "forbidden",
   "subscription_inactive",
+  // #303: this workspace's OWN sending is paused under the AUP enforcement
+  // ladder. A structural code rather than a 403 with prose because it means
+  // something different from every other refusal here: nothing is wrong with
+  // this recipient, this plan or this token, and the remedy is a conversation
+  // with a person rather than anything the client can offer. Clients route on
+  // it to say so plainly instead of showing a generic failure a crew would
+  // read as a bug in the app. Shares the 403 status with `forbidden`.
+  "sending_suspended",
   "usage_cap_reached",
   "registration_pending",
   "recipient_opted_out",
@@ -48,6 +56,7 @@ export const ERROR_CODE_STATUS = {
   unauthorized: 401,
   forbidden: 403,
   subscription_inactive: 402,
+  sending_suspended: 403,
   usage_cap_reached: 402,
   registration_pending: 403,
   recipient_opted_out: 403,

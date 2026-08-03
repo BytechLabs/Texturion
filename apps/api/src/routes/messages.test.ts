@@ -316,8 +316,7 @@ describe("POST /v1/messages/send — gate order (§7)", () => {
   });
 
   it("gate 1 — subscription_inactive (402) before any other gate", async () => {
-    vi.mocked(getSendGates).mockResolvedValueOnce({
-      subscriptionActive: false,
+    vi.mocked(getSendGates).mockResolvedValueOnce({ aupEnforcement: "none", subscriptionActive: false,
       usApproved: false, // also unregistered — subscription must win
       caAllowed: true,
     });
@@ -349,8 +348,7 @@ describe("POST /v1/messages/send — gate order (§7)", () => {
   });
 
   it("gate 3 — US destination without an approved campaign is 403 registration_pending", async () => {
-    vi.mocked(getSendGates).mockResolvedValueOnce({
-      subscriptionActive: true,
+    vi.mocked(getSendGates).mockResolvedValueOnce({ aupEnforcement: "none", subscriptionActive: true,
       usApproved: false,
       caAllowed: true,
     });
@@ -368,8 +366,7 @@ describe("POST /v1/messages/send — gate order (§7)", () => {
   });
 
   it("CA destinations send while US approval is pending (per-destination gating, §4.2)", async () => {
-    vi.mocked(getSendGates).mockResolvedValueOnce({
-      subscriptionActive: true,
+    vi.mocked(getSendGates).mockResolvedValueOnce({ aupEnforcement: "none", subscriptionActive: true,
       usApproved: false,
       caAllowed: true,
     });

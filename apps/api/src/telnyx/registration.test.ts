@@ -1840,3 +1840,82 @@ describe("#423 — the carrier takes an approved campaign away", () => {
     expect(campaignRowOf(rest).status).toBe("approved");
   });
 });
+
+/**
+ * #303 — the enforcement state as the REAL gate loader reads it.
+ *
+ * This assertion lives here rather than beside the rest of the #303 suite
+ * because that suite runs under the `cross-track-doubles` project, where this
+ * module is aliased to a test double. The double coalesces the absent case
+ * itself, so the real function's default was never exercised — proven by
+ * breaking it: changing the coalesce to "suspended" passed the whole #303
+ * suite.
+ *
+ * Which is the failure worth catching. If an absent column read as suspended,
+ * a migration that had not yet reached one environment would silence every
+ * workspace in it at once, and the only symptom would be that nobody could
+ * text.
+ */
+describe("#303 getSendGates reads the enforcement ladder", () => {
+  const COMPANY = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+
+  function world(company: Record<string, unknown>): FetchRoute {
+    return (url) => {
+      if (url.pathname.includes("/companies")) {
+        return Response.json([
+          {
+            id: COMPANY,
+            name: "Reed Roofing",
+            country: "US",
+            us_texting_enabled: true,
+            subscription_status: "active",
+            ...company,
+          },
+        ]);
+      }
+      if (url.pathname.includes("/messaging_registrations")) {
+        return Response.json([
+          { kind: "campaign", status: "approved", deactivated_at: null },
+        ]);
+      }
+      // Loud rather than a hang: an unstubbed table used to time out at five
+      // seconds with nothing saying which one.
+      return Response.json(
+        { message: `unstubbed ${url.pathname}` },
+        { status: 500 },
+      );
+    };
+  }
+
+  it("passes the stored step through", async () => {
+    stubFetch(world({ aup_enforcement: "suspended" }));
+    const gates = await getSendGates(completeEnv(), COMPANY);
+    expect(gates.aupEnforcement).toBe("suspended");
+  });
+
+  it("an ABSENT column is not an accidental suspension", async () => {
+    // The break that the #303 suite could not see. "We do not know" has to
+    // read as "not under enforcement" — the other way round, a migration that
+    // has not landed yet silences the entire product.
+    stubFetch(world({}));
+    const gates = await getSendGates(completeEnv(), COMPANY);
+    expect(gates.aupEnforcement).toBe("none");
+
+    stubFetch(world({ aup_enforcement: null }));
+    const nulled = await getSendGates(completeEnv(), COMPANY);
+    expect(nulled.aupEnforcement).toBe("none");
+  });
+
+  it("asks the database for the column at all", async () => {
+    // A gate that never selects the column reads undefined forever and
+    // coalesces to "none" — enforcement that silently does nothing, with
+    // every test above still green.
+    let seen = "";
+    stubFetch((url, request) => {
+      if (url.pathname.includes("/companies")) seen = url.search;
+      return world({ aup_enforcement: "suspended" })(url, request);
+    });
+    await getSendGates(completeEnv(), COMPANY);
+    expect(seen).toContain("aup_enforcement");
+  });
+});

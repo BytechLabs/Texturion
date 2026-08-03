@@ -83,6 +83,8 @@ interface RegistrationCompany {
   country: string;
   us_texting_enabled: boolean;
   subscription_status: string;
+  /** #303 ladder step. Optional: rows read before the column shipped. */
+  aup_enforcement?: AupEnforcement | null;
 }
 
 const ROW_COLUMNS =
@@ -91,7 +93,7 @@ const ROW_COLUMNS =
   "deactivated_at,otp_nudged_at";
 
 const COMPANY_COLUMNS =
-  "id,name,country,us_texting_enabled,subscription_status";
+  "id,name,country,us_texting_enabled,subscription_status,aup_enforcement";
 
 async function fetchCompany(
   db: SupabaseClient,
@@ -1779,9 +1781,24 @@ export async function deactivateCampaign(
   });
 }
 
+/**
+ * #303 — the enforcement ladder's steps that the system can take.
+ *
+ * "Ask" is an email and changes nothing here; "terminate" ends the workspace
+ * through the existing deletion path. These two are the middle of the ladder,
+ * the proportionate steps §8 promises and the ones that had no switch.
+ */
+export type AupEnforcement = "none" | "rate_limited" | "suspended";
+
 export interface SendGates {
   /** `companies.subscription_status === 'active'` (SPEC §1 rule 3). */
   subscriptionActive: boolean;
+  /**
+   * #303: the ladder step in force. Deliberately NOT derived from
+   * `phone_numbers.status`, which is the non-payment path the Stripe webhook
+   * clears — an abuse suspension must never be lifted by paying an invoice.
+   */
+  aupEnforcement: AupEnforcement;
   /**
    * US-bound sends allowed (§4.4 gate): campaign `approved`, not deactivated
    * — and for CA companies, only with `us_texting_enabled` (§4.2).
@@ -1830,6 +1847,11 @@ export async function getSendGates(
 
   return {
     subscriptionActive: company.subscription_status === "active",
+    // #303: the enforcement ladder's step, read here so the single pre-send
+    // choke point can act on it. Defaulted rather than trusted — a company row
+    // written before the column existed reads as undefined, and the safe
+    // reading of "we do not know" is "not under enforcement", not "suspended".
+    aupEnforcement: company.aup_enforcement ?? "none",
     usApproved,
     // #379: verified-true as of 2026-07-29 — no CA→CA registration exists to
     // gate on. The residual risk is carrier filtering, not registration.

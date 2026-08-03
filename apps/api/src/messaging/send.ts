@@ -143,6 +143,41 @@ export async function runPreSendGates(
   }
 
   const gates = await getSendGates(env, companyId);
+
+  /**
+   * #303 — the enforcement ladder, checked before anything about the
+   * destination.
+   *
+   * ORDER MATTERS. This sits above the subscription gate because it is a
+   * statement about the WORKSPACE's conduct, not about this recipient or this
+   * plan: a suspended workspace should hear the same thing whether or not
+   * their card also happens to have expired, and the off-ramp exemption below
+   * must not become a way to keep sending under suspension.
+   *
+   * The message says what it is without saying what was seen. §8 promises the
+   * owner is told what happened and why, in an email a person writes after
+   * looking — not in an API error that would either be uselessly vague or
+   * would hand a real abuser a description of the detector.
+   */
+  if (gates.aupEnforcement === "suspended") {
+    throw new ApiError(
+      "sending_suspended",
+      "Sending from this workspace is paused while we review it. Your inbox, " +
+        "history and number are unaffected, and messages sent to you still " +
+        "arrive. Check your email — we have written to the owner.",
+    );
+  }
+  if (gates.aupEnforcement === "rate_limited") {
+    const sent = await sendsInLastHour(env, companyId);
+    if (sent >= RATE_LIMITED_SENDS_PER_HOUR) {
+      throw new ApiError(
+        "rate_limited",
+        "Sending from this workspace is temporarily limited while we review " +
+          "it. You can keep replying to conversations; this resets each hour.",
+      );
+    }
+  }
+
   if (!gates.subscriptionActive && !(offRamp && (await offRampAllowed(env, companyId)))) {
     throw new ApiError(
       "subscription_inactive",
@@ -195,6 +230,39 @@ export async function runPreSendGates(
 
   // Past every gate: this destination is cleared, and only this line says so.
   return { destinationE164 } as SendClearance;
+}
+
+/**
+ * #303 — how many outbound messages an hour a rate-limited workspace may send.
+ *
+ * Chosen to be obviously survivable for a real crew and obviously useless for
+ * mass marketing. `MIN_SENDS_TO_JUDGE` in the watch job is 100 a day before
+ * anything is even looked at, so 20 an hour leaves an ordinary workspace's
+ * whole day intact while making a fan-out of thousands take weeks.
+ *
+ * It is a step on a ladder, not a punishment: §8's rate-limit exists so the
+ * proportionate response to an unexplained pattern is not "stop everything".
+ */
+export const RATE_LIMITED_SENDS_PER_HOUR = 20;
+
+/**
+ * Outbound messages this workspace has sent in the last hour.
+ *
+ * A HEAD count rather than a read: the number is all that matters and the rows
+ * are somebody's correspondence. Counting notes out is deliberate — a note is
+ * written to the thread and never leaves the building, so limiting it would
+ * punish the crew's own record-keeping for a sending pattern.
+ */
+async function sendsInLastHour(env: Env, companyId: string): Promise<number> {
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count, error } = await getDb(env)
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", companyId)
+    .eq("direction", "outbound")
+    .gte("created_at", since);
+  if (error) throw new Error(`rate-limit count failed: ${error.message}`);
+  return count ?? 0;
 }
 
 /**

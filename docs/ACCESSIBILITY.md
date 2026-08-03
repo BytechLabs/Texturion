@@ -1,5 +1,10 @@
 # Accessibility conformance statement
 
+**Status: CURRENT DIRECTION (#238).** A customer-facing statement of what
+is verified and what is not. The verified table is generated from nothing —
+it is maintained by hand — but every row names a test, and
+`accessibility-statement.test.ts` fails if a named test stops existing.
+
 **Standard:** WCAG 2.2 Level AA
 **Applies to:** the Loonext web application, and the Android and iOS apps where stated
 **Last verified:** 2026-08-03
