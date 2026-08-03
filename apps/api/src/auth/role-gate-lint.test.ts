@@ -80,6 +80,63 @@ const SELF_SCOPED_WRITES = new Set([
   "DELETE /members/me",
 ]);
 
+/**
+ * #519 — mutating routes with NO capability gate at all, each because asking
+ * for one would be asking the wrong question.
+ *
+ * Everything below this line is what the checks above could not see. They only
+ * ever inspected routes that HAVE a `requireCapability`, so a write with none
+ * was not a finding — it was invisible. That is the widest possible version of
+ * "the guard asserts something is MENTIONED rather than that it WORKS": a route
+ * that never mentions a capability was never asked about.
+ *
+ * Three kinds live here and no fourth:
+ *
+ *   PUBLIC — no session at all. A capability is a question about a member, and
+ *   there is no member.
+ *
+ *   PRE-COMPANY — authenticated, but no company context exists yet, so no
+ *   capability could be evaluated against one.
+ *
+ *   YOUR OWN — the row being changed is keyed to the caller. Gating these on
+ *   anything would lock somebody out of their own account, which is the
+ *   firehose failure #320 warns about.
+ *
+ * Adding an entry is the moment somebody says out loud why a write needs no
+ * permission. If it does not fit one of the three, it needs a gate.
+ */
+const UNGATED_WRITES: Record<string, string> = {
+  // PUBLIC — unauthenticated marketing surfaces.
+  "POST /contact": "public — the marketing contact form, no session",
+  "POST /marketing/comparison": "public — the comparison tool, no session",
+  "POST /marketing/unsubscribe":
+    "public — an unsubscribe must work from an email link, where the reader " +
+    "is by definition not signed in",
+
+  // PRE-COMPANY — authenticated, but no company to evaluate against.
+  "POST /companies":
+    "creates the workspace; there is no company context to hold a capability " +
+    "until this returns",
+  "POST /invites/accept":
+    "the caller is not a member yet — that is what accepting does. The invite " +
+    "token is the authorisation",
+
+  // YOUR OWN — keyed to the caller, verified rather than assumed.
+  "DELETE /account": "your own account",
+  "PATCH /me": "your own profile",
+  "POST /me/email/retry":
+    "#386: your own bounced address. Company-exempt on purpose — an address " +
+    "belongs to a person, not a workspace",
+  "POST /device-push-tokens": "registers the caller's own device",
+  "DELETE /device-push-tokens": "removes the caller's own device",
+  "POST /mfa/recovery-codes": "your own second factor",
+  "POST /mfa/recover": "your own second factor, when it is the way back in",
+  "POST /sessions/revoke": "your own sessions",
+  "POST /on-call/alerts/:id/acknowledge":
+    "#244: acknowledging the page YOU were sent — the RPC is scoped to " +
+    "`p_user_id: c.get(\"userId\")`, so one member cannot silence another's",
+};
+
 describe("route gates ask for a capability, not a rank", () => {
   it("finds the route sources (the lint itself still works)", () => {
     const sources = routeSources();
@@ -189,6 +246,61 @@ describe("route gates ask for a capability, not a rank", () => {
     expect(
       stale,
       `SELF_SCOPED_WRITES names routes that no longer exist: ${stale.join(", ")}`,
+    ).toEqual([]);
+  });
+  it("every write is gated, or says why it needs no gate (#519)", () => {
+    // THE ONE THE OTHERS COULD NOT ASK. Every check above starts from a
+    // `requireCapability` and reasons about it; a route with none was not
+    // examined, it was absent. So a new `POST /invoices/:id/void` shipping
+    // with no gate at all passed this entire file.
+    //
+    // A gate counts whether it is per-route or on the router — `billing.ts`
+    // uses `billingRoutes.use("*", requireCapability("billing.manage"))`, which
+    // covers six writes and looks like nothing at the call site. Reading only
+    // the call site is how a reviewer concludes checkout is unprotected.
+    const offenders: string[] = [];
+    let writes = 0;
+    for (const { name, src } of routeSources()) {
+      const routerGate =
+        /\.use\(\s*"\*"\s*,\s*requireCapability\("([^"]+)"\)/.test(src);
+      for (const match of src.matchAll(
+        /\.(post|patch|put|delete)\(\s*"([^"]+)"\s*,([\s\S]{0,140}?)(?=async|\()/g,
+      )) {
+        writes += 1;
+        const [, method, path, between] = match;
+        if (routerGate || between.includes("requireCapability")) continue;
+        const route = `${method.toUpperCase()} ${path}`;
+        if (route in UNGATED_WRITES) continue;
+        offenders.push(`${name}: ${route}`);
+      }
+    }
+    expect(
+      offenders,
+      "These change state and ask for no capability at all — not per route, " +
+        "not on the router. Either gate them, or add them to UNGATED_WRITES " +
+        "with which of the three reasons applies (public, pre-company, or the " +
+        "caller's own):\n  " + offenders.join("\n  "),
+    ).toEqual([]);
+    // Guard the guard: a change in how routes are declared would otherwise
+    // empty this silently, and an empty scan is a passing one.
+    expect(writes).toBeGreaterThan(100);
+  });
+
+  it("the ungated list has no entries that stopped existing (#519)", () => {
+    // Same reason SELF_SCOPED_WRITES has this: an exemption that outlives its
+    // route is pre-approval for whatever takes the name next.
+    const declared = new Set<string>();
+    for (const { src } of routeSources()) {
+      for (const match of src.matchAll(
+        /\.(post|patch|put|delete)\(\s*"([^"]+)"/g,
+      )) {
+        declared.add(`${match[1].toUpperCase()} ${match[2]}`);
+      }
+    }
+    const stale = Object.keys(UNGATED_WRITES).filter((r) => !declared.has(r));
+    expect(
+      stale,
+      `UNGATED_WRITES names routes that no longer exist: ${stale.join(", ")}`,
     ).toEqual([]);
   });
 });
