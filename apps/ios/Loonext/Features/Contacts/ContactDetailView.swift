@@ -437,6 +437,25 @@ struct ContactDetailView: View {
             }
             .id("\(contact.id)|name")
             RowDivider()
+            // #291: directly under the name, because for a property manager or
+            // a general contractor it IS the name — "Dave" is not a useful
+            // record, "Dave at Maple Property Group" is.
+            AutosaveField(
+                label: "Business",
+                initial: contact.business_name ?? "",
+                maxLength: contactNameMax,
+                placeholder: "Who they work for, if anyone",
+                multiline: false
+            ) { value in
+                _ = try await mutations.updateField(
+                    companyId: companyId,
+                    contactId: contact.id,
+                    field: "business_name",
+                    value: value
+                )
+            }
+            .id("\(contact.id)|business_name")
+            RowDivider()
             AutosaveField(
                 label: "Address",
                 initial: contact.address ?? "",
@@ -449,6 +468,25 @@ struct ContactDetailView: View {
                 )
             }
             .id("\(contact.id)|address")
+            RowDivider()
+            // #291: beside the address rather than beside the phone, because it
+            // answers the same question — how we reach them when a text is the
+            // wrong shape for what we are sending.
+            AutosaveField(
+                label: "Email",
+                initial: contact.email ?? "",
+                maxLength: contactEmailMax,
+                placeholder: "For quotes and receipts",
+                multiline: false
+            ) { value in
+                _ = try await mutations.updateField(
+                    companyId: companyId,
+                    contactId: contact.id,
+                    field: "email",
+                    value: value
+                )
+            }
+            .id("\(contact.id)|email")
             RowDivider()
             AutosaveField(
                 label: "Notes",

@@ -680,6 +680,10 @@ export interface ConversationDetailContact {
   name: string | null;
   phone_e164: string;
   address: string | null;
+  /** #291: for quotes and receipts. Null on nearly every contact today. */
+  email?: string | null;
+  /** #291: who they work for, when that is the relationship. */
+  business_name?: string | null;
   notes: string | null;
   consent_source: ConsentSource | null;
   consent_at: string | null;
@@ -1036,6 +1040,17 @@ export interface Contact {
   name: string | null;
   address: string | null;
   notes: string | null;
+  /**
+   * #291: for quotes (#287) and receipts (#224), and as the fallback a human
+   * can use when a text will not reach somebody. Null on nearly every contact
+   * until a crew fills it in.
+   */
+  email?: string | null;
+  /**
+   * #291: the company this customer represents, when they represent one. For
+   * a property manager or a general contractor it is most of the record.
+   */
+  business_name?: string | null;
   consent_source: ConsentSource | null;
   consent_at: string | null;
   consent_attested_by: string | null;

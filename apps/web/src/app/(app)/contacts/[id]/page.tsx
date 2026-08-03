@@ -58,7 +58,7 @@ type SaveState = "idle" | "saving" | "saved" | "error";
  */
 function useAutosave(
   contactId: string,
-  key: "name" | "address" | "notes",
+  key: "name" | "address" | "notes" | "email" | "business_name",
   initial: string,
 ) {
   const update = useUpdateContact(contactId);
@@ -302,7 +302,13 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
   const existingConversation = flattenPages(conversations.data)[0] ?? null;
 
   const name = useAutosave(contact.id, "name", contact.name ?? "");
+  const businessName = useAutosave(
+    contact.id,
+    "business_name",
+    contact.business_name ?? "",
+  );
   const address = useAutosave(contact.id, "address", contact.address ?? "");
+  const email = useAutosave(contact.id, "email", contact.email ?? "");
   const notes = useAutosave(contact.id, "notes", contact.notes ?? "");
 
   const [confirmingOptOut, setConfirmingOptOut] = useState(false);
@@ -419,6 +425,23 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
             />
             <SaveStatus state={name.state} />
           </div>
+          {/* #291: directly under the name, because for a property manager
+              or a general contractor it IS the name — "Dave" is not a useful
+              record, "Dave at Maple Property Group" is.
+              *Applying: Relationship Strength — a strong semantic pair gets
+              tight grouping.* */}
+          <div className="space-y-1.5">
+            <Label htmlFor="contact-business">Business</Label>
+            <Input
+              id="contact-business"
+              value={businessName.value}
+              maxLength={200}
+              placeholder="Who they work for, if anyone"
+              autoComplete="off"
+              onChange={(event) => businessName.onChange(event.target.value)}
+            />
+            <SaveStatus state={businessName.state} />
+          </div>
           <div className="space-y-1.5">
             <Label htmlFor="contact-address">Address</Label>
             <Input
@@ -430,6 +453,22 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
               onChange={(event) => address.onChange(event.target.value)}
             />
             <SaveStatus state={address.state} />
+          </div>
+          {/* #291: beside the address rather than beside the phone, because
+              it answers the same question — how do we reach them when a text
+              is the wrong shape for what we are sending. */}
+          <div className="space-y-1.5">
+            <Label htmlFor="contact-email">Email</Label>
+            <Input
+              id="contact-email"
+              type="email"
+              value={email.value}
+              maxLength={254}
+              placeholder="For quotes and receipts"
+              autoComplete="off"
+              onChange={(event) => email.onChange(event.target.value)}
+            />
+            <SaveStatus state={email.state} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="contact-notes">Notes</Label>

@@ -515,6 +515,23 @@ private fun ContactDetailBody(
                 },
             )
             RowDivider()
+            // #291: directly under the name, because for a property manager or
+            // a general contractor it IS the name — "Dave" is not a useful
+            // record, "Dave at Maple Property Group" is.
+            AutosaveRow(
+                fieldKey = "${contact.id}:business_name",
+                label = "Business",
+                initial = contact.business_name.orEmpty(),
+                maxLength = CONTACT_NAME_MAX,
+                placeholder = "Who they work for, if anyone",
+                singleLine = true,
+                save = { value ->
+                    val updated =
+                        mutations.updateField(companyId, contact.id, "business_name", value)
+                    graph.storeCache.put(CacheKeys.contact(companyId, contact.id), updated)
+                },
+            )
+            RowDivider()
             AutosaveRow(
                 fieldKey = "${contact.id}:address",
                 label = "Address",
@@ -524,6 +541,23 @@ private fun ContactDetailBody(
                 singleLine = true,
                 save = { value ->
                     val updated = mutations.updateField(companyId, contact.id, "address", value)
+                    graph.storeCache.put(CacheKeys.contact(companyId, contact.id), updated)
+                },
+            )
+            RowDivider()
+            // #291: beside the address rather than beside the phone, because it
+            // answers the same question — how we reach them when a text is the
+            // wrong shape for what we are sending.
+            AutosaveRow(
+                fieldKey = "${contact.id}:email",
+                label = "Email",
+                initial = contact.email.orEmpty(),
+                maxLength = CONTACT_EMAIL_MAX,
+                placeholder = "For quotes and receipts",
+                singleLine = true,
+                save = { value ->
+                    val updated =
+                        mutations.updateField(companyId, contact.id, "email", value)
                     graph.storeCache.put(CacheKeys.contact(companyId, contact.id), updated)
                 },
             )

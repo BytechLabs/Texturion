@@ -23,7 +23,15 @@ struct Contact: Codable, Sendable {
     let id: String
     let phone_e164: String
     let name: String?
+    /// #291: the company this customer represents, when they represent one.
+    /// For a property manager or a general contractor it is most of the
+    /// record. `var … = nil` so it does not become a required memberwise-init
+    /// parameter at every existing construction site.
+    var business_name: String? = nil
     let address: String?
+    /// #291: for quotes (#287) and receipts (#224), and as the fallback a
+    /// human can use when a text will not reach somebody.
+    var email: String? = nil
     let notes: String?
     let consent_source: String?
     let consent_at: String?

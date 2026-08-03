@@ -43,7 +43,17 @@ data class Contact(
     val conversation_count: Int = 0,
     val first_conversation_at: String? = null,
     val name: String? = null,
+    /**
+     * #291: the company this customer represents, when they represent one.
+     * For a property manager or a general contractor it is most of the record.
+     */
+    val business_name: String? = null,
     val address: String? = null,
+    /**
+     * #291: for quotes (#287) and receipts (#224), and as the fallback a human
+     * can use when a text will not reach somebody.
+     */
+    val email: String? = null,
     val notes: String? = null,
     val consent_source: String? = null,
     val consent_at: String? = null,

@@ -3,6 +3,9 @@ import Foundation
 /// Field limits mirrored client-side (server is authoritative).
 let contactNameMax = 200
 let contactAddressMax = 500
+
+/// #291: the DB caps this at 254, which is the RFC's own limit.
+let contactEmailMax = 254
 let contactNotesMax = 5000
 
 private let posixLocale = Locale(identifier: "en_US_POSIX")

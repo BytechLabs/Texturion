@@ -20,6 +20,9 @@ import java.time.format.DateTimeFormatter
 /** Field limits mirrored client-side (server is authoritative). */
 const val CONTACT_NAME_MAX = 200
 const val CONTACT_ADDRESS_MAX = 500
+
+/** #291: the DB caps this at 254, which is the RFC's own limit. */
+const val CONTACT_EMAIL_MAX = 254
 const val CONTACT_NOTES_MAX = 5000
 
 /** Contacts feature data access (detail, edits, consent, import/export). */
