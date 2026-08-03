@@ -34,6 +34,12 @@ declare
     -- where somebody lives, which is the most sensitive thing in the
     -- record after the phone number itself.
     'contact_addresses',
+    -- #291: the DEFINITIONS carry no customer data — they are a
+    -- workspace's field names. Classified as business configuration
+    -- rather than left out, because "no personal data" is a real
+    -- answer that has to be written down. The VALUES live on
+    -- contacts.custom_fields and are covered by that row.
+    'contact_field_defs',
     'text_enablement_orders',
     -- #233: an unsent message body addressed to a contact. Classified with
     -- `messages` rather than as configuration, because it IS a message — it
