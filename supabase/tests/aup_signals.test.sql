@@ -156,4 +156,82 @@ begin
   raise notice 'aup signals: quiet workspaces stay out of the report';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- AS-8: carrier spam-rejections are counted, and only the right ones.
+--
+-- 40300 is an opt-out and already has its own signal. Counting it here too
+-- would report one STOP as two problems and make a quiet workspace look like
+-- it is on fire.
+-- ---------------------------------------------------------------------------
+do $$
+declare v_blocks bigint;
+begin
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, error_code,
+     sent_by_user_id, created_at)
+  values
+    -- Rejected as spam: the three codes carrier-failure.ts classifies so.
+    ('ca000000-0000-4000-8000-0000000000c1'::uuid, ('ca000000-0000-4000-8000-0000a' || lpad(1::text, 7, '0'))::uuid, 'outbound', 'a', 'failed', '40003', 'ca000000-0000-4000-8000-00000000000a'::uuid, now()),
+    ('ca000000-0000-4000-8000-0000000000c1'::uuid, ('ca000000-0000-4000-8000-0000a' || lpad(1::text, 7, '0'))::uuid, 'outbound', 'b', 'failed', '40015', 'ca000000-0000-4000-8000-00000000000a'::uuid, now()),
+    ('ca000000-0000-4000-8000-0000000000c1'::uuid, ('ca000000-0000-4000-8000-0000a' || lpad(1::text, 7, '0'))::uuid, 'outbound', 'c', 'failed', '40322', 'ca000000-0000-4000-8000-00000000000a'::uuid, now()),
+    -- An opt-out block. Counted by the opt-out signal, never here.
+    ('ca000000-0000-4000-8000-0000000000c1'::uuid, ('ca000000-0000-4000-8000-0000a' || lpad(1::text, 7, '0'))::uuid, 'outbound', 'd', 'failed', '40300', 'ca000000-0000-4000-8000-00000000000a'::uuid, now()),
+    -- A failure that is not a violation at all.
+    ('ca000000-0000-4000-8000-0000000000c1'::uuid, ('ca000000-0000-4000-8000-0000a' || lpad(1::text, 7, '0'))::uuid, 'outbound', 'e', 'failed', '40001', 'ca000000-0000-4000-8000-00000000000a'::uuid, now()),
+    -- The same code on a message that SUCCEEDED carries no rejection.
+    ('ca000000-0000-4000-8000-0000000000c1'::uuid, ('ca000000-0000-4000-8000-0000a' || lpad(1::text, 7, '0'))::uuid, 'outbound', 'f', 'sent', '40003', 'ca000000-0000-4000-8000-00000000000a'::uuid, now());
+
+  select spam_blocks_24h into v_blocks
+    from public.api_aup_signals(14) where company_id = 'ca000000-0000-4000-8000-0000000000c1'::uuid;
+
+  if v_blocks is distinct from 3 then
+    raise exception
+      'AS-8: expected 3 carrier spam-rejections, got % (40300 and non-violations must not count)',
+      v_blocks;
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- AS-9: a workspace whose sends ALL failed is still visible.
+--
+-- The trap in the old HAVING clause. `recent` counts sent/delivered only, so a
+-- workspace being blocked on every single message had zero recent rows and
+-- dropped out of the result entirely — the one being filtered hardest was the
+-- one the watch job could not see.
+-- ---------------------------------------------------------------------------
+do $$
+declare v_found int; v_blocks bigint;
+begin
+  insert into public.companies
+    (id, name, owner_user_id, country, requested_area_code, aup_accepted_at)
+  values ('a5000000-0000-4000-8000-0000000000c9'::uuid, 'All Blocked',
+          'ca000000-0000-4000-8000-00000000000a'::uuid, 'US', '415', now());
+  insert into public.contacts (id, company_id, phone_e164, name)
+  values ('a5000000-0000-4000-8000-0000000000e9'::uuid,
+          'a5000000-0000-4000-8000-0000000000c9'::uuid, '+14155559099', 'X');
+  insert into public.conversations (id, company_id, contact_id, phone_number_id)
+  values ('a5000000-0000-4000-8000-0000000000f9'::uuid,
+          'a5000000-0000-4000-8000-0000000000c9'::uuid,
+          'a5000000-0000-4000-8000-0000000000e9'::uuid, 'ca000000-0000-4000-8000-0000000000b1'::uuid);
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, error_code,
+     sent_by_user_id, created_at)
+  select 'a5000000-0000-4000-8000-0000000000c9'::uuid,
+         'a5000000-0000-4000-8000-0000000000f9'::uuid,
+         'outbound', 'blast', 'failed', '40003', 'ca000000-0000-4000-8000-00000000000a'::uuid, now()
+    from generate_series(1, 12);
+
+  select count(*), max(spam_blocks_24h) into v_found, v_blocks
+    from public.api_aup_signals(14)
+   where company_id = 'a5000000-0000-4000-8000-0000000000c9'::uuid;
+
+  if v_found <> 1 then
+    raise exception
+      'AS-9: a workspace with every send blocked is absent from the signals';
+  end if;
+  if v_blocks <> 12 then
+    raise exception 'AS-9: expected 12 rejections, got %', v_blocks;
+  end if;
+end $$;
+
 rollback;

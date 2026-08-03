@@ -137,3 +137,72 @@ describe("the job", () => {
     expect(w.emails).toHaveLength(0);
   });
 });
+
+/**
+ * #303 — the carrier's own verdict.
+ *
+ * CB-1 is the point of the signal. Velocity and fan-out are inferences about a
+ * SHAPE, and the conjunction exists because either alone is something ordinary
+ * businesses do. A carrier rejecting messages as spam is not a shape — a
+ * network has already decided — and the filtering that comes with it applies
+ * to the sending pool, so it is spending every other customer's
+ * deliverability while it accumulates.
+ */
+describe("#303 carrier spam-rejections", () => {
+  /** A workspace doing nothing else wrong. */
+  const calm = {
+    company_id: "c1",
+    company_name: "Reed Roofing",
+    sent_24h: 40,
+    baseline_daily: 35,
+    fresh_ratio: 0.1,
+    opt_outs_24h: 0,
+  };
+
+  it("CB-1: stands alone — no velocity, no fan-out, still reported", () => {
+    const concerns = aupConcerns({ ...calm, spam_blocks_24h: 9 });
+    expect(concerns).toHaveLength(1);
+    expect(concerns[0]).toMatch(/rejected by carriers as spam/i);
+  });
+
+  it("CB-2: says whose verdict it is, and who pays for it", () => {
+    // The email is read by somebody deciding whether to phone a customer. That
+    // this is a network's decision rather than ours is the fact that makes the
+    // call easy, and that it costs every other workspace is why it is urgent.
+    const [concern] = aupConcerns({ ...calm, spam_blocks_24h: 9 });
+    expect(concern).toMatch(/not our\s+reading|a network's/i);
+    expect(concern).toMatch(/every workspace sharing our numbers/i);
+  });
+
+  it("CB-3: a handful is not an alarm", () => {
+    // A bad number list or one badly-worded template produces a few. Reporting
+    // on those trains whoever reads these to skim, and a skimmed alert is the
+    // same as none.
+    expect(aupConcerns({ ...calm, spam_blocks_24h: 4 })).toEqual([]);
+  });
+
+  it("CB-4: an absent count is not an alarm", () => {
+    // A Worker deployed ahead of the migration reads undefined. That must be
+    // "nothing to report", not a division by zero or an alert for everybody.
+    expect(aupConcerns(calm)).toEqual([]);
+    expect(aupConcerns({ ...calm, spam_blocks_24h: undefined })).toEqual([]);
+  });
+
+  it("CB-5: it is reported ALONGSIDE the other concerns, not instead of them", () => {
+    // A workspace blasting strangers AND being blocked has two problems, and
+    // the email that mentions one is the email that gets the wrong response.
+    const concerns = aupConcerns({
+      company_id: "c1",
+      company_name: "Blast Co",
+      sent_24h: 5000,
+      baseline_daily: 100,
+      fresh_ratio: 0.95,
+      opt_outs_24h: 40,
+      spam_blocks_24h: 60,
+    });
+    expect(concerns).toHaveLength(3);
+    expect(concerns.join(" ")).toMatch(/marketing blast/);
+    expect(concerns.join(" ")).toMatch(/opt-outs/);
+    expect(concerns.join(" ")).toMatch(/rejected by carriers/);
+  });
+});

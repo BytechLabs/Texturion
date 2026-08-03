@@ -32,7 +32,8 @@ The signals, and the thresholds as built:
 | Velocity | `VELOCITY_MULTIPLE = 5` times the workspace's own median day | Above its OWN baseline, not an absolute number, because a small crew's normal is a small number |
 | Floor | `MIN_SENDS_TO_JUDGE = 100` | Below this nothing is judged; a quiet workspace tripling from 3 to 9 is noise |
 | Fan-out | `FRESH_RATIO = 0.8` to previously-uncontacted numbers | Reaching strangers at scale is the shape mass marketing makes |
-| Opt-outs | `OPT_OUT_ALARM = 10` | The recipients' own verdict, and the only signal needing no interpretation |
+| Opt-outs | `OPT_OUT_ALARM = 10` | The recipients' own verdict, and one of two signals needing no interpretation |
+| Carrier blocks | `SPAM_BLOCK_ALARM = 5` | The network's verdict. Lower than the opt-out bar because carrier filtering applies to the SENDING POOL, so these are already spending every other customer's deliverability |
 
 Velocity and fan-out are a **conjunction**, not independent triggers. Volume
 alone is a busy day; reaching new numbers alone is a new workspace doing exactly
@@ -120,5 +121,9 @@ Honest state, so nobody assumes a lever exists:
 - **No signup screening** for the categories §4 prohibits outright, so a
   prohibited-category workspace is still declined at 10DLC registration rather
   than before provisioning.
-- **Carrier-violation error codes and complaint ratios** are named in #303's
-  scope and not implemented; the two signals above are what exists.
+- **Complaint ratios** are named in #303's scope and not implemented. Carrier-
+  violation codes now are: `api_aup_signals.spam_blocks_24h` counts outbound
+  FAILED with the codes `carrier-failure.ts` classifies as `spam_blocked`
+  (40003, 40015, 40322). `40300` is excluded on purpose — it is an opt-out and
+  already has its own signal, and counting it twice would report one STOP as
+  two problems.

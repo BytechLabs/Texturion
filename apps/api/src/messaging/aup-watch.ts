@@ -72,6 +72,21 @@ const FRESH_RATIO = 0.8;
 /** Opt-outs in a day that speak for themselves, whatever the volume was. */
 const OPT_OUT_ALARM = 10;
 
+/**
+ * Carrier spam-rejections in a day before the workspace is reported.
+ *
+ * Lower than the opt-out alarm, and deliberately. An opt-out is one recipient
+ * deciding they have had enough, which happens to legitimate businesses every
+ * week. A carrier rejecting a message as spam is a network deciding, and the
+ * filtering it comes with applies to the SENDING POOL — so these are already
+ * spending every other customer's deliverability while they accumulate.
+ *
+ * Not zero, because a handful of rejections is also what a bad number list or
+ * one badly-worded template produces, and reporting on one would train
+ * whoever reads these to skim.
+ */
+const SPAM_BLOCK_ALARM = 5;
+
 export interface AupSignals {
   company_id: string;
   company_name: string | null;
@@ -79,6 +94,8 @@ export interface AupSignals {
   baseline_daily: number;
   fresh_ratio: number;
   opt_outs_24h: number;
+  /** #303: outbound rejected by a carrier as spam in the window. */
+  spam_blocks_24h?: number;
 }
 
 /** Why this workspace is being reported, in the words the email will use. */
@@ -98,6 +115,19 @@ export function aupConcerns(row: AupSignals): string[] {
       `${sent} sends in a day against a usual ${Math.round(baseline)}, and ` +
         `${Math.round(fresh * 100)}% went to numbers this workspace had never ` +
         `texted before — the shape of a marketing blast rather than a busy week`,
+    );
+  }
+
+  // Stands alone for the same reason as opt-outs, and with more urgency: this
+  // is not an inference about a shape, it is a carrier that has already
+  // decided — and the filtering that comes with it is applied to the sending
+  // pool, so it is spending every other customer's deliverability too.
+  const blocked = Number(row.spam_blocks_24h ?? 0);
+  if (blocked >= SPAM_BLOCK_ALARM) {
+    concerns.push(
+      `${blocked} messages rejected by carriers as spam in a day — not our ` +
+        `reading of a pattern but a network's, and the filtering it brings ` +
+        `lands on every workspace sharing our numbers`,
     );
   }
 
