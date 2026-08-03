@@ -7,6 +7,7 @@ import { CapControl } from "@/components/settings/cap-control";
 import { CalmEmptyState } from "@/components/settings/empty-state";
 import { AiUsage } from "@/components/settings/ai-usage";
 import { StorageBreakdown } from "@/components/settings/storage-breakdown";
+import { ExportUsage } from "@/components/settings/export-usage";
 import {
   LoadError,
   SettingsCard,
@@ -609,6 +610,18 @@ export default function UsageSettingsPage() {
               current={normalizeMultiplier(company.data.overage_cap_multiplier)}
               includedSegments={usage.data.included_segments}
             />
+          </SettingsCard>
+
+          {/* #304: the file for whoever does the books, beside the numbers it
+              describes. Absent for anybody without `billing.manage`, which is
+              the bookkeeper's whole preset — so this is one of the few
+              surfaces they see and an owner-only check would hide it from the
+              person it is for. */}
+          <SettingsCard
+            title="Export usage"
+            description="Take a period's texts, calls and storage away as a file."
+          >
+            <ExportUsage />
           </SettingsCard>
 
           {/* #178: raw numbers only behind the owner-facing details

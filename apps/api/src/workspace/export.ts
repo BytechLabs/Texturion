@@ -30,6 +30,10 @@ import {
   buildConversationHistory,
   type HistoryFilters,
 } from "./history-export";
+import {
+  buildUsageExport,
+  type UsageExportFilters,
+} from "./usage-export";
 import { emailLayout } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
@@ -173,7 +177,9 @@ export async function buildDataExports(
       const result =
         row.kind === "conversation_history"
           ? await buildHistoryExport(db, row, now)
-          : await buildOne(env, db, row, now);
+          : row.kind === "usage_summary"
+            ? await buildUsageSummaryExport(db, row, now)
+            : await buildOne(env, db, row, now);
       summary.parts += result.parts;
       if (result.completed) summary.completed += 1;
     } catch (cause) {
@@ -338,6 +344,50 @@ async function buildHistoryExport(
       // The receipt, in the same shape the dump uses: what was written, and
       // whether anything was left out.
       row_counts: { messages: result.messages, partial: result.partial ? 1 : 0 },
+    })
+    .eq("id", row.id);
+  return { parts: 2, completed: true };
+}
+
+/**
+ * #304 — the bookkeeper's window, written in one run.
+ *
+ * Same shape as the history export: two files, no resume state, and a receipt
+ * that records whether the figures are final. `partial` here does not mean the
+ * document is short — it means segments in the window have not yet been
+ * reported to Stripe, so the invoice they land on has not been written.
+ */
+async function buildUsageSummaryExport(
+  db: SupabaseClient,
+  row: ExportRow,
+  now: Date,
+): Promise<{ parts: number; completed: boolean }> {
+  const prefix = row.storage_prefix ?? `${row.company_id}/${row.id}`;
+  if (row.storage_prefix === null) {
+    await db
+      .from("data_exports")
+      .update({ storage_prefix: prefix, status: "running", started_at: now.toISOString() })
+      .eq("id", row.id);
+  }
+
+  const result = await buildUsageExport(
+    db,
+    {
+      exportId: row.id,
+      companyId: row.company_id,
+      filters: (row.filters ?? {}) as UsageExportFilters,
+      prefix,
+      now,
+    },
+    (path, body, contentType) => putObject(db, path, body, contentType),
+  );
+
+  await db
+    .from("data_exports")
+    .update({
+      status: "ready",
+      completed_at: new Date().toISOString(),
+      row_counts: { segments: result.segments, partial: result.partial ? 1 : 0 },
     })
     .eq("id", row.id);
   return { parts: 2, completed: true };

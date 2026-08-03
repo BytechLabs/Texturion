@@ -17,6 +17,11 @@ vi.mock("@/lib/api/usage", () => ({
     refetch: vi.fn(),
   }),
 }));
+// #304: the export card lives on this page now. It is a real mutation hook,
+// and this harness renders statically with no query client.
+vi.mock("@/lib/api/exports", () => ({
+  useExportUsage: () => ({ isPending: false, mutateAsync: vi.fn() }),
+}));
 vi.mock("@/lib/api/companies", () => ({
   useCompany: () => ({
     isPending: false,

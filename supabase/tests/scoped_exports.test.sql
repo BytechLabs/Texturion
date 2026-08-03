@@ -220,4 +220,47 @@ begin
   end if;
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- SE-8: the bookkeeper's kind is accepted, and an unknown one still is not.
+--
+-- The pair matters. Widening a check constraint is one line, and the way it
+-- goes wrong is not that the new value is rejected — it is that the constraint
+-- gets dropped and never re-added, after which `kind` accepts anything and the
+-- queue dispatches a typo to the workspace dump. That is the branch that reads
+-- every row the company owns.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_result jsonb;
+  v_kind text;
+  v_rejected boolean := false;
+begin
+  v_result := public.request_data_export(
+    p_company_id => '8e000000-0000-4000-8000-0000000000c1'::uuid,
+    p_user_id    => '8e000000-0000-4000-8000-00000000000a'::uuid,
+    p_kind       => 'usage_summary',
+    p_filters    => jsonb_build_object('from', '2026-06-01T00:00:00Z')
+  );
+  if v_result->>'outcome' <> 'queued' then
+    raise exception 'SE-8: a usage export was not queued (%)', v_result;
+  end if;
+  select kind into v_kind
+    from public.data_exports where id = (v_result->>'export_id')::uuid;
+  if v_kind <> 'usage_summary' then
+    raise exception 'SE-8: the kind was stored as %, not usage_summary', v_kind;
+  end if;
+
+  begin
+    insert into public.data_exports (company_id, requested_by, kind)
+    values ('8e000000-0000-4000-8000-0000000000c1'::uuid,
+            '8e000000-0000-4000-8000-00000000000a'::uuid,
+            'usage_sumary');
+  exception when check_violation then
+    v_rejected := true;
+  end;
+  if not v_rejected then
+    raise exception 'SE-8: a misspelled kind was accepted — the constraint is gone';
+  end if;
+end $$;
+
 rollback;

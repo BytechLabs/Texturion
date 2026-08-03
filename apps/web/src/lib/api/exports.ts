@@ -73,3 +73,25 @@ export function useExportContactHistory(contactId: string) {
     },
   });
 }
+
+/**
+ * #304 — the bookkeeper's usage export.
+ *
+ * `from` is required, unlike the history export where an absent range means
+ * "everything". A period is what a bookkeeper works in, and a usage document
+ * with no stated period is not one.
+ */
+export function useExportUsage() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (range: { from: string; to?: string }) =>
+      apiFetch<{ export_id: string; already_building: boolean }>(
+        "/v1/exports/usage",
+        { method: "POST", companyId, body: range },
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [companyId, "exports"] });
+    },
+  });
+}

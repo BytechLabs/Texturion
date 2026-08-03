@@ -175,6 +175,72 @@ exportsRoutes.post(
   },
 );
 
+/**
+ * #304 — POST /v1/exports/usage: what a bookkeeper needs beside the invoice.
+ *
+ * GATED ON `billing.manage`, NOT `contacts.bulk`. The history export next door
+ * guards customer correspondence, and its capability is the right one for
+ * that. This document contains no customer data at all — no names, no numbers,
+ * no messages, only counts — and gating it on the bulk-customer capability
+ * would lock out the BOOKKEEPER, whose whole preset (#315) is the books and
+ * who is the person this exists for.
+ *
+ * `from` is required. An absent start would mean "since the beginning", which
+ * is a different document; a bookkeeper works in periods and asking them to
+ * name one is not friction, it is the point.
+ *
+ * No bulk-contact alarm fires: #231's alarm exists for customer data walking
+ * out, and raising it on a count of segments would train an owner to ignore
+ * the one that matters.
+ */
+const usageExportSchema = z.object({
+  /** ISO instants. `to` absent means the period is still running. */
+  from: z.string().datetime(),
+  to: z.string().datetime().optional(),
+});
+
+exportsRoutes.post(
+  "/exports/usage",
+  requireCapability("billing.manage"),
+  async (c) => {
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+    const body = await parseJsonBody(c, usageExportSchema);
+
+    if (body.to && body.from > body.to) {
+      throw new ApiError(
+        "validation_failed",
+        "The end of the period is before its start.",
+      );
+    }
+
+    const { data, error } = await db.rpc("request_data_export", {
+      p_company_id: companyId,
+      p_user_id: c.get("userId"),
+      p_kind: "usage_summary",
+      p_filters: body,
+    });
+    if (error) throw new Error(`request_data_export failed: ${error.message}`);
+    const result = data as { outcome: "queued" | "in_flight"; export_id: string };
+
+    if (result.outcome === "in_flight") {
+      return c.json({ export_id: result.export_id, already_building: true });
+    }
+
+    // WHICH period, not merely that somebody exported. A row saying only
+    // "usage" cannot answer the question it exists to answer.
+    await recordAuditFromRequest(db, c, {
+      companyId,
+      action: "usage.exported",
+      targetType: "data_export",
+      targetId: result.export_id,
+      after: { from: body.from, to: body.to ?? null },
+    });
+
+    return c.json({ export_id: result.export_id, already_building: false }, 202);
+  },
+);
+
 exportsRoutes.get("/exports", requireCapability("contacts.bulk"), async (c) => {
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));

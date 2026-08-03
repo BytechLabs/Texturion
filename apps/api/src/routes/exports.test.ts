@@ -202,6 +202,122 @@ describe("GET /v1/exports", () => {
  * does not answer the question an owner asks after somebody leaves: WHICH
  * customer's correspondence left the building. The row has to name them.
  */
+/**
+ * #304 — the bookkeeper's usage export.
+ *
+ * UR-2 is the one to read twice. This endpoint is gated on `billing.manage`
+ * and NOT on `contacts.bulk`, and the two tests below pull in opposite
+ * directions on purpose: the bookkeeper must get in, and a member must not.
+ * Gating it like the history export next door would have locked out the only
+ * person it was built for.
+ */
+describe("POST /v1/exports/usage (#304)", () => {
+  it("UR-1: asks for the usage kind, and passes the period through", async () => {
+    const { sb, routes } = world();
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/exports/usage", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { from: "2026-06-01T00:00:00Z", to: "2026-06-30T23:59:59Z" },
+    });
+    expect(res.status).toBe(202);
+
+    const sent = sb.find("POST", "/rest/v1/rpc/request_data_export")[0]
+      .body as Record<string, unknown>;
+    expect(sent.p_kind).toBe("usage_summary");
+    expect(sent.p_filters).toEqual({
+      from: "2026-06-01T00:00:00Z",
+      to: "2026-06-30T23:59:59Z",
+    });
+  });
+
+  it("UR-2: the BOOKKEEPER can take it, a member cannot", async () => {
+    // The capability choice, asserted from both sides. `bookkeeper` holds
+    // billing.manage and not contacts.bulk; a member holds neither.
+    const allowed = world({ role: "bookkeeper" });
+    stubFetch(jwksRoute(auth), ...allowed.routes);
+    const yes = await apiRequest(app, env, await auth.token(), "/v1/exports/usage", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { from: "2026-06-01T00:00:00Z" },
+    });
+    expect(yes.status).toBe(202);
+
+    const denied = world({ role: "member" });
+    stubFetch(jwksRoute(auth), ...denied.routes);
+    const no = await apiRequest(app, env, await auth.token(), "/v1/exports/usage", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { from: "2026-06-01T00:00:00Z" },
+    });
+    expect(no.status).toBe(403);
+  });
+
+  it("UR-3: a period needs a start", async () => {
+    // Absent would mean "since the beginning of time" — a different document,
+    // and one that would arrive under the heading of the month they asked for.
+    const { routes } = world();
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/exports/usage", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { to: "2026-06-30T23:59:59Z" },
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it("UR-4: refuses a period that ends before it starts", async () => {
+    const { routes } = world();
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/exports/usage", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { from: "2026-06-30T00:00:00Z", to: "2026-06-01T00:00:00Z" },
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it("UR-5: the audit row names the PERIOD, not merely that it happened", async () => {
+    // "Who pulled our numbers, and for what period" is the question an owner
+    // is entitled to be able to answer.
+    const { sb, routes } = world();
+    stubFetch(jwksRoute(auth), ...routes);
+
+    await apiRequest(app, env, await auth.token(), "/v1/exports/usage", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { from: "2026-06-01T00:00:00Z", to: "2026-06-30T23:59:59Z" },
+    });
+
+    const audit = sb.find("POST", "/rest/v1/audit_log")[0];
+    const row = (audit.body as Record<string, unknown>[])[0] ??
+      (audit.body as Record<string, unknown>);
+    expect(JSON.stringify(row)).toContain("usage.exported");
+    expect(JSON.stringify(row)).toContain("2026-06-01T00:00:00Z");
+  });
+
+  it("UR-6: a build already in flight is not started twice", async () => {
+    const { routes } = world({
+      request: { outcome: "in_flight", export_id: EXPORT_ID },
+    });
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/exports/usage", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { from: "2026-06-01T00:00:00Z" },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      export_id: EXPORT_ID,
+      already_building: true,
+    });
+  });
+});
+
 describe("POST /v1/exports/history (#304)", () => {
   const CONTACT_ID = "dddddddd-1111-4222-8333-444444444444";
 

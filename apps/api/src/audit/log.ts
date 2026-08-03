@@ -146,6 +146,15 @@ export type AuditAction =
   | "contacts.exported"
   | "contacts.bulk_deleted"
   /**
+   * #304: the workspace's metered usage for a window, taken as a file.
+   *
+   * Not on the departing-employee axis above — it carries no customer data,
+   * only counts — but it is still a copy of the workspace's commercial picture
+   * leaving the product, and "who pulled our numbers, and for what period" is
+   * a question an owner is entitled to be able to answer.
+   */
+  | "usage.exported"
+  /**
    * #317: a member pulled a file back for the whole workspace, or an owner let
    * it go again. Recorded because it is one member's judgement overriding
    * everybody else's access — the same reason `member.sessions_revoked` is
