@@ -758,6 +758,8 @@ private func previewCall(
         responseTime: nil,
         responseDays: 30,
         onResponseWindow: { _ in },
+        // #313: nil report — the preview shows the "reading your ratings" state.
+        satisfaction: nil,
         // #354: nil report — the preview shows the card's absent state, which
         // is what a workspace with no quotes actually sees.
         pipeline: nil,
@@ -781,6 +783,8 @@ private func previewCall(
         responseTime: nil,
         responseDays: 30,
         onResponseWindow: { _ in },
+        // #313: nil report — the preview shows the "reading your ratings" state.
+        satisfaction: nil,
         // #354: nil report — the preview shows the card's absent state, which
         // is what a workspace with no quotes actually sees.
         pipeline: nil,
@@ -823,6 +827,8 @@ private func previewCall(
         responseTime: nil,
         responseDays: 30,
         onResponseWindow: { _ in },
+        // #313: nil report — the preview shows the "reading your ratings" state.
+        satisfaction: nil,
         // #354: nil report — the preview shows the card's absent state, which
         // is what a workspace with no quotes actually sees.
         pipeline: nil,
