@@ -46,6 +46,26 @@ const ALLOWED = [
   "CHANGELOG",
   // This file names them in order to forbid them.
   "price-surfaces.test.ts",
+  /**
+   * THIS ONE IS A HOLE, NOT A DECISION (#519).
+   *
+   * Eight published articles quote our own prices in prose — "$29 a month
+   * covers 3 teammates, $79 covers 15", "just $29 and $79 flat from month one",
+   * worked examples adding the registration fee. Change a price and every one
+   * of them keeps telling prospects the old number.
+   *
+   * They were never checked: the walk above collected `.ts`/`.tsx` only, so
+   * `.mdx` was outside the guarantee entirely and nobody had decided that. It
+   * is listed here rather than left invisible, because an exemption somebody
+   * can read is worth more than a gap nobody knows about — but it is the
+   * opposite of the other three entries, which are places a price literal is
+   * CORRECT. Here it is a liability waiting on a price change.
+   *
+   * Fixing it is content work: either the prose sources the figure from the
+   * price book, or the sentences stop naming a number. That is the founder's
+   * call about published copy, so it is filed rather than done here.
+   */
+  "blog",
 ];
 
 /**
@@ -67,7 +87,12 @@ function walk(dir: string): string[] {
     if (entry === "node_modules" || entry === ".next") continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) out.push(...walk(full));
-    else if (/\.(ts|tsx)$/.test(full)) out.push(full);
+    // `.mdx` too. The walk collected code only, so twelve marketing articles
+    // were outside the guarantee entirely — and eight of them quote OUR prices
+    // in prose ("$29 a month covers 3 teammates, $79 covers 15"). Change the
+    // Starter price and those posts keep telling prospects the old number,
+    // while the check that exists to prevent exactly that reports success.
+    else if (/\.(ts|tsx|mdx)$/.test(full)) out.push(full);
   }
   return out;
 }
