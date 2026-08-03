@@ -28,7 +28,35 @@ const DOCS = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "do
 /** How far into a file the status may sit. Title, blank line, status. */
 const HEADER_LINES = 12;
 
-const files = readdirSync(DOCS).filter((name) => name.endsWith(".md"));
+/**
+ * Subdirectories of `docs/` that #323 has not been applied to yet.
+ *
+ * NOT a decision that they are exempt. The walk below used to be flat, so
+ * `docs/deploy/` (14 files) and `docs/marketing/` (24) were outside this guard
+ * because of how `readdirSync` was called, and nobody had chosen that. Naming
+ * them makes the gap something a reader can see, and makes a NEW subdirectory
+ * covered by default rather than silently exempt — which is the part that was
+ * actually dangerous.
+ *
+ * Applying #323 to them is real work, not a sweep: a status is a judgement
+ * about whether a document is direction, record, or history, and stamping 38
+ * files with the same header would be precisely the rubber-stamp this issue
+ * exists to prevent. Filed rather than faked.
+ */
+const NOT_YET_COVERED = new Set(["deploy", "marketing"]);
+
+/** Every `.md` under docs/, minus the folders #323 has not reached. */
+function docFiles(): string[] {
+  return readdirSync(DOCS, { recursive: true, encoding: "utf8" })
+    .filter((name) => name.endsWith(".md"))
+    .map((name) => name.split(/[\\/]/).join("/"))
+    .filter((name) => {
+      const top = name.includes("/") ? name.slice(0, name.indexOf("/")) : "";
+      return !NOT_YET_COVERED.has(top);
+    });
+}
+
+const files = docFiles();
 
 describe("#323 every doc states whether it is direction or record", () => {
   it("finds the documents at all, so a moved folder cannot make this vacuous", () => {
