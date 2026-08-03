@@ -119,3 +119,30 @@ export const ON_CALL_COPY = {
 export function onCallLine(name: string, until: string): string {
   return `${name} is ${ON_CALL_COPY.until} ${until}`;
 }
+
+/**
+ * #244 — the strip on a thread nobody has claimed yet.
+ *
+ * THE POINT IS THE NAME. "When everyone is notified, no one is accountable" —
+ * so the banner exists to turn "somebody should call these people" into
+ * "I have this", visible to everybody else who opens the thread.
+ *
+ * It shows on ANY route into the thread, not just the notification's deep
+ * link, because the person best placed to claim it is often not the one who
+ * was paged.
+ */
+export const ALERT_BANNER_COPY = {
+  /** Unclaimed. Says what is owed, not what happened. */
+  waiting: "Nobody has picked this up yet",
+  /** The action. First person, because that is what tapping it means. */
+  claim: "I have this",
+  /** Claimed by somebody else — the sentence that stops a second callback. */
+  taken: "has this",
+  /** Claimed by you. Confirms it stuck, and that the others were told. */
+  yours: "You have this. The rest of the crew has been told.",
+} as const;
+
+/** "Sam has this" — one place, so three clients cannot word it differently. */
+export function alertTakenLine(name: string): string {
+  return `${name} ${ALERT_BANNER_COPY.taken}`;
+}

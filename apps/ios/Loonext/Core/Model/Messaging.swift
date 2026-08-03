@@ -219,6 +219,29 @@ enum DefaultViewerText: DefaultCodableProvider {
 }
 
 /// GET /v1/conversations/:id — embeds the first page of messages.
+/// #244 — what acknowledging said.
+///
+/// `already_acknowledged` is not an error: the caller did nothing wrong, and
+/// what they need is the NAME so the app can say "Sam has this".
+struct AcknowledgeResult: Codable, Sendable {
+    var outcome: String = ""
+    var kind: String? = nil
+    var acknowledged_by: String? = nil
+    var acknowledged_at: String? = nil
+}
+
+/// #244 — an after-hours page on this thread that nobody has claimed.
+///
+/// `on_call_name` is resolved server-side: "Dana was told first" is what makes
+/// the banner worth reading, and a bare uuid is not.
+struct OpenAlert: Codable, Sendable {
+    var id: String = ""
+    var kind: String = ""
+    var on_call_user_id: String? = nil
+    var on_call_name: String? = nil
+    var created_at: String = ""
+}
+
 struct ConversationDetail: Codable, Sendable {
     let id: String
     let company_id: String
@@ -254,6 +277,11 @@ struct ConversationDetail: Codable, Sendable {
     /// reminder and a nap.
     var snooze_kind: String? = nil
     let messages: Page<Message>
+    /// #244: nil on nearly every thread, and nil once somebody claims it — an
+    /// acknowledged alert is history the timeline already records. `var … = nil`
+    /// so it does not become a required memberwise-init parameter at every
+    /// existing construction site.
+    var open_alert: OpenAlert? = nil
     /// #106: 'note' = read + internal notes only (composer hides SMS mode).
     @Default<DefaultViewerText> var viewer_level: String
     /// #225 / D49: what time it is where the customer is. Resolved server-side

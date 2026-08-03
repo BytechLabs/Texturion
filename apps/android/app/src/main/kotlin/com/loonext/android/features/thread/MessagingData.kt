@@ -1,5 +1,6 @@
 package com.loonext.android.features.thread
 
+import com.loonext.android.core.model.AcknowledgeResult
 import com.loonext.android.core.model.Attachment
 import com.loonext.android.features.inbox.SAVED_VIEW_COUNT_MAX_VIEWS
 import com.loonext.android.features.inbox.SavedView
@@ -331,6 +332,10 @@ class MessagingRepository(private val api: ApiClient) {
     suspend fun cancelScheduledMessage(companyId: String, id: String) {
         api.delete("/v1/scheduled-messages/$id", companyId = companyId)
     }
+
+    /** #244: "I have this." Returns the outcome so the caller can name whose. */
+    suspend fun acknowledgeAlert(companyId: String, alertId: String): AcknowledgeResult =
+        api.post("/v1/on-call/alerts/$alertId/acknowledge", companyId = companyId)
 
     /**
      * This contact's conversations, found the way the web contact panel does

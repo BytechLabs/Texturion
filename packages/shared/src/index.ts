@@ -420,6 +420,8 @@ export {
 } from "./saved-views";
 export type { SavedViewFilters, SavedViewSurface } from "./saved-views";
 export {
+  ALERT_BANNER_COPY,
+  alertTakenLine,
   ON_CALL_COPY,
   ON_CALL_EVENING_START_HOUR,
   ON_CALL_MORNING_END_HOUR,

@@ -952,6 +952,16 @@ private fun ThreadLoaded(
         // inside the banner branch's `else` so a HELD text still says why:
         // a banner means something is wrong with sending, which is exactly when
         // a queued text is stuck and most needs saying out loud.
+        // #244: above the scheduled strip, because this is the only thing on
+        // the screen with a clock running on it — somebody is waiting for a
+        // callback, and if nobody claims it the alert widens to the whole crew.
+        AlertBanner(
+            alert = detail.open_alert,
+            viewerId = me.user_id,
+            onClaim = { controller.acknowledgeAlert(it) },
+            modifier = Modifier.padding(bottom = 6.dp),
+        )
+
         ScheduledStrip(
             rows = controller.scheduled,
             onCancel = { controller.cancelScheduled(it) },

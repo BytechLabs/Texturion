@@ -260,6 +260,16 @@ private struct ThreadBody: View {
                 // text still says why: a banner means something is wrong with
                 // sending, which is exactly when a queued text is stuck and
                 // most needs saying out loud.
+                // #244: above the scheduled strip, because this is the only
+                // thing on the screen with a clock running on it — somebody is
+                // waiting for a callback, and if nobody claims it the alert
+                // widens to the whole crew.
+                AlertBanner(
+                    alert: detail.open_alert,
+                    viewerId: me.user_id
+                ) { id in
+                    controller.acknowledgeAlert(id)
+                }
                 ScheduledStrip(rows: controller.scheduled) { id in
                     controller.cancelScheduled(id)
                 }

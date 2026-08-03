@@ -263,6 +263,34 @@ final class ThreadController {
         }
     }
 
+    /// #244 — "I have this."
+    ///
+    /// Clears the banner before the round trip: the value of tapping it is that
+    /// everybody else stops assuming somebody will, and a strip that lingers
+    /// while a request is in flight is the same ambiguity for another second.
+    /// Put back on failure — a banner that vanished while the alert was still
+    /// open would be worse than one that never appeared.
+    func acknowledgeAlert(_ alertId: String) {
+        let before = conversation
+        conversation?.open_alert = nil
+        Task {
+            do {
+                let result = try await repo.acknowledgeAlert(
+                    companyId: companyId,
+                    alertId: alertId
+                )
+                notify(
+                    result.outcome == "already_acknowledged"
+                        ? OnCall.alertTakenLine("Somebody else")
+                        : OnCall.bannerYours
+                )
+            } catch {
+                conversation = before
+                notify(error.userMessage)
+            }
+        }
+    }
+
     func loadOlderMessages() {
         guard let cursor = messagesCursor, !loadingOlder else { return }
         loadingOlder = true

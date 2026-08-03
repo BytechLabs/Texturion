@@ -346,6 +346,17 @@ struct MessagingRepository: Sendable {
         try await api.delete("/v1/scheduled-messages/\(id)", companyId: companyId)
     }
 
+    /// #244: "I have this." Returns the outcome so the caller can name whose.
+    func acknowledgeAlert(
+        companyId: String,
+        alertId: String
+    ) async throws -> AcknowledgeResult {
+        try await api.post(
+            "/v1/on-call/alerts/\(alertId)/acknowledge",
+            companyId: companyId
+        )
+    }
+
     // MARK: - Tags (#159 gap-close; Android twin MessagingData.kt)
 
     /// Attach an existing tag by id. Attaching an attached tag is a no-op.

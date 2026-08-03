@@ -35,6 +35,14 @@ const FRAGMENTS: readonly string[] = [
   "Friday 6pm until Monday 8am",
   "The next 7 days",
   "Starting now",
+  // #244's banner. The claim label is first person on every client because
+  // that is what tapping it means, and "has this" is what stops a second
+  // person driving out.
+  "Nobody has picked this up yet",
+  "I have this",
+  "has this",
+  "You have this. The rest of the crew has been told.",
+  "was told first",
 ];
 
 /** The file with its comments removed — see satisfaction-parity for why. */
@@ -46,6 +54,24 @@ function codeOnly(path: string): string {
     .join("\n");
 }
 
+/**
+ * The banner's own file per client.
+ *
+ * Keyed to match SOURCES, so `shared` maps to WEB's banner: the shared module
+ * plus that component together are the web client's copy, exactly as
+ * `OnCall.kt` plus `AlertBanner.kt` are Android's. Keying it "web" would have
+ * left the file unread and the guard passing over two clients instead of three
+ * — which is what happened on the first run.
+ */
+const BANNERS: Record<string, string> = {
+  shared: join(REPO_ROOT, "apps/web/src/components/thread/alert-banner.tsx"),
+  android: join(
+    REPO_ROOT,
+    "apps/android/app/src/main/kotlin/com/loonext/android/features/thread/AlertBanner.kt",
+  ),
+  ios: join(REPO_ROOT, "apps/ios/Loonext/Features/Thread/AlertBanner.swift"),
+};
+
 describe("#244 on-call copy is the same on every client", () => {
   it("reads every source, so a passing run means something", () => {
     for (const [platform, path] of Object.entries(SOURCES)) {
@@ -55,8 +81,13 @@ describe("#244 on-call copy is the same on every client", () => {
 
   it("carries every sentence on every client, verbatim", () => {
     const missing: string[] = [];
+    // Each client is checked against its vocabulary file PLUS its banner: the
+    // "was told first" fragment is assembled at the call site on every client,
+    // because each language interpolates the name differently.
     for (const [platform, path] of Object.entries(SOURCES)) {
-      const text = readFileSync(path, "utf8");
+      const text =
+        readFileSync(path, "utf8") +
+        (BANNERS[platform] ? readFileSync(BANNERS[platform], "utf8") : "");
       for (const fragment of FRAGMENTS) {
         if (!text.includes(fragment)) missing.push(`${platform}: ${fragment}`);
       }
@@ -78,6 +109,36 @@ describe("#244 on-call copy is the same on every client", () => {
         /EVENING_START_HOUR = 18|eveningStartHour = 18/,
       );
       expect(code, platform).toMatch(/MORNING_END_HOUR = 8|morningEndHour = 8/);
+    }
+  });
+
+  it("makes each banner USE the vocabulary rather than its own words", () => {
+    // FOUND BY BREAKING IT. The fragment check above concatenates each
+    // client's vocabulary file with its banner, so replacing
+    // `OnCall.bannerClaim` in the banner with a hardcoded "Take it" left the
+    // constant sitting untouched in the vocabulary file and the whole roster
+    // still passed — on all three clients at once.
+    //
+    // That is the drift this guard is actually for: nobody edits a shared
+    // constant to make three clients disagree, they hardcode a string at one
+    // call site. So the reference itself is what gets pinned.
+    const references: Record<string, string[]> = {
+      web: ["ALERT_BANNER_COPY.claim", "ALERT_BANNER_COPY.waiting"],
+      android: ["OnCall.BANNER_CLAIM", "OnCall.BANNER_WAITING"],
+      ios: ["OnCall.bannerClaim", "OnCall.bannerWaiting"],
+    };
+    const files: Record<string, string> = {
+      web: BANNERS.shared,
+      android: BANNERS.android,
+      ios: BANNERS.ios,
+    };
+    for (const [platform, expected] of Object.entries(references)) {
+      const code = codeOnly(files[platform]);
+      for (const reference of expected) {
+        expect(code, `${platform} hardcodes copy instead of ${reference}`).toContain(
+          reference,
+        );
+      }
     }
   });
 

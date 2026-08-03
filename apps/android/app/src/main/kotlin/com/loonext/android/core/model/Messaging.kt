@@ -232,6 +232,35 @@ data class ConversationDetailContact(
     val deleted_at: String? = null,
 )
 
+/**
+ * #244 — an after-hours page on this thread that nobody has claimed.
+ *
+ * `on_call_name` is resolved server-side: "Dana was told first" is what makes
+ * the banner worth reading, and a bare uuid is not.
+ */
+@Serializable
+data class OpenAlert(
+    val id: String = "",
+    val kind: String = "",
+    val on_call_user_id: String? = null,
+    val on_call_name: String? = null,
+    val created_at: String = "",
+)
+
+/**
+ * #244 — what acknowledging said.
+ *
+ * `already_acknowledged` is not an error: the caller did nothing wrong, and
+ * what they need is the NAME so the app can say "Sam has this".
+ */
+@Serializable
+data class AcknowledgeResult(
+    val outcome: String = "",
+    val kind: String? = null,
+    val acknowledged_by: String? = null,
+    val acknowledged_at: String? = null,
+)
+
 /** GET /v1/conversations/:id — embeds the first page of messages. */
 @Serializable
 data class ConversationDetail(
@@ -265,6 +294,11 @@ data class ConversationDetail(
     val contact: ConversationDetailContact,
     val tags: List<Tag> = emptyList(),
     val messages: Page<Message>,
+    /**
+     * #244: null on nearly every thread, and null once somebody claims it —
+     * an acknowledged alert is history the timeline already records.
+     */
+    val open_alert: OpenAlert? = null,
     /**
      * #293: when THIS member's deferral brings the thread back, and why they
      * deferred it. Null for everyone else — the snooze is mine, the

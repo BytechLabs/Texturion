@@ -45,6 +45,22 @@ object OnCall {
 
     fun line(name: String, until: String): String = "$name is $UNTIL $until"
 
+    // -- #244 the unclaimed-page banner ------------------------------------
+
+    /** Unclaimed. Says what is owed, not what happened. */
+    const val BANNER_WAITING = "Nobody has picked this up yet"
+
+    /** The action. First person, because that is what tapping it means. */
+    const val BANNER_CLAIM = "I have this"
+
+    /** Claimed by somebody else — the sentence that stops a second callback. */
+    const val BANNER_TAKEN = "has this"
+
+    /** Claimed by you. Confirms it stuck, and that the others were told. */
+    const val BANNER_YOURS = "You have this. The rest of the crew has been told."
+
+    fun alertTakenLine(name: String): String = "$name $BANNER_TAKEN"
+
     /**
      * Turn a preset into a real window.
      *

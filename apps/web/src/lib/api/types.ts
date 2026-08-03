@@ -709,6 +709,19 @@ export interface ConversationDetail extends Conversation, SnoozeState {
   /** #106: the caller's access level on this conversation's number — 'note'
    *  means read + internal notes only (the composer hides its SMS mode). */
   viewer_level: "text" | "note";
+  /**
+   * #244: an after-hours page on this thread that nobody has claimed. Null on
+   * nearly every thread — and null once somebody takes it, because an
+   * acknowledged alert is history the timeline already records.
+   */
+  open_alert: {
+    id: string;
+    kind: string;
+    on_call_user_id: string | null;
+    /** Resolved server-side (#482), null when the profile row is missing. */
+    on_call_name: string | null;
+    created_at: string;
+  } | null;
 }
 
 /** #106: a number's access shape (GET/PUT /v1/numbers/:id/access). */

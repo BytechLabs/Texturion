@@ -60,3 +60,33 @@ export function useEndOnCallShift() {
       client.invalidateQueries({ queryKey: keys.onCall(companyId) }),
   });
 }
+
+/**
+ * #244 — "I have this."
+ *
+ * Invalidates the THREAD, not the rota: the banner rides the conversation
+ * detail, so that is the cache entry whose answer just changed.
+ */
+export interface AcknowledgeResult {
+  outcome: "acknowledged" | "already_acknowledged";
+  conversation_id?: string;
+  kind?: string;
+  acknowledged_by?: string;
+  acknowledged_at?: string;
+}
+
+export function useAcknowledgeAlert(conversationId: string) {
+  const companyId = useCompanyId();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (alertId: string) =>
+      apiFetch<AcknowledgeResult>(`/v1/on-call/alerts/${alertId}/acknowledge`, {
+        companyId,
+        method: "POST",
+      }),
+    onSuccess: () =>
+      client.invalidateQueries({
+        queryKey: keys.conversations.detail(companyId, conversationId),
+      }),
+  });
+}

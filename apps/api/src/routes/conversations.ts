@@ -630,9 +630,60 @@ conversationsRoutes.get(
         })
       : null;
 
+    // #244: an after-hours page on this thread that nobody has claimed.
+    //
+    // Read HERE rather than from a separate endpoint, because the banner is
+    // part of the thread's state: a client that had to ask a second time would
+    // render the thread first and the "somebody needs to call these people
+    // back" strip a moment later, which is the wrong order for the one message
+    // on the screen that is time-critical.
+    //
+    // Only the newest, and only while it is unacknowledged. An acknowledged
+    // alert is history — the crew can see who took it in the timeline, and a
+    // banner that lingers after somebody claimed it trains people to ignore
+    // banners.
+    const openAlerts = unwrap<
+      { id: string; kind: string; on_call_user_id: string | null; created_at: string }[]
+    >(
+      await db
+        .from("alert_escalations")
+        .select("id,kind,on_call_user_id,created_at")
+        .eq("company_id", companyId)
+        .eq("conversation_id", id)
+        .is("acknowledged_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1),
+      "open alert lookup",
+    );
+
+    // The paged member's NAME, resolved here (#482). "Dana was told first" is
+    // what makes the banner worth reading; a bare uuid is not, and having three
+    // clients each fetch the roster to answer it would be three requests for
+    // one word on a strip that is absent from almost every thread.
+    //
+    // Only when there IS an alert, so the common path stays one lookup.
+    let onCallName: string | null = null;
+    const pagedUserId = openAlerts[0]?.on_call_user_id;
+    if (pagedUserId) {
+      const profiles = unwrap<{ display_name: string }[]>(
+        await db
+          .from("profiles")
+          .select("display_name")
+          .eq("user_id", pagedUserId)
+          .limit(1),
+        "alert paged-member name",
+      );
+      onCallName = profiles[0]?.display_name || null;
+    }
+
     return c.json({
       ...conversation,
       viewer_level: viewerLevel,
+      // Null is the answer on nearly every thread, which is why it is a small
+      // object rather than a nested list.
+      open_alert: openAlerts[0]
+        ? { ...openAlerts[0], on_call_name: onCallName }
+        : null,
       // #293: the caller's own deferral, same field names the list rows carry,
       // plus the kind — the list cannot tell "back Thursday" from "chase them
       // Thursday", and in the thread that is the difference between a reminder

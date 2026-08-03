@@ -53,6 +53,9 @@ function memberStub(): SupabaseStub {
   // the state every test in this file was written against; the snooze suite
   // asserts on the write path, which is where the interesting behaviour is.
   sb.on("GET", "/rest/v1/conversation_snoozes", () => []);
+  // #244: no unclaimed after-hours page, which is the answer on nearly every
+  // thread. The suite that cares registers its own.
+  sb.on("GET", "/rest/v1/alert_escalations", () => []);
   return sb;
 }
 
@@ -1810,6 +1813,7 @@ describe("#293 snooze routes", () => {
     sb.on("GET", "/rest/v1/conversation_snoozes", () => [
       { until: "2026-08-06T15:00:00+00:00", note: "waiting on the supplier" },
     ]);
+    sb.on("GET", "/rest/v1/alert_escalations", () => []);
     sb.on("GET", "/rest/v1/conversations", () => [
       { ...conversationRow(), contacts: { id: "d", name: "Jo" }, conversation_tags: [] },
     ]);
@@ -1974,5 +1978,91 @@ describe("#298 a locked tag list restricts CREATION, never attachment", () => {
     const rpc = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag")[0];
     expect(rpc.body).toMatchObject({ p_may_create: false });
     expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(0);
+  });
+});
+
+/**
+ * #244 — the open page rides the thread, so a second person can take it.
+ *
+ * The banner has to be reachable from ANY route into the thread, not just the
+ * deep link in the notification: the whole point of acknowledging is that
+ * somebody other than the person paged can claim it, and that person did not
+ * get the push.
+ */
+describe("#244 an unclaimed after-hours page on the thread", () => {
+  function alertWorld(alerts: Record<string, unknown>[]) {
+    const sb = supabaseStub(env);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
+      membershipResponder(MEMBER_ID, "member"),
+    );
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
+    sb.on("GET", "/rest/v1/conversation_snoozes", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => [
+      { ...conversationRow(), contacts: { id: "d", name: "Jo" }, conversation_tags: [] },
+    ]);
+    sb.on("GET", "/rest/v1/messages", () => []);
+    sb.on("GET", "/rest/v1/alert_escalations", () => alerts);
+    sb.on("GET", "/rest/v1/profiles", () => [{ display_name: "Dana" }]);
+    stubFetch(jwksRoute(auth), sb.route);
+    return sb;
+  }
+
+  async function open(): Promise<Record<string, unknown>> {
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    return (await res.json()) as Record<string, unknown>;
+  }
+
+  it("AL-1: carries the alert, so any member who opens the thread can claim it", async () => {
+    alertWorld([
+      {
+        id: "alert-1",
+        kind: "missed_call",
+        on_call_user_id: MEMBER_ID,
+        created_at: "2026-08-02T03:40:00+00:00",
+      },
+    ]);
+
+    const body = await open();
+
+    // The NAME too, resolved server-side: "Dana was told first" is what makes
+    // the banner worth reading, and a bare uuid is not. Three clients each
+    // fetching the roster to answer it would be three requests for one word.
+    expect(body.open_alert).toMatchObject({
+      id: "alert-1",
+      kind: "missed_call",
+      on_call_name: "Dana",
+    });
+  });
+
+  it("AL-2: asks only for the unacknowledged one, newest first", async () => {
+    const sb = alertWorld([]);
+
+    await open();
+
+    const read = sb.calls.find((c) => c.path === "/rest/v1/alert_escalations");
+    // An acknowledged alert is history — the timeline shows who took it, and a
+    // banner that lingers after somebody claimed it trains people to ignore
+    // banners.
+    expect(read?.url.searchParams.get("acknowledged_at")).toBe("is.null");
+    expect(read?.url.searchParams.get("conversation_id")).toBe(`eq.${CONV_ID}`);
+    expect(read?.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(read?.url.searchParams.get("order")).toContain("created_at.desc");
+  });
+
+  it("AL-3: null on the threads that have never been paged, which is nearly all", async () => {
+    alertWorld([]);
+
+    const body = await open();
+
+    expect(body.open_alert).toBeNull();
   });
 });

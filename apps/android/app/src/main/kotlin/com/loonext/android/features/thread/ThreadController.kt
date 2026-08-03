@@ -6,6 +6,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.loonext.android.core.oncall.OnCall
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.MeRepository
 import com.loonext.android.core.data.StoreCache
@@ -340,6 +341,35 @@ class ThreadController(
                 // a row that vanished from the strip while still being due to
                 // send is the silent disappearance DECISIONS.md rules out.
                 scheduled = before
+                notify(cause.userMessage())
+            }
+        }
+    }
+
+    /**
+     * #244 — "I have this."
+     *
+     * Clears the banner before the round trip: the whole value of tapping it is
+     * that everybody else stops assuming somebody will, and a strip that
+     * lingers while a request is in flight is the same ambiguity for another
+     * second. Put back on failure, because a banner that vanished while the
+     * alert was still open would be worse than one that never appeared.
+     */
+    fun acknowledgeAlert(alertId: String) {
+        val before = conversation
+        conversation = before?.copy(open_alert = null)
+        scope.launch {
+            try {
+                val result = repo.acknowledgeAlert(companyId, alertId)
+                notify(
+                    if (result.outcome == "already_acknowledged") {
+                        OnCall.alertTakenLine("Somebody else")
+                    } else {
+                        OnCall.BANNER_YOURS
+                    },
+                )
+            } catch (cause: Exception) {
+                conversation = before
                 notify(cause.userMessage())
             }
         }

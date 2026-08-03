@@ -51,6 +51,24 @@ enum OnCall {
         "\(name) is \(until) \(value)"
     }
 
+    // MARK: - #244 the unclaimed-page banner
+
+    /// Unclaimed. Says what is owed, not what happened.
+    static let bannerWaiting = "Nobody has picked this up yet"
+
+    /// The action. First person, because that is what tapping it means.
+    static let bannerClaim = "I have this"
+
+    /// Claimed by somebody else — the sentence that stops a second callback.
+    static let bannerTaken = "has this"
+
+    /// Claimed by you. Confirms it stuck, and that the others were told.
+    static let bannerYours = "You have this. The rest of the crew has been told."
+
+    static func alertTakenLine(_ name: String) -> String {
+        "\(name) \(bannerTaken)"
+    }
+
     /// Turn a preset into a real window.
     ///
     /// `offsetMinutes` is the crew's offset from UTC, passed in rather than

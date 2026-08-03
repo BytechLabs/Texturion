@@ -42,6 +42,7 @@ import {
 } from "./composer-banner";
 import { ComposerBannerCard } from "./composer-banners";
 import { Composer } from "./composer";
+import { AlertBanner } from "./alert-banner";
 import { ScheduledStrip } from "./scheduled-strip";
 import { TheirTime } from "./their-time";
 import { MessageList } from "./message-list";
@@ -348,6 +349,18 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             {/* #233: shown even here. A banner means something is wrong with
                 sending, which is exactly when a queued text is HELD and most
                 needs saying out loud. */}
+            {/* #244: above the scheduled strip, because this is the only
+                thing on the screen with a clock running on it — somebody is
+                waiting for a callback, and if nobody claims it the alert
+                widens to the whole crew. Shown in BOTH composer branches for
+                the same reason the strip above is: a notes-only member can
+                still be the one who is awake.
+                *Applying: Prioritize Intent — the core action first.* */}
+            <AlertBanner
+              conversationId={conversationId}
+              alert={conversation.open_alert ?? null}
+              viewerId={me.data?.user_id ?? null}
+            />
             <ScheduledStrip conversationId={conversationId} />
             <PresenceStrip viewers={presence.viewers} />
             <Composer
@@ -366,6 +379,18 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             {conversation.viewer_level === "text" && (
               <TheirTime clock={conversation.destination_clock} />
             )}
+            {/* #244: above the scheduled strip, because this is the only
+                thing on the screen with a clock running on it — somebody is
+                waiting for a callback, and if nobody claims it the alert
+                widens to the whole crew. Shown in BOTH composer branches for
+                the same reason the strip above is: a notes-only member can
+                still be the one who is awake.
+                *Applying: Prioritize Intent — the core action first.* */}
+            <AlertBanner
+              conversationId={conversationId}
+              alert={conversation.open_alert ?? null}
+              viewerId={me.data?.user_id ?? null}
+            />
             <ScheduledStrip conversationId={conversationId} />
             <PresenceStrip viewers={presence.viewers} />
             <Composer

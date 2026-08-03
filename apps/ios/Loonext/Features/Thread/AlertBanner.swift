@@ -1,0 +1,55 @@
+import SwiftUI
+
+/// #244 — the strip on a thread nobody has picked up.
+///
+/// Design notes, and the principles behind them:
+///
+/// - **The point is the NAME.** "When everyone is notified, no one is
+///   accountable." This turns "somebody should call these people" into "I have
+///   this", visible to everybody else who opens the thread.
+///   *Applying: Prioritize Intent — the core action first, and there is one.*
+/// - **It shows on every route into the thread**, not just the notification's
+///   deep link: the person best placed to claim it is often not the one who was
+///   paged, because that person is asleep.
+/// - **It disappears the moment it is claimed.** A banner that lingers after
+///   somebody took it teaches the crew to ignore banners.
+/// - **No confirmation.** Taking responsibility for a callback is reversible by
+///   telling the crew. *Applying: Ethical Friction, on the irreversible edge
+///   only, and this edge is the opposite of that.*
+///
+/// Mirrors the web and Android banners; `OnCallCopyTests` keeps the words
+/// identical.
+struct AlertBanner: View {
+    let alert: OpenAlert?
+    let viewerId: String?
+    let onClaim: (String) -> Void
+
+    var body: some View {
+        // Absent on nearly every thread. Reserving space for it would be a
+        // permanent cost paid for a rare event.
+        if let alert {
+            HStack(spacing: 8) {
+                Image(systemName: "bell.badge")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(BrandColor.olive)
+                Text(waitingLine(alert))
+                    .font(.golos(13))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button(OnCall.bannerClaim) { onClaim(alert.id) }
+                    .font(.golos(13, weight: .semibold))
+                    .buttonStyle(.borderedProminent)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(BrandColor.avatarTint)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    private func waitingLine(_ alert: OpenAlert) -> String {
+        guard let paged = alert.on_call_name,
+              alert.on_call_user_id != viewerId
+        else { return OnCall.bannerWaiting }
+        return "\(OnCall.bannerWaiting) · \(paged) was told first"
+    }
+}
