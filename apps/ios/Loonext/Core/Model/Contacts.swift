@@ -19,6 +19,28 @@ func isCarrierEnforcedOptOut(_ source: String?) -> Bool {
 
 /// Contact rows. Detail + list share the shape; `opted_out` rides every read,
 /// `last_activity_at` only on list rows (conversation activity, never edits).
+/// #291 — one of a contact's addresses.
+///
+/// The label is free text: a fixed vocabulary is wrong for the second trade
+/// that uses it — a property manager labels by unit, a builder by lot.
+struct ContactAddress: Codable, Sendable, Identifiable {
+    var id: String = ""
+    var label: String? = nil
+    var address: String = ""
+    var is_primary: Bool = false
+    var created_at: String = ""
+}
+
+struct ContactAddressBody: Codable, Sendable {
+    var address: String? = nil
+    var label: String? = nil
+    var is_primary: Bool? = nil
+}
+
+struct ContactAddressCreated: Codable, Sendable {
+    var data: ContactAddress = ContactAddress()
+}
+
 struct Contact: Codable, Sendable {
     let id: String
     let phone_e164: String
@@ -32,6 +54,10 @@ struct Contact: Codable, Sendable {
     /// #291: for quotes (#287) and receipts (#224), and as the fallback a
     /// human can use when a text will not reach somebody.
     var email: String? = nil
+    /// #291: the OTHER addresses. Primary first, then oldest. Empty for every
+    /// contact that predates the feature — `address` above still holds their
+    /// one address and still works.
+    var addresses: [ContactAddress]? = nil
     let notes: String?
     let consent_source: String?
     let consent_at: String?

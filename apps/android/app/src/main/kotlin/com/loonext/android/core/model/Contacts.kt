@@ -30,6 +30,21 @@ fun isCarrierEnforcedOptOut(source: String?): Boolean =
  * null actors (no backfill lie) — the UI shows the line only when a name
  * resolves. Nullable-with-default so older payloads still decode.
  */
+/**
+ * #291 — one of a contact's addresses.
+ *
+ * The label is free text: a fixed vocabulary is wrong for the second trade
+ * that uses it — a property manager labels by unit, a builder by lot.
+ */
+@Serializable
+data class ContactAddress(
+    val id: String = "",
+    val label: String? = null,
+    val address: String = "",
+    val is_primary: Boolean = false,
+    val created_at: String = "",
+)
+
 @Serializable
 data class Contact(
     val id: String,
@@ -54,6 +69,12 @@ data class Contact(
      * can use when a text will not reach somebody.
      */
     val email: String? = null,
+    /**
+     * #291: the OTHER addresses. Primary first, then oldest. Empty for every
+     * contact that predates the feature — `address` above still holds their
+     * one address and still works.
+     */
+    val addresses: List<ContactAddress> = emptyList(),
     val notes: String? = null,
     val consent_source: String? = null,
     val consent_at: String? = null,
@@ -171,3 +192,13 @@ data class ContactMergeResult(
     val closed: Int = 0,
     val opted_out: Boolean = false,
 )
+
+@Serializable
+data class ContactAddressBody(
+    val address: String? = null,
+    val label: String? = null,
+    val is_primary: Boolean? = null,
+)
+
+@Serializable
+data class ContactAddressCreated(val data: ContactAddress = ContactAddress())

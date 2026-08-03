@@ -65,6 +65,46 @@ struct ContactMutations: Sendable {
     }
 
     /// Patch ONE field; blank input clears it (an explicit JSON null).
+    // MARK: - #291 addresses
+
+    /// One row, one request. A whole-list replace would make "add one address"
+    /// a read-modify-write, and two people editing a property manager's forty
+    /// buildings would silently lose each other's work.
+    func addAddress(
+        companyId: String,
+        contactId: String,
+        body: ContactAddressBody
+    ) async throws -> ContactAddressCreated {
+        try await api.post(
+            "/v1/contacts/\(contactId)/addresses",
+            body: body,
+            companyId: companyId
+        )
+    }
+
+    func makeAddressPrimary(
+        companyId: String,
+        contactId: String,
+        addressId: String
+    ) async throws -> ContactAddressCreated {
+        try await api.patch(
+            "/v1/contacts/\(contactId)/addresses/\(addressId)",
+            body: ContactAddressBody(is_primary: true),
+            companyId: companyId
+        )
+    }
+
+    func removeAddress(
+        companyId: String,
+        contactId: String,
+        addressId: String
+    ) async throws {
+        try await api.delete(
+            "/v1/contacts/\(contactId)/addresses/\(addressId)",
+            companyId: companyId
+        )
+    }
+
     func updateField(
         companyId: String,
         contactId: String,

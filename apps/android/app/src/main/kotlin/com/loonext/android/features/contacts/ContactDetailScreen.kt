@@ -70,6 +70,7 @@ import com.loonext.android.AppGraph
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.model.Contact
+import com.loonext.android.core.model.ContactAddressBody
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.net.ApiErrorCode
@@ -244,6 +245,15 @@ private fun ContactDetailBody(
     val haptics = rememberHaptics()
 
     var actionError by remember(contact.id) { mutableStateOf<String?>(null) }
+
+    // #291: re-read the contact and put it back in the cache. The address
+    // writes change state the SERVER decides — which one is primary — so the
+    // screen asks rather than guessing.
+    suspend fun refreshContact() {
+        runCatching { mutations.detail(companyId, contact.id) }
+            .onSuccess { graph.storeCache.put(CacheKeys.contact(companyId, contact.id), it) }
+    }
+
     var confirmOptOut by remember(contact.id) { mutableStateOf(false) }
     var confirmDelete by remember(contact.id) { mutableStateOf(false) }
     var working by remember(contact.id) { mutableStateOf(false) }
@@ -542,6 +552,45 @@ private fun ContactDetailBody(
                 save = { value ->
                     val updated = mutations.updateField(companyId, contact.id, "address", value)
                     graph.storeCache.put(CacheKeys.contact(companyId, contact.id), updated)
+                },
+            )
+            // #291: the OTHER addresses, absent until there are any. The row
+            // above stays the one-address case, which is most of them.
+            //
+            // Each write re-reads the contact and puts it back in the cache,
+            // the same shape the autosave rows above use: the server decides
+            // which address is primary (adding the first one promotes it,
+            // deleting the primary promotes a survivor), so echoing a guess
+            // locally would show the wrong answer until the next open.
+            AddressList(
+                addresses = contact.addresses,
+                onAdd = { label, address ->
+                    scope.launch {
+                        runCatching {
+                            mutations.addAddress(
+                                companyId,
+                                contact.id,
+                                ContactAddressBody(address = address, label = label),
+                            )
+                            refreshContact()
+                        }.onFailure { actionError = it.userMessage() }
+                    }
+                },
+                onMakePrimary = { addressId ->
+                    scope.launch {
+                        runCatching {
+                            mutations.makeAddressPrimary(companyId, contact.id, addressId)
+                            refreshContact()
+                        }.onFailure { actionError = it.userMessage() }
+                    }
+                },
+                onRemove = { addressId ->
+                    scope.launch {
+                        runCatching {
+                            mutations.removeAddress(companyId, contact.id, addressId)
+                            refreshContact()
+                        }.onFailure { actionError = it.userMessage() }
+                    }
                 },
             )
             RowDivider()

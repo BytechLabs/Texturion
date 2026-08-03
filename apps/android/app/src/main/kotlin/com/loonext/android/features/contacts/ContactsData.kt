@@ -2,6 +2,8 @@ package com.loonext.android.features.contacts
 
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.Contact
+import com.loonext.android.core.model.ContactAddressBody
+import com.loonext.android.core.model.ContactAddressCreated
 import com.loonext.android.core.model.ContactMergeResult
 import com.loonext.android.core.model.DuplicatePair
 import com.loonext.android.core.model.ConversationListItem
@@ -54,6 +56,34 @@ class ContactMutations(private val api: ApiClient, baseUrl: String) {
     )
 
     /** Patch ONE field; blank input clears it (an explicit JSON null). */
+    // -- #291 addresses ---------------------------------------------------
+
+    /**
+     * One row, one request. A whole-list replace would make "add one address"
+     * a read-modify-write, and two people editing a property manager's forty
+     * buildings would silently lose each other's work.
+     */
+    suspend fun addAddress(
+        companyId: String,
+        contactId: String,
+        body: ContactAddressBody,
+    ): ContactAddressCreated =
+        api.post("/v1/contacts/$contactId/addresses", body = body, companyId = companyId)
+
+    suspend fun makeAddressPrimary(
+        companyId: String,
+        contactId: String,
+        addressId: String,
+    ): ContactAddressCreated = api.patch(
+        "/v1/contacts/$contactId/addresses/$addressId",
+        body = ContactAddressBody(is_primary = true),
+        companyId = companyId,
+    )
+
+    suspend fun removeAddress(companyId: String, contactId: String, addressId: String) {
+        api.delete("/v1/contacts/$contactId/addresses/$addressId", companyId = companyId)
+    }
+
     suspend fun updateField(
         companyId: String,
         contactId: String,

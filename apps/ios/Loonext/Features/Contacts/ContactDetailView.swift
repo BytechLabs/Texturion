@@ -468,6 +468,59 @@ struct ContactDetailView: View {
                 )
             }
             .id("\(contact.id)|address")
+            // #291: the OTHER addresses, absent until there are any. The row
+            // above stays the one-address case, which is most of them.
+            //
+            // Each write bumps `refreshKey`, which is what already drives this
+            // screen's own re-read. The server decides which address is primary
+            // — adding the first promotes it, deleting the primary promotes a
+            // survivor — so echoing a guess locally would show the wrong answer
+            // until the next open.
+            AddressList(
+                addresses: contact.addresses ?? [],
+                onAdd: { label, address in
+                    Task {
+                        do {
+                            _ = try await mutations.addAddress(
+                                companyId: companyId,
+                                contactId: contact.id,
+                                body: ContactAddressBody(address: address, label: label)
+                            )
+                            refreshKey += 1
+                        } catch {
+                            actionError = error.userMessage
+                        }
+                    }
+                },
+                onMakePrimary: { addressId in
+                    Task {
+                        do {
+                            _ = try await mutations.makeAddressPrimary(
+                                companyId: companyId,
+                                contactId: contact.id,
+                                addressId: addressId
+                            )
+                            refreshKey += 1
+                        } catch {
+                            actionError = error.userMessage
+                        }
+                    }
+                },
+                onRemove: { addressId in
+                    Task {
+                        do {
+                            try await mutations.removeAddress(
+                                companyId: companyId,
+                                contactId: contact.id,
+                                addressId: addressId
+                            )
+                            refreshKey += 1
+                        } catch {
+                            actionError = error.userMessage
+                        }
+                    }
+                }
+            )
             RowDivider()
             // #291: beside the address rather than beside the phone, because it
             // answers the same question — how we reach them when a text is the
