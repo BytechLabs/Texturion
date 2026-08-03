@@ -1,7 +1,8 @@
 "use client";
 
+import { explainRejection } from "@loonext/shared";
 import { AlertTriangle, Check, CircleDashed, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { PORT_STATE_COPY, PORT_STEP_COPY } from "@/components/porting/copy";
@@ -11,6 +12,7 @@ import {
 } from "@/components/porting/port-ui-state";
 import { PortDocumentsForm } from "@/components/settings/port-documents-form";
 import { PortFixForm } from "@/components/settings/port-fix-form";
+import { RejectionNotice } from "@/components/settings/rejection-notice";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import {
   useCancelPortRequest,
@@ -165,13 +168,20 @@ export function PortCard({
   port: PortRequest;
   country: Country;
 }) {
-  const { role } = useActiveCompany();
+  const { role, companyId, membership } = useActiveCompany();
+  const company = useCompany().data;
   const submit = useSubmitPortRequest(port.id);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // The fix form below, so the rejection notice can focus the flagged field
+  // without a global query (#319, same wiring as the registration surface).
+  const fixFormRef = useRef<HTMLDivElement | null>(null);
 
   const ui = derivePortUiState(port);
   const canEdit = role === "owner" || role === "admin";
   const display = formatPhone(port.phone_e164);
+  // Null when the shared catalogue doesn't recognise the carrier's wording —
+  // the raw banner below stays the honest answer for that case.
+  const rejection = explainRejection("port", port.rejection_reason);
 
   // A cancelled/abandoned transfer collapses to a quiet released-style note.
   if (ui.cancelled && port.status === "cancelled") {
@@ -242,17 +252,37 @@ export function PortCard({
             {PORT_STATE_COPY.textingLive}
           </p>
         ) : ui.exception === "voice" ? (
-          <div className="flex items-start gap-2.5 rounded-md bg-warning/10 px-3 py-2 text-sm">
-            <AlertTriangle
-              className="mt-0.5 size-4 shrink-0 text-amber-800 dark:text-warning"
-              strokeWidth={1.75}
-              aria-hidden
+          // #319: the carrier's token said in plain language, plus the one
+          // field to correct — the same catalogue and the same notice the
+          // registration surface reads. It keeps the carrier's own words on
+          // screen, demoted. An unrecognised reason keeps the raw banner
+          // instead: a generic sentence would hide the only concrete thing the
+          // customer was given.
+          rejection ? (
+            <RejectionNotice
+              domain="port"
+              reason={port.rejection_reason}
+              submissionCount={port.submission_count}
+              formRef={fixFormRef}
+              company={{
+                id: companyId,
+                name: company?.name ?? membership.name,
+                plan: company?.plan ?? null,
+              }}
             />
-            {/* rejection_reason is carrier-authored — break long tokens at 375px. */}
-            <span className="min-w-0 break-words">
-              {PORT_STATE_COPY.voiceException(port.rejection_reason)}
-            </span>
-          </div>
+          ) : (
+            <div className="flex items-start gap-2.5 rounded-md bg-warning/10 px-3 py-2 text-sm">
+              <AlertTriangle
+                className="mt-0.5 size-4 shrink-0 text-amber-800 dark:text-warning"
+                strokeWidth={1.75}
+                aria-hidden
+              />
+              {/* rejection_reason is carrier-authored — break long tokens at 375px. */}
+              <span className="min-w-0 break-words">
+                {PORT_STATE_COPY.voiceException(port.rejection_reason)}
+              </span>
+            </div>
+          )
         ) : ui.exception === "messaging" ? (
           <p className="rounded-md bg-warning/10 px-3 py-2 text-sm">
             {PORT_STATE_COPY.messagingException}
@@ -334,7 +364,7 @@ export function PortCard({
 
         {/* Exception: fix-and-resubmit (§8.2). */}
         {ui.exception === "voice" && canEdit ? (
-          <div className="border-t border-border-subtle pt-4">
+          <div ref={fixFormRef} className="border-t border-border-subtle pt-4">
             <PortFixForm port={port} country={country} />
           </div>
         ) : ui.exception === "voice" && !canEdit ? (

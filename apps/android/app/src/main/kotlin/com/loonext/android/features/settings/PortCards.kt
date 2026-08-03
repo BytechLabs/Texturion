@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,9 +28,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.CompanyView
+import com.loonext.android.core.model.RejectionDomain
 import com.loonext.android.ui.common.assertAboveIme
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.userMessage
@@ -93,10 +97,18 @@ private fun PortFormFields(
     wireless: Boolean,
     country: String,
     enabled: Boolean,
+    // #319: the field a carrier rejection concerns, routed here by the notice
+    // above. Nine fields and no direction is how somebody resubmits the same
+    // mistake and buys another multi-day carrier review.
+    focusField: String? = null,
+    onFocusHandled: () -> Unit = {},
 ) {
     val ssnLabel = if (country == "US") "SSN" else "SIN"
     val regionLabel = if (country == "US") "State" else "Province"
     val postalLabel = if (country == "US") "ZIP code" else "Postal code"
+    // Keyed by the same field names the shared catalogue routes to, so the
+    // vectors that pin the routing also pin what this can reach.
+    val focusRequesters = remember { mutableMapOf<String, FocusRequester>() }
 
     @Composable
     fun field(
@@ -104,18 +116,34 @@ private fun PortFormFields(
         label: String,
         onChange: (String) -> Unit,
         keyboard: KeyboardType = KeyboardType.Text,
+        key: String? = null,
     ) {
+        val requester = key?.let { name ->
+            remember(name) { FocusRequester() }.also { focusRequesters[name] = it }
+        }
         OutlinedTextField(
             value = value,
             onValueChange = onChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp),
+                .padding(vertical = 4.dp)
+                .let { if (requester != null) it.focusRequester(requester) else it },
             singleLine = true,
             enabled = enabled,
             label = { Text(label) },
             keyboardOptions = KeyboardOptions(keyboardType = keyboard),
         )
+    }
+
+    // The requesters exist by the time effects run, so unlike the registration
+    // form there is nothing to expand first — these fields are always composed.
+    LaunchedEffect(focusField) {
+        val target = focusField ?: return@LaunchedEffect
+        // requestFocus throws if the node is gone (a field the wireless branch
+        // does not render). Losing the cursor is a worse-than-nothing outcome,
+        // not a crash-worthy one.
+        runCatching { focusRequesters[target]?.requestFocus() }
+        onFocusHandled()
     }
 
     Text(
@@ -124,9 +152,24 @@ private fun PortFormFields(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    field(form.entityName, "Account holder", { onForm(form.copy(entityName = it)) })
-    field(form.authPersonName, "Authorized person", { onForm(form.copy(authPersonName = it)) })
-    field(form.accountNumber, "Account number", { onForm(form.copy(accountNumber = it)) })
+    field(
+        form.entityName,
+        "Account holder",
+        { onForm(form.copy(entityName = it)) },
+        key = "entity_name",
+    )
+    field(
+        form.authPersonName,
+        "Authorized person",
+        { onForm(form.copy(authPersonName = it)) },
+        key = "auth_person_name",
+    )
+    field(
+        form.accountNumber,
+        "Account number",
+        { onForm(form.copy(accountNumber = it)) },
+        key = "account_number",
+    )
     if (wireless) {
         Text(
             "This is a mobile number. Enter the transfer PIN and the last 4 of the " +
@@ -147,7 +190,12 @@ private fun PortFormFields(
             keyboard = KeyboardType.Number,
         )
     }
-    field(form.street, "Street address", { onForm(form.copy(street = it)) })
+    field(
+        form.street,
+        "Street address",
+        { onForm(form.copy(street = it)) },
+        key = "service_street",
+    )
     field(form.locality, "City", { onForm(form.copy(locality = it)) })
     field(form.adminArea, regionLabel, { onForm(form.copy(adminArea = it)) })
     field(form.postalCode, postalLabel, { onForm(form.copy(postalCode = it)) })
@@ -200,6 +248,8 @@ private fun PortCard(scope: SettingsScope, port: PortRequest, onChanged: () -> U
     val canManage = SettingsRoleGate.canManageNumbers(scope.role)
     val canCancel = SettingsRoleGate.canCancelPort(scope.role)
     var fixing by remember { mutableStateOf(false) }
+    // #319: which form field the rejection notice asked the fix dialog to focus.
+    var focusField by remember { mutableStateOf<String?>(null) }
     var cancelling by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var actionError by remember { mutableStateOf<String?>(null) }
@@ -227,12 +277,22 @@ private fun PortCard(scope: SettingsScope, port: PortRequest, onChanged: () -> U
             )
         }
         if (port.status == PortStatus.EXCEPTION) {
-            Text(
-                "Your current carrier rejected the transfer" +
-                    (port.rejection_reason?.let { ": $it" } ?: ".") +
-                    " Fix the details and resubmit. Nothing is lost.",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 6.dp),
+            Spacer(Modifier.height(8.dp))
+            // #319: the carrier's token, translated into what happened and the
+            // one thing to change, with a jump to the field it concerns. The
+            // catalogue and this component both shipped with #352 and were
+            // wired to registration only — a rejected transfer still read out
+            // "LOA_MISMATCH" and left the customer to guess.
+            RejectionNotice(
+                domain = RejectionDomain.PORT,
+                reason = port.rejection_reason,
+                submissionCount = port.submission_count,
+                onGoToField = { field ->
+                    // The form lives behind a dialog here, so "take me to it"
+                    // has to open the dialog before it can reach the field.
+                    focusField = field
+                    fixing = true
+                },
             )
         }
         if (port.bridge_number_e164 != null) {
@@ -304,9 +364,14 @@ private fun PortCard(scope: SettingsScope, port: PortRequest, onChanged: () -> U
         FixPortDialog(
             scope = scope,
             port = port,
-            onDismiss = { fixing = false },
+            focusField = focusField,
+            onDismiss = {
+                fixing = false
+                focusField = null
+            },
             onDone = {
                 fixing = false
+                focusField = null
                 onChanged()
             },
         )
@@ -596,6 +661,8 @@ private fun StartPortDialog(
 private fun FixPortDialog(
     scope: SettingsScope,
     port: PortRequest,
+    // #319: the field the notice on the card sent them here for, if any.
+    focusField: String?,
     onDismiss: () -> Unit,
     onDone: () -> Unit,
 ) {
@@ -614,6 +681,7 @@ private fun FixPortDialog(
     }
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var focus by remember { mutableStateOf(focusField) }
     val coroutines = rememberCoroutineScope()
 
     AlertDialog(
@@ -623,13 +691,16 @@ private fun FixPortDialog(
             // #199: platform-positioned dialog window + debug guard on the
             // port form fields.
             Column(Modifier.verticalScroll(rememberScrollState()).assertAboveIme("dialog")) {
-                port.rejection_reason?.let { reason ->
-                    Text(
-                        "Rejection reason: $reason",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
-                }
+                // #319: the same translation the card shows, kept in view while
+                // they retype, in place of the bare carrier token that used to
+                // head this dialog.
+                RejectionNotice(
+                    domain = RejectionDomain.PORT,
+                    reason = port.rejection_reason,
+                    submissionCount = port.submission_count,
+                    onGoToField = { focus = it },
+                )
+                Spacer(Modifier.height(8.dp))
                 Text(
                     "The account number and PIN are never shown back for security. " +
                         "Re-enter them.",
@@ -643,6 +714,8 @@ private fun FixPortDialog(
                     wireless = port.is_wireless,
                     country = port.country,
                     enabled = !pending,
+                    focusField = focus,
+                    onFocusHandled = { focus = null },
                 )
                 InlineError(error)
             }

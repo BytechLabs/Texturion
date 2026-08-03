@@ -129,6 +129,12 @@ export function PortFixForm({
             <Label htmlFor={`fix-${field.key}`}>{field.label(country)}</Label>
             <Input
               id={`fix-${field.key}`}
+              // #319: the rejection notice's "Take me to it" finds its input by
+              // `[name=...]`, so without this the button renders and does
+              // nothing — help right up until somebody taps it. The registration
+              // form gets `name` for free from react-hook-form's field spread;
+              // this form is controlled by hand and had only an id.
+              name={field.key}
               value={values[field.key] ?? ""}
               onChange={(e) => set(field.key, e.target.value)}
               autoComplete={field.autoComplete}

@@ -39,11 +39,33 @@ struct PortForm: Equatable, Sendable {
     }
 }
 
+/// The fields a rejection can send somebody to (#319). These strings are what
+/// the shared catalogue returns from `explainRejection(.port, …)` AND the keys
+/// `fieldsJson` puts on the wire; `PortRejectionRoutingTests` pins the three
+/// together, because a name no field carries is a "Take me to it" button that
+/// does nothing at all.
+enum PortFixField {
+    static let entityName = "entity_name"
+    static let authPersonName = "auth_person_name"
+    static let accountNumber = "account_number"
+    static let serviceStreet = "service_street"
+
+    static let all: Set<String> = [
+        entityName, authPersonName, accountNumber, serviceStreet,
+    ]
+}
+
 private struct PortFormFields: View {
     @Binding var form: PortForm
     let wireless: Bool
     let country: String
     let enabled: Bool
+    /// #319: the field a rejection named, routed in from the notice above and
+    /// cleared once the cursor lands there. Constant on the create path, which
+    /// has no rejection behind it.
+    var focusField: Binding<String?> = .constant(nil)
+
+    @FocusState private var focused: String?
 
     private var ssnLabel: String { country == "US" ? "SSN" : "SIN" }
     private var regionLabel: String { country == "US" ? "State" : "Province" }
@@ -56,9 +78,20 @@ private struct PortFormFields: View {
         )
         .font(.footnote)
         .foregroundStyle(.secondary)
-        field("Account holder", text: $form.entityName)
-        field("Authorized person", text: $form.authPersonName)
-        field("Account number", text: $form.accountNumber)
+        // The jump hangs off this line because the body is a bare list of
+        // siblings with no container to carry an effect, and this one always
+        // renders.
+        .task(id: focusField.wrappedValue) {
+            guard let target = focusField.wrappedValue else { return }
+            // The requester cannot resolve until the field has composed, which
+            // is at least one runloop turn after the sheet appears.
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            focused = target
+            focusField.wrappedValue = nil
+        }
+        field("Account holder", text: $form.entityName, key: PortFixField.entityName)
+        field("Authorized person", text: $form.authPersonName, key: PortFixField.authPersonName)
+        field("Account number", text: $form.accountNumber, key: PortFixField.accountNumber)
         if wireless {
             Text(
                 "This is a mobile number. Enter the transfer PIN and the last 4 of the "
@@ -81,14 +114,17 @@ private struct PortFormFields: View {
             .disabled(!enabled)
             .padding(.vertical, 4)
         }
-        field("Street address", text: $form.street)
+        field("Street address", text: $form.street, key: PortFixField.serviceStreet)
         field("City", text: $form.locality)
         field(regionLabel, text: $form.adminArea)
         field(postalLabel, text: $form.postalCode)
     }
 
-    private func field(_ label: String, text: Binding<String>) -> some View {
+    private func field(_ label: String, text: Binding<String>, key: String? = nil) -> some View {
         TextField(label, text: text)
+            // Unkeyed fields get a value nothing routes to, rather than a
+            // conditional modifier that would change the view's type.
+            .focused($focused, equals: key ?? "unrouted:\(label)")
             .textFieldStyle(.roundedBorder)
             .disabled(!enabled)
             .padding(.vertical, 4)
@@ -142,6 +178,9 @@ private struct PortCard: View {
     @State private var cancelling = false
     @State private var busy = false
     @State private var actionError: String?
+    /// #319: the field the rejection notice asked the fix sheet to focus. Set
+    /// afresh at every entry point, because a sheet can also be swiped away.
+    @State private var focusField: String?
 
     private var canManage: Bool { SettingsRoleGate.canManageNumbers(scope.role) }
     private var canCancel: Bool { SettingsRoleGate.canCancelPort(scope.role) }
@@ -159,13 +198,24 @@ private struct PortCard: View {
                     .padding(.top, 6)
             }
             if port.status == PortStatus.exception {
-                Text(
-                    "Your current carrier rejected the transfer"
-                        + (port.rejection_reason.map { ": \($0)" } ?? ".")
-                        + " Fix the details and resubmit — nothing is lost."
+                // #319: the carrier's own token translated into what happened
+                // and the one thing to change, with a jump into the fix sheet
+                // at the field it concerns. The raw reason is not lost — the
+                // notice keeps it on screen, demoted, and it is all the
+                // customer has when the catalogue does not recognise it.
+                RejectionNotice(
+                    domain: .port,
+                    reason: port.rejection_reason,
+                    submissionCount: port.submission_count,
+                    onGoToField: { field in
+                        // Viewers read the rejection but cannot act on it, the
+                        // same way "Fix and resubmit" below is owner/admin only.
+                        guard canManage else { return }
+                        focusField = field
+                        fixing = true
+                    }
                 )
-                .font(.footnote)
-                .padding(.top, 6)
+                .padding(.top, 8)
             }
             if let bridge = port.bridge_number_e164 {
                 Text("Temporary number while you wait: \(formatPhone(bridge)).")
@@ -198,7 +248,10 @@ private struct PortCard: View {
                         .disabled(busy)
                 }
                 if canManage && port.status == PortStatus.exception {
-                    Button("Fix and resubmit") { fixing = true }
+                    Button("Fix and resubmit") {
+                        focusField = nil
+                        fixing = true
+                    }
                         .buttonStyle(.borderedProminent)
                         .tint(BrandColor.olive)
                         .disabled(busy)
@@ -214,7 +267,7 @@ private struct PortCard: View {
             .padding(.top, 6)
         }
         .sheet(isPresented: $fixing) {
-            FixPortSheet(scope: scope, port: port) {
+            FixPortSheet(scope: scope, port: port, focusField: focusField) {
                 fixing = false
                 onChanged()
             } onDismiss: {
@@ -533,10 +586,14 @@ private struct FixPortSheet: View {
     @State private var form: PortForm
     @State private var pending = false
     @State private var error: String?
+    /// #319: which field to put the cursor in — seeded by the notice on the
+    /// card, and reset by the notice in here.
+    @State private var focusTarget: String?
 
     init(
         scope: SettingsScope,
         port: PortRequest,
+        focusField: String? = nil,
         onDone: @escaping @MainActor () -> Void,
         onDismiss: @escaping @MainActor () -> Void
     ) {
@@ -544,6 +601,7 @@ private struct FixPortSheet: View {
         self.port = port
         self.onDone = onDone
         self.onDismiss = onDismiss
+        _focusTarget = State(initialValue: focusField)
         _form = State(initialValue: PortForm(
             entityName: port.entity_name,
             authPersonName: port.auth_person_name,
@@ -559,11 +617,17 @@ private struct FixPortSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    if let reason = port.rejection_reason {
-                        Text("Rejection reason: \(reason)")
-                            .font(.footnote)
-                            .padding(.bottom, 8)
-                    }
+                    // #319: the same translation the card carries, kept in front
+                    // of the customer while they retype the fields it names.
+                    // Only a rejected transfer can open this sheet, so there is
+                    // always something to explain.
+                    RejectionNotice(
+                        domain: .port,
+                        reason: port.rejection_reason,
+                        submissionCount: port.submission_count,
+                        onGoToField: { focusTarget = $0 }
+                    )
+                    .padding(.bottom, 8)
                     Text("The account number and PIN are never shown back for security — re-enter them.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -572,7 +636,8 @@ private struct FixPortSheet: View {
                         form: $form,
                         wireless: port.is_wireless,
                         country: port.country,
-                        enabled: !pending
+                        enabled: !pending,
+                        focusField: $focusTarget
                     )
                     InlineError(error)
                     Spacer().frame(height: 16)
