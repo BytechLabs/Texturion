@@ -357,11 +357,55 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
   const rawQ = c.req.query("q")?.trim();
   const db = getDb(getEnv(c.env));
 
+  /**
+   * #291 — narrow the list to one answer in one of the workspace's own fields.
+   *
+   * "Everyone on a Combi system", before a parts order. One field at a time
+   * rather than a query builder: two conditions combined is a report, and a
+   * report is a different screen with different expectations about accuracy.
+   *
+   * The KEY IS CHECKED against the workspace's definitions. An unknown key
+   * filtered to nothing would look like a workspace with no matching
+   * customers, and an unknown key IGNORED would look like a filter that does
+   * not work — both are worse than a refusal that says which field is missing.
+   */
+  const filterField = c.req.query("field")?.trim();
+  const filterValue = c.req.query("value");
+  if (filterField !== undefined && filterField !== "") {
+    if (filterValue === undefined) {
+      throw new ApiError(
+        "validation_failed",
+        "field: needs a value to filter on.",
+      );
+    }
+    const defs = unwrap<{ key: string }[]>(
+      await db
+        .from("contact_field_defs")
+        .select("key")
+        .eq("company_id", c.get("companyId"))
+        .eq("key", filterField)
+        .limit(1),
+      "contact field definition",
+    );
+    if (defs.length === 0) {
+      throw new ApiError(
+        "validation_failed",
+        `There is no "${filterField}" field on your contacts.`,
+      );
+    }
+  }
+
   let query = db
     .from("contacts")
     .select(CONTACT_LIST_COLUMNS)
     .eq("company_id", c.get("companyId"))
     .is("deleted_at", null);
+  if (filterField !== undefined && filterField !== "" && filterValue !== undefined) {
+    // `->>` so the comparison is against the TEXT of the value. Comparing the
+    // jsonb would make "Combi" and "Combi" different answers, and only one of
+    // them is what the picker sends.
+    query = query.eq(`custom_fields->>${filterField}`, filterValue);
+  }
   if (rawQ !== undefined && rawQ !== "") {
     if (rawQ.length > 200) {
       throw new ApiError("validation_failed", "q: too long (max 200).");
@@ -414,6 +458,16 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
       .eq("company_id", c.get("companyId"))
       .is("deleted_at", null)
       .ilike("contact_phones.phone_e164", `*${searchDigits}*`);
+    // The SAME field filter. Without it, filtering to "Combi" and then
+    // searching a number would quietly return non-Combi customers through
+    // this arm — a filter that holds on one query and not the other is worse
+    // than no filter, because the list looks filtered.
+    if (filterField !== undefined && filterField !== "" && filterValue !== undefined) {
+      byOtherNumber = byOtherNumber.eq(
+        `custom_fields->>${filterField}`,
+        filterValue,
+      );
+    }
     if (cursor) {
       byOtherNumber = byOtherNumber.or(keysetFilter("created_at", cursor));
     }

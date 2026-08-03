@@ -3218,3 +3218,156 @@ describe("searching a customer's other numbers", () => {
     expect(body.data.map((row) => row.id)).toEqual([OTHER_ID, CONTACT_ID]);
   });
 });
+
+/**
+ * #291 — narrowing the list to one answer in one of the workspace's fields.
+ *
+ * CF-4 is the one to read twice. A filter that holds on one of the two list
+ * queries and not the other is worse than no filter at all: the list LOOKS
+ * filtered, and the rows that leak through are exactly the ones somebody was
+ * trying to exclude.
+ */
+describe("filtering contacts by a custom field", () => {
+  function filterStubs(options: { defs?: Record<string, unknown>[] } = {}) {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contact_field_defs", () =>
+      options.defs ?? [{ key: "system_type" }],
+    );
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    return sb;
+  }
+
+  it("CF-1: filters on the value inside the field", async () => {
+    const sb = filterStubs();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts?field=system_type&value=Combi",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+
+    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    // `->>` so the comparison is against the TEXT. Comparing the jsonb would
+    // make "Combi" and a quoted "Combi" different answers, and the picker
+    // only ever sends one of them.
+    expect(call.url.searchParams.get("custom_fields->>system_type")).toBe(
+      "eq.Combi",
+    );
+  });
+
+  it("CF-2: refuses a field the workspace has not defined", async () => {
+    // Filtered to nothing it would look like a workspace with no matching
+    // customers; ignored it would look like a filter that does not work.
+    // Both read as a product fault rather than a typo.
+    const sb = filterStubs({ defs: [] });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts?field=nonexistent&value=Combi",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(422);
+    expect(await res.text()).toContain("nonexistent");
+    expect(sb.find("GET", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("CF-3: a field with no value is a refusal, not a filter on nothing", async () => {
+    // `?field=system_type` alone could mean "has any answer" or "has none".
+    // Guessing either would filter somebody's list by a rule they did not
+    // choose.
+    const sb = filterStubs();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts?field=system_type",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it("CF-4: the filter holds on the other-numbers query too", async () => {
+    // THE ONE THAT MATTERS. Searching a number while filtered runs a SECOND
+    // query; without the same filter it returns customers the filter excludes,
+    // into a list that looks filtered.
+    const sb = filterStubs();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts?field=system_type&value=Combi&q=5550177",
+      { companyId: COMPANY_ID },
+    );
+
+    const joined = sb
+      .find("GET", "/rest/v1/contacts")
+      .filter((call) =>
+        String(call.url.searchParams.get("select") ?? "").includes(
+          "contact_phones",
+        ),
+      );
+    expect(joined).toHaveLength(1);
+    expect(joined[0].url.searchParams.get("custom_fields->>system_type")).toBe(
+      "eq.Combi",
+    );
+  });
+
+  it("CF-5: an empty value is a real filter — 'we asked, there is no answer'", async () => {
+    // Empty is an ANSWER on a custom field (#291), so it has to be selectable.
+    // Treated as "no filter" it would silently widen to the whole list.
+    const sb = filterStubs();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts?field=system_type&value=",
+      { companyId: COMPANY_ID },
+    );
+    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    expect(call.url.searchParams.get("custom_fields->>system_type")).toBe("eq.");
+  });
+
+  it("CF-6: no filter asks nothing about the definitions", async () => {
+    // The ordinary list is every list view in the product. A definitions read
+    // on each one would be a round trip nobody asked for.
+    const sb = filterStubs();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(app, env, await auth.token(), "/v1/contacts", {
+      companyId: COMPANY_ID,
+    });
+    expect(sb.find("GET", "/rest/v1/contact_field_defs")).toHaveLength(0);
+  });
+
+  it("CF-7: the definition lookup is company-scoped", async () => {
+    // Otherwise one workspace's field key would validate another's filter, and
+    // the filter itself would then run against rows that do not have it.
+    const sb = filterStubs();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts?field=system_type&value=Combi",
+      { companyId: COMPANY_ID },
+    );
+    const call = sb.find("GET", "/rest/v1/contact_field_defs")[0];
+    expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+  });
+});
