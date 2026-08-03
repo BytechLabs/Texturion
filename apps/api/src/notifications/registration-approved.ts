@@ -72,6 +72,7 @@ export async function pushRegistrationApproved(
 
     const failures: unknown[] = [];
     await deliverPush(env, db, {
+      companyId,
       userIds: recipients,
       // #430: about the workspace, not about any customer. Withholding it
       // would protect nobody and cost the owner the one alert they have been

@@ -419,6 +419,8 @@ export {
   viewNamesCollide,
 } from "./saved-views";
 export type { SavedViewFilters, SavedViewSurface } from "./saved-views";
+export { isMemberQuietNow } from "./member-quiet-hours";
+export type { MemberQuietWindow } from "./member-quiet-hours";
 export {
   ALERT_BANNER_COPY,
   alertTakenLine,

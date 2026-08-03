@@ -198,6 +198,7 @@ export async function notifyAssigned(
 
   const failures: unknown[] = [];
   await deliverPush(env, db, {
+    companyId: input.companyId,
     userIds: [input.assigneeUserId],
     content: {
       written: alert.written,

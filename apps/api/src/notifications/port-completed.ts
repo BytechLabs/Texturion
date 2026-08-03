@@ -80,6 +80,7 @@ export async function pushPortCompleted(
 
     const failures: unknown[] = [];
     await deliverPush(env, db, {
+      companyId,
       userIds: recipients,
       // #430: this is about the workspace's own number, not about any
       // customer, so there is nothing to withhold.

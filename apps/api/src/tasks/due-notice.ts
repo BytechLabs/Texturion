@@ -231,6 +231,7 @@ export async function notifyDueTasksJob(
     };
 
     await deliverPush(env, db, {
+      companyId: task.company_id,
       userIds: [task.assigned_user_id],
       // #430: NOT named in the issue, and it belongs here. The TITLE is the
       // one a member typed, and per docs/PERSONAL-DATA-INVENTORY.md a task

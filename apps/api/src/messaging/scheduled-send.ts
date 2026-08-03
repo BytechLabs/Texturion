@@ -299,6 +299,7 @@ async function disclose(
   const failures: unknown[] = [];
 
   await deliverPush(env, db, {
+    companyId: row.company_id,
     failures,
     userIds: viewers.map((viewer) => viewer.user_id),
     // #430: every word of this is ours — the reason copy is written in

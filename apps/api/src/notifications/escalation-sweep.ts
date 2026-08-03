@@ -121,6 +121,7 @@ export async function runEscalationSweep(
       const copy = escalationCopy(alert.kind);
       const failures: unknown[] = [];
       await deliverPush(env, db, {
+        companyId: alert.company_id,
         failures,
         userIds: widenTo,
         // #430: every word is ours — see escalationCopy. Nothing the customer
@@ -131,6 +132,10 @@ export async function runEscalationSweep(
         // are two different facts, and collapsing them would silently turn the
         // escalation into an edit of a message the reader may never have seen.
         collapseKey: `escalation:${alert.id}`,
+        // #244: this IS the emergency override. An alert that has already gone
+        // unanswered for the grace period is exactly the case a member's quiet
+        // hours must not swallow — it is the reason the window is safe to set.
+        overridesQuietHours: { reason: "escalation" },
         web: {
           title: copy.title,
           body: copy.body,

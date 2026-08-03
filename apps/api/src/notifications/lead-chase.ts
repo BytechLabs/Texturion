@@ -176,6 +176,7 @@ async function sendChase(
   const copy = leadChaseNotification(2, contactName);
 
   await deliverPush(env, db, {
+    companyId: row.company_id,
     userIds: pushUsers,
     // #430: `leadChaseNotification` writes both lines; the customer's name is
     // the only thing of theirs in it, and the setting keeps names.

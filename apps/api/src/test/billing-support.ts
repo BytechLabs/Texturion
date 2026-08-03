@@ -49,8 +49,20 @@ export interface Harness {
  */
 export function makeHarness(endpoints: StubEndpoint[]): Harness {
   const calls: StubCall[] = [];
+  // #244: every push fan-out now asks whether the recipient's own quiet hours
+  // are running. The ambient answer is "nobody has set a window" — the state of
+  // every existing member, and what every suite written before #244 asserted
+  // against. Registered LAST so an explicit endpoint still wins.
+  const all = [
+    ...endpoints,
+    {
+      method: "GET",
+      pattern: /\/rest\/v1\/notification_prefs/,
+      handler: () => [],
+    } as StubEndpoint,
+  ];
   const route: FetchRoute = async (url, request) => {
-    const match = endpoints.find(
+    const match = all.find(
       (candidate) =>
         candidate.method === request.method && candidate.pattern.test(url.href),
     );

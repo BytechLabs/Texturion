@@ -164,6 +164,7 @@ export async function notifyMissedCall(
     ? { alert_id: routing.alertId }
     : {};
   await deliverPush(env, db, {
+    companyId: input.companyId,
     userIds: pushUsers,
     // #430: every word here is ours. The contact's NAME is in the title, and
     // that stays under the setting too — a name on a lock screen is what any
@@ -173,6 +174,13 @@ export async function notifyMissedCall(
     web: alert,
     native: { kind: "missed_call", ...alert, ...acknowledgeable },
     collapseKey: `conversation:${input.conversationId}`,
+    // #244: only when this was NARROWED to the on-call member. They agreed to
+    // hold the phone tonight, so their own quiet hours do not apply to the one
+    // thing they agreed to. An un-narrowed alert is ordinary traffic and stays
+    // subject to everybody's window — which is the whole point of having one.
+    ...(routing.reason === "narrowed"
+      ? { overridesQuietHours: { reason: "on_call_page" as const } }
+      : {}),
     failures,
   });
 

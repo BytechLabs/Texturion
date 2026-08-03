@@ -106,6 +106,16 @@ export function supabaseStub(env: Env): SupabaseStub {
    */
   const ambientHandlers = [
     {
+      // #244: every push fan-out now asks whether the recipient's own quiet
+      // hours are running. The ambient default is "nobody has set a window",
+      // which is the state every test written before #244 was against — and
+      // the state of every existing member. A suite that wants a window
+      // registers this path itself and wins.
+      method: "GET",
+      matcher: "/rest/v1/notification_prefs",
+      respond: () => [],
+    },
+    {
       // #236: the /v1 authorization probe hangs off EVERY authenticated
       // request, including the company-exempt ones that resolve no membership
       // at all. The ambient default is "your session is live, and you are a

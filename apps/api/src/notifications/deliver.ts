@@ -1,3 +1,4 @@
+import { isMemberQuietNow } from "@loonext/shared";
 /**
  * The push fan-out shared by the notification pipelines that treat a delivery
  * failure as a webhook-level failure: one Web Push per stored subscription and
@@ -117,6 +118,15 @@ export interface PushDelivery {
    * #430: whose words these are. See {@link PushContent} — required so that a
    * new push site cannot be added without answering the question.
    */
+  /**
+   * #244: whose workspace this alert belongs to.
+   *
+   * Required because notification preferences are keyed (user_id, company_id):
+   * a member of two workspaces has two sets, and reading them by user alone
+   * would apply the wrong workspace's quiet hours to this one's alerts. The
+   * #347 scope guard caught exactly that on the first draft.
+   */
+  companyId: string;
   content: PushContent;
   /** Notification content, as the apps/web service worker expects it. */
   web: PushPayload;
@@ -151,6 +161,20 @@ export interface PushDelivery {
    * that resource is not expressible.
    */
   highPriority?: HighPriorityRequest;
+  /**
+   * #244 — this is somebody being called to duty, not a notification, so a
+   * member's own quiet hours do not apply.
+   *
+   * It carries a REASON rather than being a bare boolean, for the same reason
+   * `highPriority` does: overriding a person's stated wish to be left alone is
+   * something every caller should have to justify in the diff, and an
+   * unattributable override is not expressible.
+   *
+   * The two are separate on purpose. `highPriority` asks the PLATFORM to wake
+   * a dozing phone; this asks US to ignore a preference. A missed call routed
+   * to the on-call member is the second without being the first.
+   */
+  overridesQuietHours?: { reason: "on_call_page" | "escalation" };
   /**
    * Every failure lands here rather than throwing, so one dead device cannot
    * stop the rest of the fan-out. The caller decides what a non-empty list
@@ -231,12 +255,77 @@ async function withheldFields(
   return include === false ? content.withheld : {};
 }
 
+/**
+ * #244 — drop the members whose own quiet hours are running.
+ *
+ * ONE READ, and it returns the input unchanged whenever it cannot answer.
+ * Every failure direction here NOTIFIES: a read that errors, a row that is
+ * missing, a window that will not parse. The asymmetry is deliberate and is
+ * the opposite of #225's — silently withholding a message somebody was waiting
+ * for is invisible to them, while an unwanted buzz is merely annoying and they
+ * can see what happened.
+ */
+async function withoutQuietMembers(
+  db: SupabaseClient,
+  companyId: string,
+  userIds: string[],
+): Promise<string[]> {
+  const { data, error } = await db
+    .from("notification_prefs")
+    .select("user_id,quiet_from,quiet_to,quiet_timezone,companies(timezone)")
+    .eq("company_id", companyId)
+    .in("user_id", userIds);
+  if (error) {
+    console.error(`quiet-hours lookup failed, notifying anyway: ${error.message}`);
+    return userIds;
+  }
+
+  const rows = (data ?? []) as unknown as {
+    user_id: string;
+    quiet_from: string | null;
+    quiet_to: string | null;
+    quiet_timezone: string | null;
+    companies: { timezone: string | null } | null;
+  }[];
+  const now = new Date();
+  const quiet = new Set(
+    rows
+      .filter((row) =>
+        isMemberQuietNow(
+          {
+            from: row.quiet_from,
+            to: row.quiet_to,
+            timezone: row.quiet_timezone,
+          },
+          row.companies?.timezone ?? null,
+          now,
+        ),
+      )
+      .map((row) => row.user_id),
+  );
+
+  // A member with no prefs row has no window, so they are never in the set.
+  return userIds.filter((userId) => !quiet.has(userId));
+}
+
 export async function deliverPush(
   env: Env,
   db: SupabaseClient,
   delivery: PushDelivery,
 ): Promise<void> {
   if (delivery.userIds.length === 0) return;
+
+  // #244: a member's own do-not-disturb, applied HERE rather than at each of
+  // the call sites — a new push site inherits it by construction, which is the
+  // only way "quiet hours are respected" stays true as sites are added.
+  //
+  // A page skips it entirely: that is the emergency override, and it is what
+  // makes the window safe to set. Somebody can silence the 1:40am customer
+  // text without also silencing the night they are holding the phone.
+  const audience = delivery.overridesQuietHours
+    ? delivery.userIds
+    : await withoutQuietMembers(db, delivery.companyId, delivery.userIds);
+  if (audience.length === 0) return;
 
   // #430: withhold BEFORE serializing, so the content never exists in a
   // payload at all rather than being hidden by a client that might not.
@@ -251,12 +340,12 @@ export async function deliverPush(
     ...native,
     tag: delivery.collapseKey,
   });
-  const ceiling = delivery.userIds.length * MAX_TARGETS_PER_USER;
+  const ceiling = audience.length * MAX_TARGETS_PER_USER;
 
   const { data: subData, error: subError } = await db
     .from("push_subscriptions")
     .select("id,user_id,endpoint,p256dh,auth")
-    .in("user_id", delivery.userIds)
+    .in("user_id", audience)
     .order("created_at", { ascending: false })
     .limit(ceiling);
   if (subError) {
@@ -315,7 +404,7 @@ export async function deliverPush(
   const { data: tokenData, error: tokenError } = await db
     .from("device_push_tokens")
     .select("id,user_id,platform,token")
-    .in("user_id", delivery.userIds)
+    .in("user_id", audience)
     .order("created_at", { ascending: false })
     .limit(ceiling);
   if (tokenError) {

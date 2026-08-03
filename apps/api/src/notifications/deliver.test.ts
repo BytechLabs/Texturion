@@ -86,6 +86,7 @@ describe("deliverPush", () => {
     stubFetch(...routes);
 
     await deliverPush(env, getDb(env), {
+      companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [],
       web: ALERT,
@@ -106,6 +107,7 @@ describe("deliverPush", () => {
     const failures: unknown[] = [];
 
     await deliverPush(env, getDb(env), {
+      companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [USER],
       web: ALERT,
@@ -134,6 +136,7 @@ describe("deliverPush", () => {
     const failures: unknown[] = [];
 
     await deliverPush(env, getDb(env), {
+      companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [USER],
       web: ALERT,
@@ -154,6 +157,7 @@ describe("deliverPush", () => {
     stubFetch(sb.route, ...service.routes);
 
     await deliverPush(fcm, getDb(fcm), {
+      companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [USER],
       web: { ...ALERT, title: "Web" },
@@ -161,6 +165,7 @@ describe("deliverPush", () => {
       failures: [],
     });
     await deliverPush(fcm, getDb(fcm), {
+      companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [USER],
       web: { ...ALERT, title: "Web" },
@@ -193,6 +198,7 @@ describe("deliverPush", () => {
     stubFetch(sb.route, ...service.routes);
 
     await deliverPush(fcm, getDb(fcm), {
+      companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [USER],
       web: ALERT,
@@ -219,6 +225,7 @@ describe("deliverPush", () => {
     stubFetch(...routes);
 
     await deliverPush(env, getDb(env), {
+      companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [USER],
       web: ALERT,
@@ -256,6 +263,7 @@ describe("deliverPush", () => {
     stubFetch(...routes);
 
     await deliverPush(env, getDb(env), {
+      companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [crowded, oldest],
       web: ALERT,
@@ -292,5 +300,147 @@ describe("newestPerUser", () => {
       "a2",
       "b1",
     ]);
+  });
+});
+
+/**
+ * #244 — a member's own quiet hours, and the override that makes them safe.
+ *
+ * The filter lives inside `deliverPush` rather than at the call sites, so a new
+ * push site inherits it by construction. These tests are what make that claim
+ * true rather than aspirational.
+ */
+describe("#244 member quiet hours", () => {
+  const COMPANY = "c0000000-0000-4000-8000-00000000000c";
+  const SLEEPING = "u-sleeping";
+  const AWAKE = "u-awake";
+
+  function quietWorld() {
+    const sb = supabaseStub(env);
+    sb.on("GET", "/rest/v1/notification_prefs", () => [
+      {
+        user_id: SLEEPING,
+        quiet_from: "00:00",
+        quiet_to: "23:59",
+        quiet_timezone: "America/Toronto",
+        companies: { timezone: "America/Toronto" },
+      },
+      {
+        user_id: AWAKE,
+        quiet_from: null,
+        quiet_to: null,
+        quiet_timezone: null,
+        companies: { timezone: "America/Toronto" },
+      },
+    ]);
+    sb.on("GET", "/rest/v1/push_subscriptions", () => []);
+    sb.on("GET", "/rest/v1/device_push_tokens", () => []);
+    stubFetch(sb.route);
+    return sb;
+  }
+
+  function delivery(overrides: Record<string, unknown> = {}) {
+    return {
+      companyId: COMPANY,
+      userIds: [SLEEPING, AWAKE],
+      content: { written: "us" as const },
+      web: { title: "t", body: "b", url: "https://app/x" },
+      collapseKey: "conversation:x",
+      failures: [] as unknown[],
+      ...overrides,
+    };
+  }
+
+  it("QH-1: a routine push skips the member whose window is running", async () => {
+    const sb = quietWorld();
+
+    await deliverPush(env, getDb(env), delivery());
+
+    const lookup = sb.calls.find(
+      (call) => call.path === "/rest/v1/push_subscriptions",
+    );
+    expect(lookup?.url.searchParams.get("user_id")).toBe(`in.(${AWAKE})`);
+  });
+
+  it("QH-2: a page reaches them anyway — the emergency override", async () => {
+    // This is what makes the window safe to set. Somebody can silence the
+    // 1:40am customer text without also silencing the night they agreed to
+    // hold the phone.
+    const sb = quietWorld();
+
+    await deliverPush(
+      env,
+      getDb(env),
+      delivery({ overridesQuietHours: { reason: "on_call_page" } }),
+    );
+
+    const lookup = sb.calls.find(
+      (call) => call.path === "/rest/v1/push_subscriptions",
+    );
+    const targeted = lookup?.url.searchParams.get("user_id") ?? "";
+    expect(targeted).toContain(SLEEPING);
+    expect(targeted).toContain(AWAKE);
+    // And it does not even ask, because the answer cannot change what it does.
+    expect(
+      sb.calls.some((call) => call.path === "/rest/v1/notification_prefs"),
+    ).toBe(false);
+  });
+
+  it("QH-3: the window is read for THIS workspace only", async () => {
+    // Preferences are keyed (user_id, company_id): a member of two workspaces
+    // has two windows, and reading by user alone would apply the wrong one.
+    const sb = quietWorld();
+
+    await deliverPush(env, getDb(env), delivery());
+
+    const read = sb.calls.find(
+      (call) => call.path === "/rest/v1/notification_prefs",
+    );
+    expect(read?.url.searchParams.get("company_id")).toBe(`eq.${COMPANY}`);
+  });
+
+  it("QH-4: a failed lookup notifies everybody rather than silencing them", async () => {
+    // The uncertain direction is to NOTIFY. Silently withholding a message
+    // somebody was waiting for is invisible to them; an unwanted buzz is not.
+    const sb = supabaseStub(env);
+    sb.on(
+      "GET",
+      "/rest/v1/notification_prefs",
+      () => new Response("boom", { status: 500 }),
+    );
+    sb.on("GET", "/rest/v1/push_subscriptions", () => []);
+    sb.on("GET", "/rest/v1/device_push_tokens", () => []);
+    stubFetch(sb.route);
+
+    await deliverPush(env, getDb(env), delivery());
+
+    const lookup = sb.calls.find(
+      (call) => call.path === "/rest/v1/push_subscriptions",
+    );
+    const targeted = lookup?.url.searchParams.get("user_id") ?? "";
+    expect(targeted).toContain(SLEEPING);
+    expect(targeted).toContain(AWAKE);
+  });
+
+  it("QH-5: everybody quiet means no push at all, not a push to nobody", async () => {
+    const sb = supabaseStub(env);
+    sb.on("GET", "/rest/v1/notification_prefs", () => [
+      {
+        user_id: SLEEPING,
+        quiet_from: "00:00",
+        quiet_to: "23:59",
+        quiet_timezone: "America/Toronto",
+        companies: { timezone: "America/Toronto" },
+      },
+    ]);
+    sb.on("GET", "/rest/v1/push_subscriptions", () => []);
+    sb.on("GET", "/rest/v1/device_push_tokens", () => []);
+    stubFetch(sb.route);
+
+    await deliverPush(env, getDb(env), delivery({ userIds: [SLEEPING] }));
+
+    expect(
+      sb.calls.some((call) => call.path === "/rest/v1/push_subscriptions"),
+    ).toBe(false);
   });
 });

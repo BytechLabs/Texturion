@@ -64,6 +64,18 @@ function fakeDb(includeContent: boolean | "error") {
           }),
         };
       }
+      if (table === "notification_prefs") {
+        // #244: no member here has set quiet hours, which is the state this
+        // suite is about — it asserts on #430's content withholding, not on
+        // who gets woken. The `.eq()` is load-bearing: the real query scopes
+        // prefs to the company, and a double without it would let this suite
+        // pass while the product read another workspace's window.
+        return {
+          select: () => ({
+            eq: () => ({ in: async () => ({ data: [], error: null }) }),
+          }),
+        };
+      }
       // device_push_tokens and anything else: empty.
       return {
         select: () => ({
@@ -80,6 +92,7 @@ const env = { VAPID_PUBLIC_KEY: "p", VAPID_PRIVATE_KEY: "k" } as unknown as Env;
 
 async function push(content: PushContent, include: boolean | "error") {
   await deliverPush(env, fakeDb(include), {
+    companyId: "c0000000-0000-4000-8000-00000000000c",
     userIds: ["u1"],
     content,
     web: ALERT,
