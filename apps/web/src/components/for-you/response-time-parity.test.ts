@@ -90,10 +90,16 @@ describe("#239 response-time copy is the same on every client", () => {
     // The gap this closes: web linked the row and both phones rendered the same
     // sentence inert, so the laptop offered a way to act on the leak and the
     // phone in the van did not.
+    // The callback must be INVOKED as the row's action, not merely mentioned.
+    // A bare /onOpenUnanswered/ was the first version of this and it could not
+    // fail: the identifier also appears on the public parameter, on the forward
+    // into the private body, and on that body's own parameter. Deleting the tap
+    // handler — which is exactly the inert row #508 fixed — left three matches
+    // behind and the guard green.
     const DESTINATION: Record<string, RegExp> = {
-      web: /\/inbox\?awaiting=true/,
-      android: /onOpenUnanswered/,
-      ios: /onOpenUnanswered/,
+      web: /href="\/inbox\?awaiting=true"/,
+      android: /clickable\(onClick = onOpenUnanswered\)/,
+      ios: /Button\(action: onOpenUnanswered\)/,
     };
     for (const [platform, path] of Object.entries(SOURCES)) {
       const text = readFileSync(path, "utf8");
@@ -105,12 +111,57 @@ describe("#239 response-time copy is the same on every client", () => {
     // An optional navigation callback is how BOTH clients came to ship this row
     // unwired: the compiler cannot tell "nobody passed it" from "deliberately
     // inert", so the dead affordance only surfaces on somebody's phone.
-    const android = readFileSync(SOURCES.android, "utf8");
-    expect(android).not.toMatch(/onOpenUnanswered[^\n]*=\s*null/);
+    // Bound to the PUBLIC declaration, and rejecting ANY default.
+    //
+    // The first version of this asserted `not.toMatch(/=\s*null/)` and matched
+    // the declaration shape anywhere in the file. Both halves were wrong.
+    // `= null` is not how you write an inert default in Kotlin — `= {}` is, and
+    // it is precisely the "silently inert instead of a compile error" #503 is
+    // about, so the negative half missed the realistic regression entirely. And
+    // the positive half matched the PRIVATE helper's parameter, a declaration
+    // no call site can see, so it never bound to the composable ForYouTab
+    // actually calls.
+    const publicParams = (text: string, marker: string): string => {
+      const at = text.indexOf(marker);
+      expect(at, `no ${marker} in the source`).toBeGreaterThan(-1);
+      let depth = 0;
+      let i = at + marker.length - 1;
+      for (; i < text.length; i += 1) {
+        if (text[i] === "(") depth += 1;
+        else if (text[i] === ")") {
+          depth -= 1;
+          if (depth === 0) break;
+        }
+      }
+      return text.slice(at, i + 1);
+    };
+
+    const android = publicParams(
+      readFileSync(SOURCES.android, "utf8"),
+      "fun ResponseTimeCard(",
+    );
     expect(android).toMatch(/onOpenUnanswered:\s*\(\)\s*->\s*Unit\s*,/);
-    const ios = readFileSync(SOURCES.ios, "utf8");
-    expect(ios).not.toMatch(/onOpenUnanswered[^\n]*=\s*nil/);
-    expect(ios).toMatch(/let onOpenUnanswered:\s*\(\)\s*->\s*Void/);
+    expect(
+      android,
+      "onOpenUnanswered has a default on the PUBLIC composable, so a caller " +
+        "that forgets it compiles and ships an inert row",
+    ).not.toMatch(/onOpenUnanswered:[^,]*=/);
+
+    // Swift declares stored properties in the struct body rather than a
+    // parameter list, so read to the first `var body` instead.
+    const iosSource = readFileSync(SOURCES.ios, "utf8");
+    const structAt = iosSource.indexOf("struct ResponseTimeCard: View {");
+    expect(structAt).toBeGreaterThan(-1);
+    const iosProps = iosSource.slice(
+      structAt,
+      iosSource.indexOf("var body", structAt),
+    );
+    expect(iosProps).toMatch(/let onOpenUnanswered:\s*\(\)\s*->\s*Void/);
+    expect(
+      iosProps,
+      "onOpenUnanswered is defaulted or optional on ResponseTimeCard, which is " +
+        "how an unwired navigation callback ships as a dead tap",
+    ).not.toMatch(/onOpenUnanswered:[^\n]*(=|\?)/);
   });
 
   it("#508: every iOS construction site passes it, previews included", () => {
