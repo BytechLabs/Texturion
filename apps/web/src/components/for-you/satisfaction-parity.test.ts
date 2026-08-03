@@ -61,6 +61,25 @@ const GAP_FRAGMENTS: readonly string[] = [
 
 const CLIENTS = ["web", "android", "ios"] as const;
 
+/**
+ * The file with its comments removed.
+ *
+ * LOAD-BEARING, and found by breaking the guards below. Every one of them
+ * asserts that a piece of CODE exists — a fixed locale, an explicit rounding
+ * mode — and every one of those lines is also explained in a comment directly
+ * above it, in the same words. Matching the raw file therefore passed with the
+ * code deleted and the comment left behind, which is the most plausible way any
+ * of this actually regresses: somebody "simplifies" the expression and leaves
+ * the paragraph explaining why it was there.
+ */
+function codeOnly(path: string): string {
+  return readFileSync(path, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+    .join("\n");
+}
+
 describe("#313 satisfaction copy is the same on every client", () => {
   it("reads every source, so a passing run means something", () => {
     // The failure this prevents: a renamed file makes readFileSync throw or
@@ -119,23 +138,21 @@ describe("#313 satisfaction copy is the same on every client", () => {
     // Three clients agreeing on the sentences but disagreeing on WHEN to show
     // them is the same failure wearing a different hat: the laptop calls a move
     // an improvement and the phone calls it nothing.
-    const shared = readFileSync(SOURCES.shared, "utf8");
+    const shared = codeOnly(SOURCES.shared);
     expect(shared).toContain("SATISFACTION_MIN_SAMPLE = 5");
     expect(shared).toContain("SATISFACTION_ARC_MIN_DELTA = 0.2");
 
-    const kotlin = readFileSync(
+    const kotlin = codeOnly(
       join(
         REPO_ROOT,
         "apps/android/app/src/main/kotlin/com/loonext/android/core/format/SatisfactionFormat.kt",
       ),
-      "utf8",
     );
     expect(kotlin).toContain("MIN_SAMPLE = 5");
     expect(kotlin).toContain("ARC_MIN_DELTA = 0.2");
 
-    const swift = readFileSync(
+    const swift = codeOnly(
       join(REPO_ROOT, "apps/ios/Loonext/Core/Format/SatisfactionFormat.swift"),
-      "utf8",
     );
     expect(swift).toContain("minSample = 5");
     expect(swift).toContain("arcMinDelta = 0.2");
@@ -147,19 +164,51 @@ describe("#313 satisfaction copy is the same on every client", () => {
     // across most of Europe. The number would disagree with the laptop on a
     // customer's phone only — invisible here, and exactly the class of drift
     // these guards are for.
-    const kotlin = readFileSync(
+    const kotlin = codeOnly(
       join(
         REPO_ROOT,
         "apps/android/app/src/main/kotlin/com/loonext/android/core/format/SatisfactionFormat.kt",
       ),
-      "utf8",
     );
     expect(kotlin).toContain("Locale.US");
 
-    const swift = readFileSync(
+    const swift = codeOnly(
       join(REPO_ROOT, "apps/ios/Loonext/Core/Format/SatisfactionFormat.swift"),
-      "utf8",
     );
     expect(swift).toContain("en_US_POSIX");
+  });
+
+  it("rounds a tie the same way on all three", () => {
+    // FOUND IN CI, NOT BY READING THE CODE. `String(format: "%.1f")` is C
+    // printf and rounds half to EVEN, so 4.25 printed "4.2" on iOS while
+    // `toFixed` and Kotlin's `String.format` both gave "4.3". A tie is not
+    // exotic — four 4s and four 5s average exactly 4.25 — and 4.2 on the phone
+    // beside 4.3 on the laptop is the small disagreement that costs the panel
+    // its credibility.
+    //
+    // Swift therefore rounds explicitly BEFORE formatting. That step is
+    // invisible in review and there is no local Swift compiler here, so this
+    // pins it: a well-meaning simplification back to a bare `String(format:)`
+    // fails here rather than on a customer's phone.
+    const swift = codeOnly(
+      join(REPO_ROOT, "apps/ios/Loonext/Core/Format/SatisfactionFormat.swift"),
+    );
+    expect(swift).toContain("toNearestOrAwayFromZero");
+
+    // And the case itself is pinned in all three unit suites, so the rule is
+    // asserted by execution wherever a compiler exists.
+    const suites: Record<string, string> = {
+      shared: join(REPO_ROOT, "packages/shared/src/satisfaction.test.ts"),
+      android: join(
+        REPO_ROOT,
+        "apps/android/app/src/test/kotlin/com/loonext/android/core/format/SatisfactionFormatTest.kt",
+      ),
+      ios: join(REPO_ROOT, "apps/ios/LoonextTests/SatisfactionFormatTests.swift"),
+    };
+    for (const [platform, path] of Object.entries(suites)) {
+      const text = readFileSync(path, "utf8");
+      expect(text, `${platform} does not pin the 4.25 tie`).toContain("4.25");
+      expect(text, platform).toContain("4.3");
+    }
   });
 });
