@@ -24,7 +24,10 @@ import {
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { unwrap } from "../routes/core/http";
-import { resolveDestinationClock } from "./destination-clock";
+import {
+  lastSendableInstantBefore,
+  resolveDestinationClock,
+} from "./destination-clock";
 import { applySendMergeFields, resolveSendMergeFields } from "./merge";
 
 /**
@@ -186,6 +189,38 @@ export async function syncTaskReminders(
       now,
       render: (body) => rendered.get(body) ?? body,
     });
+
+    // #237's fourth acceptance criterion: "No reminder ever fires after a STOP
+    // or OUTSIDE THE LEGAL SEND WINDOW."
+    //
+    // The STOP half is free — the firing job runs `runPreSendGates` at fire
+    // time. The quiet-hours half is not, and this is where it would have been
+    // missed: #233 asks the question at SCHEDULE time, in the route, because a
+    // person is there to answer it. Nobody is there when a reminder is
+    // computed, and an offset lands wherever the arithmetic puts it: two hours
+    // before a 7am job is 5am.
+    //
+    // Moved BACKWARD, never forward. `nextSendableInstant` defers to 8am, which
+    // is right for a message with no deadline and wrong for this one — 8am is
+    // after the 7am van. Earlier is always still before the job.
+    planned = planned
+      .map((reminder) => {
+        const at = new Date(reminder.send_at);
+        const legal = lastSendableInstantBefore(
+          clock.timezone,
+          clock.region ?? null,
+          at,
+        );
+        return legal === null
+          ? null
+          : { ...reminder, send_at: legal.toISOString() };
+      })
+      .filter((reminder): reminder is PlannedReminder => reminder !== null)
+      // Shifting back can land in the past — a job booked this morning for
+      // 7am tomorrow has no legal slot left for its 2-hour reminder. The
+      // future filter runs again rather than being trusted from before the
+      // shift, because the shift is what can invalidate it.
+      .filter((reminder) => new Date(reminder.send_at).getTime() > now.getTime());
   }
 
   const result = unwrap<{ outcome: string; added?: number; removed?: number }>(

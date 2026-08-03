@@ -21,6 +21,7 @@ import { completeEnv, stubFetch } from "../test/support";
 import {
   isQuietAt,
   isQuietHour,
+  lastSendableInstantBefore,
   nextSendableInstant,
   quietOpenHourFor,
   resolveDestinationClock,
@@ -426,5 +427,82 @@ describe("#225 — a held message is released INTO the window, not at 8am", () =
     expect(
       nextSendableInstant("America/Chicago", "TX", new Date("2026-08-03T15:00:00Z")),
     ).toBeNull();
+  });
+});
+
+describe("#237 the last legal instant BEFORE a reminder's moment", () => {
+  const NY = "America/New_York";
+
+  /**
+   * The hour at the destination. Computed here rather than importing the
+   * module's own helper, which is deliberately private — a test does not get
+   * to widen a module's API for its own convenience.
+   */
+  const localHour = (timezone: string, at: Date) =>
+    Number(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: timezone,
+        hour: "numeric",
+        hour12: false,
+      }).format(at),
+    ) % 24;
+
+  it("leaves a daytime instant exactly where it is", () => {
+    // 14:00Z = 9am EST. Nothing to move.
+    const at = new Date("2026-01-15T14:00:00Z");
+    expect(lastSendableInstantBefore(NY, "NY", at)).toEqual(at);
+  });
+
+  it("walks a 5am reminder BACK to the evening before, not forward to 8am", () => {
+    // The case the whole function exists for: two hours before a 7am job.
+    // Forward lands at 8am — an hour after the van arrived, which is worse
+    // than not sending it at all.
+    const fiveAm = new Date("2026-01-15T10:00:00Z"); // 5am EST
+    const moved = lastSendableInstantBefore(NY, "NY", fiveAm);
+
+    expect(moved).not.toBeNull();
+    expect(moved!.getTime()).toBeLessThan(fiveAm.getTime());
+    expect(isQuietAt(NY, "NY", moved!)).toBe(false);
+    // 7pm the previous evening — the last legal hour before the window opened.
+    expect(localHour(NY, moved!)).toBe(19);
+  });
+
+  it("walks a late-night reminder back to the same evening", () => {
+    const tenPm = new Date("2026-01-16T03:00:00Z"); // 10pm EST on the 15th
+    const moved = lastSendableInstantBefore(NY, "NY", tenPm);
+
+    expect(moved).not.toBeNull();
+    expect(isQuietAt(NY, "NY", moved!)).toBe(false);
+    expect(localHour(NY, moved!)).toBe(19);
+    // Same evening, not the one before: it only has to step back three hours.
+    expect(tenPm.getTime() - moved!.getTime()).toBeLessThan(6 * 3_600_000);
+  });
+
+  it("respects a state that opens later, rather than targeting 8 o'clock", () => {
+    // #225: Texas Sundays. A reminder at 9am Sunday is still inside the
+    // prohibition there, so it must move back too — a function targeting a
+    // fixed 8am would call it legal and send into the window deliberately.
+    const nineAmSunday = new Date("2026-01-18T15:00:00Z"); // 9am CST, Sunday
+    const central = "America/Chicago";
+    expect(isQuietAt(central, "TX", nineAmSunday)).toBe(true);
+
+    const moved = lastSendableInstantBefore(central, "TX", nineAmSunday);
+    expect(moved).not.toBeNull();
+    expect(isQuietAt(central, "TX", moved!)).toBe(false);
+    expect(moved!.getTime()).toBeLessThan(nineAmSunday.getTime());
+  });
+
+  it("is the mirror of nextSendableInstant, not a copy of it", () => {
+    // Both are correct for their own caller, and using the wrong one is the
+    // mistake this pair exists to make visible: forward for a message with no
+    // deadline, back for one that must precede an appointment.
+    const fiveAm = new Date("2026-01-15T10:00:00Z");
+    const forward = nextSendableInstant(NY, "NY", fiveAm);
+    const back = lastSendableInstantBefore(NY, "NY", fiveAm);
+
+    expect(forward!.getTime()).toBeGreaterThan(fiveAm.getTime());
+    expect(back!.getTime()).toBeLessThan(fiveAm.getTime());
+    expect(isQuietAt(NY, "NY", forward!)).toBe(false);
+    expect(isQuietAt(NY, "NY", back!)).toBe(false);
   });
 });

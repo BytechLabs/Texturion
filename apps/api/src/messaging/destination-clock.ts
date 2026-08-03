@@ -297,6 +297,44 @@ export function nextSendableInstant(
   return null;
 }
 
+/**
+ * The last instant before `atUtc` that is NOT quiet at the destination, or
+ * `atUtc` itself when it was already fine.
+ *
+ * THE MIRROR OF `nextSendableInstant`, AND THE DIRECTION MATTERS. Deferring a
+ * message forward to 8am is right when the message has no deadline — a
+ * follow-up, a held send. An appointment reminder has one: the appointment. A
+ * 2-hour reminder for a 7am job computes to 5am, and walking FORWARD out of the
+ * quiet window lands it at 8am — an hour after the van arrived, which is worse
+ * than not sending it. Walking back lands it at 7pm the evening before: earlier
+ * than intended, still before the job, and legal.
+ *
+ * Returning null is impossible for a real IANA zone for the same reason
+ * `nextSendableInstant` says so; the bound is a hard stop rather than a
+ * `while (true)` against a runtime we do not control. A caller that gets null
+ * should not send.
+ */
+export function lastSendableInstantBefore(
+  timezone: string,
+  region: string | null,
+  atUtc: Date,
+): Date | null {
+  if (!isQuietAt(timezone, region, atUtc)) return atUtc;
+
+  const cursor = new Date(atUtc.getTime());
+  cursor.setUTCMinutes(0, 0, 0);
+  for (let step = 0; step < 26; step += 1) {
+    cursor.setUTCHours(cursor.getUTCHours() - 1);
+    if (isQuietAt(timezone, region, cursor)) continue;
+    // Landed in the last legal hour, not necessarily on it. Snapped to the top
+    // of that local hour for the same Newfoundland reason as above — a zone
+    // offset by :30 would otherwise report a time half an hour out.
+    cursor.setUTCMinutes(cursor.getUTCMinutes() - localMinuteIn(timezone, cursor));
+    return new Date(cursor);
+  }
+  return null;
+}
+
 /** Minutes past the local hour, for zones whose offset is not a whole hour. */
 function localMinuteIn(timezone: string, atUtc: Date): number {
   const part = new Intl.DateTimeFormat("en-US", {
