@@ -1,13 +1,21 @@
 /**
- * A `private` top-level Swift helper may not shadow an `internal` one.
+ * Swift breaks that only CI can see, caught before the push.
  *
  * WHY THIS IS A TYPESCRIPT TEST. There is no Xcode on the machines this repo is
  * written on, so CI's `Gate / iOS` job is the first and only thing that compiles
  * Swift. Every Swift-only break therefore reaches main, goes red, and is found
- * one push later. That happened to #233: `ScheduledSend.swift` added a
- * `private func daysUntilNextMonday(_:calendar:)` that `SnoozeLogic.swift`
- * already declared without a modifier, and Swift answered "invalid
- * redeclaration".
+ * one push later — twice in a row during #233, on two different mistakes.
+ *
+ * Each check below is one of those mistakes, generalised no further than the
+ * shape that actually happened. A guard invented for a break that has not
+ * occurred is a guess; these are transcriptions.
+ *
+ * ---------------------------------------------------------------------------
+ * 1. A `private` top-level helper may not shadow an `internal` one.
+ *
+ * `ScheduledSend.swift` added a `private func daysUntilNextMonday(_:calendar:)`
+ * that `SnoozeLogic.swift` already declared without a modifier, and Swift
+ * answered "invalid redeclaration".
  *
  * `private` AT TOP LEVEL IS THE TRAP, and the shape of the trap is specific:
  *
@@ -26,6 +34,16 @@
  * So this checks exactly that mix, which is why it has no allowlist: a rule
  * with no false positives does not need an escape hatch, and an escape hatch is
  * how a guard becomes a formality.
+ *
+ * ---------------------------------------------------------------------------
+ * 2. A struct holding a property wrapper cannot synthesise `Equatable`.
+ *
+ * `@Default<DefaultEmptyString> var phone_e164: String` stores a `Default<…>`,
+ * not a `String`, and that wrapper is not Equatable — so `struct X: Equatable`
+ * fails with "does not conform to protocol". The wrapper exists for decoding
+ * resilience and is used on dozens of models here; `Equatable` is the thing
+ * that has to give, and it is nearly always reached for out of habit rather
+ * than because anything compares the value.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -187,6 +205,40 @@ describe("Swift top-level helpers", () => {
         collisions.join("\n") +
         `\n\nRename the private one so it says whose it is (e.g. a feature\n` +
         `prefix), or call the existing one if it is genuinely the same helper.\n`,
+    ).toEqual([]);
+  });
+
+  it("declares no Equatable type that stores a property wrapper", () => {
+    // A wrapped property stores the WRAPPER, and `Default<…>` is not Equatable,
+    // so the synthesised conformance fails to compile. Scoped to the wrappers
+    // this repo actually has rather than to `@` in general: `@MainActor` and
+    // `@Observable` sit on types all over the codebase and are not storage.
+    const offenders: string[] = [];
+    for (const file of files) {
+      const relative = file.slice(IOS_ROOT.length + 1).replace(/\\/g, "/");
+      const source = readFileSync(file, "utf8");
+      // Each `struct … {` and the body up to the first line-start `}` — the
+      // same column-zero rule the top-level scan uses, so a nested type cannot
+      // be mistaken for the one being declared.
+      for (const match of source.matchAll(
+        /^(?:(?:public|internal|fileprivate|private|final)\s+)*struct\s+(\w+)\s*:([^{]*)\{([\s\S]*?)\n\}/gm,
+      )) {
+        const [, name, conformances, body] = match;
+        if (!/\bEquatable\b/.test(conformances)) continue;
+        const wrapped = [...body.matchAll(/^\s*@(Default)</gm)];
+        if (wrapped.length > 0) offenders.push(`${name} (${relative})`);
+      }
+    }
+
+    expect(
+      offenders,
+      `\n\nThese Swift structs declare Equatable and store a property wrapper:\n` +
+        offenders.map((o) => `  ${o}`).join("\n") +
+        `\n\nA wrapped property stores the wrapper, and \`Default<…>\` is not\n` +
+        `Equatable, so the synthesised conformance does not compile. Drop\n` +
+        `Equatable — it is almost always reached for out of habit, and\n` +
+        `Identifiable is what SwiftUI lists actually need — or write \`==\` by\n` +
+        `hand over the unwrapped values.\n`,
     ).toEqual([]);
   });
 });

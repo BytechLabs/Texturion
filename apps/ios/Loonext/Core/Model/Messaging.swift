@@ -314,7 +314,7 @@ struct DestinationClock: Codable, Sendable {
 /// can then accidentally show an unsent one as sent, which is this feature's
 /// worst possible bug: the sender believes a customer was told something they
 /// were not.
-struct ScheduledMessage: Codable, Sendable, Identifiable, Equatable {
+struct ScheduledMessage: Codable, Sendable, Identifiable {
     let id: String
     let conversation_id: String
     let body: String
@@ -344,11 +344,16 @@ struct ScheduledMessage: Codable, Sendable, Identifiable, Equatable {
     var isHeld: Bool { status == "held" }
 }
 
-struct ScheduledConversation: Codable, Sendable, Equatable {
+struct ScheduledConversation: Codable, Sendable {
     var contacts: ScheduledContact? = nil
 }
 
-struct ScheduledContact: Codable, Sendable, Equatable {
+/// NOT Equatable, deliberately. `@Default` is a property WRAPPER, and a
+/// wrapper type is not itself Equatable — so synthesised conformance fails with
+/// "does not conform to protocol", which only CI's iOS job can see. Nothing
+/// compares these by value; `ScheduledMessage` is Identifiable, which is what
+/// the lists actually need.
+struct ScheduledContact: Codable, Sendable {
     var name: String? = nil
     @Default<DefaultEmptyString> var phone_e164: String
 }
