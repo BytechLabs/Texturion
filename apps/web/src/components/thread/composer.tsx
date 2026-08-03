@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ChevronDown,
   FileText,
   Paperclip,
   Plus,
@@ -19,6 +20,12 @@ import {
   type MmsMediaType,
 } from "@loonext/shared";
 
+import {
+  QuietHoursConfirm,
+  SendLaterDialog,
+  SendLaterMenuItems,
+} from "@/components/thread/send-later-menu";
+import { useScheduleMessage } from "@/lib/api/scheduled-messages";
 import { StagedFileChips } from "@/components/attachments/staged-file-chips";
 import { DropOverlay, useFileDrop } from "@/components/attachments/use-file-drop";
 import { useStagedFiles } from "@/components/attachments/use-staged-files";
@@ -903,6 +910,13 @@ export function Composer({
   });
 
   const [confirmCollision, setConfirmCollision] = useState(false);
+  // #233 send later. Two dialogs, both owned HERE rather than inside the
+  // dropdown: a Radix Dialog mounted in DropdownMenuContent unmounts the
+  // instant the menu closes, which would make "Pick a time…" a control that
+  // silently does nothing (the trap snooze-menu.tsx documents).
+  const [pickTimeOpen, setPickTimeOpen] = useState(false);
+  const [quietConfirmFor, setQuietConfirmFor] = useState<string | null>(null);
+  const schedule = useScheduleMessage();
 
   const doSend = useCallback(async () => {
     if (!canSend) return;
@@ -1164,6 +1178,56 @@ export function Composer({
     }
     void doSend();
   }, [isNote, collision.warn, doSend]);
+
+  /**
+   * #233 — queue this text for later instead of sending it now.
+   *
+   * The composer is cleared on success exactly as a send would clear it: the
+   * words have left the box and are somewhere the person can see them, and a
+   * draft left behind would be sent twice by anybody who assumed otherwise.
+   *
+   * A 409 is not a failure here. #225 ask 2 is that a human is WARNED and never
+   * blocked, so the quiet-hours code opens the confirm and the second attempt
+   * carries the flag — the same handshake compose already uses, recognised by
+   * CODE rather than by reading the sentence.
+   */
+  const scheduleFor = useCallback(
+    async (sendAtIso: string, quietHoursConfirmed = false) => {
+      const body = text.trim();
+      if (body === "") return;
+      try {
+        await schedule.mutateAsync({
+          conversationId,
+          body,
+          sendAt: sendAtIso,
+          quietHoursConfirmed,
+        });
+        setText("");
+        setQuietConfirmFor(null);
+        toast.success(
+          `Scheduled for ${new Date(sendAtIso).toLocaleString(undefined, {
+            weekday: "short",
+            hour: "numeric",
+            minute: "2-digit",
+          })}. You can cancel it any time before it goes.`,
+        );
+      } catch (cause) {
+        if (
+          cause instanceof ApiError &&
+          cause.code === "quiet_hours_confirmation_required"
+        ) {
+          setQuietConfirmFor(sendAtIso);
+          return;
+        }
+        toast.error(
+          cause instanceof ApiError
+            ? cause.message
+            : "That could not be scheduled. Try again.",
+        );
+      }
+    },
+    [conversationId, schedule, text],
+  );
 
   return (
     <div
@@ -1500,24 +1564,57 @@ export function Composer({
           {/* The single petrol control in this region (mockup .btn-primary.send)
               — a petrol pill with the send glyph and a soft petrol shadow. Active
               only when the field is non-empty. Notes reuse the amber accent. */}
-          <button
-            type="button"
-            onClick={() => void requestSend()}
-            disabled={!canSend}
-            aria-label={isNote ? "Save note" : "Send message"}
-            aria-keyshortcuts="Control+Enter Meta+Enter"
+          {/* #233: a SPLIT pill, not a second button. Send keeps the whole
+              control when there is nothing to schedule (a note never goes to a
+              customer, so "later" is meaningless there); when there is, the
+              chevron takes a sliver of the SAME petrol pill. Two primaries side
+              by side would slow the common action down to speed up the rare
+              one. *Applying: Zen of Clarity.* */}
+          <div
             className={cn(
-              "inline-flex h-9 items-center gap-1.5 rounded-app-ctrl px-3 text-[13px] font-semibold text-white transition-[background,transform] duration-150 ease-out active:translate-y-px disabled:opacity-45",
-              isNote
-                ? "bg-app-amber hover:brightness-105"
-                : "bg-primary hover:bg-app-olive-deep",
+              "inline-flex h-9 items-stretch overflow-hidden rounded-app-ctrl text-[13px] font-semibold text-white transition-[background,transform] duration-150 ease-out",
+              isNote ? "bg-app-amber" : "bg-primary",
+              !canSend && "opacity-45",
             )}
           >
-            <span className="hidden sm:inline">
-              {isNote ? "Save" : "Send"}
-            </span>
-            <SendIcon className="size-[15px]" />
-          </button>
+            <button
+              type="button"
+              onClick={() => void requestSend()}
+              disabled={!canSend}
+              aria-label={isNote ? "Save note" : "Send message"}
+              aria-keyshortcuts="Control+Enter Meta+Enter"
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 active:translate-y-px",
+                isNote ? "hover:brightness-105" : "hover:bg-app-olive-deep",
+              )}
+            >
+              <span className="hidden sm:inline">
+                {isNote ? "Save" : "Send"}
+              </span>
+              <SendIcon className="size-[15px]" />
+            </button>
+            {!isNote && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    disabled={!canSend}
+                    aria-label="Send later"
+                    className="inline-flex items-center border-l border-white/25 px-1.5 hover:bg-app-olive-deep active:translate-y-px"
+                  >
+                    <ChevronDown className="size-[15px]" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <SendLaterMenuItems
+                    clock={conversation.data?.destination_clock ?? null}
+                    onSchedule={(sendAt) => void scheduleFor(sendAt)}
+                    onPickCustom={() => setPickTimeOpen(true)}
+                  />
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1596,6 +1693,23 @@ export function Composer({
         </DialogContent>
       </Dialog>
 
+      {/* #233: both owned here, outside the dropdown. See the state block. */}
+      <SendLaterDialog
+        open={pickTimeOpen}
+        clock={conversation.data?.destination_clock ?? null}
+        onOpenChange={setPickTimeOpen}
+        onConfirm={(sendAt) => void scheduleFor(sendAt)}
+      />
+      <QuietHoursConfirm
+        open={quietConfirmFor !== null}
+        localHour={conversation.data?.destination_clock?.local_hour ?? null}
+        onOpenChange={(next) => {
+          if (!next) setQuietConfirmFor(null);
+        }}
+        onConfirm={() => {
+          if (quietConfirmFor) void scheduleFor(quietConfirmFor, true);
+        }}
+      />
     </div>
   );
 }
