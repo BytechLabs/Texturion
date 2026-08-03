@@ -81,6 +81,12 @@ data class Contact(
      * of them — and on the LIST projection, which does not carry them.
      */
     val custom_fields: Map<String, String> = emptyMap(),
+    /**
+     * #291: the OTHER numbers this customer answers, oldest first. No primary
+     * among them — `phone_e164` above IS the primary, and a second flag for
+     * the same idea would let the two disagree.
+     */
+    val phones: List<ContactPhone> = emptyList(),
     val notes: String? = null,
     val consent_source: String? = null,
     val consent_at: String? = null,
@@ -205,6 +211,29 @@ data class ContactMergeResult(
  * `key` is the stable identity — values are stored under it, so relabelling a
  * field keeps every value attached.
  */
+/**
+ * #291: one of a customer's other numbers.
+ *
+ * A number recorded here is matched against every inbound text and call, so it
+ * decides which customer a message is FROM.
+ */
+@Serializable
+data class ContactPhone(
+    val id: String = "",
+    val phone_e164: String = "",
+    val label: String? = null,
+    val created_at: String = "",
+)
+
+@Serializable
+data class ContactPhoneBody(
+    val phone_e164: String,
+    val label: String? = null,
+)
+
+@Serializable
+data class ContactPhoneCreated(val data: ContactPhone = ContactPhone())
+
 @Serializable
 data class ContactFieldDef(
     val key: String = "",

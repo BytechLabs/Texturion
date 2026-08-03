@@ -72,6 +72,7 @@ import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ContactAddressBody
 import com.loonext.android.core.model.ContactFieldDef
+import com.loonext.android.core.model.ContactPhoneBody
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.net.ApiErrorCode
@@ -569,6 +570,35 @@ private fun ContactDetailBody(
                     graph.storeCache.put(CacheKeys.contact(companyId, contact.id), updated)
                 },
             )
+            // #291: the OTHER numbers this customer answers. Absent until a
+            // crew adds one, so most records read exactly as they did before.
+            PhoneList(
+                phones = contact.phones,
+                onAdd = { label, phone ->
+                    scope.launch {
+                        runCatching {
+                            mutations.addPhone(
+                                companyId,
+                                contact.id,
+                                ContactPhoneBody(phone_e164 = phone, label = label),
+                            )
+                            refreshContact()
+                            // The server's words: only it knows WHOSE number a
+                            // rejected one already is, and a generic failure
+                            // would send somebody looking for a fault.
+                        }.onFailure { actionError = it.userMessage() }
+                    }
+                },
+                onRemove = { phoneId ->
+                    scope.launch {
+                        runCatching {
+                            mutations.removePhone(companyId, contact.id, phoneId)
+                            refreshContact()
+                        }.onFailure { actionError = it.userMessage() }
+                    }
+                },
+            )
+            RowDivider()
             // #291: the OTHER addresses, absent until there are any. The row
             // above stays the one-address case, which is most of them.
             //

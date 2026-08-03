@@ -5,6 +5,8 @@ import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ContactAddressBody
 import com.loonext.android.core.model.ContactAddressCreated
 import com.loonext.android.core.model.ContactFieldDef
+import com.loonext.android.core.model.ContactPhoneBody
+import com.loonext.android.core.model.ContactPhoneCreated
 import com.loonext.android.core.model.ContactFieldsBody
 import com.loonext.android.core.model.ContactFieldsResponse
 import com.loonext.android.core.model.ContactMergeResult
@@ -87,6 +89,24 @@ class ContactMutations(private val api: ApiClient, baseUrl: String) {
 
     suspend fun removeAddress(companyId: String, contactId: String, addressId: String) {
         api.delete("/v1/contacts/$contactId/addresses/$addressId", companyId = companyId)
+    }
+
+    /**
+     * #291: record another number this customer answers.
+     *
+     * One row per request, like the addresses. The server refuses a number
+     * somebody else already has and its message names them — taking it would
+     * silently redirect that customer's texts and calls onto this record.
+     */
+    suspend fun addPhone(
+        companyId: String,
+        contactId: String,
+        body: ContactPhoneBody,
+    ): ContactPhoneCreated =
+        api.post("/v1/contacts/$contactId/phones", body = body, companyId = companyId)
+
+    suspend fun removePhone(companyId: String, contactId: String, phoneId: String) {
+        api.delete("/v1/contacts/$contactId/phones/$phoneId", companyId = companyId)
     }
 
     suspend fun updateField(
