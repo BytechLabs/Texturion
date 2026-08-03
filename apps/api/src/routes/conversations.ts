@@ -168,6 +168,25 @@ const listQuerySchema = z.object({
   awaiting: z.enum(["only", "exclude"]).optional(),
 });
 
+/**
+ * The filter parameters this endpoint accepts, derived from the schema above.
+ *
+ * Exported for `saved-view-filter-mirror.test.ts`, which checks that a saved
+ * view can hold every filter the inbox can be arranged by. `saved-views.ts`
+ * claimed that mirror was tested and it was not — and the cost is silent:
+ * `sanitizeFilters` DROPS an unknown key, so a filter this endpoint gains and
+ * the saved-view table does not is discarded on save, and the view reopens
+ * without it. That happened once already, to `awaiting` (#508).
+ *
+ * Derived rather than listed, because a hand-copied list is the thing that
+ * rotted in the first place. `cursor` and `limit` are not here for the same
+ * reason they are not in the schema: they are read by `parseCursor` and
+ * `parseLimit`, and neither is a filter.
+ */
+export function conversationListFilterKeys(): string[] {
+  return Object.keys(listQuerySchema.shape);
+}
+
 const patchSchema = z
   .object({
     status: z.enum(["new", "open", "waiting", "closed"]).optional(),

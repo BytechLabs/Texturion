@@ -74,8 +74,21 @@ type FilterValue = string | boolean;
  * Each surface's storable filters, and how to recognise a valid value.
  *
  * Mirrors the list endpoints' query schemas (`routes/conversations.ts`
- * `listQuerySchema`, and the task list's query reads). A test asserts the
- * conversation half against that schema so the mirror cannot rot silently.
+ * `listQuerySchema`, and the task list's query reads).
+ *
+ * The conversation half is checked BOTH ways by
+ * `apps/api/src/routes/saved-view-filter-mirror.test.ts`, which derives the
+ * endpoint's keys from the schema rather than copying them. That test lives
+ * over there because this package cannot import a route — which is why the
+ * claim sat here unverified: the file making it was on the wrong side of the
+ * dependency arrow to check it. The direction that matters is a filter the
+ * ENDPOINT gains and this table does not: `sanitizeFilters` drops an unknown
+ * key rather than throwing, so the view saves cleanly and reopens without it.
+ * That has happened once, to `awaiting` (#508).
+ *
+ * The tasks half is not mirrored yet — its list endpoint reads query params
+ * individually rather than through one schema, so there is nothing to derive
+ * from. Said out loud rather than implied by the sentence above.
  */
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
