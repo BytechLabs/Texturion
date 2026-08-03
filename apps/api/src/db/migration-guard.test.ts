@@ -137,6 +137,45 @@ describe("the migration guard still catches what it is for", () => {
       "revoke all on public.t from anon;\ndrop policy p on public.t;\n",
       "drops a security/replication object",
     ],
+    // Everything below was an UNEXERCISED rule. Each was found by mutating
+    // scripts/check-migrations.mjs and replaying this file: the suite stayed
+    // green while the rule stopped working, which means the rule was carried by
+    // nobody. A rule no fixture reaches is a comment.
+    [
+      // Narrowing the rule to `drop policy` alone left this passing. Dropping
+      // the realtime publication silently stops every live update in the
+      // product, which is the definition of a change nobody notices until a
+      // customer does.
+      "a dropped publication",
+      "grant select on public.t to r;\ndrop publication supabase_realtime;\n",
+      "drops a security/replication object",
+    ],
+    [
+      // Deleting the `set not null` rule left the suite green. This one fails
+      // the DEPLOY rather than the data: the migration aborts on the first
+      // existing NULL, mid-release.
+      "a NOT NULL added to an existing column",
+      "grant select on public.t to r;\nalter table public.t alter column note set not null;\n",
+      "adds NOT NULL to an existing column",
+    ],
+    [
+      // Same deletion, other half. A type change can truncate values silently,
+      // which is the worst of the two because it succeeds.
+      "a changed column type",
+      "grant select on public.t to r;\nalter table public.t alter column note type varchar(10);\n",
+      "changes a column type",
+    ],
+    [
+      // The span, not the keywords. Shrinking `{0,200}` to `{0,20}` in the
+      // drop-column rule kept every existing fixture green, because each one
+      // has the two halves within a few characters. A real migration does not:
+      // it names a schema, a long table name, and often `if exists` in between.
+      "a dropped column far from its ALTER TABLE",
+      "grant select on public.t to r;\n" +
+        "alter table public.conversation_participants_archive\n" +
+        "  drop column if exists legacy_external_identifier;\n",
+      "drops a column",
+    ],
   ];
 
   it.each(destructive)("flags %s", (_name, sql, why) => {
@@ -151,6 +190,27 @@ describe("the migration guard still catches what it is for", () => {
         "alter table public.t drop column gone;\n",
     );
     expect(result.ok).toBe(true);
+  });
+
+  it("takes the acknowledgement MARKER, not any old comment", () => {
+    // The test above passes with the marker weakened to `/--/`, i.e. with any
+    // comment at all counting as an acknowledgement. Proved by mutation: the
+    // whole suite stayed green while the guard began waving through every
+    // destructive migration that happened to carry a comment, which is all of
+    // them.
+    //
+    // The marker exists so that acknowledging is a deliberate sentence
+    // somebody writes and a reviewer can search for. A rule that any comment
+    // satisfies is not a rule.
+    const commented = guard(
+      "-- Dropping the column that held the old feature.\n" +
+        "alter table public.t drop column gone;\n",
+    );
+    expect(
+      commented.ok,
+      "an ordinary comment was accepted as an acknowledgement",
+    ).toBe(false);
+    expect(commented.output).toContain("drops a column");
   });
 });
 
