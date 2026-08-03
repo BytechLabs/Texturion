@@ -141,6 +141,7 @@ async function nativePriorities(
   stubFetch(...w.routes, ...service.routes);
   const fcm = fcmEnv(account);
   await deliverPush(fcm, (await import("../db")).getDb(fcm), {
+    category: "messages_all",
     companyId: COMPANY,
     content: { written: "us" },
     userIds: [USER],

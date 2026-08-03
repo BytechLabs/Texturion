@@ -121,6 +121,7 @@ export async function runEscalationSweep(
       const copy = escalationCopy(alert.kind);
       const failures: unknown[] = [];
       await deliverPush(env, db, {
+        category: "missed_calls",
         companyId: alert.company_id,
         failures,
         userIds: widenTo,

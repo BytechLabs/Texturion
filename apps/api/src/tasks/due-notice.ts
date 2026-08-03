@@ -231,6 +231,7 @@ export async function notifyDueTasksJob(
     };
 
     await deliverPush(env, db, {
+      category: "assignments",
       companyId: task.company_id,
       userIds: [task.assigned_user_id],
       // #430: NOT named in the issue, and it belongs here. The TITLE is the

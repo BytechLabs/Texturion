@@ -260,6 +260,7 @@ export async function escalatePoorRating(
 
   const failures: unknown[] = [];
   await deliverPush(env, db, {
+    category: "assignments",
     companyId: input.companyId,
     failures,
     userIds: viewers.map((viewer) => viewer.user_id),

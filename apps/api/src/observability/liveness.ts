@@ -417,6 +417,24 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1,
     graceMinutes: 20,
   },
+  "job:batch-flush": {
+    what:
+      "Grouped notifications (#297) are not going out — every member who "
+      + "chose grouping is now receiving NOTHING, and their queue is growing.",
+    doThis:
+      "Workers Logs, search `cron job job:batch-flush failed`. Nothing is "
+      + "lost while it is down: the rows sit in `pending_notifications` and "
+      + "go out on the first successful run, and every message is still in "
+      + "the inbox. What IS lost is the promise — somebody who asked for a "
+      + "digest every 15 minutes is getting silence instead, and will "
+      + "reasonably conclude the feature does not work. Urgent alerts are "
+      + "unaffected by design: they never enter this queue. If it cannot be "
+      + "fixed quickly, clearing `delivery` on the affected prefs rows puts "
+      + "those members back on immediate delivery, which is the pre-#297 "
+      + "behaviour.",
+    everyMinutes: 1,
+    graceMinutes: 20,
+  },
   "job:sweep-webhooks": {
     what: "Failed provider webhooks are not being replayed — the backstop for the entire inbound path has stopped backstopping.",
     doThis:

@@ -86,6 +86,7 @@ describe("deliverPush", () => {
     stubFetch(...routes);
 
     await deliverPush(env, getDb(env), {
+      category: "messages_all",
       companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [],
@@ -107,6 +108,7 @@ describe("deliverPush", () => {
     const failures: unknown[] = [];
 
     await deliverPush(env, getDb(env), {
+      category: "messages_all",
       companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [USER],
@@ -136,6 +138,7 @@ describe("deliverPush", () => {
     const failures: unknown[] = [];
 
     await deliverPush(env, getDb(env), {
+      category: "messages_all",
       companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [USER],
@@ -157,6 +160,7 @@ describe("deliverPush", () => {
     stubFetch(sb.route, ...service.routes);
 
     await deliverPush(fcm, getDb(fcm), {
+      category: "messages_all",
       companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [USER],
@@ -165,6 +169,7 @@ describe("deliverPush", () => {
       failures: [],
     });
     await deliverPush(fcm, getDb(fcm), {
+      category: "messages_all",
       companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [USER],
@@ -198,6 +203,7 @@ describe("deliverPush", () => {
     stubFetch(sb.route, ...service.routes);
 
     await deliverPush(fcm, getDb(fcm), {
+      category: "messages_all",
       companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [USER],
@@ -225,6 +231,7 @@ describe("deliverPush", () => {
     stubFetch(...routes);
 
     await deliverPush(env, getDb(env), {
+      category: "messages_all",
       companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [USER],
@@ -263,6 +270,7 @@ describe("deliverPush", () => {
     stubFetch(...routes);
 
     await deliverPush(env, getDb(env), {
+      category: "messages_all",
       companyId: "c0000000-0000-4000-8000-00000000000c",
       content: { written: "us" },
       userIds: [crowded, oldest],
@@ -342,6 +350,7 @@ describe("#244 member quiet hours", () => {
   function delivery(overrides: Record<string, unknown> = {}) {
     return {
       companyId: COMPANY,
+      category: "messages_all" as const,
       userIds: [SLEEPING, AWAKE],
       content: { written: "us" as const },
       web: { title: "t", body: "b", url: "https://app/x" },

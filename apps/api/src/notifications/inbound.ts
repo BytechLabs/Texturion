@@ -268,6 +268,7 @@ export async function notifyInboundMessage(
   // coalescing: repeat texts in one thread REPLACE the pending alert rather
   // than stacking, on the `conversation:<id>` tag the clients coalesce on.
   await deliverPush(env, db, {
+    category: "messages_all",
     companyId: input.companyId,
     userIds: pushUsers,
     // #430: the customer's words. When the workspace has content off, the

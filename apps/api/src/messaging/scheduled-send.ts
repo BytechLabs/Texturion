@@ -299,6 +299,7 @@ async function disclose(
   const failures: unknown[] = [];
 
   await deliverPush(env, db, {
+    category: "messages_mine",
     companyId: row.company_id,
     failures,
     userIds: viewers.map((viewer) => viewer.user_id),

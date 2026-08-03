@@ -25,6 +25,7 @@ import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runScheduledSendJob } from "./messaging/scheduled-send";
+import { runBatchFlush } from "./notifications/batch-flush";
 import { runEscalationSweep } from "./notifications/escalation-sweep";
 import { runNumberHealthJob } from "./messaging/number-health";
 import { runRegistrationStallJob } from "./telnyx/registration-stalls";
@@ -360,6 +361,15 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // the crew's own phones, while a scheduled send fans out to the CARRIER. A
     // Telnyx stall must not eat into somebody's ten-minute grace period.
     job("job:escalation-sweep", runEscalationSweep),
+    // #297: flush the grouped notifications whose window has closed. Every
+    // minute because the shortest window a member can choose is five, and a
+    // coarser scan would make "every 5 minutes" mean "every 5 to 10". The
+    // scan is one indexed lookup that returns nothing on almost every tick.
+    //
+    // AFTER the escalation sweep and BEFORE the scheduled send, by the same
+    // rule as its neighbours: this only pushes to the crew's own phones, and
+    // a Telnyx stall in the carrier-bound job below must not delay it.
+    job("job:batch-flush", runBatchFlush),
     job("job:scheduled-send", runScheduledSendJob),
   ],
   // Webhook sweeper: replay unprocessed webhook_events (both providers).

@@ -92,6 +92,7 @@ const env = { VAPID_PUBLIC_KEY: "p", VAPID_PRIVATE_KEY: "k" } as unknown as Env;
 
 async function push(content: PushContent, include: boolean | "error") {
   await deliverPush(env, fakeDb(include), {
+    category: "messages_all",
     companyId: "c0000000-0000-4000-8000-00000000000c",
     userIds: ["u1"],
     content,

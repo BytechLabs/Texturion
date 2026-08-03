@@ -164,6 +164,7 @@ export async function notifyMissedCall(
     ? { alert_id: routing.alertId }
     : {};
   await deliverPush(env, db, {
+    category: "missed_calls",
     companyId: input.companyId,
     userIds: pushUsers,
     // #430: every word here is ours. The contact's NAME is in the title, and

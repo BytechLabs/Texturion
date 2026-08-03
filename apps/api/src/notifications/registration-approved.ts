@@ -72,6 +72,7 @@ export async function pushRegistrationApproved(
 
     const failures: unknown[] = [];
     await deliverPush(env, db, {
+      category: "operational",
       companyId,
       userIds: recipients,
       // #430: about the workspace, not about any customer. Withholding it

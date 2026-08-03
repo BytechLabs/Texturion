@@ -244,6 +244,7 @@ async function pushGraceWarning(
 
     const failures: unknown[] = [];
     await deliverPush(env, db, {
+      category: "operational",
       companyId: company.id,
       userIds,
       content: { written: "us" },

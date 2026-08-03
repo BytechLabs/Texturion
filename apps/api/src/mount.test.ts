@@ -29,6 +29,7 @@ import { pruneExpiredExports } from "./workspace/export";
 import { runGraceJob } from "./billing/grace";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runScheduledSendJob } from "./messaging/scheduled-send";
+import { runBatchFlush } from "./notifications/batch-flush";
 import { runEscalationSweep } from "./notifications/escalation-sweep";
 import { runLivenessCheckJob } from "./observability/liveness-check";
 import { LIVENESS_EXPECTATIONS } from "./observability/liveness";
@@ -485,9 +486,12 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     // #244 joins them, ordered before the scheduled send: it pushes only to
     // the crew's own phones, so a carrier stall must not eat into the grace
     // period an on-call member is being measured against.
+    // #297 joins them between the two, for the same reason: it pushes only to
+    // the crew's own phones, so the carrier-bound send goes last.
     expect(runs("* * * * *")).toEqual([
       runLeadChaseJob,
       runEscalationSweep,
+      runBatchFlush,
       runScheduledSendJob,
     ]);
     // #411: the auto-retry runs BEFORE the fail-out, and the order is the

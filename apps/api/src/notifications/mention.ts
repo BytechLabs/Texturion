@@ -114,6 +114,7 @@ export async function notifyNoteMention(
 
   const failures: unknown[] = [];
   await deliverPush(env, db, {
+    category: "mentions",
     companyId: input.companyId,
     userIds: pushUsers,
     // #430: a note is written by a colleague, not a customer — but it is

@@ -176,6 +176,7 @@ async function sendChase(
   const copy = leadChaseNotification(2, contactName);
 
   await deliverPush(env, db, {
+    category: "messages_all",
     companyId: row.company_id,
     userIds: pushUsers,
     // #430: `leadChaseNotification` writes both lines; the customer's name is
