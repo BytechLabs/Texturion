@@ -7,14 +7,18 @@
  * is dispatched to test-registered responders and captured for assertions;
  * anything unregistered fails the test loudly.
  */
-import { INTERNAL_ERROR_CODE, INTERNAL_ERROR_STATUS } from "@loonext/shared";
 import { Hono } from "hono";
 
 import { companyContext } from "../auth/company";
 import { jwtAuth } from "../auth/jwt";
 import type { AppEnv } from "../context";
 import type { Env } from "../env";
-import { ApiError, errorResponse } from "../http/errors";
+import { getEnv } from "../env";
+import {
+  ApiError,
+  errorResponse,
+  internalErrorResponse,
+} from "../http/errors";
 import type { FetchRoute } from "./support";
 
 /** Mount sub-apps behind the real /v1 middleware chain (SPEC §7, §10). */
@@ -26,14 +30,23 @@ export function buildTestApp(...subApps: Hono<AppEnv>[]): Hono<AppEnv> {
     app.route("/v1", sub);
   }
   app.notFound((c) => errorResponse(c, "not_found", "No such route."));
+  // #251: the SAME client-facing handler the real app uses. This was a
+  // simplified double, which meant every route suite in the repo asserted
+  // against an error response production does not send — no CORS re-echo, no
+  // request id — so a test about error behaviour could pass while the
+  // deployed behaviour differed. The observability half (Sentry, the server
+  // log) stays in `index.ts`, because a test must not perform it.
   app.onError((error, c) => {
     if (error instanceof ApiError) {
       return errorResponse(c, error.code, error.message);
     }
-    return c.json(
-      { error: { code: INTERNAL_ERROR_CODE, message: "Something went wrong." } },
-      INTERNAL_ERROR_STATUS,
-    );
+    let allowed: (string | undefined)[] = [];
+    try {
+      allowed = [getEnv(c.env).APP_ORIGIN, getEnv(c.env).SITE_ORIGIN];
+    } catch {
+      // Same fallback as the app: still answer, just not cross-origin.
+    }
+    return internalErrorResponse(c, allowed);
   });
   return app;
 }

@@ -47,7 +47,11 @@ import {
   type JobKey,
 } from "./observability/liveness";
 import { notifyDueTasksJob } from "./tasks/due-notice";
-import { ApiError, errorResponse } from "./http/errors";
+import {
+  ApiError,
+  errorResponse,
+  internalErrorResponse,
+} from "./http/errors";
 import {
   failStuckOutboundSends,
   pruneWebhookEvents,
@@ -265,20 +269,6 @@ app.onError((error, c) => {
   // Re-echo the request origin here, only when it is an allowed one, so the
   // client can read the SPEC §7 envelope and show the actual message. Wrapped
   // defensively: onError must never itself throw.
-  try {
-    const origin = c.req.header("origin");
-    if (origin) {
-      const env = getEnv(c.env);
-      if (origin === env.APP_ORIGIN || origin === env.SITE_ORIGIN) {
-        c.header("Access-Control-Allow-Origin", origin);
-        c.header("Vary", "Origin");
-      }
-    }
-  } catch {
-    // Env unavailable (should not happen after a healthy boot) — still return
-    // the envelope below; the client just cannot read it cross-origin.
-  }
-
   if (error instanceof ApiError) {
     return errorResponse(c, error.code, error.message);
   }
@@ -297,16 +287,18 @@ app.onError((error, c) => {
     tags: { route: `${method} ${path}`, ...(rayId ? { cf_ray: rayId } : {}) },
   });
   console.error(`[500] ${method} ${path} ray=${rayId ?? "-"}:`, error);
-  return c.json(
-    {
-      error: {
-        code: INTERNAL_ERROR_CODE,
-        message: "Something went wrong.",
-        ...(rayId ? { request_id: rayId } : {}),
-      },
-    },
-    INTERNAL_ERROR_STATUS,
-  );
+  // The client-facing half is shared with the test harness (#251), so a route
+  // suite cannot pass against an error response production does not send.
+  // Reading the env is wrapped because onError must never itself throw.
+  let allowed: (string | undefined)[] = [];
+  try {
+    const env = getEnv(c.env);
+    allowed = [env.APP_ORIGIN, env.SITE_ORIGIN];
+  } catch {
+    // Env unavailable (should not happen after a healthy boot). The envelope
+    // still ships; the client just cannot read it cross-origin.
+  }
+  return internalErrorResponse(c, allowed);
 });
 
 type ScheduledJob = (env: Env, now: Date) => Promise<unknown>;

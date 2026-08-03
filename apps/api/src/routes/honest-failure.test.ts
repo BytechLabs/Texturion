@@ -50,9 +50,12 @@
  * belt-and-braces for a failure that has actually happened here. Deleting it
  * needs evidence from the deployed runtime, which this file does not provide.
  */
+import { Hono } from "hono";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import type { AppEnv } from "../context";
 import { app } from "../index";
+import { buildTestApp } from "../test/routes-harness";
 import {
   authorizeRoute,
   completeEnv,
@@ -162,6 +165,38 @@ describe("#251 the database refusing is an honest failure", () => {
     // assertion would mean editing the header logic the rest of this file
     // exists to protect, for a cosmetic gain.
     expect(res.headers.get("Vary")).toContain("Origin");
+  });
+
+  it("the test harness now answers the same way the real app does", async () => {
+    // The reason this file had to import the real `app`: `buildTestApp` used to
+    // install a simplified `onError` of its own, so every route suite in the
+    // repo asserted against an error response production does not send. Both
+    // now call `internalErrorResponse`, and this is what stops them drifting
+    // apart again — a future route test about failure can trust its harness.
+    const harnessApp = buildTestApp(
+      new Hono<AppEnv>().get("/boom", () => {
+        throw new Error(REFUSAL);
+      }),
+    );
+    stubFetch(jwksRoute(auth));
+    const res = await harnessApp.request(
+      "/v1/boom",
+      {
+        headers: {
+          Authorization: `Bearer ${await auth.token()}`,
+          "X-Company-Id": COMPANY_ID,
+          origin: env.APP_ORIGIN,
+          "cf-ray": "harness-ray",
+        },
+      },
+      env,
+    );
+    const body = (await res.json()) as {
+      error: { message: string; request_id?: string };
+    };
+    expect(body.error.message).toBe("Something went wrong.");
+    expect(body.error.request_id).toBe("harness-ray");
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(env.APP_ORIGIN);
   });
 
   it("echoes only an allowed origin, not whatever asked", async () => {
