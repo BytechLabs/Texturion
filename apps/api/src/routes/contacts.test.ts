@@ -3018,3 +3018,203 @@ describe("contact phone numbers", () => {
     expect(sb.find("PATCH", "/rest/v1/conversations")).toHaveLength(0);
   });
 });
+
+/**
+ * #291 — finding a customer by a number that is not their main one.
+ *
+ * The whole complaint the issue opens with is that this knowledge is
+ * unfindable. A crew that recorded Dave's landline and then cannot find Dave
+ * by typing it has a record that took effort to create and gives nothing back.
+ *
+ * CS-2 is the one to read twice. The second query is joined THROUGH the phones
+ * table, so on its own it would return only contacts that have a second
+ * number — nearly none of them. It has to be a union with the ordinary search,
+ * not a replacement for it.
+ */
+describe("searching a customer's other numbers", () => {
+  /** Which of the two list queries a call is: the plain one, or the join. */
+  function listCalls(sb: SupabaseStub) {
+    const calls = sb.find("GET", "/rest/v1/contacts");
+    return {
+      plain: calls.filter(
+        (call) =>
+          !String(call.url.searchParams.get("select") ?? "").includes(
+            "contact_phones",
+          ),
+      ),
+      joined: calls.filter((call) =>
+        String(call.url.searchParams.get("select") ?? "").includes(
+          "contact_phones",
+        ),
+      ),
+    };
+  }
+
+  function searchStubs(options: {
+    plain?: Record<string, unknown>[];
+    joined?: Record<string, unknown>[];
+  }) {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", (call) =>
+      String(call.url.searchParams.get("select") ?? "").includes(
+        "contact_phones",
+      )
+        ? options.joined ?? []
+        : options.plain ?? [],
+    );
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    return sb;
+  }
+
+  it("CS-1: asks the phones table when the search looks like a number", async () => {
+    const sb = searchStubs({ plain: [] });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts?q=5550177",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+
+    const { joined } = listCalls(sb);
+    expect(joined).toHaveLength(1);
+    // Scoped and soft-delete aware, exactly like the query beside it — a
+    // second search path that forgot either would leak or resurrect rows the
+    // first one correctly hides.
+    expect(joined[0].url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(joined[0].url.searchParams.get("deleted_at")).toBe("is.null");
+    expect(joined[0].url.searchParams.get("contact_phones.phone_e164")).toBe(
+      "ilike.*5550177*",
+    );
+  });
+
+  it("CS-2: returns contacts found EITHER way, not just the ones with a second number", async () => {
+    // THE ONE THAT MATTERS. The second query is an inner join through the
+    // phones table, so alone it would answer with only the handful of
+    // customers who have another number — and a search for "555" would stop
+    // finding everybody else it used to.
+    const sb = searchStubs({
+      plain: [contactRow({ id: CONTACT_ID, phone_e164: "+14165550199" })],
+      joined: [
+        {
+          ...contactRow({ id: OTHER_ID, phone_e164: "+14165550111" }),
+          contact_phones: [{ id: "p1" }],
+        },
+      ],
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts?q=555",
+      { companyId: COMPANY_ID },
+    );
+    const body = (await res.json()) as { data: { id: string }[] };
+    expect(body.data.map((row) => row.id).sort()).toEqual(
+      [CONTACT_ID, OTHER_ID].sort(),
+    );
+  });
+
+  it("CS-3: does not return the same customer twice", async () => {
+    // A contact whose main number AND second number both match would appear
+    // on the list twice, which reads as a duplicate record — the exact thing
+    // #246 exists to clean up, manufactured by a search.
+    const row = contactRow({ id: CONTACT_ID, phone_e164: "+14165550199" });
+    const sb = searchStubs({
+      plain: [row],
+      joined: [{ ...row, contact_phones: [{ id: "p1" }] }],
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts?q=555",
+      { companyId: COMPANY_ID },
+    );
+    const body = (await res.json()) as { data: { id: string }[] };
+    expect(body.data).toHaveLength(1);
+  });
+
+  it("CS-4: never leaks the join into the response", async () => {
+    // `contact_phones!inner(id)` is how the filter is expressed, not something
+    // a client asked for. Left in, every row on the list would carry a stray
+    // array that three clients would then have to learn to ignore.
+    const sb = searchStubs({
+      plain: [],
+      joined: [
+        {
+          ...contactRow({ id: OTHER_ID }),
+          contact_phones: [{ id: "p1" }],
+        },
+      ],
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts?q=555",
+      { companyId: COMPANY_ID },
+    );
+    expect(await res.text()).not.toContain("contact_phones");
+  });
+
+  it("CS-5: a name search costs no extra round trip", async () => {
+    // "Dave" cannot be a phone number. Asking the phones table anyway would
+    // put a second query on every keystroke of every search in the product.
+    const sb = searchStubs({ plain: [contactRow()] });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(app, env, await auth.token(), "/v1/contacts?q=Dave", {
+      companyId: COMPANY_ID,
+    });
+    expect(listCalls(sb).joined).toHaveLength(0);
+  });
+
+  it("CS-6: an empty search asks neither", async () => {
+    const sb = searchStubs({ plain: [contactRow()] });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(app, env, await auth.token(), "/v1/contacts", {
+      companyId: COMPANY_ID,
+    });
+    expect(listCalls(sb).joined).toHaveLength(0);
+  });
+
+  it("CS-7: the merged page stays newest-first", async () => {
+    // Both queries come back sorted; the union has to be too, or the second
+    // page starts from a cursor that does not match what was shown.
+    const older = contactRow({
+      id: CONTACT_ID,
+      created_at: "2026-07-01T09:00:00+00:00",
+    });
+    const newer = contactRow({
+      id: OTHER_ID,
+      created_at: "2026-08-01T09:00:00+00:00",
+    });
+    const sb = searchStubs({
+      plain: [older],
+      joined: [{ ...newer, contact_phones: [{ id: "p1" }] }],
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts?q=555",
+      { companyId: COMPANY_ID },
+    );
+    const body = (await res.json()) as { data: { id: string }[] };
+    expect(body.data.map((row) => row.id)).toEqual([OTHER_ID, CONTACT_ID]);
+  });
+});

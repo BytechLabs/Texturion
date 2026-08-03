@@ -368,22 +368,76 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
   if (cursor) {
     query = query.or(keysetFilter("created_at", cursor));
   }
-  const rows = unwrap<
-    {
-      id: string;
-      created_at: string;
-      phone_e164: string;
-      created_by_user_id: string | null;
-      updated_by_user_id: string | null;
-    }[]
-  >(
+  type ContactListRow = {
+    id: string;
+    created_at: string;
+    phone_e164: string;
+    created_by_user_id: string | null;
+    updated_by_user_id: string | null;
+  };
+  const rows = unwrap<ContactListRow[]>(
     await query
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(limit + 1),
     "contacts list",
   );
-  const page = buildPage(rows, limit, "created_at");
+
+  /**
+   * #291 — and the same search, run through a customer's OTHER numbers.
+   *
+   * A SECOND QUERY rather than another arm on the `or` above, because
+   * PostgREST cannot OR a root column against an embedded one: the arm would
+   * have to become an inner join, and an inner join would drop every contact
+   * without a second number — which is nearly all of them.
+   *
+   * Merged rather than truncated. Collecting matching ids and adding
+   * `id.in.(…)` to the `or` was the shorter version, and it silently loses
+   * whatever falls past the length of a URL: a workspace searching "416" would
+   * get an arbitrary subset with no way to tell. Both queries carry the SAME
+   * filters, cursor and ordering, so the union's top page is the page.
+   *
+   * Only for searches with enough digits to be a number. "Dave" costs no extra
+   * round trip.
+   */
+  let merged = rows;
+  const searchDigits = rawQ?.replace(/\D/g, "") ?? "";
+  if (rawQ && searchDigits.length >= 3) {
+    let byOtherNumber = db
+      .from("contacts")
+      .select(`${CONTACT_LIST_COLUMNS},contact_phones!inner(id)`)
+      .eq("company_id", c.get("companyId"))
+      .is("deleted_at", null)
+      .ilike("contact_phones.phone_e164", `*${searchDigits}*`);
+    if (cursor) {
+      byOtherNumber = byOtherNumber.or(keysetFilter("created_at", cursor));
+    }
+    const alsoRows = unwrap<(ContactListRow & { contact_phones?: unknown })[]>(
+      await byOtherNumber
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(limit + 1),
+      "contacts list by other number",
+    );
+
+    const seen = new Set(rows.map((row) => row.id));
+    const extra = alsoRows
+      .filter((row) => !seen.has(row.id))
+      .map(({ contact_phones: _join, ...row }) => row);
+    if (extra.length > 0) {
+      merged = [...rows, ...extra].sort((a, b) =>
+        a.created_at === b.created_at
+          ? b.id.localeCompare(a.id)
+          : b.created_at.localeCompare(a.created_at),
+      );
+      // Back to one page's worth. Both sides were already limited to
+      // `limit + 1`, so the union holds at least that many when either did,
+      // and `buildPage` still sees the extra row it uses to decide "more".
+      merged = merged.slice(0, limit + 1);
+    }
+  }
+
+  const page = buildPage(merged, limit, "created_at");
 
   // Three independent per-page decorations — the opted-out badge (G6), last
   // activity (G6), and #191 created/updated actor names — none depends on
