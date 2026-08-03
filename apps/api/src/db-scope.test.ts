@@ -35,7 +35,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { productionSources as readProductionSources } from "./test/source-tree";
+import { productionSources as readProductionSources, stripComments } from "./test/source-tree";
 
 const SRC = fileURLToPath(new URL(".", import.meta.url));
 
@@ -404,13 +404,10 @@ const sources = readProductionSources;
  * Blanking rather than deleting keeps every offset and line number exact, so
  * a failure still points at the line it means.
  */
-const blankOut = (comment: string): string => comment.replace(/[^\n]/g, " ");
+// #519: `stripComments` now lives in `test/source-tree.ts`, correct and
+// shared. The copy that stood here opened a block comment at any `/*`,
+// including one inside a string literal.
 
-function stripComments(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, blankOut)
-    .replace(/\/\/[^\n]*/g, blankOut);
-}
 
 /**
  * The statement a `.from(` starts.
