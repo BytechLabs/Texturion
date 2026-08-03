@@ -358,6 +358,39 @@ struct ScheduledContact: Codable, Sendable {
     @Default<DefaultEmptyString> var phone_e164: String
 }
 
+/// #237 — one appointment-reminder rule: how long before a job it goes, and
+/// what it says.
+struct ReminderRule: Codable, Sendable, Identifiable, Hashable {
+    var id: String? = nil
+    var offset_minutes: Int
+    var body: String
+    var enabled: Bool = true
+
+    /// SwiftUI needs a stable identity for a row that has not been saved yet,
+    /// and a new rule has no server id. The offset is unique within a
+    /// workspace by construction — two rules at the same one would be the same
+    /// reminder arriving twice — so it identifies a row for as long as one
+    /// exists on screen.
+    var rowId: Int { offset_minutes }
+}
+
+/// GET /v1/appointment-reminders.
+struct ReminderRulesResponse: Codable, Sendable {
+    var rules: [ReminderRule] = []
+    /// What the workspace WOULD get. Offered, never applied.
+    var suggested: [ReminderRule] = []
+    var cap: Int = 2
+}
+
+/// PUT /v1/appointment-reminders — the whole set at once.
+struct ReminderRulesBody: Codable, Sendable {
+    let rules: [ReminderRule]
+}
+
+struct ReminderRulesSaved: Codable, Sendable {
+    var rules: [ReminderRule] = []
+}
+
 /// GET /v1/scheduled-messages.
 struct ScheduledMessagePage: Codable, Sendable {
     let scheduled_messages: [ScheduledMessage]

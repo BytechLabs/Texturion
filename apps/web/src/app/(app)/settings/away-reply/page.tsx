@@ -14,6 +14,7 @@ import {
 } from "@/components/thread/composer-banner";
 import { ClosedDatesCard } from "@/components/settings/closed-dates-card";
 import { EmergencyCard } from "@/components/settings/emergency-card";
+import { ReminderRulesCard } from "@/components/settings/reminder-rules-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -427,6 +428,15 @@ export default function AwayReplySettingsPage() {
               #414 used to put the switch on the away card.
               *Applying: Relationship Strength & Chunking.* */}
           <EmergencyCard company={company.data} canEdit={canEdit} />
+
+          {/* #237: last, and on this page rather than a seventeenth settings
+              row. Every card above it answers "what do we send automatically,
+              and in whose words" — the away reply, the closed dates, the
+              emergency reply. A reminder is the same question with a different
+              trigger, and a section list already sixteen rows long does not
+              hold another for a two-rule form.
+              *Applying: Chunking & Zen of Clarity.* */}
+          <ReminderRulesCard canEdit={canEdit} />
         </div>
       )}
     </SettingsPage>

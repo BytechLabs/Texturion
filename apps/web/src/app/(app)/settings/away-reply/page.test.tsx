@@ -51,6 +51,19 @@ vi.mock("@/lib/api/companies", () => ({
 
 vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ role: "owner" }),
+  useCompanyId: () => "11111111-1111-4111-8111-111111111111",
+}));
+
+// #237: the reminder card renders on this page and asks react-query for its
+// rules. Mocked at the API layer, exactly as `@/lib/api/companies` above is —
+// this file renders to static markup with no QueryClientProvider, and these
+// assertions are about the US-reach notice rather than about reminders.
+vi.mock("@/lib/api/appointment-reminders", () => ({
+  useReminderRules: () => ({
+    isPending: false,
+    data: { rules: [], suggested: [], cap: 2 },
+  }),
+  useSaveReminderRules: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 import AwayReplySettingsPage from "./page";

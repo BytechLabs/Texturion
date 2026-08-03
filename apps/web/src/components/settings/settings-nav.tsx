@@ -77,8 +77,11 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     // FEATURE-GAPS Step 1 — after-hours away reply.
     id: "hours",
     slug: "away-reply",
-    label: "Business hours & away reply",
-    description: "Auto-reply after hours in your own words",
+    label: "Hours, away reply & reminders",
+    // #237: "reminders" is in the LABEL, not only the description. This section
+    // is where the appointment-reminder rules live, and a flagship feature
+    // findable only by opening a row called "Business hours" is not findable.
+    description: "Auto-replies and appointment reminders, in your own words",
     icon: Clock,
   },
   {

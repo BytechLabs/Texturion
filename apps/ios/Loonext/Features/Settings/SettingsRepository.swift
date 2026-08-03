@@ -33,6 +33,30 @@ struct SettingsRepository: Sendable {
         try await api.patch("/v1/company", body: patch, companyId: companyId)
     }
 
+    // MARK: - #237 appointment reminders
+
+    /// The workspace's reminder rules, plus the two it would get if it asked.
+    ///
+    /// `suggested` is offered, never applied: no workspace sends reminders
+    /// until somebody turns them on, because seeding them would start texting a
+    /// live customer base automatically.
+    func reminderRules(_ companyId: String) async throws -> ReminderRulesResponse {
+        try await api.get("/v1/appointment-reminders", companyId: companyId)
+    }
+
+    /// Replace the whole set. Not per-rule saves — there are at most two, they
+    /// are edited together, and an empty list is how reminders are turned off.
+    func saveReminderRules(
+        _ companyId: String,
+        rules: [ReminderRule]
+    ) async throws -> ReminderRulesSaved {
+        try await api.put(
+            "/v1/appointment-reminders",
+            body: ReminderRulesBody(rules: rules),
+            companyId: companyId
+        )
+    }
+
     /// #386: re-open your own bounced address after fixing it. Company-exempt
     /// server-side — an address belongs to a person, not to a workspace.
     func retryOwnEmail() async throws -> JSONValue {

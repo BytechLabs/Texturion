@@ -357,6 +357,39 @@ data class ScheduledContact(
     val phone_e164: String = "",
 )
 
+/**
+ * #237 — one appointment-reminder rule: how long before a job it goes, and
+ * what it says.
+ */
+@Serializable
+data class ReminderRule(
+    val id: String? = null,
+    val offset_minutes: Int,
+    val body: String,
+    val enabled: Boolean = true,
+)
+
+/**
+ * GET /v1/appointment-reminders.
+ *
+ * `suggested` is what the workspace WOULD get, offered rather than applied —
+ * no workspace sends reminders until somebody turns them on, because seeding
+ * them would start texting a live customer base automatically.
+ */
+@Serializable
+data class ReminderRulesResponse(
+    val rules: List<ReminderRule> = emptyList(),
+    val suggested: List<ReminderRule> = emptyList(),
+    val cap: Int = 2,
+)
+
+/** PUT /v1/appointment-reminders — the whole set at once. */
+@Serializable
+data class ReminderRulesBody(val rules: List<ReminderRule>)
+
+@Serializable
+data class ReminderRulesSaved(val rules: List<ReminderRule> = emptyList())
+
 /** GET /v1/scheduled-messages. */
 @Serializable
 data class ScheduledMessagePage(val scheduled_messages: List<ScheduledMessage> = emptyList())

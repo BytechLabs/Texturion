@@ -69,6 +69,12 @@ fun HoursSection(
     // TELLS a customer the word. An owner changing the word has to see the
     // offer in the same scroll.
     EmergencyCard(scope, company, onCompanyUpdated)
+    // #237: last, and on this screen rather than a section of its own. Every
+    // card above answers "what do we send automatically, and in whose words" —
+    // the away reply, the closed dates, the emergency reply. A reminder is the
+    // same question with a different trigger, and the settings list is already
+    // long enough that a two-rule form does not earn another row.
+    ReminderRulesCard(scope)
 }
 
 @Composable
