@@ -8,10 +8,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   clearDraft,
+  clearFailedSend,
   flushDraftOnExit,
   loadDraft,
+  loadFailedSend,
   NEW_CONVERSATION_DRAFT,
   saveDraft,
+  saveFailedSend,
 } from "./composer-drafts";
 
 /** A minimal localStorage. The suite runs in node, so there is no real one. */
@@ -89,6 +92,66 @@ describe("composer drafts", () => {
     vi.stubGlobal("window", undefined);
     expect(loadDraft("c1")).toBe("");
     expect(() => saveDraft("c1", "text")).not.toThrow();
+  });
+});
+
+describe("#299 — the failed send's key survives with the draft it restored", () => {
+  let store: ReturnType<typeof fakeStorage>;
+
+  beforeEach(() => {
+    store = fakeStorage();
+    vi.stubGlobal("window", { localStorage: store });
+  });
+
+  it("round-trips the signature and key", () => {
+    saveFailedSend("c1", { signature: "on my way |", key: "key-1" });
+    expect(loadFailedSend("c1")).toEqual({
+      signature: "on my way |",
+      key: "key-1",
+    });
+  });
+
+  it("keeps threads apart, like the drafts it rides with", () => {
+    saveFailedSend("c1", { signature: "for Dana", key: "key-1" });
+    saveFailedSend("c2", { signature: "for Marco", key: "key-2" });
+    expect(loadFailedSend("c1")?.key).toBe("key-1");
+    expect(loadFailedSend("c2")?.key).toBe("key-2");
+  });
+
+  it("is null when nothing failed, and after a success clears it", () => {
+    expect(loadFailedSend("c1")).toBeNull();
+    saveFailedSend("c1", { signature: "sent", key: "key-1" });
+    clearFailedSend("c1");
+    expect(loadFailedSend("c1")).toBeNull();
+  });
+
+  it("refuses a half-written marker rather than sending with an empty key", () => {
+    // Reusing "" would send with no key at all, which is worse than minting a
+    // fresh one: the server would have nothing to dedupe on.
+    store.setItem("loonext:composer-failed-send:c1", JSON.stringify({ key: "" }));
+    expect(loadFailedSend("c1")).toBeNull();
+    store.setItem("loonext:composer-failed-send:c2", JSON.stringify({ signature: "x" }));
+    expect(loadFailedSend("c2")).toBeNull();
+    store.setItem("loonext:composer-failed-send:c3", "not json");
+    expect(loadFailedSend("c3")).toBeNull();
+  });
+
+  it("survives the reload, which is the whole point", () => {
+    // The sequence #299 describes: a blip fails the send, the draft is restored
+    // AND persisted, the user refreshes because the app looked broken, then
+    // presses send on the text that came back. Without this the retry mints a
+    // fresh key and a first attempt that actually reached the server is
+    // delivered — and billed — twice.
+    saveDraft("c1", "running 20 late");
+    saveFailedSend("c1", { signature: "running 20 late |", key: "key-1" });
+
+    // A reload is a new page reading the storage the old one left behind.
+    const survived = fakeStorage();
+    for (const [k, v] of store.map) survived.setItem(k, v);
+    vi.stubGlobal("window", { localStorage: survived });
+
+    expect(loadDraft("c1")).toBe("running 20 late");
+    expect(loadFailedSend("c1")?.key).toBe("key-1");
   });
 });
 

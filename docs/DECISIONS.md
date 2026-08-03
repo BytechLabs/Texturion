@@ -7060,3 +7060,68 @@ carve-out was well-founded and is untouched.
 
 D112's refusal to build a recordings library also stands, on its own terms and
 now on firmer ones.
+
+## D118 — web fails honestly rather than queueing; the outbox is a phone feature because the phone is what walks away (#299, #234, 2026-08-02)
+
+#299 left one question open and asked for it to be answered once, for both
+platforms: "#234 is building a real outbox for mobile — whether web shares that
+model is a decision worth making once."
+
+**It does not.** Web fails honestly; only the phones queue.
+
+### The outbox exists for a condition web does not have
+
+#234's own reasoning names it: "our users are in crawl spaces, mechanical rooms,
+elevators and parking garages", and the failure it prevents is "a tech who typed
+an update in a basement, hit send and walked to the truck". The durability is
+not about the network being down — it is about **the person leaving while it is
+down**, with the app backgrounded and later killed by the OS, so nothing is left
+to retry and nobody is present to be told.
+
+The web user is the other person in the business. #299 describes them: "the
+office manager or owner running the business from a desktop all day, on a
+small-business connection that drops, or tethered to a phone." They are sitting
+in front of the screen. The tab stays open, the outage is visible while it
+happens, and the person who pressed send is still there when it resolves.
+
+### Queueing where somebody is watching is worse, not better
+
+A queue defers a send past the moment the sender is thinking about it, which is
+precisely why #234 needed `OUTBOX_AGE_OUT_HOURS` — a day, because "'on my way'
+delivered Monday morning is worse than not delivered: the customer reads it as
+current." That hazard is the *price* of durability on a phone, paid because the
+alternative is a silently dropped message. On a desk, with the author present
+and the words still in the box, there is no dropped message to trade against, so
+the same machinery would introduce the hazard and buy nothing.
+
+It would also be a large surface to be wrong in: blob persistence for staged
+files, a flusher, blocked-row states, a stale-acknowledge flow, and a tab left
+open overnight sending yesterday's message on its own.
+
+### What web owes instead, and now does
+
+Honest failure has to be as durable as the draft, or it is not honest:
+
+1. **The words come back** — the draft is restored and persisted (#299).
+2. **The retry is safe** — the Idempotency-Key is stored beside the draft, so a
+   first attempt that reached the server but lost its response is collapsed
+   rather than delivered and billed twice. This was the actual defect: the key
+   lived in a React ref while the draft lived in storage, so a reload kept the
+   half that invites the retry and dropped the half that makes it safe, in
+   exactly the situation (blip, then refresh) the key exists for.
+3. **The state says so** — a durable line in the composer, because a toast is
+   gone in seconds and restored text is indistinguishable from an unfinished
+   draft.
+
+So the acceptance criterion "sends during a blip either queue or fail honestly,
+never ambiguously" is met by the second branch on web and the first on the
+phones. **Parity here is parity of outcome, not of mechanism** — the same rule
+already applied to undo timings (docs/UNDO-AUDIT.md: a phone undo follows a
+gesture you can make by accident, a web undo follows a deliberate click, and
+"the platform difference is the point, not a drift").
+
+### What would reopen this
+
+A web client that is regularly closed mid-outage: a PWA installed on a laptop
+that sleeps, or the tab-close rate during a drop turning out to be high. Both
+are measurable. Neither is assumed.

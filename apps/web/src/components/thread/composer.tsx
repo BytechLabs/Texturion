@@ -39,11 +39,14 @@ import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { useCompany } from "@/lib/api/companies";
 import {
   clearDraftMentions,
+  clearFailedSend,
   loadDraft,
   loadDraftMentions,
+  loadFailedSend,
   flushDraftOnExit,
   saveDraft,
   saveDraftMentions,
+  saveFailedSend,
 } from "@/lib/messaging/composer-drafts";
 import {
   cacheSuggestions,
@@ -274,6 +277,48 @@ export function MediaErrors({ errors }: { errors: string[] }) {
 }
 
 /**
+ * #299 — "this didn't send", said durably rather than in a toast.
+ *
+ * WHAT IT FIXES. A failed send restores the draft to the box and raises a toast.
+ * The toast is gone in seconds; the draft is not, and since #299 it survives a
+ * reload as well. So what the user comes back to is text in a composer that
+ * reads exactly like a reply they started and never finished. Nothing on screen
+ * distinguishes that from a message they pressed send on and believe went out —
+ * which is the ambiguity the issue names, and the more expensive way to be
+ * wrong, because "I already told them" is a decision people make out loud.
+ *
+ * WHY IT NAMES THE SAFETY. The second sentence is the actionable half: the
+ * reason not to hesitate over pressing send again is that the retry carries the
+ * SAME Idempotency-Key, so a first attempt that actually reached the server is
+ * collapsed rather than delivered twice. That is true because the key is stored
+ * next to the draft, and it would be a false promise without it.
+ *
+ * TONE. A statement, not an alarm: the same choice the connection banner makes
+ * for the same reason. Nothing has been destroyed, the words are still here, and
+ * an amber strip over a failed send teaches people to discount the strip that
+ * will one day be about something they cannot undo. `role="status"` and
+ * `aria-live="polite"` because a screen-reader user mid-sentence should not be
+ * interrupted by a condition whose remedy is one button they already know about.
+ *
+ * *Applying: G10 (system states must be precise) and the Safety principle.*
+ */
+export function UnsentNotice({ show }: { show: boolean }) {
+  if (!show) return null;
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="mx-auto max-w-[42rem] px-1 pb-2"
+    >
+      <p className="text-xs text-app-amber-ink">
+        This didn&rsquo;t send. Press send to try again. It won&rsquo;t send
+        twice.
+      </p>
+    </div>
+  );
+}
+
+/**
  * §3.2 passive segment hint: a quiet `stone-400` line that appears only once a
  * message splits into 2+ parts (when it costs an extra segment), reads "Sent in
  * N parts", turns amber only at ≥4 parts. It is TEXT, not a control — there is
@@ -472,8 +517,38 @@ export function Composer({
    * The last send that FAILED, with the Idempotency-Key it used. Pressing send
    * again on the same text reuses that key, so a response that was merely lost
    * (rather than a send that never happened) can never reach the customer twice.
+   *
+   * #299: seeded from storage, because the draft it belongs to is. A ref dies
+   * with the page while the draft survives it, so a reload used to keep the half
+   * that invites a retry and drop the half that makes it safe — in exactly the
+   * situation (a blip, then a refresh) the key exists for.
    */
-  const lastFailedSendRef = useRef<FailedAttempt | null>(null);
+  const lastFailedSendRef = useRef<FailedAttempt | null | undefined>(undefined);
+  if (lastFailedSendRef.current === undefined) {
+    // Lazy, not `useRef(loadFailedSend(…))`: an argument to useRef is evaluated
+    // on EVERY render and thrown away after the first, and this composer
+    // re-renders on every keystroke. `undefined` is the not-yet-read state so
+    // that a genuine "no failed send" (null) is only read from storage once.
+    lastFailedSendRef.current = loadFailedSend(conversationId);
+  }
+  /**
+   * #299: the signature of the send that failed, so the box can SAY so.
+   *
+   * The ref above carries the key; this carries the fact, because a fact the
+   * user needs has to survive a render and a reload. A toast cannot: it is gone
+   * in seconds, and the reload that follows a blip is the moment the
+   * explanation is most needed and least present. What was left behind was text
+   * sitting in the composer that reads exactly like a draft somebody never
+   * finished — the ambiguity #299 names.
+   *
+   * The SIGNATURE rather than a boolean, so the notice can only appear while
+   * what is in the box is still the thing that failed. Edit the words and it
+   * goes: that is a different message now, it has never been sent, and saying
+   * "this didn't send" about it would be a lie in the other direction.
+   */
+  const [failedSignature, setFailedSignature] = useState<string | null>(
+    () => loadFailedSend(conversationId)?.signature ?? null,
+  );
   const [mode, setMode] = useState<"sms" | "note">(noteOnly ? "note" : "sms");
   const isNote = noteOnly || mode === "note";
   // Restored from the last visit to THIS conversation. Both phone apps have
@@ -921,7 +996,7 @@ export function Composer({
     // same content -> same key, any edit -> new key.
     const signature = `${draftText} ${attachmentSignature(draftAttachments)}`;
     const idempotencyKey = idempotencyKeyFor(
-      lastFailedSendRef.current,
+      lastFailedSendRef.current ?? null,
       signature,
     );
 
@@ -938,6 +1013,11 @@ export function Composer({
       {
         onSuccess: () => {
           lastFailedSendRef.current = null;
+          // The message is gone from the box and on its way, so the marker has
+          // nothing left to protect. Left behind, it would be read by the next
+          // failed send on this thread before that send wrote its own.
+          clearFailedSend(conversationId);
+          setFailedSignature(null);
           // The box is empty again, so whatever was inserted is spent. A
           // template left attached would tag the NEXT message too.
           templateUse.current = null;
@@ -952,6 +1032,10 @@ export function Composer({
         },
         onError: (error) => {
           lastFailedSendRef.current = { signature, key: idempotencyKey };
+          // #299: with the draft, not just in memory. The reload that follows a
+          // blip must not turn a safe retry into a second charge.
+          saveFailedSend(conversationId, { signature, key: idempotencyKey });
+          setFailedSignature(signature);
           setText(draftText);
           setAttachments(draftAttachments);
           toast.error(
@@ -1127,6 +1211,17 @@ export function Composer({
             suggestionsWereShown.current = false;
             reportAiOutcome(companyId, "suggest_reply", "discarded");
           }}
+        />
+      )}
+      {!isNote && (
+        <UnsentNotice
+          // Only while the box still holds the message that failed. Recomputed
+          // rather than stored, so an edit retires the notice on the keystroke
+          // that makes it untrue.
+          show={
+            failedSignature !== null &&
+            failedSignature === `${text} ${attachmentSignature(attachments)}`
+          }
         />
       )}
       {!isNote && <MediaErrors errors={mediaErrors} />}

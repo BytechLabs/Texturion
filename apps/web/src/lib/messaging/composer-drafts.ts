@@ -119,6 +119,84 @@ export function clearDraftMentions(conversationId: string): void {
 }
 
 /**
+ * #299 — the Idempotency-Key of a send that failed, kept with the draft it
+ * restored.
+ *
+ * WHY THIS HAS TO BE PERSISTED, and why it was not before.
+ *
+ * A failed send restores the draft, so the natural next action is to press send
+ * again. `idempotencyKeyFor` makes that safe by reusing the key when the content
+ * is unchanged: a send whose response was merely LOST — the exact shape of a
+ * network blip — is then collapsed server-side instead of reaching the customer
+ * twice and billing twice.
+ *
+ * That guarantee lived in a React ref, and a ref dies with the page. The draft
+ * did not: it is written to storage above, precisely so a reload cannot lose it.
+ * So the two halves of one safety property had different lifetimes, and a reload
+ * kept the half that invites the retry while dropping the half that makes it
+ * safe.
+ *
+ * A reload is not a hypothetical here. #299's own reasoning is that a mid-session
+ * drop makes the product look broken and the reasonable response is to refresh —
+ * which is to say the double-send was most likely in exactly the situation the
+ * key exists for. The phones never had this gap: their outbox row stores the key
+ * alongside the message, so it survives an app kill by construction (#234).
+ *
+ * Stored per conversation and under its own key, so a parse failure costs the
+ * safety marker rather than the words.
+ */
+const FAILED_SEND_PREFIX = "loonext:composer-failed-send:";
+
+/** The last attempt that failed on this thread, as it survives a reload. */
+export interface StoredFailedSend {
+  /** Everything that makes the message what it is — text plus staged files. */
+  signature: string;
+  key: string;
+}
+
+export function loadFailedSend(conversationId: string): StoredFailedSend | null {
+  try {
+    const raw = storage()?.getItem(FAILED_SEND_PREFIX + conversationId);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return null;
+    const row = parsed as StoredFailedSend;
+    // A half-written marker must not be trusted: reusing an empty key would
+    // send with no key at all, which is worse than minting a fresh one.
+    if (typeof row.signature !== "string" || typeof row.key !== "string") {
+      return null;
+    }
+    if (row.key === "") return null;
+    return { signature: row.signature, key: row.key };
+  } catch {
+    return null;
+  }
+}
+
+export function saveFailedSend(
+  conversationId: string,
+  attempt: StoredFailedSend,
+): void {
+  try {
+    storage()?.setItem(
+      FAILED_SEND_PREFIX + conversationId,
+      JSON.stringify(attempt),
+    );
+  } catch {
+    // Full or blocked storage. The retry then mints a fresh key, which is the
+    // behaviour that shipped before this existed — degraded, not broken.
+  }
+}
+
+export function clearFailedSend(conversationId: string): void {
+  try {
+    storage()?.removeItem(FAILED_SEND_PREFIX + conversationId);
+  } catch {
+    // As above.
+  }
+}
+
+/**
  * #299/#269 — save whatever is in the box when the page is going away.
  *
  * The composer writes its draft on a debounce: one entry per idle moment
