@@ -49,6 +49,13 @@ function stubWithRole(
    * `sb.on` for a path it already claimed is a stub that silently never runs.
    */
   addresses: Record<string, unknown>[] = [],
+  /**
+   * #291: the contact detail reads a contact's other numbers too. Passed IN
+   * for the same reason as the addresses — this harness is first-match-wins,
+   * so a later `sb.on` for a path registered here silently never runs, and the
+   * test fails with the DEFAULT answer rather than the one it set up.
+   */
+  phones?: (call: { url: URL }) => Record<string, unknown>[],
 ): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
@@ -61,6 +68,12 @@ function stubWithRole(
   // test written before it was asserting against. A suite that wants
   // addresses registers this path itself and wins.
   sb.on("GET", "/rest/v1/contact_addresses", () => addresses);
+  // #291: and the other numbers, read on the same detail. Registered here for
+  // the same first-match-wins reason — a suite that wants numbers registers
+  // the path itself before calling this and wins.
+  sb.on("GET", "/rest/v1/contact_phones", (call) =>
+    phones ? phones(call) : [],
+  );
   return sb;
 }
 
@@ -2801,26 +2814,23 @@ describe("contact phone numbers", () => {
    * watching the test stay green.
    */
   function phoneReads(
-    sb: SupabaseStub,
     options: {
       taken?: Record<string, unknown>[];
       existing?: Record<string, unknown>[];
     } = {},
   ) {
-    sb.on("GET", "/rest/v1/contact_phones", (call) =>
+    return (call: { url: URL }) =>
       call.url.searchParams.has("phone_e164")
         ? options.taken ?? []
-        : options.existing ?? [],
-    );
+        : options.existing ?? [];
   }
 
   it("CPR-1: records a second number, normalised", async () => {
     // Normalised BEFORE storage, because this column is compared against a
     // webhook's `from`. A raw "(416) 555-0177" would look recorded and never
     // resolve.
-    const sb = stubWithRole("member");
+    const sb = stubWithRole("member", [], phoneReads());
     contactReads(sb);
-    phoneReads(sb);
     sb.on("POST", "/rest/v1/contact_phones", () => [
       { id: CONTACT_PHONE_ID, phone_e164: "+14165550177", label: "Landline" },
     ]);
@@ -2901,9 +2911,10 @@ describe("contact phone numbers", () => {
   it("CPR-4: refuses a number already claimed as another contact's second line", async () => {
     // The other half of CPR-3: a number can be somebody's SECOND number too,
     // and checking only the primaries would miss half the collisions.
-    const sb = stubWithRole("member");
+    const sb = stubWithRole("member", [], phoneReads({
+      taken: [{ contact_id: OTHER_ID }],
+    }));
     contactReads(sb);
-    phoneReads(sb, { taken: [{ contact_id: OTHER_ID }] });
     sb.on("POST", "/rest/v1/contact_phones", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -2923,14 +2934,13 @@ describe("contact phone numbers", () => {
   });
 
   it("CPR-5: stops at the cap", async () => {
-    const sb = stubWithRole("member");
-    contactReads(sb);
-    phoneReads(sb, {
+    const sb = stubWithRole("member", [], phoneReads({
       // Nobody else has the number; this contact simply already has eight.
       existing: Array.from({ length: 8 }, (_unused, index) => ({
         id: `p${index}`,
       })),
-    });
+    }));
+    contactReads(sb);
     sb.on("POST", "/rest/v1/contact_phones", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 

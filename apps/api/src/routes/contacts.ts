@@ -902,6 +902,21 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
     "contact addresses",
   );
 
+  // #291: and the other numbers, on the same read and for the same reason.
+  // Oldest first — the order they were recorded is the order the crew thinks
+  // of them in, and there is no primary among them: the contact's own
+  // `phone_e164` is the primary, and it is on the record above.
+  const phones = unwrap<Record<string, unknown>[]>(
+    await db
+      .from("contact_phones")
+      .select("id,phone_e164,label,created_at")
+      .eq("company_id", companyId)
+      .eq("contact_id", id)
+      .order("created_at", { ascending: true })
+      .limit(CONTACT_PHONE_CAP),
+    "contact phones",
+  );
+
   const optOuts = unwrap<{ id: string; source: string }[]>(
     await db
       .from("opt_outs")
@@ -962,6 +977,9 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
     // every contact that predates this — `contacts.address` still holds their
     // one address and still works.
     addresses,
+    // #291: the OTHER numbers. Empty for nearly every contact, and that is the
+    // honest answer rather than a gap: most customers have one line.
+    phones,
   });
 });
 
