@@ -141,9 +141,17 @@ const envSchema = z.object({
    * "just reply to this email", so replies must land in a monitored inbox
    * rather than the unmonitored sender). Production sets it to
    * `support@loonext.com` (docs/deploy/10-email-inbox.md routes that address).
-   * OPTIONAL: unset (local dev, tests) sends carry no Reply-To — exactly the
-   * pre-hardening behavior. Per-send `replyTo` (contact form → submitter)
-   * overrides it.
+   *
+   * OPTIONAL, but unset no longer means NO Reply-To (#252): `resend.ts` falls
+   * back to the shared SUPPORT_EMAIL. It used to send none, which quietly made
+   * five customer-facing emails false — including the workspace-deletion pair,
+   * whose only stated way to undo an irreversible close is to reply. Whether
+   * that instruction worked depended on whether somebody had wired a secret,
+   * and nothing failed or warned when they had not.
+   *
+   * So this variable now OVERRIDES a working default rather than enabling the
+   * feature. Set it when support is routed somewhere other than support@.
+   * Per-send `replyTo` (contact form → submitter) still overrides both.
    */
   RESEND_REPLY_TO: z.string().min(1).optional(),
   /**

@@ -14,7 +14,15 @@
  * is the same rule the rest of this page follows: nothing renders that isn't
  * backed by something real. A form that accepts an address it can never mail is
  * the same lie as a green dot with no probe behind it.
+ *
+ * It does NOT get to differ on the reply posture, though (#252). "Reply-To
+ * routing" is listed above as an API-worker feature this one goes without, and
+ * that was a gap rather than a simplification: it costs one JSON field and no
+ * dependency, while its absence meant replies to an incident email landed on
+ * the unmonitored sender.
  */
+
+import { SUPPORT_EMAIL } from "@loonext/shared";
 
 import type { Mailer } from "./status-subscribe";
 
@@ -49,6 +57,16 @@ export function buildMailer(env: MailerEnv | null | undefined): Mailer | null {
           to: [message.to],
           subject: message.subject,
           text: message.text,
+          // #252: the SECOND mailer in this product, and it must give the same
+          // answer as the first. The API worker's `sendEmail` stamps a Reply-To
+          // on every send so a reply reaches a person rather than the
+          // unmonitored sender; this worker posts to Resend directly and used
+          // to send none, so replies to a status-incident mail went nowhere.
+          //
+          // Hardcoded rather than an env var on purpose: this worker has no
+          // support-address secret, and an address that is missing on a deploy
+          // is exactly the silent failure the API side just removed.
+          reply_to: SUPPORT_EMAIL,
         };
         if (message.listUnsubscribeUrl) {
           body.headers = {

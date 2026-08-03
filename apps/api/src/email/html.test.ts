@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   emailLayout,
+  emailTextFooter,
   escapeHtml,
   linkifyUrls,
   renderEmailHtml,
@@ -89,14 +90,25 @@ describe("emailLayout + renderEmailHtml (#88 branded transactional layout)", () 
 });
 
 describe("#252 — a reply reaches a person", () => {
-  it("names the monitored address, because the sender is not one", () => {
-    // Every transactional email goes out from a no-reply address. A customer
-    // replying to it was replying into a void, which from their side is
-    // indistinguishable from being ignored.
+  it("names the monitored address", () => {
     const html = emailLayout("<p>Your grace period ends in three days.</p>");
-
     expect(html).toContain("support@loonext.com");
-    expect(html).toContain("not read");
+  });
+
+  it("does NOT claim replies go unread, because they do not", () => {
+    // This assertion is the inverse of the one that used to be here, and the
+    // old one is why the contradiction survived: it pinned "not read" as the
+    // expected copy, so the footer and the five bodies telling the reader to
+    // "reply to this email" could disagree with a green suite.
+    //
+    // `sendEmail` stamps a Reply-To on every send, pointed at the monitored
+    // support address, falling back to it when the operator never set the
+    // secret. A reply DOES reach a person, and the two bodies that matter most
+    // are the workspace-deletion pair, where replying is the only stated way to
+    // undo something irreversible.
+    const html = emailLayout("<p>Your workspace closes in 30 days.</p>");
+    expect(html).not.toContain("not read");
+    expect(html).toContain("reaches a person");
   });
 
   it("puts it in every email, not just the ones somebody remembered", () => {
@@ -106,6 +118,27 @@ describe("#252 — a reply reaches a person", () => {
       expect(emailLayout(body), JSON.stringify(body)).toContain(
         "support@loonext.com",
       );
+    }
+  });
+
+  it("says the same thing in the text part as in the html part", () => {
+    // The label lived only in the HTML. A plain-text reader — or anybody whose
+    // client fell back to `text` — got the body's "reply to this email" with
+    // nothing around it, and they are the reader least able to go looking for
+    // another route.
+    const footer = emailTextFooter();
+    expect(footer).toContain("support@loonext.com");
+    expect(footer).toContain("Replying reaches a person");
+    expect(footer).not.toContain("not read");
+    // No markup in the part that is not markup.
+    expect(footer).not.toContain("<");
+  });
+
+  it("carries no em or en dash, in either part", () => {
+    // Law 6, and the old footer had one.
+    for (const text of [emailLayout("<p>x</p>"), emailTextFooter()]) {
+      expect(text).not.toContain("—");
+      expect(text).not.toContain("–");
     }
   });
 });

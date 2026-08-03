@@ -3,6 +3,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { emailTextFooter } from "./html";
 import { sendEmail } from "./resend";
 import { endpoint, makeHarness } from "../test/billing-support";
 import { completeEnv, stubFetch } from "../test/support";
@@ -37,7 +38,11 @@ describe("sendEmail", () => {
       to: ["owner@example.com"],
       subject: "Hello",
       html: "<p>Hi there</p>",
-      text: "Hi there",
+      // #252: the body as given, plus the footer this layer appends so the two
+      // MIME parts cannot disagree. Asserted whole rather than with `toContain`
+      // because this is the one test that pins the ENTIRE payload shape.
+      text: "Hi there" + emailTextFooter(),
+      reply_to: "support@loonext.com",
     });
   });
 
@@ -85,7 +90,17 @@ describe("sendEmail", () => {
     ).rejects.toThrow(/no email id/);
   });
 
-  it("sends no reply_to and no headers when neither env nor input set them", async () => {
+  it("#252: falls back to the support address when the secret is unset, never to nothing", async () => {
+    // This assertion is the inverse of the one that used to be here ("sends no
+    // reply_to"), and the old behaviour is the defect. With no Reply-To a
+    // customer's reply goes to the `notifications@` SENDER, which nobody reads
+    // — while five customer-facing emails tell them to "reply to this email",
+    // two of those being the only stated way to undo an irreversible workspace
+    // deletion. Whether that instruction was true depended on an optional
+    // secret, and nothing failed or warned when it was missing.
+    //
+    // A default cannot be wrong in a way that hurts: the worst case is a reply
+    // reaching a monitored address the operator did not configure.
     const harness = makeHarness([
       endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "em_1" })),
     ]);
@@ -95,8 +110,29 @@ describe("sendEmail", () => {
       string,
       unknown
     >;
-    expect(body).not.toHaveProperty("reply_to");
+    expect(body.reply_to).toBe("support@loonext.com");
     expect(body).not.toHaveProperty("headers");
+  });
+
+  it("#252: the text part carries the same footer as the html part", async () => {
+    // Appended centrally, so a builder cannot ship a text body without it.
+    const harness = makeHarness([
+      endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "em_1" })),
+    ]);
+    stubFetch(harness.route);
+    await sendEmail(env, {
+      to: "x@example.com",
+      subject: "s",
+      html: "h",
+      text: "Your workspace closes in 30 days.",
+    });
+    const body = harness.callsTo("POST", /emails/)[0].json() as Record<
+      string,
+      unknown
+    >;
+    expect(body.text).toContain("Your workspace closes in 30 days.");
+    expect(body.text).toContain("support@loonext.com");
+    expect(body.text).toContain("Replying reaches a person");
   });
 
   it("stamps env.RESEND_REPLY_TO as reply_to on every send (P0: replies must land somewhere)", async () => {

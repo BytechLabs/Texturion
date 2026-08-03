@@ -16,22 +16,42 @@ You already run DNS on Cloudflare, so receiving costs nothing:
    verification link Cloudflare emails you.
 3. **Custom addresses**: create five routes, all forwarding to that destination:
    - `support@loonext.com` — the human support inbox, and the address Resend stamps
-     as `Reply-To` on every transactional send. Set the optional Worker secret
-     `RESEND_REPLY_TO` to this address so alert replies land here, not in the
-     unmonitored `notifications@` sender:
+     as `Reply-To` on every transactional send. **Route it: the code now defaults to
+     this address, so it is where replies land whether or not the secret below is
+     set.** Setting `RESEND_REPLY_TO` only changes WHICH inbox:
      ```
      printf '%s' 'Loonext Support <support@loonext.com>' | \
        wrangler secret put RESEND_REPLY_TO --config apps/api/wrangler.jsonc
      ```
-     `RESEND_REPLY_TO` is optional in the schema (`apps/api/src/env.ts:53`); leave it
-     unset and `resend.ts` omits `Reply-To` entirely (the pre-hardening behavior), so
-     wiring it here is what makes the "reply to this email" copy actually reach a human.
+     `RESEND_REPLY_TO` is optional in the schema; since #252, leaving it unset does
+     NOT mean replies go nowhere — `resend.ts` falls back to `support@loonext.com`,
+     so the "reply to this email" copy reaches a human on every deploy, including
+     one where this step was skipped. Setting it here is how you point replies at a
+     DIFFERENT inbox; the route below is still what makes that address deliver.
      ([06-env-reference](./06-env-reference.md) §A carries it as an optional row too.)
+
+     > The old behaviour was the defect: with the secret unset, a reply went to the
+     > FROM address instead of support, while five customer-facing emails told the
+     > reader to reply. Two of those are the only stated route to undoing an
+     > irreversible workspace deletion. Nothing failed and nothing warned; whether
+     > the copy was true depended on whether somebody had wired a secret.
    - `privacy@loonext.com`
    - `security@loonext.com`
-   - `notifications@loonext.com` — the Resend `RESEND_FROM` sender. Routing it means
-     bounces and stray replies to outbound alerts still reach a person instead of
-     bouncing into the void.
+   - **The `RESEND_FROM` sender.** Route whichever address production actually sends
+     as, so bounces and stray replies reach a person instead of bouncing into the
+     void. **Check before creating it:** this repo says `notifications@loonext.com`
+     in most places (`apps/api/src/env.ts`, `PRODUCTION.md`, the test stubs) while
+     the live value recorded in [08-operations](./08-operations.md) is
+     `noreply@loonext.com`. Route the live one.
+
+     > Two follow-ups the founder owns, both out of scope for a code change:
+     > reconcile that discrepancy so the repo states the sender once, and decide
+     > whether the live sender should stay `noreply@`. A Reply-To makes a reply
+     > ROUTE correctly, but the From line is what the reader sees first, and
+     > `noreply@` is the most widely understood "your reply is not read" signal
+     > in email. Every transactional footer now invites a reply, and the
+     > workspace-deletion email's only stated way to undo an irreversible close
+     > is to reply. Sending that from `noreply@` argues with it.
    - `dmarc@loonext.com` — receives the DMARC aggregate (`rua`) reports below. Keep it
      separate from `support@` so the daily XML reports never clutter the human inbox
      (a Gmail filter can archive them straight to a `DMARC` label).

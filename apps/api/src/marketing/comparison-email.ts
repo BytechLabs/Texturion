@@ -142,6 +142,11 @@ export async function sendComparisonEmail(
     subject,
     text,
     html,
+    // #252: the one commercial send. It carries its own CAN-SPAM block below,
+    // and the recipient is a prospect with no Loonext account, so the shared
+    // "service message about your Loonext account" footer would both misdescribe
+    // this email and sit underneath its unsubscribe line.
+    kind: "commercial",
     headers: {
       // RFC 8058 one-click. The URL-only header (the pattern the inbound-alert
       // email already uses) lets a mail client SHOW an unsubscribe button; the

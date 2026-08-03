@@ -1,6 +1,9 @@
+import { SUPPORT_EMAIL } from "@loonext/shared";
+
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { recordHeartbeatBestEffort } from "../observability/liveness";
+import { emailTextFooter } from "./html";
 
 export interface SendEmailInput {
   /** One address or several (Resend accepts both). */
@@ -11,7 +14,8 @@ export interface SendEmailInput {
   /**
    * Per-send Reply-To override (e.g. the contact form sets it to the
    * submitter so support can reply directly). When absent, the env-level
-   * RESEND_REPLY_TO applies; when that is unset too, no Reply-To is sent.
+   * RESEND_REPLY_TO applies; when that is unset too, replies fall back to the
+   * shared support address rather than to the unmonitored sender (#252).
    */
   replyTo?: string;
   /**
@@ -19,6 +23,24 @@ export interface SendEmailInput {
    * `List-Unsubscribe` on recurring notification emails.
    */
   headers?: Record<string, string>;
+  /**
+   * What kind of message this is, which decides whether the service footer
+   * belongs on it (#252).
+   *
+   * Nearly everything here is transactional — account, billing, usage — and
+   * gets the footer appended centrally so no builder can ship a text part
+   * without it. `comparison-email.ts` is the one COMMERCIAL send: it goes to a
+   * captured prospect who by construction has no account, it carries its own
+   * CAN-SPAM block (postal address + unsubscribe), and it deliberately does not
+   * use `emailLayout`. Appending "a service message about your Loonext account"
+   * below that unsubscribe line would both misdescribe the message and put a
+   * second footer under the compliance block.
+   *
+   * Defaulted rather than required because transactional is the overwhelming
+   * majority and a wrong default there is silent; `commercial-footer.test.ts`
+   * is what stops the next commercial sender from inheriting it by omission.
+   */
+  kind?: "transactional" | "commercial";
 }
 
 export interface SentEmail {
@@ -62,7 +84,24 @@ export async function sendEmail(
     return { id: null };
   }
 
-  const replyTo = input.replyTo ?? env.RESEND_REPLY_TO;
+  /**
+   * #252: a Reply-To is ALWAYS stamped, and the last resort is the address a
+   * human reads rather than nothing at all.
+   *
+   * Five customer-facing emails tell the reader to "reply to this email", and
+   * two of them are the only stated way to undo an irreversible workspace
+   * deletion. Whether that instruction was true used to depend on an OPTIONAL
+   * secret: with `RESEND_REPLY_TO` unset, replies went to the `notifications@`
+   * sender, which nobody reads. Nothing failed and nothing warned — the copy
+   * simply became a lie, on the one path where being ignored costs a customer
+   * their workspace.
+   *
+   * A default cannot be wrong in a way that hurts: the worst case is a reply
+   * reaching a monitored address the operator did not configure. The secret is
+   * still honoured when set, so a deployment that routes support elsewhere
+   * keeps deciding for itself.
+   */
+  const replyTo = input.replyTo ?? env.RESEND_REPLY_TO ?? SUPPORT_EMAIL;
   const response = await fetch(RESEND_ENDPOINT, {
     method: "POST",
     headers: {
@@ -74,8 +113,19 @@ export async function sendEmail(
       to: deliverable,
       subject: input.subject,
       html: input.html,
-      text: input.text,
-      ...(replyTo !== undefined ? { reply_to: replyTo } : {}),
+      // #252: the same footer as the HTML part, appended HERE rather than by
+      // each builder. `emailLayout` frames every html body centrally and the
+      // text bodies were hand-written one by one, which is why the label
+      // existed in one MIME part and not the other. A per-builder footer is one
+      // somebody forgets on the send that matters.
+      //
+      // Commercial mail is exempt: it carries its own compliance block and is
+      // not a service message about an account the recipient does not have.
+      text:
+        input.kind === "commercial"
+          ? input.text
+          : input.text + emailTextFooter(),
+      reply_to: replyTo,
       ...(input.headers !== undefined ? { headers: input.headers } : {}),
     }),
   });

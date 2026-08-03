@@ -7,6 +7,7 @@
  * company name straight into markup. Every builder now comes through here so
  * escaping cannot drift again.
  */
+import { SUPPORT_EMAIL } from "@loonext/shared";
 
 /**
  * Escape a string for interpolation into HTML text or double-quoted attribute
@@ -41,13 +42,33 @@ const EMAIL_FONT =
 /**
  * The address a human actually reads (#252).
  *
- * Deliberately a constant here rather than an env var: it appears in the
- * footer of every transactional email, so a missing or mistyped variable would
- * silently ship the void this exists to close. It matches
- * `apps/web/src/lib/marketing/business.ts`'s SUPPORT_EMAIL, which is where the
- * customer-facing copy says the same thing.
+ * Imported rather than redeclared. It was a local copy of the same literal the
+ * shared package already exported, which is two sources of truth for a string
+ * printed in customer-facing copy on three clients and every transactional
+ * email — the kind that stays in sync right up until the day it matters.
+ *
+ * Still not an env var, for the original reason: a missing or mistyped variable
+ * would silently ship the void this exists to close.
  */
-const SUPPORT_EMAIL = "support@loonext.com";
+export { SUPPORT_EMAIL };
+
+/**
+ * The footer, as words rather than markup, so the two MIME parts of one email
+ * cannot say different things (#252).
+ *
+ * The label lived only in the HTML part. A reader on a plain-text client — or
+ * any client that renders `text` because the HTML failed — got the body's
+ * "reply to this email" with nothing around it, which is the reader least able
+ * to go looking for another route.
+ */
+export function emailTextFooter(): string {
+  return (
+    `\n\n---\n` +
+    `This is a service message about your Loonext account. ` +
+    `Replying reaches a person, or write to ${SUPPORT_EMAIL}.\n` +
+    `Loonext, flat-rate business texting.\n`
+  );
+}
 
 /**
  * Wrap already-built body HTML in Loonext's shared transactional-email layout
@@ -84,15 +105,22 @@ export function emailLayout(bodyHtml: string): string {
     // Quiet footer.
     `<tr><td style="padding:20px 32px 28px 32px;border-top:1px solid #F0F0E8;font-family:${EMAIL_FONT};font-size:13px;line-height:1.5;color:#6E7163;">` +
     `This is a service message about your Loonext account.<br>` +
-    // #252: every one of these is sent from a no-reply address, and a customer
-    // replying to it was replying into a void — which from their side is
-    // indistinguishable from being ignored. Naming the address that IS read is
-    // the cheap half of that fix and does not depend on any inbox routing we
-    // would have to verify first: the worst case is somebody writes to a
-    // monitored address instead of an unmonitored one.
-    `Replies to this address are not read — write to ` +
+    // #252: this line used to say replies were NOT read, and that was written
+    // when the routing had not been verified — "does not depend on any inbox
+    // routing we would have to verify first", in its own words. The routing is
+    // verified now and always has been in production: `sendEmail` stamps a
+    // Reply-To on every send, pointed at the monitored support address, and
+    // since this change it falls back to that address even when the operator
+    // never set the secret.
+    //
+    // So the cautious wording had become the false one, and false in the
+    // expensive direction. Five customer-facing emails tell the reader to
+    // reply; two of them are the only stated route to undoing an irreversible
+    // workspace deletion. A footer telling that reader their reply goes nowhere
+    // does not make them write to support, it makes them give up.
+    `Replying to this email reaches a person, or write to ` +
     `<a href="mailto:${SUPPORT_EMAIL}" style="color:#3A430F;">${SUPPORT_EMAIL}</a>` +
-    ` and a person will answer.<br>` +
+    `.<br>` +
     `Loonext, flat-rate business texting.` +
     `</td></tr>` +
     `</table></td></tr></table>` +

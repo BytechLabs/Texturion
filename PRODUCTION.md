@@ -67,7 +67,7 @@ Set each with `wrangler secret put <NAME> --config apps/api/wrangler.jsonc`
 |---|---|---|
 | `RESEND_API_KEY` | Req | Resend → API Keys (domain must be verified) |
 | `RESEND_FROM` | Req | Sender at the verified domain, e.g. `Loonext <notifications@loonext.com>` |
-| `RESEND_REPLY_TO` | Opt | Reply-To on every send. Set to `support@loonext.com` in production (routed per [docs/deploy/10-email-inbox.md](docs/deploy/10-email-inbox.md)) so "just reply to this email" reaches a human. Unset = no Reply-To |
+| `RESEND_REPLY_TO` | Opt | Reply-To on every send. **Unset = `support@loonext.com`** (#252), so "just reply to this email" reaches a human on every deploy; set this only to point replies at a DIFFERENT inbox. The address still has to be routed per [docs/deploy/10-email-inbox.md](docs/deploy/10-email-inbox.md) |
 
 ### Origins
 | Secret | Req | Source / value |
