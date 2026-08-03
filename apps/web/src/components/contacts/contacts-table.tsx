@@ -18,7 +18,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useContacts } from "@/lib/api/contacts";
+import {
+  useContacts,
+  type ContactFieldFilter,
+} from "@/lib/api/contacts";
+import { ContactFilter } from "@/components/contacts/contact-filter";
 import { flattenPages } from "@/lib/api/pagination";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
@@ -53,6 +57,10 @@ export function ContactsTable({
   const router = useRouter();
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
+  // #291: narrow to one answer in one of the workspace's own fields.
+  const [fieldFilter, setFieldFilter] = useState<
+    ContactFieldFilter | undefined
+  >(undefined);
 
   useEffect(() => {
     const handle = setTimeout(() => setQuery(input), 250);
@@ -63,9 +71,10 @@ export function ContactsTable({
     onQueryChange?.(query);
   }, [query, onQueryChange]);
 
-  const contacts = useContacts(query);
+  const contacts = useContacts(query, { field: fieldFilter });
   const rows = flattenPages(contacts.data);
   const searching = query.trim() !== "";
+  const filtering = fieldFilter !== undefined;
 
   return (
     <div className="space-y-3">
@@ -85,6 +94,11 @@ export function ContactsTable({
         />
       </div>
 
+      {/* #291: beside the search box, because both answer "show me less".
+          Absent entirely unless the workspace defined a field with a closed
+          set of answers, so most lists look exactly as they did. */}
+      <ContactFilter value={fieldFilter} onChange={setFieldFilter} />
+
       <div className="rounded-lg border bg-card">
         {contacts.isPending ? (
           <SkeletonRows />
@@ -97,6 +111,15 @@ export function ContactsTable({
             <CalmEmptyState
               title={`No matches for "${query.trim()}"`}
               description="Try a name or the last few digits of a number."
+            />
+          ) : filtering ? (
+            // #291: NOT the brand-new empty state. "Your customers show up
+            // here on their own" under an active filter reads as "you have no
+            // customers", which is alarming and wrong — they are excluded, not
+            // missing.
+            <CalmEmptyState
+              title="Nobody matches that yet"
+              description="No customer has that answer on file. Clear the filter to see everyone."
             />
           ) : (
             // The §5 kind empty state (delight moment #2): one warm line, one

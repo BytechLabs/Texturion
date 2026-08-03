@@ -29,6 +29,13 @@ export function fetchContactsPage(
    * returning names as well would answer a question nobody asked.
    */
   t9 = false,
+  /**
+   * #291: narrow to one answer in one of the workspace's own fields. Both
+   * halves or neither — the server refuses a field with no value, because
+   * "has any answer" and "has none" are different questions and guessing
+   * either would filter somebody's list by a rule they did not choose.
+   */
+  field?: ContactFieldFilter,
 ): Promise<Page<ContactListItem>> {
   // List rows carry `opted_out` (the G6 opted-out badge) and
   // `last_activity_at` (the G6 "Last activity" column — conversation
@@ -39,22 +46,42 @@ export function fetchContactsPage(
       q: q === "" ? undefined : q,
       cursor,
       t9: t9 && q !== "" ? "1" : undefined,
+      field: field?.key,
+      // Sent even when empty: "" is a real answer on a custom field, and
+      // dropping it would silently widen the list back to everybody.
+      value: field ? field.value : undefined,
     },
   });
 }
 
+/** #291 — one field, one answer. Two conditions combined is a report. */
+export interface ContactFieldFilter {
+  key: string;
+  value: string;
+}
+
 /** Contacts table — trgm-backed search via `q` (G6), keypad letters via `t9`. */
-export function useContacts(q = "", options: { t9?: boolean } = {}) {
+export function useContacts(
+  q = "",
+  options: { t9?: boolean; field?: ContactFieldFilter } = {},
+) {
   const companyId = useCompanyId();
   const trimmed = q.trim();
   const t9 = options.t9 === true;
+  const field = options.field;
   return useInfiniteQuery({
     // The flag is part of the key: the same digits mean a different result set
     // with names folded in, and sharing a cache entry would show one caller the
-    // other's answer.
-    queryKey: [...keys.contacts.list(companyId, trimmed), t9 ? "t9" : "n"],
+    // other's answer. #291: the FILTER is part of it for the same reason — a
+    // filtered list sharing a cache entry with an unfiltered one would show
+    // rows the filter excludes.
+    queryKey: [
+      ...keys.contacts.list(companyId, trimmed),
+      t9 ? "t9" : "n",
+      field ? `${field.key}=${field.value}` : "all",
+    ],
     queryFn: ({ pageParam }) =>
-      fetchContactsPage(companyId, trimmed, pageParam, t9),
+      fetchContactsPage(companyId, trimmed, pageParam, t9, field),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,
     // Keep the previous result set visible while a new search term resolves —
