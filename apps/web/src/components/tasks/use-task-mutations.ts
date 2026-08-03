@@ -179,3 +179,49 @@ export function useTaskReschedule() {
     },
   });
 }
+
+/**
+ * #237 — stop (or restart) this job's reminders.
+ *
+ * `PUT /v1/tasks/:id/reminders`, its own route rather than a field on the
+ * metadata patch: the patch describes the JOB, and this decides whether we text
+ * somebody about it. The server clears the queued reminders before answering,
+ * so there is no optimistic update here — the point of waiting is that the
+ * strip and the workspace list are right by the time this resolves.
+ */
+export function useSetTaskReminders() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: {
+      taskId: string;
+      conversationId: string;
+      off: boolean;
+    }) =>
+      apiFetch<Task>(`/v1/tasks/${input.taskId}/reminders`, {
+        method: "PUT",
+        companyId,
+        body: { off: input.off },
+      }),
+    onSuccess: (_task, input) => {
+      toast.success(
+        input.off
+          ? "Reminders off for this job. Anything queued has been cancelled."
+          : "Reminders back on for this job.",
+      );
+      void queryClient.invalidateQueries({ queryKey: keys.tasks.lists(companyId) });
+      void queryClient.invalidateQueries({
+        queryKey: keys.tasks.checklist(companyId, input.conversationId),
+      });
+      // The thread strip shows what is queued, and switching this just changed
+      // it. Without this the crew sees a reminder they have cancelled.
+      void queryClient.invalidateQueries({
+        queryKey: ["scheduled-messages", companyId],
+      });
+    },
+    onError: () => {
+      toast.error("Couldn't change that. Try again.");
+    },
+  });
+}

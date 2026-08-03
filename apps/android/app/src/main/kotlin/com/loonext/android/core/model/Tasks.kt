@@ -32,6 +32,18 @@ data class Task(
      */
     val done: Boolean = false,
     val status: String = "open",
+    /**
+     * #237: whether this job texts its customer before it happens, and whether
+     * they said they would be there.
+     *
+     * `confirmed_by` matters as much as `confirmed_at`: 'crew' is a note to
+     * ourselves and 'customer' is a promise, and a screen showing them the same
+     * way would let a dispatcher trust the weaker of the two. Defaulted, like
+     * the derived fields above, so a mutation response without them decodes.
+     */
+    val reminders_off: Boolean = false,
+    val confirmed_at: String? = null,
+    val confirmed_by: String? = null,
     val contact: TaskContactLocation? = null,
     /** Present on checklist rows (GET /v1/conversations/:id/tasks). */
     val attachment_count: Int? = null,
@@ -141,6 +153,14 @@ data class TaskDetail(
      */
     val done: Boolean = false,
     val status: String = "open",
+    /**
+     * #237: whether this job texts its customer before it happens, and whether
+     * they said they would be there. Defaulted for the same reason the derived
+     * fields above are — a mutation response omits them.
+     */
+    val reminders_off: Boolean = false,
+    val confirmed_at: String? = null,
+    val confirmed_by: String? = null,
     val assignee: TaskProfile? = null,
     val created_by: TaskProfile? = null,
     val source_message: TaskSourceMessage? = null,

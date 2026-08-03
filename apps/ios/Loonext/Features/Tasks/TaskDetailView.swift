@@ -245,7 +245,12 @@ struct TaskDetailView: View {
             addr_state: row.addr_state,
             addr_postal_code: row.addr_postal_code,
             addr_country: row.addr_country,
-            addr_provenance: row.addr_provenance
+            addr_provenance: row.addr_provenance,
+            // #237: re-read for the same reason as the address — a rename or a
+            // due edit must not drop the reminder state the screen is showing.
+            reminders_off: row.reminders_off,
+            confirmed_at: row.confirmed_at,
+            confirmed_by: row.confirmed_by
         )
     }
 
@@ -473,7 +478,60 @@ struct TaskDetailView: View {
             }
             .padding(.horizontal, 15)
             .padding(.vertical, 11)
+
+            // #237: directly under the due date, because it only means anything
+            // as a qualifier on it — a job with no date sends nothing whatever
+            // this says, and the switch would read as broken sitting anywhere
+            // else. Hidden without a date, for the same reason.
+            if detail.due_at != nil {
+                RowDivider()
+                HStack(spacing: 11) {
+                    metaRowLabel("Remind")
+                    Text(reminderStateLine)
+                        .font(.golos(13))
+                        .foregroundStyle(BrandColor.muted500)
+                        .lineLimit(2)
+                    Spacer(minLength: 0)
+                    Toggle(
+                        "",
+                        isOn: Binding(
+                            get: { !(detail.reminders_off ?? false) },
+                            set: { on in
+                                runPatch {
+                                    try await mutations.setReminders(
+                                        companyId: companyId,
+                                        taskId: detail.id,
+                                        off: !on
+                                    )
+                                }
+                            }
+                        )
+                    )
+                    .labelsHidden()
+                    .disabled(noAccess)
+                    .accessibilityLabel("Remind this customer about this job")
+                }
+                .padding(.horizontal, 15)
+                .padding(.vertical, 11)
+            }
         }
+    }
+
+    /// #237 — who confirmed, said plainly.
+    ///
+    /// A customer confirming is a promise from the person who has to be there;
+    /// a crew member marking it is a note to ourselves. A dispatcher deciding
+    /// whether to send a van reads them differently, so the line does too. Same
+    /// wording as the web panel and the Android row.
+    private var reminderStateLine: String {
+        if detail.confirmed_at != nil {
+            return detail.confirmed_by == "customer"
+                ? "They confirmed they'll be there."
+                : "Marked confirmed by your crew."
+        }
+        return (detail.reminders_off ?? false)
+            ? "Off for this job"
+            : "Uses your workspace reminders"
     }
 
     private func metaRowLabel(_ text: String) -> some View {

@@ -34,6 +34,17 @@ struct TaskItem: Codable, Sendable {
     var addr_postal_code: String? = nil
     var addr_country: String? = nil
     var addr_provenance: String? = nil
+    /// #237: whether this job texts its customer before it happens, and whether
+    /// they said they would be there.
+    ///
+    /// `confirmed_by` matters as much as `confirmed_at`: 'crew' is a note to
+    /// ourselves and 'customer' is a promise, and a screen showing them the
+    /// same way would let a dispatcher trust the weaker of the two. Optional
+    /// with defaults so the memberwise init stays source-compatible with every
+    /// existing construction site and #Preview.
+    var reminders_off: Bool? = nil
+    var confirmed_at: String? = nil
+    var confirmed_by: String? = nil
     /// #214/Map: the task's OWN geocoded coordinates (from its addr_* address,
     /// cached by the geocode-tasks cron; projected by TASK_COLUMNS). Nil until
     /// geocoded or when the task has no address. The Map prefers these over the

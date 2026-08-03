@@ -255,7 +255,13 @@ const TASK_COLUMNS =
   // Task's OWN geocode (task_geocode migration): the Map view PREFERS this over
   // the contact's cached geocode, so a task pins at ITS address, not the
   // contact's. Null until the geocode cron resolves the address.
-  "lat,lng";
+  "lat,lng," +
+  // #237: whether this job texts its customer before it happens, and whether
+  // they said they would be there. `confirmed_by` matters as much as
+  // `confirmed_at`: a crew confirmation is a note to ourselves, a customer one
+  // is a promise, and a screen that showed them the same way would let a
+  // dispatcher trust the weaker of the two.
+  "reminders_off,confirmed_at,confirmed_by";
 
 /**
  * Title column bound (T1.1). The default title (message-body snippet, ≤500,
@@ -1829,6 +1835,55 @@ tasksRoutes.patch("/tasks/:id", requireCapability("conversations.note"), async (
   // Neither branch ran (impossible under patchSchema's refine, but typed-safe).
   return errorResponse(c, "not_found", "No such task.");
 });
+
+/**
+ * PUT /v1/tasks/:id/reminders — stop (or restart) this job's reminders.
+ *
+ * ITS OWN ROUTE, not a field on the metadata PATCH. That patch runs through the
+ * atomic `update_task` RPC, and widening a stored procedure to carry a boolean
+ * would put a migration between this switch and the person who wants it. It is
+ * also a different KIND of decision: title, assignee and due date describe the
+ * job, and this one decides whether we text somebody about it.
+ *
+ * The sync is AWAITED here, unlike everywhere else, because here it is the
+ * whole point. Somebody switching reminders off for a job wants the queued text
+ * gone, and a response that returned before the queue was cleared would show
+ * them a reminder they had just cancelled.
+ */
+tasksRoutes.put(
+  "/tasks/:id/reminders",
+  requireCapability("conversations.note"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const companyId = c.get("companyId");
+    const userId = c.get("userId");
+    const db = getDb(getEnv(c.env));
+
+    const { off } = await parseJsonBody(c, z.object({ off: z.boolean() }));
+
+    const updated = unwrap<Record<string, unknown>[]>(
+      await db
+        .from("tasks")
+        .update({ reminders_off: off, updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("company_id", companyId)
+        .is("deleted_at", null)
+        .select(TASK_COLUMNS),
+      "set task reminders",
+    );
+    if (updated.length === 0) {
+      return errorResponse(c, "not_found", "No such task.");
+    }
+
+    await syncTaskReminders(db, { companyId, taskId: id, userId }).catch(
+      (cause: unknown) => {
+        console.error("task reminder sync failed:", cause);
+      },
+    );
+
+    return c.json(updated[0]);
+  },
+);
 
 /**
  * DELETE /v1/tasks/:id — soft-delete (T4, M*). Creator OR owner/admin only.

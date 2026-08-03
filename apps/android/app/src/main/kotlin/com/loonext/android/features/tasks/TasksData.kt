@@ -115,6 +115,21 @@ class TaskMutations(private val api: ApiClient) {
         )
 
     /**
+     * #237 — stop (or restart) this job's reminders.
+     *
+     * Its own route rather than a field on the metadata patch: the patch
+     * describes the JOB, and this decides whether we text somebody about it.
+     * The server clears the queued reminders BEFORE answering, so by the time
+     * this returns the thread strip is already right.
+     */
+    suspend fun setReminders(companyId: String, taskId: String, off: Boolean): Task =
+        api.put(
+            "/v1/tasks/$taskId/reminders",
+            body = buildJsonObject { put("off", off) },
+            companyId = companyId,
+        )
+
+    /**
      * #214: replace the task's whole structured address block. A non-null
      * [address] sets it (provenance = the enrichment's value, or "manual" when
      * hand-edited); null CLEARS it (an explicit top-level JSON null the RPC

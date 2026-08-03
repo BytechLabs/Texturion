@@ -863,6 +863,20 @@ export interface Task {
   created_by_user_id: string;
   created_at: string;
   updated_at: string;
+  /**
+   * #237: whether this job texts its customer before it happens, and whether
+   * they said they would be there.
+   *
+   * `confirmed_by` matters as much as `confirmed_at`: 'crew' is a note to
+   * ourselves and 'customer' is a promise, and a screen that showed them the
+   * same way would let a dispatcher trust the weaker of the two.
+   *
+   * Optional so a response from a server predating the reminders migration
+   * still decodes — the panel reads them defensively.
+   */
+  reminders_off?: boolean;
+  confirmed_at?: string | null;
+  confirmed_by?: "customer" | "crew" | null;
   /** Derived: true when the source message is done (joined done_at set). */
   done: boolean;
   /** Derived label: "done" iff `done`, else "open". */

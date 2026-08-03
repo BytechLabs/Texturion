@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -79,7 +80,7 @@ import { cn } from "@/lib/utils";
 
 import { TaskDoneCheckbox } from "./task-atoms";
 import { taskDeleteContent, taskDeleteSummary } from "./task-delete";
-import { useTaskDone } from "./use-task-mutations";
+import { useSetTaskReminders, useTaskDone } from "./use-task-mutations";
 import { taskEventSentence } from "./task-activity";
 
 /** Sentinel <Select> value for "unassigned" (Radix forbids an empty string). */
@@ -100,6 +101,20 @@ const UNASSIGNED = "__unassigned__";
  * stone chrome with one petrol control (the done checkbox state mark). `onClose`
  * is called after a successful delete so the host (drawer) can dismiss.
  */
+/**
+ * #237 — who confirmed, said plainly.
+ *
+ * The two are NOT the same fact. A customer confirming is a promise from the
+ * person who has to be there; a crew member marking it is a note to ourselves.
+ * A dispatcher deciding whether to send a van reads them differently, so the
+ * line does too.
+ */
+function confirmedLine(by: "customer" | "crew" | null | undefined): string {
+  return by === "customer"
+    ? "They confirmed they'll be there."
+    : "Marked confirmed by your crew.";
+}
+
 export function TaskDetailPanel({
   taskId,
   onClose,
@@ -184,6 +199,8 @@ function TaskDetailLoaded({
       { onError: () => toast.error("Couldn't save the description.") },
     );
   };
+
+  const setReminders = useSetTaskReminders();
 
   const saveAssignee = (value: string) => {
     update.mutate(
@@ -426,6 +443,39 @@ function TaskDetailLoaded({
             />
           </div>
         </section>
+
+        {/* #237: directly under the due date, because it only means anything
+            as a qualifier on it — a job with no date sends nothing whatever
+            this says, and the switch would read as broken sitting anywhere
+            else. Hidden entirely without a date, for the same reason.
+            *Applying: Relationship Strength.* */}
+        {task.due_at !== null && (
+          <section className="flex flex-wrap items-center justify-between gap-2 rounded-app-ctrl border border-app-line px-3 py-2">
+            <div className="min-w-0">
+              <p className="text-[13px] font-medium text-app-ink">
+                Remind this customer
+              </p>
+              <p className="text-[12px] text-app-muted">
+                {task.confirmed_at
+                  ? confirmedLine(task.confirmed_by)
+                  : task.reminders_off
+                    ? "Off for this job. Nothing goes out about it."
+                    : "Uses your workspace reminders."}
+              </p>
+            </div>
+            <Switch
+              checked={!(task.reminders_off ?? false)}
+              aria-label="Remind this customer about this job"
+              onCheckedChange={(on) =>
+                setReminders.mutate({
+                  taskId: task.id,
+                  conversationId: task.conversation_id,
+                  off: !on,
+                })
+              }
+            />
+          </section>
+        )}
 
         {/* Description. */}
         <section className="flex flex-col gap-1.5">

@@ -111,6 +111,12 @@ struct TaskRowPatch: Codable, Sendable {
     var addr_postal_code: String? = nil
     var addr_country: String? = nil
     var addr_provenance: String? = nil
+    /// #237: carried on every mutation row for the same reason the address is —
+    /// `merged()` re-reads them, so a rename or a due edit never drops the
+    /// reminder state the screen is showing.
+    var reminders_off: Bool? = nil
+    var confirmed_at: String? = nil
+    var confirmed_by: String? = nil
 }
 
 // MARK: - Mutations
@@ -154,6 +160,24 @@ struct TaskMutations: Sendable {
     /// `dueAt` must be ISO 8601 WITH offset (`encodeDueAt`); nil clears.
     func setDue(companyId: String, taskId: String, dueAt: String?) async throws -> TaskRowPatch {
         try await patch(companyId: companyId, taskId: taskId, body: taskDueBody(dueAt))
+    }
+
+    /// #237 — stop (or restart) this job's reminders.
+    ///
+    /// Its own route rather than a field on the metadata patch: the patch
+    /// describes the JOB, and this decides whether we text somebody about it.
+    /// The server clears the queued reminders BEFORE answering, so by the time
+    /// this returns the thread strip is already right.
+    func setReminders(
+        companyId: String,
+        taskId: String,
+        off: Bool
+    ) async throws -> TaskRowPatch {
+        try await api.put(
+            "/v1/tasks/\(taskId)/reminders",
+            body: JSONValue.object(["off": .bool(off)]),
+            companyId: companyId
+        )
     }
 
     /// #214: replace the whole structured job address (empty fields clear it).

@@ -55,6 +55,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -701,6 +702,58 @@ private fun TaskDetailBody(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                    }
+
+                    // #237: directly under the due date, because it only means
+                    // anything as a qualifier on it — a job with no date sends
+                    // nothing whatever this says, and the switch would read as
+                    // broken sitting anywhere else. Hidden without a date, for
+                    // the same reason.
+                    if (detail.due_at != null) {
+                        RowDivider()
+                        MetaRow(
+                            label = "Remind",
+                            // The switch IS the control; tapping the row would
+                            // be a second, invisible way to toggle it.
+                            onClick = null,
+                            trailing = {
+                                Switch(
+                                    checked = !detail.reminders_off,
+                                    enabled = !noAccess,
+                                    onCheckedChange = { on ->
+                                        haptics.tap()
+                                        scope.launch {
+                                            onActionError(null)
+                                            try {
+                                                applyTask(
+                                                    mutations.setReminders(
+                                                        companyId,
+                                                        detail.id,
+                                                        !on,
+                                                    ),
+                                                )
+                                            } catch (cause: Exception) {
+                                                onActionError(cause.userMessage())
+                                            }
+                                        }
+                                    },
+                                )
+                            },
+                        ) {
+                            Text(
+                                when {
+                                    detail.confirmed_at != null ->
+                                        confirmedLine(detail.confirmed_by)
+                                    detail.reminders_off ->
+                                        "Off for this job"
+                                    else -> "Uses your workspace reminders"
+                                },
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
             }
@@ -1898,3 +1951,18 @@ private fun describeFile(context: android.content.Context, uri: Uri): StagedFile
     }
     return StagedFile(uri = uri, name = name, size = size, mime = mime)
 }
+
+/**
+ * #237 — who confirmed, said plainly.
+ *
+ * The two are NOT the same fact. A customer confirming is a promise from the
+ * person who has to be there; a crew member marking it is a note to ourselves.
+ * A dispatcher deciding whether to send a van reads them differently, so the
+ * line does too. Same wording as the web panel and the iOS screen.
+ */
+internal fun confirmedLine(by: String?): String =
+    if (by == "customer") {
+        "They confirmed they'll be there."
+    } else {
+        "Marked confirmed by your crew."
+    }
