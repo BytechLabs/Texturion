@@ -126,14 +126,20 @@ export async function syncTaskReminders(
     conversation_id: string;
     reminders_off: boolean;
     conversations: {
-      contacts: { phone_e164: string; timezone: string | null } | null;
+      // #291: the number the thread is with. The timezone stays the
+      // contact's — a second number is not a second country.
+      contact_phone_e164: string | null;
+      contacts: { timezone: string | null } | null;
     } | null;
   } | null>(
     await db
       .from("tasks")
       .select(
         "due_at,conversation_id,reminders_off," +
-          "conversations(contacts(phone_e164,timezone))",
+          // #291: the number the THREAD is with, not the contact's
+          // primary. The timezone still comes from the contact — a
+          // second number does not put somebody in a second country.
+          "conversations(contact_phone_e164,contacts(timezone))",
       )
       .eq("id", input.taskId)
       .eq("company_id", input.companyId)
@@ -151,7 +157,7 @@ export async function syncTaskReminders(
     "reminder rules",
   );
 
-  const destination = task.conversations?.contacts?.phone_e164;
+  const destination = task.conversations?.contact_phone_e164;
   const dueAt = task.due_at === null ? null : new Date(task.due_at);
 
   // The clock is resolved against the APPOINTMENT, not against now: a job three

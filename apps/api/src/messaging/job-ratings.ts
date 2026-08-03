@@ -57,14 +57,17 @@ export async function askForJobRating(
     assigned_user_id: string | null;
     conversations: {
       contact_id: string;
-      contacts: { phone_e164: string; timezone: string | null } | null;
+      contact_phone_e164: string | null;
+    contacts: { timezone: string | null } | null;
     } | null;
   } | null>(
     await db
       .from("tasks")
       .select(
         "conversation_id,assigned_user_id," +
-          "conversations(contact_id,contacts(phone_e164,timezone))",
+          // #291: the thread's number; the timezone stays the
+          // contact's.
+          "conversations(contact_id,contact_phone_e164,contacts(timezone))",
       )
       .eq("id", input.taskId)
       .eq("company_id", input.companyId)
@@ -74,7 +77,7 @@ export async function askForJobRating(
   );
   const conversation = task?.conversations;
   const contactId = conversation?.contact_id;
-  const destination = conversation?.contacts?.phone_e164;
+  const destination = conversation?.contact_phone_e164;
   if (!task || !contactId || !destination) return { outcome: "not_found" };
 
   // The cooldown and the row are ONE statement. Two jobs for the same customer

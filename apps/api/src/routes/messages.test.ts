@@ -86,6 +86,10 @@ function sendView(overrides: Partial<{
     id: CONVERSATION_ID,
     contact_id: CONTACT_ID,
     phone_number_id: NUMBER_ID,
+    // #291: the number this THREAD is with, which is where a send goes. Same
+    // value as the contact's primary in every one of these fixtures — the
+    // point is that the send reads THIS one.
+    contact_phone_e164: overrides.phone_e164 ?? "+16135551000",
     contacts: {
       id: CONTACT_ID,
       phone_e164: overrides.phone_e164 ?? "+16135551000",

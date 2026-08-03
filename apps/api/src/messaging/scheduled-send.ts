@@ -146,18 +146,21 @@ async function resolveDestination(
 ): Promise<Destination | null> {
   const { data, error } = await db
     .from("conversations")
-    .select("contacts(phone_e164),phone_numbers(number_e164,status)")
+    // #291: the thread's number, resolved at SEND time. A number
+    // stamped when the text was scheduled would go stale if the crew
+    // corrected it in between.
+    .select("contact_phone_e164,phone_numbers(number_e164,status)")
     .eq("id", row.conversation_id)
     .eq("company_id", row.company_id)
     .maybeSingle();
   if (error) throw new Error(`scheduled destination lookup: ${error.message}`);
 
   const conversation = data as unknown as {
-    contacts: { phone_e164: string } | null;
+    contact_phone_e164: string | null;
     phone_numbers: { number_e164: string; status: string } | null;
   } | null;
 
-  const to = conversation?.contacts?.phone_e164;
+  const to = conversation?.contact_phone_e164;
   const number = conversation?.phone_numbers;
   // A released number cannot be sent from, and the gates would not catch it —
   // they check the workspace, not which of its numbers this thread is on.

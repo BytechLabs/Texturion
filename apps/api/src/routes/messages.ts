@@ -167,9 +167,15 @@ interface ConversationSendView {
   id: string;
   contact_id: string;
   phone_number_id: string;
+  /**
+   * #291: the number this THREAD is with, which is the destination for every
+   * send below. `contacts.phone_e164` is the customer's PRIMARY, which is a
+   * different number the moment they have two — and a text to the wrong line
+   * is indistinguishable from one that never sent.
+   */
+  contact_phone_e164: string;
   contacts: {
     id: string;
-    phone_e164: string;
     name: string | null;
     /** #274: the service address, for {address}. */
     address: string | null;
@@ -192,10 +198,10 @@ async function loadSendView(
     await db
       .from("conversations")
       .select(
-        "id,contact_id,phone_number_id," +
+        "id,contact_id,phone_number_id,contact_phone_e164," +
           // #274: address + timezone on a query already running, so
           // {address} and the visit day/time cost nothing extra.
-          "contacts(id,phone_e164,name,address,timezone)," +
+          "contacts(id,name,address,timezone)," +
           "phone_numbers(id,number_e164,status)," +
           "companies(id,name)",
       )
@@ -327,7 +333,7 @@ messageRoutes.post("/messages/send", requireCapability("conversations.send"), as
   const fromNumber = requireActiveSendingNumber(view);
 
   // §7 gate order: subscription → destination US/CA → registration.
-  const clearance = await runPreSendGates(env, companyId, view.contacts.phone_e164);
+  const clearance = await runPreSendGates(env, companyId, view.contact_phone_e164);
 
   // #97: picture messages are ungated — MMS meters as 3 segments (MMS_SEGMENTS,
   // below) through gateOutboundSend, counting against the plan allowance + the
@@ -413,7 +419,7 @@ messageRoutes.post("/messages/send", requireCapability("conversations.send"), as
 
   const sent = await dispatchOutbound(env, db, message, {
     from: fromNumber,
-    to: view.contacts.phone_e164,
+    to: view.contact_phone_e164,
     text,
     mediaUrls,
     clearance,
@@ -493,7 +499,7 @@ messageRoutes.post("/messages/:id/retry", requireCapability("conversations.send"
   // Gates re-run: the world may have changed since the failed attempt. The
   // opt-out check used to be duplicated here; it now lives inside
   // runPreSendGates so every send path gets it, not just this one.
-  const clearance = await runPreSendGates(env, companyId, view.contacts.phone_e164);
+  const clearance = await runPreSendGates(env, companyId, view.contact_phone_e164);
 
   // Stored outbound media, loaded up front so its signed URLs can be re-minted
   // BEFORE the atomic claim (below). #97: a picture re-send is ungated — it
@@ -559,7 +565,7 @@ messageRoutes.post("/messages/:id/retry", requireCapability("conversations.send"
 
   const sent = await dispatchOutbound(env, db, requeued, {
     from: fromNumber,
-    to: view.contacts.phone_e164,
+    to: view.contact_phone_e164,
     text: message.body,
     mediaUrls,
     clearance,

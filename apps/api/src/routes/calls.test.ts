@@ -378,6 +378,7 @@ describe("POST /v1/calls/browser (D43)", () => {
         id: CONVERSATION,
         contact_id: CONTACT_ID,
         phone_number_id: BUSINESS_NUMBER_ID,
+        contact_phone_e164: "+16135551000",
         contacts: { phone_e164: "+16135551000" },
         phone_numbers: { number_e164: "+16135550100", status: "active" },
       },

@@ -104,7 +104,8 @@ export async function sendEmergencyAcknowledgment(
 ): Promise<AutoSendOutcome> {
   const { data: convRows, error: convError } = await db
     .from("conversations")
-    .select("id,phone_numbers(number_e164,status),contacts(phone_e164)")
+    // #291: the thread's number, not the contact's primary.
+    .select("id,contact_phone_e164,phone_numbers(number_e164,status)")
     .eq("company_id", args.companyId)
     .eq("id", args.conversationId)
     .limit(1);
@@ -116,7 +117,7 @@ export async function sendEmergencyAcknowledgment(
   const conv = (convRows ?? [])[0] as unknown as
     | {
         phone_numbers: { number_e164: string | null; status: string } | null;
-        contacts: { phone_e164: string } | null;
+        contact_phone_e164: string | null;
       }
     | undefined;
   const from = conv?.phone_numbers?.number_e164;
@@ -126,7 +127,7 @@ export async function sendEmergencyAcknowledgment(
     // here from a number that cannot send.
     return { sent: false, reason: "not_found" };
   }
-  const to = conv.contacts?.phone_e164 ?? args.fromE164;
+  const to = conv.contact_phone_e164 ?? args.fromE164;
 
   // §7 send gates, same as every other send. A US destination on an
   // unapproved campaign is refused by the carrier, not by us — attempting it

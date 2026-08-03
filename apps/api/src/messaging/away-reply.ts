@@ -111,7 +111,9 @@ export async function maybeSendAwayReply(
   const { data: convRows, error: convError } = await db
     .from("conversations")
     .select(
-      "id,phone_numbers(number_e164,status),contacts(name,phone_e164)",
+      // #291: `contact_phone_e164` is the number this THREAD is with. The
+      // contact is still read for the name that goes in the merge.
+      "id,contact_phone_e164,phone_numbers(number_e164,status),contacts(name)",
     )
     .eq("company_id", args.companyId)
     .eq("id", args.conversationId)
@@ -121,8 +123,9 @@ export async function maybeSendAwayReply(
   }
   const conv = (convRows ?? [])[0] as unknown as
     | {
+        contact_phone_e164: string | null;
         phone_numbers: { number_e164: string | null; status: string } | null;
-        contacts: { name: string | null; phone_e164: string } | null;
+        contacts: { name: string | null } | null;
       }
     | undefined;
   const fromNumber = conv?.phone_numbers?.number_e164;
@@ -131,7 +134,7 @@ export async function maybeSendAwayReply(
   }
   const slice: ConvSendSlice = {
     from: fromNumber,
-    to: conv.contacts?.phone_e164 ?? args.fromE164,
+    to: conv.contact_phone_e164 ?? args.fromE164,
     contactName: conv.contacts?.name ?? null,
   };
 

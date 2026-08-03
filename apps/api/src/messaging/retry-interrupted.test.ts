@@ -67,6 +67,7 @@ function fakeDb(
               eq: () => ({
                 maybeSingle: async () => ({
                   data: {
+                    contact_phone_e164: view.to ?? "+16135551234",
                     contacts: { phone_e164: view.to ?? "+16135551234" },
                     phone_numbers: {
                       number_e164: view.from === undefined ? "+14155550100" : view.from,

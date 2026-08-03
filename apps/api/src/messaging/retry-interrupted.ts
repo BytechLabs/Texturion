@@ -79,7 +79,8 @@ interface ClaimedRow {
 }
 
 interface SendView {
-  contacts: { phone_e164: string };
+  /** #291: the number the thread is with, not the contact's primary. */
+  contact_phone_e164: string | null;
   phone_numbers: { number_e164: string | null; status: string };
 }
 
@@ -98,7 +99,10 @@ async function retryOne(
 ): Promise<boolean> {
   const { data: viewData, error: viewError } = await db
     .from("conversations")
-    .select("contacts(phone_e164),phone_numbers(number_e164,status)")
+    // #291: the thread's number. A retry that went to a different
+    // line than the original attempt would be a second message to
+    // somebody who never got the first.
+    .select("contact_phone_e164,phone_numbers(number_e164,status)")
     .eq("company_id", row.company_id)
     .eq("id", row.conversation_id)
     .maybeSingle();
@@ -109,7 +113,7 @@ async function retryOne(
   // A number still provisioning, or released since the send was queued. There
   // is nothing to re-dispatch from; the fail-out sweeper will tell the human.
   if (!from || view.phone_numbers.status !== "active") return false;
-  const to = view.contacts?.phone_e164;
+  const to = view.contact_phone_e164;
   if (!to) return false;
 
   // The gates re-run because the world may have changed since the message was

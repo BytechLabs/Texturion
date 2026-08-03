@@ -681,14 +681,17 @@ async function authorizeOutboundCall(
         id: string;
         contact_id: string;
         phone_number_id: string | null;
-        contacts: { phone_e164: string } | null;
+        // #291: the number this THREAD is with. Calling the contact's
+        // primary from a thread with their landline would ring the wrong
+        // line, and the crew would hear it as "they didn't pick up".
+        contact_phone_e164: string | null;
         phone_numbers: { number_e164: string; status: string } | null;
       }[]
     >(
       await db
         .from("conversations")
         .select(
-          "id,contact_id,phone_number_id,contacts(phone_e164),phone_numbers(number_e164,status)",
+          "id,contact_id,phone_number_id,contact_phone_e164,phone_numbers(number_e164,status)",
         )
         .eq("company_id", companyId)
         .eq("id", body.conversation_id)
@@ -700,7 +703,7 @@ async function authorizeOutboundCall(
       return errorResponse(c, "not_found", "No such conversation.");
     }
     if (
-      !conversation.contacts?.phone_e164 ||
+      !conversation.contact_phone_e164 ||
       !conversation.phone_numbers?.number_e164 ||
       !conversation.phone_number_id
     ) {
@@ -713,7 +716,7 @@ async function authorizeOutboundCall(
     if (conversation.phone_numbers.status !== "active") {
       return errorResponse(c, "conflict", "This number isn't active right now.");
     }
-    customer = conversation.contacts.phone_e164;
+    customer = conversation.contact_phone_e164;
     businessNumber = conversation.phone_numbers.number_e164;
     phoneNumberId = conversation.phone_number_id;
     contactId = conversation.contact_id;

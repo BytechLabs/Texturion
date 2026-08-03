@@ -101,17 +101,21 @@ scheduledMessageRoutes.post(
     // else so a thread in another workspace is a 404 rather than a validation
     // message that confirms it exists.
     const conversation = unwrap<{
-      contacts: { phone_e164: string; timezone: string | null } | null;
+      // #291: the number this THREAD is with — where the text will actually
+      // go when it fires. The contact's timezone still comes from the contact:
+      // a second number does not put somebody in a second country.
+      contact_phone_e164: string | null;
+      contacts: { timezone: string | null } | null;
     } | null>(
       await db
         .from("conversations")
-        .select("contacts(phone_e164,timezone)")
+        .select("contact_phone_e164,contacts(timezone)")
         .eq("id", conversation_id)
         .eq("company_id", companyId)
         .maybeSingle(),
       "conversation lookup",
     );
-    const destination = conversation?.contacts?.phone_e164;
+    const destination = conversation?.contact_phone_e164;
     if (!destination) {
       throw new ApiError("not_found", "That conversation is not here.");
     }

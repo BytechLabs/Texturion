@@ -108,10 +108,21 @@ function harness(options: HarnessOptions = {}) {
 
   // The destination lookup, then the newest-inbound probe. First match wins in
   // this harness, so the more specific `select` is registered first.
+  //
+  // #291: discriminated on `contact_phone_e164`, which IS the destination now.
+  // Keyed on the word "contacts" this stopped matching the moment the select
+  // changed, and every scheduled send fell through to the newest-inbound shape
+  // and reported no number — a fixture failing for a reason unrelated to what
+  // it was written to assert.
   sb.on("GET", "/rest/v1/conversations", (call) => {
-    if (String(call.url.searchParams.get("select") ?? "").includes("contacts")) {
+    if (
+      String(call.url.searchParams.get("select") ?? "").includes(
+        "contact_phone_e164",
+      )
+    ) {
       return [
         {
+          contact_phone_e164: "+16135551000",
           contacts: { phone_e164: "+16135551000" },
           phone_numbers: {
             number_e164: "+16135550000",

@@ -127,6 +127,7 @@ function conversationStub(numberStatus = "active"): Stub {
       {
         id: CONVERSATION_ID,
         phone_numbers: { number_e164: NUMBER, status: numberStatus },
+        contact_phone_e164: CONTACT,
         contacts: { phone_e164: CONTACT },
       },
     ],
