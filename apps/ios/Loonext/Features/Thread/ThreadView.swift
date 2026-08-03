@@ -62,28 +62,6 @@ struct ThreadView: View {
                 controller?.onRealtime(event)
             }
         }
-        // #520: is there a job on this thread due today? The composer's
-        // affordance hangs on this, and a failed read leaves it hidden.
-        .task(id: conversationId) {
-            let startOfDay = Calendar.current.startOfDay(for: Date())
-            guard
-                let endOfDay = Calendar.current.date(
-                    byAdding: .day, value: 1, to: startOfDay
-                )
-            else { return }
-            let iso = ISO8601DateFormatter()
-            let page = try? await graph.tasksApi.list(
-                companyId: companyId,
-                filters: TaskListFilters(
-                    status: "open",
-                    conversationId: conversationId,
-                    dueBefore: iso.string(from: endOfDay),
-                    dueAfter: iso.string(from: startOfDay)
-                ),
-                limit: 1
-            )
-            hasJobToday = !(page?.data.isEmpty ?? true)
-        }
         .task(id: conversationId) {
             for await _ in await graph.realtime.reconnected() {
                 controller?.refreshAfterReconnect()
@@ -340,6 +318,40 @@ private struct ThreadBody: View {
                 presenceByTopic = snapshot
                 presenceNow = Date().timeIntervalSince1970
             }
+        }
+        // #520: is there a job on this thread due today? The composer's
+        // affordance hangs on it, and a failed read leaves it hidden — offering
+        // the control and then finding no job is worse than not offering it.
+        //
+        // In ThreadBody, beside the state it writes. It was first written into
+        // ThreadView, which owns neither the state nor the composer: the diff
+        // hunk read correctly and only the compiler disagreed.
+        .task(id: controller.conversationId) {
+            let startOfDay = Calendar.current.startOfDay(for: Date())
+            guard
+                let endOfDay = Calendar.current.date(
+                    byAdding: .day, value: 1, to: startOfDay
+                )
+            else { return }
+            let iso = ISO8601DateFormatter()
+            // `controller`, not `detail`: `detail` is bound INSIDE `body` by
+            // `if let detail = controller.conversation`, so it does not exist
+            // out here in the modifier chain. Caught by listing where each
+            // name is actually declared rather than by reading the hunk.
+            guard let companyId = controller.conversation?.company_id else {
+                return
+            }
+            let page = try? await graph.tasksApi.list(
+                companyId: companyId,
+                filters: TaskListFilters(
+                    status: "open",
+                    conversationId: controller.conversationId,
+                    dueBefore: iso.string(from: endOfDay),
+                    dueAfter: iso.string(from: startOfDay)
+                ),
+                limit: 1
+            )
+            hasJobToday = !(page?.data.isEmpty ?? true)
         }
             // One swappable sheet: the conversation card and the two surfaces it
             // opens one tap deeper (contact panel, assignee picker).
