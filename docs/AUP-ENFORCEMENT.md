@@ -1,0 +1,94 @@
+# AUP enforcement runbook (#303)
+
+The published policy is `/legal/aup` §8. This is the operational side of it:
+what to do when the watch job raises a workspace, and what each step of the
+ladder means in the system.
+
+**Read the policy first if the two ever disagree.** §8 is a public commitment to
+customers; this file is a working note. A change here that contradicts §8 is a
+bug in this file.
+
+---
+
+## What raises a case
+
+`apps/api/src/messaging/aup-watch.ts` runs on a schedule, reads
+`api_aup_signals`, and emails ops when a workspace trips its conjunction. It
+**never acts**, by design: a roofer after a storm is statistically
+indistinguishable from a mass marketer, and the cost of suspending the roofer on
+the busiest day of their year is far greater than the cost of a carrier
+conversation about the marketer.
+
+The signals, and the thresholds as built:
+
+| Signal | Threshold | What it means |
+|---|---|---|
+| Velocity | `VELOCITY_MULTIPLE = 5` times the workspace's own median day | Above its OWN baseline, not an absolute number, because a small crew's normal is a small number |
+| Floor | `MIN_SENDS_TO_JUDGE = 100` | Below this nothing is judged; a quiet workspace tripling from 3 to 9 is noise |
+| Fan-out | `FRESH_RATIO = 0.8` to previously-uncontacted numbers | Reaching strangers at scale is the shape mass marketing makes |
+| Opt-outs | `OPT_OUT_ALARM = 10` | The recipients' own verdict, and the only signal needing no interpretation |
+
+Velocity and fan-out are a **conjunction**, not independent triggers. Volume
+alone is a busy day; reaching new numbers alone is a new workspace doing exactly
+what it should. Together they describe mass marketing and little else.
+
+**Nothing here reads a message body.** `api_aup_signals` returns counts and
+ratios only. Keep it that way: content inspection to protect our own sending
+reputation would betray the privacy posture the rest of the product holds, and
+§8 now promises publicly that we do not do it.
+
+---
+
+## Working a case
+
+**1. Look before you believe it.** The alert names shapes, not verdicts. Check
+the workspace's history, plan, and how long they have been a customer. A storm,
+a seasonal campaign to an existing customer list, or a genuinely growing
+business all look like this.
+
+**2. Ask.** Step one of the ladder, and where most cases end. Contact the owner,
+describe what was seen, and ask what is happening. A legitimate business answers
+this easily and is usually glad to be asked.
+
+**3. Decide a step, and record it.** Every action is auditable (#231). The
+evidence is the signal set plus whatever the owner told you.
+
+---
+
+## The ladder, operationally
+
+| Step | What it does | When |
+|---|---|---|
+| Ask | An email. Nothing changes in the system. | First response to any raised case |
+| Rate-limit | Slows outbound. Existing conversations keep working. | Sending continues in a pattern that cannot be reconciled with the policy |
+| Suspend sending | Outbound stops. Inbox, history and number stay theirs; inbound still arrives. | The pattern is clear and the owner cannot or will not explain it |
+| Terminate | Ends the workspace. Usage already incurred is not refunded. | Deliberate, repeated after contact, or unlawful |
+
+Skip straight to suspend or terminate when a carrier or regulator requires it, a
+court order arrives, or the conduct is unambiguously illegal or actively harming
+recipients. §8 promises we still say what happened and why, so still send that
+email.
+
+**A suspension is reversible and §8 says so.** If the explanation lands after the
+fact, lift it. Getting this wrong in the cautious direction is recoverable;
+getting it wrong in the other direction costs a customer their business.
+
+---
+
+## Not yet built
+
+Honest state, so nobody assumes a lever exists:
+
+- **No enforcement action is implemented in code.** The ladder above is policy
+  and manual work. Rate-limit and suspend-sending have no switch yet, and
+  `AuditAction` in `apps/api/src/audit/log.ts` has no enforcement member.
+- **Do NOT reuse the billing suspension.** `phone_numbers.status = "suspended"`
+  is the non-payment path (`telnyx/provisioning.ts`), and the Stripe webhook
+  clears it on payment (`webhooks/stripe.ts`). Wiring AUP enforcement through it
+  would mean paying an invoice silently lifts an abuse suspension. Enforcement
+  needs its own state.
+- **No signup screening** for the categories §4 prohibits outright, so a
+  prohibited-category workspace is still declined at 10DLC registration rather
+  than before provisioning.
+- **Carrier-violation error codes and complaint ratios** are named in #303's
+  scope and not implemented; the two signals above are what exists.

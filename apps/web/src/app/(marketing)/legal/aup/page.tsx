@@ -137,11 +137,60 @@ export default function AupPage() {
 
       <LegalSectionBlock id="enforcement" number="8" heading="Enforcement">
         <p>
-          We may investigate suspected violations and may suspend or terminate an
-          account, with or without notice, depending on the severity, to protect
-          recipients, the network, and our carrier standing. Serious or repeated
-          violations end in termination without a refund of usage already
-          incurred.
+          We may investigate suspected violations to protect recipients, the
+          network, and our carrier standing. This section says how, because an
+          enforcement power without a written process is one you cannot plan
+          around.
+        </p>
+        <p className="font-medium">What we look at, and what we do not</p>
+        <p>
+          Our monitoring is behavioural. It looks at the shape of sending: how
+          far a workspace is above its own ordinary day, how much of that volume
+          goes to numbers it has never contacted before, and whether recipients
+          are opting out at an unusual rate. It does not read your messages for
+          meaning, and we do not use message content to decide any of the steps
+          below.
+        </p>
+        <p>
+          A signal is not a verdict. A roofer after a storm looks a great deal
+          like a mass marketer, so an unusual pattern raises the case with a
+          person at Loonext. It never triggers an automatic penalty on its own.
+        </p>
+        <p className="font-medium">The steps, in order</p>
+        <ul className="list-disc space-y-2 pl-6">
+          <li>
+            <strong>We ask.</strong> We contact the workspace owner describing
+            what we saw and what we need to understand. Most cases end here,
+            because most unusual weeks are just unusual weeks.
+          </li>
+          <li>
+            <strong>We rate-limit.</strong> If sending continues in a pattern we
+            cannot reconcile with the policy, we may slow it while we work it
+            out. Existing conversations keep working.
+          </li>
+          <li>
+            <strong>We suspend sending.</strong> Outbound stops; your inbox,
+            history, and number stay yours and you can still receive. This is a
+            pause, not an ending.
+          </li>
+          <li>
+            <strong>We terminate.</strong> For violations that are deliberate,
+            repeated after contact, or unlawful. Usage already incurred is not
+            refunded.
+          </li>
+        </ul>
+        <p>
+          Each step is decided by a person, on the evidence described above plus
+          whatever you tell us, and we record every action we take. You can reach
+          a human at any step using the contact below, and a suspension we got
+          wrong is lifted.
+        </p>
+        <p className="font-medium">When we skip steps</p>
+        <p>
+          We move straight to suspension or termination when a carrier or
+          regulator requires it, when we are given a court order, or when the
+          conduct is unambiguously illegal or is actively harming recipients. We
+          will still tell you what happened and why.
         </p>
       </LegalSectionBlock>
 

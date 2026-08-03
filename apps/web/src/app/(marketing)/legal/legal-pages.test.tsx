@@ -167,6 +167,63 @@ describe("aup — the consent rules survive", () => {
   });
 });
 
+describe("#303 aup — the enforcement ladder is a promise, not a mood", () => {
+  const html = PAGES[2].html;
+
+  it("names all four steps, in order", () => {
+    // The section this replaced said we "may suspend or terminate, with or
+    // without notice, depending on the severity", which is a power rather than
+    // a process: nothing a customer could plan around, and nothing that makes
+    // enforcement against a paying customer defensible when it is disputed.
+    const steps = [
+      "We ask.",
+      "We rate-limit.",
+      "We suspend sending.",
+      "We terminate.",
+    ];
+    let cursor = -1;
+    for (const step of steps) {
+      const at = html.indexOf(step);
+      expect(at, `missing enforcement step: ${step}`).toBeGreaterThan(-1);
+      expect(at, `enforcement steps out of order at: ${step}`).toBeGreaterThan(
+        cursor,
+      );
+      cursor = at;
+    }
+  });
+
+  it("promises a person decides, and that a signal alone never acts", () => {
+    // This is the customer-protecting half, and it is the half the code
+    // actually implements: `apps/api/src/messaging/aup-watch.ts` emails a human
+    // and changes nothing. If that ever becomes automatic, this page is a lie
+    // and this assertion is where it gets caught.
+    expect(html).toContain("decided by a person");
+    expect(html).toContain("never triggers an automatic penalty");
+  });
+
+  it("promises the monitoring is behavioural, never content", () => {
+    // The other constraint the issue named: a detector that read customer words
+    // to protect our sending reputation would betray the privacy posture the
+    // rest of the product holds. Published, so it binds us.
+    expect(html).toContain("does not read your messages for");
+  });
+
+  it("says a suspension is reversible and keeps the number", () => {
+    // The difference between a pause and an ending, said plainly, because the
+    // customer reading this is trying to work out whether their business is
+    // about to stop.
+    expect(html).toContain("This is a pause, not an ending");
+    expect(html).toContain("a suspension we got wrong is lifted");
+  });
+
+  it("is honest that some cases skip the ladder", () => {
+    // A ladder with no carve-out would be the wrong kind of promise: a carrier
+    // demand or a court order does not wait for step one, and pretending
+    // otherwise would make the whole section untrustworthy.
+    expect(html).toContain("When we skip steps");
+  });
+});
+
 describe("messaging — the SMS program disclosures survive", () => {
   const html = PAGES[3].html;
   it("keeps STOP, HELP, frequency, and rates disclosures", () => {
