@@ -14,12 +14,18 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { LoadError } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useAllTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
@@ -267,27 +273,115 @@ function DayCell({
   );
 }
 
-/** A calm draggable day chip → its source message + conversation. */
+/**
+ * The moves the menu offers, and why these.
+ *
+ * Not a full date picker. WCAG 2.5.7 asks for a way to do the DRAG without
+ * dragging, and on a calendar the drag people actually perform is "this job
+ * slipped, push it". Three relative moves cover that in one click; an
+ * arbitrary date is still reachable by dragging or from the task itself, so
+ * nothing is lost by keeping this list short enough to read.
+ */
+export const RESCHEDULE_MOVES: readonly { label: string; days: number }[] = [
+  { label: "A day earlier", days: -1 },
+  { label: "A day later", days: 1 },
+  { label: "A week later", days: 7 },
+];
+
+/**
+ * The new instant for a move, keeping the time of day.
+ *
+ * The same rule the drop handler follows: dragging a chip to another cell
+ * moves the DATE and leaves the appointment time alone, and a menu that reset
+ * every job to midnight would be a different operation wearing the same name.
+ */
+export function movedDueAt(dueAt: string | null, days: number, now: Date): string {
+  const from = dueAt ? new Date(dueAt) : now;
+  const next = new Date(from);
+  next.setDate(next.getDate() + days);
+  return next.toISOString();
+}
+
+/**
+ * A calm draggable day chip → its source message + conversation.
+ *
+ * #238 / WCAG 2.2 2.5.7 — DRAGGING MOVEMENTS. Rescheduling here used to be
+ * drag-only: the chip is a link, so clicking it navigated to the thread and
+ * there was no other way to change a date from this screen. Anybody who cannot
+ * drag — a screen-reader user, somebody on a trackpad with a tremor, anybody
+ * on a touch device where the drag never registered — could see the schedule
+ * and not change it.
+ *
+ * Design notes:
+ *
+ * - **A menu, not a button per chip.** The board view puts a visible "Move
+ *   to…" button on each card and that is right there: a card is large and a
+ *   column holds a few. A month grid holds thirty-five cells of these, and
+ *   thirty-five dashed buttons would bury the schedule the view exists to
+ *   show. *Applying: Zen of Clarity — secondary actions collapse into a menu.*
+ *
+ * - **The trigger is always in the DOM, never hover-only.** A control that
+ *   appears on hover cannot be reached by the keyboard or by touch, which are
+ *   the users this exists for — it would fail the rule it was added to satisfy.
+ *   It is dimmed until focus or hover, so it stays quiet without being absent.
+ *
+ * - **A sibling of the link, not a child of it.** Interactive elements do not
+ *   nest: a button inside an anchor is invalid, and screen readers disagree
+ *   about what it even is.
+ */
 function DayChip({ task }: { task: Task }) {
+  const reschedule = useTaskReschedule();
+
   return (
-    <Link
-      href={taskThreadHref(task)}
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/task-id", task.id);
-        e.dataTransfer.setData("text/task-conversation", task.conversation_id);
-        e.dataTransfer.setData("text/task-due", task.due_at ?? "");
-      }}
-      title={task.title}
-      className={cn(
-        "block cursor-grab truncate rounded-md px-1.5 py-1 text-[12px] font-medium active:cursor-grabbing",
-        task.done
-          ? "bg-success/10 text-emerald-700 line-through opacity-70 dark:text-success"
-          : "bg-secondary text-secondary-foreground hover:bg-primary/10 hover:text-primary",
-      )}
-    >
-      {task.title}
-    </Link>
+    <div className="group/chip flex items-center gap-0.5">
+      <Link
+        href={taskThreadHref(task)}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/task-id", task.id);
+          e.dataTransfer.setData("text/task-conversation", task.conversation_id);
+          e.dataTransfer.setData("text/task-due", task.due_at ?? "");
+        }}
+        title={task.title}
+        className={cn(
+          "block min-w-0 flex-1 cursor-grab truncate rounded-md px-1.5 py-1 text-[12px] font-medium active:cursor-grabbing",
+          task.done
+            ? "bg-success/10 text-emerald-700 line-through opacity-70 dark:text-success"
+            : "bg-secondary text-secondary-foreground hover:bg-primary/10 hover:text-primary",
+        )}
+      >
+        {task.title}
+      </Link>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            // Named for the task, because a screen reader reading thirty of
+            // these needs to know which job each one moves.
+            aria-label={`Reschedule ${task.title}`}
+            className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground opacity-40 transition-opacity duration-150 ease-out hover:bg-primary/10 hover:opacity-100 focus-visible:opacity-100 group-hover/chip:opacity-100 data-[state=open]:opacity-100"
+          >
+            <CalendarClock className="size-3.5" strokeWidth={1.75} aria-hidden />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {RESCHEDULE_MOVES.map((move) => (
+            <DropdownMenuItem
+              key={move.label}
+              onSelect={() =>
+                reschedule.mutate({
+                  taskId: task.id,
+                  conversationId: task.conversation_id,
+                  due_at: movedDueAt(task.due_at, move.days, new Date()),
+                })
+              }
+            >
+              {move.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
