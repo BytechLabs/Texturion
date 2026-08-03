@@ -1,5 +1,7 @@
 # 04 — Telnyx
 
+**Status: CURRENT DIRECTION (#323).** Step 4 of the production deploy runbook. Where it disagrees with the Telnyx console, the console wins.
+
 Telnyx is almost entirely driven at **runtime via the v2 REST API** — messaging
 profiles, number orders, and 10DLC brand/campaign are all created programmatically
 by the API Worker. The **only three portal actions** you take are creating an API

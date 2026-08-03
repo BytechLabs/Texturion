@@ -1,5 +1,7 @@
 # 06 — Cron Triggers
 
+**Status: CURRENT DIRECTION (#323).** A per-vendor deep-dive. `apps/api/wrangler.jsonc` and `apps/api/src/index.ts` are the authority on which crons exist; this explains them.
+
 The API Worker's Cron Triggers are declared in `apps/api/wrangler.jsonc:11-21`
 (9 expressions) and mapped to jobs in `apps/api/src/index.ts:156-200`. Deploying
 the api Worker (`wrangler deploy`) registers them — **no separate operator

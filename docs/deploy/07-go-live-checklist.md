@@ -1,5 +1,7 @@
 # 07 — Go-Live Checklist
 
+**Status: CURRENT DIRECTION (#323).** Step 7 of the production deploy runbook: the pre-launch go/no-go. A checklist is only current if it is worked; a stale tick is worse than an empty box.
+
 Ordered pre-launch checklist plus the end-to-end smoke test. Do not launch until
 every box is checked. Items marked **OPS BLOCKER** are non-engineering
 prerequisites flagged by the marketing/legal docs.

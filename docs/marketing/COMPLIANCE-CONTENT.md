@@ -1,5 +1,7 @@
 # Compliance content: the rule, the audit, and who signs it off (#436)
 
+**Status: CURRENT DIRECTION (#323).** How compliance content is written, audited and signed off (#436). Where the advice and the product diverge, the product is the finding.
+
 The blog answers questions a tradesperson actually types, and several of those
 questions are legal ones. That is the right content to write. It also carries a
 liability a feature post does not: **where the advice and the product diverge, the

@@ -1,5 +1,7 @@
 # 08 — Operations
 
+**Status: CURRENT DIRECTION (#323).** Step 8 of the production deploy runbook: crons, rotation, backups, incidents. `docs/ROLLBACK.md` is the authority during an incident.
+
 Ongoing operation of the live system: how the crons work and how to verify them,
 dunning/grace behavior, monitoring, key rotation, backups/restore, and incident
 basics.

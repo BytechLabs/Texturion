@@ -1,5 +1,7 @@
 # 05 — Deploy the two Workers
 
+**Status: CURRENT DIRECTION (#323).** Step 5 of the production deploy runbook. `wrangler.jsonc` and the deploy workflow are the authority on what actually ships.
+
 Set the API Worker's secrets, configure GitHub Actions, deploy both Workers, bind
 custom domains, and register the now-live webhook URLs back into Stripe and Telnyx.
 

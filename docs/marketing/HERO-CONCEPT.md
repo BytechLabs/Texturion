@@ -1,5 +1,11 @@
 # Loonext Marketing — Hero Concept (SUPERSEDED — was BINDING, build-ready)
 
+**Status: SUPERSEDED (see the banner below). Was BINDING;** the build-ready spec for the home page's one signature moment. Same
+authority as BLUEPRINT.md §3.1 and §0.1, which it supersedes on hero *mechanics* (the "two-phones
+autoplay thread" §3.1 described is replaced by the participatory dispatch desk below; the LCP
+strategy, copy voice, and honesty rules from §3.1 are preserved and made concrete). Identity
+system: ART-DIRECTION.md. Copy voice: CONVERSION.md. Product truth: SPEC §1–2, §4.1.
+
 > # ⛔ SUPERSEDED — 2026-07-29 (#372)
 >
 > **The visitor-driven dispatch-desk hero described here did not ship.** It was replaced by **v4 "FIRST
@@ -15,12 +21,6 @@
 > **Read it for the reasoning, never as an instruction.** `LOOP-STATE.md`
 > scheduled executing it, and that row is why #372 was filed.
 
-
-**Status: SUPERSEDED (see the banner above). Was BINDING;** the build-ready spec for the home page's one signature moment. Same
-authority as BLUEPRINT.md §3.1 and §0.1, which it supersedes on hero *mechanics* (the "two-phones
-autoplay thread" §3.1 described is replaced by the participatory dispatch desk below; the LCP
-strategy, copy voice, and honesty rules from §3.1 are preserved and made concrete). Identity
-system: ART-DIRECTION.md. Copy voice: CONVERSION.md. Product truth: SPEC §1–2, §4.1.
 
 **The hero in one line:** the visitor watches a raw, panicked customer text land as "unfiled,"
 then **files it themselves in one tap** — pick who handles it, and it snaps into a clean,

@@ -1,5 +1,7 @@
 # Competitor Marketing-Site Teardowns
 
+**Status: HISTORICAL RESEARCH (#323).** Competitor sites as they were on the date stated inside. Kept for the reasoning; a competitor's live pricing page outranks every line of it, and nothing here is direction for our own surface.
+
 Researched live 2026-07-02 via direct fetches of simpletexting.com, salesmessage.com (salesmsg.com 301s there), heymarket.com, textline.com, quo.com, podium.com — homepages, pricing pages, sitemaps, and representative industry/comparison pages. Facts below are what the sites showed on that date.
 
 ---

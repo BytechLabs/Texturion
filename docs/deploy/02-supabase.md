@@ -1,5 +1,7 @@
 # 02 — Supabase
 
+**Status: CURRENT DIRECTION (#323).** Step 2 of the production deploy runbook. Variable names are authoritative in `06-env-reference.md`, which CI keeps in step with the zod schemas.
+
 Provision the database, Auth, and Storage. This produces four env values
 (`SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_JWKS_URL`, the web publishable
 key) and the three CI migration secrets. **The ES256 signing key in §2 is

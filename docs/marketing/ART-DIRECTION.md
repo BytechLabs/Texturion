@@ -1,5 +1,14 @@
 # Loonext Marketing — Art Direction (SUPERSEDED — was BINDING)
 
+**Status: SUPERSEDED (see the banner below). Was BINDING;** same authority as BLUEPRINT.md, VISUALS.md, and CONVERSION.md: implement,
+don't re-litigate. This is the distinctive identity system iteration 5 builds the whole
+marketing site from. It sits ABOVE the section-by-section blueprint: BLUEPRINT.md §3 says *what*
+each section contains; this doc says *what the whole thing looks and feels like* so twelve
+sections read as ONE authored object, not a template stack. Where a specific §3 layout detail
+conflicts with an identity rule here, this doc wins on look/feel and BLUEPRINT wins on content
+and copy. HERO-CONCEPT.md is the build-ready spec for the one signature moment; this doc is the
+system everything else obeys.
+
 > # ⛔ SUPERSEDED — 2026-07-29 (#372)
 >
 > **The job-ledger identity system described here did not ship.** It was replaced by **v4 "FIRST
@@ -15,15 +24,6 @@
 > **Read it for the reasoning, never as an instruction.** `LOOP-STATE.md`
 > scheduled executing it, and that row is why #372 was filed.
 
-
-**Status: SUPERSEDED (see the banner above). Was BINDING;** same authority as BLUEPRINT.md, VISUALS.md, and CONVERSION.md: implement,
-don't re-litigate. This is the distinctive identity system iteration 5 builds the whole
-marketing site from. It sits ABOVE the section-by-section blueprint: BLUEPRINT.md §3 says *what*
-each section contains; this doc says *what the whole thing looks and feels like* so twelve
-sections read as ONE authored object, not a template stack. Where a specific §3 layout detail
-conflicts with an identity rule here, this doc wins on look/feel and BLUEPRINT wins on content
-and copy. HERO-CONCEPT.md is the build-ready spec for the one signature moment; this doc is the
-system everything else obeys.
 
 The problem this solves, stated plainly: the current site reads as generic "section after
 section" with no identity. The user called the hero AWFUL and asked for BREATHTAKING — a

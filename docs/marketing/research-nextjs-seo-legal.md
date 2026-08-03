@@ -1,5 +1,7 @@
 # Research: Next.js 15 marketing-site engineering, SEO, and legal pages (verified 2026-07-02)
 
+**Status: HISTORICAL RESEARCH (#323).** Kept for the reasoning behind the marketing-site build, not as direction. Some of it has been overtaken by what shipped, and `docs/DECISIONS.md` outranks every line of it.
+
 Scope: everything the Loonext marketing site needs to score ~100 Lighthouse, rank, and be
 legally complete for a US/Canada SMS SaaS. All claims below were verified against live
 primary sources on 2026-07-02 (Google/web.dev/Next.js docs, peer legal pages). Where SEO

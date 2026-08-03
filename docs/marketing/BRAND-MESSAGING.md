@@ -1,5 +1,7 @@
 # Loonext Brand & Messaging Kit
 
+**Status: CURRENT DIRECTION (#323).** The claim-checked messaging kit. Every line is a verified product or billing fact, which is why a blog article may source facts from here and from `llms.txt` and from nowhere else.
+
 Reusable marketing copy for Loonext, grounded in the shipped product (SPEC,
 `apps/web/src/lib/marketing/llms-txt.ts`, the live marketing site). Every claim here is a verified
 product or billing fact. Customer-facing lines follow the house rules: no

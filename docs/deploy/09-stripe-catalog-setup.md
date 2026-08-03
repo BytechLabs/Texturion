@@ -1,5 +1,7 @@
 # 09 — Stripe Setup (Catalog, Webhook, Tax, Dunning)
 
+**Status: CURRENT DIRECTION (#323).** A per-vendor deep-dive on the same facts as `03-stripe.md`. The numbered set 01–08 is the operator walkthrough — start there.
+
 Everything the operator does on the Stripe side, in dependency order. Every fact
 cites `file:line`. The catalog is created by a **checked-in idempotent script**,
 not by hand in the dashboard — the dashboard work is limited to Tax, the webhook

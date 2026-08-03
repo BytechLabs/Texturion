@@ -1,5 +1,7 @@
 # Loonext Marketing — Conversion & Clarity Doctrine (BINDING)
 
+**Status: CURRENT DIRECTION (#323) EXCEPT COLOUR.** The clarity doctrine binds: when richness and clarity conflict, clarity wins. Every colour named here is DEAD — the live palette is `apps/web/src/app/globals.css` (#494 neutrals + lime, gated by four tests), and where this document and that file disagree the file is right.
+
 User directive: "Don't confuse the customer. MAXIMUM CONVERSION. Interactive. Beautiful."
 Binding for all loop iterations, equal authority to VISUALS.md. When richness/honesty/detail
 conflict with clarity, CLARITY WINS — simplify, don't add.

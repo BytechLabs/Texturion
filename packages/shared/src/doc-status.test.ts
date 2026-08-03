@@ -29,38 +29,50 @@ const DOCS = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "do
 const HEADER_LINES = 12;
 
 /**
- * Subdirectories of `docs/` that #323 has not been applied to yet.
+ * Every `.md` under docs/, with no subdirectory exempt.
  *
- * NOT a decision that they are exempt. The walk below used to be flat, so
- * `docs/deploy/` (14 files) and `docs/marketing/` (24) were outside this guard
- * because of how `readdirSync` was called, and nobody had chosen that. Naming
- * them makes the gap something a reader can see, and makes a NEW subdirectory
- * covered by default rather than silently exempt — which is the part that was
- * actually dangerous.
+ * `docs/deploy/` (14 files) and `docs/marketing/` (24) used to be excluded —
+ * first accidentally, because the walk was flat, and then explicitly, because
+ * giving 38 documents a status is a judgement per document rather than a sweep
+ * and stamping them all identically would be the rubber-stamp #323 exists to
+ * prevent.
  *
- * Applying #323 to them is real work, not a sweep: a status is a judgement
- * about whether a document is direction, record, or history, and stamping 38
- * files with the same header would be precisely the rubber-stamp this issue
- * exists to prevent. Filed rather than faked.
+ * They now carry one each (#519). Two of the judgements were worth the delay:
+ * `docs/marketing/VISUALS.md` and `VISUALS-V2.md` read as BINDING while both
+ * had been superseded twice over, and five marketing documents mandate a
+ * palette two generations dead — so their status lines say EXCEPT COLOUR and
+ * name `apps/web/src/app/globals.css` as the live authority, rather than
+ * blessing them wholesale.
  */
-const NOT_YET_COVERED = new Set(["deploy", "marketing"]);
-
-/** Every `.md` under docs/, minus the folders #323 has not reached. */
 function docFiles(): string[] {
   return readdirSync(DOCS, { recursive: true, encoding: "utf8" })
     .filter((name) => name.endsWith(".md"))
-    .map((name) => name.split(/[\\/]/).join("/"))
-    .filter((name) => {
-      const top = name.includes("/") ? name.slice(0, name.indexOf("/")) : "";
-      return !NOT_YET_COVERED.has(top);
-    });
+    .map((name) => name.split(/[\\/]/).join("/"));
 }
 
 const files = docFiles();
 
 describe("#323 every doc states whether it is direction or record", () => {
   it("finds the documents at all, so a moved folder cannot make this vacuous", () => {
-    expect(files.length).toBeGreaterThanOrEqual(30);
+    // Close under the real count (86) rather than the 30 it used to allow. A
+    // floor with 56 files of slack cannot tell you a folder stopped being
+    // walked, which is the one thing it is for.
+    expect(files.length).toBeGreaterThanOrEqual(80);
+  });
+
+  it("covers the subdirectories, not just the top level", () => {
+    // The failure this guard actually had: `readdirSync` without `recursive`
+    // returned only `docs/*.md`, and 38 nested documents were outside it while
+    // it reported success. A count cannot see that — the deepest folder can
+    // vanish and the total still clears any floor — so this asserts the shape.
+    const nested = files.filter((name) => name.includes("/"));
+    expect(nested.length).toBeGreaterThanOrEqual(30);
+    for (const dir of ["deploy", "marketing"]) {
+      expect(
+        nested.some((name) => name.startsWith(`${dir}/`)),
+        `docs/${dir}/ is not being walked`,
+      ).toBe(true);
+    }
   });
 
   it.each(files)("%s carries a status in its first lines", (name) => {

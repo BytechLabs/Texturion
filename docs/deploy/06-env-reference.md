@@ -1,5 +1,7 @@
 # 06 — Environment Reference (single source of truth)
 
+**Status: CURRENT DIRECTION (#323).** The ONE variable inventory (#377). `scripts/check-env-doc.mjs` fails CI when this and `apps/api/src/env.ts` / `apps/web/src/env.ts` disagree, so it cannot drift silently.
+
 Every variable Loonext reads, split by surface. **Secret?** = whether it's a
 Cloudflare Worker encrypted secret / GitHub Actions secret vs a build-time public
 value. Formats are illustrative — real values come from the vendor dashboards.

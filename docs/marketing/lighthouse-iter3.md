@@ -1,5 +1,7 @@
 # Lighthouse & performance audit — iteration 3 (HERO + PERFORMANCE track)
 
+**Status: SUPERSEDED (#323).** Audits the retired two-phones hero — see the note below. `lighthouse-2026-07-07.md` is the current baseline.
+
 > **SUPERSEDED (2026-07-07):** this baseline audits the retired two-phones hero.
 > The current launch-candidate baseline is [lighthouse-2026-07-07.md](lighthouse-2026-07-07.md).
 

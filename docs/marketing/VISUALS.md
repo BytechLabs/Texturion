@@ -1,5 +1,7 @@
 # Loonext Marketing — Visual Art Direction (BINDING)
 
+**Status: SUPERSEDED ON ART RULES, AND ON COLOUR (#323).** VISUALS-V2 replaced §1B/§1C/§1D (hand-made SVG art and infographics) and the no-raster stance; VISUALS-V3 replaced the imagery treatment again. What survives is the floor this document set and nothing else has restated: the site must never read empty. Every colour here is DEAD — `apps/web/src/app/globals.css` is the live palette.
+
 **Why this exists:** the site currently has no images, illustrations, or infographics — only
 text and a few live-DOM widgets. It reads empty. Calm ≠ bare. Every marketing page from here
 on must carry a real, crafted visual layer. This doc is binding for loop iterations 4+ and

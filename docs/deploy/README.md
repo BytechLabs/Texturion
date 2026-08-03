@@ -1,5 +1,7 @@
 # Loonext — Production Deploy Runbook
 
+**Status: CURRENT DIRECTION (#323).** The index for the production deploy runbook. The numbered set 01–08 is the walkthrough; `06-env-reference.md` is the only variable inventory, and `scripts/check-env-doc.mjs` fails CI if it and the zod schemas disagree.
+
 The operator's authoritative guide to standing up and deploying **Loonext** in
 production. Loonext is two Cloudflare Workers plus five backing SaaS vendors:
 

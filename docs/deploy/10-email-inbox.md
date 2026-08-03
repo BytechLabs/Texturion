@@ -1,5 +1,7 @@
 # 10 · Receiving email on loonext.com (minimum cost: $0/month)
 
+**Status: CURRENT DIRECTION (#323).** A per-vendor deep-dive on receiving email at the domain. The numbered set 01–08 is the operator walkthrough — start there.
+
 Loonext's site and legal pages reference three human inboxes: `support@loonext.com`,
 `privacy@loonext.com`, and `security@loonext.com`. Transactional SENDING (auth emails,
 usage alerts) is already covered by Resend (06-env-reference `RESEND_*`). This page is

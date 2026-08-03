@@ -1,5 +1,7 @@
 # v4 redo: purge list + coverage map (COMPLETED — historical record)
 
+**Status: HISTORICAL (#323).** A record of work that was done, not a plan to do — see the banner below. Its `file:line` citations describe the code as it stood when the plan was written, which is why `scripts/check-doc-citations.mjs` skips it.
+
 > # ✅ COMPLETED — the plan below was executed
 >
 > **This is a record of work that was done, not a plan to do.** Every purge in the

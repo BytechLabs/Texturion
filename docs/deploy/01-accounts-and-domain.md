@@ -1,5 +1,7 @@
 # 01 — Accounts & Domain
 
+**Status: CURRENT DIRECTION (#323).** Step 1 of the production deploy runbook. Where it disagrees with a vendor's current console, the console wins — these are third-party UIs we do not control.
+
 Create the vendor accounts and set up the domain + DNS. Do this first: every
 later step needs credentials and hostnames from here.
 

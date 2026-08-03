@@ -1,5 +1,7 @@
 # 05 — Supabase Project Setup + Migrations
 
+**Status: CURRENT DIRECTION (#323).** A per-vendor deep-dive on the same facts as `02-supabase.md`. The numbered set 01–08 is the operator walkthrough — start there.
+
 Everything the operator does on the Supabase side: project provisioning, the
 **ES256 JWT signing key** requirement, extensions, the `mms-media` storage
 bucket, RLS posture, custom SMTP, Turnstile, and the migration-push flow. Every

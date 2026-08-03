@@ -1,5 +1,7 @@
 # Landing-page loop state
 
+**Status: HISTORICAL (#323).** Superseded and closed by #372 — see the banner below. Do not execute anything in it; it is kept as a record of how the landing page reached v3, and `DESIGN-DIRECTION.md` is what binds now.
+
 > # ⛔ SUPERSEDED AND CLOSED — 2026-07-29 (#372)
 >
 > **Do not execute anything in this file.** It is kept as a record of how the

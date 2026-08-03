@@ -1,5 +1,7 @@
 # 07 — Telnyx, Resend, Sentry Setup + Webhook Registration
 
+**Status: CURRENT DIRECTION (#323).** A per-vendor deep-dive on webhook registration. The numbered set 01–08 is the operator walkthrough — start there.
+
 The vendor-side actions for **Telnyx**, **Resend**, and **Sentry/PostHog**, and
 where each webhook URL is registered. Stripe's own setup (catalog, tax, its
 webhook endpoint) is in [09](./09-stripe-catalog-setup.md). Supabase is in

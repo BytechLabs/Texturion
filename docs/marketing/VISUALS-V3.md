@@ -1,5 +1,7 @@
 # Loonext Marketing — Visual Identity v3 (BINDING, supersedes v2 on type + imagery)
 
+**Status: CURRENT DIRECTION (#323) EXCEPT COLOUR.** The live one of the three VISUALS generations: the "annotated editorial" identity and the image treatment. Every colour here is DEAD — the petrol/cream duotone was replaced twice over, and `apps/web/src/app/globals.css` is the live palette. Where this and `DESIGN-DIRECTION.md` v4 disagree on structure, v4 wins.
+
 **Why:** v2 swapped in Fraunces and generic stock photos — but a font swap isn't personality,
 and stock photography isn't an *owned* identity. v3 defines a distinctive, ownable look with real
 typographic personality and a consistent stylized image treatment that is unmistakably ours.

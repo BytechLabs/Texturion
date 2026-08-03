@@ -1,5 +1,7 @@
 # Marketing screenshots — index & provenance
 
+**Status: CURRENT DIRECTION (#323).** The index and provenance of the shipped marketing screenshots. Every shot is a real capture of the running app; the capture script in the repo is the authority on how they are made.
+
 **All shots in `apps/web/public/shots/` are real captures of the running Loonext
 app** (the actual Next.js UI talking to the real API and a seeded local
 Supabase), showing obviously-demo data for **"Mike's Plumbing"**. No mockups, no

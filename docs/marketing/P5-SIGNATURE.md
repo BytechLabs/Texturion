@@ -1,5 +1,7 @@
 # P5-SPEC v1 — THE ARRIVAL FIELD (implementation-ready)
 
+**Status: CURRENT DIRECTION (#323) EXCEPT COLOUR.** The home hero's one algorithmic signature, required by `DESIGN-DIRECTION.md` v4 as part of the complete build spec. The Cobalt/petrol trail colours named here are DEAD — the live palette is `apps/web/src/app/globals.css`, and where this document and that file disagree the file is right.
+
 ## What it is
 The site's single algorithmic signature, on the home hero only. Each particle IS a customer text: it spawns at an off-canvas "personal phone" moment, wanders under noise (unanswered, Flare), resolves into an arrive-steered path (in motion, Cobalt trail), and docks into the REAL inbox component, which prepends an actual conversation row (handled, app tokens). Chaos becomes a queue; the queue empties into the real product, not an abstraction of it.
 

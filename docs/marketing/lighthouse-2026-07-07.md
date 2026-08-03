@@ -1,5 +1,7 @@
 # Lighthouse baseline — 2026-07-07 (post v3 restyle, launch candidate)
 
+**Status: RECORD (#323).** A dated performance baseline, kept so a later regression has something to be measured against. It is not a target and not direction — re-run the audit rather than trusting these numbers.
+
 Supersedes `lighthouse-iter3.md` (which audited the retired "two-phones" hero).
 Run after the full v3 "Quiet daylight" restyle (#27), the pricing-truth wave
 (#24/#28), and the marketing leaf-visual migration — i.e. the site as it will

@@ -1,5 +1,7 @@
 # Loonext Marketing — Visual Language v2 (BINDING, supersedes VISUALS.md art rules)
 
+**Status: SUPERSEDED ON TYPE AND IMAGERY, AND ON COLOUR (#323).** VISUALS-V3 replaced §2 (raw stock photos) and §5 (the font swap). What survives, by V3's own statement, is §1 — no self-made amateur SVG art — and the performance guardrails in §7, which `photo.tsx` implements. Every colour here is DEAD — `apps/web/src/app/globals.css` is the live palette.
+
 **Why:** the hand-built SVG/CSS "art" and the custom infographics read as inconsistent and
 amateur, and Inter-only has no personality. This doc reverses that. It supersedes VISUALS.md
 §1B/§1C/§1D (custom SVG illustrations + hand-drawn infographics) and the "no raster / no stock"

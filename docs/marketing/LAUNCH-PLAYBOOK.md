@@ -1,5 +1,7 @@
 # Loonext Launch Playbook (#127)
 
+**Status: CURRENT DIRECTION (#323).** The founder's post-launch channel checklist (#127). Accounts and posting are founder-only; the channel facts were verified against the live web on the date stated inside.
+
 The post-launch distribution plan. The product is live; nobody knows about it.
 This document is the founder's execution checklist: every channel below was
 verified against the live web on 2026-07-10 (103 directories checked, 23 found

@@ -1,5 +1,7 @@
 # 03 — Stripe
 
+**Status: CURRENT DIRECTION (#323).** Step 3 of the production deploy runbook. Prices and IDs come from `pnpm stripe:setup` and the shared price book, never from a figure typed here.
+
 Create the billing catalog with the checked-in setup script, wire the webhook,
 enable Tax, and configure the customer portal. **Everything here is done once per
 Stripe mode — run it in test first, then live.**
