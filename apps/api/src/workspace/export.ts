@@ -26,6 +26,10 @@ import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
+import {
+  buildConversationHistory,
+  type HistoryFilters,
+} from "./history-export";
 import { emailLayout } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
@@ -122,6 +126,9 @@ export interface ExportSummary {
 }
 
 interface ExportRow {
+  /** #304: `workspace` (the #227 dump) or `conversation_history`. */
+  kind?: string;
+  filters?: Record<string, unknown>;
   id: string;
   company_id: string;
   requested_by: string;
@@ -144,16 +151,29 @@ export async function buildDataExports(
 
   const { data, error } = await db
     .from("data_exports")
-    .select("id,company_id,requested_by,storage_prefix,completed_tables,row_counts")
+    .select(
+      "id,company_id,requested_by,storage_prefix,completed_tables,row_counts," +
+        // #304: which builder this row wants, and what it asked for.
+        "kind,filters",
+    )
     .in("status", ["pending", "running"])
     .order("requested_at", { ascending: true })
     .limit(MAX_EXPORTS_PER_RUN);
   if (error) throw new Error(`export queue query failed: ${error.message}`);
 
-  for (const row of (data ?? []) as ExportRow[]) {
+  // The select is built from a concatenated string, which supabase-js
+  // cannot parse at the type level, so the cast goes through `unknown`
+  // exactly as the table reads below already do.
+  for (const row of (data ?? []) as unknown as ExportRow[]) {
     summary.exports += 1;
     try {
-      const result = await buildOne(env, db, row, now);
+      // #304: two kinds share this queue, this bucket, this reaper and this
+      // failure path. What differs is what gets written, so the dispatch is
+      // here and nowhere else.
+      const result =
+        row.kind === "conversation_history"
+          ? await buildHistoryExport(db, row, now)
+          : await buildOne(env, db, row, now);
       summary.parts += result.parts;
       if (result.completed) summary.completed += 1;
     } catch (cause) {
@@ -274,6 +294,53 @@ async function buildOne(
     .eq("id", row.id);
   await notifyReady(env, db, row);
   return { parts, completed: true };
+}
+
+/**
+ * #304 — one customer's history, written and finished in a single run.
+ *
+ * No resume state, unlike the workspace dump: it is one document and one CSV,
+ * bounded by `HISTORY_MESSAGE_CAP`, so there is no half-written state worth
+ * remembering. A failure leaves the row failed and the requester told, which
+ * is the same contract the dump has.
+ */
+async function buildHistoryExport(
+  db: SupabaseClient,
+  row: ExportRow,
+  now: Date,
+): Promise<{ parts: number; completed: boolean }> {
+  const prefix = row.storage_prefix ?? `${row.company_id}/${row.id}`;
+  if (row.storage_prefix === null) {
+    await db
+      .from("data_exports")
+      .update({ storage_prefix: prefix, status: "running", started_at: now.toISOString() })
+      .eq("id", row.id);
+  }
+
+  const result = await buildConversationHistory(
+    db,
+    {
+      exportId: row.id,
+      companyId: row.company_id,
+      requestedBy: row.requested_by,
+      filters: (row.filters ?? {}) as HistoryFilters,
+      prefix,
+      now,
+    },
+    (path, body, contentType) => putObject(db, path, body, contentType),
+  );
+
+  await db
+    .from("data_exports")
+    .update({
+      status: "ready",
+      completed_at: new Date().toISOString(),
+      // The receipt, in the same shape the dump uses: what was written, and
+      // whether anything was left out.
+      row_counts: { messages: result.messages, partial: result.partial ? 1 : 0 },
+    })
+    .eq("id", row.id);
+  return { parts: 2, completed: true };
 }
 
 async function putObject(
