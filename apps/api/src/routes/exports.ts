@@ -1,3 +1,4 @@
+import { z } from "zod";
 /**
  * #227 — requesting and collecting a workspace's data export.
  *
@@ -24,6 +25,8 @@ import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
 import { dispositionOptions } from "../storage/disposition";
 import { EXPORTS_BUCKET } from "../workspace/export";
+import { ApiError } from "../http/errors";
+import { parseJsonBody } from "./core/http";
 import { unwrap } from "./core/http";
 
 export const exportsRoutes = new Hono<AppEnv>();
@@ -89,6 +92,88 @@ exportsRoutes.post("/exports", requireCapability("contacts.bulk"), async (c) => 
 
   return c.json({ export_id: result.export_id, already_building: false }, 202);
 });
+
+/**
+ * #304 — one customer's message history, over a date range.
+ *
+ * `contacts.bulk`, the same gate as the workspace dump, and deliberately not
+ * `conversations.read`. The difference between reading a thread on screen and
+ * exporting it is that the export LEAVES: it is a permanent copy of one
+ * relationship, outside the product and outside its access rules. That is the
+ * axis #231 calls "the departing-employee signature", and one customer's whole
+ * correspondence is on it.
+ *
+ * The builder resolves the requester's number access again at build time, so a
+ * thread they cannot see is not in the file. This route does not repeat that
+ * check: two implementations of one security decision is the drift class D79
+ * exists to prevent, and the builder is the side that must be right because it
+ * is the side that writes the bytes.
+ */
+const historySchema = z.object({
+  contact_id: z.string().uuid(),
+  /** ISO instants. Absent means from the beginning / until now. */
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+});
+
+exportsRoutes.post(
+  "/exports/history",
+  requireCapability("contacts.bulk"),
+  async (c) => {
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+    const body = await parseJsonBody(c, historySchema);
+
+    if (body.from && body.to && body.from > body.to) {
+      throw new ApiError(
+        "validation_failed",
+        "The end of the period is before its start.",
+      );
+    }
+
+    const { data, error } = await db.rpc("request_data_export", {
+      p_company_id: companyId,
+      p_user_id: c.get("userId"),
+      p_kind: "conversation_history",
+      p_filters: body,
+    });
+    if (error) throw new Error(`request_data_export failed: ${error.message}`);
+    const result = data as { outcome: "queued" | "in_flight"; export_id: string };
+
+    if (result.outcome === "in_flight") {
+      // One scoped export at a time, per the same cost rule as the dump — and
+      // scoped to the KIND, so this never waits behind a full workspace export.
+      return c.json({ export_id: result.export_id, already_building: true });
+    }
+
+    // #231/#304: WHICH customer, not merely that an export happened. "Who
+    // exported what" is the question an owner asks after somebody leaves, and
+    // an audit row saying only "history" does not answer it.
+    await recordAuditFromRequest(db, c, {
+      companyId,
+      action: "contacts.exported",
+      targetType: "data_export",
+      targetId: result.export_id,
+      after: {
+        scope: "conversation_history",
+        contact_id: body.contact_id,
+        from: body.from ?? null,
+        to: body.to ?? null,
+      },
+    });
+
+    // No count: it is built asynchronously, and one customer's whole history is
+    // not a lookup whatever its length. Never fires for the owner's own.
+    alarmOnBulkContactAccess(c, getEnv(c.env), db, {
+      companyId,
+      actorUserId: c.get("userId"),
+      event: "history_exported",
+      count: 0,
+    });
+
+    return c.json({ export_id: result.export_id, already_building: false }, 202);
+  },
+);
 
 exportsRoutes.get("/exports", requireCapability("contacts.bulk"), async (c) => {
   const companyId = c.get("companyId");

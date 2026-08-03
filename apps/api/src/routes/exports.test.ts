@@ -194,3 +194,120 @@ describe("GET /v1/exports", () => {
     expect(body.data[1].error).toBe("messages read failed");
   });
 });
+
+/**
+ * #304 — asking for one customer's history.
+ *
+ * HR-2 is the one to read twice. An audit row saying only "an export happened"
+ * does not answer the question an owner asks after somebody leaves: WHICH
+ * customer's correspondence left the building. The row has to name them.
+ */
+describe("POST /v1/exports/history (#304)", () => {
+  const CONTACT_ID = "dddddddd-1111-4222-8333-444444444444";
+
+  it("HR-1: asks for the scoped kind, and passes the filters through", async () => {
+    // The kind is what the queue dispatches on, and the filters are what the
+    // builder reads. A request that dropped either would silently build the
+    // whole workspace instead.
+    const { sb, routes } = world();
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/exports/history", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { contact_id: CONTACT_ID, from: "2026-07-01T00:00:00Z", to: "2026-07-31T23:59:59Z" },
+    });
+    expect(res.status).toBe(202);
+
+    const call = sb.find("POST", "/rest/v1/rpc/request_data_export")[0];
+    const sent = call.body as Record<string, unknown>;
+    expect(sent.p_kind).toBe("conversation_history");
+    expect(sent.p_filters).toEqual({
+      contact_id: CONTACT_ID,
+      from: "2026-07-01T00:00:00Z",
+      to: "2026-07-31T23:59:59Z",
+    });
+  });
+
+  it("HR-2: the audit row names WHICH customer", async () => {
+    // THE ONE THAT MATTERS. "An export happened" is not the question; "whose
+    // correspondence left" is, and it is asked months later about somebody who
+    // has since gone (#276).
+    const { sb, routes } = world();
+    stubFetch(jwksRoute(auth), ...routes);
+
+    await apiRequest(app, env, await auth.token(), "/v1/exports/history", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { contact_id: CONTACT_ID },
+    });
+
+    const audit = sb.find("POST", "/rest/v1/audit_log")[0];
+    const row = (audit.body as Record<string, unknown>[])[0] ??
+      (audit.body as Record<string, unknown>);
+    expect(JSON.stringify(row)).toContain(CONTACT_ID);
+    expect(JSON.stringify(row)).toContain("conversation_history");
+  });
+
+  it("HR-3: a plain member cannot take a customer's history out", async () => {
+    // `contacts.bulk`, not `conversations.read`. The difference between
+    // reading a thread and exporting it is that the export LEAVES — a
+    // permanent copy outside the product and outside its access rules.
+    const { routes } = world({ role: "member" });
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/exports/history", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { contact_id: CONTACT_ID },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("HR-4: a second click does not queue a second copy", async () => {
+    const { routes } = world({
+      request: { outcome: "in_flight", export_id: EXPORT_ID },
+    });
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/exports/history", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { contact_id: CONTACT_ID },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      export_id: EXPORT_ID,
+      already_building: true,
+    });
+  });
+
+  it("HR-5: refuses a period that ends before it starts", async () => {
+    // Not a 500 from the builder later. A backwards range is a typo somebody
+    // can fix in the moment, and an export that came back empty an hour later
+    // would read as "there were no messages".
+    const { sb, routes } = world();
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/exports/history", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { contact_id: CONTACT_ID, from: "2026-07-31T00:00:00Z", to: "2026-07-01T00:00:00Z" },
+    });
+    expect(res.status).toBe(422);
+    expect(sb.find("POST", "/rest/v1/rpc/request_data_export")).toHaveLength(0);
+  });
+
+  it("HR-6: needs a contact — a history of nobody is the workspace dump", async () => {
+    const { sb, routes } = world();
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/exports/history", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { from: "2026-07-01T00:00:00Z" },
+    });
+    expect(res.status).toBe(422);
+    expect(sb.find("POST", "/rest/v1/rpc/request_data_export")).toHaveLength(0);
+  });
+});

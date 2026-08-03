@@ -36,7 +36,15 @@ import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 
 /** What happened to the contacts, in the words the email uses. */
-export type BulkContactEvent = "exported" | "bulk_deleted" | "workspace_exported";
+export type BulkContactEvent =
+  | "exported"
+  | "bulk_deleted"
+  | "workspace_exported"
+  // #304: one customer's whole correspondence, taken out as a document.
+  // Narrower than the workspace dump and the same class of act — it is the
+  // record of one relationship leaving the product, and the owner should
+  // hear about it for the same reason.
+  | "history_exported";
 
 export interface BulkContactAlarm {
   companyId: string;
@@ -101,6 +109,9 @@ async function deliver(
     // does not have would silence the loudest signal in the product.
     if (
       alarm.event !== "workspace_exported" &&
+      // #304: built asynchronously, so there is no message count to compare —
+      // and one customer's whole history is not a lookup whatever its size.
+      alarm.event !== "history_exported" &&
       alarm.count < BULK_CONTACT_ALARM_MIN_ROWS
     ) {
       return;
@@ -135,9 +146,11 @@ async function deliver(
     const what =
       alarm.event === "workspace_exported"
         ? "requested a full export of this workspace"
-        : alarm.event === "exported"
-          ? `downloaded ${alarm.count} contacts`
-          : `deleted ${alarm.count} contacts`;
+        : alarm.event === "history_exported"
+          ? "exported one customer's message history"
+          : alarm.event === "exported"
+            ? `downloaded ${alarm.count} contacts`
+            : `deleted ${alarm.count} contacts`;
     const text =
       `${actor} just ${what} in ${company.name}.\n\n` +
       `If that was expected, nothing needs doing. If it was not, the full ` +
@@ -151,7 +164,9 @@ async function deliver(
       subject:
         alarm.event === "workspace_exported"
           ? `${actor} requested a full export of ${company.name}`
-          : `${actor} ${alarm.event === "exported" ? "exported" : "deleted"} ${alarm.count} contacts`,
+          : alarm.event === "history_exported"
+            ? `${actor} exported a customer's message history from ${company.name}`
+            : `${actor} ${alarm.event === "exported" ? "exported" : "deleted"} ${alarm.count} contacts`,
       text,
       html: renderEmailHtml(text),
     });
