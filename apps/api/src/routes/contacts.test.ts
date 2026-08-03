@@ -41,13 +41,26 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function stubWithRole(role: string | null): SupabaseStub {
+function stubWithRole(
+  role: string | null,
+  /**
+   * #291: the contact detail reads addresses now. Passed IN rather than
+   * registered afterwards — this harness is first-match-wins, so a later
+   * `sb.on` for a path it already claimed is a stub that silently never runs.
+   */
+  addresses: Record<string, unknown>[] = [],
+): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
     "POST",
     "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, role),
   );
+  // #291: the contact detail now reads a contact's addresses. Empty is the
+  // answer for every contact that predates the feature, and the state every
+  // test written before it was asserting against. A suite that wants
+  // addresses registers this path itself and wins.
+  sb.on("GET", "/rest/v1/contact_addresses", () => addresses);
   return sb;
 }
 
@@ -2321,5 +2334,171 @@ describe("#291 email and business name", () => {
     const arm = contactSearchOr("maple");
     expect(arm).toContain("business_name.ilike.*maple*");
     expect(arm).toContain("email.ilike.*maple*");
+  });
+});
+
+/**
+ * #291 — a contact's addresses.
+ *
+ * Every test here is about the PRIMARY flag, because that is the one whose
+ * failure is silent: a contact with two primaries or none is not an error
+ * state anywhere, and whichever row the query happens to return is where the
+ * van goes.
+ */
+describe("#291 contact addresses", () => {
+  const ADDRESS_ID = "eeeeeeee-1111-4222-8333-444444444444";
+
+  function addressWorld(existing: Record<string, unknown>[] = []) {
+    const sb = stubWithRole("member", existing);
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("POST", "/rest/v1/contact_addresses", () => [
+      { id: ADDRESS_ID, address: "12 Elm St", is_primary: true },
+    ]);
+    sb.on("PATCH", "/rest/v1/contact_addresses", () => [
+      { id: ADDRESS_ID, address: "12 Elm St", is_primary: true },
+    ]);
+    sb.on("DELETE", "/rest/v1/contact_addresses", () => [
+      { id: ADDRESS_ID, is_primary: false },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+    return sb;
+  }
+
+  it("AD-1: the FIRST address is primary whether or not anybody said so", async () => {
+    // A contact whose only address is not the primary has no answer to "where
+    // is this job", which is the single question the flag exists for.
+    const sb = addressWorld([]);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/addresses`,
+      { method: "POST", companyId: COMPANY_ID, body: { address: "12 Elm St" } },
+    );
+
+    expect(res.status).toBe(201);
+    expect(sb.find("POST", "/rest/v1/contact_addresses")[0].body).toMatchObject({
+      is_primary: true,
+    });
+  });
+
+  it("AD-2: a second address is NOT primary unless asked", async () => {
+    const sb = addressWorld([{ id: "other", is_primary: true }]);
+
+    await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/addresses`,
+      { method: "POST", companyId: COMPANY_ID, body: { address: "99 Oak Ave" } },
+    );
+
+    expect(sb.find("POST", "/rest/v1/contact_addresses")[0].body).toMatchObject({
+      is_primary: false,
+    });
+  });
+
+  it("AD-3: making one primary DEMOTES the old one first", async () => {
+    // The partial unique index refuses two primaries at any instant, so
+    // promoting before demoting would collide with the row being replaced.
+    const sb = addressWorld([{ id: "other", is_primary: true }]);
+
+    await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/addresses`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { address: "99 Oak Ave", is_primary: true },
+      },
+    );
+
+    const demote = sb.find("PATCH", "/rest/v1/contact_addresses")[0];
+    expect(demote).toBeDefined();
+    expect(demote.body).toMatchObject({ is_primary: false });
+    // And it happened BEFORE the insert, which is the whole point.
+    const order = sb.calls.map((call) => `${call.method} ${call.path}`);
+    expect(order.indexOf("PATCH /rest/v1/contact_addresses")).toBeLessThan(
+      order.indexOf("POST /rest/v1/contact_addresses"),
+    );
+  });
+
+  it("AD-4: deleting the primary promotes the oldest survivor", async () => {
+    // Leaving a contact with addresses but no primary sends a van nowhere —
+    // and it would happen on the most ordinary action there is.
+    const sb = stubWithRole("member", [{ id: "survivor" }]);
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("DELETE", "/rest/v1/contact_addresses", () => [
+      { id: ADDRESS_ID, is_primary: true },
+    ]);
+    sb.on("PATCH", "/rest/v1/contact_addresses", () => [{ id: "survivor" }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/addresses/${ADDRESS_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+
+    expect(res.status).toBe(204);
+    expect(sb.find("PATCH", "/rest/v1/contact_addresses")[0].body).toMatchObject({
+      is_primary: true,
+    });
+  });
+
+  it("AD-5: deleting a NON-primary promotes nobody", async () => {
+    const sb = addressWorld();
+
+    await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/addresses/${ADDRESS_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+
+    expect(sb.find("PATCH", "/rest/v1/contact_addresses")).toHaveLength(0);
+  });
+
+  it("AD-6: the list is capped, so one contact cannot become a database", async () => {
+    addressWorld(
+      Array.from({ length: 50 }, (_, index) => ({ id: `a${index}`, is_primary: false })),
+    );
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/addresses`,
+      { method: "POST", companyId: COMPANY_ID, body: { address: "51 Elm St" } },
+    );
+
+    expect(res.status).toBe(422);
+  });
+
+  it("AD-7: addresses ride the contact detail, not a second request", async () => {
+    const sb = stubWithRole("member", [
+      { id: ADDRESS_ID, label: "Site", address: "12 Elm St", is_primary: true },
+    ]);
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      { companyId: COMPANY_ID },
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { addresses: unknown[] };
+    expect(body.addresses).toHaveLength(1);
   });
 });

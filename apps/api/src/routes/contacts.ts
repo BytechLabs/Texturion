@@ -201,6 +201,31 @@ function geocodeReset(address: string | null): Record<string, unknown> {
 
 const TRUTHY_CSV = new Set(["true", "1", "yes", "y"]);
 
+/**
+ * #291 — clear the primary flag on a contact's other addresses.
+ *
+ * Two statements rather than one because the partial unique index refuses two
+ * primaries at any instant: promoting before demoting would collide with the
+ * row being replaced. Demote first, then set, and the window between them has
+ * NO primary rather than two — which the readers already handle, since every
+ * contact predating this feature has none.
+ */
+async function demoteOtherPrimaries(
+  db: Db,
+  companyId: string,
+  contactId: string,
+  exceptId?: string,
+): Promise<void> {
+  let query = db
+    .from("contact_addresses")
+    .update({ is_primary: false })
+    .eq("company_id", companyId)
+    .eq("contact_id", contactId)
+    .eq("is_primary", true);
+  if (exceptId) query = query.neq("id", exceptId);
+  unwrap(await query.select("id"), "demote primary addresses");
+}
+
 type Db = ReturnType<typeof getDb>;
 
 async function findContact(
@@ -222,6 +247,21 @@ async function findContact(
 
 /** #246: which contact survives the merge. */
 const mergeSchema = z.object({ into_contact_id: z.uuid() });
+
+/**
+ * #291 — one of a contact's addresses.
+ *
+ * The label is free text on purpose. A fixed vocabulary ("Home", "Work") is
+ * wrong for the second trade that uses it: a property manager labels by unit,
+ * a builder by lot, an HVAC company by which rooftop the plant is on.
+ */
+const addressSchema = z.object({
+  label: z.string().trim().min(1).max(80).nullable().optional(),
+  address: z.string().trim().min(1).max(500),
+  is_primary: z.boolean().optional(),
+});
+
+const ADDRESS_CAP = 50;
 
 export const contactsRoutes = new Hono<AppEnv>();
 
@@ -814,6 +854,23 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
   if (!contact) {
     return errorResponse(c, "not_found", "No such contact.");
   }
+
+  // #291: the addresses ride the detail rather than a second endpoint. A
+  // contact panel that had to ask twice would paint the record and then the
+  // addresses a moment later, and "where is this job" is not a detail somebody
+  // should watch arrive.
+  const addresses = unwrap<Record<string, unknown>[]>(
+    await db
+      .from("contact_addresses")
+      .select("id,label,address,is_primary,created_at")
+      .eq("company_id", companyId)
+      .eq("contact_id", id)
+      .order("is_primary", { ascending: false })
+      .order("created_at", { ascending: true })
+      .limit(ADDRESS_CAP),
+    "contact addresses",
+  );
+
   const optOuts = unwrap<{ id: string; source: string }[]>(
     await db
       .from("opt_outs")
@@ -870,6 +927,10 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
     first_conversation_at: relationship.first_conversation_at,
     created_by_name: createdBy ? actorNames.get(createdBy) ?? null : null,
     updated_by_name: updatedBy ? actorNames.get(updatedBy) ?? null : null,
+    // #291: primary first, then oldest. An empty list is the honest answer for
+    // every contact that predates this — `contacts.address` still holds their
+    // one address and still works.
+    addresses,
   });
 });
 
@@ -1823,5 +1884,160 @@ contactsRoutes.post(
     });
 
     return c.json({ unmerged: true });
+  },
+);
+
+/**
+ * #291 — a contact's addresses.
+ *
+ * WHY THESE ARE THEIR OWN ROUTES RATHER THAN A FIELD ON PATCH /contacts/:id.
+ * A whole-list replace would make "add one address" a read-modify-write, and
+ * two people editing one property manager's forty buildings would silently
+ * lose each other's work. One row, one request.
+ *
+ * `conversations.note` to write, matching the rest of the contact record: an
+ * address is operational knowledge the crew keeps, not customer-facing
+ * messaging, and a member who can annotate a contact can correct where the van
+ * goes.
+ */
+contactsRoutes.post(
+  "/contacts/:id/addresses",
+  requireCapability("conversations.note"),
+  async (c) => {
+    const contactId = pathUuid(c, "id");
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+    const body = await parseJsonBody(c, addressSchema);
+
+    const contact = await findContact(db, companyId, contactId);
+    if (!contact) return errorResponse(c, "not_found", "No such contact.");
+
+    const existing = unwrap<{ id: string; is_primary: boolean }[]>(
+      await db
+        .from("contact_addresses")
+        .select("id,is_primary")
+        .eq("company_id", companyId)
+        .eq("contact_id", contactId),
+      "address count",
+    );
+    if (existing.length >= ADDRESS_CAP) {
+      throw new ApiError(
+        "validation_failed",
+        `A contact can hold ${ADDRESS_CAP} addresses.`,
+      );
+    }
+
+    // The FIRST address is primary whether or not anybody said so. A contact
+    // whose only address is not the primary one has no answer to "where is
+    // this job", which is the single question the flag exists for.
+    const wantsPrimary = body.is_primary === true || existing.length === 0;
+    if (wantsPrimary) await demoteOtherPrimaries(db, companyId, contactId);
+
+    const rows = unwrap<Record<string, unknown>[]>(
+      await db
+        .from("contact_addresses")
+        .insert({
+          company_id: companyId,
+          contact_id: contactId,
+          label: body.label ?? null,
+          address: body.address,
+          is_primary: wantsPrimary,
+        })
+        .select("id,label,address,is_primary,created_at"),
+      "create contact address",
+    );
+
+    return c.json({ data: rows[0] }, 201);
+  },
+);
+
+contactsRoutes.patch(
+  "/contacts/:id/addresses/:addressId",
+  requireCapability("conversations.note"),
+  async (c) => {
+    const contactId = pathUuid(c, "id");
+    const addressId = pathUuid(c, "addressId");
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+    const body = await parseJsonBody(c, addressSchema.partial());
+
+    if (body.is_primary === true) {
+      await demoteOtherPrimaries(db, companyId, contactId, addressId);
+    }
+
+    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (body.label !== undefined) patch.label = body.label ?? null;
+    if (body.address !== undefined) patch.address = body.address;
+    // Only ever set TRUE here. Clearing the flag directly would leave the
+    // contact with no primary at all, and the demotion above is the only way
+    // one moves.
+    if (body.is_primary === true) patch.is_primary = true;
+
+    const rows = unwrap<Record<string, unknown>[]>(
+      await db
+        .from("contact_addresses")
+        .update(patch)
+        .eq("company_id", companyId)
+        .eq("contact_id", contactId)
+        .eq("id", addressId)
+        .select("id,label,address,is_primary,created_at"),
+      "update contact address",
+    );
+    if (rows.length === 0) return errorResponse(c, "not_found", "No such address.");
+
+    return c.json({ data: rows[0] });
+  },
+);
+
+contactsRoutes.delete(
+  "/contacts/:id/addresses/:addressId",
+  requireCapability("conversations.note"),
+  async (c) => {
+    const contactId = pathUuid(c, "id");
+    const addressId = pathUuid(c, "addressId");
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+
+    const removed = unwrap<{ id: string; is_primary: boolean }[]>(
+      await db
+        .from("contact_addresses")
+        .delete()
+        .eq("company_id", companyId)
+        .eq("contact_id", contactId)
+        .eq("id", addressId)
+        .select("id,is_primary"),
+      "delete contact address",
+    );
+    if (removed.length === 0) {
+      return errorResponse(c, "not_found", "No such address.");
+    }
+
+    // Deleting the primary promotes the oldest survivor. Leaving a contact
+    // with addresses but no primary is the state that sends a van nowhere —
+    // and it would happen on the most ordinary action there is.
+    if (removed[0].is_primary) {
+      const survivors = unwrap<{ id: string }[]>(
+        await db
+          .from("contact_addresses")
+          .select("id")
+          .eq("company_id", companyId)
+          .eq("contact_id", contactId)
+          .order("created_at", { ascending: true })
+          .limit(1),
+        "address promotion lookup",
+      );
+      if (survivors[0]) {
+        unwrap(
+          await db
+            .from("contact_addresses")
+            .update({ is_primary: true })
+            .eq("company_id", companyId)
+            .eq("id", survivors[0].id),
+          "promote contact address",
+        );
+      }
+    }
+
+    return c.body(null, 204);
   },
 );
