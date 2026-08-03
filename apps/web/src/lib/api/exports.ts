@@ -41,3 +41,35 @@ export function useRequestDataExport() {
     },
   });
 }
+
+/**
+ * POST /v1/exports/history (#304) — one customer's messages, as a document.
+ *
+ * A different endpoint rather than a flag on the one above, because it is a
+ * different act: the workspace dump answers a legal right and this answers an
+ * adjuster. They share a queue and a bucket, which is where sharing belongs.
+ *
+ * Both dates are optional, and empty means the whole history — the API's own
+ * contract, so a caller that wants everything sends nothing rather than
+ * working out a range that covers it.
+ */
+export function useExportContactHistory(contactId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (range: { from?: string; to?: string }) =>
+      apiFetch<{ export_id: string; already_building: boolean }>(
+        "/v1/exports/history",
+        {
+          method: "POST",
+          companyId,
+          body: { contact_id: contactId, ...range },
+        },
+      ),
+    onSuccess: () => {
+      // It lands on the same list the workspace dump does, so the settings
+      // screen shows it without knowing this endpoint exists.
+      void queryClient.invalidateQueries({ queryKey: [companyId, "exports"] });
+    },
+  });
+}

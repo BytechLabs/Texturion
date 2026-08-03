@@ -67,6 +67,20 @@ vi.mock("@/lib/api/contacts", () => ({
 // definition list is the state for every workspace that has not defined any,
 // and it makes the component render nothing, which is what these assertions
 // about the record above it assume.
+// #304: the manage card now offers a history export, which asks the active
+// company for the caller's role — the first thing on this page to reach
+// CompanyProvider directly, which this static-render harness does not set up.
+// Owner, so the control renders and the assertions below see the page a
+// permitted reader sees.
+vi.mock("@/lib/company/provider", () => ({
+  useCompanyId: () => "company-1",
+  useActiveCompany: () => ({ role: "owner" }),
+}));
+// Its request hook reaches the provider too. Not pending and never called — these
+// assertions are about the record above it.
+vi.mock("@/lib/api/exports", () => ({
+  useExportContactHistory: () => ({ isPending: false, mutateAsync: vi.fn() }),
+}));
 vi.mock("@/lib/api/contact-fields", () => ({
   useContactFields: () => ({ isPending: false, data: { data: [], cap: 10 } }),
   useSaveContactFields: () => ({ isPending: false, mutateAsync: vi.fn() }),

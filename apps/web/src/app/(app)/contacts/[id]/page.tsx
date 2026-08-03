@@ -11,6 +11,7 @@ import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 import { CallButton } from "@/components/calls/call-button";
 import { AddressList } from "@/components/contacts/address-list";
 import { PhoneList } from "@/components/contacts/phone-list";
+import { ExportHistory } from "@/components/contacts/export-history";
 import { ContactCustomFields } from "@/components/contacts/custom-fields";
 import { ContactTimeline } from "@/components/contacts/contact-timeline";
 import { ContactCallHistory } from "@/components/contacts/contact-call-history";
@@ -528,6 +529,10 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
           scare-styling. The typed/confirm gauntlet lives in the dialogs. */}
       <SettingsCard title="Manage this contact">
         <div className="space-y-4">
+          {/* #304: first in this card, because it is the only thing here that
+              is not destructive — and absent entirely for anybody without
+              contacts.bulk, so most crews never see it. */}
+          <ExportHistory contactId={contact.id} />
           {!contact.opted_out && (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm text-muted-foreground">
