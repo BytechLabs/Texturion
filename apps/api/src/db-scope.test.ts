@@ -164,6 +164,15 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
     count: 1,
     why: "expired-invite count across the platform (a health number, not a read)",
   },
+  "notifications/daily-summary.ts::notification_prefs": {
+    count: 1,
+    why:
+      "#297 daily-summary sweep: finds the members who asked for a summary " +
+      "across every workspace, which is what a cron is. Each row carries its " +
+      "own company_id and every read AFTER this one is scoped to it — " +
+      "including the #106 access resolve, so the counts a member is sent " +
+      "still exclude numbers they cannot see.",
+  },
   "messaging/crons.ts::usage_events": {
     count: 1,
     why: "usage re-reporter: selects unreported rows platform-wide for Stripe",

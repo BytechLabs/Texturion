@@ -417,6 +417,21 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1,
     graceMinutes: 20,
   },
+  "job:daily-summary": {
+    what:
+      "The daily summary (#297) is not going out — every member who asked "
+      + "for one is getting nothing, on the notification they read most.",
+    doThis:
+      "Workers Logs, search `cron job job:daily-summary failed`. Nothing is "
+      + "lost: the summary is a view over `api_for_you`, so a missed morning "
+      + "is a missed morning rather than missing data, and everything it "
+      + "would have said is on the For You screen. Do NOT try to backfill by "
+      + "clearing `summary_sent_on` — that is the per-member idempotency for "
+      + "the day, and clearing it mid-morning sends a second summary to "
+      + "anybody who already had theirs.",
+    everyMinutes: 15,
+    graceMinutes: 60,
+  },
   "job:batch-flush": {
     what:
       "Grouped notifications (#297) are not going out — every member who "

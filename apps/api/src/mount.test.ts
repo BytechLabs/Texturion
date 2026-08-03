@@ -30,6 +30,7 @@ import { runGraceJob } from "./billing/grace";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runScheduledSendJob } from "./messaging/scheduled-send";
 import { runBatchFlush } from "./notifications/batch-flush";
+import { runDailySummary } from "./notifications/daily-summary";
 import { runEscalationSweep } from "./notifications/escalation-sweep";
 import { runLivenessCheckJob } from "./observability/liveness-check";
 import { LIVENESS_EXPECTATIONS } from "./observability/liveness";
@@ -504,6 +505,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       sweepStuckProvisioning,
     ]);
     expect(runs("*/15 * * * *")).toEqual([
+      runDailySummary,
       // #387: the liveness checker rides this trigger rather than taking one
       // of its own — a checker with its own schedule is one more thing that
       // can quietly stop, and this schedule is watched by the ledger the

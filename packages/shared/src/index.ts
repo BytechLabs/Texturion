@@ -427,8 +427,10 @@ export {
   DELIVERY_COPY,
   DELIVERY_MODES,
   NOTIFICATION_CATEGORIES,
+  SUMMARY_TITLE,
   decideDelivery,
   digestLine,
+  summaryLine,
 } from "./notification-delivery";
 export type {
   BatchWindowMinutes,

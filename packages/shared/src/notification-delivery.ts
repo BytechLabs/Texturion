@@ -148,3 +148,39 @@ export const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   missed_calls: "Missed calls",
   voicemails: "Voicemails",
 };
+
+/**
+ * #297 — the daily summary, in the words an owner would use.
+ *
+ * "They want to know how the day went — what came in, what is still
+ * unanswered, what is due tomorrow."
+ *
+ * IT LEADS WITH WHAT IS OWED, not with what happened. "12 texts came in" is a
+ * statistic; "3 people are still waiting on you" is a to-do list, and the
+ * second is the one worth opening the app for. A summary that led with volume
+ * would be a report about a busy day rather than a prompt to finish it.
+ */
+export function summaryLine(input: {
+  waiting: number;
+  tasks: number;
+}): string {
+  const parts: string[] = [];
+  if (input.waiting > 0) {
+    parts.push(
+      input.waiting === 1
+        ? "1 person is waiting on you"
+        : `${input.waiting} people are waiting on you`,
+    );
+  }
+  if (input.tasks > 0) {
+    parts.push(input.tasks === 1 ? "1 task is due" : `${input.tasks} tasks are due`);
+  }
+  // The quiet day is a real answer and it is the nicest one this product can
+  // give. Saying nothing at all would read as a broken summary; saying "0
+  // waiting, 0 due" reads like a spreadsheet.
+  if (parts.length === 0) return "Nothing is waiting. Nice day.";
+  return `${parts.join(" · ")}.`;
+}
+
+/** The title, which never changes, so the notification is recognisable. */
+export const SUMMARY_TITLE = "Where things stand";

@@ -26,6 +26,7 @@ import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runScheduledSendJob } from "./messaging/scheduled-send";
 import { runBatchFlush } from "./notifications/batch-flush";
+import { runDailySummary } from "./notifications/daily-summary";
 import { runEscalationSweep } from "./notifications/escalation-sweep";
 import { runNumberHealthJob } from "./messaging/number-health";
 import { runRegistrationStallJob } from "./telnyx/registration-stalls";
@@ -395,6 +396,12 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // the signed-URL grace window (D19 §2 sweep) — piggybacks this 15-min cadence,
   // comfortably longer than the 300s signed-URL TTL.
   "*/15 * * * *": [
+    // #297: the daily summary. Every fifteen minutes rather than hourly,
+    // because a member picks a wall-clock TIME and an hourly scan would
+    // make 07:30 mean 08:00. Fifteen is the coarsest cadence that keeps
+    // the promise legible, and the scan is a partial index over the few
+    // members who opted in at all.
+    job("job:daily-summary", runDailySummary),
     // #387: the liveness checker rides an existing trigger rather than taking
     // one of its own. A checker with its own schedule is one more thing that
     // can quietly stop, and the schedule it rides on is watched by the very
