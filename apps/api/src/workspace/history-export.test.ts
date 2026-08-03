@@ -29,6 +29,7 @@ function dbDouble(tables: {
   contacts?: Row[];
   conversations?: Row[];
   messagesByConversation?: Record<string, Row[]>;
+  calls?: Row[];
   levels?: Row[];
 }) {
   const build = (table: string, filters: Record<string, string>) => {
@@ -57,7 +58,9 @@ function dbDouble(tables: {
           ? tables.contacts ?? []
           : table === "conversations"
             ? tables.conversations ?? []
-            : [];
+            : table === "calls"
+              ? tables.calls ?? []
+              : [];
       return Promise.resolve({ data, error: null }).then(resolve);
     };
     return chain;
@@ -200,8 +203,9 @@ describe("#304 the document itself", () => {
     from: null,
     to: null,
     generatedAt: "2026-08-03T12:00:00Z",
-    messages: [],
+    entries: [],
     withheldThreads: 0,
+    withheldCalls: 0,
     capped: false,
   };
 
@@ -224,5 +228,124 @@ describe("#304 the document itself", () => {
     // A stylesheet, a script or an image is a way for it not to.
     const html = renderHistoryDocument(base);
     expect(html).not.toMatch(/<script|<img|https?:\/\//);
+  });
+});
+
+describe("#304 calls in the same document", () => {
+  it("HC-1: a call sits in the chronology between the texts", async () => {
+    // ONE document, not two. The reader is following a conversation with a
+    // person, and handing them two files to interleave by hand is handing
+    // them the work.
+    const { written } = await run({
+      ...BASE,
+      conversations: [{ id: "conv-visible", phone_number_id: "num-1" }],
+      messagesByConversation: {
+        "conv-visible": [
+          message("m1", "Morning text", "2026-07-02T09:00:00Z"),
+          message("m2", "Evening text", "2026-07-02T17:00:00Z"),
+        ],
+      },
+      calls: [
+        {
+          id: "call-1",
+          conversation_id: "conv-visible",
+          direction: "inbound",
+          outcome: "answered",
+          voicemail_transcript: null,
+          started_at: "2026-07-02T14:00:00Z",
+        },
+      ],
+    });
+    const html = written[0].body;
+    expect(html.indexOf("Morning text")).toBeLessThan(html.indexOf("Call"));
+    expect(html.indexOf("Call")).toBeLessThan(html.indexOf("Evening text"));
+  });
+
+  it("HC-2: a voicemail carries its transcript, which IS its content", async () => {
+    // Without it the row says only that somebody rang, which an adjuster
+    // cannot use for anything.
+    const { written } = await run({
+      ...BASE,
+      conversations: [{ id: "conv-visible", phone_number_id: "num-1" }],
+      calls: [
+        {
+          id: "call-1",
+          conversation_id: "conv-visible",
+          direction: "inbound",
+          outcome: "voicemail",
+          voicemail_transcript: "The heating is off again",
+          started_at: "2026-07-02T14:00:00Z",
+        },
+      ],
+    });
+    expect(written[0].body).toContain("The heating is off again");
+  });
+
+  it("HC-3: a call on a line they cannot see is left out, and SAID", async () => {
+    // The same rule the messages get, and the same reason: a document whose
+    // texts are all present but whose calls are quietly missing looks whole.
+    const { written, result } = await run({
+      members: [{ role: "member" }],
+      contacts: BASE.contacts,
+      levels: [{ phone_number_id: "num-2", level: "none" }],
+      conversations: [
+        { id: "conv-visible", phone_number_id: "num-1" },
+        { id: "conv-hidden", phone_number_id: "num-2" },
+      ],
+      calls: [
+        {
+          id: "call-hidden",
+          conversation_id: "conv-hidden",
+          direction: "inbound",
+          outcome: "answered",
+          voicemail_transcript: "Restricted voicemail",
+          started_at: "2026-07-02T14:00:00Z",
+        },
+      ],
+    });
+    expect(written[0].body).not.toContain("Restricted voicemail");
+    expect(written[0].body).toMatch(/call .* not included/i);
+    expect(result.partial).toBe(true);
+  });
+
+  it("HC-4: a call that never threaded is left out and counted too", async () => {
+    // Not silently dropped: there is no thread to check it against, so there
+    // is no way to know the requester may see it.
+    const { written, result } = await run({
+      ...BASE,
+      conversations: [{ id: "conv-visible", phone_number_id: "num-1" }],
+      calls: [
+        {
+          id: "call-orphan",
+          conversation_id: null,
+          direction: "inbound",
+          outcome: "missed",
+          voicemail_transcript: null,
+          started_at: "2026-07-02T14:00:00Z",
+        },
+      ],
+    });
+    expect(written[0].body).toMatch(/call .* not included/i);
+    expect(result.partial).toBe(true);
+  });
+
+  it("HC-5: says what a call was in words, not in a database value", async () => {
+    // A document read by somebody outside this company should say what
+    // happened the way they would say it.
+    const { written } = await run({
+      ...BASE,
+      conversations: [{ id: "conv-visible", phone_number_id: "num-1" }],
+      calls: [
+        {
+          id: "call-1",
+          conversation_id: "conv-visible",
+          direction: "inbound",
+          outcome: "missed",
+          voicemail_transcript: null,
+          started_at: "2026-07-02T14:00:00Z",
+        },
+      ],
+    });
+    expect(written[0].body).toContain("Call — missed");
   });
 });

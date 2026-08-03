@@ -53,6 +53,31 @@ interface MessageRow {
   created_at: string;
 }
 
+interface CallRow {
+  id: string;
+  conversation_id: string | null;
+  direction: string;
+  outcome: string | null;
+  voicemail_transcript: string | null;
+  started_at: string;
+}
+
+/**
+ * A message or a call, as the document reads them.
+ *
+ * ONE CHRONOLOGY, not two files. #304 asks for a call and voicemail export
+ * "with the same filters", and the obvious reading is a second document — but
+ * the person this is for is following a conversation with a PERSON. A call at
+ * two o'clock sitting between two texts is part of the story, and handing an
+ * adjuster two files to interleave by hand is handing them the work.
+ */
+interface Entry {
+  at: string;
+  kind: "message" | "call";
+  who: string;
+  what: string;
+}
+
 /** One page of messages per round trip. */
 const PAGE = 500;
 
@@ -142,6 +167,10 @@ export async function buildConversationHistory(
   // #106: withheld, and SAID so below. A document quietly missing a thread is
   // worse than one that names the gap.
   const withheldThreads = conversations.length - visible.length;
+  // Calls kept out for the same reason, counted separately: a customer whose
+  // texts are all visible but whose calls came in on a restricted line would
+  // otherwise produce a document that looks complete.
+  let withheldCalls = 0;
 
   const messages: MessageRow[] = [];
   let capped = false;
@@ -171,10 +200,57 @@ export async function buildConversationHistory(
     if (capped) break;
   }
 
-  // One chronology across every thread, because the reader is following a
-  // conversation with a person, not with a phone line.
-  messages.sort((a, b) => a.created_at.localeCompare(b.created_at));
-  const included = messages.slice(0, HISTORY_MESSAGE_CAP);
+  // The calls, read the same way and through the same access rule: by the
+  // conversations already filtered above, so there is one place where "may
+  // this person see it" is decided rather than two that can disagree.
+  const visibleIds = new Set(visible.map((row) => row.id));
+  const calls: CallRow[] = [];
+  if (!capped) {
+    let query = db
+      .from("calls")
+      .select("id,conversation_id,direction,outcome,voicemail_transcript,started_at")
+      .eq("company_id", args.companyId)
+      .eq("contact_id", contactId);
+    if (args.filters.from) query = query.gte("started_at", args.filters.from);
+    if (args.filters.to) query = query.lte("started_at", args.filters.to);
+    const { data, error } = await query.order("started_at", { ascending: true });
+    if (error) {
+      throw new Error(`history export call read failed: ${error.message}`);
+    }
+    for (const call of (data ?? []) as unknown as CallRow[]) {
+      // A call whose thread this person cannot see, or which never threaded at
+      // all, is not in the file — and is counted, so the document says a gap
+      // exists rather than quietly having one.
+      if (call.conversation_id !== null && visibleIds.has(call.conversation_id)) {
+        calls.push(call);
+      } else {
+        withheldCalls += 1;
+      }
+    }
+  }
+
+  // One chronology across every thread and both kinds, because the reader is
+  // following a conversation with a person, not with a phone line.
+  const entries: Entry[] = [
+    ...messages.map((row) => ({
+      at: row.created_at,
+      kind: "message" as const,
+      who: row.direction === "inbound" ? "Customer" : "Us",
+      what: row.body ?? "",
+    })),
+    ...calls.map((row) => ({
+      at: row.started_at,
+      kind: "call" as const,
+      who: row.direction === "inbound" ? "Customer called" : "We called",
+      // The transcript IS the content of a voicemail; without it the row says
+      // only that somebody rang, which an adjuster cannot use.
+      what: row.voicemail_transcript?.trim()
+        ? `Voicemail: ${row.voicemail_transcript.trim()}`
+        : callOutcome(row.outcome),
+    })),
+  ];
+  entries.sort((a, b) => a.at.localeCompare(b.at));
+  const included = entries.slice(0, HISTORY_MESSAGE_CAP);
 
   await putObject(
     `${args.prefix}/history.html`,
@@ -184,8 +260,9 @@ export async function buildConversationHistory(
       from: args.filters.from ?? null,
       to: args.filters.to ?? null,
       generatedAt: args.now.toISOString(),
-      messages: included,
+      entries: included,
       withheldThreads,
+      withheldCalls,
       capped,
     }),
     "text/html; charset=utf-8",
@@ -194,21 +271,39 @@ export async function buildConversationHistory(
   await putObject(
     `${args.prefix}/history.csv`,
     serializeCsv([
-      ["sent_at", "direction", "status", "body"],
+      ["at", "kind", "who", "what"],
       ...included.map((row) => [
-        row.created_at,
-        row.direction,
-        row.status ?? "",
+        row.at,
+        row.kind,
+        row.who,
         // The same injection guard the contacts export uses. A body beginning
         // "=" is a formula in a spreadsheet, and these bodies are written by
         // strangers.
-        csvSafeText(row.body ?? ""),
+        csvSafeText(row.what),
       ]),
     ]),
     "text/csv; charset=utf-8",
   );
 
-  return { messages: included.length, partial: capped || withheldThreads > 0 };
+  return {
+    messages: included.length,
+    partial: capped || withheldThreads > 0 || withheldCalls > 0,
+  };
+}
+
+/**
+ * What a call without a voicemail says.
+ *
+ * The raw outcome is a database word. A document read by somebody outside this
+ * company should say what happened in the words they would use.
+ */
+function callOutcome(outcome: string | null): string {
+  switch (outcome) {
+    case "answered": return "Call — answered";
+    case "missed": return "Call — missed";
+    case "voicemail": return "Call — went to voicemail, nothing recorded";
+    default: return "Call";
+  }
 }
 
 /** HTML-escape. The bodies are written by people outside the workspace. */
@@ -233,8 +328,9 @@ export function renderHistoryDocument(args: {
   from: string | null;
   to: string | null;
   generatedAt: string;
-  messages: MessageRow[];
+  entries: Entry[];
   withheldThreads: number;
+  withheldCalls: number;
   capped: boolean;
 }): string {
   const who = args.contactName?.trim()
@@ -257,6 +353,15 @@ export function renderHistoryDocument(args: {
         `not included.`,
     );
   }
+  if (args.withheldCalls > 0) {
+    notes.push(
+      `${args.withheldCalls} call${args.withheldCalls === 1 ? "" : "s"} with ` +
+        `this customer ${args.withheldCalls === 1 ? "is" : "are"} not included: ` +
+        `${args.withheldCalls === 1 ? "it came" : "they came"} in on a phone ` +
+        `number the person who requested this export cannot see, or on no ` +
+        `thread at all.`,
+    );
+  }
   if (args.capped) {
     notes.push(
       `This history is longer than ${HISTORY_MESSAGE_CAP} messages. The oldest ` +
@@ -264,12 +369,12 @@ export function renderHistoryDocument(args: {
     );
   }
 
-  const rows = args.messages
+  const rows = args.entries
     .map(
       (row) => `    <tr>
-      <td class="when">${escapeHtml(row.created_at)}</td>
-      <td class="who">${row.direction === "inbound" ? "Customer" : "Us"}</td>
-      <td class="body">${escapeHtml(row.body ?? "")}</td>
+      <td class="when">${escapeHtml(row.at)}</td>
+      <td class="who">${escapeHtml(row.who)}</td>
+      <td class="body">${escapeHtml(row.what)}</td>
     </tr>`,
     )
     .join("\n");
@@ -295,8 +400,10 @@ export function renderHistoryDocument(args: {
 </head>
 <body>
 <h1>Message history — ${escapeHtml(who)}</h1>
-<p class="meta">${escapeHtml(period)} · ${args.messages.length} message${
-    args.messages.length === 1 ? "" : "s"
+<p class="meta">${escapeHtml(period)} · ${args.entries.length} entr${
+    args.entries.length === 1 ? "y" : "ies"
+  }${
+    ""
   } · produced ${escapeHtml(args.generatedAt)}</p>
 ${notes.map((note) => `<p class="note">${escapeHtml(note)}</p>`).join("\n")}
 <table>
