@@ -61,6 +61,9 @@ object CacheKeys {
      * reasonably believe.
      */
     fun responseTime(companyId: String, days: Int) = "responseTime/$companyId/$days"
+
+    /** #313: keyed like its neighbour, so a window switch is its own read. */
+    fun satisfaction(companyId: String, days: Int) = "satisfaction/$companyId/$days"
     /** #354: the pipeline report, keyed like its neighbour. */
     fun pipeline(companyId: String, days: Int) = "pipeline/$companyId/$days"
     fun team(companyId: String) = "team/$companyId"

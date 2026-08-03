@@ -45,6 +45,14 @@ vi.mock("@/lib/api/reports", () => ({
   // #354: this view now also mounts the pipeline panel. Loaded-with-no-data,
   // so the panel renders nothing and these assertions stay about the queue.
   usePipelineReport: () => ({ data: undefined, isLoading: false }),
+  // #313: and the satisfaction panel. Pending, like the response time above —
+  // it renders its loading skeleton and these assertions stay about the queue.
+  useSatisfaction: () => ({
+    data: undefined,
+    isPending: true,
+    isError: false,
+    refetch: vi.fn(),
+  }),
 }));
 vi.mock("@/lib/api/for-you", () => ({
   useForYou: () => ({

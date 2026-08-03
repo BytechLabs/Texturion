@@ -34,6 +34,11 @@ struct ForYouTab: View {
     /// it in would make the queue refetch on every 7/30/90 switch.
     @State private var responseTime: ResponseTimeReport?
     @State private var responseDays = 30
+    /// #313: shares the response-time window — "how fast did we answer" and
+    /// "did it land" are one question asked over one period, and two window
+    /// pickers on one screen is how a crew compares a fortnight to a quarter
+    /// without noticing.
+    @State private var satisfaction: SatisfactionReport?
     /// #354: the pipeline report. Fixed at 30 days — the pipeline question is
     /// "how did this month's quotes do", not a window somebody tunes.
     @State private var pipeline: PipelineReportResponse?
@@ -73,6 +78,7 @@ struct ForYouTab: View {
                     responseDays: responseDays,
                     onResponseWindow: { responseDays = $0 },
                     // #354: nil while it loads, and the card says nothing.
+                    satisfaction: satisfaction,
                     pipeline: pipeline,
                     onOpenConversation: { AppRouter.shared.openConversationId = $0 },
                     onOpenCalls: onOpenCalls,
@@ -105,6 +111,11 @@ struct ForYouTab: View {
         .task(id: "\(companyId)#\(refreshKey)") { await reloadPipeline() }
         .task(id: "\(companyId)#\(refreshKey)#\(responseDays)") {
             await reloadResponseTime()
+        }
+        // #313: keyed on the same window, so switching 7/30/90 refetches both
+        // panels rather than leaving one describing a different period.
+        .task(id: "\(companyId)#\(refreshKey)#\(responseDays)") {
+            await reloadSatisfaction()
         }
         .task(id: companyId) {
             // Any conversation/task/call movement can change the queue —
@@ -171,6 +182,16 @@ struct ForYouTab: View {
         }
     }
 
+    /// #313. Same failure posture as the response time above.
+    private func reloadSatisfaction() async {
+        if let fresh = try? await graph.forYouApi.satisfaction(
+            companyId: companyId,
+            days: responseDays
+        ) {
+            satisfaction = fresh
+        }
+    }
+
     /// #354. Same failure posture as the response time above: a failure leaves
     /// whatever was on screen, because this panel is a result to read rather
     /// than an action to take.
@@ -206,6 +227,7 @@ private struct ForYouList: View {
     let responseDays: Int
     let onResponseWindow: @MainActor (Int) -> Void
     /// #354: nil while it loads — the card renders nothing rather than zeroes.
+    let satisfaction: SatisfactionReport?
     let pipeline: PipelineReportResponse?
     let onOpenConversation: @MainActor (String) -> Void
     let onOpenCalls: (() -> Void)?
@@ -273,6 +295,16 @@ private struct ForYouList: View {
                 // #354: beside its neighbour, and absent entirely until there
                 // is something true to say.
                 PipelineCard(report: pipeline)
+                // #313: directly under the speed number on purpose. How fast
+                // you answered and whether it landed are one thought, and
+                // separating them onto two screens is how a business optimises
+                // the first while the second quietly slides.
+                SatisfactionCard(
+                    report: satisfaction,
+                    days: responseDays,
+                    onWindow: onResponseWindow,
+                    onOpenPoor: onOpenUnanswered
+                )
                 // #342: above the queue, because "you're all caught up" is not
                 // true if somebody has been texting a thread nobody can see.
                 spamReviewSection

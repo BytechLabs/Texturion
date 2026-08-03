@@ -175,6 +175,49 @@ data class ResponseTimeBaseline(
 data class ResponseTimeWindow(val days: Int = 30)
 
 @Serializable
+/**
+ * #313 — the satisfaction report, hand-ported from the web client's type.
+ *
+ * Every refusal in here is the SERVER's: `average` arrives null when the sample
+ * is too thin to mean anything, and `by_member` arrives null when the owner has
+ * not turned per-person scores on. This client never fills either gap — the
+ * whole point is that three clients cannot disagree about when five answers
+ * become a trend.
+ */
+data class SatisfactionMember(
+    val user_id: String = "",
+    /** Null when the profile row is missing — our gap, not "Unknown". */
+    val name: String? = null,
+    val answered: Int = 0,
+    /** Null when this member alone is under the floor. */
+    val average: Double? = null,
+)
+
+data class SatisfactionBaseline(
+    val since: String = "",
+    val until: String = "",
+    val answered: Int = 0,
+    val average: Double = 0.0,
+)
+
+data class SatisfactionReport(
+    val window: ResponseTimeWindow = ResponseTimeWindow(),
+    val asked: Int = 0,
+    val answered: Int = 0,
+    val average: Double? = null,
+    val sample_too_small: Boolean = false,
+    val minimum_sample: Int = 0,
+    val distribution: Map<String, Int> = emptyMap(),
+    /** Jobs that needed a call back. Each already woke somebody that day. */
+    val poor: Int = 0,
+    val by_member: List<SatisfactionMember>? = null,
+    val per_member_enabled: Boolean = false,
+    val baseline: SatisfactionBaseline? = null,
+    val improved_by: Double? = null,
+    val truncated: Boolean = false,
+    val row_limit: Int = 0,
+)
+
 data class ResponseTimeReport(
     val window: ResponseTimeWindow = ResponseTimeWindow(),
     val leads: Int = 0,

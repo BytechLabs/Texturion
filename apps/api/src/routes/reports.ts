@@ -37,6 +37,8 @@
  *      a leaderboard, and the opt-in IS the control.
  */
 import {
+  SATISFACTION_MIN_SAMPLE,
+  SATISFACTION_POOR_AT_OR_BELOW,
   pipelineInsight,
   pipelineWinRate,
   type PipelineReport,
@@ -409,3 +411,215 @@ reportsRoutes.get("/reports/pipeline", requireCapability("conversations.read"), 
     })),
   });
 });
+
+/**
+ * #313 — GET /v1/reports/satisfaction: how customers rate the work.
+ *
+ * "Report it against the rest: satisfaction alongside response time (#239) is
+ * the beginnings of an honest picture of how the business is doing."
+ *
+ * COMPARED AGAINST THE PREVIOUS WINDOW, NOT THE FOUNDING FORTNIGHT. Response
+ * time uses the founding baseline because the arc it tells is "down from 3
+ * hours when you started". Ratings cannot: no workspace that existed before
+ * this feature has an answer in its first fortnight, so that baseline would
+ * report "no baseline" for every customer forever. #354's pipeline report
+ * already established the alternative in this same file — the period before,
+ * which works from the first month and is what "did the new hire help?" means.
+ *
+ * THE SAMPLE FLOOR IS APPLIED HERE, not in three clients. An average of three
+ * answers is noise, and #313 is explicit that treating noise as data "damages
+ * trust faster than it improves service". The server sends null and the reason;
+ * a client cannot get a rule wrong that it was never given (#482).
+ */
+interface RatingRow {
+  score: number | null;
+  answered_at: string | null;
+  rated_user_id: string | null;
+}
+
+interface SatisfactionSlice {
+  asked: number;
+  answered: number;
+  average: number | null;
+  poor: number;
+  distribution: Record<string, number>;
+  truncated: boolean;
+}
+
+/** Mean to one decimal, or null when the sample is too thin to mean anything. */
+function averageOf(scores: number[]): number | null {
+  if (scores.length < SATISFACTION_MIN_SAMPLE) return null;
+  const sum = scores.reduce((total, score) => total + score, 0);
+  return Math.round((sum / scores.length) * 10) / 10;
+}
+
+function sliceOf(rows: RatingRow[], truncated: boolean): SatisfactionSlice {
+  const scores = rows
+    .map((row) => row.score)
+    .filter((score): score is number => score !== null);
+  const distribution: Record<string, number> = {
+    "1": 0,
+    "2": 0,
+    "3": 0,
+    "4": 0,
+    "5": 0,
+  };
+  for (const score of scores) {
+    distribution[String(score)] = (distribution[String(score)] ?? 0) + 1;
+  }
+  return {
+    asked: rows.length,
+    answered: scores.length,
+    average: averageOf(scores),
+    poor: scores.filter((score) => score <= SATISFACTION_POOR_AT_OR_BELOW)
+      .length,
+    distribution,
+    truncated,
+  };
+}
+
+reportsRoutes.get(
+  "/reports/satisfaction",
+  requireCapability("conversations.read"),
+  async (c) => {
+    const env = getEnv(c.env);
+    const db = getDb(env);
+    const companyId = c.get("companyId");
+
+    const requested = Number(c.req.query("days") ?? DEFAULT_DAYS);
+    const days = (ALLOWED_DAYS as readonly number[]).includes(requested)
+      ? requested
+      : DEFAULT_DAYS;
+
+    const companies = unwrap<{ response_stats_per_member: boolean }[]>(
+      await db
+        .from("companies")
+        .select("response_stats_per_member")
+        .eq("id", companyId)
+        .limit(1),
+      "satisfaction company lookup",
+    );
+    const company = companies[0];
+    if (!company) {
+      throw new Error(`satisfaction: company ${companyId} has no row`);
+    }
+
+    const until = new Date();
+    const windowMs = days * 24 * 60 * 60 * 1000;
+    const since = new Date(until.getTime() - windowMs);
+    const priorSince = new Date(since.getTime() - windowMs);
+
+    // One read covering both windows, sliced in memory. Two round trips for
+    // two halves of the same small table is a second chance for the boundary
+    // to be drawn differently.
+    const rows = unwrap<RatingRow[]>(
+      await db
+        .from("job_ratings")
+        .select("score,answered_at,rated_user_id,asked_at")
+        .eq("company_id", companyId)
+        .gte("asked_at", priorSince.toISOString())
+        .order("asked_at", { ascending: false })
+        .limit(MAX_ROWS + 1),
+      "satisfaction ratings",
+    );
+    const truncated = rows.length > MAX_ROWS;
+    const capped = (truncated ? rows.slice(0, MAX_ROWS) : rows) as (RatingRow & {
+      asked_at: string;
+    })[];
+
+    const current = capped.filter(
+      (row) => new Date(row.asked_at).getTime() >= since.getTime(),
+    );
+    const prior = capped.filter(
+      (row) => new Date(row.asked_at).getTime() < since.getTime(),
+    );
+
+    const now = sliceOf(current, truncated);
+    const before = sliceOf(prior, truncated);
+
+    // Per member, and only when the owner has said so. Same flag as #239's
+    // response stats rather than a second toggle: they are the same decision —
+    // "am I looking at people or at the business?" — and splitting it into two
+    // switches is how one of them ends up on by accident.
+    const byMember = new Map<string, number[]>();
+    for (const row of current) {
+      if (row.score === null || !row.rated_user_id) continue;
+      const list = byMember.get(row.rated_user_id) ?? [];
+      list.push(row.score);
+      byMember.set(row.rated_user_id, list);
+    }
+
+    // Names, resolved here rather than in three clients (#482). An anonymous
+    // per-person list cannot answer the question the issue actually asks —
+    // "which technician customers are consistently happy with" — so a
+    // breakdown without names is a breakdown that is not worth showing.
+    // `profiles` has no FK to company_members, so PostgREST cannot embed it.
+    const memberIds = [...byMember.keys()];
+    const names = new Map<string, string>();
+    if (company.response_stats_per_member && memberIds.length > 0) {
+      const profiles = unwrap<{ user_id: string; display_name: string }[]>(
+        await db
+          .from("profiles")
+          .select("user_id,display_name")
+          .in("user_id", memberIds),
+        "satisfaction member names",
+      );
+      for (const profile of profiles) {
+        if (profile.display_name) names.set(profile.user_id, profile.display_name);
+      }
+    }
+
+    return c.json({
+      window: {
+        days,
+        since: since.toISOString(),
+        until: until.toISOString(),
+      },
+      asked: now.asked,
+      answered: now.answered,
+      average: now.average,
+      // Said out loud rather than left for the client to infer from a null
+      // average: "we have not asked enough people" and "the people we asked did
+      // not reply" are different sentences on the card.
+      sample_too_small:
+        now.answered > 0 && now.answered < SATISFACTION_MIN_SAMPLE,
+      minimum_sample: SATISFACTION_MIN_SAMPLE,
+      distribution: now.distribution,
+      // The actionable number. Every one of these already woke somebody the day
+      // it happened; this is the count, so a month with three is visible as a
+      // pattern rather than as three forgotten pushes.
+      poor: now.poor,
+      by_member: company.response_stats_per_member
+        ? [...byMember.entries()]
+            .map(([user_id, scores]) => ({
+              user_id,
+              // Null rather than "Unknown": a member whose profile row is
+              // missing is our gap, and the client says so in its own words.
+              name: names.get(user_id) ?? null,
+              answered: scores.length,
+              // The floor again, per person. A member with four answers shows a
+              // count and no average, because the coaching conversation that
+              // average would start is about them.
+              average: averageOf(scores),
+            }))
+            .sort((a, b) => b.answered - a.answered)
+        : null,
+      per_member_enabled: company.response_stats_per_member,
+      baseline:
+        before.average !== null
+          ? {
+              since: priorSince.toISOString(),
+              until: since.toISOString(),
+              answered: before.answered,
+              average: before.average,
+            }
+          : null,
+      improved_by:
+        before.average !== null && now.average !== null
+          ? Math.round((now.average - before.average) * 10) / 10
+          : null,
+      truncated,
+      row_limit: MAX_ROWS,
+    });
+  },
+);

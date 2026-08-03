@@ -544,3 +544,220 @@ describe("#354 GET /v1/reports/pipeline", () => {
     expect(body.insight).toBeNull();
   });
 });
+
+/**
+ * GET /v1/reports/satisfaction (#313).
+ *
+ * The arithmetic is trivial; every test below is a case where the trivial
+ * implementation reports something the owner would later find out was not true:
+ * an average drawn from three answers, a direction invented from a rounding
+ * difference, per-member scores nobody turned on, or a "we asked nobody" that
+ * is really "nobody replied".
+ */
+interface Rating {
+  score: number | null;
+  /** Days before now. */
+  ago: number;
+  rated_user_id?: string | null;
+}
+
+function ratingWorld(
+  ratings: Rating[],
+  options: { perMember?: boolean } = {},
+): SupabaseStub {
+  const sb = supabaseStub(env);
+  sb.on(
+    "POST",
+    "/rest/v1/rpc/api_authorize_request",
+    membershipResponder(MEMBER_ID, "owner"),
+  );
+  sb.on("GET", "/rest/v1/companies", () => [
+    { response_stats_per_member: options.perMember ?? false },
+  ]);
+  sb.on("GET", "/rest/v1/profiles", () => [
+    { user_id: TECH_ID, display_name: "Dana" },
+    { user_id: MEMBER_ID, display_name: "Sam" },
+  ]);
+  sb.on("GET", "/rest/v1/job_ratings", () =>
+    ratings.map((rating) => ({
+      score: rating.score,
+      answered_at:
+        rating.score === null
+          ? null
+          : new Date(Date.now() - rating.ago * 86_400_000).toISOString(),
+      rated_user_id: rating.rated_user_id ?? null,
+      asked_at: new Date(Date.now() - rating.ago * 86_400_000).toISOString(),
+    })),
+  );
+  return sb;
+}
+
+async function satisfaction(
+  sb: SupabaseStub,
+  query = "?days=30",
+): Promise<Record<string, unknown>> {
+  stubFetch(jwksRoute(auth), sb.route);
+  const res = await apiRequest(
+    app,
+    env,
+    await auth.token(),
+    `/v1/reports/satisfaction${query}`,
+    { companyId: COMPANY_ID },
+  );
+  expect(res.status).toBe(200);
+  return (await res.json()) as Record<string, unknown>;
+}
+
+describe("#313 satisfaction reporting", () => {
+  it("SR-1: refuses to average four answers, and says which it is", async () => {
+    const body = await satisfaction(
+      ratingWorld([
+        { score: 5, ago: 1 },
+        { score: 5, ago: 2 },
+        { score: 5, ago: 3 },
+        { score: 1, ago: 4 },
+      ]),
+    );
+
+    // Four answers with one bad one is a mean of 4.0 — a number an owner would
+    // read as a problem, drawn from a sample where one customer's bad morning
+    // moved it a full point.
+    expect(body.average).toBeNull();
+    expect(body.sample_too_small).toBe(true);
+    expect(body.answered).toBe(4);
+  });
+
+  it("SR-2: at the floor it commits to a number", async () => {
+    const body = await satisfaction(
+      ratingWorld([
+        { score: 5, ago: 1 },
+        { score: 5, ago: 2 },
+        { score: 4, ago: 3 },
+        { score: 4, ago: 4 },
+        { score: 2, ago: 5 },
+      ]),
+    );
+
+    expect(body.average).toBe(4);
+    expect(body.sample_too_small).toBe(false);
+    expect(body.poor).toBe(1);
+  });
+
+  it("SR-3: 'nobody answered' is not 'we asked nobody'", async () => {
+    const body = await satisfaction(
+      ratingWorld([
+        { score: null, ago: 1 },
+        { score: null, ago: 2 },
+      ]),
+    );
+
+    // Most people do not reply, and a card that reads "no jobs asked about"
+    // when two were is the panel telling the owner the feature is off.
+    expect(body.asked).toBe(2);
+    expect(body.answered).toBe(0);
+    expect(body.average).toBeNull();
+    expect(body.sample_too_small).toBe(false);
+  });
+
+  it("SR-4: per-member scores stay off until the owner turns them on", async () => {
+    const ratings: Rating[] = Array.from({ length: 6 }, (_, index) => ({
+      score: 5,
+      ago: index + 1,
+      rated_user_id: TECH_ID,
+    }));
+
+    const off = await satisfaction(ratingWorld(ratings));
+    expect(off.by_member).toBeNull();
+    expect(off.per_member_enabled).toBe(false);
+
+    const on = await satisfaction(ratingWorld(ratings, { perMember: true }));
+    expect(on.per_member_enabled).toBe(true);
+    // Named, because "which technician are customers happy with" is the
+    // question, and an anonymous row cannot answer it.
+    expect(on.by_member).toEqual([
+      { user_id: TECH_ID, name: "Dana", answered: 6, average: 5 },
+    ]);
+  });
+
+  it("SR-5: the floor applies per person, not just per workspace", async () => {
+    // Eight answers in the workspace, but only two are this member's. The
+    // workspace average is honest; a per-member average from two is the
+    // coaching conversation #313 warns about.
+    const ratings: Rating[] = [
+      ...Array.from({ length: 6 }, (_, index) => ({
+        score: 5,
+        ago: index + 1,
+        rated_user_id: MEMBER_ID,
+      })),
+      { score: 1, ago: 8, rated_user_id: TECH_ID },
+      { score: 2, ago: 9, rated_user_id: TECH_ID },
+    ];
+
+    const body = await satisfaction(ratingWorld(ratings, { perMember: true }));
+    const members = body.by_member as { user_id: string; average: number | null }[];
+    expect(members.find((m) => m.user_id === MEMBER_ID)?.average).toBe(5);
+    expect(members.find((m) => m.user_id === TECH_ID)?.average).toBeNull();
+  });
+
+  it("SR-6: a rounding-sized move is not called a direction", async () => {
+    // Current window averages 4.4, the one before 4.5. That is not "worse".
+    const body = await satisfaction(
+      ratingWorld([
+        { score: 5, ago: 1 },
+        { score: 5, ago: 2 },
+        { score: 4, ago: 3 },
+        { score: 4, ago: 4 },
+        { score: 4, ago: 5 },
+        { score: 5, ago: 40 },
+        { score: 5, ago: 41 },
+        { score: 4, ago: 42 },
+        { score: 4, ago: 43 },
+        { score: 5, ago: 44 },
+      ]),
+    );
+
+    expect(body.average).toBe(4.4);
+    expect((body.baseline as { average: number }).average).toBe(4.6);
+    // The endpoint reports the delta; the shared helper decides whether it is a
+    // direction. -0.2 is exactly at the threshold, so this one does count.
+    expect(body.improved_by).toBe(-0.2);
+  });
+
+  it("SR-7: the window boundary keeps the two periods apart", async () => {
+    const body = await satisfaction(
+      ratingWorld([
+        { score: 5, ago: 1 },
+        { score: 5, ago: 2 },
+        { score: 5, ago: 3 },
+        { score: 5, ago: 4 },
+        { score: 5, ago: 5 },
+        // 40 days ago: outside a 30-day window, inside the 30 before it.
+        { score: 1, ago: 40 },
+        { score: 1, ago: 41 },
+        { score: 1, ago: 42 },
+        { score: 1, ago: 43 },
+        { score: 1, ago: 44 },
+      ]),
+    );
+
+    // If the boundary leaked, the current average would drag toward 3.
+    expect(body.average).toBe(5);
+    expect(body.answered).toBe(5);
+    expect((body.baseline as { average: number }).average).toBe(1);
+  });
+
+  it("SR-8: no baseline is null, not a comparison against nothing", async () => {
+    const body = await satisfaction(
+      ratingWorld([
+        { score: 4, ago: 1 },
+        { score: 4, ago: 2 },
+        { score: 4, ago: 3 },
+        { score: 4, ago: 4 },
+        { score: 4, ago: 5 },
+      ]),
+    );
+
+    expect(body.baseline).toBeNull();
+    expect(body.improved_by).toBeNull();
+  });
+});

@@ -1,6 +1,7 @@
 package com.loonext.android.core.data
 
 import com.loonext.android.core.model.ReplySuggestions
+import com.loonext.android.core.model.SatisfactionReport
 import com.loonext.android.core.model.CompanyAiSettings
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ConversationListItem
@@ -65,6 +66,13 @@ class ForYouRepository(private val api: ApiClient) {
      * response time above is — it answers "how are we doing" rather than "what
      * needs doing", and folding it into the queue would refetch everything.
      */
+    /**
+     * #313: how customers rate the work. Windowed like its two neighbours and
+     * read separately for the same reason.
+     */
+    suspend fun satisfaction(companyId: String, days: Int = 30): SatisfactionReport =
+        api.get("/v1/reports/satisfaction?days=$days", companyId = companyId)
+
     suspend fun pipeline(companyId: String, days: Int = 30): PipelineReportResponse =
         api.get("/v1/reports/pipeline?days=$days", companyId = companyId)
 

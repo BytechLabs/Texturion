@@ -59,6 +59,7 @@ import com.loonext.android.core.model.ForYou
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.PipelineReportResponse
 import com.loonext.android.core.model.ResponseTimeReport
+import com.loonext.android.core.model.SatisfactionReport
 import com.loonext.android.features.tasks.formatDue
 import com.loonext.android.features.calls.CallsRepository
 import com.loonext.android.features.calls.callOutcomeLabel
@@ -166,6 +167,16 @@ fun ForYouTab(
         key = CacheKeys.responseTime(companyId, responseDays),
         refreshKey = refreshKey,
     ) { graph.forYouRepo.responseTime(companyId, responseDays) }
+
+    // #313: how customers rate the work. Shares the response-time window —
+    // "how fast did we answer" and "did it land" are one question asked over
+    // one period, and two independent window pickers on one screen is how a
+    // crew ends up comparing a fortnight against a quarter without noticing.
+    val satisfaction = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.satisfaction(companyId, responseDays),
+        refreshKey = refreshKey,
+    ) { graph.forYouRepo.satisfaction(companyId, responseDays) }
 
     // #354: quoted, won, still out. Its own cache-first read for the same
     // reason as the response time above, and fixed at 30 days — the pipeline
@@ -279,6 +290,8 @@ fun ForYouTab(
                 responseTime = (responseTime as? LoadState.Ready)?.value,
                 responseDays = responseDays,
                 onResponseWindow = { responseDays = it },
+                // #313: null while it loads, same as its neighbour.
+                satisfaction = (satisfaction as? LoadState.Ready)?.value,
                 // #354: null while it loads, and the card says nothing.
                 pipeline = (pipeline as? LoadState.Ready)?.value,
                 unreadNotifications = unreadNotifications,
@@ -305,6 +318,8 @@ private fun ForYouList(
     responseTime: ResponseTimeReport?,
     responseDays: Int,
     onResponseWindow: (Int) -> Unit,
+    /** #313: null while it loads — the card says so rather than showing a zero. */
+    satisfaction: SatisfactionReport?,
     /** #354: null while it loads — the card renders nothing rather than zeroes. */
     pipeline: PipelineReportResponse?,
     unreadNotifications: Int,
@@ -383,6 +398,19 @@ private fun ForYouList(
         // something true to say.
         item(key = "pipeline") {
             PipelineCard(report = pipeline)
+        }
+
+        // #313: directly under the speed number on purpose. How fast you
+        // answered and whether it landed are one thought, and separating them
+        // onto two screens is how a business optimises the first while the
+        // second quietly slides.
+        item(key = "satisfaction") {
+            SatisfactionCard(
+                report = satisfaction,
+                days = responseDays,
+                onWindow = onResponseWindow,
+                onOpenPoor = onOpenUnanswered,
+            )
         }
 
         item(key = "title") {

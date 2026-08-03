@@ -41,6 +41,12 @@ struct ForYouApi: Sendable {
         try await api.get("/v1/reports/response-time?days=\(days)", companyId: companyId)
     }
 
+    /// #313: how customers rate the work. Windowed like its neighbour above and
+    /// read separately for the same reason.
+    func satisfaction(companyId: String, days: Int = 30) async throws -> SatisfactionReport {
+        try await api.get("/v1/reports/satisfaction?days=\(days)", companyId: companyId)
+    }
+
     /// #354: quoted, won, still out. Its own read for the same reason the
     /// response time above is — it answers "how are we doing" rather than "what
     /// needs doing", and folding it into the queue would refetch everything.

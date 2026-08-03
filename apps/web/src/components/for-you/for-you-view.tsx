@@ -36,6 +36,7 @@ import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatRelativeTime } from "@/lib/format/time";
 import { PipelineCard } from "@/components/for-you/pipeline-card";
 import { ResponseTimeCard } from "@/components/for-you/response-time-card";
+import { SatisfactionCard } from "@/components/for-you/satisfaction-card";
 import { WhileYouWait } from "@/components/for-you/while-you-wait";
 import { cn } from "@/lib/utils";
 
@@ -834,6 +835,12 @@ function ForYouSections({ data }: { data: ForYou }) {
         {/* #354: beside its neighbour, and absent entirely until there is
             something true to say. */}
         <PipelineCard />
+        {/* #313: "satisfaction alongside response time is the beginnings of an
+            honest picture". Directly under the speed number on purpose — how
+            fast you answered and whether it landed are one thought, and
+            separating them onto two screens is how a business optimises the
+            first while the second quietly slides. */}
+        <SatisfactionCard />
       </div>
 
       {/* #416/D53: shown to EVERY member, not owners and admins only. The

@@ -420,6 +420,15 @@ export {
 } from "./saved-views";
 export type { SavedViewFilters, SavedViewSurface } from "./saved-views";
 export {
+  SATISFACTION_ARC_MIN_DELTA,
+  SATISFACTION_COPY,
+  SATISFACTION_MIN_SAMPLE,
+  SATISFACTION_POOR_AT_OR_BELOW,
+  formatSatisfaction,
+  poorRatingLine,
+  satisfactionArcDirection,
+} from "./satisfaction";
+export {
   JOB_RATED_EVENT,
   RATING_ASK_BODY,
   RATING_ASK_DELAY_HOURS,

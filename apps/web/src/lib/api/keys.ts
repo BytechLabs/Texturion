@@ -170,6 +170,9 @@ export const keys = {
     [companyId, "reports", "pipeline", days] as const,
   responseTime: (companyId: string, days: number) =>
     [companyId, "response-time", days] as const,
+  /** #313: satisfaction, keyed like its two neighbours on the same surface. */
+  satisfaction: (companyId: string, days: number) =>
+    [companyId, "reports", "satisfaction", days] as const,
 
   /**
    * Notifications read-model (D24). `feed` is the popover's cursor list;

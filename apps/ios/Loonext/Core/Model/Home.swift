@@ -183,6 +183,48 @@ struct ResponseTimeWindowInfo: Codable, Sendable {
     var days: Int = 30
 }
 
+/// GET /v1/reports/satisfaction (#313) — how customers rate the finished work.
+///
+/// Every refusal in here is the SERVER's: `average` arrives nil when the sample
+/// is too thin to mean anything, and `by_member` arrives nil when the owner has
+/// not turned per-person scores on. This client never fills either gap — three
+/// clients cannot disagree about a rule they were never given (#482).
+struct SatisfactionMember: Codable, Sendable, Identifiable {
+    var user_id: String = ""
+    /// nil when the profile row is missing — our gap, not "Unknown".
+    var name: String? = nil
+    var answered: Int = 0
+    /// nil when this member alone is under the floor.
+    var average: Double? = nil
+
+    var id: String { user_id }
+}
+
+struct SatisfactionBaseline: Codable, Sendable {
+    var since: String = ""
+    var until: String = ""
+    var answered: Int = 0
+    var average: Double = 0
+}
+
+struct SatisfactionReport: Codable, Sendable {
+    var window: ResponseTimeWindowInfo = ResponseTimeWindowInfo()
+    var asked: Int = 0
+    var answered: Int = 0
+    var average: Double? = nil
+    var sample_too_small: Bool = false
+    var minimum_sample: Int = 0
+    var distribution: [String: Int] = [:]
+    /// Jobs that needed a call back. Each already woke somebody that day.
+    var poor: Int = 0
+    var by_member: [SatisfactionMember]? = nil
+    var per_member_enabled: Bool = false
+    var baseline: SatisfactionBaseline? = nil
+    var improved_by: Double? = nil
+    var truncated: Bool = false
+    var row_limit: Int = 0
+}
+
 struct ResponseTimeReport: Codable, Sendable {
     var window: ResponseTimeWindowInfo = ResponseTimeWindowInfo()
     var leads: Int = 0

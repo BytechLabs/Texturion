@@ -108,3 +108,56 @@ export function usePipelineReport(days: ResponseTimeWindow = 30) {
       }),
   });
 }
+
+/**
+ * #313 — GET /v1/reports/satisfaction.
+ *
+ * Same rule as both of its neighbours: every number is computed server-side,
+ * INCLUDING the refusal to compute one. `average` is null when the sample is
+ * too thin to mean anything, and `sample_too_small` says which kind of nothing
+ * that is. Three clients deciding independently when five answers become a
+ * trend is three chances to show an owner a number the others would not.
+ */
+export interface SatisfactionMember {
+  user_id: string;
+  /** Null when the profile row is missing — our gap, said as such. */
+  name: string | null;
+  answered: number;
+  /** Null when this member alone is under the floor. */
+  average: number | null;
+}
+
+export interface SatisfactionReport {
+  window: { days: number; since: string; until: string };
+  asked: number;
+  answered: number;
+  average: number | null;
+  sample_too_small: boolean;
+  minimum_sample: number;
+  distribution: Record<string, number>;
+  poor: number;
+  /** Null when the owner has not turned per-person scores on. */
+  by_member: SatisfactionMember[] | null;
+  per_member_enabled: boolean;
+  baseline: {
+    since: string;
+    until: string;
+    answered: number;
+    average: number;
+  } | null;
+  improved_by: number | null;
+  truncated: boolean;
+  row_limit: number;
+}
+
+export function useSatisfaction(days: ResponseTimeWindow = 30) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: keys.satisfaction(companyId, days),
+    queryFn: () =>
+      apiFetch<SatisfactionReport>("/v1/reports/satisfaction", {
+        companyId,
+        searchParams: { days: String(days) },
+      }),
+  });
+}
