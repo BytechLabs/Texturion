@@ -342,7 +342,16 @@ describe("a per-number join the policy refuses", () => {
       expect(fake.opened.filter((t) => t === numberTopic("n1"))).toHaveLength(1);
 
       await vi.advanceTimersByTimeAsync(60_000);
-      await flush();
+      // Drained more than once, deliberately. The retry is a timer that starts
+      // an async chain (getSession -> setAuth -> subscribe), and `flush` is a
+      // single `act` drain — enough when the machine is idle, not always enough
+      // when it is not. This failed in CI at 85s for the suite against ~22s
+      // locally, on the one assertion whose subject is scheduled rather than
+      // immediate.
+      //
+      // It cannot mask a real regression: if the number were never re-opened,
+      // no number of drains would make it appear.
+      for (let i = 0; i < 5; i += 1) await flush();
 
       // Re-opened once the retry window elapses. A genuinely revoked number
       // settles into one cheap refusal a minute; one lost to a token race is back
