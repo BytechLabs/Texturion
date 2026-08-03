@@ -201,6 +201,18 @@ struct ThreadComposerView: View {
     /// end is the one shape that cannot reorder an existing call site.
     var wrapUp: WrapUpDictationContext?
 
+    /// #233: queue this text for `sendAtISO` instead of sending it now.
+    ///
+    /// Returns what the API said, because a quiet-hours 409 is a QUESTION
+    /// rather than a failure — the composer asks and retries with the flag,
+    /// which is #225 ask 2 (warned, never blocked). Nil hides the affordance
+    /// entirely: a screen with no conversation behind it has nothing to
+    /// schedule against, and an affordance that only ever fails is worse than
+    /// no affordance.
+    ///
+    /// Declared after ``wrapUp`` for the same memberwise-init reason it gives.
+    var onScheduleSend: (@MainActor (String, String, Bool) async -> ScheduleOutcome)?
+
     @State private var templatePickerOpen = false
     @State private var mentionPickerOpen = false
     /// #475: which saved reply is in the box, and what it said on arrival.
@@ -218,6 +230,14 @@ struct ThreadComposerView: View {
     @State private var businessUnknown = false
     /// #408: the pause before landing on top of a colleague's answer.
     @State private var confirmCollision = false
+    // #233 send later. All three surfaces are owned HERE rather than by the
+    // caller, because the words being scheduled live in this box: a 409 has to
+    // leave the draft where it is so the second attempt still has something to
+    // send.
+    @State private var sendLaterOpen = false
+    @State private var pickTimeOpen = false
+    /// The instant awaiting a quiet-hours answer. Nil means nothing is asked.
+    @State private var quietConfirmFor: Date?
     @State private var suggesting = false
     /// #431: which of Lou's drafts (if any) was taken into the composer, and
     /// whether any were shown at all. Kept so the outcome can be judged at the
@@ -404,6 +424,38 @@ struct ThreadComposerView: View {
                     insertMention(member)
                 }
             }
+        }
+        // #233: presets and picker are one flow — choosing "Pick a time…"
+        // dismisses the sheet and opens the picker, so a person is never
+        // looking at both. Two `.sheet` modifiers rather than one branching
+        // presentation, because SwiftUI cannot swap a sheet's content while it
+        // is on screen without dropping the transition.
+        .sheet(isPresented: $sendLaterOpen) {
+            SendLaterSheet(
+                clock: destinationClock,
+                onPick: { at in scheduleFor(at) },
+                onPickCustom: { pickTimeOpen = true }
+            )
+        }
+        .sheet(isPresented: $pickTimeOpen) {
+            SendLaterPicker(clock: destinationClock) { at in scheduleFor(at) }
+        }
+        .alert(
+            "That lands late where they are",
+            isPresented: Binding(
+                get: { quietConfirmFor != nil },
+                set: { if !$0 { quietConfirmFor = nil } }
+            )
+        ) {
+            Button("Pick another time", role: .cancel) { quietConfirmFor = nil }
+            Button("Schedule it anyway") {
+                if let pending = quietConfirmFor {
+                    quietConfirmFor = nil
+                    scheduleFor(pending, quietHoursConfirmed: true)
+                }
+            }
+        } message: {
+            Text(quietHoursScheduleMessage(localHour: destinationClock?.local_hour))
         }
         // #507: a recording must not outlive the composer that started it.
         .onDisappear { cancelWrapUp() }
@@ -639,6 +691,24 @@ struct ThreadComposerView: View {
             .lineLimit(1 ... 6)
             .font(.body)
             .padding(.vertical, 8)
+
+            // #233: send later, as a visible control beside Send rather than a
+            // long-press on it. It appears only when there are words to
+            // schedule and hides again the moment the box is empty, so it is
+            // never furniture; Send keeps the filled circle and stays the
+            // single primary. *Applying: Zen of Clarity & Relationship
+            // Strength.*
+            if canScheduleLater {
+                Button {
+                    sendLaterOpen = true
+                } label: {
+                    Image(systemName: "clock")
+                        .font(.body)
+                        .foregroundStyle(BrandColor.muted500)
+                        .frame(width: 34, height: 34)
+                }
+                .accessibilityLabel("Send later")
+            }
 
             Button {
                 requestSend()
@@ -1001,6 +1071,45 @@ struct ThreadComposerView: View {
             return
         }
         submit()
+    }
+
+    /// #233: is there anything to schedule, and anywhere to schedule it?
+    ///
+    /// A note never reaches a customer, so "later" is meaningless there.
+    private var canScheduleLater: Bool {
+        onScheduleSend != nil && !isNote && canSend
+    }
+
+    /// Queue what is in the box, and clear it exactly as a send would.
+    ///
+    /// The clear happens on SUCCESS only. The words have left the box and are
+    /// somewhere the person can see them; a draft left behind would be sent
+    /// twice by anybody who assumed otherwise, and a draft cleared on a refusal
+    /// would be a message nobody can recover.
+    private func scheduleFor(_ at: Date, quietHoursConfirmed: Bool = false) {
+        guard let schedule = onScheduleSend else { return }
+        let body = state.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty else { return }
+        let iso = ISO8601DateFormatter().string(from: at)
+        Task {
+            switch await schedule(body, iso, quietHoursConfirmed) {
+            case .scheduled:
+                quietConfirmFor = nil
+                state.clearForSend()
+                templateUse = nil
+                onNotice(
+                    "Sending \(sendAtLabel(at, in: destinationZone(destinationClock))). "
+                        + ScheduledSend.copyLine("picker_reassurance")
+                )
+            case .needsQuietHoursConfirm:
+                quietConfirmFor = at
+            // The caller has already said what went wrong, in the API's own
+            // words. A second sentence written here would either repeat it or
+            // contradict it.
+            case .failed:
+                quietConfirmFor = nil
+            }
+        }
     }
 
     private func submit() {

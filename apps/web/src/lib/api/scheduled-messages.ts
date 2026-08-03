@@ -31,6 +31,34 @@ export interface ScheduledMessage {
   sent_message_id: string | null;
   created_by: string;
   created_at: string;
+  /**
+   * Who it is going to, embedded by the list route.
+   *
+   * The thread strip does not need this — the customer's name is already in
+   * the header above it — but the workspace view is a list of texts to
+   * DIFFERENT people, and a list of bodies with no names is the surprise #233
+   * asks us to prevent rather than the answer to it.
+   */
+  conversations?: {
+    contacts: { name: string | null; phone_e164: string } | null;
+  } | null;
+}
+
+/** The customer's name, their number, or an honest fallback. */
+export function scheduledRecipient(row: ScheduledMessage): string {
+  const contact = row.conversations?.contacts;
+  if (!contact) return "This conversation";
+  const name = contact.name?.trim();
+  return name && name !== "" ? name : formatE164(contact.phone_e164);
+}
+
+/** "(416) 555-0134" for NANP, otherwise the number as stored. */
+function formatE164(e164: string): string {
+  const digits = e164.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  return e164;
 }
 
 export const scheduledKeys = {

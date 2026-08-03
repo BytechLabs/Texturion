@@ -306,6 +306,63 @@ struct DestinationClock: Codable, Sendable {
     var isQuiet: Bool { quiet ?? false }
 }
 
+/// #233 — a text that has been written and has not gone yet.
+///
+/// Deliberately NOT a ``Message``. It has no delivery status, no segments
+/// billed and no carrier id, and it may never become one — so it lives in its
+/// own table server-side and in its own type here. Nothing that reads messages
+/// can then accidentally show an unsent one as sent, which is this feature's
+/// worst possible bug: the sender believes a customer was told something they
+/// were not.
+struct ScheduledMessage: Codable, Sendable, Identifiable, Equatable {
+    let id: String
+    let conversation_id: String
+    let body: String
+    let send_at: String
+    /// The DESTINATION's zone, resolved once at schedule time and stored.
+    let clock_timezone: String
+    /// 'contact' | 'area_code' | 'company' — which rung answered.
+    var clock_source: String? = nil
+    /// 'pending' | 'held' | 'sent' | 'canceled' | 'expired' | 'failed'.
+    let status: String
+    /// Why it is not going, in the API's own words. Nil while simply waiting.
+    var held_reason: String? = nil
+    var held_at: String? = nil
+    var expires_at: String? = nil
+    var sent_message_id: String? = nil
+    var created_by: String? = nil
+    var created_at: String? = nil
+    /// Who it is going to, embedded by the list route.
+    ///
+    /// The thread strip does not need this — the customer's name is already in
+    /// the header above it — but the workspace view is a list of texts to
+    /// DIFFERENT people, and a list of bodies with no names is the surprise
+    /// #233 asks us to prevent rather than the answer to it.
+    var conversations: ScheduledConversation? = nil
+
+    var rung: String { clock_source ?? "company" }
+    var isHeld: Bool { status == "held" }
+}
+
+struct ScheduledConversation: Codable, Sendable, Equatable {
+    var contacts: ScheduledContact? = nil
+}
+
+struct ScheduledContact: Codable, Sendable, Equatable {
+    var name: String? = nil
+    @Default<DefaultEmptyString> var phone_e164: String
+}
+
+/// GET /v1/scheduled-messages.
+struct ScheduledMessagePage: Codable, Sendable {
+    let scheduled_messages: [ScheduledMessage]
+}
+
+/// POST /v1/scheduled-messages, and PATCH of one.
+struct ScheduledMessageEnvelope: Codable, Sendable {
+    let scheduled_message: ScheduledMessage
+}
+
 struct ConversationEvent: Codable, Sendable {
     let id: String
     let conversation_id: String

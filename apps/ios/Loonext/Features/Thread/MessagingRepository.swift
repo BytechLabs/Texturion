@@ -269,6 +269,83 @@ struct MessagingRepository: Sendable {
         )
     }
 
+    // MARK: - #233 send later (Android twin MessagingData.kt)
+
+    /// What is queued — one thread's, or the whole workspace's when
+    /// `conversationId` is nil.
+    ///
+    /// Live rows only by default. The finished ones are history, and a strip
+    /// that had to scroll past last month's sent messages to show what is
+    /// coming would be showing the wrong thing.
+    func scheduledMessages(
+        companyId: String,
+        conversationId: String? = nil,
+        status: String? = nil
+    ) async throws -> ScheduledMessagePage {
+        try await api.get(
+            "/v1/scheduled-messages",
+            query: ["conversation_id": conversationId, "status": status],
+            companyId: companyId
+        )
+    }
+
+    /// Queue a text for `sendAtISO`.
+    ///
+    /// `quietHoursConfirmed` rides the SECOND attempt only. The API answers 409
+    /// `quiet_hours_confirmation_required` against the FIRE instant, the screen
+    /// asks, and the retry carries the flag — #225 ask 2 is warned, never
+    /// blocked, and the handshake is recognised by CODE rather than by reading
+    /// the sentence.
+    func scheduleMessage(
+        companyId: String,
+        conversationId: String,
+        body: String,
+        sendAtISO: String,
+        quietHoursConfirmed: Bool = false
+    ) async throws -> ScheduledMessage {
+        var payload: [String: JSONValue] = [
+            "conversation_id": .string(conversationId),
+            "body": .string(body),
+            "send_at": .string(sendAtISO),
+        ]
+        if quietHoursConfirmed { payload["quiet_hours_confirmed"] = .bool(true) }
+        let envelope: ScheduledMessageEnvelope = try await api.post(
+            "/v1/scheduled-messages",
+            body: JSONValue.object(payload),
+            companyId: companyId
+        )
+        return envelope.scheduled_message
+    }
+
+    /// Move a queued text, or change its words.
+    ///
+    /// Rescheduling a HELD message puts it back in the queue — the person has
+    /// looked at why it stopped and decided it should still go. That is the
+    /// server's rule, not a guess made here; this only carries the new time.
+    func rescheduleMessage(
+        companyId: String,
+        id: String,
+        sendAtISO: String? = nil,
+        body: String? = nil,
+        quietHoursConfirmed: Bool = false
+    ) async throws -> ScheduledMessage {
+        var payload: [String: JSONValue] = [:]
+        if let sendAtISO { payload["send_at"] = .string(sendAtISO) }
+        if let body { payload["body"] = .string(body) }
+        if quietHoursConfirmed { payload["quiet_hours_confirmed"] = .bool(true) }
+        let envelope: ScheduledMessageEnvelope = try await api.patch(
+            "/v1/scheduled-messages/\(id)",
+            body: JSONValue.object(payload),
+            companyId: companyId
+        )
+        return envelope.scheduled_message
+    }
+
+    /// Cancel it. A message that has already gone is a 404, not a success.
+    func cancelScheduledMessage(companyId: String, id: String) async throws {
+        try await api.delete("/v1/scheduled-messages/\(id)", companyId: companyId)
+    }
+
     // MARK: - Tags (#159 gap-close; Android twin MessagingData.kt)
 
     /// Attach an existing tag by id. Attaching an attached tag is a no-op.

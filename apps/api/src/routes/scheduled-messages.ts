@@ -215,7 +215,15 @@ scheduledMessageRoutes.get(
       .from("scheduled_messages")
       .select(
         "id,conversation_id,body,send_at,clock_timezone,clock_source,status," +
-          "held_reason,held_at,expires_at,sent_message_id,created_by,created_at",
+          "held_reason,held_at,expires_at,sent_message_id,created_by,created_at," +
+          // WHO this is going to. The thread strip does not need it — the
+          // customer's name is already in the header above it — but the
+          // workspace view is a list of texts to DIFFERENT people, and a list
+          // of bodies with no names is the surprise #233 asks us to prevent
+          // rather than the answer to it. Embedded rather than fetched per row
+          // by each client: three clients each doing an N+1 over conversations
+          // is the same query written three times, badly.
+          "conversations(contacts(name,phone_e164))",
       )
       .eq("company_id", companyId)
       .order("send_at", { ascending: true })

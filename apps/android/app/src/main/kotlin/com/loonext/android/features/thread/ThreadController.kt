@@ -22,6 +22,9 @@ import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.MessageTaskLink
 import com.loonext.android.core.model.OutboundMedia
+import com.loonext.android.core.model.ScheduledMessage
+import com.loonext.android.core.scheduled.ScheduledSend
+import com.loonext.android.features.compose.ScheduleOutcome
 import com.loonext.android.core.model.Tag
 import com.loonext.android.core.model.Task
 import com.loonext.android.core.model.Usage
@@ -113,6 +116,19 @@ class ThreadController(
     var pinnedMessages by mutableStateOf<List<Message>>(emptyList())
         private set
     var pendingSends by mutableStateOf<List<PendingSend>>(emptyList())
+        private set
+
+    /**
+     * #233: texts written for this thread that have not gone yet.
+     *
+     * Kept OUT of [messages] and out of the reopen snapshot on purpose. A
+     * scheduled message has no delivery status and may never become a message
+     * at all, so anything that reads the timeline must not be able to see one —
+     * showing an unsent message as sent is the worst failure this feature has.
+     * It is also cheap to refetch, and a stale one restored from disk would
+     * offer to cancel something that already went out.
+     */
+    var scheduled by mutableStateOf<List<ScheduledMessage>>(emptyList())
         private set
 
     /**
@@ -248,6 +264,84 @@ class ThreadController(
         scope.launch {
             runCatching { usage = repo.usage(companyId) }
             persistSnapshot()
+        }
+        scope.launch { runCatching { refreshScheduled() } }
+    }
+
+    /**
+     * #233: what this thread still has queued.
+     *
+     * Live rows only — the finished ones are history, and the strip is about
+     * what is coming. Re-read after every inbound, because the server HOLDS a
+     * scheduled message the moment the customer replies, and a screen still
+     * saying "Sending Tue, 8:00 AM" would be telling the crew something that
+     * stopped being true.
+     */
+    private suspend fun refreshScheduled() {
+        scheduled = repo.scheduledMessages(companyId, conversationId).scheduled_messages
+    }
+
+    /**
+     * #233: queue [body] for [sendAtIso].
+     *
+     * Returns what the API said rather than notifying and swallowing it,
+     * because a quiet-hours 409 is a QUESTION: the composer has to be able to
+     * ask it and retry with the flag, which is #225 ask 2 — warned, never
+     * blocked. Everything else is reported here in the API's own words.
+     */
+    suspend fun scheduleSend(
+        body: String,
+        sendAtIso: String,
+        quietHoursConfirmed: Boolean,
+    ): ScheduleOutcome = try {
+        repo.scheduleMessage(
+            companyId,
+            conversationId,
+            body,
+            sendAtIso,
+            quietHoursConfirmed,
+        )
+        refreshScheduled()
+        ScheduleOutcome.Scheduled
+    } catch (cause: ApiDecodeException) {
+        // The row EXISTS — only our model of it disagreed. Treating this as a
+        // failure would leave a queued text on screen as an error and invite
+        // somebody to schedule a second one.
+        runCatching { refreshScheduled() }
+        ScheduleOutcome.Scheduled
+    } catch (cause: Exception) {
+        if ((cause as? ApiException)?.code
+            == ApiErrorCode.QUIET_HOURS_CONFIRMATION_REQUIRED
+        ) {
+            ScheduleOutcome.NeedsQuietHoursConfirm
+        } else {
+            notify(cause.userMessage())
+            ScheduleOutcome.Failed
+        }
+    }
+
+    /**
+     * #233: call one off.
+     *
+     * Removed from the strip before the round trip, then reconciled. Cancelling
+     * something that has not gone is reversible in the only sense that matters
+     * — you can schedule it again — so it confirms rather than asking.
+     */
+    fun cancelScheduled(id: String) {
+        val before = scheduled
+        scheduled = before.filterNot { it.id == id }
+        scope.launch {
+            try {
+                repo.cancelScheduledMessage(companyId, id)
+                notify(ScheduledSend.copy("canceled_confirmation"))
+                runCatching { refreshScheduled() }
+            } catch (cause: Exception) {
+                // It is still queued. Putting it back is the only honest state:
+                // a row that vanished from the strip while still being due to
+                // send is the silent disappearance DECISIONS.md rules out.
+                scheduled = before
+                notify(cause.userMessage())
+            }
         }
     }
 
@@ -451,7 +545,15 @@ class ThreadController(
                 val direction = payloadString(event, "direction")
                 scope.launch {
                     runCatching { refreshMessagesFirstPage() }
-                    if (direction == MessageDirection.INBOUND) newInboundTick++
+                    if (direction == MessageDirection.INBOUND) {
+                        newInboundTick++
+                        // #233: a customer answering HOLDS anything queued for
+                        // them — the API decides that, and the strip has to
+                        // stop saying "Sending Tue, 8:00 AM" the moment it
+                        // does. An outbound is our own send firing, which the
+                        // same read covers on the next open.
+                        runCatching { refreshScheduled() }
+                    }
                     markRead()
                 }
             }

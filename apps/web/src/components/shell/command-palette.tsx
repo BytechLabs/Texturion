@@ -3,6 +3,7 @@
 import { useCanOpenSettings } from "@/components/settings/settings-link-guard";
 import {
   Ban,
+  CalendarClock,
   CircleDot,
   FileText,
   Home,
@@ -62,6 +63,11 @@ const NAV_ACTIONS = [
   { label: "Calls", href: "/calls", icon: PhoneIncoming },
   { label: "Tasks", href: "/tasks", icon: ListChecks },
   { label: "Contacts", href: "/contacts", icon: Users },
+  // #233: reachable here as well as from the inbox header, because "what is
+  // queued to go out" is a question somebody has while looking at something
+  // else. It takes no rail slot — a page opened a few times a month does not
+  // earn permanent furniture. *Applying: Zen of Clarity.*
+  { label: "Scheduled", href: "/scheduled", icon: CalendarClock },
   { label: "Settings", href: "/settings", icon: Settings },
 ] as const;
 

@@ -24,6 +24,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   SCHEDULED_HOLD_REASONS,
+  SCHEDULED_SEND_COPY,
   scheduledClockProvenance,
   scheduledReasonRecovers,
 } from "@loonext/shared";
@@ -60,6 +61,28 @@ describe("#233 every client says the same thing when a text does not go", () => 
   );
 
   it.each(Object.entries(SOURCES))(
+    "%s carries every send-later sentence, verbatim",
+    (platform, path) => {
+      // The rest of the surface — picker, quiet-hours warning, confirmations.
+      // Rostered for the same reason the hold reasons are: the phone is where
+      // somebody schedules a text at 9:40pm, and a client that softens "you
+      // can send it anyway, or pick a time in their morning" into a bare
+      // refusal has quietly turned #225's warning into a block.
+      const source = read(path);
+      const missing = Object.entries(SCHEDULED_SEND_COPY)
+        .filter(([, sentence]) => !source.includes(sentence))
+        .map(([key]) => key);
+
+      expect(
+        missing,
+        `\n\n${platform} is missing send-later copy: ${missing.join(", ")}\n` +
+          `These are shared sentences, not per-platform chrome. Port them\n` +
+          `verbatim rather than writing a local version.\n`,
+      ).toEqual([]);
+    },
+  );
+
+  it.each(Object.entries(SOURCES))(
     "%s knows about no reason the roster has not been told about",
     (platform, path) => {
       // The direction that catches drift IN. A reason added to one client and
@@ -78,6 +101,7 @@ describe("#233 every client says the same thing when a text does not go", () => 
       // second vocabulary.
       const known = new Set<string>([
         ...Object.values(SCHEDULED_HOLD_REASONS),
+        ...Object.values(SCHEDULED_SEND_COPY),
         ...(["contact", "area_code", "company"] as const).map(
           scheduledClockProvenance,
         ),

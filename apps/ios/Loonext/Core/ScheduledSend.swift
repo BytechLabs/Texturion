@@ -84,6 +84,34 @@ enum ScheduledSend {
         }
     }
 
+    /// The sentences the send-later UI says on every client.
+    ///
+    /// `holdReasons` covers the states where a message did NOT go; this covers
+    /// the rest of the surface — the picker, the quiet-hours warning, the
+    /// confirmations. Here for the same reason: three clients writing their own
+    /// version of "that lands late where they are" is three different products,
+    /// and the phone is where somebody schedules a text at 9:40pm with the van
+    /// still running.
+    ///
+    /// Whole sentences only. Button labels stay per-platform, because a
+    /// SwiftUI `Button` role and a web dialog footer have different conventions
+    /// and a shared "Cancel" would be pretending otherwise.
+    static let copy: [String: String] = [
+        "picker_reassurance":
+            "You can change or cancel it any time before it goes.",
+        "quiet_hours_choice":
+            "You can send it anyway, or pick a time in their morning.",
+        "quiet_hours_unknown":
+            "That time is inside this customer's quiet hours.",
+        "canceled_confirmation":
+            "Cancelled — that text will not go out.",
+        "nothing_scheduled":
+            "Nothing is waiting to send. Anything you schedule shows up here.",
+    ]
+
+    /// One line of ``copy``, or empty rather than a crash on a key typo.
+    static func copyLine(_ key: String) -> String { copy[key] ?? "" }
+
     /// Whose clock the sender picked against, said out loud.
     ///
     /// The same three rungs and the same wording as the thread's "their time"

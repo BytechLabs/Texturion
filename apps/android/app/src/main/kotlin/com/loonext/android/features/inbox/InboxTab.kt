@@ -43,6 +43,7 @@ import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.MarkEmailRead
 import androidx.compose.material.icons.outlined.MarkEmailUnread
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Tune
 import com.loonext.android.core.model.Capability
@@ -103,7 +104,9 @@ import com.loonext.android.core.model.ConversationStatus
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.SearchResult
+import com.loonext.android.core.model.ScheduledMessage
 import com.loonext.android.core.model.Tag
+import com.loonext.android.core.scheduled.ScheduledSend
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.features.shell.LocalShellPageActive
 import com.loonext.android.features.thread.MessagingRepository
@@ -314,6 +317,17 @@ private class InboxController(
     var defaultViewId by mutableStateOf<String?>(null)
         private set
     var viewCounts by mutableStateOf<Map<String, Int>>(emptyMap())
+        private set
+
+    /**
+     * #233 — every text the WORKSPACE has queued, not just this member's.
+     *
+     * The issue asks for this "so nobody is surprised", and a crew shares one
+     * inbox: a follow-up the owner wrote on Sunday night is invisible to the
+     * tech who answers the same customer on Monday. Loaded alongside the other
+     * supporting lists, so nothing here gates the conversation list.
+     */
+    var scheduled by mutableStateOf<List<ScheduledMessage>>(emptyList())
         private set
 
     var state by mutableStateOf<LoadState<Unit>>(LoadState.Loading)
@@ -662,6 +676,40 @@ private class InboxController(
             runCatching {
                 allTags = repo.tags(companyId).data
                 cache.put(tagsKey, allTags)
+            }
+        }
+        refreshScheduled()
+    }
+
+    /** #233: what the workspace has queued. Quiet failure — it gates one icon. */
+    fun refreshScheduled() {
+        scope.launch {
+            runCatching {
+                scheduled = repo.scheduledMessages(companyId).scheduled_messages
+            }
+        }
+    }
+
+    /**
+     * #233: call one off from the workspace list.
+     *
+     * Removed before the round trip, then reconciled. Cancelling something that
+     * has not gone is reversible in the only sense that matters — you can
+     * schedule it again — so it confirms rather than asking.
+     */
+    fun cancelScheduled(id: String) {
+        val before = scheduled
+        scheduled = before.filterNot { it.id == id }
+        scope.launch {
+            try {
+                repo.cancelScheduledMessage(companyId, id)
+                notify(ScheduledSend.copy("canceled_confirmation"))
+            } catch (cause: Exception) {
+                // It is still queued. Putting it back is the only honest state:
+                // a row that vanished while still being due to send is the
+                // silent disappearance DECISIONS.md rules out.
+                scheduled = before
+                notify(cause.userMessage())
             }
         }
     }
@@ -1109,6 +1157,8 @@ private fun InboxList(
 
     var searchOpen by rememberSaveable(companyId) { mutableStateOf(false) }
     var filterSheetOpen by remember { mutableStateOf(false) }
+    /** #233: the workspace's queued texts. */
+    var scheduledSheetOpen by remember { mutableStateOf(false) }
     val haptics = rememberHaptics()
 
     // Swipe-action outcomes (#185) surface here, at TAB scope, so the close
@@ -1156,8 +1206,10 @@ private fun InboxList(
                     unreadCount = controller.pinnedRows.count { it.unread } +
                         controller.rows.count { it.unread },
                     filtersActive = controller.hasFilterChips,
+                    scheduledCount = controller.scheduled.size,
                     onSearch = { searchOpen = true },
                     onFilters = { filterSheetOpen = true },
+                    onScheduled = { scheduledSheetOpen = true },
                 )
                 Spacer(Modifier.height(14.dp))
                 Row(
@@ -1244,6 +1296,18 @@ private fun InboxList(
             )
         }
 
+        if (scheduledSheetOpen) {
+            ScheduledSheet(
+                rows = controller.scheduled,
+                onOpenConversation = { conversationId ->
+                    scheduledSheetOpen = false
+                    onOpen(conversationId)
+                },
+                onCancel = { controller.cancelScheduled(it) },
+                onDismiss = { scheduledSheetOpen = false },
+            )
+        }
+
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
 }
@@ -1252,8 +1316,15 @@ private fun InboxList(
 private fun InboxHeader(
     unreadCount: Int,
     filtersActive: Boolean,
+    /**
+     * #233: how many texts the workspace has queued. Zero withholds the
+     * control entirely — an icon that opens an empty list on most days is
+     * furniture, and this one exists to say "something IS coming".
+     */
+    scheduledCount: Int,
     onSearch: () -> Unit,
     onFilters: () -> Unit,
+    onScheduled: () -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth(),
@@ -1270,6 +1341,22 @@ private fun InboxHeader(
             }
         }
         Spacer(Modifier.weight(1f))
+        // #233: self-surfacing rather than buried. The whole ask is "so nobody
+        // is surprised", and a control that only appears when something IS
+        // queued does that without costing a permanent slot on the days
+        // nothing is. *Applying: Zen of Clarity.*
+        if (scheduledCount > 0) {
+            PaperIconButton(
+                icon = Icons.Outlined.Schedule,
+                contentDescription = if (scheduledCount == 1) {
+                    "1 text waiting to send"
+                } else {
+                    "$scheduledCount texts waiting to send"
+                },
+                onClick = onScheduled,
+            )
+            Spacer(Modifier.width(8.dp))
+        }
         PaperIconButton(
             icon = Icons.Outlined.Search,
             contentDescription = "Search",

@@ -308,6 +308,63 @@ data class DestinationClock(
     val quiet: Boolean = false,
 )
 
+/**
+ * #233 — a text that has been written and has not gone yet.
+ *
+ * Deliberately NOT a [Message]. It has no delivery status, no segments billed
+ * and no carrier id, and it may never become one — so it lives in its own table
+ * server-side and in its own type here. Nothing that reads messages can then
+ * accidentally show an unsent one as sent, which is this feature's worst
+ * possible bug: the sender believes a customer was told something they were
+ * not.
+ */
+@Serializable
+data class ScheduledMessage(
+    val id: String,
+    val conversation_id: String,
+    val body: String,
+    val send_at: String,
+    /** The DESTINATION's zone, resolved once at schedule time and stored. */
+    val clock_timezone: String,
+    /** 'contact' | 'area_code' | 'company' — which rung answered. */
+    val clock_source: String = "company",
+    /** 'pending' | 'held' | 'sent' | 'canceled' | 'expired' | 'failed'. */
+    val status: String,
+    /** Why it is not going, in the API's own words. Null while simply waiting. */
+    val held_reason: String? = null,
+    val held_at: String? = null,
+    val expires_at: String? = null,
+    val sent_message_id: String? = null,
+    val created_by: String? = null,
+    val created_at: String? = null,
+    /**
+     * Who it is going to, embedded by the list route.
+     *
+     * The thread strip does not need this — the customer's name is already in
+     * the header above it — but the workspace view is a list of texts to
+     * DIFFERENT people, and a list of bodies with no names is the surprise
+     * #233 asks us to prevent rather than the answer to it.
+     */
+    val conversations: ScheduledConversation? = null,
+)
+
+@Serializable
+data class ScheduledConversation(val contacts: ScheduledContact? = null)
+
+@Serializable
+data class ScheduledContact(
+    val name: String? = null,
+    val phone_e164: String = "",
+)
+
+/** GET /v1/scheduled-messages. */
+@Serializable
+data class ScheduledMessagePage(val scheduled_messages: List<ScheduledMessage> = emptyList())
+
+/** POST /v1/scheduled-messages, and PATCH of one. */
+@Serializable
+data class ScheduledMessageEnvelope(val scheduled_message: ScheduledMessage)
+
 @Serializable
 data class ConversationEvent(
     val id: String,

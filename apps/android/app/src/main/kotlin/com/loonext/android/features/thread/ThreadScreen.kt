@@ -943,6 +943,21 @@ private fun ThreadLoaded(
             viewerLevel = detail.viewer_level,
             viewerReadOnly = viewerReadOnly,
         )
+
+        // #233: what this thread is about to say. Above the composer and below
+        // the transcript, because a scheduled message is not a message — it has
+        // no delivery status and may never become one, and putting it in the
+        // history would mean a reader has to check a badge before believing
+        // anything above the fold actually went. Rendered here rather than
+        // inside the banner branch's `else` so a HELD text still says why:
+        // a banner means something is wrong with sending, which is exactly when
+        // a queued text is stuck and most needs saying out loud.
+        ScheduledStrip(
+            rows = controller.scheduled,
+            onCancel = { controller.cancelScheduled(it) },
+            modifier = Modifier.padding(bottom = 4.dp),
+        )
+
         ThreadComposer(
             state = composer,
             noteOnly = detail.viewer_level == "note",
@@ -1052,6 +1067,17 @@ private fun ThreadLoaded(
             // outcome report must never delay or fail the send it describes.
             reportAiOutcome = { feature, outcome ->
                 scope.launch { graph.aiRepo.reportAiOutcome(companyId, feature, outcome) }
+            },
+            // #233: queue it instead of sending it. Withheld from a notes-only
+            // or view-only member for the same reason the send path is — the
+            // API would refuse it, and an affordance that only ever fails is
+            // worse than no affordance.
+            onScheduleSend = if (detail.viewer_level == "text" && !viewerReadOnly) {
+                { body, sendAtIso, confirmed ->
+                    controller.scheduleSend(body, sendAtIso, confirmed)
+                }
+            } else {
+                null
             },
         )
     }

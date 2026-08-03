@@ -46,6 +46,7 @@ import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.AlertDialog
@@ -95,6 +96,7 @@ import com.loonext.android.features.thread.theirTimeLine
 import com.loonext.android.core.model.ReplySuggestions
 import com.loonext.android.core.model.replyDraftMessage
 import com.loonext.android.core.model.Template
+import com.loonext.android.core.scheduled.ScheduledSend
 import com.loonext.android.ui.common.AiOrb
 import com.loonext.android.ui.common.AiOrbState
 import com.loonext.android.ui.common.AppSheet
@@ -106,6 +108,7 @@ import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import java.io.ByteArrayOutputStream
+import java.time.Instant
 import java.util.Locale
 import kotlin.math.abs
 import kotlinx.coroutines.CancellationException
@@ -392,6 +395,18 @@ fun ThreadComposer(
      * somebody does, and a clock on screen all day is furniture.
      */
     destinationClock: DestinationClock? = null,
+    /**
+     * #233: queue this text for [sendAtIso] instead of sending it now.
+     *
+     * Returns what the API said, because a quiet-hours 409 is a QUESTION rather
+     * than a failure — the composer asks and retries with the flag, which is
+     * #225 ask 2 (warned, never blocked). Null hides the affordance entirely: a
+     * screen with no conversation behind it has nothing to schedule against,
+     * and an affordance that only ever fails is worse than no affordance.
+     */
+    onScheduleSend: (
+        suspend (body: String, sendAtIso: String, quietHoursConfirmed: Boolean) -> ScheduleOutcome
+    )? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -648,6 +663,49 @@ fun ThreadComposer(
     }
 
     var confirmCollision by remember { mutableStateOf(false) }
+
+    // #233 send later. The sheet, the picker and the quiet-hours question are
+    // owned HERE rather than by the caller, because the words being scheduled
+    // live in this box: a 409 has to leave the draft where it is so the second
+    // attempt still has something to send.
+    var sendLaterOpen by remember { mutableStateOf(false) }
+    var pickTimeOpen by remember { mutableStateOf(false) }
+    var quietConfirmFor by remember { mutableStateOf<Instant?>(null) }
+    val canScheduleLater = onScheduleSend != null && !isNote && canSend
+
+    /**
+     * Queue what is in the box, and clear it exactly as a send would.
+     *
+     * The clear happens on SUCCESS only. The words have left the box and are
+     * somewhere the person can see them; a draft left behind would be sent
+     * twice by anybody who assumed otherwise, and a draft cleared on a refusal
+     * would be a message nobody can recover.
+     */
+    fun scheduleFor(at: Instant, quietHoursConfirmed: Boolean = false) {
+        val schedule = onScheduleSend ?: return
+        val body = state.text.trim()
+        if (body.isEmpty()) return
+        scope.launch {
+            when (schedule(body, at.toString(), quietHoursConfirmed)) {
+                ScheduleOutcome.Scheduled -> {
+                    haptics.confirm()
+                    quietConfirmFor = null
+                    state.clearForSend()
+                    templateUse = null
+                    onNotice(
+                        "Sending ${sendAtLabel(at, destinationZone(destinationClock))}. " +
+                            ScheduledSend.copy("picker_reassurance"),
+                    )
+                }
+
+                ScheduleOutcome.NeedsQuietHoursConfirm -> quietConfirmFor = at
+                // The caller has already said what went wrong, in the API's own
+                // words. A second sentence written here would either repeat it
+                // or contradict it.
+                ScheduleOutcome.Failed -> quietConfirmFor = null
+            }
+        }
+    }
 
     fun send() {
         haptics.confirm()
@@ -1099,6 +1157,33 @@ fun ThreadComposer(
                     .padding(horizontal = 4.dp, vertical = 10.dp),
             )
 
+            // #233: send later, as a visible control beside Send rather than a
+            // long-press on it.
+            //
+            // Web splits the send pill, which works with a cursor; a 40dp pill
+            // split under a thumb gives neither half Material's minimum touch
+            // target. A long-press would fit, but IconButton owns its own tap
+            // gesture (see WrapUpMicButton) and — more to the point — a gesture
+            // with no glyph is a feature only the people who already know about
+            // it can use.
+            //
+            // It appears only when there are words to schedule and hides again
+            // the moment the box is empty, so it is never furniture. Send keeps
+            // the filled pill and stays the single primary.
+            // *Applying: Zen of Clarity & Relationship Strength.*
+            if (canScheduleLater) {
+                IconButton(onClick = {
+                    haptics.tap()
+                    sendLaterOpen = true
+                }) {
+                    Icon(
+                        Icons.Outlined.Schedule,
+                        contentDescription = "Send later",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
             FilledIconButton(
                 onClick = { submit() },
                 enabled = canSend,
@@ -1148,6 +1233,43 @@ fun ThreadComposer(
                 state.onTextChange(next)
             },
             onDismiss = { templatePickerOpen = false },
+        )
+    }
+
+    // #233: the three send-later surfaces. Presets and picker are one flow —
+    // choosing "Pick a time…" closes the sheet and opens the calendar, so a
+    // person is never looking at both.
+    if (sendLaterOpen) {
+        SendLaterSheet(
+            clock = destinationClock,
+            onPick = { at ->
+                sendLaterOpen = false
+                scheduleFor(at)
+            },
+            onPickCustom = {
+                sendLaterOpen = false
+                pickTimeOpen = true
+            },
+            onDismiss = { sendLaterOpen = false },
+        )
+    }
+
+    if (pickTimeOpen) {
+        SendLaterPicker(
+            clock = destinationClock,
+            onConfirm = { at ->
+                pickTimeOpen = false
+                scheduleFor(at)
+            },
+            onDismiss = { pickTimeOpen = false },
+        )
+    }
+
+    quietConfirmFor?.let { pending ->
+        QuietHoursScheduleDialog(
+            localHour = destinationClock?.local_hour,
+            onConfirm = { scheduleFor(pending, quietHoursConfirmed = true) },
+            onDismiss = { quietConfirmFor = null },
         )
     }
 

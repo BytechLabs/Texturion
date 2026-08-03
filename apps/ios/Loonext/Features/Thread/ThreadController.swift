@@ -46,6 +46,14 @@ final class ThreadController {
     private(set) var pinnedMessages: [Message] = []
     private(set) var pendingSends: [PendingSend] = []
 
+    /// #233: texts written for this thread that have not gone yet.
+    ///
+    /// Kept OUT of ``messages`` on purpose. A scheduled message has no delivery
+    /// status and may never become a message at all, so anything that reads the
+    /// timeline must not be able to see one — showing an unsent message as sent
+    /// is the worst failure this feature has.
+    private(set) var scheduled: [ScheduledMessage] = []
+
     /// #234: the durable queue behind `pendingSends`. Constructed here rather
     /// than injected — every caller would otherwise have to thread it through,
     /// and the logic worth testing lives in `OutboxFlusher`, which
@@ -180,6 +188,77 @@ final class ThreadController {
         Task {
             if let usage = try? await self.repo.usage(companyId: self.companyId) {
                 self.usage = usage
+            }
+        }
+        Task { try? await self.refreshScheduled() }
+    }
+
+    // MARK: - #233 send later
+
+    /// What this thread still has queued.
+    ///
+    /// Live rows only — the finished ones are history, and the strip is about
+    /// what is coming. Re-read after every inbound, because the server HOLDS a
+    /// scheduled message the moment the customer replies, and a screen still
+    /// saying "Sending Tue, 8:00 AM" would be telling the crew something that
+    /// stopped being true.
+    private func refreshScheduled() async throws {
+        scheduled = try await repo.scheduledMessages(
+            companyId: companyId,
+            conversationId: conversationId
+        ).scheduled_messages
+    }
+
+    /// Queue `body` for `sendAtISO`.
+    ///
+    /// Returns what the API said rather than notifying and swallowing it,
+    /// because a quiet-hours 409 is a QUESTION: the composer has to be able to
+    /// ask it and retry with the flag, which is #225 ask 2 — warned, never
+    /// blocked. Everything else is reported here in the API's own words.
+    func scheduleSend(
+        body: String,
+        sendAtISO: String,
+        quietHoursConfirmed: Bool
+    ) async -> ScheduleOutcome {
+        do {
+            _ = try await repo.scheduleMessage(
+                companyId: companyId,
+                conversationId: conversationId,
+                body: body,
+                sendAtISO: sendAtISO,
+                quietHoursConfirmed: quietHoursConfirmed
+            )
+            try? await refreshScheduled()
+            return .scheduled
+        } catch let error as ApiError
+            where error.code == ApiErrorCode.quietHoursConfirmationRequired {
+            return .needsQuietHoursConfirm
+        } catch {
+            notify(error.userMessage)
+            return .failed
+        }
+    }
+
+    /// Call one off.
+    ///
+    /// Removed from the strip before the round trip, then reconciled.
+    /// Cancelling something that has not gone is reversible in the only sense
+    /// that matters — you can schedule it again — so it confirms rather than
+    /// asking.
+    func cancelScheduled(_ id: String) {
+        let before = scheduled
+        scheduled = before.filter { $0.id != id }
+        Task {
+            do {
+                try await repo.cancelScheduledMessage(companyId: companyId, id: id)
+                notify(ScheduledSend.copyLine("canceled_confirmation"))
+                try? await refreshScheduled()
+            } catch {
+                // It is still queued. Putting it back is the only honest state:
+                // a row that vanished from the strip while still being due to
+                // send is the silent disappearance DECISIONS.md rules out.
+                scheduled = before
+                notify(error.userMessage)
             }
         }
     }
@@ -348,7 +427,13 @@ final class ThreadController {
             let direction = payloadString(event, "direction")
             Task {
                 try? await self.refreshMessagesFirstPage()
-                if direction == MessageDirection.inbound { self.newInboundTick += 1 }
+                if direction == MessageDirection.inbound {
+                    self.newInboundTick += 1
+                    // #233: a customer answering HOLDS anything queued for
+                    // them — the API decides that, and the strip has to stop
+                    // saying "Sending Tue, 8:00 AM" the moment it does.
+                    try? await self.refreshScheduled()
+                }
                 self.markRead()
             }
 

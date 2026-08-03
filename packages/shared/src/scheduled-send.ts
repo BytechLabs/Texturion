@@ -114,6 +114,57 @@ export function scheduledReasonRecovers(reason: ScheduledHoldReason): boolean {
 }
 
 /**
+ * The sentences the send-later UI says on every client.
+ *
+ * {@link SCHEDULED_HOLD_REASONS} covers the states where a message did NOT go.
+ * This covers the rest of the surface — the picker, the quiet-hours warning,
+ * the confirmation — and it is here for the same reason: three clients writing
+ * their own version of "that lands late where they are" is three different
+ * products, and the phone is where somebody schedules a text at 9:40pm with the
+ * van still running.
+ *
+ * Only whole sentences live here. Button labels and headings stay per-client,
+ * because each platform has its own conventions for those and a shared
+ * "Cancel" would be pretending a Kotlin `TextButton` and a Radix
+ * `DialogFooter` are the same control.
+ */
+export const SCHEDULED_SEND_COPY = {
+  /**
+   * The tail of the picker AND of the confirmation after it is queued. One
+   * sentence rather than two near-identical ones, because a roster whose job is
+   * to stop three clients drifting apart should not itself hold two ways of
+   * saying "nothing here is final".
+   */
+  picker_reassurance:
+    "You can change or cancel it any time before it goes.",
+
+  /**
+   * #225 ask 2, in one sentence: warned, never blocked. It offers BOTH doors
+   * rather than arguing for one — the tech who just finished the job at 9:40pm
+   * may well be right that this customer wants the quote tonight.
+   */
+  quiet_hours_choice:
+    "You can send it anyway, or pick a time in their morning.",
+
+  /** When the hour there is unknown — the rung answered, the clock did not. */
+  quiet_hours_unknown:
+    "That time is inside this customer's quiet hours.",
+
+  /** After it is called off. Says what will NOT happen, which is the point. */
+  canceled_confirmation:
+    "Cancelled — that text will not go out.",
+
+  /**
+   * The empty state of the workspace-level view. #233 asks for it "so nobody is
+   * surprised", and the honest empty answer is the reassurance itself.
+   */
+  nothing_scheduled:
+    "Nothing is waiting to send. Anything you schedule shows up here.",
+} as const;
+
+export type ScheduledSendCopyKey = keyof typeof SCHEDULED_SEND_COPY;
+
+/**
  * Whose clock the sender picked against, said out loud.
  *
  * Same three rungs and the same wording as the thread's "their time" line, on

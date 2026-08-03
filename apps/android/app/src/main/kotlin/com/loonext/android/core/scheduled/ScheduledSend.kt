@@ -91,6 +91,36 @@ object ScheduledSend {
     }
 
     /**
+     * The sentences the send-later UI says on every client.
+     *
+     * [HOLD_REASONS] covers the states where a message did NOT go; this covers
+     * the rest of the surface — the picker, the quiet-hours warning, the
+     * confirmations. Here for the same reason: three clients writing their own
+     * version of "that lands late where they are" is three different products,
+     * and the phone is where somebody schedules a text at 9:40pm with the van
+     * still running.
+     *
+     * Whole sentences only. Button labels stay per-platform, because a Compose
+     * `TextButton` and a web dialog footer have different conventions and a
+     * shared "Cancel" would be pretending otherwise.
+     */
+    val COPY: Map<String, String> = mapOf(
+        "picker_reassurance" to
+            "You can change or cancel it any time before it goes.",
+        "quiet_hours_choice" to
+            "You can send it anyway, or pick a time in their morning.",
+        "quiet_hours_unknown" to
+            "That time is inside this customer's quiet hours.",
+        "canceled_confirmation" to
+            "Cancelled — that text will not go out.",
+        "nothing_scheduled" to
+            "Nothing is waiting to send. Anything you schedule shows up here.",
+    )
+
+    /** One line of [COPY], or empty rather than a crash on a key typo. */
+    fun copy(key: String): String = COPY[key] ?: ""
+
+    /**
      * Whose clock the sender picked against, said out loud.
      *
      * The same three rungs and the same wording as the thread's "their time"

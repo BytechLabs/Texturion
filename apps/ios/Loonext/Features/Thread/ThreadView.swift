@@ -251,6 +251,18 @@ private struct ThreadBody: View {
                 timelinePane(names: names, contactName: contactName)
 
                 presenceStrip(detail: detail)
+                // #233: what this thread is about to say. Above the composer
+                // and below the transcript, because a scheduled message is not
+                // a message — it has no delivery status and may never become
+                // one, and putting it in the history would mean a reader has to
+                // check a badge before believing anything above the fold
+                // actually went. Rendered outside the banner branch so a HELD
+                // text still says why: a banner means something is wrong with
+                // sending, which is exactly when a queued text is stuck and
+                // most needs saying out loud.
+                ScheduledStrip(rows: controller.scheduled) { id in
+                    controller.cancelScheduled(id)
+                }
                 composerPane(detail: detail)
             }
         // #302: presence for as long as this thread is on screen.
@@ -869,6 +881,25 @@ private struct ThreadBody: View {
                 startCall(detail: detail, contactName: callContactName)
             }
         }
+        // #233: queue it instead of sending it. Withheld from a notes-only or
+        // view-only member for the same reason the send path is — the API
+        // would refuse it, and an affordance that only ever fails is worse than
+        // no affordance.
+        //
+        // An `if` and a local, not a ternary, for the reason `onCallInstead`
+        // gives above: a @MainActor function type is implicitly @Sendable, and
+        // a ternary does not carry that contextual type into the literal.
+        var onScheduleSend: (@MainActor (String, String, Bool) async -> ScheduleOutcome)?
+        if detail.viewer_level == "text", !viewerReadOnly {
+            let scheduleController = controller
+            onScheduleSend = { body, sendAtISO, confirmed in
+                await scheduleController.scheduleSend(
+                    body: body,
+                    sendAtISO: sendAtISO,
+                    quietHoursConfirmed: confirmed
+                )
+            }
+        }
         // #408: built as a LOCAL with an explicit type before the view
         // expression, for the reason the comment above `onCallInstead` gives —
         // this call site has run the Swift type checker out of budget before,
@@ -1013,7 +1044,8 @@ private struct ThreadBody: View {
             destinationClock: detail.destination_clock,
             // Last, matching its declaration position on the view — a SwiftUI
             // memberwise initialiser takes its arguments in that order.
-            wrapUp: wrapUpDictation
+            wrapUp: wrapUpDictation,
+            onScheduleSend: onScheduleSend
         )
     }
 }

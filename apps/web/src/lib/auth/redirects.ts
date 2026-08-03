@@ -25,6 +25,9 @@ const PROTECTED_PREFIXES = [
   "/tasks",
   "/contacts",
   "/templates",
+  // #233: the workspace's queued texts. Signed-out has no business here — the
+  // bodies are unsent customer messages.
+  "/scheduled",
   "/settings",
   // #515: the succession surface. Outside /settings on purpose — the named
   // backup owner is routinely a plain member, and every ownership email links

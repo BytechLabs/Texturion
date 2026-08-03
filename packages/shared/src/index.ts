@@ -427,6 +427,7 @@ export {
   SCHEDULED_PER_COMPANY_CAP,
   SCHEDULED_PER_THREAD_CAP,
   SCHEDULED_PRESET_HOUR,
+  SCHEDULED_SEND_COPY,
   isScheduledMessageLive,
   schedulePresets,
   scheduledClockProvenance,
@@ -435,6 +436,7 @@ export {
 export type {
   ScheduledHoldReason,
   ScheduledMessageStatus,
+  ScheduledSendCopyKey,
   SchedulePreset,
 } from "./scheduled-send";
 export {

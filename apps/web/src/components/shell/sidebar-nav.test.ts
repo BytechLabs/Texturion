@@ -23,7 +23,7 @@ describe("navRowsFor", () => {
     }
   });
 
-  it("shows the crew the five focus surfaces", () => {
+  it("shows the crew every focus surface, in order", () => {
     for (const role of ["owner", "admin", "member"] as MemberRole[]) {
       const hrefs = navRowsFor(role).map((row) => row.href);
       expect(hrefs, role).toEqual([
@@ -32,6 +32,9 @@ describe("navRowsFor", () => {
         "/calls",
         "/tasks",
         "/contacts",
+        // #233: the workspace's queued texts. Last, because it is the only row
+        // that answers a question about the future rather than the present.
+        "/scheduled",
       ]);
     }
   });

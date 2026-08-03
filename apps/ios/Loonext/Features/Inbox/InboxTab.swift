@@ -168,6 +168,14 @@ private final class InboxController {
     private(set) var defaultViewId: String?
     private(set) var viewCounts: [String: Int] = [:]
 
+    /// #233 — every text the WORKSPACE has queued, not just this member's.
+    ///
+    /// The issue asks for this "so nobody is surprised", and a crew shares one
+    /// inbox: a follow-up the owner wrote on Sunday night is invisible to the
+    /// tech who answers the same customer on Monday. Loaded alongside the other
+    /// supporting lists, so nothing here gates the conversation list.
+    private(set) var scheduled: [ScheduledMessage] = []
+
     /// One-shot toast for row-mutation failures (id makes repeats re-fire).
     private(set) var notice: ThreadNotice?
 
@@ -429,6 +437,40 @@ private final class InboxController {
         Task {
             if let page = try? await self.repo.tags(companyId: self.companyId) {
                 self.allTags = page.data
+            }
+        }
+        refreshScheduled()
+    }
+
+    /// #233: what the workspace has queued. Quiet failure — it gates one icon.
+    func refreshScheduled() {
+        Task {
+            if let page = try? await self.repo.scheduledMessages(
+                companyId: self.companyId
+            ) {
+                self.scheduled = page.scheduled_messages
+            }
+        }
+    }
+
+    /// #233: call one off from the workspace list.
+    ///
+    /// Removed before the round trip, then reconciled. Cancelling something
+    /// that has not gone is reversible in the only sense that matters — you can
+    /// schedule it again — so it confirms rather than asking.
+    func cancelScheduled(_ id: String) {
+        let before = scheduled
+        scheduled = before.filter { $0.id != id }
+        Task {
+            do {
+                try await repo.cancelScheduledMessage(companyId: companyId, id: id)
+                notify(ScheduledSend.copyLine("canceled_confirmation"))
+            } catch {
+                // It is still queued. Putting it back is the only honest state:
+                // a row that vanished while still being due to send is the
+                // silent disappearance DECISIONS.md rules out.
+                scheduled = before
+                notify(error.userMessage)
             }
         }
     }
@@ -862,6 +904,8 @@ private struct InboxList: View {
     @State private var controller: InboxController?
     @State private var assigneeSheetOpen = false
     @State private var tagSheetOpen = false
+    /// #233: the workspace's queued texts.
+    @State private var scheduledSheetOpen = false
     @State private var assignFor: ConversationListItem?
     /// #295: the whole notice, not just its text — the old `String?` discarded
     /// the action, so an Undo could never have been shown here.
@@ -1006,11 +1050,34 @@ private struct InboxList: View {
     private func listBody(_ controller: InboxController) -> some View {
         @Bindable var controller = controller
         VStack(spacing: 0) {
-            ScreenTitle(text: "Inbox")
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 18)
-                .padding(.top, 8)
-                .padding(.bottom, 10)
+            HStack(alignment: .firstTextBaseline) {
+                ScreenTitle(text: "Inbox")
+                Spacer(minLength: 0)
+                // #233: self-surfacing rather than buried. The whole ask is "so
+                // nobody is surprised", and a control that only appears when
+                // something IS queued does that without costing a permanent
+                // slot on the days nothing is. *Applying: Zen of Clarity.*
+                if !controller.scheduled.isEmpty {
+                    Button {
+                        scheduledSheetOpen = true
+                    } label: {
+                        Label(
+                            "\(controller.scheduled.count)",
+                            systemImage: "clock"
+                        )
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(BrandColor.muted500)
+                    }
+                    .accessibilityLabel(
+                        controller.scheduled.count == 1
+                            ? "1 text waiting to send"
+                            : "\(controller.scheduled.count) texts waiting to send"
+                    )
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
+            .padding(.bottom, 10)
 
             searchField(controller)
                 .padding(.horizontal, 18)
@@ -1131,6 +1198,17 @@ private struct InboxList: View {
                 tagSheetOpen = false
                 controller.setTagFilter(tag)
             }
+        }
+        // #233: what the workspace has queued to go out.
+        .sheet(isPresented: $scheduledSheetOpen) {
+            ScheduledSheet(
+                rows: controller.scheduled,
+                onOpenConversation: { id in
+                    controller.markLocallyRead(id)
+                    onOpen(id, nil)
+                },
+                onCancel: { controller.cancelScheduled($0) }
+            )
         }
         // The row swipe's Assign — the thread's picker, the thread's mutation.
         .sheet(

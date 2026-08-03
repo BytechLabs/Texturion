@@ -24,6 +24,9 @@ import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.OptOut
 import com.loonext.android.core.model.OutboundMedia
 import com.loonext.android.core.model.Page
+import com.loonext.android.core.model.ScheduledMessage
+import com.loonext.android.core.model.ScheduledMessageEnvelope
+import com.loonext.android.core.model.ScheduledMessagePage
 import com.loonext.android.core.model.SearchResult
 import com.loonext.android.core.model.Tag
 import com.loonext.android.core.model.TagMergeResult
@@ -253,6 +256,80 @@ class MessagingRepository(private val api: ApiClient) {
     /** #293 — bring it back now. Idempotent, so one tap is always safe. */
     suspend fun unsnooze(companyId: String, conversationId: String) {
         api.delete("/v1/conversations/$conversationId/snooze", companyId = companyId)
+    }
+
+    // --- #233 send later --------------------------------------------------
+
+    /**
+     * What is queued — one thread's, or the whole workspace's when
+     * [conversationId] is null.
+     *
+     * Live rows only by default. The finished ones are history, and a strip
+     * that had to scroll past last month's sent messages to show what is coming
+     * would be showing the wrong thing.
+     */
+    suspend fun scheduledMessages(
+        companyId: String,
+        conversationId: String? = null,
+        status: String? = null,
+    ): ScheduledMessagePage = api.get(
+        "/v1/scheduled-messages",
+        query = mapOf("conversation_id" to conversationId, "status" to status),
+        companyId = companyId,
+    )
+
+    /**
+     * Queue a text for [sendAtIso].
+     *
+     * [quietHoursConfirmed] rides the SECOND attempt only. The API answers 409
+     * `quiet_hours_confirmation_required` against the FIRE instant, the screen
+     * asks, and the retry carries the flag — #225 ask 2 is warned, never
+     * blocked, and the handshake is recognised by CODE rather than by reading
+     * the sentence.
+     */
+    suspend fun scheduleMessage(
+        companyId: String,
+        conversationId: String,
+        body: String,
+        sendAtIso: String,
+        quietHoursConfirmed: Boolean = false,
+    ): ScheduledMessage = api.post<ScheduledMessageEnvelope, JsonObject>(
+        "/v1/scheduled-messages",
+        buildJsonObject {
+            put("conversation_id", conversationId)
+            put("body", body)
+            put("send_at", sendAtIso)
+            if (quietHoursConfirmed) put("quiet_hours_confirmed", true)
+        },
+        companyId = companyId,
+    ).scheduled_message
+
+    /**
+     * Move a queued text, or change its words.
+     *
+     * Rescheduling a HELD message puts it back in the queue — the person has
+     * looked at why it stopped and decided it should still go. That is the
+     * server's rule, not a guess made here; this only carries the new time.
+     */
+    suspend fun rescheduleMessage(
+        companyId: String,
+        id: String,
+        sendAtIso: String? = null,
+        body: String? = null,
+        quietHoursConfirmed: Boolean = false,
+    ): ScheduledMessage = api.patch<ScheduledMessageEnvelope, JsonObject>(
+        "/v1/scheduled-messages/$id",
+        buildJsonObject {
+            if (sendAtIso != null) put("send_at", sendAtIso)
+            if (body != null) put("body", body)
+            if (quietHoursConfirmed) put("quiet_hours_confirmed", true)
+        },
+        companyId = companyId,
+    ).scheduled_message
+
+    /** Cancel it. A message that has already gone is a 404, not a success. */
+    suspend fun cancelScheduledMessage(companyId: String, id: String) {
+        api.delete("/v1/scheduled-messages/$id", companyId = companyId)
     }
 
     /**
