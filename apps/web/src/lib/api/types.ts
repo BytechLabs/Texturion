@@ -1051,6 +1051,12 @@ export interface Contact {
    * a property manager or a general contractor it is most of the record.
    */
   business_name?: string | null;
+  /**
+   * #291: values for the fields this workspace defined, keyed on the field's
+   * key. Absent on every contact nobody has filled one in for, which is most
+   * of them — and on the LIST projection, which does not carry them.
+   */
+  custom_fields?: Record<string, string> | null;
   consent_source: ConsentSource | null;
   consent_at: string | null;
   consent_attested_by: string | null;

@@ -152,6 +152,12 @@ export interface ContactPatch {
    * a customer who moved.
    */
   timezone?: string | null;
+  /**
+   * #291: the workspace's own fields, as a WHOLE object. A partial send would
+   * drop every value it left out — the API stores what it is given, because
+   * merging would leave no way to clear one.
+   */
+  custom_fields?: Record<string, string>;
   /** §5 consent attestation — only literal true has meaning. */
   consent_attested?: true;
 }

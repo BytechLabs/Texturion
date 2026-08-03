@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { CloseWorkspaceCard } from "@/components/settings/close-workspace-card";
+import { ContactFieldsCard } from "@/components/settings/contact-fields-card";
 import { LeaveWorkspaceCard } from "@/components/settings/leave-workspace-card";
 import { ExportDataCard } from "@/components/settings/export-data-card";
 import { TimezoneSelect } from "@/components/settings/timezone-select";
@@ -547,6 +548,12 @@ export default function WorkspaceSettingsPage() {
               are we on", and the pair reads as one idea — yours above, the
               customer's here. */}
           <QuietHoursCard company={company.data} />
+          {/* #291: the fields this workspace keeps on a customer. Below the
+              two clock cards because it is a different question — those are
+              about when we contact people, this is about what we know about
+              them — and above the export card, which carries these fields out
+              in its columns. */}
+          <ContactFieldsCard canEdit={role === "owner" || role === "admin"} />
           {/* #227: above the close card on purpose — taking a copy of your
               data is the thing you want BEFORE destroying it. */}
           {(role === "owner" || role === "admin") && <ExportDataCard />}

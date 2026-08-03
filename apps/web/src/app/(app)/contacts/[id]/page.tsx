@@ -10,6 +10,7 @@ import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 
 import { CallButton } from "@/components/calls/call-button";
 import { AddressList } from "@/components/contacts/address-list";
+import { ContactCustomFields } from "@/components/contacts/custom-fields";
 import { ContactTimeline } from "@/components/contacts/contact-timeline";
 import { ContactCallHistory } from "@/components/contacts/contact-call-history";
 import { LoadError, SettingsCard } from "@/components/settings/section";
@@ -488,6 +489,10 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
             />
             <SaveStatus state={notes.state} />
           </div>
+          {/* #291: the fields this workspace defined for itself. Absent
+              entirely until somebody defines one, so a crew that never opens
+              the settings screen never sees an empty heading. */}
+          <ContactCustomFields contact={contact} />
           <DestinationClock contact={contact} />
           <RecordAttribution contact={contact} />
         </div>
