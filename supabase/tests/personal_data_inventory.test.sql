@@ -36,6 +36,11 @@ declare
     -- has simply not gone yet, and a workspace's export and erasure have to
     -- treat it as one.
     'scheduled_messages',
+    -- #237: the workspace's own reminder wording, and how long before a job it
+    -- goes. No customer data — but it is company-scoped and must die with the
+    -- workspace, because a rule outliving closure would be the template for a
+    -- text from a business that no longer exists.
+    'appointment_reminder_rules',
     -- §2 user data (our own customers)
     'profiles', 'company_members', 'invites', 'user_sessions',
     'push_subscriptions', 'device_push_tokens', 'member_telephony_credentials',

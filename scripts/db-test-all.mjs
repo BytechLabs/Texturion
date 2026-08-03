@@ -124,6 +124,7 @@ const SUITES = [
   "aup_signals",
   "list_conversations_awaiting",
   "scheduled_messages",
+  "appointment_reminders",
 
 ];
 

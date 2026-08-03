@@ -41,7 +41,7 @@ declare
     'messaging_registrations', 'notification_prefs', 'notification_read_items',
     'notification_reads', 'number_access', 'number_port_outs', 'opt_outs',
     'outbound_call_authorizations', 'outbound_dial_leases',
-    'activation_stall_state',
+    'activation_stall_state', 'appointment_reminder_rules',
     'call_silence_state', 'feature_flag_overrides', 'number_health',
     'retention_notices', 'prepayments', 'referrals', 'saved_views',
     'scheduled_messages',
