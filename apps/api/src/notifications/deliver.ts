@@ -62,6 +62,13 @@ export interface PushPayload {
   url: string;
   /** Structural discriminator the native clients branch on (channel routing). */
   kind?: string;
+  /**
+   * #244: the alert this notification is about, when it is one somebody can
+   * claim. Its presence is what lets a client offer "I have this" instead of
+   * only a link into the thread — without it the notification is quieter but
+   * still unanswerable, which is half the feature.
+   */
+  alert_id?: string;
 }
 
 /**

@@ -29,6 +29,7 @@ import { pruneExpiredExports } from "./workspace/export";
 import { runGraceJob } from "./billing/grace";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runScheduledSendJob } from "./messaging/scheduled-send";
+import { runEscalationSweep } from "./notifications/escalation-sweep";
 import { runLivenessCheckJob } from "./observability/liveness-check";
 import { LIVENESS_EXPECTATIONS } from "./observability/liveness";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
@@ -481,7 +482,14 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     // while a chase only pushes to the crew's own phones, and putting the
     // slower, outward-facing job second keeps a Telnyx stall from eating into
     // the five-minute promise this schedule exists for.
-    expect(runs("* * * * *")).toEqual([runLeadChaseJob, runScheduledSendJob]);
+    // #244 joins them, ordered before the scheduled send: it pushes only to
+    // the crew's own phones, so a carrier stall must not eat into the grace
+    // period an on-call member is being measured against.
+    expect(runs("* * * * *")).toEqual([
+      runLeadChaseJob,
+      runEscalationSweep,
+      runScheduledSendJob,
+    ]);
     // #411: the auto-retry runs BEFORE the fail-out, and the order is the
     // assertion — a row this declines must be failed out in the SAME tick
     // rather than waiting five minutes for the next one.

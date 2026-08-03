@@ -25,6 +25,7 @@ import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runScheduledSendJob } from "./messaging/scheduled-send";
+import { runEscalationSweep } from "./notifications/escalation-sweep";
 import { runNumberHealthJob } from "./messaging/number-health";
 import { runRegistrationStallJob } from "./telnyx/registration-stalls";
 import { runActivationStallJob } from "./analytics/activation-stall";
@@ -86,6 +87,7 @@ import { notificationsRoutes } from "./routes/notifications";
 import { referralRoutes } from "./routes/referrals";
 import { savedViewsRoutes } from "./routes/saved-views";
 import { appointmentReminderRoutes } from "./routes/appointment-reminders";
+import { onCallRoutes } from "./routes/on-call";
 import { scheduledMessageRoutes } from "./routes/scheduled-messages";
 import { numbersRoutes } from "./routes/numbers";
 import { ownershipRoutes } from "./routes/ownership";
@@ -212,6 +214,7 @@ app.route("/v1", composeRoutes); // POST /v1/conversations — before conversati
 app.route("/v1", savedViewsRoutes);
 app.route("/v1", scheduledMessageRoutes);
 app.route("/v1", appointmentReminderRoutes); // #237 reminder rules
+app.route("/v1", onCallRoutes); // #244 rota + acknowledge
 app.route("/v1", conversationsRoutes);
 app.route("/v1", tasksRoutes); // D17 tasks + GET /v1/conversations/:id/tasks
 app.route("/v1", messageRoutes);
@@ -347,6 +350,16 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // a coarser cadence would make "8:00am" mean "some time between 8:00 and
     // 8:05", and the scan is a partial index over due rows only, so a quiet
     // minute costs one indexed lookup returning nothing.
+    // #244: widen an after-hours page nobody acknowledged. Every minute for the
+    // same reason as its neighbours — the grace period is the owner's own
+    // number and can be as short as one minute, so a coarser cadence would
+    // silently lengthen it. The scan is a partial index over rows with a live
+    // deadline, so a quiet minute costs one lookup returning nothing.
+    //
+    // BEFORE the scheduled send, by the rule stated above: this only pushes to
+    // the crew's own phones, while a scheduled send fans out to the CARRIER. A
+    // Telnyx stall must not eat into somebody's ten-minute grace period.
+    job("job:escalation-sweep", runEscalationSweep),
     job("job:scheduled-send", runScheduledSendJob),
   ],
   // Webhook sweeper: replay unprocessed webhook_events (both providers).

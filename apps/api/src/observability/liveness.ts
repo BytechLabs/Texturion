@@ -397,6 +397,26 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1,
     graceMinutes: 20,
   },
+  "job:escalation-sweep": {
+    what:
+      "After-hours pages (#244) are not widening — an alert sent to the " +
+      "on-call member who slept through it now reaches nobody else, ever.",
+    doThis:
+      "Workers Logs, search `cron job job:escalation-sweep failed`. THIS ONE " +
+      "IS WORSE THAN IT LOOKS, because the routing that depends on it keeps " +
+      "working: after-hours alerts are still being NARROWED to one person, " +
+      "and the safety net that made narrowing defensible is the part that is " +
+      "down. A crew whose on-call member misses a 2am emergency will never " +
+      "hear about it. If this cannot be fixed quickly, set every affected " +
+      "workspace's `on_call_escalate_after_minutes` to 0 — that is the " +
+      "documented 'tell everybody at once' setting and it bypasses this job " +
+      "entirely. Rows already claimed are NOT retried, so check " +
+      "`alert_escalations` for unacknowledged rows with `escalated_at` set " +
+      "during the outage and tell those crews rather than assuming the " +
+      "backlog drained.",
+    everyMinutes: 1,
+    graceMinutes: 20,
+  },
   "job:sweep-webhooks": {
     what: "Failed provider webhooks are not being replayed — the backstop for the entire inbound path has stopped backstopping.",
     doThis:
