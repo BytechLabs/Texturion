@@ -13,10 +13,11 @@
  * exactly how the contact-fields twin of this file was decorative until it was
  * broken on purpose.
  */
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+
+import { parityCode } from "./parity-source";
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
 
@@ -30,13 +31,7 @@ const SOURCES: Record<string, string> = {
 };
 
 /** The source with its comments removed. See the header. */
-function code(path: string): string {
-  return readFileSync(path, "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .split("\n")
-    .map((line) => line.replace(/(^|\s)\/\/.*$/, "$1"))
-    .join("\n");
-}
+const code = parityCode;
 
 /** Said on every client, verbatim. */
 const SENTENCES: readonly string[] = [

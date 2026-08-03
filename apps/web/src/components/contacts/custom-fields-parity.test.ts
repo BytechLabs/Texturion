@@ -23,6 +23,8 @@ import {
 
 import { describe, expect, it } from "vitest";
 
+import { parityCode } from "./parity-source";
+
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
 
 /** Where the shared vocabulary is hand-ported. */
@@ -68,13 +70,7 @@ const read = (path: string) => readFileSync(path, "utf8");
  * the state and left the comment in place still passed. Found by making that
  * exact change and watching the test stay green.
  */
-function code(path: string): string {
-  return read(path)
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .split("\n")
-    .map((line) => line.replace(/(^|\s)\/\/.*$/, "$1"))
-    .join("\n");
-}
+const code = parityCode;
 
 describe("#291 the contact fields read the same everywhere", () => {
   it("reads every source, so a passing run means something", () => {
