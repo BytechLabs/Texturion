@@ -97,9 +97,21 @@ function walk(dir: string): string[] {
   return out;
 }
 
-const FILES = walk(SRC).filter(
-  (f) => !ALLOWED.some((allowed) => f.includes(allowed)),
-);
+/**
+ * Path SEGMENTS, not a substring of the whole path.
+ *
+ * `f.includes("compare")` exempts anything with those letters anywhere in its
+ * path, so a future `components/compare-widget.tsx` or `lib/price-compare.ts`
+ * would be silently outside the guarantee — nothing today, and exactly the kind
+ * of reach nobody would notice being lost. An exemption should name a place,
+ * not a spelling.
+ */
+const FILES = walk(SRC).filter((f) => {
+  const segments = f.split(/[\\/]/);
+  return !ALLOWED.some((allowed) =>
+    segments.some((segment) => segment === allowed || segment.startsWith(allowed + ".")),
+  );
+});
 
 describe("no price surface types a price (#328)", () => {
   it("finds source files to check at all", () => {
