@@ -20,6 +20,7 @@ import {
 import { assignNumbersToCampaign, fetchRegistrationRows } from "./registration";
 import { billingRecipients } from "../billing/recipients";
 import { getDb } from "../db";
+import { pushPortCompleted } from "../notifications/port-completed";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 
@@ -877,6 +878,14 @@ async function runP6Completion(
     updated.company_id,
     portCompletedCopy(updated.phone_e164, env),
   );
+
+  // #319: and the push, because this is the transition the customer has to ACT
+  // on. Until now their old provider carried the line; from here their
+  // customers reach this inbox and nowhere else, so somebody who reads the news
+  // hours later has spent hours not watching it. Best-effort and awaited only
+  // so a test can observe it: the number is already live and the email already
+  // sent, so nothing about push may fail the completion.
+  await pushPortCompleted(env, db, updated.company_id, updated.phone_e164);
 
   // P6e — bridge nudge: the opt-in tide-me-over number has done its job; nudge
   // the owner to release it (their call — never automatic). Rides P6's

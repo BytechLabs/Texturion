@@ -82,7 +82,7 @@ export async function pushRegistrationApproved(
         // Names the thing they signed up to do, not the process that finished.
         // "Campaign approved" is our vocabulary; "you can text customers" is
         // theirs, and this is the notification that has to land.
-        body: "Carrier approval came through — you can text customers now.",
+        body: "Carrier approval came through. You can text customers now.",
         url: `${env.APP_ORIGIN}/inbox`,
       },
       // Once per workspace, ever. A collapse key scoped to the company means a
